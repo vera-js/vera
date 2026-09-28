@@ -108,7 +108,7 @@ back(); forward(); go(-1);
  * installed, and nothing has ever compiled a line against it. A `.d.ts` is documentation that
  * compiles, so an unexercised one is an unverified claim.
  */
-import { allowRenderLoop, setStaticStores } from '@verajs/core';
+import { allowRenderLoop } from '@verajs/core';
 import type { StoreInsert } from '@verajs/inserts';
 import {
   formatReport, getReport, isProfiling, profile, showProfiler, startProfiling, stopProfiling,
@@ -123,7 +123,6 @@ class LateAdditions extends HTMLElement {
 }
 customElements.define('x-late', LateAdditions);
 
-setStaticStores(true);
 /** A store module that wraps core's handler — the shape batching and devtools take. */
 const observeWrites: StoreInsert = (value, handler, kit) =>
   handler?.set && {

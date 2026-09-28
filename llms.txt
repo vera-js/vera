@@ -137,7 +137,6 @@ the right tool.
 | `setRenderScheduler` | `(scheduler) => previous` | Defaults to the element's own window's `requestAnimationFrame` (a popped-out window or iframe runs on its own frames). A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
-| `setStaticStores` | `(on: boolean) => void` | Server-only; `@verajs/ssr` calls it for `{ static: true }` renders — see the SSR section. In a browser it gives you a framework that does not update. |
 
 ### Props — passing data to a child component
 

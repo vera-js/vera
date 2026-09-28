@@ -81,6 +81,8 @@ const REMOVED = {
   setCss: "@verajs/styles' css",
   'deps(': 'a read inside the hook — `void state.x` — is what subscribes',
   runHooks: 'mount()',
+  /** Rehomed: static mode is @verajs/ssr's own 'store' insert, read per operation. */
+  setStaticStores: 'renderToString(url, { static: true })',
 };
 
 /**

@@ -16,15 +16,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { renderToString, renderToStringAsync } from '@verajs/ssr';
-import { isProduction } from './dist.mjs';
 
 /**
- * The refusal's *explanation* folds away in production — carrying the full sentence cost 167 gzipped
- * bytes in core, most of the feature's budget, for text an operator reads once. **The throw itself
- * does not fold**, because a server runs the production build and that is the only place this guard
- * matters. So the tests match on what both builds say and check the wording only where it exists.
+ * The refusal lives in `@verajs/ssr`, which ships its source unbuilt, so both builds carry the whole
+ * sentence — it once lived in core, where production folded the explanation away to save 167 gzipped
+ * bytes every client paid for a server-only feature.
  */
-const REFUSED = /static render|declared itself static/;
+const REFUSED = /declared itself static/;
 
 const dir = new URL('./fixtures/ssr/', import.meta.url);
 const fixtures = readdirSync(dir).filter((name) => name.endsWith('.js'));
@@ -87,9 +85,8 @@ test('a store written during a static render is refused, naming the option', asy
     () => renderToString(writer, { tag: 'static-writer-ssr', static: true }),
     (error) => {
       assert.equal(error.constructor.name, 'TypeError');
-      assert.match(error.message, REFUSED, 'says why it refused, in either build');
-      if (!isProduction)
-        assert.match(error.message, /static: true/, 'and development names the option that caused it');
+      assert.match(error.message, REFUSED, 'says why it refused');
+      assert.match(error.message, /static: true/, 'and names the option that caused it');
       return true;
     }
   );
@@ -108,10 +105,10 @@ test('the option is checked like the others', async () => {
 });
 
 /**
- * **`setStaticStores` is a global, and an async render holds it across an `await`.**
+ * **The static flag is a global, and an async render holds it across an `await`.**
  *
- * Measured directly: for the whole duration of an async static render, every store the process
- * creates is inert — a write throws in development and does nothing in production. So a second render
+ * For the whole duration of an async static render, every store in the process reads untracked and
+ * refuses a write. So a second render
  * running inside that window would produce markup with none of its updates applied, silently, which on
  * a server is one request corrupting another's output.
  *

@@ -129,16 +129,6 @@ const total = () => untrack(() => state.rows.length);  // read without subscribi
 // Reading a value inside a hook is what subscribes it — `void state.filter;` if you only need the dependency.
 ```
 
-One more, for servers: `setStaticStores(true)` makes every store created from then on a **plain
-object** — no proxy, no tracking, reads at raw property speed. It exists for `@verajs/ssr`, which
-turns it on around a render that declared itself static; in a browser it would give you a
-framework that never updates (development throws on any write to such a store to say so).
-
-```js
-import { setStaticStores } from '@verajs/core';
-setStaticStores(true);   // server-side, around a static render — never in a browser
-```
-
 ### What "deep" reaches, and what it does not
 
 A store proxies **plain objects, arrays, class instances, `Object.create(null)` objects, and the four
