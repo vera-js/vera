@@ -1,4 +1,4 @@
-import type { ComponentElement, HookCallback, TemplateResult } from '../types.js';
+import type { ComponentElement, HookCallback, ResultType, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
@@ -21,9 +21,16 @@ export const hooksQueue: WeakRef<HookCallback>[] = [];
  */
 export const proxyCallbacks = new WeakMap<object, Map<unknown, Set<WeakRef<HookCallback>>>>();
 
-/** The `html` tagged template: the strings and values, for a renderer to consume. */
-export const html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult => ({
-  ['_$litType$']: 1,
-  strings,
-  values,
-});
+/** One tag per template kind: the strings and values, marked with the kind for a renderer to consume. */
+const tag =
+  <T extends ResultType>(type: T) =>
+  (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => ({
+    ['_$litType$']: type,
+    strings,
+    values,
+  });
+
+/** The `html` tagged template. */
+export const html = tag(1);
+/** The `svg` tagged template — markup parsed as SVG, for a fragment that is not inside an `<svg>` element. */
+export const svg = /* @__PURE__ */ tag(2);
