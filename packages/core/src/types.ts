@@ -1,167 +1,42 @@
-import type { StoreProxyKeys } from '@verajs/shared-types';
-
-/** A component element with optional methods and properties */
-export interface ComponentElement extends HTMLElement, ComponentMethods, ComponentProperties {}
-
-/** Hooks queue properties shape. We redefine c and e because they are WeakRefs */
-export interface ComponentHook extends Omit<Hook, 'element' | 'callback'> {
-  /** Callback to execute when hook is triggered */
-  callback: WeakRef<HookCallback> | null;
-  /** Element WeakRef */
-  element?: WeakRef<ComponentElement>;
-}
-
-/** A component instance with a WeakRef to the current element */
-export type ComponentInstance = {
-  /** Instance element WeakRef*/
-  element?: WeakRef<ComponentElement> | null;
-};
-
-/** The methods attached to an instance when a store is created */
-export type ComponentMethods = {
-  /** Wrapped by `init` to run effect cleanups on removal; an author's own method is chained. */
-  disconnectedCallback?: () => void;
+/** A component element, carrying what `init` and the hooks attach to it. */
+export interface ComponentElement extends HTMLElement {
   /**
-   * Function that will manually run all hooks on an element. If custom functionality
-   * is needed, render can be replaced with useRender and runHooks();
+   * The element's hooks. Attached to the element so they are collected with it — the store holds
+   * them only weakly.
    */
-  runHooks?: () => void;
-};
-
-/** The framework-internal properties `init` and the hooks attach to an element. */
-export type ComponentProperties = {
-  /**
-   * The elements hooks. Hooks are attached directly to the element so that when it's
-   * garbage collected, all of it's hooks go with it. The runHooks method uses this
-   * property as a reference to the element's hooks
-   */
-  _hooks?: Hooks;
-  /** Priorities parallel to `_hooks`, which is kept dense rather than indexed by priority */
-  _hookPriorities?: number[];
-  /** Effect cleanups awaiting disconnect, kept here so removal can run them (see `init`). */
-  _cleanups?: Set<HookCleanup>;
-  /**
-   * Whether this element's cleanups have already been swept by a disconnect.
-   *
-   * Set *after* that sweep, so a cleanup registered from then on — an effect that called `remove()`
-   * on itself and has not returned yet — is run immediately rather than added to a set nothing will
-   * drain again. Cleared by `init()`, because a reconnection owes its cleanups a later removal.
-   */
-  _removed?: boolean;
-  /**
-   * How many times this element has been `init()`ed. A hook captures the value it was created
-   * under and does nothing when it no longer matches — see `createHook`.
-   */
-  _gen?: number;
+  _hooks?: Set<HookCallback>;
   /**
    * The root this element renders into, kept because `element.shadowRoot` is **null for a closed
    * shadow root** — that is what closed means, and it applies to the framework too. Read across
    * package boundaries by the `'render'` insert and by `@verajs/styles`, so it is a cross-boundary
-   * contract like `_hooks` and must never be mangled.
+   * contract and must never be mangled.
    */
   _root?: ShadowRoot;
-  /**
-   * What a parent's property bindings delivered before this element could receive them, recorded
-   * by `@verajs/renderer` (both its template parts and `spread`) and drained by `init()` into
-   * reactive accessors. A cross-BUNDLE contract, not just cross-package: the recorders live in
-   * separately built bundles on a CDN page, so the `_$…$` sigil is what keeps the name stable
-   * under mangling. Deleted by the drain; absent on any element whose parent bound nothing.
-   */
-  _$props$?: Record<string, unknown>;
-  /**
-   * The live half of the same contract: `init()` installs this receiver once per element, and a
-   * property delivered AFTER the drain — a hydrated child whose parent commits late, a spread bag
-   * growing a key on a live element — is handed here by the renderer instead of recorded. Adopting
-   * a key defines the store-backed accessor and seeds it, so a late prop is exactly as reactive as
-   * an early one.
-   */
-  _$adopt$?: (key: string, value: unknown) => void;
-};
-
-/** A constructed stylesheet paired with its source text — shared with `@verajs/styles`, one home. */
-export type { CSSResultGroup } from '@verajs/shared-types';
-
-/** Hook with a callback and priority */
-export type Hook = {
-  /** Callback to execute when hook is triggered */
-  callback: HookCallback | null;
-  /** Element to bind hook to, ignoring the init element */
-  element?: ComponentElement;
-  /** Priority relative to other hooks */
-  priority: number | null;
-};
-
-/** Returned from a hook to undo whatever it set up; run before the next pass and on teardown. */
-export type HookCleanup = () => void;
+}
 
 /** A hook's callback: handed the signal that woke it, and `init` on the first pass. */
-export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup;
-
-/** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
-export type Hooks = Set<HookCallback>[];
+export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void;
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RenderTemplate = <V>(signal?: Signal<V>) => any;
 
 /**
- * Marker values distinguishing template kinds, matching lit's numbering: html, svg, mathml.
- * Defined here rather than imported so core keeps no dependency on lit — `setHtml` exists precisely
- * so the template function can be swapped.
+ * The object core's `html` tag produces. Structurally compatible with lit-html's `TemplateResult`
+ * (`_$litType$` 1 is html), so a lit renderer consumes it directly.
  */
-export type ResultType = 1 | 2 | 3;
-
-/**
- * The object core's built-in `html` tag produces.
- *
- * Structurally compatible with lit-html's `TemplateResult`, so a lit renderer consumes it directly.
- * It was previously referenced in `store.ts` without ever being defined or imported, which meant the
- * emitted `.d.ts` carried a dangling reference and every TypeScript consumer got
- * `TS2304: Cannot find name 'TemplateResult'` on import.
- */
-export type TemplateResult<T extends ResultType = 1> = {
-  _$litType$: T;
+export type TemplateResult = {
+  _$litType$: 1;
   strings: TemplateStringsArray;
   values: unknown[];
 };
 
-/** One property's delta across a coalesced batch */
-export type SignalChange = { value?: unknown; prevValue?: unknown };
-
-/**
- * Signal parameters.
- *
- * `prop` / `value` / `prevValue` describe the most recent change. `changed` is present on coalesced
- * runs and carries every property touched during the batch, each mapped to its value at the start
- * of the batch and at the end.
- */
+/** The change that woke a hook: which property, and its value after and before. */
 export type Signal<V> = {
-  /** `PropertyKey | unknown` in truth — collection keys pass through unchanged (objects included). */
   prop?: string;
   value?: V;
   prevValue?: V;
-  changed?: Map<string, SignalChange>;
 };
 
-/** Represents the store object with additional _isSignal and _ignore properties */
-export type Store<T extends object = object> = T & StoreProxyKeys;
-
-/**
- * How a re-render is deferred. Swappable for the same reason `setHtml` is, and for the same reason
- * the renderer itself is wired rather than built in: the right answer depends on the app, and the
- * framework should not decide it for you.
- *
- * The default is an animation frame, which aligns updates to the display and coalesces naturally.
- * The cost is a frame boundary: work scheduled in `requestAnimationFrame` leaves the browser only
- * the remainder of that frame to lay out and paint, which shows up as latency on large updates.
- *
- * A microtask is what Lit and Vue use — the DOM is updated immediately and the browser gets the
- * whole frame to paint. Usually faster for big trees, at the cost of possibly running more than
- * once per frame if writes straddle microtask boundaries.
- *
- * `element` is the component the pass belongs to, when there is one, so a scheduler can use the
- * element's own window: `requestAnimationFrame` ticks per window, and an element moved into a
- * popped-out window or an iframe must not wait on the opener's clock — which stops when the
- * opener's tab is hidden. The default does exactly that; a one-argument scheduler ignores it.
- */
-export type RenderScheduler = (run: () => void, element?: Element) => void;
+/** A reactive store over `T`. */
+export type Store<T extends object = object> = T;
