@@ -88,7 +88,9 @@ code, so they are not re-litigated.
   The machine CAN be the cause, but check it rather than assume: here it was Spotlight
   (`corespotlightd` at 150% CPU) reindexing the files our own builds had just written — it settles
   within a minute or two of the last build. Look at `ps -Ao pcpu,comm -r | head` before a race; there
-  is nothing else to close on this machine.
+  is nothing else to close on this machine. **And leave it time to cool** (Brian, 2026-09-27): a few
+  minutes after the last build, gate or race before any timing run, and between consecutive races —
+  it is a fanless laptop, and correctness suites are the only thing that can run back to back.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
   `@verajs/store`, `@verajs/store/collections`, anything built on core's public API — resolves core
