@@ -34,9 +34,9 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire, init, render, html, css } = await load('core');
+const { wire, init, render, html } = await load('core');
 const { renderer } = await load('renderer');
-const { styles } = await load('styles');
+const { styles, css } = await load('styles');
 wire([renderer, styles]);
 const doc = dom.window.document;
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
