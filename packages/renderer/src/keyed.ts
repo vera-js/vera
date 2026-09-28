@@ -12,24 +12,47 @@ import type { Item, KeyedResult, ListStrategy } from './renderer.js';
 const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const count = values.length;
 
-  /** The dominant case — same keys, same order (a selection, a field edit): update in place, allocate nothing. */
-  if (items.length === count) {
-    let i = 0;
-    while (i < count && items[i].$k === (values[i] as KeyedResult).key) {
-      items[i] = part.$u(items[i], values[i]);
-      i++;
-    }
-    if (i === count) return items;
+  /**
+   * The unchanged run at each end — matched without allocating. When what remains between them is only
+   * removals (a row deleted) or only insertions (rows appended, prepended, inserted), it is settled here
+   * with one `splice`; a same-order update is the case where nothing remains at all.
+   */
+  let start = 0;
+  let oldEnd = items.length - 1;
+  let newEnd = count - 1;
+  while (start <= oldEnd && start <= newEnd && items[start].$k === (values[start] as KeyedResult).key) {
+    items[start] = part.$u(items[start], values[start]);
+    start++;
+  }
+  while (oldEnd >= start && newEnd >= start && items[oldEnd].$k === (values[newEnd] as KeyedResult).key) {
+    items[oldEnd] = part.$u(items[oldEnd], values[newEnd]);
+    oldEnd--;
+    newEnd--;
+  }
+  if (start > newEnd) {
+    for (let i = start; i <= oldEnd; i++) part.$d(items[i]);
+    if (start <= oldEnd) items.splice(start, oldEnd - start + 1);
+    return items;
+  }
+  if (start > oldEnd) {
+    const ref = start < items.length ? part.$f(items[start]) : end;
+    const added: Item[] = new Array(newEnd - start + 1);
+    for (let i = start; i <= newEnd; i++) added[i - start] = part.$c(values[i], parent, ref);
+    items.splice(start, 0, ...added);
+    return items;
   }
 
+  /** A genuine reorder: the full algorithm, picking up where the ends left off. */
   const oldItems: (Item | null)[] = items;
   const newKeys: unknown[] = new Array(count);
-  for (let i = 0; i < count; i++) newKeys[i] = (values[i] as KeyedResult).key;
+  for (let i = start; i <= newEnd; i++) newKeys[i] = (values[i] as KeyedResult).key;
   const newItems: Item[] = new Array(count);
-  let oldHead = 0;
-  let oldTail = oldItems.length - 1;
-  let newHead = 0;
-  let newTail = count - 1;
+  for (let i = 0; i < start; i++) newItems[i] = items[i];
+  for (let i = newEnd + 1, j = oldEnd + 1; i < count; i++, j++) newItems[i] = items[j];
+  let oldHead = start;
+  let oldTail = oldEnd;
+  let newHead = start;
+  let newTail = newEnd;
   let newKeyToIndex: Map<unknown, number> | undefined;
   let oldKeyToIndex: Map<unknown, number> | undefined;
   const refAt = (i: number): Node | null => (i < count && newItems[i] !== undefined ? part.$f(newItems[i]) : end);

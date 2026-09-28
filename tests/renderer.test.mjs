@@ -254,6 +254,15 @@ test('one position can switch between a keyed and an unkeyed list, both ways, wi
   assert.ok(items()[1] === kept, 'and the keyed pass that follows still keeps identity');
 });
 
+test('a removed keyed row is gone from the list for good — re-adding its key renders it again', () => {
+  renderInto(ul(data(1, 2, 3, 4, 5).map(row)), el);
+  renderInto(ul(data(1, 2, 4, 5).map(row)), el);
+  renderInto(ul(data(1, 2, 4, 5).map(row)), el);
+  assert.deepEqual(texts(), ['1:L1', '2:L2', '4:L4', '5:L5']);
+  renderInto(ul(data(1, 2, 3, 4, 5).map(row)), el);
+  assert.deepEqual(texts(), ['1:L1', '2:L2', '3:L3', '4:L4', '5:L5'], 'the removed row did not linger in the bookkeeping');
+});
+
 test('keyed swap moves nodes instead of rewriting them', () => {
   renderInto(ul(data(1, 2, 3, 4).map(row)), el);
   const [a, b, c, d] = items();
