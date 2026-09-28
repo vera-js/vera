@@ -253,6 +253,26 @@ test('useLayoutEffect runs, and before useEffect', async () => {
   assert.ok(order.indexOf('layout') < order.indexOf('effect'), 'layout runs before effect');
 });
 
+/**
+ * **The render hook belongs to the component being set up; the element given is only where it draws.**
+ * `init(a); useRender(t, b); mount()` renders into `b`, driven by `a`'s lifecycle. Making `b` the hook's
+ * owner (tried in the lean rebuild, 2026-09-28, as a "fix") left the hook on an element nothing commits,
+ * so it never ran — and no test failed, because every existing call passed the element being set up.
+ */
+test('useRender draws into the element given, driven by the component being set up', async () => {
+  const seen = [];
+  wire({ on: 'render', fn: (result, target) => seen.push(target), priority: 51 });
+  const owner = document.createElement('div');
+  const target = document.createElement('div');
+  host.append(owner, target);
+  init(owner);
+  useRender(() => html`<i>elsewhere</i>`, target);
+  core.mount();
+  await settle();
+  assert.ok(seen.includes(target), 'the owner\'s commit drew into the element given');
+  wire({ on: 'render', fn: () => {}, priority: 51 });
+});
+
 test('useRender renders into an element given explicitly', async () => {
   const seen = [];
   wire({ on: 'render', fn: (result, element) => seen.push({ result, element }), priority: 50 });
