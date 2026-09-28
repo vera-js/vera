@@ -169,3 +169,28 @@ test('one object tagged with Symbol.toStringTag is its own type, claimable alone
   assert.deepEqual(reads.filter((p) => p === 'v'), ['v'], 'only the tagged object ran the claiming handler');
   core.wire({ on: 'store', priority: 45, fn: (type, handler) => handler });
 });
+
+/**
+ * **A module that breaks while a NEW type is decided leaves every type** — not only the new one. It had
+ * already been applied to the types met before; once it throws, all of them are decided again without it.
+ */
+test('a module that throws for a type met later is dropped from the types it was already applied to', () => {
+  const plain = core.createStore({ q: 1 });
+  let wrapped = 0;
+  core.wire({
+    on: 'store',
+    priority: 46,
+    fn: (type, handler) => {
+      if (type === 'regexp') throw new Error('regexp-boom');
+      return handler?.get && { ...handler, get: (...a) => (wrapped++, handler.get(...a)) };
+    },
+  });
+  void plain.q;
+  assert.ok(wrapped > 0, 'CONTROL: applied to plain objects while it works');
+  assert.throws(() => core.createStore(/x/), /regexp-boom/, 'the new type surfaced the failure, once');
+  wrapped = 0;
+  void plain.q;
+  assert.equal(wrapped, 0, 'and it left the type it had already been applied to');
+  assert.doesNotThrow(() => core.createStore(/y/), 'and does not throw again');
+  core.wire({ on: 'store', priority: 46, fn: (type, handler) => handler });
+});
