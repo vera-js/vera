@@ -276,6 +276,11 @@ The shape of the product:
   0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
   use it.)
 - At minimum you need **a renderer**. Everything else is opt-in.
+- **Speed is the headline feature** (Brian, 2026-09-28): Vera must beat every other tool on EVERY
+  metric of every benchmark — not one row lost — measured in real browsers people use (the installed
+  Chrome headed, and Firefox and Safari), judged on the TYPICAL case (median across sessions, sessions
+  won), never on a best-of-N minimum alone. **Speed outranks size**, and size is still super important:
+  a byte-for-speed trade is taken; a speed-for-bytes trade is not.
 
 **History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head
 rather than from established practice, and is acknowledged as not the best. Much of the tree is
