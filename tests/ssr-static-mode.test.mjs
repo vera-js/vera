@@ -157,3 +157,41 @@ test('and a static render that throws still frees the queue for the next one', a
   assert.equal(outcome, 'rejected: TypeError', 'the static render still refused the write');
   assert.equal(later.html, reference.html, 'and the queue carried on, reactive');
 });
+
+/**
+ * **What static mode skips is the store's read handler — measured, not inferred from the markup.**
+ * Identical markup is the safety property; the POINT is speed, and the markup is identical whether or
+ * not the bypass works. A store module registered below the server's own sees every read the core
+ * handler serves: none during a static render, and some during a normal one (the control).
+ */
+test('a static render never reaches the store\'s read handler', async () => {
+  const { wire } = await import('@verajs/core');
+  const counted = await import('./fixtures/ssr/static-reads-ssr.js');
+  wire({
+    on: 'store',
+    priority: 60,
+    fn: (value, handler) =>
+      value.counted && handler
+        ? { ...handler, get: (...args) => (counted.reads.count++, handler.get(...args)) }
+        : handler,
+  });
+  const url = new URL('./fixtures/ssr/static-reads-ssr.js', import.meta.url);
+
+  counted.reads.count = 0;
+  const normal = await renderToString(url);
+  assert.ok(counted.reads.count > 0, 'CONTROL: a normal render reads through the handler');
+
+  counted.reads.count = 0;
+  const quick = await renderToString(url, { static: true });
+  assert.equal(counted.reads.count, 0, 'a static render bypassed it');
+  assert.equal(quick.html, normal.html);
+});
+
+/** The flag belongs to the render: once it ends, a store written anywhere else is reactive again. */
+test('after a static render, a store outside any render is writable', async () => {
+  const { createStore } = await import('@verajs/core');
+  await renderToString(new URL('./fixtures/ssr/static-reads-ssr.js', import.meta.url), { static: true });
+  const state = createStore({ n: 1 });
+  state.n = 2;
+  assert.equal(state.n, 2);
+});

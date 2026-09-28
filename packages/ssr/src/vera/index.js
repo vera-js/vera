@@ -129,19 +129,24 @@ const buildInstance = (tag, attrString) => {
   const marker = attributes.find(([name]) => name === INSTANCE_ATTRIBUTE)?.[1];
   const pending = marker === undefined ? undefined : pendingInstances.get(marker);
   const element = pending?.localName === tag ? pending : new (registry.get(tag))();
+  /**
+   * Unregistered HERE, and only when picked up: a marker is an attribute, so a copy of it can sit on
+   * another tag, and unregistering whatever marker an element carries let that copy rob the instance
+   * it names of its pickup — rebuilt from the tag, without what the parent gave it.
+   */
+  if (element === pending) pendingInstances.delete(marker);
   element.localName = tag;
   for (const [name, value] of attributes) element.setAttribute(name, value);
   return element;
 };
 
 /**
- * Before the lifecycle: the marker unregistered and removed, `props` assigned, children placed — where a
+ * Before the lifecycle: the marker removed, `props` assigned, children placed — where a
  * client parser would already have put them — and, for light-DOM slots, the host's children held out so
  * the slots module can distribute them after the template renders.
  */
 const prepareInstance = (element, tag, props, children) => {
   element._rendered = true;
-  pendingInstances.delete(element.getAttribute(INSTANCE_ATTRIBUTE));
   element.removeAttribute(INSTANCE_ATTRIBUTE);
   if (props)
     for (const [name, value] of Object.entries(props)) {

@@ -69,3 +69,13 @@ await assert.rejects(
   /refused the bound property `\.strict`.*setter threw/,
   'a setter that throws is the component’s own error, reported against the tag and property'
 );
+
+/**
+ * **A marker produces only the component it was written for.** It is an attribute, so anything that
+ * copies attributes copies it — here a component clones a pending child's attributes onto a different
+ * tag, placed first so the scan meets the copy before the original. Picking the instance up by marker
+ * alone rendered `copy-b` as `copy-a`'s instance, with `copy-a`'s props.
+ */
+const copied = (await renderToString(new URL('./fixtures/ssr/marker-copy-ssr.js', import.meta.url))).html;
+assert.match(copied, /<copy-b><template shadowrootmode="open"><i>B<\/i>/, 'the copy renders as itself');
+assert.match(copied, /<copy-a><template shadowrootmode="open"><b>A:7<\/b>/, 'CONTROL: the original got its props');
