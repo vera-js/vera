@@ -39,5 +39,18 @@ const handler: ProxyHandler<object> = {
   },
 };
 
+/**
+ * Raw object → its proxy, for every store at once. The same object always comes back as the same
+ * proxy — `state.a === state.a`, and `createStore(config) === createStore(config)` — where a fresh
+ * proxy per read broke every identity comparison in consumer code (a list re-keying, a memo missing).
+ * One map serves all stores because there is one handler: nothing about a proxy depends on which
+ * store reached it.
+ */
+const proxies = new WeakMap<object, object>();
+
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
-export const createProxy = <T extends object>(data: T): T => new Proxy(data, handler) as T;
+export const createProxy = <T extends object>(data: T): T => {
+  let proxy = proxies.get(data);
+  if (proxy === undefined) proxies.set(data, (proxy = new Proxy(data, handler)));
+  return proxy as T;
+};
