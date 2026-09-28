@@ -13,29 +13,106 @@ const track = (obj: object, prop: PropertyKey) => {
 };
 
 /** Wakes every live hook that read `obj[prop]`, dropping the ones whose element is gone. */
-const trigger = (obj: object, prop: PropertyKey, signal: Signal<unknown>) => {
+const trigger = (obj: object, prop: PropertyKey, value: unknown, prevValue: unknown) => {
   const hooks = proxyCallbacks.get(obj)?.get(prop);
   if (hooks === undefined) return;
   for (const ref of hooks) {
     const hook = ref.deref();
     if (hook === undefined) hooks.delete(ref);
-    else hook(signal);
+    else hook({ prop: prop as string, value, prevValue } as Signal<unknown>);
   }
 };
 
-/** One handler for every store: a read subscribes, and a write that changes something wakes the readers. */
+/**
+ * The channel an object's **shape** is published on, as distinct from any one key: a key added or
+ * removed. Anything that enumerates — `Object.keys`, `for…in`, `{ ...state.o }`, `JSON.stringify` —
+ * depends on the set of keys, which no per-key subscription can describe, so it subscribes here.
+ * `@verajs/store/collections` notifies the same literal for a Map or Set; a production bundle inlines
+ * its dependencies, so an import would subscribe to one string and notify another.
+ */
+const GLOBAL = '_global';
+
+/**
+ * The exact property the `set` trap is writing, which `defineProperty` reads to recognize its own
+ * re-entry. `Reflect.set` with the proxy as receiver — what makes a setter run with `this` bound to the
+ * proxy, so writes inside one are tracked — routes the write through the receiver's
+ * `[[DefineOwnProperty]]`, which re-enters that trap for a write `set` already reports. Matching on the
+ * pair suppresses exactly that one duplicate: a setter that defines some *other* property still
+ * notifies. Cleared in a `finally`, so a throwing setter cannot leave writes suppressed.
+ */
+let writingObj: object | null = null;
+let writingProp: PropertyKey | null = null;
+
+/**
+ * One handler for every store: a read subscribes, and a write that changes something wakes the
+ * readers — through every door the language has, not only `=`: `in`, enumeration, `delete` and
+ * `Object.defineProperty` each read or change what a template can show.
+ */
 const handler: ProxyHandler<object> = {
   get(obj, prop, receiver) {
     const value = Reflect.get(obj, prop, receiver);
     track(obj, prop);
     return value !== null && typeof value === 'object' ? createProxy(value) : value;
   },
+  /** `key in state.form` decides what renders, so it subscribes like a read. */
+  has(obj, prop) {
+    track(obj, prop);
+    return Reflect.has(obj, prop);
+  },
+  ownKeys(obj) {
+    track(obj, GLOBAL);
+    return Reflect.ownKeys(obj);
+  },
   set(obj, prop, value, receiver) {
     const prevValue = Reflect.get(obj, prop, receiver);
     if (prevValue === value) return true;
-    const written = Reflect.set(obj, prop, value, receiver);
-    if (written) trigger(obj, prop, { prop: prop as string, value, prevValue });
+    const added = !Object.prototype.hasOwnProperty.call(obj, prop);
+    /**
+     * Assigning past the end of an array moves `length` as an internal consequence, never through
+     * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write.
+     */
+    const grew = Array.isArray(obj) && +(prop as string) >= obj.length;
+    writingObj = obj;
+    writingProp = prop;
+    let written;
+    try {
+      written = Reflect.set(obj, prop, value, receiver);
+    } finally {
+      writingObj = null;
+    }
+    if (written) {
+      trigger(obj, prop, value, prevValue);
+      if (added) trigger(obj, GLOBAL, value, prevValue);
+      if (grew) trigger(obj, 'length', (obj as unknown[]).length, +(prop as string));
+    }
     return written;
+  },
+  /**
+   * The other way to write a property, which does not pass through `set` — how `Object.freeze` writes
+   * and how adapters install accessors. Descriptors are compared, never read back: `Reflect.get` would
+   * invoke an accessor at definition time, untracked, on the raw object.
+   */
+  defineProperty(obj, prop, descriptor) {
+    if (obj === writingObj && prop === writingProp) return Reflect.defineProperty(obj, prop, descriptor);
+    const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
+    const defined = Reflect.defineProperty(obj, prop, descriptor);
+    if (defined) {
+      if (!previous || descriptor.value !== previous.value || descriptor.get !== previous.get)
+        trigger(obj, prop, descriptor.value, previous?.value);
+      if (!previous) trigger(obj, GLOBAL, descriptor.value, undefined);
+    }
+    return defined;
+  },
+  /** Deleting a key changes both the key's value (to `undefined`, what a read now returns) and the shape. */
+  deleteProperty(obj, prop) {
+    const had = prop in obj;
+    const prevValue = had ? Reflect.get(obj, prop) : undefined;
+    const deleted = Reflect.deleteProperty(obj, prop);
+    if (deleted && had) {
+      trigger(obj, prop, undefined, prevValue);
+      trigger(obj, GLOBAL, undefined, prevValue);
+    }
+    return deleted;
   },
 };
 
