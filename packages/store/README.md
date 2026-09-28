@@ -17,9 +17,9 @@ core, so loading both still leaves one core, one insert registry and one store i
 
 The two reach core from opposite directions, and the difference decides how any future member is
 written. `computed` **calls into** core — it imports `createStore` and `createHook`, because there is
-no derived value without a store. `collections` is **called by** core: it implements the
-`'collection'` extension point, so core hands it `addCallback` and `runCallbacks` at dispatch and it
-imports nothing at all. The question that settles which shape a module takes is *does core call you,
+no derived value without a store. `collections` is **called by** core: it is a `'store'` insert, so
+core hands it its reactivity (the kit: `track`, `trigger`, `shape`) when a store first meets a
+`Map` or `Set`, and it imports nothing from core. The question that settles which shape a module takes is *does core call you,
 or do you call core?*
 
 ```sh
@@ -138,36 +138,33 @@ different objects from the components reading them.
 as it was put in, so mutating an object *inside* a collection notifies nothing — replace the entry
 instead. `WeakMap` and `WeakSet` work and cannot be iterated, so they subscribe per key only.
 
-Two more exports are the extension point itself, for anyone implementing the `'collection'` insert
-rather than using this one:
-
-| | |
-| --- | --- |
-| `collectionMethod` | the implementation `collections` wires. Wrap it to add a type, or read it as the reference |
-| `GLOBAL` | the key that means *the collection changed shape*, as opposed to one entry changing |
-
-`GLOBAL` is `'_global'`, and **it is a contract with `@verajs/core`, which declares the same literal
-rather than importing it.** A production bundle inlines its dependencies, so an import would work in
-development and, in production, subscribe to one string while notifying another. Core tracks it from
-`ownKeys` and from a `size` read; a collection implementation notifies it on every mutation that adds
-or removes an entry. Notify something else and `${state.map.size}` silently stops updating.
+**A reactive type of your own is a `'store'` insert too** — the extension point `collections`
+itself uses, and the only one. It is consulted once, when a store first uses a value, and handed the
+handler chosen so far plus core's kit; return a handler for your type and pass everything else through:
 
 ```js
-import { collectionMethod, GLOBAL } from '@verajs/store/collections';
 import { wire } from '@verajs/core';
 
-/** The signature is the `'collection'` insert's own — `collectionMethod` IS the registered fn,
- *  so a custom implementation wraps it: claim your type, delegate everything else verbatim.
- *  Core calls the chain's FIRST entry and caches it, so register before the first store read. */
 wire({
-  on: 'collection',
-  priority: 40, // before the stock one at 50 — first in the chain is the one core calls
-  fn: (obj, prop, propValue, addCallback, runCallbacks) =>
-    obj instanceof MyCollection
-      ? wrapMyCollection(obj, prop, propValue, addCallback, runCallbacks) // notify GLOBAL on shape changes
-      : collectionMethod(obj, prop, propValue, addCallback, runCallbacks),
+  on: 'store',
+  priority: 60, // after the stock collections (50), so a Map subclass of yours is yours
+  fn: (value, handler, kit) =>
+    value instanceof MyCollection
+      ? {
+          get(obj, prop) {
+            if (prop === 'size') kit.track(obj, kit.shape);   // shape readers subscribe here
+            // …wrap methods: kit.track(obj, key) on reads, kit.trigger(obj, key, next, prev) and
+            // kit.trigger(obj, kit.shape, …) on mutations
+            return Reflect.get(obj, prop, obj);
+          },
+        }
+      : handler,
 });
 ```
+
+`kit.shape` is the channel meaning *the container changed shape*, as opposed to one entry changing.
+It comes from core at runtime rather than as a literal of your own, so what you notify is always
+what core and every other module track.
 
 ## For AI assistants — and anyone who wants the whole API on one page
 

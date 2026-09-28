@@ -134,16 +134,18 @@ callbacks re-run. Tracking is per-property rather than per-store, so unrelated p
 re-render.
 
 Bookkeeping is deliberately weak-referenced — `proxyCallbacks` is a
-`WeakMap<object, Map<string, Map<WeakRef<Element>, PropSubscriptions>>>`, where
-`PropSubscriptions` pairs the priority-ordered callback sets with their priorities — so detached
-elements are not retained. Anything that stores a strong element reference defeats this.
+`WeakMap<object, Map<key, Set<WeakRef<hook>>>>` (a weak collection's inner map is a `WeakMap`, so a
+tracked entry key is not retained) and an element holds its hooks strongly — so detached elements
+and their subscriptions are not retained. Anything that stores a strong element reference defeats
+this.
 
-The `'proxy-handler'` insert is the extension point for transforming values as they are read
-(`examples/cdn-js/src/inserts/computed.js` demonstrates it). Map/Set reactivity is **not** built
-on it: after a spell inside core it moved out to `@verajs/store/collections` on its own
-**type-keyed `'collection'` insert point** — core computes `isSetOrMap` once and only collection
-reads ever reach the chain, which is what makes reactive collections affordable outside core where
-the per-read `'proxy-handler'` walk was not.
+**How a value is reactive is decided once, when a store first uses it**, through the `'store'`
+insert: core's handler for plain objects and arrays, nothing for everything else, then each `'store'`
+insert in priority order may return a different handler — claiming a type (`@verajs/store/collections`
+claims `Map`/`Set`) or wrapping core's (`examples/cdn-js/src/inserts/computed.js` wraps `get`,
+`batch.js` wraps `set`). It is consulted on a cache miss only, so reads and writes pay nothing for the
+seam. This replaced three per-access extension points (`'proxy-handler'` on every read, `'set-handler'`
+on every write, `'collection'` on every collection method read) in the lean-core rebuild.
 
 ## Naming namespaces — who writes what
 

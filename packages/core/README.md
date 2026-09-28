@@ -385,10 +385,10 @@ batching are all built this way, outside core, on the same public surface you ha
 | `inserts` | the registry itself |
 | `createHook({ callback, priority, element? })` | build your own hook type |
 
-The points are `'render'`, `'init'`, `'proxy-handler'` (a store read), `'set-handler'` (a store
-write — return `false` to hold the default propagation back), `'error'` (a hook or an element ref threw),
-`'collection'` (a `Map`/`Set` method read in a store — how `@verajs/store/collections`
-attaches) and `'value'` (a child-position value the renderer has no built-in answer for).
+The points are `'render'`, `'init'`, `'store'` (a store first using a value — returns the handler that
+makes it reactive: how `@verajs/store/collections` claims `Map`/`Set`, and how batching or devtools
+wrap core's `set`), `'error'` (a hook or an element ref threw) and `'value'` (a child-position value
+the renderer has no built-in answer for).
 [`@verajs/inserts`](../inserts) documents each one, with signatures.
 
 ```js

@@ -259,7 +259,9 @@ The shape of the product:
   `router`, `ssr`, `styles` — or write their own. (`map-support` was retired into core and then
   moved back out as `collections` in 0.2.0, on a **type-keyed** `'collection'` insert point rather
   than the `'proxy-handler'` chain that made the first attempt costly — 292 B recovered for every
-  app without a `Map` in a store, 24 B added for those with one. `styles` went the same way in
+  app without a `Map` in a store, 24 B added for those with one. Generalized in the lean-core rebuild
+  (2026-09-27): one `'store'` insert, consulted once when a store first uses a value, replaced all
+  three of `'proxy-handler'`, `'set-handler'` and `'collection'`. `styles` went the same way in
   0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
   use it.)
 - At minimum you need **a renderer**. Everything else is opt-in.

@@ -11,10 +11,11 @@ You rarely install this directly: `@verajs/core` and `@verajs/router` re-export 
 import { wire } from '@verajs/core';
 ```
 
-Everything VeraJS does beyond state and templates is registered here, on the same five points and
-the same public function you have. `@verajs/renderer` is a `'render'` insert. `@verajs/styles` is an
-`'init'` insert. An error boundary is an `'error'` insert, and write batching is a `'set-handler'`
-insert — both are a few dozen lines, and both are worked examples in
+Everything VeraJS does beyond state and templates is registered here, on the same points and the
+same public function you have. `@verajs/renderer` is a `'render'` insert. `@verajs/styles` is an
+`'init'` insert. Reactive `Map`/`Set` (`@verajs/store/collections`) is a `'store'` insert. An error
+boundary is an `'error'` insert, and write batching is a `'store'` insert wrapping core's `set` —
+both are a few dozen lines, and both are worked examples in
 [`examples/cdn-js/src/inserts/`](../../examples/cdn-js/src/inserts).
 
 **Take `wire` from the package that owns the extension point, never from `@verajs/inserts`
@@ -31,24 +32,12 @@ wire({ on: 'error', fn: (error, element) => report(error, element), priority: 40
 `wire({ on: name, fn: callback, priority: priority })` — **priority is required.** Lower runs first. Registering at a
 priority that is already taken **replaces** that entry, which is how a renderer is swapped.
 Chains are stored dense and priority-sorted rather than indexed by priority: indexing left holes
-(a renderer at 50 produced a 51-element array with 50 of them) and every chain is walked on the hot
-path, which cost roughly 238 ns per store read.
+(a renderer at 50 produced a 51-element array with 50 of them), and a chain is walked every time its
+point fires.
 
-Two more exports, for a module that reads chains on its own hot path:
-
-```js
-import { inserts, revision } from '@verajs/inserts';
-
-let cached = inserts.get('proxy-handler');   // the registry: Map of name -> ordered chain
-let seen = revision;                          // bumped by every registration
-const chain = () => (seen === revision ? cached : ((seen = revision), (cached = inserts.get('proxy-handler'))));
-```
-
-`revision` is a live binding, not a getter — reading it is a variable access, which is the point:
-the chains that matter are read on every store read and write, a `Map.get` there measured at 13%
-of a tracked read, and a registration is a once-per-app event, so the cost sits on the
-registration side. (Remember the rule below before importing `inserts` directly: **registering**
-goes through core's `wire`, always.)
+`inserts` is the registry itself — a `Map` from point name to its ordered chain — for a module that
+dispatches a point of its own. (Remember the rule below before importing it directly:
+**registering** goes through core's `wire`, always.)
 
 ## The extension points
 
@@ -56,10 +45,8 @@ goes through core's `wire`, always.)
 | --- | --- | --- |
 | `'render'` | a component renders | `(template, element, ...args)` |
 | `'init'` | `init()` sets an element up — after its shadow root exists, before its first render | `(element)` |
-| `'proxy-handler'` | a store property is read | `(obj, prop, value, addCallback, runCallbacks)` |
-| `'set-handler'` | a store property is written, before the default propagation. Return `false` to suppress it — that is how batching, transactions and undo/redo hold changes back | `(obj, prop, value, prevValue, runCallbacks)` |
+| `'store'` | a store first USES a value — a store on its first read or write, a nested value on its first read — and decides, once, how that value is reactive. Handed the value, the handler chosen so far (core's for a plain object or array, `undefined` for anything core leaves alone) and a kit — `{ track, trigger, shape }`, core's subscribe and notify and the shape channel's name. Return a handler to use instead, or nothing to leave it: claim a type core leaves alone (`@verajs/store/collections` claims `Map`/`Set`/`WeakMap`/`WeakSet`), or wrap core's — `{ ...handler, set(obj, prop, value, receiver) { … } }` — for batching, transactions, undo, persistence, devtools; writing to the raw target notifies nobody and `kit.trigger` notifies later, which is how a module holds changes back. Never consulted on an ordinary read or write, so it costs nothing when unused. A value already used before a module was wired keeps the handler it got | `(value, handler, kit)` |
 | `'error'` | a hook callback or an element ref (`&ref`) threw. Neither stops its siblings — one failing effect never stops the others, one failing ref never stops the render — so this decides what happens to it; `element` is the component being rendered. With nothing registered it goes to `reportError`, which fires the window's `error` event (so `window.onerror` and test runners see it), and off-browser to `console.error` | `(error, element)` |
-| `'collection'` | a method is read off a `Map` or `Set` **inside a store**. Type-keyed, so a plain-object read never reaches it — that is what lets reactive collections live outside core. With nothing registered, a `Map` in a store is inert and core raises a `__DEV__` error naming the package | `(obj, prop, propValue, addCallback, runCallbacks)` |
 | `'slot'` | a `<slot>` in a rendered template, handed over by `slotDiscovery` (from `@verajs/renderer/slots`, which includes it — an `'element'` claimant on `@verajs/renderer/elements`) once the render that created the instance has finished — `@verajs/renderer/slots` takes it over and distributes the host's own children. A custom strategy wires `slotDiscovery` beside itself: `wire([renderer, slotDiscovery, myStrategy])`. Returning null or undefined declines, which is what a shadow root gets (the platform slots there) and what the SSR shim gets (the server distributes in its own pass). One registrant owns it: the highest-priority answer, not a chain. A strategy may also carry `$o(parent, node, owner)`, told about every node the renderer inserts | `(slot, root, name)` |
 | `'element'` | `@verajs/renderer/elements` asking about each element of a template, once, as the template is first used — the claimant returns a shared `{ mount?, unmount? }` for an element it wants, `undefined` for the rest; every instance then runs `mount(element, { root, adopted })` once its render has finished and `unmount(kept, element)` at teardown. Every registrant runs, in priority order | `(element)` |
 | `'template'` | the renderer BUILDING a template — once per template, cached for the page. A hook may set `_$at$` on it, a resolver asked once per instance created which template to build at a position — `@verajs/renderer/namespaces` uses it to parse an `html` template in the namespace of where it lands — and may set its `_$inst$` to an INSTANCE HOOK — `{ $c, $m, $q }`, called for every instance of that template before its first update, once the render that created it has finished, and at teardown, each handed what the last returned — `@verajs/renderer/elements` uses it, and claims (slots' included) ride on that. One per template: `elements` sets its own at priority 10 — first — so a hook wired at the default priority wraps it; claim elements through `'element'` rather than writing a second one. Templates without one pay nothing per instance. Every registrant runs | `(template, result, readScope)` |
@@ -71,9 +58,8 @@ Priority 50 is the convention for a default implementation: register below it to
 to replace.
 
 Every callback in a chain runs, in priority order. An insert that wants to change what core does —
-rather than merely watch — says so through its return value, and only `'set-handler'` has one:
-returning `false` suppresses the default propagation, which is what lets a module hold writes back
-and flush them itself.
+rather than merely watch — says so through its return value: a `'store'` insert returns the handler
+to use, each seeing the one chosen before it, so they compose.
 
 For a whole new *kind* of hook rather than a new implementation of an existing one, `createHook` in
 `@verajs/core` is the primitive `useEffect` and its siblings are built from.
@@ -85,14 +71,14 @@ throws is isolated and reported through the `'error'` insert, because core runs 
 one loop and an escaping error would skip every hook after the failing one. An insert is not in that
 position:
 
-- **`'set-handler'` and `'proxy-handler'` run inside the store's own `set` and `get` traps**, so a
-  throw comes out of `state.count = 1` in the caller's own stack, at the line that wrote it. That is
-  the most useful place it could surface, and swallowing it would leave the write in an undefined
-  state — a suppressed handler has already decided whether the value propagates. These are also the
-  hottest paths in the framework, and a `try`/`catch` on every property read is not free.
-- **`'collection'` and `'value'` are the same case as those two**, for the same reason: the first
-  runs inside a `Map` or `Set` method and the second inside a child-position commit, so a throw comes
-  out of `tags.add('x')` or of `renderInto` at the line that called it.
+- **A `'store'` insert runs inside the store's first use of a value, and the handler it returns runs
+  inside the store's own traps**, so a throw comes out of `state.count = 1` (or the read) in the
+  caller's own stack, at the line that did it. That is the most useful place it could surface, and
+  swallowing it would leave the write in an undefined state — the handler has already decided
+  whether the value propagates. An insert that throws while deciding leaves the value undecided, so
+  its next use asks again.
+- **`'value'` is the same case**, for the same reason: it runs inside a child-position commit, so a
+  throw comes out of `renderInto` at the line that called it.
 - **`'init'` and `'render'` run inside `init()` and the render, so a throw surfaces there.** And the
   chain **stops** there: an insert is not isolated from the ones beside it, so every insert after
   the failing one is skipped. `'init'` is where per-element setup hooks in, so one throwing module

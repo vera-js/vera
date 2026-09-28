@@ -61,7 +61,7 @@ const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
  * silent. `get`/`has` subscribe per key; `entries`/`keys`/`values`/`forEach`, `for…of` and spread
  * subscribe to every change. Reactivity is per-entry, not deep: values come back raw.
  */
-const collectionMethod = (obj: object, prop: PropertyKey, propValue: unknown, kit: StoreKit) => {
+const methodWrapper = (obj: object, prop: PropertyKey, propValue: unknown, kit: StoreKit) => {
   let wrappers = wrapperCache.get(obj);
   if (wrappers === undefined) wrapperCache.set(obj, (wrappers = new Map()));
 
@@ -181,7 +181,7 @@ const handlers = new WeakMap<StoreKit, ProxyHandler<object>>();
 /**
  * The handler for a collection in a store. `size` is an accessor on the raw target and subscribes to
  * the shape channel every mutation notifies; a method comes back as its tracking wrapper
- * (`collectionMethod`), since a native one called on a proxy throws `called on incompatible receiver`;
+ * (`methodWrapper`), since a native one called on a proxy throws `called on incompatible receiver`;
  * anything else is read off the target. Values come back raw — reactivity is per entry, not deep.
  */
 const collectionHandler = (kit: StoreKit) => {
@@ -196,7 +196,7 @@ const collectionHandler = (kit: StoreKit) => {
             return (obj as Map<unknown, unknown>).size;
           }
           const value = Reflect.get(obj, prop, obj);
-          return typeof value === 'function' ? collectionMethod(obj, prop, value, kit) : value;
+          return typeof value === 'function' ? methodWrapper(obj, prop, value, kit) : value;
         },
       })
     );

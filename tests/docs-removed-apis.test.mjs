@@ -66,6 +66,12 @@ const REMOVED = {
   wireTicks: 'wireFunctions — the settings key is function:',
   tickFor: 'functionFor',
   TickModule: 'MotionFunctionModule ({ run, setup })',
+  /** The lean-core rebuild (2026-09-27): three per-access store extension points became one, consulted
+   *  once per value — and the exports that existed only to implement them went with them. */
+  "'proxy-handler'": "a 'store' insert wrapping core's get",
+  "'set-handler'": "a 'store' insert wrapping core's set",
+  "'collection'": "a 'store' insert — @verajs/store/collections is one",
+  collectionMethod: "@verajs/store/collections' collections descriptor, a 'store' insert",
 };
 
 /**

@@ -306,18 +306,21 @@ core's instead — `wire([router])` — which reads the same under a bundler and
 `connectInserts`, which replayed one registry into another, was removed in 0.2.0.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
-exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
-(property read — **what it returns becomes the value read**, so an observer must return nothing;
-`undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
-suppress default propagation), `'error'` (a hook or an element ref threw; with none wired, `reportError`), `'collection'` (a method read off a
-`Map`/`Set` in a store — type-keyed, so plain-object reads never reach it; how
-`@verajs/store/collections` attaches), and `'value'` (a child-position value the renderer has
-no built-in answer for — return `true` to claim it; strings, numbers and nullish values never reach
-it). `@verajs/inserts`' README documents each signature. `revision` (from `@verajs/inserts`) bumps
-on every registration, so a reader may cache a chain against it.
+exists, before its first render; this is how `@verajs/styles` attaches), `'store'` (a store first
+uses a value — its first read or write, a nested value's first read — and this decides, once, how
+that value is reactive: `(value, handler, kit)`, where `handler` is core's for a plain object or
+array and `undefined` otherwise, and `kit` is `{ track, trigger, shape }`; return a handler to use
+instead, or nothing to leave it. `@verajs/store/collections` claims `Map`/`Set` this way; batching,
+transactions, persistence and devtools wrap core's — `{ ...handler, set(o, p, v, r) { … } }` —
+writing to the raw target to notify nobody and calling `kit.trigger` later. Never consulted on an
+ordinary read or write; a value already used before a module is wired keeps its handler), `'error'`
+(a hook or an element ref threw; with none wired, `reportError`), and `'value'` (a child-position
+value the renderer has no built-in answer for — return `true` to claim it; strings, numbers and
+nullish values never reach it). `@verajs/inserts`' README documents each signature.
 
-⚠️ `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` returns a number, so **every read of every store
-yields that number** instead of the value. Write observers with a block body — `() => { count++; }`.
+⚠️ A `'store'` handler's `get` **returns the value read**: an observer must hand the read through —
+`get(o, p, r) { count++; return handler.get(o, p, r); }` — or every read of every store yields
+whatever it returned instead.
 
 ---
 
@@ -1013,7 +1016,7 @@ NOT work without `wire(collections)`):
   a missing key. `clear` notifies every previous key plus the global channel.
 - Reactivity is **per-entry, not deep**: values returned by `get` are raw, so mutating
   `map.get(k).x` is untracked — replace the entry instead. `'_global'` is the reserved
-  every-change channel key (exported as `GLOBAL`).
+  every-change channel key (a `'store'` module gets it as `kit.shape`).
 - Method identity is stable (`map.get === map.get`), and chained calls (`set().set()`) stay
   tracked.
 - **`WeakMap` and `WeakSet` are reactive too**, per key, and hold nothing: their dependencies are
@@ -1564,14 +1567,14 @@ Say so rather than inventing an API:
   components. No decorators ever (they cannot run without a build step).
 - **`computed` is `@verajs/store/computed`** (<!--size:computed.gzip-->238 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
     per change rather than once per read, and only when something it actually read moves. It is a
-    store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
+    store, so reading `.value` subscribes and computeds chain. The `'store'` insert in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**
     memoize — it re-invokes on every read.
 
 - **No Suspense, concurrent rendering, server components, or devtools.**
   Error boundaries: a worked example is `examples/cdn-js/src/inserts/error-boundary.js` (the
-  `'error'` insert). Write batching/transactions: `examples/cdn-js/src/inserts/batch.js` (the
-  `'set-handler'` insert).
+  `'error'` insert). Write batching/transactions: `examples/cdn-js/src/inserts/batch.js` (a
+  `'store'` insert wrapping core's `set`).
 - **No context/DI primitive.** Use a module-level store, or a `WeakMap` plus a DOM walk.
 - **No `unsafeHTML`.** Interpolated values are escaped at the render boundary, always, and there is
   no sanctioned way to opt out — a rendering library is an XSS engine if it ships one, because the

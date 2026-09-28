@@ -72,10 +72,10 @@ operation the old table had to apologize for, and switching to `@verajs/renderer
 | Store read, tracked, 2 nested hops | ~450 |
 | Write + propagation | ~870 |
 
-Reads are **~30% faster than this table said until 2026-08-26**, because the `'proxy-handler'` insert
-chain was being resolved from a `Map` on every property read of every store and is now cached against
-a registry revision. Measured 150 → 132 ns/op flat and 478 → 442 at two hops on that change alone.
-The table had gone stale in the other direction, which is the direction nobody checks.
+Reads and writes pay nothing for the store's extension seam: a `'store'` insert is consulted once,
+when a store first uses a value, rather than as a chain resolved on every property access (which is
+what the `'proxy-handler'` insert used to cost before it was retired). **The table above predates the
+lean-core rebuild (2026-09-27) and is due to be re-measured** once the rebuild lands.
 
 Effect executions for 100 writes in one tick:
 

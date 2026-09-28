@@ -22,8 +22,8 @@ const entry = (name, input) =>
 
 /**
  * `collections` keeps core external like the others, but for a different reason: it does not import
- * core at all. It implements the `'collection'` extension point, so core hands it what it needs at
- * dispatch — which is what makes it safe alongside any build of core rather than tied to one.
+ * core at all. It is a `'store'` insert, so core hands it what it needs (the kit) when a store first
+ * meets a collection — which is what makes it safe alongside any build of core rather than tied to one.
  */
 export default [
   entry(pkg.filename),

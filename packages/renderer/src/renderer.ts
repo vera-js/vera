@@ -2048,9 +2048,9 @@ type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) =
 /**
  * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
  *
- * A handler will also be handed the **operations** it needs to do its job — the shape
- * `'proxy-handler'` uses, where core passes `addCallback` and `runCallbacks` rather than exposing
- * them as members. That object is deliberately *not* here yet: an earlier draft guessed nine
+ * A handler will also be handed the **operations** it needs to do its job — the shape a
+ * `'store'` insert gets, where core passes a kit (`track`, `trigger`) rather than exposing them as
+ * members. That object is deliberately *not* here yet: an earlier draft guessed nine
  * methods, nothing used them, they cost 90 B of anticipation, and porting the list algorithm then
  * showed it needs closer to fourteen — including item accessors the guess had no idea about. It
  * gets built in the step that has a caller to shape it.
