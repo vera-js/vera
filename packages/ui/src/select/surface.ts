@@ -220,6 +220,7 @@ export const selectSurface = {
     },
     { name: 'option', description: 'One row. Carries data-active, data-create on the create row, and aria-selected.' },
     { name: 'pill', description: 'One selected chip in the multi trigger.' },
+    { name: 'pill-icon', description: 'A chip’s icon — the option’s `iconBefore` (a copy when it is a DOM node), aria-hidden. Hide it with CSS for label-only chips.' },
     { name: 'pill-remove', description: 'The chip’s remove button (Backspace on the trigger removes the last).' },
     { name: 'option-icon', description: 'The aria-hidden icon span before/after the label, when the option carries one.' },
     { name: 'option-label', description: 'The label column inside a row (label, and description when present).' },

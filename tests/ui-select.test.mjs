@@ -1185,3 +1185,44 @@ test('class-instance options, store-backed in-place writes, and a re-assigned va
   void rowText;
   element.remove();
 });
+
+/**
+ * **A chosen bubble shows the option's icon** (Content Flow, 2026-09-27: "Informational ✕", never its
+ * icon). A template or a string renders in both places; a DOM node — what `slot="icon"` markup parses
+ * to — is copied, because a node is in one place only, and the copy is made once and reused so a
+ * re-render does not replace it.
+ */
+test('multi: each bubble shows its option’s iconBefore, and a DOM-node icon is copied once', async () => {
+  const { html } = await load('core');
+  const dot = dom.window.document.createElement('i');
+  dot.className = 'dot';
+  const element = await mount((el) => el.setAttribute('multi', ''));
+  element.options = [
+    { label: 'Story', value: 'story', iconBefore: dot },
+    { label: 'Tips', value: 'tips', iconBefore: html`<b class="tip-icon">T</b>` },
+    { label: 'Plain', value: 'plain', iconBefore: '★' },
+    { label: 'Bare', value: 'bare' },
+  ];
+  element.value = ['story', 'tips', 'plain', 'bare'];
+  part(element, 'trigger').click();
+  await frame();
+
+  const pills = [...root(element).querySelectorAll('[part="pill"]')];
+  const icons = pills.map((pill) => pill.querySelector('[part="pill-icon"]'));
+  assert.equal(pills.length, 4, 'CONTROL: four bubbles');
+  assert.ok(icons[0]?.querySelector('i.dot'), 'the node icon is in its bubble');
+  assert.notEqual(icons[0].querySelector('i.dot'), dot, '— as a copy');
+  assert.equal(dot.isConnected, true, 'and the original is still in the open list');
+  assert.ok(root(element).querySelector('[part="option"] i.dot') === dot, 'in its own row');
+  assert.ok(icons[1]?.querySelector('b.tip-icon'), 'a template icon renders in the bubble too');
+  assert.equal(icons[2]?.textContent, '★', 'and a string');
+  assert.equal(icons[3], null, 'an option without an icon gets no icon part');
+  assert.equal(icons[0].getAttribute('aria-hidden'), 'true', 'decorative, as in the list: the label names it');
+  assert.ok(icons[0].compareDocumentPosition(pills[0].querySelector('[part="pill-remove"]')) & 4, 'before the label and ✕');
+
+  const copy = icons[0].querySelector('i.dot');
+  element.value = ['story', 'tips'];
+  await frame();
+  assert.equal(root(element).querySelector('[part="pill-icon"] i.dot'), copy, 'a re-render keeps the same copy');
+  element.remove();
+});

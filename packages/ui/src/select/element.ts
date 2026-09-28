@@ -255,6 +255,22 @@ const labelOf = (element: VeraSelect): string | null => {
  * changed. The strings are compared by CONTENT, not identity: the dropdown keeps its options in a
  * store, which hands a stored template's `strings` back through a proxy (measured: identity lost).
  */
+/**
+ * **A bubble's icon — the option's own, or a copy of it when it is a DOM node.** A template or a
+ * string renders in two places at once, but a node is in one place only: rendered into the bubble it
+ * would be pulled out of the open list (options written in markup, `slot="icon"`, are always nodes).
+ * So a node gets a copy — made ONCE per source node and reused, because a fresh clone per render is a
+ * new value every render and the renderer would replace the bubble's icon DOM each time. Recognized by
+ * `nodeType`, never `instanceof Node`, which is the wrong question across windows.
+ */
+const pillCopies = new WeakMap<object, Node>();
+const pillIcon = (icon: unknown): unknown => {
+  if (typeof icon !== 'object' || icon === null || typeof (icon as Node).nodeType !== 'number') return icon;
+  let copy = pillCopies.get(icon);
+  if (copy === undefined) pillCopies.set(icon, (copy = (icon as Node).cloneNode(true)));
+  return copy;
+};
+
 const sameIcon = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   const x = a as { strings?: readonly string[]; values?: unknown[] } | null;
@@ -851,6 +867,7 @@ export class VeraSelect extends HTMLElement {
           ? state.value.map(
               (option) => html`
                 <span part="pill">
+                  ${option.iconBefore != null ? html`<span part="pill-icon" aria-hidden="true">${pillIcon(option.iconBefore)}</span>` : null}
                   ${option.label}
                   <button
                     part="pill-remove"

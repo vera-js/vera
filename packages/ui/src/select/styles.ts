@@ -157,6 +157,11 @@ export const SELECT_STYLES = /* css */ `
     background: color-mix(in srgb, var(--vera-accent, #7c3aed) 14%, transparent);
     font-size: 0.92em;
   }
+  :where([part='pill-icon']) {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
   :where([part='pill-remove']) {
     display: grid;
     place-items: center;

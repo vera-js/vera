@@ -369,6 +369,10 @@
               "description": "One selected chip in the multi trigger."
             },
             {
+              "name": "pill-icon",
+              "description": "A chip’s icon — the option’s `iconBefore` (a copy when it is a DOM node), aria-hidden. Hide it with CSS for label-only chips."
+            },
+            {
               "name": "pill-remove",
               "description": "The chip’s remove button (Backspace on the trigger removes the last)."
             },
