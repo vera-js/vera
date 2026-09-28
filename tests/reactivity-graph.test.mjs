@@ -220,6 +220,41 @@ test('a store inside a store is the same store, and a write through it notifies 
 });
 
 /**
+ * **Every kind of store stays itself when it meets another store** — recognized by asking it, not by a
+ * table (the table entry cost ~380 ns per `createStore`). The shapes a question could miss: a
+ * `shallowRef` (its own handler), a store handed back to `createStore`, and a store whose target is not
+ * extensible — frozen before, frozen through the store after, or only prevented from extending — which
+ * cannot answer the question and is recognized by being mapped to itself instead.
+ */
+test('a store stays itself inside another store or createStore, whatever its handler or extensibility', () => {
+  const shallow = core.shallowRef([1]);
+  assert.equal(createStore({ shallow }).shallow, shallow, 'a shallowRef inside a store');
+  const plain = createStore({ n: 0 });
+  assert.equal(createStore(plain), plain, 'createStore of a store is that store');
+  const frozen = createStore(Object.freeze({ n: 0 }));
+  assert.equal(createStore({ frozen }).frozen, frozen, 'a store frozen before it was made');
+  assert.equal(createStore(frozen), frozen, 'and handed to createStore');
+  const later = createStore({ n: 0 });
+  Object.freeze(later);
+  assert.equal(createStore({ later }).later, later, 'a store frozen through the store, afterwards');
+  const sealed = createStore({ n: 0 });
+  Object.preventExtensions(sealed);
+  assert.equal(createStore({ sealed }).sealed, sealed, 'a store only prevented from extending');
+});
+
+/**
+ * Freezing the RAW object behind a store is unsupported (nothing tells the store) — but it must not
+ * CRASH the next store that meets it: asked whether it is a store, a proxy over a non-extensible target
+ * answers `false` rather than reporting a key the target lacks, which the language refuses with a throw.
+ */
+test('a store whose raw object was frozen behind its back does not throw when placed in another store', () => {
+  const raw = { n: 0 };
+  const store = createStore(raw);
+  Object.freeze(raw);
+  assert.doesNotThrow(() => createStore({ store }).store);
+});
+
+/**
  * `key in state.o` is a read that decides what renders — an optional field shown only when present —
  * and nothing else in this file reads that way. Untracked, the reader kept its first answer: adding
  * the key later notified nobody who had asked about it (found by the lean rebuild's mutation controls,

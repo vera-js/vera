@@ -107,6 +107,18 @@ const decide = (tag: string) => {
 };
 
 /**
+ * **"Is this one of ours?" — asked of a value through the language, never a table.** Every store proxy
+ * answers `MARK in proxy` with `true`: `settle` wraps each owned handler's `has` (a cold trap — the `in`
+ * operator only), so the answer holds whatever handler a store module installed, and `shallowHandler`
+ * answers it too. It replaced mapping every proxy to itself in `proxies`, which cost ~380 ns of a 514 ns
+ * `createStore` — a WeakMap keyed by a PROXY is that expensive to insert into (measured, 74% of it).
+ * Any target can answer it, frozen or not: the language checks a `has` trap only when it says `false`.
+ */
+const MARK = Symbol();
+const marked = (has: ProxyHandler<object>['has']) => (target: object, prop: string | symbol) =>
+  prop === MARK || (has ? has(target, prop) : Reflect.has(target, prop));
+
+/**
  * **Decides `tags` and writes each into its type's owned handler** — every trap cleared, then the
  * chosen one's copied in, so every proxy of the type follows. When a module throws it is retired
  * (`broken`) and EVERY type is decided again without it — the types it had already joined included —
@@ -121,6 +133,7 @@ const settle = (tags: string[]) => {
       const chosen = decide(tags[i]);
       for (const trap in owned) owned[trap] = undefined;
       Object.assign(owned, chosen);
+      owned.has = marked(chosen?.has);
       claimed[chosen ? 'add' : 'delete'](owned);
     } catch (error) {
       errors.push(error);
@@ -155,8 +168,8 @@ export const redecideStores = () => settle([...types.keys()]);
  * they become so, never asked on the read path: `Object.isExtensible` in the trap cost ~170 ns on every
  * two-hop read (measured: 511 ns against 372 with this set), though the call alone is ~12 ns — its
  * presence changes how the engine compiles the trap. A value is marked when it is wrapped, and a target
- * when a definition leaves it non-extensible (`Object.freeze(store)`: the language prevents extensions
- * first, then redefines every key, each through `defineProperty`). **Freezing the RAW object behind a
+ * when it is prevented from extending through the store (`preventExtensions`, which `Object.freeze` and
+ * `Object.seal` call first). **Freezing the RAW object behind a
  * store, after the store has wrapped it, is not seen** — nothing in the store is told — and a later
  * object-valued read would then be refused by the engine; freeze a value before handing it to a store,
  * or through the store.
@@ -177,6 +190,7 @@ const handler: ProxyHandler<object> = {
      */
     if (value === null || typeof value !== 'object' || FIXED.has(obj)) return value;
     let proxy = proxies.get(value);
+    if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
     if (proxy === undefined) {
       const own = Reflect.getOwnPropertyDescriptor(obj, prop);
       const owned = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
@@ -244,13 +258,20 @@ const handler: ProxyHandler<object> = {
     if (obj === writingObj && prop === writingProp) return Reflect.defineProperty(obj, prop, descriptor);
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
     const defined = Reflect.defineProperty(obj, prop, descriptor);
-    if (!Object.isExtensible(obj)) FIXED.add(obj);
     if (defined) {
       if (!previous || descriptor.value !== previous.value || descriptor.get !== previous.get)
         trigger(obj, prop, descriptor.value, previous?.value);
       if (!previous) trigger(obj, GLOBAL, descriptor.value, undefined);
     }
     return defined;
+  },
+  /**
+   * Where a target stops being extensible through the store — `Object.preventExtensions`, and
+   * `Object.freeze`/`Object.seal`, which call it first — so `get` knows (`FIXED`).
+   */
+  preventExtensions(obj) {
+    FIXED.add(obj);
+    return Reflect.preventExtensions(obj);
   },
   /** Deleting a key changes both the key's value (to `undefined`, what a read now returns) and the shape. */
   deleteProperty(obj, prop) {
@@ -270,18 +291,16 @@ const handler: ProxyHandler<object> = {
  * proxy — `state.a === state.a`, and `createStore(config) === createStore(config)` — where a fresh
  * proxy per read broke every identity comparison in consumer code (a list re-keying, a memo missing).
  * One map serves all stores because a value's handler is decided by its type (`handlerFor`), never
- * by which store reached it. **Each proxy also maps to itself**, so a store placed inside another store —
- * `state.child = otherStore` — is recognized and handed back as it is, never wrapped a second time
- * (which tracked every read twice and notified every write twice). That is the whole job the old
- * `_isSignal` marker property did, done by the map that was already being consulted.
+ * by which store reached it. **A store placed inside another store** — `state.child = otherStore` — is
+ * recognized (`MARK`, then remembered here as mapping to itself) and handed back as it is, never wrapped
+ * a second time, which tracked every read twice and notified every write twice.
  */
 const proxies = new WeakMap<object, object | null>();
 
-/** A new proxy over `data`, registered as mapping to itself — see `proxies`. */
+/** A new proxy over `data` — over a non-extensible one, marked `FIXED`. */
 const wrap = (data: object, chosen: ProxyHandler<object>) => {
-  if (!Object.isExtensible(data)) FIXED.add(data);
   const proxy = new Proxy(data, chosen);
-  proxies.set(proxy, proxy);
+  if (!Object.isExtensible(data)) FIXED.add(data);
   return proxy;
 };
 
@@ -293,6 +312,7 @@ const wrap = (data: object, chosen: ProxyHandler<object>) => {
  */
 const shallowHandler: ProxyHandler<object> = {
   ...handler,
+  has: marked(handler.has),
   get(obj, prop, receiver) {
     track(obj, prop);
     return Reflect.get(obj, prop, receiver);
@@ -304,6 +324,7 @@ export const createShallow = <T extends object>(data: T): T => wrap(data, shallo
 export const createProxy = <T extends object>(data: T): T => {
   let proxy = proxies.get(data);
   if (proxy) return proxy as T;
+  if (MARK in data) return data;
   /**
    * Behind its type's handler, claimed or not: a store of a type nothing claims yet is transparent, and
    * becomes reactive the moment a module claiming the type is wired. `null` cached for a nested value
