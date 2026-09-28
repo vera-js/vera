@@ -349,10 +349,27 @@ errors with **TS7026**. Naming it in `types` loads the ambient declarations with
 anything at runtime. A per-file `/// <reference types="@verajs/jsx" />` works identically if you
 would rather not touch `types` (which, once set, also narrows what else is auto-included).
 
-**What the typings do and do not check.** They are deliberately permissive — every element accepts
-every prop (`IntrinsicElements` is an index signature), so TSX compiles today and `key={id}`,
-`onClick={fn}` and bare props on a component all type-check. A fully typed per-element surface is
-the known long tail. Two consequences worth knowing:
+**What the typings do and do not check.** A built-in element's **event handlers are typed**; every
+other prop is deliberately permissive. So under `strict`, an inline handler infers its event and
+its element, as it does in other TSX setups:
+
+```tsx
+<input onInput={(e) => props.onQuery(e.currentTarget.value)} />   // e: InputEvent, currentTarget: HTMLInputElement
+<button onClick={(e) => console.log(e.button)}>Go</button>         // e: PointerEvent
+<svg onPointerDown={(e) => e.currentTarget.viewBox} />             // SVG and MathML elements too
+```
+
+Both `onKeyDown` and `onKeydown` are typed — the compiler lowercases whatever follows `on`, so
+every casing binds the same event. A handler may be anything the renderer accepts: a function
+(called with the element as `this`), a `{ handleEvent }` object, or `false`/`null`/`undefined`
+for none, so `onClick={open && close}` type-checks. An `on…` name the DOM library does not know —
+a custom event — gets a plain `Event`, which is what `addEventListener` gives it too; annotate it
+(`(e: CustomEvent<Item>) => …`) when you need more. A number or a string where a handler belongs
+is an error.
+
+Everything else accepts every prop, so `key={id}` and bare props on a component type-check, and a
+dash-named tag (a custom element) is fully permissive. A typed per-attribute surface is the known
+long tail. Two consequences worth knowing:
 
 - **A misspelled prop is not caught by TypeScript here.** For the props you pass a component, the
   checked path is `props<CalendarDay>({ dat })` from `@verajs/renderer/spread`, which *is* checked

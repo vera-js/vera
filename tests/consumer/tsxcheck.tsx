@@ -43,4 +43,38 @@ declare global {
 }
 const declared = <my-own-card heading="typed" />;
 
-export { element, keyedElement, keyedComponent, stringKey, objectKey, withChildren, declared };
+/**
+ * **Event handlers on built-in elements infer their event** — reported from a real app on jsx 0.3.2,
+ * where every inline `(e) => …` was TS7006 under `strict` because each element's props were one
+ * `Record<string, unknown>`. Every line here fails to compile without the typed handlers: `e` would
+ * be an implicit `any`. The reads (`button`, `value`, `key`, `viewBox`) are what prove the event
+ * and `currentTarget` are the specific types, not merely something.
+ */
+const toggled = Math.random() > 0.5;
+const listener = { handleEvent: (event: Event) => event.type };
+const declaredAhead = (event: MouseEvent) => event.button;
+const handlers = (
+  <form onSubmit={(e) => e.submitter}>
+    <input onInput={(e) => e.currentTarget.value} onKeyDown={(e) => e.key} onKeydown={(e) => e.key} />
+    <button onClick={(e) => e.button + e.clientX} onDblClick={(e) => e.detail} onFocus={listener} />
+    <button onClick={toggled && ((e) => e.button)} onBlur={undefined} onInput={null} />
+    <button onClick={declaredAhead} />
+    <select onChange={function () { return this.value; }} />
+    <svg onClick={(e) => e.currentTarget.viewBox}><circle onPointerDown={(e) => e.currentTarget.r} /></svg>
+    <div onMyEvent={(e) => e.type} data-anything={1} class="still permissive" />
+    <order-row onAnything={(e: CustomEvent) => e.detail} />
+  </form>
+);
+
+/** And the mistakes those types exist to catch. Each directive errors if its line ever compiles. */
+// @ts-expect-error — a number is not a handler
+const notAHandler = <input onInput={42} />;
+// @ts-expect-error — a KeyboardEvent has no `button`
+const wrongEvent = <input onKeyDown={(e) => e.button} />;
+// @ts-expect-error — `currentTarget` is the input, which has no `viewBox`
+const wrongElement = <input onClick={(e) => e.currentTarget.viewBox} />;
+
+export {
+  element, keyedElement, keyedComponent, stringKey, objectKey, withChildren, declared,
+  handlers, notAHandler, wrongEvent, wrongElement,
+};

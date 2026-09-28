@@ -715,9 +715,12 @@ export default { plugins: [veraJsx()] };
 
 **Without `types`, TSX does not compile.** The namespace ships with this package's declarations, but
 a TSX app imports `@verajs/core` and configures the plugin in `vite.config.js` — it never imports
-`@verajs/jsx`, so TypeScript never loads them. The typings are permissive (every element accepts
-every prop), so `key`, `onClick` and bare props all type-check; a fully typed per-element surface is
-the known long tail, and the checked path for a component's props is `props<CalendarDay>({ … })`.
+`@verajs/jsx`, so TypeScript never loads them. A built-in element's `on…` handlers are typed from
+the DOM library — `onInput={(e) => e.currentTarget.value}` infers `InputEvent` on `HTMLInputElement`
+under `strict`, `onKeyDown` and `onKeydown` both work, and `false`/`null`/`undefined` mean no
+handler; an unknown event name gets a plain `Event`. Every other prop is permissive (every element
+accepts it), so `key` and bare props type-check and a misspelled attribute is not caught; the checked
+path for a component's props is `props<CalendarDay>({ … })`.
 
 `.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed` and `spread` are
 injected as needed (`inject: false` to provide them yourself; each is also individually configurable

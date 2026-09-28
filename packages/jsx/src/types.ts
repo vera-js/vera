@@ -6,9 +6,107 @@
  */
 
 /**
- * Permissive TSX typings: every element accepts every prop, so TSX compiles today. The fully
- * typed IntrinsicElements surface is the known long tail. Use with `"jsx": "preserve"` — the
- * plugin, not tsc, transforms JSX.
+ * **The multi-word events, spelled the way TSX writes them.** Single-word events need no entry —
+ * `onClick` is `on` + `Capitalize<'click'>` — but `Capitalize<'keydown'>` is `Keydown`, and the
+ * spelling people write is `onKeyDown`. The compiler lowercases whatever follows `on`, so every
+ * casing reaches the same event and both are typed. The `webkit…` aliases are left out on purpose.
+ */
+type CamelEventNames = {
+  animationcancel: 'AnimationCancel'; animationend: 'AnimationEnd'; animationiteration: 'AnimationIteration';
+  animationstart: 'AnimationStart'; auxclick: 'AuxClick'; beforeinput: 'BeforeInput'; beforematch: 'BeforeMatch';
+  beforetoggle: 'BeforeToggle'; canplay: 'CanPlay'; canplaythrough: 'CanPlayThrough';
+  compositionend: 'CompositionEnd'; compositionstart: 'CompositionStart'; compositionupdate: 'CompositionUpdate';
+  contextlost: 'ContextLost'; contextmenu: 'ContextMenu'; contextrestored: 'ContextRestored'; cuechange: 'CueChange';
+  dblclick: 'DblClick'; dragend: 'DragEnd'; dragenter: 'DragEnter'; dragleave: 'DragLeave'; dragover: 'DragOver';
+  dragstart: 'DragStart'; durationchange: 'DurationChange'; focusin: 'FocusIn'; focusout: 'FocusOut';
+  formdata: 'FormData'; fullscreenchange: 'FullscreenChange'; fullscreenerror: 'FullscreenError';
+  gotpointercapture: 'GotPointerCapture'; keydown: 'KeyDown'; keypress: 'KeyPress'; keyup: 'KeyUp';
+  loadeddata: 'LoadedData'; loadedmetadata: 'LoadedMetadata'; loadstart: 'LoadStart';
+  lostpointercapture: 'LostPointerCapture'; mousedown: 'MouseDown'; mouseenter: 'MouseEnter';
+  mouseleave: 'MouseLeave'; mousemove: 'MouseMove'; mouseout: 'MouseOut'; mouseover: 'MouseOver'; mouseup: 'MouseUp';
+  pointercancel: 'PointerCancel'; pointerdown: 'PointerDown'; pointerenter: 'PointerEnter';
+  pointerleave: 'PointerLeave'; pointermove: 'PointerMove'; pointerout: 'PointerOut'; pointerover: 'PointerOver';
+  pointerrawupdate: 'PointerRawUpdate'; pointerup: 'PointerUp'; ratechange: 'RateChange'; scrollend: 'ScrollEnd';
+  securitypolicyviolation: 'SecurityPolicyViolation'; selectionchange: 'SelectionChange';
+  selectstart: 'SelectStart'; slotchange: 'SlotChange'; timeupdate: 'TimeUpdate'; touchcancel: 'TouchCancel';
+  touchend: 'TouchEnd'; touchmove: 'TouchMove'; touchstart: 'TouchStart'; transitioncancel: 'TransitionCancel';
+  transitionend: 'TransitionEnd'; transitionrun: 'TransitionRun'; transitionstart: 'TransitionStart';
+  volumechange: 'VolumeChange';
+};
+
+/** Fails the build unless `T` is `never`. */
+type ExpectNever<T extends never> = T;
+/**
+ * `CamelEventNames`, read through a check that every name in it is a real event — a typo, or an
+ * event TypeScript's DOM library drops, is a compile error here rather than a handler prop that
+ * silently types as the loose fallback. Read through this, never directly, so the check cannot be
+ * skipped (an unused assertion is itself an error under `noUnusedLocals`).
+ */
+type CheckedCamelEventNames =
+  ExpectNever<Exclude<keyof CamelEventNames, keyof HTMLElementEventMap>> extends never ? CamelEventNames : never;
+
+/**
+ * **What the renderer accepts at an event binding**, typed for one event on one element: a function
+ * (called with the element as `this`), the platform's `{ handleEvent }` listener object, or `false`,
+ * `null` or `undefined` for no handler — `onClick={open && close}` is the idiom that produces
+ * `false`. `currentTarget` is the element the handler sits on, which is what the platform delivers
+ * and what `addEventListener`'s own types cannot say.
+ */
+type EventHandler<Ev, El> =
+  | ((this: El, event: Ev & { readonly currentTarget: El }) => unknown)
+  | { handleEvent(event: Ev): unknown }
+  | false
+  | null
+  | undefined;
+
+/**
+ * Any other `on…` name — a custom event, or an event the DOM library has no entry for: at least an
+ * `Event`, which is what `addEventListener` gives a name it does not know. Method syntax makes it
+ * bivariant, so a handler declared ahead as `(e: MouseEvent) => …` still fits.
+ */
+type LooseEventHandler =
+  | { bivariant(event: Event): unknown }['bivariant']
+  | { handleEvent(event: Event): unknown }
+  | false
+  | null
+  | undefined;
+
+/**
+ * One handler prop per event, in both spellings. HTML, SVG and MathML elements share this map —
+ * `HTMLElementEventMap`, `SVGElementEventMap` and `MathMLElementEventMap` are the same two maps
+ * extended, with nothing of their own.
+ */
+type ElementEventHandlers<El> = {
+  [K in keyof HTMLElementEventMap as
+    | `on${Capitalize<K>}`
+    | (K extends keyof CheckedCamelEventNames ? `on${CheckedCamelEventNames[K]}` : never)]?: EventHandler<HTMLElementEventMap[K], El>;
+};
+
+/**
+ * **A built-in element's props: typed handlers, and everything else as permissive as before.** Only
+ * the handlers are typed — a misspelled attribute still passes, and a per-attribute surface is still
+ * the long tail. An interface rather than `&` so the two index signatures are CHECKED against every
+ * handler instead of silently intersected (CODE-PRINCIPLES §1 on composition).
+ */
+interface ElementProps<El> extends ElementEventHandlers<El> {
+  [name: `on${Capitalize<string>}`]: LooseEventHandler;
+  [prop: string]: unknown;
+}
+
+/** The built-in tags. Where SVG shares a name with HTML (`a`, `script`, `style`, `title`), HTML's element wins. */
+type HtmlElements = { [T in keyof HTMLElementTagNameMap]: ElementProps<HTMLElementTagNameMap[T]> };
+type SvgElements = {
+  [T in Exclude<keyof SVGElementTagNameMap, keyof HTMLElementTagNameMap>]: ElementProps<SVGElementTagNameMap[T]>;
+};
+type MathElements = {
+  [T in Exclude<keyof MathMLElementTagNameMap, keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap>]:
+    ElementProps<MathMLElementTagNameMap[T]>;
+};
+
+/**
+ * TSX typings. A built-in element's `on…` handlers are typed from the DOM library, so `e` and
+ * `e.currentTarget` are inferred; every other prop, and every dash-named tag, stays permissive. Use
+ * with `"jsx": "preserve"` — the plugin, not tsc, transforms JSX.
  */
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -25,11 +123,10 @@ declare global {
      * can type their own elements. Verified by compiling exactly that augmentation against these
      * declarations before the rule was applied to the rest of the file.
      */
-    // eslint-disable-next-line no-restricted-syntax -- declaration merging is the point; see above
-    interface IntrinsicElements {
+    interface IntrinsicElements extends HtmlElements, SvgElements, MathElements {
       [tagName: string]: Record<string, unknown>;
     }
-    // eslint-disable-next-line no-restricted-syntax -- ditto: tsc reads this by shape, and it merges
+    // eslint-disable-next-line no-restricted-syntax -- as IntrinsicElements: tsc reads this by shape, and it merges
     interface ElementChildrenAttribute {
       children: object;
     }
