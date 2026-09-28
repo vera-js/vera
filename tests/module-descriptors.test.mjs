@@ -40,7 +40,7 @@ const { collections } = await load('store/collections');
 const MODULES = [
   ['renderer', renderer, 'render'],
   ['styles', styles, 'init'],
-  ['collections', collections, 'collection'],
+  ['collections', collections, 'store'],
 ];
 
 test('every module is a well-formed descriptor', () => {

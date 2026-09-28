@@ -4,8 +4,9 @@
  * `createStore` is documented as a "deep reactive proxy", and a reader is entitled to take that
  * literally — so the boundary has to be written down and held. It is not arbitrary: the types on the
  * far side carry their state in **internal slots** rather than in properties, so a proxy cannot
- * observe a change to them and in several cases cannot even be called on one. That is the same
- * reason `@verajs/store/collections` has to re-bind `Map` and `Set` methods.
+ * observe a change to them and in several cases cannot even be called on one. The keyed collections
+ * are the same kind of value: core hands them back as they are, and `@verajs/store/collections` —
+ * a `'store'` insert — is what makes them reactive, by claiming them with a handler of its own.
  *
  * There is deliberately no runtime warning. A `Date` read to format it is far more common than a
  * `Date` read to mutate it, so a warning would fire on the ordinary case — which is why this is a
@@ -21,16 +22,21 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
+const { collections } = await load('store/collections');
 
 const PROXIED = {
   'plain object': () => ({}),
   array: () => [],
+  'class instance': () => new (class {})(),
+  'null-prototype object': () => Object.create(null),
+};
+
+/** Wrapped only once `@verajs/store/collections` is wired — handed back as they are before. */
+const COLLECTIONS = {
   Map: () => new Map(),
   Set: () => new Set(),
   WeakMap: () => new WeakMap(),
   WeakSet: () => new WeakSet(),
-  'class instance': () => new (class {})(),
-  'null-prototype object': () => Object.create(null),
 };
 
 const RAW = {
@@ -46,6 +52,19 @@ const RAW = {
   function: () => () => {},
   'DOM element': () => document.createElement('div'),
 };
+
+/** First, before anything is wired — the decision is per value and final, so order matters here. */
+test('the keyed collections are handed back as they are until collections is wired, then proxied', () => {
+  for (const [name, make] of Object.entries(COLLECTIONS)) {
+    const value = make();
+    assert.equal(core.createStore({ value }).value, value, `${name} is left alone with nothing to claim it`);
+  }
+  core.wire([collections]);
+  for (const [name, make] of Object.entries(COLLECTIONS)) {
+    const value = make();
+    assert.notEqual(core.createStore({ value }).value, value, `${name} is proxied once collections claims it`);
+  }
+});
 
 test('these are proxied, so mutating them is visible', () => {
   for (const [name, make] of Object.entries(PROXIED)) {

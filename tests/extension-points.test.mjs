@@ -28,24 +28,42 @@ core.wire({ on: 'render', fn: renderInto, priority: 50 });
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 /**
- * **`GLOBAL` is a literal contract across a package boundary**, which is why it is asserted here
- * rather than trusted. `@verajs/core` declares `'_global'` itself instead of importing it, because a
- * production bundle inlines its dependencies and an import would subscribe to one string while
- * notifying another — working in development and silently failing in production, which is the exact
- * hazard `wire`-from-core exists to prevent. Nothing checked the two literals still agree.
+ * **A store module builds on core's reactivity through the kit, never through a literal of its own.**
+ * The shape channel's name used to be declared twice — once in core, once in the collections package —
+ * because an import across a production bundle subscribes to one copy and notifies another; nothing
+ * checked the two literals agreed. Handing it over in the `'store'` kit makes agreement structural,
+ * and this holds it: a module that tracks `kit.shape` on a plain object hears core's own notification
+ * when a key is added.
  */
-test('GLOBAL is the literal core declares for itself', () => {
-  assert.equal(reactivity.GLOBAL, '_global');
+test("a 'store' module tracking kit.shape hears core add a key", () => {
+  const met = new Map();
+  core.wire({
+    on: 'store',
+    fn: (value, handler, kit) => {
+      met.set(value, kit);
+      return handler;
+    },
+    priority: 90,
+  });
+  const raw = { a: 1 };
+  const state = core.createStore(raw);
+  const kit = met.get(raw);
+  assert.ok(kit, 'CONTROL: the store insert was consulted when the store met its value');
+  let heard = 0;
+  const hook = core.createHook({ element: {}, priority: 10, callback: () => { heard++; kit.track(raw, kit.shape); } });
+  hook(undefined, true);
+  state.b = 2;
+  assert.equal(heard, 2, 'adding a key woke the module subscribed to the channel the kit names');
 });
 
-test('a collection insert built from the published exports tracks size and entries', async () => {
-  let wrapperCalls = 0;
+test('a store module built from the published collections descriptor tracks size and entries', async () => {
+  let consulted = 0;
   /** The documented use: "wrap it to add a type, or read it as the reference". */
   core.wire({
-    on: 'collection',
-    fn: (obj, prop, propValue, addCallback, runCallbacks) => {
-      wrapperCalls++;
-      return reactivity.collectionMethod(obj, prop, propValue, addCallback, runCallbacks);
+    on: 'store',
+    fn: (value, handler, kit) => {
+      consulted++;
+      return reactivity.collections.fn(value, handler, kit);
     },
     priority: 50,
   });
@@ -64,12 +82,12 @@ test('a collection insert built from the published exports tracks size and entri
   await frame();
 
   assert.equal(element.shadowRoot.textContent, 'size:1 a:1');
-  assert.ok(wrapperCalls > 0, 'the wrapping insert was never called, so this asserts nothing');
+  assert.ok(consulted > 0, 'the wrapping insert was never consulted, so this asserts nothing');
 
-  /** A shape change notifies `GLOBAL`; if that literal ever diverges, `size` silently stops. */
+  /** A shape change notifies the kit's shape channel; if that ever diverged, `size` would silently stop. */
   element._state.m.set('b', 2);
   await frame();
-  assert.equal(element.shadowRoot.textContent, 'size:2 a:1', 'size did not track — check the GLOBAL contract');
+  assert.equal(element.shadowRoot.textContent, 'size:2 a:1', 'size did not track the shape channel');
 
   /** A per-entry change notifies the key, not the shape. */
   element._state.m.set('a', 9);
