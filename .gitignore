@@ -29,23 +29,13 @@ Thumbs.debug
 # like `internal/`, never committed here
 /vera-studio/
 
-# scratch from tests/lifecycle-parity.test.mjs, removed in a finally — this is the crash case
-tests/.lifecycle-*
+# Scratch every suite writes beside itself (tests/.<name>-XXXXXX), removed in a finally — this is the
+# crash case, and a commit made while a suite runs. One rule for all of them: nothing under tests/
+# that starts with a dot is source, and a per-prefix list missed three new suites (2026-09-27).
+tests/.*
 
 # JSX twins compiled beside their originals by tests/kitchen-jsx.test.mjs, removed in a finally
 examples/kitchen-sink/.jsx-*
-
-tests/.scale-*
-
-tests/.styles-*
-
-tests/.location-*
-
-tests/.title-*
-
-tests/.hoist-*
-
-tests/.inserts-*
 
 # Generated from @verajs/ssr's JSDoc at build time — the package publishes src, never .ts
 packages/ssr/types/
