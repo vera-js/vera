@@ -167,6 +167,31 @@ test('a scheduler that throws does not freeze the component permanently', async 
 });
 
 /**
+ * **A scheduler that keeps throwing is reported on every write, not just the first.** Replacing it
+ * revives the component (the test above), but while it stays installed each write must say so: if the
+ * coalescing flag stayed raised after the throw, the second write would return early, the failure would
+ * be reported once, and the component would sit frozen while the error channel reported nothing — a
+ * channel that reports once lies about completion (CODE-PRINCIPLES #11). Pinned by the lean rebuild
+ * (2026-09-28), when removing the flag's reset turned nothing else red.
+ */
+test('a scheduler that keeps throwing is reported on every write', async () => {
+  const element = counter();
+  await frame();
+  const failures = [];
+  core.wire({ on: 'error', fn: (error) => failures.push(error), priority: 49 });
+  const previous = core.setRenderScheduler(() => { throw new Error('still exploding'); });
+  try {
+    element._state.n = 1;
+    element._state.n = 2;
+  } finally {
+    core.setRenderScheduler(previous);
+    core.wire({ on: 'error', fn: () => {}, priority: 49 });
+  }
+  assert.equal(failures.filter((error) => /still exploding/.test(String(error?.message))).length, 2,
+    'each write reported the throwing scheduler');
+});
+
+/**
  * The harder half, which was nearly left unfixed on the reasoning that a dropped pass cannot be told
  * apart from a deferred one. That is true *at the moment of scheduling* and it is not the only
  * moment: once the scheduler has been **replaced**, whatever the old one was holding is provably
@@ -249,4 +274,25 @@ test('a render that throws leaves nothing queued for the next one', async () => 
   renderInto(core.html`<p>${'unrelated'}</p>`, D.createElement('div'));
   assert.equal(select.value, 'a',
     'an unrelated render applied a value stranded by an earlier failure');
+});
+
+/**
+ * **A window with no animation frames runs the pass at once — it never drops it.** The default
+ * scheduler uses the element's own window's `requestAnimationFrame`; a window with none (a jsdom made
+ * without `pretendToBeVisual`, an embedded runtime) must still update, or a write there would leave the
+ * component showing its first render forever. Pinned by the lean rebuild (2026-09-28): nothing failed
+ * without the fallback.
+ */
+test('an element in a window without requestAnimationFrame still re-runs on a write, at once', () => {
+  const frameless = new JSDOM('<!doctype html><body></body>');
+  assert.equal(typeof frameless.window.requestAnimationFrame, 'undefined', 'CONTROL: this window has no frames');
+  const el = frameless.window.document.createElement('div');
+  frameless.window.document.body.append(el);
+  const state = core.createStore({ n: 0 });
+  const seen = [];
+  core.init(el);
+  core.useEffect(() => { seen.push(state.n); });
+  core.mount();
+  state.n = 1;
+  assert.deepEqual(seen, [0, 1], 'the write re-ran the effect without waiting for a frame that never comes');
 });
