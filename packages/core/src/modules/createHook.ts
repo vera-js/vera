@@ -1,9 +1,25 @@
-import type { Hook, HookCallback } from '../types.js';
+import type { ComponentElement, Hook, HookCallback } from '../types.js';
 import { currentInstance, hooksQueue } from '../store/store.js';
-import { prioritySlot } from '@verajs/shared-utils';
+import { prioritySlot, reportUncaught } from '@verajs/shared-utils';
+import { inserts } from '@verajs/inserts';
+import type { ErrorInsert } from '@verajs/inserts';
 
 /** Hoisted, so `prioritySlot` is not handed a fresh closure per registration. */
 const newSet = () => new Set<HookCallback>();
+
+/**
+ * Hands a thrown hook error to the `'error'` insert chain, or reports it the way the platform reports
+ * an uncaught error when nothing is registered — through `reportError`, so `window.onerror` and
+ * page-error listeners see it (see `reportUncaught`).
+ *
+ * Never rethrown: an owner's hooks run in one loop, so an escaping error stopped every hook after
+ * the failing one — a single bad effect took out its siblings.
+ */
+export const reportHookError = (error: unknown, element?: ComponentElement) => {
+  const handlers = inserts.get('error');
+  if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)(error, element));
+  else reportUncaught(error, 'a hook threw:');
+};
 
 /**
  * The priority `useRender` registers at — between `useLayoutEffect` (25) and the effects (75), so a
@@ -29,6 +45,10 @@ export const RENDER_PRIORITY = 50;
  *
  * Refused, returning `undefined`, when there is no owner or the priority is not a finite number —
  * `NaN` is what `parseInt` of a config value produces.
+ *
+ * A throw is isolated here (`reportHookError`), and this one wrapper is every entry: the first pass,
+ * a write waking the hook, and a deferred pass — which re-enters through the hook rather than around
+ * it — so no caller needs its own catch.
  */
 export const createHook = ({ callback, priority, element }: Hook): HookCallback | undefined => {
   const owner = element ?? currentInstance.element;
@@ -39,6 +59,8 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
     hooksQueue.push(self);
     try {
       callback(signal, init);
+    } catch (error) {
+      reportHookError(error, owner);
     } finally {
       hooksQueue.pop();
     }
