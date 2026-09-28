@@ -106,34 +106,29 @@ const decide = (tag: string) => {
   return chosen;
 };
 
-/** Writes a decision into a type's owned handler: every trap cleared, then the chosen one's copied in. */
-const install = (owned: Record<string, unknown>, chosen: ProxyHandler<object> | undefined) => {
-  for (const trap of Object.keys(owned)) owned[trap] = undefined;
-  Object.assign(owned, chosen);
-  if (chosen) claimed.add(owned);
-  else claimed.delete(owned);
-};
-
 /**
- * **Decides `tags`, all of them before any is written** — and once a module throws, every type again
- * without it, so each handler reflects exactly the healthy modules. The first failure is thrown after:
- * from the `wire` that brought the module in, or the read that first met a new type — once.
+ * **Decides `tags` and writes each into its type's owned handler** — every trap cleared, then the
+ * chosen one's copied in, so every proxy of the type follows. When a module throws it is retired
+ * (`broken`) and EVERY type is decided again without it — the types it had already joined included —
+ * so each handler reflects exactly the healthy modules before the first failure is thrown: from the
+ * `wire` that brought the module in, or the read that first met a new type — once.
  */
 const settle = (tags: string[]) => {
-  let threw = false;
-  let failure: unknown;
-  let decided: (ProxyHandler<object> | undefined)[];
-  for (;;) {
+  const errors: unknown[] = [];
+  for (let i = 0; i < tags.length; i++) {
+    const owned = types.get(tags[i]) as Record<string, unknown>;
     try {
-      decided = tags.map(decide);
-      break;
+      const chosen = decide(tags[i]);
+      for (const trap in owned) owned[trap] = undefined;
+      Object.assign(owned, chosen);
+      claimed[chosen ? 'add' : 'delete'](owned);
     } catch (error) {
-      if (!threw) (threw = true), (failure = error);
+      errors.push(error);
       tags = [...types.keys()];
+      i = -1;
     }
   }
-  tags.forEach((tag, i) => install(types.get(tag) as Record<string, unknown>, decided[i]));
-  if (threw) throw failure;
+  if (errors.length) throw errors[0];
 };
 
 /** The owned handler for `value`'s type, deciding the type the first time one is met. */
