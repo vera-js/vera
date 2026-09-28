@@ -1,13 +1,7 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
+import { renderScheduler } from '../modules/setRenderScheduler.js';
 import type { ComponentElement, HookCallback, HookCleanup } from '../types.js';
-
-/**
- * The next animation frame, looked up when a pass is scheduled rather than when a hook is created —
- * `render()` runs in environments with no `requestAnimationFrame` (a test, a server) and must not
- * fail there merely by naming it.
- */
-export const frame = (run: () => void) => requestAnimationFrame(run);
 
 /**
  * Runs a cleanup, reported on its own if it throws — a throwing teardown must neither stop the run it
@@ -38,14 +32,17 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
  *
  * @param callback The effect, or a render pass (which returns nothing)
  * @param priority Where it runs among its owner's hooks
- * @param schedule Runs the deferred pass — an animation frame, a microtask, or at once
+ * @param schedule Runs the deferred pass, handed the owner — the render scheduler, a microtask, or at once
  * @param element The owner, instead of the element being set up
  * @return The hook, as `createHook` returns it
  */
+/** The render scheduler, read at each scheduling so a swapped one takes effect at once — see `setRenderScheduler`. */
+export const deferred = (run: () => void, owner?: Element | null) => renderScheduler(run, owner ?? undefined);
+
 export const coalesce = (
   callback: HookCallback,
   priority: number,
-  schedule: (run: () => void) => void,
+  schedule: (run: () => void, owner?: ComponentElement | null) => void,
   element?: ComponentElement
 ) => {
   const owner = element ?? currentInstance.element;
@@ -79,7 +76,7 @@ export const coalesce = (
         now = true;
         hook!(signal);
         now = false;
-      });
+      }, owner);
     },
   });
   return hook;

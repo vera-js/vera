@@ -82,5 +82,12 @@ export type Signal<V> = {
   prevValue?: V;
 };
 
+/**
+ * How a render pass or `useEffect` run is deferred: handed the pass, and the element it belongs to when
+ * there is one (so a scheduler can use that element's own window), it decides WHEN to run it — never
+ * whether. The default is the element window's next animation frame; `microtask` is exported.
+ */
+export type RenderScheduler = (run: () => void, element?: Element) => void;
+
 /** A reactive store over `T`. */
 export type Store<T extends object = object> = T;

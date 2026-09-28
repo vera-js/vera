@@ -6,6 +6,7 @@ export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
 export { mount } from './modules/mount.js';
 export { render } from './modules/render.js';
+export { setRenderScheduler, microtask } from './modules/setRenderScheduler.js';
 export { html, svg } from './store/store.js';
 export { useEffect } from './hooks/useEffect.js';
 export { useLayoutEffect } from './hooks/useLayoutEffect.js';
