@@ -56,7 +56,7 @@ Every binding kind and all three quoting styles, spreads, element refs, SVG and 
 receive, `static styles` in both shadow and light DOM, slots with named and fallback content, a
 form-associated custom element with an observed attribute, the autoloader fetching a component on
 demand, a router with nested routes, guards, redirects, aliases and a wildcard, and custom
-`proxy-handler` / `set-handler` / `error` inserts.
+`store` (wrapping core's reads and writes) and `error` inserts.
 
 `components/` is written as tagged templates; `jsx/` holds twins of the four that JSX can express.
 A spread on an element, an element-position ref and a single-quoted binding have no JSX syntax —

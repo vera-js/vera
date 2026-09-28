@@ -1,31 +1,19 @@
 /**
- * An insert wired *after* the thing that reads it has already cached the chain.
+ * **A `'store'` insert wired after a store was created still reaches it — the import-order case.**
  *
- * `createProxy` does not call `inserts.get('proxy-handler')` per property read — that would be a map
- * lookup on the hottest path in the framework. It caches the chain and re-reads it when `revision`
- * changes, a live binding every registration bumps.
+ * A store module (batching, transactions, persistence, devtools) is consulted when a store first
+ * meets a value and decides, once, how that value is reactive. The ordinary way to get this wrong is
+ * import order: `store.js` runs `createStore(...)` at module scope, and it is imported before the entry
+ * calls `wire`. If the decision were made at creation, the module wired a line later would never reach
+ * the app's main store — registered, present in the registry, and silently never run.
  *
- * `revision` is the **least-referenced public export in the framework**: one test file, against
- * sixteen for `hold`. And the case it exists for is ordinary import order — an app whose entry wires a
- * module after some other module has already created a store, which is decided by the order of
- * `import` statements and nothing else.
+ * So a store decides on **first use**: its first read or write, which happens in a render, after
+ * `wire`. What stays true is the other half of the rule, pinned here as well: a store already USED
+ * before the module was wired keeps the handler it got — the decision is per value and final, which
+ * is what keeps the seam off the hot path.
  *
- * The failure it prevents is silent in the worst way: the handler is registered, `inserts.get` would
- * return it, and it simply never runs, because the reader is still holding the array it read first.
- *
- * ## What `revision` is actually load-bearing for
- *
- * `register` **splices the chain in place**, so a reader holding the array already sees entries added
- * to it. Measured: replacing the guard with `proxyHandlers === undefined` passes every case here.
- * `revision` is what covers the `undefined -> array` transition — the first registration for a point
- * nobody had wired — and freezing it fails three of the four below.
- *
- * ## The half that is easy to get wrong
- *
- * Picking up the handler for **stores created afterwards** is the easy half — a fresh read would do
- * it. The one that needs the invalidation is a store that **already existed**: its reads must run the
- * new handler too, which they only do if the cache is dropped rather than merely bypassed for new
- * objects.
+ * This file used to hold the `'proxy-handler'` chain's cache to the same promise, through the
+ * registry's `revision`; both retired with the per-read chain (2026-09-27).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,44 +29,46 @@ for (const key of [
 
 const core = await load('core');
 
-/** Created and read before anything is wired, so its chain is cached empty. */
-const existing = core.createStore({ n: 1 });
+/** Created at "module scope", before anything is wired, and not used yet. */
+const created = core.createStore({ n: 1 });
+/** Created AND used before anything is wired. */
+const used = core.createStore({ u: 1 });
+void used.u;
+
 const seen = [];
+/** A store module that observes reads by wrapping core's `get`. */
+const observer = (label) => (value, handler) =>
+  handler?.get && {
+    ...handler,
+    get(obj, prop, receiver) {
+      seen.push(`${label}:${String(prop)}`);
+      return handler.get(obj, prop, receiver);
+    },
+  };
 
-test('a store read before any handler is wired runs none', () => {
-  void existing.n;
-  assert.deepEqual(seen, [], 'nothing is registered yet — the control');
+test('nothing observes a read before a store module is wired — the control', () => {
+  void used.u;
+  assert.deepEqual(seen, []);
 });
 
-test('a proxy-handler wired afterwards runs for a store made later', () => {
-  core.wire({
-    on: 'proxy-handler',
-    fn: (object, prop, value) => { seen.push(prop); return value; },
-    priority: 40,
-  });
-
-  const later = core.createStore({ m: 2 });
+test('a store module wired after a store was created reaches it, if it was not used yet', () => {
+  core.wire({ on: 'store', fn: observer('first'), priority: 40 });
   seen.length = 0;
-  void later.m;
-  assert.deepEqual(seen, ['m'], 'the handler was picked up rather than missed');
+  void created.n;
+  assert.deepEqual(seen, ['first:n'], 'the module-scope store took the module wired after it');
 });
 
-/** The half that needs the cache dropped rather than merely bypassed for new objects. */
-test('and for the store that already existed before it was wired', () => {
+test('a store used before the module was wired keeps the handler it got', () => {
   seen.length = 0;
-  void existing.n;
-  assert.deepEqual(seen, ['n'], 'the cached chain was invalidated, not just skipped for new stores');
+  void used.u;
+  assert.deepEqual(seen, [], 'decided on first use, and final');
 });
 
-test('and a second handler added later joins the chain in priority order', () => {
-  core.wire({
-    on: 'proxy-handler',
-    fn: (object, prop, value) => { seen.push(`second:${prop}`); return value; },
-    priority: 41,
-  });
-
-  const third = core.createStore({ z: 3 });
+test('two store modules compose in priority order', () => {
+  core.wire({ on: 'store', fn: observer('second'), priority: 41 });
+  const later = core.createStore({ z: 3 });
   seen.length = 0;
-  void third.z;
-  assert.deepEqual(seen, ['z', 'second:z'], 'both run, lower priority first');
+  void later.z;
+  /** The second wraps the first, so it sees the read first and hands it on. */
+  assert.deepEqual(seen, ['second:z', 'first:z'], 'each wraps the handler chosen before it');
 });

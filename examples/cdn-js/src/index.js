@@ -19,10 +19,10 @@ import { computedValues } from './inserts/computed.js';
 /**
  * Everything this app wires, in one call, from data rather than side effects — a **connector** for
  * a package that imports nothing, and a **descriptor** for a handler written right here. Computed
- * values as a ten-line `'proxy-handler'` insert are the worked example (see
- * src/inserts/computed.js); priority is required, because chains are priority-ordered.
+ * values as a few-line `'store'` insert are the worked example (see src/inserts/computed.js);
+ * priority is required, because chains are priority-ordered.
  */
-wire([renderer, router, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
+wire([renderer, router, { on: 'store', fn: computedValues, priority: 60 }]);
 
 
 /**

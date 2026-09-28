@@ -67,18 +67,18 @@ describe('the extension points actually run', () => {
     this.timeout(30000);
   });
 
-  it("a 'proxy-handler' insert sees property reads", () => {
-    expect(observed.reads, 'nothing reached the proxy-handler chain').to.be.greaterThan(0);
+  it("a 'store' insert wrapping core's get sees property reads", () => {
+    expect(observed.reads, 'nothing reached the wrapped get').to.be.greaterThan(0);
   });
 
-  it("a 'set-handler' insert sees property writes", async () => {
+  it("a 'store' insert wrapping core's set sees property writes", async () => {
     const before = observed.writes;
     shell.shadowRoot.querySelector('sink-effects').bump(1);
     await settle(frame);
-    expect(observed.writes, 'nothing reached the set-handler chain').to.be.greaterThan(before);
+    expect(observed.writes, 'nothing reached the wrapped set').to.be.greaterThan(before);
   });
 
-  it("a 'set-handler' returning false suppresses the write", async () => {
+  it("a 'store' insert can take a write off the notification path", async () => {
     const styled = shell.shadowRoot.querySelector('sink-styled');
     const before = observed.suppressed;
     styled.state.accent = SUPPRESS;

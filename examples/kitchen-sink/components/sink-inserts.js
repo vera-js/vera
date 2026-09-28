@@ -1,39 +1,39 @@
 /**
  * The extension points, used the way a third-party module would use them.
  *
- * `proxy-handler` sees every property read, `set-handler` every write (and can suppress the default
- * propagation by returning `false`), and `error` receives anything a hook throws. Registered at
- * priorities that do not collide with core's own — registering at a taken priority *replaces*, which
- * is the trap this file exists to keep visible.
+ * A `'store'` insert wraps core's handler for the values a store meets — here counting every read and
+ * every write, and taking one write off the notification path (written to the raw target, so nobody
+ * hears it) — and `error` receives anything a hook throws. Registered at priorities that do not
+ * collide with other modules' — registering at a taken priority *replaces*, which is the trap this
+ * file exists to keep visible.
  */
 import { wire } from '@verajs/core';
 
 /** Observable counters, so a test can assert the chain actually ran rather than merely registered. */
 export const observed = { reads: 0, writes: 0, errors: [], suppressed: 0 };
 
-/** A write of the reserved sentinel is swallowed: `false` stops the default propagation. */
+/** A write of the reserved sentinel is written to the raw target, which notifies nobody. */
 export const SUPPRESS = '__sink_suppress__';
 
 export const installSinkInserts = () => {
   wire([
     {
-      on: 'proxy-handler',
+      on: 'store',
       priority: 30,
-      fn: () => {
-        observed.reads++;
-      },
-    },
-    {
-      on: 'set-handler',
-      priority: 30,
-      fn: (element, property, value) => {
-        observed.writes++;
-        if (value === SUPPRESS) {
-          observed.suppressed++;
-          return false;
-        }
-        return undefined;
-      },
+      fn: (value, handler) =>
+        handler?.set && {
+          ...handler,
+          get(obj, prop, receiver) {
+            observed.reads++;
+            return handler.get(obj, prop, receiver);
+          },
+          set(obj, prop, next, receiver) {
+            observed.writes++;
+            if (next !== SUPPRESS) return handler.set(obj, prop, next, receiver);
+            observed.suppressed++;
+            return Reflect.set(obj, prop, next);
+          },
+        },
     },
     {
       on: 'error',

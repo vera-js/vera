@@ -17,7 +17,8 @@ What to look at, in order:
    elements before a renderer exists.
 3. **`src/components/`** — a counter and a small app, written exactly as the README quick start.
 4. **`src/inserts/`** — the three worked extension examples the docs point at: `computed.js`
-   (a `'proxy-handler'` insert), `batch.js` (a `'set-handler'` holding writes back), and
+   (a `'store'` insert wrapping core's `get`), `batch.js` (one wrapping core's `set` to hold writes
+   back), and
    `error-boundary.js` (the `'error'` insert). Each is a few dozen lines and each is executed by
    the test suite (`tests/example-computed.test.mjs`, `tests/example-batch-boundary.test.mjs`).
 

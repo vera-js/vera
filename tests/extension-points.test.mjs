@@ -47,8 +47,10 @@ test("a 'store' module tracking kit.shape hears core add a key", () => {
   });
   const raw = { a: 1 };
   const state = core.createStore(raw);
+  /** A store decides how it is reactive on first use, so the insert is consulted by this read. */
+  void state.a;
   const kit = met.get(raw);
-  assert.ok(kit, 'CONTROL: the store insert was consulted when the store met its value');
+  assert.ok(kit, 'CONTROL: the store insert was consulted when the store was first used');
   let heard = 0;
   const hook = core.createHook({ element: {}, priority: 10, callback: () => { heard++; kit.track(raw, kit.shape); } });
   hook(undefined, true);

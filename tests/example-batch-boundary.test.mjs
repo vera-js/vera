@@ -15,7 +15,7 @@ const { errorBoundary } = await import(new URL('../examples/cdn-js/src/inserts/e
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
 
-core.wire({ on: 'set-handler', fn: batching, priority: 50 });
+core.wire({ on: 'store', fn: batching, priority: 60 });
 const state = core.createStore({ a: 0, b: 0 });
 let syncRuns = 0, lastA = -1;
 core.createHook({ element: host, priority: 60, callback: () => { syncRuns++; lastA = state.a; state.b; } });

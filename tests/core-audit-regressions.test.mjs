@@ -116,42 +116,6 @@ test('an ordinary assignment notifies exactly once', async () => {
   assert.equal(runs, 1, 'one write, one run');
 });
 
-/* ── the hot-path chain cache ────────────────────────────────────────────────────────────────── */
-
-/**
- * `'proxy-handler'` and `'set-handler'` are cached against the registry's revision, because reading
- * them from the Map on every property access cost 13% of a tracked read. The cache has exactly one
- * way to be wrong: a chain wired *after* the first read must still be picked up.
- */
-test('a proxy-handler wired after the first read is still seen', async () => {
-  /** Core's own `wire`, which writes to the registry core reads — see the note in `tests/dist.mjs`. */
-  const { wire } = core;
-  const state = core.createStore({ n: 1 });
-  assert.equal(state.n, 1, 'read once, so the empty chain is cached');
-
-  const seen = [];
-  wire({ on: 'proxy-handler', fn: (obj, prop, value) => (seen.push(prop), value), priority: 41 });
-  void state.n;
-  assert.ok(seen.includes('n'), 'the newly wired handler ran');
-
-  /** And replacing at a taken priority — which mutates the chain in place — still takes effect. */
-  const later = [];
-  wire({ on: 'proxy-handler', fn: (obj, prop, value) => (later.push(prop), value), priority: 41 });
-  void state.n;
-  assert.ok(later.includes('n'), 'the replacement ran');
-});
-
-test('a set-handler wired after the first write is still seen', async () => {
-  const { wire } = core;
-  const state = core.createStore({ n: 0 });
-  state.n = 1;
-
-  const writes = [];
-  wire({ on: 'set-handler', fn: (obj, prop) => void writes.push(prop), priority: 42 });
-  state.n = 2;
-  assert.deepEqual(writes, ['n'], 'the newly wired handler ran');
-});
-
 /* ── runaway useSyncEffect ───────────────────────────────────────────────────────────────────── */
 
 /**

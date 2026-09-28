@@ -74,8 +74,9 @@ const PLAIN = /^(object|array)$/;
  * nothing to leave it. Asked on the cache miss only, so an ordinary read or write pays nothing for the
  * seam existing, and a store module never runs on the hot path unless it put itself there.
  *
- * The decision is per value and final: a module wired after a value was first wrapped does not reach
- * it. Store modules are wired at the app entry, before the values they apply to are read.
+ * The decision is per value, made when a store first USES it — a nested value on its first read, a
+ * store itself on its first operation of any kind (`pending`) — and final: a module wired after that
+ * does not reach it.
  */
 const handlerFor = (value: object) => {
   let chosen: ProxyHandler<object> | undefined = PLAIN.test(getType(value)) ? handler : undefined;
@@ -194,6 +195,37 @@ const handler: ProxyHandler<object> = {
  */
 const proxies = new WeakMap<object, object | null>();
 
+/**
+ * The traps a placeholder stands in for: every way a store is read or written. The prototype and
+ * extensibility traps are left out — an `instanceof` or `Object.isFrozen` arriving first goes to the
+ * target, which is what a store handler does with them anyway, and the next read or write settles it.
+ */
+const TRAPS = ['get', 'set', 'has', 'deleteProperty', 'ownKeys', 'defineProperty', 'getOwnPropertyDescriptor'] as const;
+
+/**
+ * **A store decides how it is reactive on first use, not when it is created.** `createStore` runs
+ * wherever the app puts it — often at module scope, in a file imported before the entry has called
+ * `wire` — so deciding at creation would put a store module wired a line later out of reach of the
+ * app's main store, silently: the import-order case, and the ordinary one. Its first read or write
+ * happens in a render, after `wire`.
+ *
+ * Every trap starts as a placeholder that, whichever runs first, replaces all of them with the
+ * resolved handler's traps — in the same handler object, which the engine consults on every
+ * operation, so from then on each operation reaches its real trap directly, with no indirection left
+ * behind — and then performs the operation it was called for.
+ */
+const pending = (data: object) => {
+  /** Keyed dynamically, so typed as a record at this one seam; the traps it receives are real handler traps. */
+  const deferred: Record<string, unknown> = {};
+  for (const trap of TRAPS)
+    deferred[trap] = (...args: unknown[]) => {
+      for (const each of TRAPS) delete deferred[each];
+      Object.assign(deferred, handlerFor(data));
+      return ((deferred[trap] ?? Reflect[trap]) as (...a: unknown[]) => unknown)(...args);
+    };
+  return deferred as ProxyHandler<object>;
+};
+
 /** A new proxy over `data`, registered as mapping to itself — see `proxies`. */
 const wrap = (data: object, chosen: ProxyHandler<object>) => {
   const proxy = new Proxy(data, chosen);
@@ -206,13 +238,12 @@ export const createProxy = <T extends object>(data: T): T => {
   let proxy = proxies.get(data);
   if (proxy) return proxy as T;
   /**
-   * A value nothing wraps is handed back as it is — not reactive, and not pretending to be. `null`
-   * cached for a nested value means "hand back verbatim" there; asked for as a store in its own right it
-   * is decided afresh, since a frozen *slot* says nothing about the object itself.
+   * Decided on first use (`pending`). A value nothing claims ends up behind a proxy with no traps —
+   * transparent, and not reactive. `null` cached for a nested value means "hand back verbatim" in that
+   * slot; asked for as a store in its own right the object is decided afresh, since a frozen *slot*
+   * says nothing about the object itself.
    */
-  const chosen = handlerFor(data);
-  if (!chosen) return data;
-  proxy = wrap(data, chosen);
+  proxy = wrap(data, pending(data));
   if (proxies.get(data) === undefined) proxies.set(data, proxy);
   return proxy as T;
 };
