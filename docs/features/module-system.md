@@ -29,16 +29,16 @@ all the router takes what it needs directly (`setRouterRenderer`), with no regis
 | Name | Fires | Enables |
 | --- | --- | --- |
 | `'render'` | every component and route render | renderers, autoloaders |
-| `'store'` | a store's first use of a value — once per value, never per read or write | reactive `Map`/`Set`, `batch()`, transactions, undo/redo, persistence, time-travel devtools, value wrapping |
+| `'store'` | a type of value — once per type, and again on every `wire`; never per store, read or write | reactive `Map`/`Set`, `batch()`, transactions, undo/redo, persistence, time-travel devtools, value wrapping |
 | `'error'` | a hook callback or an element ref throws | error boundaries, fallback UI, error reporting |
 
-A `'store'` insert is handed core's handler for a value and returns the one to use. Wrapping core's
+A `'store'` insert is handed a type of value (`'object'`, `'map'`, …) and core's handler for it, and returns the one to use. Wrapping core's
 `set` is how a module takes over a write: writing to the raw target notifies nobody, and the kit's
 `trigger` — core's own notify — delivers it later. That is what makes `batch()` a module rather than
 core surface:
 
 ```js
-wire({ on: 'store', fn: (value, handler, kit) => handler?.set && {
+wire({ on: 'store', fn: (type, handler, kit) => handler?.set && {
   ...handler,
   set(obj, prop, next, receiver) {
     if (!batching) return handler.set(obj, prop, next, receiver);

@@ -23,7 +23,7 @@
 let held = null;
 
 /** The insert: wraps core's handler (plain objects and arrays), leaves everything else alone. */
-export const batching = (value, handler, kit) =>
+export const batching = (type, handler, kit) =>
   handler?.set && {
     ...handler,
     set(obj, prop, next, receiver) {

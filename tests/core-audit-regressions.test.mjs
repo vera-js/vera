@@ -189,6 +189,20 @@ test('a shared object is handed back raw through a frozen parent, even once a st
   assert.equal(state.locked.inner, shared, 'through the frozen parent it is the raw object, not the cached proxy');
 });
 
+/**
+ * **Frozen THROUGH the store, after it has been read.** The non-extensible check is not on the read path
+ * (it cost two-hop reads ~170 ns); a parent is marked where it becomes non-extensible instead — here, in
+ * the `defineProperty` trap each key's redefinition passes through. Without the mark, the cached proxy
+ * from the first read would be handed back for a now-frozen property, and the engine throws.
+ */
+test('a store frozen through the store hands its object values back raw afterwards', () => {
+  const inner = { x: 1 };
+  const state = core.createStore({ inner });
+  assert.notEqual(state.inner, inner, 'CONTROL: before the freeze it is wrapped (and cached)');
+  Object.freeze(state);
+  assert.equal(state.inner, inner, 'after it, the raw object — the engine refuses a substitute');
+});
+
 test('a sealed store still notifies on a write to an existing key', async () => {
   const el = document.createElement('div');
   document.body.append(el);

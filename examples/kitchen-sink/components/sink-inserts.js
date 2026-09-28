@@ -20,7 +20,7 @@ export const installSinkInserts = () => {
     {
       on: 'store',
       priority: 30,
-      fn: (value, handler) =>
+      fn: (type, handler) =>
         handler?.set && {
           ...handler,
           get(obj, prop, receiver) {

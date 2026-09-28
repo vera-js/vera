@@ -139,17 +139,24 @@ as it was put in, so mutating an object *inside* a collection notifies nothing �
 instead. `WeakMap` and `WeakSet` work and cannot be iterated, so they subscribe per key only.
 
 **A reactive type of your own is a `'store'` insert too** — the extension point `collections`
-itself uses, and the only one. It is consulted once, when a store first uses a value, and handed the
-handler chosen so far plus core's kit; return a handler for your type and pass everything else through:
+itself uses, and the only one. It decides per **type** — the name `Object.prototype.toString` gives a
+value, lower-cased: `'object'`, `'array'`, `'map'` — once, never per store, read or write; it is handed
+the handler chosen so far plus core's kit. Your class names its type the way the platform's own do,
+with `Symbol.toStringTag`:
 
 ```js
 import { wire } from '@verajs/core';
 
+class MyCollection {
+  get [Symbol.toStringTag]() { return 'MyCollection'; }   // → type 'mycollection'
+  // …
+}
+
 wire({
   on: 'store',
-  priority: 60, // after the stock collections (50), so a Map subclass of yours is yours
-  fn: (value, handler, kit) =>
-    value instanceof MyCollection
+  priority: 60,
+  fn: (type, handler, kit) =>
+    type === 'mycollection'
       ? {
           get(obj, prop) {
             if (prop === 'size') kit.track(obj, kit.shape);   // shape readers subscribe here
@@ -161,6 +168,10 @@ wire({
       : handler,
 });
 ```
+
+A subclass of `Map` without a tag of its own is a `'map'`, and `collections` handles it. **Wire it
+whenever you like**: every store of the type — ones created, even used, before the `wire` call — takes
+it, because every proxy of a type shares one handler and `wire` decides it again.
 
 `kit.shape` is the channel meaning *the container changed shape*, as opposed to one entry changing.
 It comes from core at runtime rather than as a literal of your own, so what you notify is always

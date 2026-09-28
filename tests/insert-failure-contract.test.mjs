@@ -45,14 +45,16 @@ const mount = (body) => {
 };
 
 test('a `store` handler whose set throws surfaces at the assignment', () => {
-  const throwingSet = (value, handler) =>
+  const throwingSet = (type, handler) =>
     handler?.set && { ...handler, set() { throw new Error('from the insert'); } };
   wire([{ on: 'store', fn: throwingSet, priority: 10, name: 'throwing-set' }]);
   const state = createStore({ count: 0 });
   assert.throws(() => { state.count = 1; }, /from the insert/, 'the write is where a person can act on it');
-  /** Replaced at the same priority, which is the documented way to take one back out — for the values
-   *  a store meets from then on; one already decided keeps its handler. */
+  /** Replaced at the same priority, which is the documented way to take one back out — for every store,
+   *  the one that threw included: `wire` decides every type again. */
   wire([{ on: 'store', fn: () => undefined, priority: 10, name: 'restore' }]);
+  state.count = 2;
+  assert.equal(state.count, 2, 'the store that threw works again');
   const fresh = createStore({ count: 0 });
   fresh.count = 2;
   assert.equal(fresh.count, 2, 'and a store met afterwards works');
@@ -170,18 +172,21 @@ test('the README documents every point the types declare', () => {
  * The two the section had not covered, asserted the way its own rationale predicts: both run inside
  * something the caller invoked, so both surface there rather than being swallowed.
  */
-test('a `store` insert that throws surfaces at the use that consulted it — and the store tries again', () => {
-  wire({ name: 'store-thrower', on: 'store', fn: () => { throw new Error('store-boom'); }, priority: 3 });
+test('a `store` insert that throws surfaces from the wire that registered it — and nothing changes', () => {
   const state = createStore({ tags: 1 });
-  assert.throws(() => state.tags, /store-boom/, 'a throwing store insert was swallowed');
-  /** Put it back; the store was never decided, so its next use consults the chain afresh. */
-  wire({ name: 'store-thrower', on: 'store', fn: () => undefined, priority: 3 });
-  /** Reactive, not merely readable: a store stripped of its traps would still read back `1`. */
+  assert.throws(
+    () => wire({ name: 'store-thrower', on: 'store', fn: () => { throw new Error('store-boom'); }, priority: 3 }),
+    /store-boom/,
+    'a throwing store insert was swallowed'
+  );
+  /** Decided all at once and only then written: the throw left every store as it was — still reactive. */
   let runs = 0;
   const hook = createHook({ element: {}, priority: 10, callback: () => { runs++; void state.tags; } });
   hook(undefined, true);
   state.tags = 2;
-  assert.equal(runs, 2, 'the failed decision was not kept — the store is still reactive');
+  assert.equal(runs, 2, 'the failed decision changed nothing — the store is still reactive');
+  /** Replacing it at the same priority is the fix, and the wire that installs it succeeds. */
+  assert.doesNotThrow(() => wire({ name: 'store-thrower', on: 'store', fn: () => undefined, priority: 3 }));
 });
 
 test('a `value` insert that throws surfaces at the render that committed the value', () => {

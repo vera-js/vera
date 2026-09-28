@@ -15,25 +15,28 @@ export type StoreKit = {
 };
 
 /**
- * **Decides how a value in a store is reactive — once, the first time a store meets it.**
+ * **Decides how a TYPE of value is reactive in every store** — `'object'`, `'array'`, `'map'`, `'set'`,
+ * `'date'` … (the name `Object.prototype.toString` gives it, lower-cased).
  *
- * Handed the value, the handler chosen so far — core's own for a plain object or array, `undefined`
- * for anything core leaves alone — and core's {@link StoreKit}. Return a handler to use instead, or
- * nothing to leave the choice as it is. Inserts run in priority order, each seeing the previous
- * choice, so they compose:
+ * Handed the type, the handler chosen so far — core's own for `'object'` and `'array'`, `undefined` for a
+ * type core leaves alone — and core's {@link StoreKit}. Return a handler to use instead, or nothing to
+ * leave the choice as it is. Inserts run in priority order, each seeing the previous choice, so they
+ * compose:
  *
- * - **claim a type core leaves alone** — `@verajs/store/collections` returns a handler for `Map`,
- *   `Set`, `WeakMap` and `WeakSet`, built on `kit.track`/`kit.trigger`;
+ * - **claim a type core leaves alone** — `@verajs/store/collections` returns a handler for `'map'`,
+ *   `'set'`, `'weakmap'` and `'weakset'`, built on `kit.track`/`kit.trigger`;
  * - **wrap core's handler** — `{ ...handler, set(obj, prop, value, receiver) { … } }` — for batching,
  *   transactions, undo, persistence or devtools; writing through `Reflect.set` on the raw target
- *   notifies nobody, and `kit.trigger` notifies later, which is how a module holds changes back.
+ *   notifies nobody, and `kit.trigger` notifies later, which is how a module holds changes back. A
+ *   decision about one particular object belongs inside the trap, which is handed the object.
  *
- * It is consulted on a store's cache miss only, never per read or write, so a module that wires
- * nothing costs nothing and one that wires something costs only what its handler does. The decision is
- * per value and final: a module wired after a value was first wrapped does not reach it.
+ * Consulted once per type — never per store, read or write — so a module that wires nothing costs
+ * nothing and one that wires something costs only what its handler does. **A module wired late reaches
+ * every store**: `wire` rebuilds each type's handler in place, and every proxy of that type shares it.
+ * A module that throws throws from `wire`, and nothing changes.
  */
 export type StoreInsert = (
-  value: object,
+  type: string,
   handler: ProxyHandler<object> | undefined,
   kit: StoreKit
 ) => ProxyHandler<object> | undefined | void;

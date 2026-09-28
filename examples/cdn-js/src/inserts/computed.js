@@ -29,7 +29,7 @@
 export const computed = (fn) => ((fn._computed = true), fn);
 
 /** The insert: wraps core's `get` so a marked function reads as its result. */
-export const computedValues = (value, handler) =>
+export const computedValues = (type, handler) =>
   handler?.get && {
     ...handler,
     get(obj, prop, receiver) {

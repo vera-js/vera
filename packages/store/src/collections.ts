@@ -1,4 +1,3 @@
-import { isSetOrMap } from '@verajs/shared-utils';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
 
 /**
@@ -52,8 +51,8 @@ const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
  *   maintains, and core raises a `__DEV__` error naming this package the moment a Map or Set
  *   reaches a store with nothing registered. It fails loudly, once, with the fix in the message.
  * - *The per-read insert-chain walk.* That cost belonged to `'proxy-handler'`, which ran on every
- *   read of every store. This point is **type-keyed**: core already computes `isSetOrMap`, so a
- *   plain-object read never reaches the lookup. Measured over 24 rotated rounds and 300 000 reads,
+ *   read of every store. A `'store'` insert is asked once per TYPE, never per read, so a
+ *   plain-object read never reaches it. Measured over 24 rotated rounds and 300 000 reads,
  *   a plain read got *faster* (139.3 → 129.9 ns/op) and a `Map.size` read stayed flat.
  *
  * Change detection is per method: `set` fires iff absent-or-different, `add` iff absent, `delete`
@@ -208,9 +207,12 @@ const collectionHandler = (kit: StoreKit) => {
  * Priority 50 is the convention for a default implementation — register below 50 to run first, or at
  * 50 to replace this entirely.
  */
+/** The type names (`Object.prototype.toString`, lower-cased) this module claims. */
+const KEYED = /^(weak)?(map|set)$/;
+
 export const collections = {
   name: '@verajs/store/collections',
   on: 'store' as const,
-  fn: ((value, handler, kit) => (isSetOrMap(value) ? collectionHandler(kit) : handler)) as StoreInsert,
+  fn: ((type, handler, kit) => (KEYED.test(type) ? collectionHandler(kit) : handler)) as StoreInsert,
   priority: 50,
 };

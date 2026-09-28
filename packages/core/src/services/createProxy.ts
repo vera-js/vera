@@ -1,5 +1,5 @@
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
-import { getType, isWeakCollection } from '@verajs/shared-utils';
+import { isWeakCollection } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
 import type { Signal } from '../types.js';
@@ -58,32 +58,65 @@ let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
 
 /**
- * What core's own handler serves: plain objects (class instances included) and arrays. Everything else
- * — a `Map`, a `Date`, a `URL`, a typed array, a DOM element — has internal slots a proxy in front of it
- * breaks (`this is not a Date object`), so it is handed back as it went in unless a `'store'` insert
- * claims it (`@verajs/store/collections` claims the keyed collections). A value handed back changes by
- * being replaced, which a store does see.
+ * **One handler per TYPE of value, owned here and shared by every proxy of that type** — keyed by the
+ * engine's own tag (`Object.prototype.toString`, a constant string: no allocation on a lookup).
+ *
+ * Core's handler serves plain objects (class instances included) and arrays. Every other type — a
+ * `Map`, a `Date`, a typed array, a DOM element — has internal slots a proxy in front of it breaks
+ * (`this is not a Date object`), so it starts with an EMPTY handler: a store of one is transparent, and a
+ * nested one is handed back raw. A `'store'` insert may claim a type or wrap core's handler.
+ *
+ * **A decision is made when its inputs change, never per store or per read.** A type is decided the
+ * first time one is met; `wire` decides every known type again and writes the result INTO the owned
+ * handler objects, so every existing proxy follows — a module wired after the app's stores exist (a
+ * store at module scope, imported before the entry wires) reaches them all. The handlers are owned
+ * copies because what a chain returns may be shared — core's own serves two types — and must never be
+ * rewritten in place. Replaced per-store first-use placeholders, which cost ~2.6 µs of every component
+ * with a store (measured): seven closures per store.
  */
-const PLAIN = /^(object|array)$/;
+const TAG = Object.prototype.toString;
+const types = new Map<string, ProxyHandler<object>>();
+/** The owned handlers some insert or core claimed — an empty one means "not reactive, hand back raw". */
+const claimed = new WeakSet<object>();
+
+/** What the chain chooses for a type (by its tag): core's handler or nothing, then each insert in turn. */
+const decide = (tag: string) => {
+  const type = tag.slice(8, -1).toLowerCase();
+  let chosen: ProxyHandler<object> | undefined = type === 'object' || type === 'array' ? handler : undefined;
+  /** A plain loop: `forEach` allocated a closure per decision — measured, once any module is wired. */
+  const chain = inserts.get('store') as StoreInsert[] | undefined;
+  if (chain) for (let i = 0; i < chain.length; i++) chosen = chain[i](type, chosen, kit) ?? chosen;
+  return chosen;
+};
+
+/** Writes a decision into a type's owned handler: every trap cleared, then the chosen one's copied in. */
+const install = (owned: Record<string, unknown>, chosen: ProxyHandler<object> | undefined) => {
+  for (const trap of Object.keys(owned)) owned[trap] = undefined;
+  Object.assign(owned, chosen);
+  if (chosen) claimed.add(owned);
+  else claimed.delete(owned);
+};
+
+/** The owned handler for `value`'s type, deciding the type the first time one is met. */
+const handlerFor = (value: object) => {
+  const tag = TAG.call(value);
+  let owned = types.get(tag);
+  if (owned === undefined) {
+    const chosen = decide(tag);
+    types.set(tag, (owned = {}));
+    install(owned as Record<string, unknown>, chosen);
+  }
+  return owned;
+};
 
 /**
- * **How a value is reactive, decided once — the first time a store meets it.** Core's handler for
- * plain objects and arrays, nothing for the rest, and then every `'store'` insert in priority order,
- * each handed the handler chosen so far: it may return a different one — claiming a type core leaves
- * alone, or composing core's `get`/`set` for batching, transactions, persistence or devtools — or
- * nothing to leave it. Asked on the cache miss only, so an ordinary read or write pays nothing for the
- * seam existing, and a store module never runs on the hot path unless it put itself there.
- *
- * The decision is per value, made when a store first USES it — a nested value on its first read, a
- * store itself on its first operation of any kind (`pending`) — and final: a module wired after that
- * does not reach it.
+ * **Every known type decided again, after `wire`** — all of them first, then written, so a module that
+ * throws surfaces from the `wire` call that registered it and no handler changes.
  */
-const handlerFor = (value: object) => {
-  let chosen: ProxyHandler<object> | undefined = PLAIN.test(getType(value)) ? handler : undefined;
-  /** A plain loop: `forEach` allocated a closure per value decided — measured, once any module is wired. */
-  const chain = inserts.get('store') as StoreInsert[] | undefined;
-  if (chain) for (let i = 0; i < chain.length; i++) chosen = chain[i](value, chosen, kit) ?? chosen;
-  return chosen;
+export const redecideStores = () => {
+  const decided = [...types.keys()].map(decide);
+  let i = 0;
+  for (const owned of types.values()) install(owned as Record<string, unknown>, decided[i++]);
 };
 
 /**
@@ -91,6 +124,18 @@ const handlerFor = (value: object) => {
  * readers — through every door the language has, not only `=`: `in`, enumeration, `delete` and
  * `Object.defineProperty` each read or change what a template can show.
  */
+/**
+ * **Parents that are not extensible**, whose object-valued properties `get` hands back raw — marked where
+ * they become so, never asked on the read path: `Object.isExtensible` in the trap cost ~170 ns on every
+ * two-hop read (measured: 511 ns against 372 with this set), though the call alone is ~12 ns — its
+ * presence changes how the engine compiles the trap. A value is marked when it is wrapped, and a target
+ * when a definition leaves it non-extensible (`Object.freeze(store)`: the language prevents extensions
+ * first, then redefines every key, each through `defineProperty`). **Freezing the RAW object behind a
+ * store, after the store has wrapped it, is not seen** — nothing in the store is told — and a later
+ * object-valued read would then be refused by the engine; freeze a value before handing it to a store,
+ * or through the store.
+ */
+const FIXED = new WeakSet<object>();
 const handler: ProxyHandler<object> = {
   get(obj: object, prop, receiver) {
     const value = Reflect.get(obj, prop, receiver);
@@ -99,18 +144,17 @@ const handler: ProxyHandler<object> = {
      * **A property the language says must be returned verbatim is.** A non-writable,
      * non-configurable data property may not be answered with a substitute — the engine throws — and
      * every property of a frozen object is one, so reading a nested object out of
-     * `createStore(Object.freeze(config))` threw. A non-extensible parent is handed back raw without
-     * asking further (no allocation on the read path); an extensible one can still carry an explicitly
-     * readonly slot, which is caught on the cache miss and remembered as `null` — "never wrap" — so
-     * the descriptor is read once per value, never per read. A value nothing wraps (`handlerFor`)
-     * is remembered the same way.
+     * `createStore(Object.freeze(config))` threw. A non-extensible parent (`FIXED`) is handed back raw
+     * without asking further; an extensible one can still carry an explicitly readonly slot, which is
+     * caught on the cache miss and remembered as `null` — "never wrap" — so the descriptor is read once
+     * per value, never per read. A value of a type nothing claims is remembered the same way.
      */
-    if (value === null || typeof value !== 'object' || !Object.isExtensible(obj)) return value;
+    if (value === null || typeof value !== 'object' || FIXED.has(obj)) return value;
     let proxy = proxies.get(value);
     if (proxy === undefined) {
       const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-      const chosen = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
-      proxies.set(value, (proxy = chosen ? wrap(value, chosen) : null));
+      const owned = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
+      proxies.set(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
     }
     return proxy ?? value;
   },
@@ -163,6 +207,7 @@ const handler: ProxyHandler<object> = {
     if (obj === writingObj && prop === writingProp) return Reflect.defineProperty(obj, prop, descriptor);
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
     const defined = Reflect.defineProperty(obj, prop, descriptor);
+    if (!Object.isExtensible(obj)) FIXED.add(obj);
     if (defined) {
       if (!previous || descriptor.value !== previous.value || descriptor.get !== previous.get)
         trigger(obj, prop, descriptor.value, previous?.value);
@@ -187,7 +232,7 @@ const handler: ProxyHandler<object> = {
  * Raw object → its proxy, for every store at once. The same object always comes back as the same
  * proxy — `state.a === state.a`, and `createStore(config) === createStore(config)` — where a fresh
  * proxy per read broke every identity comparison in consumer code (a list re-keying, a memo missing).
- * One map serves all stores because a value's handler is decided by the value (`handlerFor`), never
+ * One map serves all stores because a value's handler is decided by its type (`handlerFor`), never
  * by which store reached it. **Each proxy also maps to itself**, so a store placed inside another store —
  * `state.child = otherStore` — is recognized and handed back as it is, never wrapped a second time
  * (which tracked every read twice and notified every write twice). That is the whole job the old
@@ -195,47 +240,9 @@ const handler: ProxyHandler<object> = {
  */
 const proxies = new WeakMap<object, object | null>();
 
-/**
- * The traps a placeholder stands in for: every way a store is read or written. The prototype and
- * extensibility traps are left out — an `instanceof` or `Object.isFrozen` arriving first goes to the
- * target, which is what a store handler does with them anyway, and the next read or write settles it.
- */
-const TRAPS = ['get', 'set', 'has', 'deleteProperty', 'ownKeys', 'defineProperty', 'getOwnPropertyDescriptor'] as const;
-
-/**
- * **A store decides how it is reactive on first use, not when it is created.** `createStore` runs
- * wherever the app puts it — often at module scope, in a file imported before the entry has called
- * `wire` — so deciding at creation would put a store module wired a line later out of reach of the
- * app's main store, silently: the import-order case, and the ordinary one. Its first read or write
- * happens in a render, after `wire`.
- *
- * Every trap starts as a placeholder that, whichever runs first, replaces all of them with the
- * resolved handler's traps — in the same handler object, which the engine consults on every
- * operation, so from then on each operation reaches its real trap directly, with no indirection left
- * behind — and then performs the operation it was called for. Resolved BEFORE the placeholders are
- * removed, so a `'store'` insert that throws surfaces at this use and leaves the store to try again
- * on the next, rather than stripped of every trap for good.
- *
- * **Seven closures per store is the fast design, measured.** Sharing seven placeholder functions across
- * every store (`this` is the handler, the target comes first) allocates ~2 KB less per server render
- * and ran a mixed server load 30–50% SLOWER (20 processes per variant; `track` ~2x slower, GC counts
- * unchanged). Deleting vs writing `undefined` made no difference.
- */
-const pending = (data: object) => {
-  /** Keyed dynamically, so typed as a record at this one seam; the traps it receives are real handler traps. */
-  const deferred: Record<string, unknown> = {};
-  for (const trap of TRAPS)
-    deferred[trap] = (...args: unknown[]) => {
-      const resolved = handlerFor(data);
-      for (const each of TRAPS) delete deferred[each];
-      Object.assign(deferred, resolved);
-      return ((deferred[trap] ?? Reflect[trap]) as (...a: unknown[]) => unknown)(...args);
-    };
-  return deferred as ProxyHandler<object>;
-};
-
 /** A new proxy over `data`, registered as mapping to itself — see `proxies`. */
 const wrap = (data: object, chosen: ProxyHandler<object>) => {
+  if (!Object.isExtensible(data)) FIXED.add(data);
   const proxy = new Proxy(data, chosen);
   proxies.set(proxy, proxy);
   return proxy;
@@ -261,12 +268,12 @@ export const createProxy = <T extends object>(data: T): T => {
   let proxy = proxies.get(data);
   if (proxy) return proxy as T;
   /**
-   * Decided on first use (`pending`). A value nothing claims ends up behind a proxy with no traps —
-   * transparent, and not reactive. `null` cached for a nested value means "hand back verbatim" in that
-   * slot; asked for as a store in its own right the object is decided afresh, since a frozen *slot*
-   * says nothing about the object itself.
+   * Behind its type's handler, claimed or not: a store of a type nothing claims yet is transparent, and
+   * becomes reactive the moment a module claiming the type is wired. `null` cached for a nested value
+   * means "hand back verbatim" in that slot; asked for as a store in its own right the object is decided
+   * afresh, since a frozen *slot* says nothing about the object itself.
    */
-  proxy = wrap(data, pending(data));
+  proxy = wrap(data, handlerFor(data));
   if (proxies.get(data) === undefined) proxies.set(data, proxy);
   return proxy as T;
 };

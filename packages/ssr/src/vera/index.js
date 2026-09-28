@@ -115,7 +115,7 @@ const makeStaticAware = (handler) => {
 wire({
   on: 'store',
   priority: 90,
-  fn: (value, handler) => {
+  fn: (type, handler) => {
     if (!handler) return handler;
     let aware = staticAware.get(handler);
     if (!aware) staticAware.set(handler, (aware = makeStaticAware(handler)));

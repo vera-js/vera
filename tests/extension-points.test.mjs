@@ -39,18 +39,17 @@ test("a 'store' module tracking kit.shape hears core add a key", () => {
   const met = new Map();
   core.wire({
     on: 'store',
-    fn: (value, handler, kit) => {
-      met.set(value, kit);
+    fn: (type, handler, kit) => {
+      met.set(type, kit);
       return handler;
     },
     priority: 90,
   });
   const raw = { a: 1 };
   const state = core.createStore(raw);
-  /** A store decides how it is reactive on first use, so the insert is consulted by this read. */
-  void state.a;
-  const kit = met.get(raw);
-  assert.ok(kit, 'CONTROL: the store insert was consulted when the store was first used');
+  /** A store module decides per type, and `wire` consults it for every type already met. */
+  const kit = met.get('object');
+  assert.ok(kit, 'CONTROL: the store insert was consulted for plain objects');
   let heard = 0;
   const hook = core.createHook({ element: {}, priority: 10, callback: () => { heard++; kit.track(raw, kit.shape); } });
   hook(undefined, true);
@@ -63,9 +62,9 @@ test('a store module built from the published collections descriptor tracks size
   /** The documented use: "wrap it to add a type, or read it as the reference". */
   core.wire({
     on: 'store',
-    fn: (value, handler, kit) => {
+    fn: (type, handler, kit) => {
       consulted++;
-      return reactivity.collections.fn(value, handler, kit);
+      return reactivity.collections.fn(type, handler, kit);
     },
     priority: 50,
   });

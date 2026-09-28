@@ -23,7 +23,7 @@ try {
     `${dir}/probe.js`,
     `import { init, render, html, createStore, wire } from '@verajs/core';
 export const observed = { reads: 0, writes: 0, inits: 0, order: [], errors: [] };
-wire({ on: 'store', priority: 30, fn: (value, handler) => handler?.set && {
+wire({ on: 'store', priority: 30, fn: (type, handler) => handler?.set && {
   ...handler,
   get(obj, prop, receiver) { observed.reads++; return handler.get(obj, prop, receiver); },
   set(obj, prop, next, receiver) { observed.writes++; return handler.set(obj, prop, next, receiver); },

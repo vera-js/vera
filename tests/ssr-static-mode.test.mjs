@@ -167,10 +167,12 @@ test('a static render never reaches the store\'s read handler', async () => {
   wire({
     on: 'store',
     priority: 60,
-    fn: (value, handler) =>
-      value.counted && handler
-        ? { ...handler, get: (...args) => (counted.reads.count++, handler.get(...args)) }
-        : handler,
+    fn: (type, handler) =>
+      handler && {
+        ...handler,
+        /** Per object, inside the trap — a store module decides per type. */
+        get: (obj, ...rest) => (obj.counted && counted.reads.count++, handler.get(obj, ...rest)),
+      },
   });
   const url = new URL('./fixtures/ssr/static-reads-ssr.js', import.meta.url);
 

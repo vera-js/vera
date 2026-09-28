@@ -8,19 +8,11 @@
 export const getType = (obj: unknown) => Object.prototype.toString.call(obj).slice(8, -1).toLowerCase();
 
 /**
- * Whether an item is a set or map
- *
- * @param item Item to check
- */
-const KEYED_COLLECTIONS = ['map', 'set', 'weakmap', 'weakset'];
-
-/**
  * Weak collections need their per-key dependencies stored weakly, or tracking `weakMap.get(obj)`
  * holds `obj` and defeats the whole point of the type. Checked by type string rather than
  * `instanceof`, which fails across realms (iframes, `vm`).
  */
 export const isWeakCollection = (item: unknown) => getType(item)[0] === 'w';
-export const isSetOrMap = <T>(item: T) => KEYED_COLLECTIONS.includes(getType(item));
 
 /**
  * Remove a trailing slash from an url if its not root url (`/`).
