@@ -102,6 +102,11 @@ test('a type a replaced module no longer claims goes back to transparent, on exi
   void when.getTime;
   assert.deepEqual(seen, [], 'the claiming handler is gone from the store that had it');
   assert.equal(typeof when.getTime, 'function', 'and the store is transparent again');
+  /** A nested value of the type, met now, is handed back raw — not wrapped in a now-empty handler. */
+  const moment = new Date(0);
+  const holder = core.createStore({ moment });
+  assert.equal(holder.moment, moment, 'an un-claimed type is raw again when nested');
+  assert.equal(holder.moment.getTime(), 0, 'and its methods work');
 });
 
 /**
