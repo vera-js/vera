@@ -23,7 +23,7 @@ same markup written inline there would be. Which position means which namespace 
 browser's own parser, once per parent name (and, under a MathML parent, per child tag — `<svg>` in
 `<annotation-xml>`, `<mglyph>` in `<mi>`), rather than read from a list — so the integration points,
 the breakout names and `<annotation-xml encoding>` behave as the parser has them. A hand-written
-`` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 718 B gzipped, and
+`` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 742 B gzipped, and
 the renderer without it pays nothing on its render paths beyond a flag check.
 
 **`@verajs/jsx` 0.4.0 — breaking.**
@@ -50,8 +50,8 @@ the renderer without it pays nothing on its render paths beyond a flag check.
   fingerprint of the file, not a server header), so a repeat visit compiles nothing on any static
   server; a plain `.js` file keeps only where its imports are, never its text. A circular import is reported
   with its chain, a missing file names the file that imported it, and a renderer helper missing
-  from beside the renderer is named. The entry is 2 105 B gzipped, down from 5 933 in 0.3.2, plus
-  the 5 608 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
+  from beside the renderer is named. The entry is 2 236 B gzipped, down from 5 933 in 0.3.2, plus
+  the 5 737 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
 
 **Fixed in the compiler along the way** — each of these produced a module that died or silently
 lost its JSX:

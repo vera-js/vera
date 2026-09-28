@@ -563,7 +563,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.65 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.66 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
