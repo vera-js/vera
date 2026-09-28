@@ -22,6 +22,8 @@ import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
 import { slots, slotted } from '@verajs/renderer/slots';
 import { namespaces } from '@verajs/renderer/namespaces';
+import { elements } from '@verajs/renderer/elements';
+import type { ElementBehavior } from '@verajs/renderer/elements';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
@@ -156,6 +158,22 @@ wire([renderer, slots]);
  * precedent: the insert existed at runtime while every TypeScript consumer failed to wire it.
  */
 wire([renderer, namespaces]);
+
+/**
+ * **`@verajs/renderer/elements`, wired the documented way** — its `'element'` point had to be in
+ * `InsertFunctionMap` for the claimant descriptor to compile, as `'slot'` and `'template'` did. The
+ * behavior is typed through the public `ElementBehavior`, and `mount`'s context is checked by use.
+ */
+const focusOnMount: ElementBehavior = {
+  mount: (element, { root, adopted }) => {
+    if (!adopted && root !== null) (element as HTMLElement).focus();
+  },
+};
+wire([
+  renderer,
+  elements,
+  { on: 'element', fn: (el: Element) => (el.hasAttribute('autofocus') ? focusOnMount : undefined), priority: 50 },
+]);
 
 const slotHost: Element = document.createElement('div');
 const everything: Node[] = slotted(slotHost);

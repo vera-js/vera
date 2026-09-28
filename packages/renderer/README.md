@@ -355,7 +355,7 @@ import { wire, html } from '@verajs/core';
 import { renderer, renderInto } from '@verajs/renderer';
 import { elements } from '@verajs/renderer/elements';
 
-/** Hoisted and shared: one object for every claimed element of every instance. */
+/** One shared object for every claimed element of every instance. */
 const autofocus = { mount: (element) => element.focus() };
 
 wire([

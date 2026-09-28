@@ -29,6 +29,7 @@ const PROD = {
   keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
   slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
   namespaces: 'packages/renderer/dist/vera-renderer-namespaces.min.js',
+  elements: 'packages/renderer/dist/vera-renderer-elements.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
   tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
 };
