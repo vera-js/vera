@@ -213,21 +213,27 @@ const TRAPS = ['get', 'set', 'has', 'deleteProperty', 'ownKeys', 'defineProperty
  * resolved handler's traps — in the same handler object, which the engine consults on every
  * operation, so from then on each operation reaches its real trap directly, with no indirection left
  * behind — and then performs the operation it was called for. Resolved BEFORE the placeholders are
- * removed, so a `'store'` insert that throws surfaces at this use and leaves the store to try again
+ * replaced, so a `'store'` insert that throws surfaces at this use and leaves the store to try again
  * on the next, rather than stripped of every trap for good.
+ *
+ * **Nothing is allocated per store but its handler object.** The placeholders are shared — a trap is
+ * called with its handler as `this` and the store's target first — and are overwritten, never
+ * deleted: a trap set to `undefined` is absent to the engine, and deleting seven properties left every
+ * store's handler in dictionary mode. Seven closures per store and those deletes were ~2.2 KB of
+ * garbage per server render (measured, `.probe/lean-core/alloc-profile.mjs`).
  */
-const pending = (data: object) => {
-  /** Keyed dynamically, so typed as a record at this one seam; the traps it receives are real handler traps. */
-  const deferred: Record<string, unknown> = {};
-  for (const trap of TRAPS)
-    deferred[trap] = (...args: unknown[]) => {
-      const resolved = handlerFor(data);
-      for (const each of TRAPS) delete deferred[each];
-      Object.assign(deferred, resolved);
-      return ((deferred[trap] ?? Reflect[trap]) as (...a: unknown[]) => unknown)(...args);
-    };
-  return deferred as ProxyHandler<object>;
-};
+type Placeholder = (this: Record<string, unknown>, target: object, ...rest: unknown[]) => unknown;
+const PLACEHOLDERS: Record<string, Placeholder> = {};
+for (let i = 0; i < TRAPS.length; i++) {
+  const trap = TRAPS[i];
+  PLACEHOLDERS[trap] = function (target, ...rest) {
+    const resolved = handlerFor(target);
+    for (let j = 0; j < TRAPS.length; j++) this[TRAPS[j]] = undefined;
+    Object.assign(this, resolved);
+    return ((this[trap] ?? Reflect[trap]) as (...a: unknown[]) => unknown)(target, ...rest);
+  };
+}
+const pending = () => ({ ...PLACEHOLDERS }) as ProxyHandler<object>;
 
 /** A new proxy over `data`, registered as mapping to itself — see `proxies`. */
 const wrap = (data: object, chosen: ProxyHandler<object>) => {
@@ -261,7 +267,7 @@ export const createProxy = <T extends object>(data: T): T => {
    * slot; asked for as a store in its own right the object is decided afresh, since a frozen *slot*
    * says nothing about the object itself.
    */
-  proxy = wrap(data, pending(data));
+  proxy = wrap(data, pending());
   if (proxies.get(data) === undefined) proxies.set(data, proxy);
   return proxy as T;
 };
