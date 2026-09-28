@@ -2,7 +2,7 @@
  * The hook lifecycle — registration, the first pass, cleanup, and the ways a hook silently never
  * runs.
  *
- * `render()` is the commit point of a component's setup: it drives `runHooks()` and then clears the
+ * `render()` is the commit point of a component's setup: it runs every hook's first pass and then clears the
  * current instance. Everything here follows from that, including the one case that used to fail
  * quietly — a component that registers effects and never renders, whose hooks simply sit there.
  */

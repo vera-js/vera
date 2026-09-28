@@ -111,7 +111,7 @@ by making bundles share global state.
 
 ## Effect ordering
 
-`init()` seeds `element._hooks`; `mount()` calls `element.runHooks()` and clears the instance, and
+`init()` seeds `element._hooks`; `mount()` runs the first pass of every hook and clears the instance, and
 `render()` is `useRender` followed by that same commit.
 Hooks carry a priority, and lower runs first:
 

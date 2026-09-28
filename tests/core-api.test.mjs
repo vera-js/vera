@@ -260,7 +260,8 @@ test('useRender renders into an element given explicitly', async () => {
   host.appendChild(el);
   init(el, { mode: 'open' });
   useRender(() => html`<b>direct</b>`, el);
-  el.runHooks();
+  /** `mount()` is the commit: it runs the first pass of every hook registered since `init()`. */
+  core.mount();
   await settle();
   /**
    * The render insert is handed `element.shadowRoot ?? element`, so a component with a shadow

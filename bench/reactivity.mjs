@@ -94,7 +94,7 @@ const results = dom.window.eval(`(() => {
     trFlat   = time(() => { for (let i=0;i<N;i++) sink += store.flat; }, 3);
     trNested = time(() => { for (let i=0;i<N;i++) sink += store.nested.deep.value; }, 3);
   });
-  el.runHooks();
+  Vera.mount();
 
   /* ---- tracked WITH a store module wired ---------------------------------
      A passthrough 'store' insert wrapping core's get — the shape batching and devtools take.
@@ -110,7 +110,7 @@ const results = dom.window.eval(`(() => {
     inFlat   = time(() => { for (let i=0;i<N;i++) sink += iStore.flat; }, 3);
     inNested = time(() => { for (let i=0;i<N;i++) sink += iStore.nested.deep.value; }, 3);
   });
-  iEl.runHooks();
+  Vera.mount();
 
   /* ---- write + propagation ---------------------------------------------- */
   const W = 20000;
@@ -120,7 +120,7 @@ const results = dom.window.eval(`(() => {
   const wStore = createStore({ n: 0 });
   let fired = 0;
   useEffect(() => { wStore.n; fired++; });
-  wEl.runHooks();
+  Vera.mount();
   const writes = time(() => { for (let i=0;i<W;i++) wStore.n = i; }, 3);
 
   /* ---- identity --------------------------------------------------------- */
