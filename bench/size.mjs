@@ -115,9 +115,9 @@ const CONTENDERS = [
     name: 'VeraJS + lit-html',
     note: 'core + lit-html',
     code: `
-      import { init, createStore, render, setHtml, wire } from '@verajs/core';
+      import { init, createStore, render, wire } from '@verajs/core';
       import { html, render as litRender } from 'lit-html';
-      setHtml(html); wire({ on: 'render', fn: litRender, priority: 50 });
+      wire({ on: 'render', fn: litRender, priority: 50 });
       customElements.define('x-app', class extends HTMLElement {
         connectedCallback() {
           init(this, { mode: 'open' });

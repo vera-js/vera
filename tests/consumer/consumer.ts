@@ -14,9 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { init, createStore, render, wire, html, css, ref, shallowRef, useEffect, useLayoutEffect,
-  useSyncEffect, createHook, untrack, microtask, setRenderScheduler,
-  svg, mathml, inserts, useRender, mount } from '@verajs/core';
+import { init, createStore, render, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, microtask, setRenderScheduler, svg, mathml, inserts, useRender, mount } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -27,7 +25,7 @@ import type { ElementBehavior } from '@verajs/renderer/elements';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
-import { adoptStyles, applyStyles, styles } from '@verajs/styles';
+import { adoptStyles, applyStyles, styles, css } from '@verajs/styles';
 import { collections, computed } from '@verajs/store';
 /**
  * The SUBPATH entries too, not only the package they are re-exported from. A consumer may install

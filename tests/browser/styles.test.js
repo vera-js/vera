@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, wire, css, html} from '../../packages/core/dist/development/vera.js';
+import { init, createStore, render, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { adoptStyles, applyStyles } from '../../packages/styles/dist/development/vera-styles.js';
+import { adoptStyles, applyStyles, css } from '../../packages/styles/dist/development/vera-styles.js';
 
 /**
  * `@verajs/styles`, in an engine that actually implements the platform it targets.

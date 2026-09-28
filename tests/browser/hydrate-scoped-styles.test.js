@@ -13,9 +13,9 @@
 import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
-import { wire, init, render, html, css} from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
-import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
+import { adoptStyles, css } from '../../packages/styles/dist/development/vera-styles.js';
 
 wire({ on: 'render', fn: hydratingRender, priority: 50 });
 wire({ on: 'init', fn: adoptStyles, priority: 50 });

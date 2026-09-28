@@ -13,9 +13,9 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { styles } from '../../packages/styles/dist/development/vera-styles.js';
+import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
 import { slots } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
-import { html, wire, init, render, css } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init, render } from '../../packages/core/dist/development/vera.js';
 
 /** `slots` too: the ::slotted comparison below needs a light component that actually distributes,
  *  and without it the renderer says so — which is how this omission was found. */

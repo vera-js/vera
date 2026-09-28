@@ -60,10 +60,10 @@ it('ElementInternals sets ARIA on the host, which is the way across', () => {
  * The three ways through, as `@verajs/core`'s README recommends them. Advice that has not been run
  * is a guess, and this is the file that stops it being one.
  */
-import { init, render, html, css } from '../../packages/core/dist/development/vera.js';
+import { init, render, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { wire } from '../../packages/core/dist/development/vera.js';
-import { styles } from '../../packages/styles/dist/development/vera-styles.js';
+import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
 
 wire([{ on: 'render', fn: renderInto, priority: 50 }, styles]);
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
