@@ -66,6 +66,13 @@ const handler: ProxyHandler<object> = {
   set(obj, prop, value, receiver) {
     const prevValue = Reflect.get(obj, prop, receiver);
     if (prevValue === value) return true;
+    /**
+     * **The same nested object, read back and assigned, is not a change either.** Reads hand out the
+     * proxy while the target holds the raw object, so `state.o = state.o` arrives as proxy-against-raw
+     * — and `state.items = update(state.items)`, returning its input when there is nothing to do, is
+     * how "no change" is normally written. It also stops the proxy being written into the target.
+     */
+    if (value !== null && typeof value === 'object' && proxies.get(prevValue as object) === value) return true;
     const added = !Object.prototype.hasOwnProperty.call(obj, prop);
     /**
      * Assigning past the end of an array moves `length` as an internal consequence, never through
