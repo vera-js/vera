@@ -1075,13 +1075,6 @@ const build = (result: TemplateResult, parent: Node, owner: Document): Instance 
 let fillParent: Node | null = null;
 let fillStrings: TemplateStringsArray | null = null;
 let fillTemplate: Template | null = null;
-/**
- * And its document, for the same reason: `ownerDocument` is a DOM getter, and every row of a fill
- * lives in the list's own document, so one read serves them all rather than one per row
- * (`.probe/perf-realm/` measured the per-row read at up to ~2.5% of list creation on Firefox and
- * WebKit, inside that loaded machine's run-to-run noise).
- */
-let fillOwner: Document | null = null;
 
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
@@ -1303,9 +1296,8 @@ const applyRef = (callback: (el: Element | null) => void, element: Element | nul
      */
     const handlers = registry?.get('error') as ((error: unknown, element?: Element) => void)[] | undefined;
     if (handlers?.length) {
-      const root = renderRoot;
-      const host = root === null ? undefined : root.nodeType === 1 ? (root as Element) : (root as ShadowRoot).host;
-      for (const handler of handlers) handler(error, host);
+      const host = renderRoot?.nodeType === 11 ? (renderRoot as ShadowRoot).host : renderRoot;
+      for (const handler of handlers) handler(error, (host ?? undefined) as Element | undefined);
     } else reportUncaught(error, __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
   }
 };
@@ -1629,14 +1621,16 @@ class AttrPart implements Part {
               `Pass a function, or an object with a handleEvent method. A missing handler is ` +
               `\`undefined\` or \`false\`, both of which are fine; this is neither.`
           );
-        if (this._handler === null && value != null) {
-          /** Checked once, where the listener is first attached — see `eventNameComplaint`. */
-          if (__DEV__ && value !== false) {
-            const complaint = eventNameComplaint(this._element, this._name);
-            if (complaint !== null) console.warn('[vera] ' + complaint);
-          }
-          this._element.addEventListener(this._name, this);
+        /**
+         * Checked once, where the listener is first attached — see `eventNameComplaint`. Its own
+         * statement, ahead of the line below rather than wrapped around it, so production (where
+         * this folds away) is byte-for-byte the code it was.
+         */
+        if (__DEV__ && this._handler === null && value != null && value !== false) {
+          const complaint = eventNameComplaint(this._element, this._name);
+          if (complaint !== null) console.warn('[vera] ' + complaint);
         }
+        if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
         this._handler = (value as EventListener) ?? null;
       } else if (kind === PROP_ADOPT) {
         const next = commitAdopt(this._element, this._name, value);
@@ -1777,7 +1771,9 @@ class Instance {
    * Importing into it is what makes a component in a popped-out window or an iframe be built by THAT
    * window's registry: `importNode` upgrades custom elements at clone time, so importing through the
    * module's `document` built them with the opener's classes, whose `static styles` sheets cannot
-   * be adopted by a document of another realm (CODE-PRINCIPLES §3).
+   * be adopted by a document of another realm (CODE-PRINCIPLES §3). One `ownerDocument` read per
+   * instance: measured within noise on list creation on all three engines (`.probe/perf-realm/`,
+   * 20 renders per sample), so a per-fill cache of it was tried and removed — 19 B for nothing.
    */
   constructor(template: Template, owner: Document) {
     if (__DEV__) sayShape(template);
@@ -2662,21 +2658,16 @@ class ChildPart implements Part {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
       let template: Template;
-      let into: Document;
-      if (parent === fillParent && result.strings === fillStrings) {
-        template = fillTemplate!;
-        into = fillOwner!;
-      } else {
+      if (parent === fillParent && result.strings === fillStrings) template = fillTemplate!;
+      else {
         template = resolve(result, this._start.parentNode!);
-        into = this._start.ownerDocument!;
         if (parent === fillParent || parent.firstChild === null) {
           fillParent = parent;
           fillStrings = result.strings;
           fillTemplate = template;
-          fillOwner = into;
         }
       }
-      const instance = new Instance(template, into);
+      const instance = new Instance(template, this._start.ownerDocument!);
       if (create.hooked) {
         const outer = create.scope;
         create.scope = template;

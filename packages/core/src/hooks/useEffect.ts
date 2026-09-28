@@ -18,10 +18,12 @@ import type { HookCallback, ComponentElement } from '../types.js';
  */
 export const useEffect = (callback: HookCallback, element?: ComponentElement) => {
   /**
-   * Weakly, as the hook itself holds its element: the scheduling closure lives as long as the
-   * store's subscription does, and must not keep a removed component alive through it.
+   * The component, for the scheduler — held directly. This closure lives exactly as long as the hook
+   * callback `createHook` builds around it, and that callback already holds the element strongly
+   * (its generation check and error report read it), so a weak reference here would guard a path
+   * that is already open, for bytes.
    */
-  const owner = element ? new WeakRef(element) : currentInstance.element;
+  const owner = element ?? currentInstance.element?.deref();
   createHook({
     /**
      * The same scheduler renders use, rather than a second hardcoded `requestAnimationFrame`.
@@ -32,7 +34,7 @@ export const useEffect = (callback: HookCallback, element?: ComponentElement) =>
      * the two then ran on different clocks, which is not what an author asks for by swapping one
      * scheduler.
      */
-    callback: coalesce(callback, (run) => renderScheduler(run, owner?.deref()), 'useEffect'),
+    callback: coalesce(callback, (run) => renderScheduler(run, owner), 'useEffect'),
     element,
     priority: 75,
   });

@@ -99,7 +99,9 @@ export const attributeValueComplaint = (tag: string, name: string, value: unknow
  * `(tag, name)` pair is said once. The message comes back without the `[vera]` prefix; the call site
  * adds it as a literal, where `tests/diagnostics-convention.test.mjs` can read it.
  */
-const saidEvents = new Set<string>();
+/** Marked pure: a bare module-level `new Set()` is kept by the bundler even when nothing reads it, and
+ *  was the only trace this dev-only check left in production (8 B raw, measured). */
+const saidEvents = /* @__PURE__ */ new Set<string>();
 export const eventNameComplaint = (element: Element, name: string): string | null => {
   if ('on' + name in element) return null;
   const said = element.localName + ' ' + name;
