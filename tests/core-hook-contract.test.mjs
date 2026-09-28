@@ -1,5 +1,5 @@
 /**
- * **`createHook`'s documented contract, held by checks that fail without it.**
+ * **The hook contract — `createHook`'s and the effects' — held by checks that fail without it.**
  *
  * Found by the lean rebuild's mutation controls (2026-09-27): taking priority ordering or init
  * generations out of `createHook` turned nothing in the whole suite red, because every existing test
@@ -14,8 +14,13 @@ import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
-for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element'])
+for (const key of [
+  'window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element',
+  'requestAnimationFrame', 'cancelAnimationFrame',
+])
   globalThis[key] = dom.window[key];
+
+const nextFrame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
 const core = await load('core');
 
@@ -73,4 +78,31 @@ test('bumping an owner\'s generation retires its hooks', () => {
   owner._gen = (owner._gen ?? 0) + 1;
   state.n = 2;
   assert.equal(runs, 2, 'retired, it does not');
+});
+
+/**
+ * **A write an effect makes to state it read schedules its next run — it does not recurse into one.**
+ * The deferred run re-enters through the hook with a flag raised for that one call; the flag must be
+ * lowered before the effect body runs, or the body's own write finds it still raised and runs the
+ * effect again synchronously, inside itself — every step of a settling loop in one frame, and a
+ * self-feeding one straight into a stack overflow instead of the frame-paced loop the render-loop
+ * guard is built to catch. Pinned in the only shape that shows it: steps counted after ONE frame.
+ */
+test('an effect that writes what it read steps once per frame rather than recursing', async () => {
+  const el = element();
+  const state = core.createStore({ go: false, n: 0 });
+  let runs = 0;
+  core.init(el);
+  core.useEffect(() => {
+    runs++;
+    if (state.go && state.n < 3) state.n++;
+  });
+  core.mount();
+  assert.equal(runs, 1, 'CONTROL: the first pass ran');
+  state.go = true;
+  await nextFrame();
+  assert.equal(state.n, 1, 'one step in the first frame, not all three at once');
+  await nextFrame();
+  await nextFrame();
+  assert.equal(state.n, 3, 'and it still settles, a frame per step');
 });

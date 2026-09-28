@@ -201,6 +201,22 @@ test('a deep store notifies for every kind of mutation', () => {
   assert.equal(seen.length - afterSetup, 6, 'five statements, six notifications: push counts twice');
 });
 
+/**
+ * `key in state.o` is a read that decides what renders — an optional field shown only when present —
+ * and nothing else in this file reads that way. Untracked, the reader kept its first answer: adding
+ * the key later notified nobody who had asked about it (found by the lean rebuild's mutation controls,
+ * 2026-09-27, when removing the `has` trap turned nothing red).
+ */
+test('asking `key in` subscribes: the answer follows the key being added and removed', () => {
+  const state = createStore({ o: {} });
+  const answers = [];
+  mount(() => useSyncEffect(() => { answers.push('b' in state.o); }));
+  assert.deepEqual(answers, [false], 'CONTROL: the effect ran and asked');
+  state.o.b = 1;
+  delete state.o.b;
+  assert.deepEqual(answers, [false, true, false], 'it re-ran for the add and for the delete');
+});
+
 test('a sync effect that writes what it reads is stopped by name, not by a stack overflow', {
   skip: isProduction && 'the recursion counter is development-only',
 }, () => {
