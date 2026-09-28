@@ -9,7 +9,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
 | `@verajs/core` | 7.78 KB | **3.32 KB** |
-| `@verajs/renderer` | 12.48 KB | 4.79 KB |
+| `@verajs/renderer` | 12.46 KB | 4.78 KB |
 | `@verajs/router` | 10.66 KB | 4.45 KB |
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
@@ -21,10 +21,10 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/store/computed` | 293 B | 238 B |
 | `@verajs/store/collections` | 1.06 KB | 571 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
-| `@verajs/renderer/slots` | 9.99 KB | 3.70 KB |
+| `@verajs/renderer/slots` | 9.46 KB | 3.62 KB |
 | `@verajs/renderer/namespaces` | 1.28 KB | 742 B |
 | `@verajs/renderer/elements` | 931 B | 530 B |
-| `@verajs/renderer/hydrate` | 18.11 KB | 6.62 KB |
+| `@verajs/renderer/hydrate` | 18.09 KB | 6.61 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 | `@verajs/directives` | 15.59 KB | 6.01 KB |
 | `@verajs/directives/directives-standalone` | 19.15 KB | 7.34 KB |
@@ -122,7 +122,7 @@ That includes reaching *inside* slotted content, which shadow DOM cannot express
 ordering of late insertions, `assignedNodes()`-equivalent reads, SSR and hydration are each verified
 against a real shadow root given the identical input — the suite renders one component both ways and
 asserts they agree, rather than asserting a table of expected strings. It is
-<!--size:module.renderer-slots.kb-->3.70 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
+<!--size:module.renderer-slots.kb-->3.62 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
 opt-in: an app that never wires it pays nothing, and the renderer treats a `<slot>` it cannot
 distribute as inert markup with a development warning.
 
