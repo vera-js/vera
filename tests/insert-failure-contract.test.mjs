@@ -3,11 +3,11 @@
  *
  * A `useEffect` that throws is isolated and reported, because core runs an element's hooks in one
  * loop and an escaping error would skip every hook after the failing one. An insert is not in that
- * position and does not get the same treatment — `'set-handler'` and `'proxy-handler'` run inside
- * the store's own traps, so a throw comes out of `state.count = 1` at the line that wrote it, which
- * is the most useful place it could surface. Swallowing it would leave the write undefined, since a
- * handler has already decided whether the value propagates, and those are the two hottest paths in
- * the framework besides.
+ * position and does not get the same treatment — a `'store'` insert is consulted inside the store's
+ * first use of a value, and the handler it supplies runs inside the store's own traps, so a throw
+ * comes out of `state.count = 1` (or the read) at the line that did it, which is the most useful place
+ * it could surface. Swallowing it would leave the write undefined, since the handler has already
+ * decided whether the value propagates.
  *
  * That difference was true and undocumented. It is asserted here rather than left to be discovered
  * by someone writing the batching insert the README recommends, and it is written down in
@@ -44,15 +44,18 @@ const mount = (body) => {
   return element;
 };
 
-test('a `set-handler` that throws surfaces at the assignment', () => {
-  /** Priority 10, so it runs before the default propagation and cannot be mistaken for it. */
-  wire([{ on: 'set-handler', fn: () => { throw new Error('from the insert'); }, priority: 10, name: 'throwing-set' }]);
+test('a `store` handler whose set throws surfaces at the assignment', () => {
+  const throwingSet = (value, handler) =>
+    handler?.set && { ...handler, set() { throw new Error('from the insert'); } };
+  wire([{ on: 'store', fn: throwingSet, priority: 10, name: 'throwing-set' }]);
   const state = createStore({ count: 0 });
   assert.throws(() => { state.count = 1; }, /from the insert/, 'the write is where a person can act on it');
-  /** Replaced at the same priority, which is the documented way to take one back out. */
-  wire([{ on: 'set-handler', fn: () => undefined, priority: 10, name: 'restore' }]);
-  state.count = 2;
-  assert.equal(state.count, 2, 'and the store still works afterwards');
+  /** Replaced at the same priority, which is the documented way to take one back out — for the values
+   *  a store meets from then on; one already decided keeps its handler. */
+  wire([{ on: 'store', fn: () => undefined, priority: 10, name: 'restore' }]);
+  const fresh = createStore({ count: 0 });
+  fresh.count = 2;
+  assert.equal(fresh.count, 2, 'and a store met afterwards works');
 });
 
 test('an `init` insert that throws surfaces at init() — and the chain STOPS there', () => {
@@ -139,9 +142,9 @@ test('a render that throws leaves the page as it was, and recovers on the next w
  * **Every extension point the types declare is documented, and behaves as the section says.**
  *
  * `packages/inserts/README.md` is the whole public description of this surface, and it listed five
- * of seven. `'collection'` — the point `@verajs/store/collections` ships to implement — and
- * `'value'` were in `InsertFunctionMap` and in neither the table nor the throws section, so an
- * author of either had no documented answer to "what happens if mine throws".
+ * of seven. The point `@verajs/store/collections` ships to implement (then `'collection'`, now
+ * `'store'`) and `'value'` were in `InsertFunctionMap` and in neither the table nor the throws
+ * section, so an author of either had no documented answer to "what happens if mine throws".
  *
  * Checked against the declaration rather than against a list written here, so adding a point to
  * `InsertFunctionMap` and forgetting the README fails instead of shipping.
@@ -167,12 +170,13 @@ test('the README documents every point the types declare', () => {
  * The two the section had not covered, asserted the way its own rationale predicts: both run inside
  * something the caller invoked, so both surface there rather than being swallowed.
  */
-test('a `collection` insert that throws surfaces at the mutation', async () => {
-  wire({ name: 'collection-thrower', on: 'collection', fn: () => { throw new Error('collection-boom'); }, priority: 3 });
-  const state = createStore({ tags: new Set() });
-  assert.throws(() => state.tags.add('x'), /collection-boom/, 'a throwing collection insert was swallowed');
-  /** Put it back so the rest of the file is unaffected. */
-  wire({ name: 'collection-thrower', on: 'collection', fn: () => undefined, priority: 3 });
+test('a `store` insert that throws surfaces at the use that consulted it — and the store tries again', () => {
+  wire({ name: 'store-thrower', on: 'store', fn: () => { throw new Error('store-boom'); }, priority: 3 });
+  const state = createStore({ tags: 1 });
+  assert.throws(() => state.tags, /store-boom/, 'a throwing store insert was swallowed');
+  /** Put it back; the store was never decided, so its next use consults the chain afresh. */
+  wire({ name: 'store-thrower', on: 'store', fn: () => undefined, priority: 3 });
+  assert.equal(state.tags, 1, 'the failed decision was not kept');
 });
 
 test('a `value` insert that throws surfaces at the render that committed the value', () => {

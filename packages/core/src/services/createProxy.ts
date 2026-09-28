@@ -212,15 +212,18 @@ const TRAPS = ['get', 'set', 'has', 'deleteProperty', 'ownKeys', 'defineProperty
  * Every trap starts as a placeholder that, whichever runs first, replaces all of them with the
  * resolved handler's traps — in the same handler object, which the engine consults on every
  * operation, so from then on each operation reaches its real trap directly, with no indirection left
- * behind — and then performs the operation it was called for.
+ * behind — and then performs the operation it was called for. Resolved BEFORE the placeholders are
+ * removed, so a `'store'` insert that throws surfaces at this use and leaves the store to try again
+ * on the next, rather than stripped of every trap for good.
  */
 const pending = (data: object) => {
   /** Keyed dynamically, so typed as a record at this one seam; the traps it receives are real handler traps. */
   const deferred: Record<string, unknown> = {};
   for (const trap of TRAPS)
     deferred[trap] = (...args: unknown[]) => {
+      const resolved = handlerFor(data);
       for (const each of TRAPS) delete deferred[each];
-      Object.assign(deferred, handlerFor(data));
+      Object.assign(deferred, resolved);
       return ((deferred[trap] ?? Reflect[trap]) as (...a: unknown[]) => unknown)(...args);
     };
   return deferred as ProxyHandler<object>;
