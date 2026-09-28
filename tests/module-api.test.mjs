@@ -137,6 +137,41 @@ test('applyStyles puts a plain-string style into a shadow root, once', async () 
   assert.equal(styles().length, 1, 'still one after a second apply');
 });
 
+/**
+ * **Re-applying DIFFERENT text updates the one element, rather than leaving the old rules.** The
+ * existing `<style>` — a re-`init`, or the server's own copy — is reused and rewritten; building a new
+ * one while the old stays attached kept the stale rules and dropped the new ones. Pinned by the lean
+ * rebuild's mutation controls (2026-09-28): the test above re-applies the SAME text, so it could not tell.
+ */
+test('applyStyles with changed text rewrites the one style element', async () => {
+  const { applyStyles } = await load('styles');
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  el.attachShadow({ mode: 'open' });
+  applyStyles('p { color: red }', el);
+  applyStyles('p { color: blue }', el);
+  const styles = el.shadowRoot.querySelectorAll('style[data-vm-sheet="styles"]');
+  assert.equal(styles.length, 1, 'still one element');
+  assert.match(styles[0].textContent, /color: blue/, 'carrying the new rules');
+});
+
+/**
+ * **A CLOSED shadow root gets the styles, not the document.** `element.shadowRoot` is null for a closed
+ * root — that is what closed means — so styles read through it went down the light-DOM path and were
+ * hoisted into the page, leaving the component unstyled and the page carrying its rules. `init()` keeps
+ * the root on `_root` for exactly this. Pinned by the lean rebuild's mutation controls (2026-09-28).
+ */
+test('a component with a closed shadow root gets its styles inside that root', async () => {
+  const { applyStyles } = await load('styles');
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  el._root = el.attachShadow({ mode: 'closed' });
+  const headBefore = document.head.querySelectorAll('style').length;
+  applyStyles('p { color: green }', el);
+  assert.equal(el._root.querySelectorAll('style[data-vm-sheet="styles"]').length, 1, 'the rules are in the closed root');
+  assert.equal(document.head.querySelectorAll('style').length, headBefore, 'and nothing was hoisted into the page');
+});
+
 test('applyStyles ignores empty styles', async () => {
   const { applyStyles } = await load('styles');
   const el = document.createElement('div');
