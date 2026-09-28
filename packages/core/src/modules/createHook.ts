@@ -46,6 +46,12 @@ export const RENDER_PRIORITY = 50;
  * Refused, returning `undefined`, when there is no owner or the priority is not a finite number —
  * `NaN` is what `parseInt` of a config value produces.
  *
+ * **A change reaching an owner that is out of the tree runs nothing** — a write would otherwise walk
+ * every component no one can see. The first pass always runs (a component rendered into a detached
+ * container has never been connected, and must still draw), and an owner that is not an element (a
+ * `computed`'s) has no `isConnected` to be false. Coming back is what catches it up: `connectedCallback`
+ * runs `init()` and a fresh first pass, reading the store as it is now.
+ *
  * A throw is isolated here (`reportHookError`), and this one wrapper is every entry: the first pass,
  * a write waking the hook, and a deferred pass — which re-enters through the hook rather than around
  * it — so no caller needs its own catch.
@@ -55,7 +61,7 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
   if (!owner || !callback || !Number.isFinite(priority)) return;
   const generation = owner._gen;
   const hook: HookCallback = (signal, init) => {
-    if (owner._gen !== generation) return;
+    if (owner._gen !== generation || (!init && owner.isConnected === false)) return;
     hooksQueue.push(self);
     try {
       callback(signal, init);
