@@ -202,8 +202,6 @@ type HostState = {
 const HOSTS = new WeakMap<Element, HostState>();
 /** The host mark's shared descriptor — non-enumerable, for the same invisibility the stamps get. */
 const HOSTED: PropertyDescriptor = { value: true, enumerable: false, configurable: true };
-/** Every captured node → its host's sentinel, for `_$home$`. Entries die with their nodes. */
-const HOMES = new WeakMap<Node, Comment>();
 
 /**
  * What the observer watches, wherever it watches. Hoisted because captured nodes rest in more than
@@ -299,7 +297,6 @@ const take = (state: HostState, node: Node): string | null => {
   const name = nameIn(state, node);
   if (name === null) return null;
   state._names.set(node, name);
-  HOMES.set(node, state._sentinel);
   const binding = activeFor(state, name);
   if (!(binding !== undefined && node.parentNode === binding._start.parentNode)) move(node, state._holding, null);
   return name;
@@ -802,7 +799,12 @@ const processRecords = (host: Element, state: HostState, changes: Change[]) => {
       }
       continue;
     }
+    const home = node.parentNode;
+    /** Where the node is NOW decides — changes are processed after the fact, so a node added and then
+     *  removed again in one batch was never there, and must not be taken back from nowhere. */
+    const present = host.contains(node) || home === state._holding || (home !== null && state._parks.has(home));
     if (change._kind === ADDED) {
+      if (!present) continue;
       place(state, node, change._prev, change._next, change._top);
       const name = state._names.get(node) ?? take(state, node);
       if (name !== null) touched.add(name);
@@ -812,8 +814,7 @@ const processRecords = (host: Element, state: HostState, changes: Change[]) => {
      * Gone from the host — not merely moved within it (a writer re-inserting a node is handled by its
      * addition), and not resting in one of OUR places (holding, a displaced fallback).
      */
-    const home = node.parentNode;
-    if (host.contains(node) || home === state._holding || (home !== null && state._parks.has(home))) continue;
+    if (present) continue;
     const name = forget(state, node);
     if (name !== undefined) touched.add(name);
   }
@@ -1208,14 +1209,20 @@ const serverDistribute = (host: Element, source: Node[]) => {
   drain(HOSTS.get(host)!);
 };
 /**
- * A captured node's HOME — the sentinel marking the end of its host's light region. The renderer's
- * text-part upgrade calls this: markers for a part whose text node was captured belong in the
- * HOST, not wherever distribution carried the node (see `_sentinel`). Returns null for a node no
- * light host has captured, which is every node in an app without light slots.
+ * **A part's content in a light host: the stretch of the host's logical list between its markers.**
+ * Distribution MOVES a host's children, so a part rendering them keeps its markers in the host while
+ * its content lives elsewhere — and what a nested part inserted later lives elsewhere too. The list
+ * keeps all of it in light-tree order wherever it physically sits, so this is how the renderer clears
+ * or parks such a part: exactly what native would find between the markers, nested parts included.
+ * `undefined` when the markers are not in one host's list — the renderer then uses its own record.
  */
-(takeOverSlot as { _$home$?: (node: Node) => Comment | null })._$home$ = (node) => {
-  const sentinel = HOMES.get(node);
-  return sentinel !== undefined && sentinel.parentNode !== null ? sentinel : null;
+(takeOverSlot as { _$span$?: (start: Node, end: Node) => Node[] | undefined })._$span$ = (start, end) => {
+  const state = OWNER.get(start);
+  if (state === undefined || OWNER.get(end) !== state) return undefined;
+  const light = state._light;
+  const from = light.indexOf(start);
+  const to = light.indexOf(end);
+  return from === -1 || to < from ? undefined : light.slice(from + 1, to);
 };
 /** The server hook — SSR calls this (never the client capture/anchor path). */
 (takeOverSlot as { _$server$?: (host: Element, source: Node[]) => void })._$server$ = serverDistribute;

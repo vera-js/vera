@@ -42,9 +42,9 @@ counts as a difference:
 npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
 ```
 
-Every scenario there matches native on Chromium, Firefox and WebKit except the one listed under the
-caveats below, which the file pins as known divergences: each asserts that it still diverges, so one
-cannot be fixed, or regress, without the list changing.
+Every scenario there matches native on Chromium, Firefox and WebKit. The file keeps a list of known
+divergences, empty today: an entry asserts that it still diverges, so a shape cannot quietly regress
+into it, nor be fixed without the list changing.
 
 It is live. Appending, removing or re-slotting a child redistributes, `slotchange` fires on the
 slot element with the same sequence and the same `assignedNodes()` the platform produces, and
@@ -87,9 +87,6 @@ a comparison or a property read at those points and nothing else.
 
 ## The honest caveats
 
-- **One shape still differs from native, measured.** From the conformance suite above, identically on
-  three engines: a `hold()` restore inside content one template places into another light component
-  leaves stale nodes on screen. Hydration is outside that suite and has its own tests.
 - **It is not unique.** Stencil does the same thing in its `scoped` mode. The difference is that
   Stencil is a compiler and this is a wired module you can leave out — but "nobody else has this"
   would be false.

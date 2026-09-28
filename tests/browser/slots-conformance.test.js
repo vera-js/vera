@@ -161,8 +161,6 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
  * changes all three in the same commit.
  */
 const KNOWN = new Map([
-  ['placed content: hold() restores a template whose inner text became a template',
-    'a hold() restore inside placed content keeps the old text beside the new node, and leaves it on screen after'],
 ]);
 
 const scenario = (name, spec) =>

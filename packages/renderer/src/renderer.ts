@@ -499,8 +499,8 @@ type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | n
 type SlotSeam = SlotSeamFn & {
   _$capture$?: (host: Element, boundary?: Comment) => void;
   _$rescue$?: (host: Element) => Node[] | null;
-  /** A captured node's host-side anchor (the light-region sentinel) — see the upgrade below. */
-  _$home$?: (node: Node) => Comment | null;
+  /** A part's content in a light host, from its markers — see `_$span$` in slots and `_clear`. */
+  _$span$?: (start: Node, end: Node) => Node[] | undefined;
   /**
    * **The render bracket** — called as every render starts (with its root) and ends, so slots can
    * credit each DOM change to whoever made it: a change inside a light host is the host's own only
@@ -2002,25 +2002,11 @@ class TextPart implements Part {
        */
       const start = comment();
       const end = comment();
-      /**
-       * **Markers go where the part LIVES, which is not always where its text node is.** In a
-       * light host wired for slots, this text node was captured and distributed into the
-       * component's tree — planting markers beside it there put them inside the slot's range,
-       * the slot's next fill swept them into the holding fragment, and the part spent the rest
-       * of the page rendering into detached space (measured: `<host>${text}</host>` toggling
-       * through null showed FALLBACK forever). `_$home$` answers with the host's light-region
-       * sentinel for a captured node and null for everything else, so every app without light
-       * slots takes the second branch untouched.
-       */
-      const home = slotSeam()?._$home$?.(this._text) ?? null;
-      const parent = home !== null ? home.parentNode! : this._text.parentNode!;
-      if (home !== null) {
-        parent.insertBefore(start, home);
-        parent.insertBefore(end, home);
-      } else {
-        parent.insertBefore(start, this._text);
-        parent.insertBefore(end, this._text.nextSibling);
-      }
+      /** Beside the text node, wherever it is — distributed into a slot included: the markers are then
+       *  in that host's light list, and slots finds the part's content from them (`_$span$`). */
+      const parent = this._text.parentNode!;
+      parent.insertBefore(start, this._text);
+      parent.insertBefore(end, this._text.nextSibling);
       const part = new ChildPart(start, end);
       part._mode = TEXT;
       part._text = this._text;
@@ -2325,7 +2311,13 @@ class ChildPart implements Part {
      * DocumentFragment committed at NODE position (its children scatter and it keeps no record);
      * that falls through to the walk, as before.
      */
-    if (this._start.nextSibling === end && this._mode !== EMPTY) {
+    /** In a light host, the host's light list is the truth about what lies between the markers —
+     *  adjacent or not, since a nested part's markers stay where its content left. */
+    const span = end !== null && this._mode !== EMPTY ? slotSeam()?._$span$?.(this._start, end) : undefined;
+    if (span !== undefined) {
+      /** Found through the host's light list — everything between the markers, nested parts included. */
+      for (const node of span) (node as ChildNode).remove();
+    } else if (this._start.nextSibling === end && this._mode !== EMPTY) {
       if (items !== null) {
         for (const item of items) if (item !== null) this.$m(item, null, SCRATCH);
         SCRATCH.textContent = '';
@@ -2602,7 +2594,9 @@ class ChildPart implements Part {
        *  empty but content existed, slots relocated it — the recorded top-level nodes park it
        *  from wherever it lives, split slots and holding included. */
       const fragment = this._instance!._fragment;
-      if (this._start.nextSibling === this._end && Array.isArray(this._value)) {
+      const span = this._end !== null ? slotSeam()?._$span$?.(this._start, this._end) : undefined;
+      if (span !== undefined) for (const node of span) fragment.appendChild(node);
+      else if (this._start.nextSibling === this._end && Array.isArray(this._value)) {
         for (const node of this._value as Node[]) fragment.appendChild(node);
       } else {
         let node = this._start.nextSibling;
