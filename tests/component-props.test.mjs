@@ -216,6 +216,39 @@ test('a component’s own accessor pair is handed the value, never hijacked by t
     'no own accessor shadows the pair — the class still owns the property');
 });
 
+/**
+ * **An accessor on the INSTANCE is handed the value too** — one a constructor installs with
+ * `Object.defineProperty(this, …)`, which the prototype walk never sees. Without the own-descriptor
+ * check the drain deleted it and put a store accessor in its place, so the component's setter never ran
+ * and its property stopped being its own (found by the lean rebuild's mutation controls, 2026-09-28:
+ * nothing failed without that check).
+ */
+test('an accessor the instance defines on itself is handed the value, never replaced', async () => {
+  const host = mount();
+  renderInto(html`<cp-instance-accessor ${props({ item: 'delivered' })}></cp-instance-accessor>`, host);
+  let setterRan = 0;
+  customElements.define('cp-instance-accessor', class extends HTMLElement {
+    constructor() {
+      super();
+      let item;
+      Object.defineProperty(this, 'item', {
+        get: () => item,
+        set: (value) => { setterRan++; item = value; },
+        configurable: true,
+      });
+    }
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.item}</p>`);
+    }
+  });
+  dom.window.customElements.upgrade(host);
+  await frame(); await frame();
+  const el = host.querySelector('cp-instance-accessor');
+  assert.equal(setterRan, 1, 'the recorded value went through the instance’s own setter');
+  assert.equal(text(el), 'delivered');
+});
+
 test('a getter-only property refuses by name instead of throwing out of init()', async () => {
   const warned = [];
   const realWarn = console.warn;
