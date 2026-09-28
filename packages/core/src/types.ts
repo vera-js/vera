@@ -25,6 +25,18 @@ export interface ComponentElement extends HTMLElement {
    * contract and must never be mangled.
    */
   _root?: ShadowRoot;
+  /**
+   * What a parent's property bindings delivered before this element could receive them, recorded by
+   * `@verajs/renderer` (template parts and `spread`) and drained by `init()` into reactive accessors
+   * (`adoptProps`). A cross-BUNDLE contract: the recorders live in separately built bundles on a CDN
+   * page, so the `_$…$` sigil keeps the name stable under mangling. Absent when nothing was bound.
+   */
+  _$props$?: Record<string, unknown>;
+  /**
+   * The live half of the same contract: installed once per element, and a property delivered AFTER the
+   * drain — a hydrated child whose parent commits late, a spread bag growing a key — is handed here.
+   */
+  _$adopt$?: (key: string, value: unknown) => void;
 }
 
 /** What `createHook` registers: the callback, its priority, and optionally its owner. */
