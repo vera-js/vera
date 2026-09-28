@@ -52,3 +52,15 @@ test('async: a frame callback awaiting a timer is waited for', async () => {
   const { html } = await renderToStringAsync(fixture('awaited-timer'));
   assert.match(html, /<p>late<\/p>/);
 });
+
+/**
+ * A layout effect is coalesced on a microtask. The synchronous chain serializes before any microtask
+ * runs, so the state it settles misses the markup (the known divergence `lifecycle-parity` pins); the
+ * async chain lets the microtask queue run between frame rounds, so its markup matches the client's.
+ */
+test('a layout effect reaches the markup through the async chain, as on the client', async () => {
+  const sync = await renderToString(fixture('layout-effect'));
+  assert.match(sync.html, /<p>start<\/p>/, 'CONTROL: the synchronous chain serializes first');
+  const later = await renderToStringAsync(fixture('layout-effect'));
+  assert.match(later.html, /<p>layout-ran<\/p>/);
+});
