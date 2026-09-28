@@ -29,3 +29,9 @@ test('a method named import is not a call — but a call followed by a block on 
   assert.deepEqual(kinds('const o = { import(x) {} };'), []);
   assert.deepEqual(kinds("await import('./a.js')\n{\n  run();\n}"), ['dynamic:import('], 'a call, then a block (no semicolon)');
 });
+
+test('an Allman-style method is not a call, and neither is a member split across lines', () => {
+  assert.deepEqual(kinds('class R {\n  import(url)\n  {\n    return url;\n  }\n}'), [], 'the brace on the next line, after a class body');
+  assert.deepEqual(kinds("const m = loader.\n  import('./x.js');"), [], 'a member access, not the keyword');
+  assert.deepEqual(kinds("await import('./a.js')\n{\n  run();\n}"), ['dynamic:import('], 'CONTROL: a call then a block is still a call');
+});

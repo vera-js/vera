@@ -1124,3 +1124,32 @@ test('options and value equal to what the dropdown holds are no-ops; icons compa
   element.remove();
 });
 const ICON_STRINGS = Object.freeze(['<i>', '</i>']);
+
+/** Round 3: pre-upgrade properties, re-assigned mutations, new labels, and a mode decided once. */
+test('light set before upgrade, mutated options re-assigned, and a new label for the same value all apply', async () => {
+  const early = dom.window.document.createElement('vera-select');
+  /** What a set before the definition loaded leaves: an own data property shadowing the accessor. */
+  Object.defineProperty(early, 'light', { value: true, writable: true, configurable: true, enumerable: true });
+  dom.window.document.body.append(early);
+  early.options = OPTIONS;
+  await frame();
+  assert.equal(early.shadowRoot, null, 'the early light survived the upgrade');
+  assert.equal(Object.hasOwn(early, 'light'), false, 'and was re-routed through the accessor');
+
+  const opts = [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }];
+  early.options = opts;
+  opts[0].label = 'X';
+  early.options = opts;
+  assert.equal(early.options[0].label, 'X', 'a mutated array re-assigned applies');
+
+  early.value = 'a';
+  early.value = [{ value: 'a', label: 'Alpha, renamed' }];
+  assert.equal(early.selectedOptions[0].label, 'Alpha, renamed', 'a full option carries its new label');
+
+  early.light = false;
+  early.remove();
+  dom.window.document.body.append(early);
+  await frame();
+  assert.equal(early.shadowRoot, null, 'light flipped after connect does not grow a second, shadow UI on reconnect');
+  early.remove();
+});

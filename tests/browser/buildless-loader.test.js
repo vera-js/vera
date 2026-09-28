@@ -182,3 +182,11 @@ it('inline blocks are cached too, and each has its own import.meta', async () =>
   expect(compilerFetched(again.frame), 'a repeat visit reuses the inline blocks\' compiled output').to.equal(false);
   again.frame.remove();
 });
+
+it('a file the import map names, imported by its path or full URL, is the same module', async () => {
+  const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/mapped/main.jsx"></script>`);
+  expect(result.kind, result.text).to.equal('app');
+  expect(result.samePath, 'by path').to.equal(true);
+  expect(result.sameUrl, 'by full URL').to.equal(true);
+  result.frame.remove();
+});

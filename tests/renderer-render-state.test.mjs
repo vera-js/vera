@@ -333,3 +333,51 @@ test("a node one light host rendered, moved by user code into another, is that h
   first.remove();
   second.remove();
 });
+
+/** Round 3: an applier's late commit belongs to the container that attached it, and only while its part lives. */
+test("a discarded applier's late commit leaves the host's content alone", async () => {
+  function applyUntil(part, previous) {
+    if (previous && previous.promise === this.promise) return previous;
+    part._$commit$(this.placeholder);
+    this.promise.then((value) => part._$commit$(value));
+    return { promise: this.promise };
+  }
+  let resolve;
+  const later = { _$child$: applyUntil, promise: new Promise((r) => (resolve = r)), placeholder: html`<em>wait</em>` };
+  const holding = (u) => html`<div class="old">${u}</div>`;
+  const plain = () => html`<p>no slot here</p>`;
+  const slotted = () => html`<main><slot></slot></main>`;
+  const view = (k) => html`${k === 'A' ? holding(later) : k === 'B' ? plain() : slotted()}`;
+  const host = doc.createElement('x-discard');
+  host.innerHTML = '<b>USER</b>';
+  doc.body.append(host);
+  renderInto(view('A'), host);
+  renderInto(view('B'), host);
+  resolve(html`<section><slot></slot></section>`);
+  await settle();
+  await settle();
+  renderInto(view('C'), host);
+  await settle();
+  assert.equal(host.querySelector('main b')?.textContent, 'USER', "the user's content reached the live slot");
+  host.remove();
+});
+
+test('an applier committing inside ANOTHER host\'s render keeps its own host', async () => {
+  const listeners = [];
+  const body = () => html`<section><slot>FB1</slot></section>`;
+  const waiting = { _$child$: (part) => void listeners.push(() => part._$commit$(body())) };
+  const firing = { _$child$: (part) => { for (const l of listeners.splice(0)) l(); part._$commit$('h2'); } };
+  const one = doc.createElement('x-one');
+  one.innerHTML = '<b>MINE1</b>';
+  const two = doc.createElement('x-two');
+  two.innerHTML = '<i>MINE2</i>';
+  doc.body.append(one, two);
+  renderInto(html`<div class="one">${waiting}</div>`, one);
+  await settle();
+  renderInto(html`<div class="two"><slot>FB2</slot>${firing}</div>`, two);
+  await settle();
+  assert.equal(one.querySelector('section')?.textContent, 'MINE1', "host one's slot took host one's content");
+  assert.equal(two.querySelector('.two i')?.textContent, 'MINE2', "and host two kept its own");
+  one.remove();
+  two.remove();
+});
