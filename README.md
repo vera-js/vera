@@ -240,7 +240,9 @@ tsconfig settings are required, and the second is the one people miss:
 Without `"types"`, every element errors with `TS7026`: the JSX namespace ships with the plugin's
 declarations, and a TSX app configures the plugin in `vite.config.js` without ever importing it.
 On a dash-named tag a bare prop is a **prop** — `<order-row item={row} />` binds the property, as
-React would. Full rules: [`packages/jsx/README.md`](packages/jsx/README.md).
+React would. Event handlers on built-in elements are typed, so under `strict`
+`onInput={(e) => e.currentTarget.value}` infers an `InputEvent` on an `HTMLInputElement`; every other
+prop stays permissive. Full rules: [`packages/jsx/README.md`](packages/jsx/README.md).
 
 ---
 

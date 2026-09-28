@@ -106,9 +106,11 @@ be merged. The two also disagree about assignability — a type alias carries an
 signature, so it satisfies `Record<string, unknown>` where the identical interface does not, which
 is the version of this that shows up as a confusing error rather than as silence.
 
-Where merging **is** the point, disable it and say so. `JSX.IntrinsicElements` is the canonical
-case: a TSX app adds its own custom elements by merging into it, and a type alias would remove the
-only way to do that.
+Where merging **is** the point, disable it and say so. `@verajs/jsx`'s JSX namespace is the
+canonical case: a TSX app adds its own custom elements by merging into `JSX.IntrinsicElements`, and
+a type alias would remove the only way to do that. (`IntrinsicElements` itself extends the typed
+built-in elements, so it passes the rule by construction; its siblings `ElementChildrenAttribute`
+and `IntrinsicAttributes` carry the disable.)
 
 `@typescript-eslint/consistent-type-definitions` is deliberately not what this uses. Its `type`
 option forbids *every* interface, including the genuine extension — and a rule that contradicts the

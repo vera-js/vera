@@ -156,7 +156,9 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
 /**
  * name → what diverges. Filled from what the suite MEASURED on all three engines, never from what was
  * expected — every entry here was read from its trace and failed identically on Chromium, Firefox and
- * WebKit.
+ * WebKit. The same list is described in prose in `docs/features/light-dom-slots.md` (the caveats),
+ * `packages/renderer/README.md` (the slots section) and `llms.txt`: an entry added or removed here
+ * changes all three in the same commit.
  */
 const KNOWN = new Map([
   ['two slots with one name: the first takes the content, the second when the first goes',

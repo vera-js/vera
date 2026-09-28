@@ -28,8 +28,23 @@ node --test tests/slots-native-parity-fuzz.test.mjs     # 1,000 generated cases,
 
 Elements go to the slot their `slot` attribute names, everything else — text and whitespace
 included — to the first unnamed slot, duplicate names give the first in tree order the content and
-leave the rest showing fallback, fallback appears only while a slot is unassigned and comes back
-when it empties, and capture takes the host's direct children only, so components nest.
+leave the rest showing fallback (one exception, below: an earlier duplicate that a re-render removes
+and brings back), fallback appears only while a slot is unassigned and comes back when it empties,
+and capture takes the host's direct children only, so components nest.
+
+That fuzz compares assignment. Whole lifecycles are compared too — re-renders, lists keyed and
+unkeyed, `hold()`, late commits from async values, components inside a template, content one
+template places into another component, nodes moved between hosts — in real browsers, reading the
+composed tree **and element identity** after every step, so a node re-created with the same markup
+counts as a difference:
+
+```sh
+npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
+```
+
+Every scenario there matches native on Chromium, Firefox and WebKit except the four listed under the
+caveats below, which the file pins as known divergences: each asserts that it still diverges, so one
+cannot be fixed, or regress, without the list changing.
 
 It is live. Appending, removing or re-slotting a child redistributes, `slotchange` fires on the
 slot element with the same sequence and the same `assignedNodes()` the platform produces, and
@@ -72,6 +87,13 @@ a comparison or a property read at those points and nothing else.
 
 ## The honest caveats
 
+- **Four shapes still differ from native, measured.** From the conformance suite above, identically
+  on three engines: when the earlier of two same-named slots is removed by a re-render and comes
+  back, the content stays in the later one, where native hands it back; a `<slot>` forwarded into a
+  nested component's slot shows the outer fallback instead of the forwarded content; in content one
+  template places into another light component, a part that swaps template is re-inserted after its
+  sibling instead of before it; and a `hold()` restore inside such placed content leaves stale nodes
+  on screen. Hydration is outside that suite and has its own tests.
 - **It is not unique.** Stencil does the same thing in its `scoped` mode. The difference is that
   Stencil is a compiler and this is a wired module you can leave out — but "nobody else has this"
   would be false.

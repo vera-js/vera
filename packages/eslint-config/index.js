@@ -68,9 +68,11 @@
  * (`interface ComponentHook extends Omit<Hook, …>`). A rule that contradicts the convention it
  * enforces teaches people to switch it off. This says exactly what the principle says.
  *
- * Where merging is the POINT, disable it with the reason — `JSX.IntrinsicElements` is the case in
- * this repo: a TSX consumer augments it with their own custom elements, and a type alias cannot be
- * augmented at all.
+ * Where merging is the POINT, disable it with the reason — `@verajs/jsx`'s JSX namespace is the case
+ * in this repo: a TSX consumer augments `IntrinsicElements` with their own custom elements, and a
+ * type alias cannot be augmented at all. (`IntrinsicElements` extends the typed built-in elements,
+ * so it passes by construction; `ElementChildrenAttribute` and `IntrinsicAttributes` carry the
+ * disable.)
  */
 export const noNonExtendingInterface = {
   selector: 'TSInterfaceDeclaration:not(:has(TSInterfaceHeritage))',

@@ -418,7 +418,12 @@ render(() => html`<article><header><slot name="title">Untitled</slot></header>
 Assignment follows the platform: `slot="x"` goes to the first `<slot name="x">` in tree order,
 everything else (text included) to the first unnamed slot, duplicate names — first wins, and
 fallback renders only while a slot has nothing assigned and comes back if it empties. In a SHADOW
-root the module stands aside completely and the native `<slot>` renders untouched.
+root the module stands aside completely and the native `<slot>` renders untouched. Measured against
+native shadow DOM on three engines (`tests/browser/slots-conformance.test.js`), four shapes still
+differ: an earlier duplicate slot that a re-render removes and restores does not take its content
+back; slot forwarding (a `<slot>` passed into a nested component's slot) shows the outer fallback;
+and inside content placed into a nested light component, a part that swaps template lands after its
+sibling, and a `hold()` restore leaves stale nodes.
 
 **`slotted(host, name?)`** is the accessor a component uses to read what its user gave it — native
 assignment in a shadow root, the capture map in light DOM, so component code does not branch on

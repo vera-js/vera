@@ -129,8 +129,9 @@ are a twin waiting to drift.
    Omit<Hook, …>`). This is a safety choice as much as style: interfaces are open to declaration
    merging, and the public types are not meant to be silently augmentable. **Enforced since
    2026-09-17** by `noNonExtendingInterface` in `@verajs/eslint-config`, after prose alone let 64
-   accumulate; where merging IS the point (`JSX.IntrinsicElements`, `ImportMeta`) disable it and say
-   why, because a type alias cannot be augmented at all.
+   accumulate; where merging IS the point (`JSX.ElementChildrenAttribute`, `ImportMeta`) disable it
+   and say why, because a type alias cannot be augmented at all. (`JSX.IntrinsicElements` merges
+   too, but it extends the typed built-in elements, so the rule passes it without a disable.)
    **Composition takes the `extends` spelling, not `&`**, and that is the same rule seen from the
    other side rather than an exception to it: `interface X extends Base` reports an incompatible
    member as an error, while `type X = Base & { … }` silently resolves it to `never` and every
