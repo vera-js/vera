@@ -135,14 +135,14 @@ const chain = (name) => /** @type {any[]} */ (/** @type {any} */ (inserts).get(n
  * land on it too (values decoded: they were read back out of markup this module escaped).
  */
 const buildInstance = (tag, attrString) => {
-  /** `matchAll` copies its regex on every call, so a tag with no attributes — most of them — skips it. */
+  /** A tag with no attributes — most of them — does no attribute work at all (`matchAll` copies its regex). */
   const attributes = attrString
     ? [...attrString.matchAll(ATTRIBUTE)].map(([, name, quoted, single, bare]) => [
         name,
         decodeEntities(quoted ?? single ?? bare ?? ''),
       ])
-    : [];
-  const marker = attributes.find(([name]) => name === INSTANCE_ATTRIBUTE)?.[1];
+    : undefined;
+  const marker = attributes?.find(([name]) => name === INSTANCE_ATTRIBUTE)?.[1];
   const pending = marker === undefined ? undefined : pendingInstances.get(marker);
   const element = pending?.localName === tag ? pending : new (registry.get(tag))();
   /**
@@ -152,7 +152,7 @@ const buildInstance = (tag, attrString) => {
    */
   if (element === pending) pendingInstances.delete(marker);
   element.localName = tag;
-  for (const [name, value] of attributes) element.setAttribute(name, value);
+  if (attributes) for (const [name, value] of attributes) element.setAttribute(name, value);
   return element;
 };
 
@@ -348,10 +348,14 @@ const renderModule = async (url, options = {}, isAsync) => {
   const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false } = options;
   const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic };
   /**
-   * OBJECTS, destructured, never tuples: array destructuring in this loop head cost every render that
-   * followed a different component ~25% (a 20-row render 46 µs against 36) — measured, not understood.
+   * Indexed, and objects rather than tuples: this runs once per render inside an async function, where V8
+   * did not remove a `for…of`'s per-step result objects, nor array destructuring's iterator — tuples cost
+   * ~1.4 KB of garbage per render, GC on every render after (+12% on a mixed load, measured).
    */
-  for (const { name, valid, message } of CHECKS) if (!valid(given[name])) throw new TypeError(`ssr: ${message}`);
+  for (let i = 0; i < CHECKS.length; i++) {
+    const { name, valid, message } = CHECKS[i];
+    if (!valid(given[name])) throw new TypeError(`ssr: ${message}`);
+  }
   const href = url instanceof URL ? url.href : url;
 
   /**

@@ -80,9 +80,9 @@ const PLAIN = /^(object|array)$/;
  */
 const handlerFor = (value: object) => {
   let chosen: ProxyHandler<object> | undefined = PLAIN.test(getType(value)) ? handler : undefined;
-  inserts.get('store')?.forEach((insert) => {
-    chosen = (insert as StoreInsert)(value, chosen, kit) ?? chosen;
-  });
+  /** A plain loop: `forEach` allocated a closure per value decided — measured, once any module is wired. */
+  const chain = inserts.get('store') as StoreInsert[] | undefined;
+  if (chain) for (let i = 0; i < chain.length; i++) chosen = chain[i](value, chosen, kit) ?? chosen;
   return chosen;
 };
 
