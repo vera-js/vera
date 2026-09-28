@@ -10,9 +10,11 @@
     "dom": "cd .. && node bench/dom/build.mjs"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
     "@lit-labs/ssr": "^3.2.2",
     "@preact/signals-core": "^1.14.4",
     "alpinejs": "^3.16.2",
+    "babel-preset-solid": "^1.9.15",
     "lit": "^3.3.3",
     "petite-vue": "^0.4.1",
     "preact": "^10.29.8",
