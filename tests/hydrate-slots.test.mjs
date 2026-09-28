@@ -4,7 +4,7 @@
  * distributed DOM SURVIVES (node identity preserved — no re-render), and the slot system comes
  * alive (fallback returns on removal, re-slotting works) exactly as a fresh client render.
  */
-import { load, isProduction } from './dist.mjs';
+import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';

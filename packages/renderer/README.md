@@ -503,7 +503,12 @@ the platform's own rules — elements to the slot their `slot` attribute names, 
 slot, fallback shown only while a slot is unassigned and restored when it empties, direct children
 only. Live: appending, removing, or re-slotting children redistributes automatically, with one documented
 divergence — see **Late children** below. Re-renders leave slotted nodes in place, identity intact, so focus and input values
-survive; SSR emits already-distributed markup and hydration adopts it.
+survive; SSR emits already-distributed markup, stating the light tree on each host, and hydration
+adopts it in place, nested components included. A component host carrying no statement was made on
+the client, and gets a client first render rather than an adoption. **The server distributes with
+this same module**, so the statement is a format internal to `@verajs/renderer`: render and hydrate
+with the same version of it. HTML cached from a version before the statement existed is read as
+client-made content, not adopted.
 
 **Measured, including where it still differs.** `tests/browser/slots-conformance.test.js` runs whole
 component lifecycles through a real shadow root and through this module on Chromium, Firefox and
@@ -704,7 +709,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.78 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.

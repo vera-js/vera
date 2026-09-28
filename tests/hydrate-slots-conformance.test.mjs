@@ -188,7 +188,6 @@ test('CONTROL: a fallback is visible to the adoption check', { skip: isProductio
   assert.ok(warned.some((line) => line.includes('fell back')), `a mismatch is reported: ${warned}`);
 });
 
-const text = (host, value) => host.ownerDocument.createTextNode(value);
 const el = (host, tag, attrs = {}, content = '') => {
   const node = host.ownerDocument.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);

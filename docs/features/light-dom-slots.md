@@ -64,14 +64,24 @@ the server's markup ADOPT into that, without discarding it? And is a SHADOW comp
 using the feature at all — completely untouched by the module being wired?
 
 Server output carries no wrapper elements: each `<slot>` is unwrapped to its assigned nodes or
-its fallback, in place. The handoff to hydration is three small things, each present only when the
-markup needs it and each consumed on adoption — measured, not assumed: a
-`data-vm-slotted="offset,count"` attribute where the default slot took content; one inert
-`<template data-vm-unassigned>` holding children no slot claimed, so content meant for a slot
-that only appears in another state survives the round trip instead of vanishing from the HTML; and
-a `<!---->` separator where two text runs would otherwise merge in the parser and corrupt the
-offset. Adoption is in place, so node identity survives and with it focus, input values and scroll
-position — asserted in a real browser, on three engines:
+its fallback, in place. Distribution loses two facts hydration needs (which nodes are the user's,
+since a component's own elements can carry `slot` too, and their order across slots), so the server
+**states the light tree** rather than leaving the client to infer it. Every parent a slot filled
+carries `data-vm-slotted="offset,count"`, and the host carries `data-vm-light`: for each light child
+in light order, which of those ranges it went into. Two more things are present only when the markup
+needs them: one inert `<template data-vm-unassigned>` holding children no slot claimed, so content
+meant for a slot that only appears in another state survives the round trip instead of vanishing
+from the HTML; and a `<!---->` separator where two text runs would otherwise merge in the parser.
+All of it is consumed on adoption. Adoption is in place, so node identity survives and with it
+focus, input values and scroll position — asserted in a real browser, on three engines.
+
+Because the list is stated, hydration never guesses. A light component nested in another's template
+adopts what the outer one placed in it, and a hydration that has to fall back keeps every light child
+(named, unnamed and bare text) because the host owned its list before the walk began. A component host
+**without** the statement was not rendered by the server (a template or the user created it on the
+client), so it gets a client first render instead of a failed adoption that would discard its
+children. `tests/hydrate-slots-conformance.test.mjs` holds hydration to a client render step by step,
+with identity, across eight scenarios, and asserts that each one actually adopted:
 
 ```sh
 npm run test:browser:all                                # includes hydration from real server markup
@@ -79,7 +89,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->3.78 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>`, marking the render's own output, the
 takeover itself — and the renderer carries only generic hooks it plugs into (an instance hook on
 the template, an insert hook, the capture and relocation calls). An app that never wires slots pays
@@ -95,8 +105,7 @@ a comparison or a property read at those points and nothing else.
   A component that renders both ways writes both. `:host` *is* translated, because a component needs
   it to style itself and nothing else can supply that.
 - **Additions after the first render are native — membership and order, text included.** The
-  renderer stamps its own output with a hidden, non-enumerable property, so an unstamped node at
-  the host's top level is knowably yours: bare text appended to the host reaches the default slot,
+  renderer brackets every render, so a node written outside one is knowably yours: bare text appended to the host reaches the default slot,
   an `insertBefore` at the front precedes distributed content, and a growing list extends itself —
   each matching what a shadow root would do (`tests/slots-transition-parity.test.mjs` compares them
   directly). `slot=""`/`slot="name"` still route as before. Two notes: whitespace you append now

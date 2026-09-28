@@ -55,8 +55,8 @@
       "gzip": 923
     },
     "slots": {
-      "raw": 10201,
-      "gzip": 3874
+      "raw": 10973,
+      "gzip": 4175
     },
     "namespaces": {
       "raw": 1310,
@@ -67,8 +67,8 @@
       "gzip": 530
     },
     "hydrate": {
-      "raw": 18526,
-      "gzip": 6765
+      "raw": 18598,
+      "gzip": 6814
     },
     "inserts": {
       "raw": 486,
