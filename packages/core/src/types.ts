@@ -31,8 +31,11 @@ export type Hook = {
   priority: number | null;
 };
 
+/** Returned from an effect to undo whatever it set up; run before its next run. */
+export type HookCleanup = () => void;
+
 /** A hook's callback: handed the signal that woke it, and `init` on the first pass. */
-export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void;
+export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup;
 
 /** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
 export type Hooks = Set<HookCallback>[];
