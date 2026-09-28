@@ -241,6 +241,19 @@ test('unkeyed list grows and shrinks', () => {
   assert.deepEqual(texts(), ['9']);
 });
 
+test('one position can switch between a keyed and an unkeyed list, both ways, without a rebuild going wrong', () => {
+  const plain = (n) => html`<li>${n}</li>`;
+  renderInto(ul(data(1, 2, 3).map(row)), el);
+  renderInto(ul([7, 8].map(plain)), el);
+  assert.deepEqual(texts(), ['7', '8'], 'keyed → unkeyed');
+  renderInto(ul(data(2, 1, 4).map(row)), el);
+  assert.deepEqual(texts(), ['2:L2', '1:L1', '4:L4'], 'unkeyed → keyed');
+  const kept = items()[0];
+  renderInto(ul(data(4, 2).map(row)), el);
+  assert.deepEqual(texts(), ['4:L4', '2:L2']);
+  assert.ok(items()[1] === kept, 'and the keyed pass that follows still keeps identity');
+});
+
 test('keyed swap moves nodes instead of rewriting them', () => {
   renderInto(ul(data(1, 2, 3, 4).map(row)), el);
   const [a, b, c, d] = items();

@@ -690,16 +690,14 @@ class ChildPart {
     return item instanceof ChildPart ? item._start : item._root;
   }
 
-  /** Moves an item before `ref`. A node already in place is left alone — re-inserting blurs focus and restarts transitions. */
+  /** Moves an item before `ref`. */
   $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
-    const last = item instanceof ChildPart ? item._end! : item._root;
-    if (last.nextSibling === ref && last.parentNode === parent) return;
     if (!(item instanceof ChildPart)) {
       parent.insertBefore(item._root, ref);
       return;
     }
     let node: Node | null = item._start;
-    const stop = last.nextSibling;
+    const stop = item._end!.nextSibling;
     while (node !== stop) {
       const next: Node | null = node!.nextSibling;
       parent.insertBefore(node!, ref);
@@ -714,13 +712,19 @@ class ChildPart {
   }
 
   _commitList(values: unknown[]) {
+    const count = values.length;
+    /**
+     * A keyed list names its own strategy (`keyed()` stamps `$r`). Keyed and index items are the same
+     * kind of item — an unkeyed one carries `$k === undefined`, which a keyed pass treats as not found —
+     * so a list can change between the two without being rebuilt.
+     */
+    const strategy = count ? (values[0] as KeyedResult | null)?.$r : undefined;
     if (this._mode !== LIST) {
       if (this._mode !== EMPTY) this._clear();
       this._items = [];
       this._mode = LIST;
     }
     const items = this._items!;
-    const count = values.length;
     if (count === 0) {
       if (items.length) {
         this._clear();
@@ -731,6 +735,10 @@ class ChildPart {
     }
     const parent = this._start.parentNode!;
     const end = this._end;
+    if (strategy !== undefined) {
+      this._items = strategy(this, values, items, parent, end);
+      return;
+    }
     /** Index mode: update in place, grow at the end, shrink from the end. Rows go straight into the parent. */
     const shared = items.length < count ? items.length : count;
     for (let i = 0; i < shared; i++) items[i] = this.$u(items[i], values[i]);
