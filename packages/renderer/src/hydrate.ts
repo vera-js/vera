@@ -702,8 +702,23 @@ export const renderInto = (result: unknown, container: Node) => {
     isTemplateResult(result as object)
   ) {
     /** Latches the slots module's insert hook before anything commits — see `own` in renderer.ts. */
-    slotSeam();
-    const part = tryAdopt(result as TemplateResult, container);
+    /**
+     * **Hydration is a first render that ADOPTS instead of creating** — so it does what a client
+     * first render does for slots: every light container is captured (its children are the server's
+     * render, so none are taken; the light ones are recovered where the server put them), and the
+     * adoption is bracketed, so what it writes is credited to this container like any render's.
+     * Without either, a host whose server state had no `<slot>` was never watched, and a node the
+     * adoption itself inserted read as the user's.
+     */
+    const seam = slotSeam();
+    if (seam?._$b$ !== undefined && container.nodeType === 1) seam._$capture$?.(container as Element, undefined, true);
+    seam?._$b$?.(container);
+    let part: ChildPart | null;
+    try {
+      part = tryAdopt(result as TemplateResult, container);
+    } finally {
+      seam?._$e$?.();
+    }
     if (part !== null) {
       rootParts.set(container, part);
       return;

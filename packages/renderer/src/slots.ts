@@ -182,26 +182,6 @@ type HostState = {
   /** The host window's `Event` — see `signal` for why it cannot be taken from the slot. */
   _event: typeof Event;
   _observer: MutationObserver;
-  /**
-   * **The boundary between the host's LIGHT REGION and the component's own render.** One comment,
-   * appended at capture time — after the children are lifted, before the component's first render
-   * appends its output — so everything that ever sits before it at the host's top level is host
-   * content, and everything after is the component's. Two things stand on it:
-   *
-   * 1. The observer captures a top-level addition BEFORE the sentinel with full native semantics —
-   *    no `slot` attribute required, text included. The attribute rule was written for USER
-   *    mutations, whose ambiguity is real only at the host's tail; it was also catching the
-   *    RENDERER's own re-renders of `<host>${…}</host>`, whose new nodes always land in the light
-   *    region, and stranding them invisibly (measured: every `→ null → back` transition, every
-   *    template swap, every list refill in a light host showed FALLBACK or stale content forever,
-   *    while shadow passed all of them). That divergence is since gone entirely — ownership
-   *    stamps replaced the region heuristic, and post-render additions are native.
-   * 2. `_$home$` hands it to the renderer, so a text part that upgrades AFTER its text node was
-   *    captured plants its markers here — in the host — instead of chasing the node into the
-   *    slot, where the next fill swept markers and all into the holding fragment and the part
-   *    spent the rest of the page rendering into detached space.
-   */
-  _sentinel: Comment;
 };
 
 const HOSTS = new WeakMap<Element, HostState>();
@@ -867,7 +847,6 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
      * saying the same thing one position to the left. Only the paths that reach `capture` WITHOUT
      * one (hydration adopts per slot, and its render's marker is not in hand there) still mint it.
      */
-    _sentinel: boundary ?? doc.createComment(''),
   });
   HOSTS.set(host, created);
   OUTSIDE.set(created._holding, created);
@@ -880,7 +859,6 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
    */
   Object.defineProperty(host, '_$hosted$', HOSTED);
   /** Ours to place only if ours to make; the renderer's is already in the document. */
-  if (boundary === undefined) host.appendChild(created._sentinel);
   /**
    * A server render parks content no slot claimed in an inert `<template>` — recover it into
    * holding (captured, unrendered, ready if its slot ever mounts) and drop the carrier, so the
@@ -902,8 +880,8 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
    *  anchors later writers position against. */
   if (!skipChildren)
     for (const node of [...host.childNodes]) {
-      /** The render's own anchors are the host's, not light children — only foreign nodes join. */
-      if (node === created._sentinel || node === boundary) continue;
+      /** The render's own anchor is the host's, not a light child — only foreign nodes join. */
+      if (node === boundary) continue;
       created._light.push(node);
       OWNER.set(node, created);
       take(created, node);
@@ -1217,13 +1195,16 @@ const serverDistribute = (host: Element, source: Node[]) => {
  * is held invisibly meanwhile, exactly as native shadow DOM leaves an unassigned light child
  * unrendered. Idempotent (capture is once per host); the renderer calls it once per host lifetime.
  */
-(takeOverSlot as { _$capture$?: (host: Element, boundary?: Comment) => void })._$capture$ = (
+(takeOverSlot as { _$capture$?: (host: Element, boundary?: Comment, adopting?: boolean) => void })._$capture$ = (
   host,
   boundary,
+  adopting,
 ) => {
   if ((globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return;
   flushPending();
-  capture(host, false, boundary);
+  /** Adopting: the host's children are the server's render, not light children — the light ones are
+   *  recovered where the server put them (the carrier now, each slot's content as it is adopted). */
+  capture(host, adopting === true, boundary);
   drain(HOSTS.get(host)!);
 };
 /**

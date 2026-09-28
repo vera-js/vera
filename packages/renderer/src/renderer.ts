@@ -497,7 +497,7 @@ type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | n
  * SSR and the hydrate entry and are reached off the same object.
  */
 type SlotSeam = SlotSeamFn & {
-  _$capture$?: (host: Element, boundary?: Comment) => void;
+  _$capture$?: (host: Element, boundary?: Comment, adopting?: boolean) => void;
   _$rescue$?: (host: Element) => Node[] | null;
   /** A part's content in a light host, from its markers — see `_$span$` in slots and `_clear`. */
   _$span$?: (start: Node, end: Node) => Node[] | undefined;
