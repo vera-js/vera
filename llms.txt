@@ -300,14 +300,15 @@ core's instead — `wire([router])` — which reads the same under a bundler and
 `connectInserts`, which replayed one registry into another, was removed in 0.2.0.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
-exists, before its first render; this is how `@verajs/styles` attaches), `'store'` (a store first
-uses a value — its first read or write, a nested value's first read — and this decides, once, how
-that value is reactive: `(value, handler, kit)`, where `handler` is core's for a plain object or
-array and `undefined` otherwise, and `kit` is `{ track, trigger, shape }`; return a handler to use
-instead, or nothing to leave it. `@verajs/store/collections` claims `Map`/`Set` this way; batching,
+exists, before its first render; this is how `@verajs/styles` attaches), `'store'` (decides how a
+TYPE of value is reactive in every store: `(type, handler, kit)`, where `type` is the lower-cased
+`Object.prototype.toString` name — `'object'`, `'array'`, `'map'`… (an object or class names its own
+with `Symbol.toStringTag`) — `handler` is core's for `'object'`/`'array'` and `undefined` otherwise, and
+`kit` is `{ track, trigger, shape }`; return a handler to use instead, or nothing to leave it. `@verajs/store/collections` claims `Map`/`Set` this way; batching,
 transactions, persistence and devtools wrap core's — `{ ...handler, set(o, p, v, r) { … } }` —
 writing to the raw target to notify nobody and calling `kit.trigger` later. Never consulted on an
-ordinary read or write; a value already used before a module is wired keeps its handler), `'error'`
+ordinary read or write; a module wired late reaches every existing store, and one that throws is
+skipped for every type and throws once, from the `wire` that brought it in), `'error'`
 (a hook or an element ref threw; with none wired, `reportError`), and `'value'` (a child-position
 value the renderer has no built-in answer for — return `true` to claim it; strings, numbers and
 nullish values never reach it). `@verajs/inserts`' README documents each signature.

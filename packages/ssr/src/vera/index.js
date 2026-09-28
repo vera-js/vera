@@ -87,7 +87,7 @@ wire({ on: 'render', fn: serverRenderer, priority: 50 });
  * worth about 3x, with identical markup. A `'store'` insert wrapping every handler core or a module
  * chooses, so a store's reads during a static render bypass tracking and a WRITE is refused by name —
  * a write would change nothing anyone renders, silently. The flag is read at each operation, because a
- * store module decides once per value and a store must be reactive again the moment the render ends.
+ * store module decides once per type and a store must be reactive again the moment the render ends.
  */
 let staticRender = false;
 const refuseStatic = (prop) =>

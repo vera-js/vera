@@ -49,8 +49,8 @@ wire({ on: 'store', fn: (type, handler, kit) => handler?.set && {
 // later: for (const [kit, obj, prop, next, prev] of queued) kit.trigger(obj, prop, next, prev);
 ```
 
-The insert is consulted once per value, so a store that never meets it — and every read and write
-of one that does, beyond the handler's own work — pays nothing for the seam. Verified by
+The insert is consulted once per type of value (and again when `wire` changes the store chain), so
+every read and write, beyond the handler's own work, pays nothing for the seam. Verified by
 `examples/cdn-js/src/inserts/batch.js` and its test: three writes deduped to two notifications.
 
 ## What this buys, concretely

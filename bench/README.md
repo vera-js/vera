@@ -40,7 +40,7 @@ the queue, so reads *outside* a hook skip dependency registration entirely. Only
 rows describe what happens inside a real render.
 
 `tracked + insert` wires a passthrough `'store'` insert that wraps core's `get`. The insert is
-consulted once per value, so what that row adds is one call through the composed trap per read.
+consulted once per type of value, so what that row adds is one call through the composed trap per read.
 
 ## Size
 

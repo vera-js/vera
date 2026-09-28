@@ -72,8 +72,8 @@ operation the old table had to apologize for, and switching to `@verajs/renderer
 | Store read, tracked, 2 nested hops | ~450 |
 | Write + propagation | ~870 |
 
-Reads and writes pay nothing for the store's extension seam: a `'store'` insert is consulted once,
-when a store first uses a value, rather than as a chain resolved on every property access (which is
+Reads and writes pay nothing for the store's extension seam: a `'store'` insert is consulted once
+per type of value, rather than as a chain resolved on every property access (which is
 what the `'proxy-handler'` insert used to cost before it was retired). **The table above predates the
 lean-core rebuild (2026-09-27) and is due to be re-measured** once the rebuild lands.
 

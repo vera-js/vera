@@ -140,12 +140,12 @@ tracked entry key is not retained) and an element holds its hooks strongly — s
 and their subscriptions are not retained. Anything that stores a strong element reference defeats
 this.
 
-**How a value is reactive is decided once, when a store first uses it**, through the `'store'`
-insert: core's handler for plain objects and arrays, nothing for everything else, then each `'store'`
-insert in priority order may return a different handler — claiming a type (`@verajs/store/collections`
-claims `Map`/`Set`) or wrapping core's (`examples/cdn-js/src/inserts/computed.js` wraps `get`,
-`batch.js` wraps `set`). It is consulted on a cache miss only, so reads and writes pay nothing for the
-seam. This replaced three per-access extension points (`'proxy-handler'` on every read, `'set-handler'`
+**How a value is reactive is decided per TYPE, through the `'store'` insert**: core's handler for
+plain objects and arrays, nothing for everything else, then each `'store'` insert in priority order may
+return a different handler — claiming a type (`@verajs/store/collections` claims `Map`/`Set`) or
+wrapping core's (`examples/cdn-js/src/inserts/computed.js` wraps `get`, `batch.js` wraps `set`). Every
+proxy of a type shares one handler core owns, and `wire` decides every type again into those handlers,
+so a module wired late reaches every existing store; nothing is decided per store, read or write. This replaced three per-access extension points (`'proxy-handler'` on every read, `'set-handler'`
 on every write, `'collection'` on every collection method read) in the lean-core rebuild.
 
 ## Naming namespaces — who writes what

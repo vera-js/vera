@@ -91,6 +91,17 @@ code, so they are not re-litigated.
   is nothing else to close on this machine. **And leave it time to cool** (Brian, 2026-09-27): a few
   minutes after the last build, gate or race before any timing run, and between consecutive races —
   it is a fanless laptop, and correctness suites are the only thing that can run back to back.
+- **An async timing loop is ONE job, and a short window's median measures the GC schedule, not the
+  code.** Two traps, both of which produced a wrong conclusion here (2026-09-28). (1) `for (…) await
+  render()` never yields a macrotask, and the platform keeps every `WeakRef` target alive until the job
+  ends — core's hook subscriptions are `WeakRef`s — so every render stays reachable for the whole run
+  (109 MB, released by one `setImmediate`): yield a macrotask every ~100 iterations, outside the timed
+  region, as a server's requests do (`bench/ssr.mjs` does). (2) A fixed workload collects at FIXED
+  rounds per version, so a median over a few rounds reports where the collections happened to fall: an
+  8-round median had the rebuilt SSR stack 7% SLOWER than the old one while the total over the same
+  rounds from cold, and a 30-round median, both had it faster. Compare TOTALS from a cold process, or
+  medians over long windows, across many fresh processes — and never read a per-component split out
+  of a mixed workload, which only says which batch a collection landed in.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
   `@verajs/store`, `@verajs/store/collections`, anything built on core's public API — resolves core
@@ -260,7 +271,7 @@ The shape of the product:
   moved back out as `collections` in 0.2.0, on a **type-keyed** `'collection'` insert point rather
   than the `'proxy-handler'` chain that made the first attempt costly — 292 B recovered for every
   app without a `Map` in a store, 24 B added for those with one. Generalized in the lean-core rebuild
-  (2026-09-27): one `'store'` insert, consulted once when a store first uses a value, replaced all
+  (2026-09-27): one `'store'` insert, deciding per TYPE of value and re-decided in place on `wire`, replaced all
   three of `'proxy-handler'`, `'set-handler'` and `'collection'`. `styles` went the same way in
   0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
   use it.)

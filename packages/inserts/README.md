@@ -45,7 +45,7 @@ dispatches a point of its own. (Remember the rule below before importing it dire
 | --- | --- | --- |
 | `'render'` | a component renders | `(template, element, ...args)` |
 | `'init'` | `init()` sets an element up — after its shadow root exists, before its first render | `(element)` |
-| `'store'` | a store first USES a value — a store on its first read or write, a nested value on its first read — and decides, once, how that value is reactive. Handed the value, the handler chosen so far (core's for a plain object or array, `undefined` for anything core leaves alone) and a kit — `{ track, trigger, shape }`, core's subscribe and notify and the shape channel's name. Return a handler to use instead, or nothing to leave it: claim a type core leaves alone (`@verajs/store/collections` claims `Map`/`Set`/`WeakMap`/`WeakSet`), or wrap core's — `{ ...handler, set(obj, prop, value, receiver) { … } }` — for batching, transactions, undo, persistence, devtools; writing to the raw target notifies nobody and `kit.trigger` notifies later, which is how a module holds changes back. Never consulted on an ordinary read or write, so it costs nothing when unused. A value already used before a module was wired keeps the handler it got | `(value, handler, kit)` |
+| `'store'` | decides how a TYPE of value is reactive in every store — `'object'`, `'array'`, `'map'`… (`Object.prototype.toString`, lower-cased; `Symbol.toStringTag` names a class's or one object's own). Handed the type, the handler chosen so far (core's for a plain object or array, `undefined` for anything core leaves alone) and a kit — `{ track, trigger, shape }`, core's subscribe and notify and the shape channel's name. Return a handler to use instead, or nothing to leave it: claim a type core leaves alone (`@verajs/store/collections` claims `Map`/`Set`/`WeakMap`/`WeakSet`), or wrap core's — `{ ...handler, set(obj, prop, value, receiver) { … } }` — for batching, transactions, undo, persistence, devtools; writing to the raw target notifies nobody and `kit.trigger` notifies later, which is how a module holds changes back. Never consulted on an ordinary read or write, so it costs nothing when unused. Every proxy of a type shares one handler, re-decided in place whenever `wire` changes the store chain — a module wired late reaches every existing store | `(type, handler, kit)` |
 | `'error'` | a hook callback or an element ref (`&ref`) threw. Neither stops its siblings — one failing effect never stops the others, one failing ref never stops the render — so this decides what happens to it; `element` is the component being rendered. With nothing registered it goes to `reportError`, which fires the window's `error` event (so `window.onerror` and test runners see it), and off-browser to `console.error` | `(error, element)` |
 | `'slot'` | a `<slot>` in a rendered template, handed over by `slotDiscovery` (from `@verajs/renderer/slots`, which includes it — an `'element'` claimant on `@verajs/renderer/elements`) once the render that created the instance has finished — `@verajs/renderer/slots` takes it over and distributes the host's own children. A custom strategy wires `slotDiscovery` beside itself: `wire([renderer, slotDiscovery, myStrategy])`. Returning null or undefined declines, which is what a shadow root gets (the platform slots there) and what the SSR shim gets (the server distributes in its own pass). One registrant owns it: the highest-priority answer, not a chain. A strategy may also carry `$o(parent, node, owner)`, told about every node the renderer inserts | `(slot, root, name)` |
 | `'element'` | `@verajs/renderer/elements` asking about each element of a template, once, as the template is first used — the claimant returns a shared `{ mount?, unmount? }` for an element it wants, `undefined` for the rest; every instance then runs `mount(element, { root, adopted })` once its render has finished and `unmount(kept, element)` at teardown. Every registrant runs, in priority order | `(element)` |
@@ -71,12 +71,13 @@ throws is isolated and reported through the `'error'` insert, because core runs 
 one loop and an escaping error would skip every hook after the failing one. An insert is not in that
 position:
 
-- **A `'store'` insert runs inside the store's first use of a value, and the handler it returns runs
-  inside the store's own traps**, so a throw comes out of `state.count = 1` (or the read) in the
-  caller's own stack, at the line that did it. That is the most useful place it could surface, and
-  swallowing it would leave the write in an undefined state — the handler has already decided
-  whether the value propagates. An insert that throws while deciding leaves the value undecided, so
-  its next use asks again.
+- **A `'store'` insert that throws while deciding throws from the `wire` that brought it in** (or,
+  for a type first met later, from that read) — once: it is then skipped for every type, so it cannot
+  half-install itself or make later wiring throw, and every handler reflects the healthy modules.
+  Wiring a replacement at its priority brings the slot back. **The handler it returns runs inside the
+  store's own traps**, so a throw from the handler comes out of `state.count = 1` (or the read) in the
+  caller's own stack, at the line that did it; swallowing it would leave the write in an undefined
+  state — the handler has already decided whether the value propagates.
 - **`'value'` is the same case**, for the same reason: it runs inside a child-position commit, so a
   throw comes out of `renderInto` at the line that called it.
 - **`'init'` and `'render'` run inside `init()` and the render, so a throw surfaces there.** And the
