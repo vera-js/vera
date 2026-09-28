@@ -110,8 +110,14 @@ const server = (tag, template, children, shadow = false) => {
     encoding: 'utf8',
   });
   /** The host's own tag is the wrapper both sides share; compare what is INSIDE it. */
+  hosts.set(tag, html);
   return html.replace(new RegExp(`^<${tag}[^>]*>`), '').replace(new RegExp(`</${tag}>$`), '');
 };
+/**
+ * The server's WHOLE output per tag, host element included — the host carries `data-vm-light`, the
+ * statement of its light tree that hydration reads, so the corner that hydrates must keep it.
+ */
+const hosts = new Map();
 
 let index = 0;
 for (const [label, [template, children]] of Object.entries(SHAPES))
@@ -183,8 +189,9 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     const clientOnly = normalize(fresh.innerHTML);
 
     /** The server's markup, adopted. */
-    const hydrated = dom.window.document.createElement('div');
-    hydrated.innerHTML = fromServer;
+    const wrap = dom.window.document.createElement('div');
+    wrap.innerHTML = hosts.get(tag);
+    const hydrated = wrap.firstElementChild;
     dom.window.document.body.append(hydrated);
     const warnings = [];
     const originalWarn = console.warn;

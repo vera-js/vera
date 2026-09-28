@@ -865,20 +865,28 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
    * round trip matches CSR exactly. Done before the children walk so the carrier is never itself
    * mistaken for slot content.
    */
-  for (const child of [...host.children])
-    if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) {
-      const held = (child as HTMLTemplateElement).content;
-      for (const node of [...held.childNodes]) {
-        created._light.push(node);
-        OWNER.set(node, created);
-        take(created, node);
-      }
-      host.removeChild(child);
+  if (skipChildren) {
+    /**
+     * Adopting server output: the light children are where the server put them, and its marks say
+     * exactly which they are and in what order (`lightOf`). Recorded, not moved — except what waits
+     * in the carrier, which goes to holding as unassigned content does on the client.
+     */
+    const light = lightOf(host) ?? [];
+    for (const node of light) {
+      created._light.push(node);
+      OWNER.set(node, created);
+      const name = nameIn(created, node);
+      if (name !== null) created._names.set(node, name);
+      if (node.parentNode?.nodeType === 11) created._holding.appendChild(node);
     }
-  /** Hydration already has the children distributed and registers them itself; a fresh CSR
-   *  capture lifts them from the host — comments stay where they are, but join the list as the
-   *  anchors later writers position against. */
-  if (!skipChildren)
+    for (const child of [...host.children])
+      if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) host.removeChild(child);
+    /** Its marks are consumed — a nested host's stay for that host's own capture. */
+    for (const element of marksOf(host)) element.removeAttribute(SLOTTED_ATTR);
+    host.removeAttribute(LIGHT_ATTR);
+  } else
+    /** A client first render: the host's children ARE its light children — comments stay where they
+     *  are, but join the list as the anchors later writers position against. */
     for (const node of [...host.childNodes]) {
       /** The render's own anchor is the host's, not a light child — only foreign nodes join. */
       if (node === boundary) continue;
@@ -1057,18 +1065,15 @@ export const slotted = (host: Element, name = ''): Node[] => {
  * hydration needs to tell assigned-from-fallback there.
  */
 /**
- * **`"offset,count"`, on the default slot's PARENT — position, not just extent.** A named slot's
- * content self-identifies (the user's nodes carry their own `slot="x"`); the default slot's does
- * not, because bare text is common there and cannot carry an attribute, so the server states it.
+ * **`"offset,count"`, on the parent of every slot that received content — position, not just
+ * extent.** Neither a `slot` attribute nor adjacency identifies a light child: a component's own
+ * elements can carry `slot` too, and bare text carries nothing. So the server states each range, and
+ * `data-vm-light` (below) states which range each light child went into, in light order.
  *
- * The count alone is enough to ADOPT — the adoption walk arrives already standing at the right
- * place. It is not enough to RECOVER, and recovery is the case that matters: when hydration hits
- * a mismatch it discards the container and clean-renders, and for a light host the user's slotted
- * content is *inside* what gets discarded. Marked with only a count on the host, content whose
- * slot the walk never reached could not be found again and was destroyed — silently, under a
- * warning that promised the page was still correct. With the position stated, `_$rescue$` lifts
- * the user's nodes back out before the discard, no walk required, and the clean render
- * redistributes them exactly as it would on a first client render.
+ * Position is what makes RECOVERY possible, and recovery is the case that matters: when hydration hits
+ * a mismatch it discards the container and clean-renders, and for a light host the user's content is
+ * *inside* what gets discarded. From the stated ranges the host knows its light list before the walk
+ * starts, so `_$rescue$` returns it to holding before the discard, no walk required.
  */
 const SLOTTED_ATTR = 'data-vm-slotted';
 /**
@@ -1079,113 +1084,149 @@ const SLOTTED_ATTR = 'data-vm-slotted';
  * survives the round trip instead of vanishing from the HTML forever.
  */
 const UNASSIGNED_MARK = 'data-vm-unassigned';
+const LIGHT_ATTR = 'data-vm-light';
+/**
+ * **The server states the light tree, so the client never reconstructs it.** Distribution moves a
+ * host's light children into its slots, which loses two facts the client needs: which nodes are
+ * light children at all (a component's own elements can carry `slot` too), and their order ACROSS
+ * slots. Both are written down, uniformly:
+ *
+ * - every slot position that received content marks its RANGE on its parent — `data-vm-slotted`,
+ *   `"offset,count"`, space-separated when one parent holds several — named slots as well as the
+ *   default, so no slot is found by guessing;
+ * - the host carries `data-vm-light`: for each light child in light-tree order, the index of the range
+ *   it went into (ranges numbered in document order, the unassigned carrier last), run-length encoded
+ *   as `index*count`. `lightOf` reads the two back into the exact list.
+ *
+ * Positions are written LAST, once nothing else will move: separators (below) and the carrier both
+ * shift offsets, and a position computed before them addressed the wrong node.
+ */
 const serverDistribute = (host: Element, source: Node[]) => {
   const buckets = new Map<string, Node[]>();
+  const light: Node[] = [];
   for (const node of source) {
     const name = slotNameOf(node);
     if (name === null) continue;
+    light.push(node);
     let bucket = buckets.get(name);
     if (bucket === undefined) buckets.set(name, (bucket = []));
     bucket.push(node);
     if (node.parentNode !== null) node.parentNode.removeChild(node);
   }
   const filled = new Set<string>();
-  /** Parents carrying a mark, with the user's first and last node — see the separator pass. */
-  const marked: Array<{ parent: Element; first: Node; last: Node; count: number }> = [];
-  /** Collect first (the live list mutates as slots are unwrapped). Any nesting order is fine —
-   *  a slot is replaced by its content, and a slot inside assigned content was itself resolved. */
-  const slotEls: Element[] = [...host.querySelectorAll('slot')];
-  for (const slot of slotEls) {
+  /** Every range that received content, in document order — see `data-vm-light`. */
+  const ranges: Array<{ parent: Element; first: Node; last: Node; count: number }> = [];
+  const rangeOf = new Map<Node, number>();
+  /** Collected first: the live list mutates as slots are unwrapped. */
+  for (const slot of [...host.querySelectorAll('slot')]) {
     const parent = slot.parentNode;
     if (parent === null) continue; // already unwrapped as another slot's assigned content
     const name = slot.getAttribute('name') ?? '';
     const assigned = !filled.has(name) ? buckets.get(name) : undefined;
     if (assigned !== undefined && assigned.length > 0) {
       filled.add(name);
-      for (const node of assigned) parent.insertBefore(node, slot);
-      /** The DEFAULT slot's content is unmarkable in the body (it may be bare text), so its
-       *  PARENT states where it is and how much of it there is. Named slots self-delimit by
-       *  their own `slot` attribute and need nothing. Offset is stable: slots are unwrapped in
-       *  document order, so everything before this one is already final. */
-      /** The mark is written after the separator pass — see it for why position is computed once,
-       *  at the end, rather than here where the nodes are still moving. */
-      if (name === '')
-        marked.push({
-          parent: parent as Element,
-          first: assigned[0],
-          last: assigned[assigned.length - 1],
-          count: assigned.length,
-        });
+      for (const node of assigned) {
+        parent.insertBefore(node, slot);
+        rangeOf.set(node, ranges.length);
+      }
+      ranges.push({ parent: parent as Element, first: assigned[0], last: assigned[assigned.length - 1], count: assigned.length });
     } else {
       /** Fallback: the slot's own children, unwrapped in place. */
-      let child = slot.firstChild;
-      while (child !== null) {
-        const next = child.nextSibling;
-        parent.insertBefore(child, slot);
-        child = next;
-      }
+      while (slot.firstChild !== null) parent.insertBefore(slot.firstChild, slot);
     }
     parent.removeChild(slot);
   }
-  /** Whatever no slot claimed goes into the inert carrier, in its original order per name. */
   /**
-   * **Separators where two text runs would MERGE, because serialization is where node identity
-   * dies.** The `offset,count` mark counts nodes as they are HERE; the client's parser joins
-   * adjacent text into one node, and the mark then addresses a node spanning a boundary it cannot
-   * see. Both edges of the user's content are at risk and each corrupts a different reader:
-   *
-   * - the TRAILING edge breaks adoption's count — measured, `<main><slot>fb</slot> TAIL</main>`
-   *   served "BODY TAIL" and hydrated to "BODY TAIL TAIL", the static text adopted twice.
-   * - the LEADING edge breaks the offset, which only `rescue` reads — so a hydration bail would
-   *   slice the wrong range and keep the component's markup instead of the user's.
-   *
-   * Run AFTER the slot loop, because until every slot is unwrapped the neighbor of a boundary is
-   * still a `<slot>` element and the merge is not yet visible. Emitted by the side that KNOWS: the
-   * alternative was to have hydration infer the boundary from the canonical template, which works
-   * for the shape in front of you and needs a new case for each thing that can follow a slot
-   * (static text, another default slot's fallback, a named slot's fallback, and whether that named
-   * slot receives content at all) — one rule here removes the class instead of handling members of
-   * it. React emits the same 7 bytes for the same reason.
+   * **Separators where two text runs would MERGE**, because serialization is where node identity
+   * dies: the client's parser joins adjacent text into one node, and a range then addresses a node
+   * spanning a boundary it cannot see. Emitted by the side that knows — one rule for the class.
    */
-  for (const { first, last } of marked) {
-    const doc = host.ownerDocument!;
+  const doc = host.ownerDocument!;
+  for (const { first, last } of ranges) {
     const ahead = first.previousSibling;
-    if (ahead !== null && ahead.nodeType === 3 && first.nodeType === 3)
-      first.parentNode!.insertBefore(doc.createComment(''), first);
+    if (ahead !== null && ahead.nodeType === 3 && first.nodeType === 3) first.parentNode!.insertBefore(doc.createComment(''), first);
     const behind = last.nextSibling;
-    if (behind !== null && behind.nodeType === 3 && last.nodeType === 3)
-      last.parentNode!.insertBefore(doc.createComment(''), behind);
+    if (behind !== null && behind.nodeType === 3 && last.nodeType === 3) last.parentNode!.insertBefore(doc.createComment(''), behind);
   }
-
+  /** Whatever no slot claimed goes into the inert carrier, in light-tree order — the last range. */
   let carrier: Element | null = null;
-  for (const [name, bucket] of buckets) {
-    if (filled.has(name) || bucket.length === 0) continue;
-    if (carrier === null) {
-      carrier = host.ownerDocument!.createElement('template');
-      carrier.setAttribute(UNASSIGNED_MARK, '');
+  for (const node of light)
+    if (!rangeOf.has(node)) {
+      if (carrier === null) {
+        carrier = doc.createElement('template');
+        carrier.setAttribute(UNASSIGNED_MARK, '');
+      }
+      carrier.appendChild(node);
+      rangeOf.set(node, ranges.length);
     }
-    for (const node of bucket) carrier.appendChild(node);
-  }
   if (carrier !== null) host.appendChild(carrier);
-
-  /**
-   * **The mark is written LAST, because it records a POSITION and position is only true once
-   * nothing else will move.** Computing it in the slot loop and then inserting separators put the
-   * two out of step by exactly one node: the recorded offset addressed the separator rather than
-   * the content, and the rescue — the only reader of the offset — kept nothing, so a hydration
-   * bail showed the component's own fallback with the user's content gone. Every hydration test
-   * still passed, because adoption reads only the count.
-   *
-   * Writing it here rather than merely after the separators is the difference between a fix and a
-   * rule: the carrier append above, and anything added below it later, cannot silently reintroduce
-   * the same defect. One place computes position, and it is downstream of every pass that moves a
-   * node — which is a property of the ORDER, not of remembering to check.
-   */
-  for (const { parent, first, count } of marked) {
+  /** Positions last — see above. */
+  const marks = new Map<Element, string[]>();
+  for (const { parent, first, count } of ranges) {
     let offset = 0;
     for (let n = parent.firstChild; n !== null && n !== first; n = n.nextSibling) offset++;
-    parent.setAttribute(SLOTTED_ATTR, `${offset},${count}`);
+    let list = marks.get(parent);
+    if (list === undefined) marks.set(parent, (list = []));
+    list.push(`${offset},${count}`);
   }
+  for (const [parent, list] of marks) parent.setAttribute(SLOTTED_ATTR, list.join(' '));
+  /** The light order, run-length encoded — written on every light host, empty when it has none. */
+  const runs: string[] = [];
+  for (let k = 0; k < light.length; ) {
+    const index = rangeOf.get(light[k])!;
+    let n = 1;
+    while (k + n < light.length && rangeOf.get(light[k + n]) === index) n++;
+    runs.push(n === 1 ? `${index}` : `${index}*${n}`);
+    k += n;
+  }
+  host.setAttribute(LIGHT_ATTR, runs.join(','));
+};
+
+/**
+ * **The host's light children, exactly, from the server's marks** — read once and cached (the marks
+ * are stripped when the host is captured), `null` for a host the server did not distribute. A mark on
+ * an element belongs to the host that RENDERED the slot there: the element itself when it is a light
+ * host (a slot at its template's root), else the nearest light host above it — so a nested host's
+ * ranges are its own, never the outer's.
+ */
+const LIGHT = new WeakMap<Element, Node[]>();
+/** The elements carrying `host`'s range marks, in document order — see `lightOf` for whose a mark is. */
+const marksOf = (host: Element): Element[] =>
+  [host, ...host.querySelectorAll(`[${SLOTTED_ATTR}]`)].filter(
+    (element) =>
+      element.hasAttribute(SLOTTED_ATTR) &&
+      (element.hasAttribute(LIGHT_ATTR) ? element : element.parentElement?.closest(`[${LIGHT_ATTR}]`)) === host
+  );
+const lightOf = (host: Element): Node[] | null => {
+  const known = LIGHT.get(host);
+  if (known !== undefined) return known;
+  const order = host.getAttribute(LIGHT_ATTR);
+  if (order === null) return null;
+  const ranges: Node[][] = [];
+  for (const element of marksOf(host)) {
+    const children = element.childNodes;
+    /** Marks are markup, so a hostile one must claim nothing it cannot: `slice` clamps an end past
+     *  the list, and a start that is not a non-negative number yields an empty range. */
+    for (const mark of element.getAttribute(SLOTTED_ATTR)!.split(' ')) {
+      const comma = mark.indexOf(',');
+      const offset = Number(mark.slice(0, comma));
+      ranges.push(offset >= 0 ? Array.prototype.slice.call(children, offset, offset + Number(mark.slice(comma + 1))) : []);
+    }
+  }
+  for (const child of host.children)
+    if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) ranges.push([...(child as HTMLTemplateElement).content.childNodes]);
+  const light: Node[] = [];
+  const taken = ranges.map(() => 0);
+  for (const run of order === '' ? [] : order.split(',')) {
+    const star = run.indexOf('*');
+    const index = Number(star === -1 ? run : run.slice(0, star));
+    /** Bounded by the range, so a hostile count stops where the nodes do. */
+    const range = ranges[index] ?? [];
+    for (let n = star === -1 ? 1 : Number(run.slice(star + 1)); n > 0 && taken[index] < range.length; n--)
+      light.push(range[taken[index]++]);
+  }
+  LIGHT.set(host, light);
+  return light;
 };
 
 
@@ -1271,16 +1312,7 @@ const adoptSlot = (
   OUTSIDE.set(held, state);
   state._observer.observe(held, WATCHING);
   if (isAssigned) for (const node of fallback) held.appendChild(node);
-  if (isAssigned)
-    for (const node of assigned!) {
-      /**
-       * Into the logical list in visit order: the adoption walk visits slots in document order and
-       * the server preserved within-name order, so this reproduces the light tree as it can be known.
-       */
-      state._light.push(node);
-      OWNER.set(node, state);
-      state._names.set(node, name);
-    }
+  /** The assigned nodes are already in the host's light list — `capture` read it from the server's marks. */
   if (isAssigned) rebuild(state, name);
   const binding: Binding = {
     _start: start,
@@ -1306,72 +1338,30 @@ const adoptSlot = (
 (takeOverSlot as { _$adopt$?: typeof adoptSlot })._$adopt$ = adoptSlot;
 
 /**
- * HYDRATION rescue — **the user's content must survive a mismatch.** When adoption fails, the
- * hydrator discards the container's server markup and clean-renders it; for a light host the
- * user's slotted nodes are *inside* that markup, so the discard destroyed them and the slots
- * showed fallback, under a warning promising the page was still correct. It was not: content was
- * gone from the page for good.
- *
- * This un-distributes instead: it lifts the user's nodes back out, using exactly the two things
- * the server states about them — a named node carries its own `slot`, and the default slot's
- * parent carries `data-vm-slotted="offset,count"` — and returns them for the caller to re-attach
- * as the host's children. From there nothing is special-cased: the clean render captures them the
- * way it captures any first client render.
- *
- * **Never descends into another component.** A nested host's children are its own source, which
- * it will capture (or rescue) itself when it renders; taking them here would hand one component's
- * content to another. A custom element is therefore collected as a node and never entered.
- *
- * One documented edge: a component whose FALLBACK content carries a `slot` attribute
- * (`<slot name="a"><i slot="a">…</i></slot>`) has that fallback rescued as if the user wrote it.
- * The attribute is meaningless on fallback in native shadow DOM too — it only means anything on a
- * host's children — so the markup was already saying something it does not mean.
+ * **When hydration bails, the user's content goes back to holding before the server markup is
+ * discarded** — the whole light list, which the host has owned since hydration captured it. That is
+ * exactly what parking does for one slot, done for all of them: the clean render that follows finds a
+ * captured host with nothing shown, and fills its slots from the list as any render does. Bracketed
+ * as the host's own write, so the observer does not read the moves as the user removing content.
  */
-const rescue = (host: Element): Node[] | null => {
-  flushPending();
-  const rescued: Node[] = [];
-  const collect = (parent: Element) => {
-    const mark = parent.getAttribute(SLOTTED_ATTR);
-    let from = -1;
-    let until = -1;
-    if (mark !== null) {
-      const comma = mark.indexOf(',');
-      from = Number(mark.slice(0, comma));
-      until = from + Number(mark.slice(comma + 1));
-    }
-    let index = 0;
-    for (let child = parent.firstChild; child !== null; child = child.nextSibling, index++) {
-      if (index >= from && index < until) {
-        rescued.push(child);
-        continue;
-      }
-      if (child.nodeType !== 1) continue;
-      const element = child as Element;
-      /**
-       * The inert carrier holds what no slot claimed — user content too, and its nodes live in
-       * `content`, not `childNodes`.
-       *
-       * **The tag is checked, not just the attribute.** This walks the SERVER's subtree, which is
-       * full of the user's own markup, and `data-vm-unassigned` on anything that is not a
-       * `<template>` reached `.content` on an element that has none: a TypeError thrown out of
-       * `renderInto`, so the mismatch never finished falling back and the page was left with no
-       * client render at all. Reserved attribute or not, a user's markup cannot be allowed to do
-       * that — and `capture` was already checking both.
-       */
-      if (element.localName === 'template' && element.hasAttribute(UNASSIGNED_MARK)) {
-        const held = (element as HTMLTemplateElement).content;
-        for (let node = held.firstChild; node !== null; node = node.nextSibling) rescued.push(node);
-        continue;
-      }
-      if (element.hasAttribute('slot')) rescued.push(element);
-      else if (element.localName.indexOf('-') === -1) collect(element);
-    }
-  };
-  collect(host);
-  for (const node of rescued) node.parentNode?.removeChild(node);
-  return rescued.length > 0 ? rescued : null;
+const rescue = (host: Element) => {
+  const state = HOSTS.get(host);
+  if (state === undefined) return;
+  beginRender(host);
+  for (const node of state._light) if (node.parentNode !== state._holding) state._holding.appendChild(node);
+  endRender();
 };
 (takeOverSlot as { _$rescue$?: typeof rescue })._$rescue$ = rescue;
+/**
+ * Hydration's two readers of the light tree: a host's light children (the outer template walks these
+ * to adopt what it placed into a nested light host) and a slot name's assigned nodes (what the server
+ * put at that name's first slot, already in the host's list since `capture`).
+ */
+(takeOverSlot as { _$light$?: typeof lightOf })._$light$ = lightOf;
+(takeOverSlot as { _$assigned$?: (host: Element, name: string) => Node[] })._$assigned$ = (host, name) => {
+  const state = HOSTS.get(host);
+  return state === undefined ? [] : state._light.filter((node) => state._names.get(node) === name && node.parentNode !== state._holding);
+};
 
 /** Development only: the renderer checks that it and this module come from one version. */
 (takeOverSlot as { _$b$?: typeof beginRender })._$b$ = beginRender;

@@ -43,6 +43,9 @@ const html = (strings, ...values) => ({ strings, values });
 // the SAME template the fixture renders
 const card = () => html`<article><header><slot name="header"><em>fallback header</em></slot></header><main><slot>default fallback</slot></main></article>`;
 
+/** Server output with the hydration marks removed, for asserting WHERE the server put things. */
+const bare = (markup) => markup.replace(/ data-vm-(?:slotted|light)="[^"]*"/g, '');
+
 /** Build the light host from server output: parse it, take the host element into #root. */
 const hostFromServer = (serverHtml) => {
   const wrap = dom.window.document.createElement('div');
@@ -122,11 +125,7 @@ test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry
    * adopted, returning the nodes to holding for the fresh render to redistribute — and, for the
    * slots it never reached, `_$rescue$` lifts the user\'s nodes out before the discard.
    */
-  const host = dom.window.document.createElement('div');
-  host.innerHTML =
-    '<article><header><h2 slot="header">MY HEADER</h2></header>' +
-    '<main data-vm-slotted="0,1">MY BODY</main></article>';
-  dom.window.document.getElementById('root').appendChild(host);
+  const host = hostFromServer(server('<h2 slot="header">MY HEADER</h2>MY BODY'));
   // a client template the server never produced (version skew / state difference)
   renderInto(html`<article><header><slot name="header">fbh</slot></header><main><slot>fbd</slot></main><footer>NEW</footer></article>`, host);
   await settle();
@@ -152,6 +151,7 @@ test('AUDIT — the data-vm-slotted delimiter is stripped once adopted', async (
   renderInto(card(), host);
   await settle();
   assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and the hydrator strips it');
+  assert.equal(host.hasAttribute('data-vm-light'), false, 'the host\'s statement too');
   assert.equal(host.querySelector('b'), bBefore, 'while still adopting in place — identity preserved');
   assert.equal(slotted(host).length, 2, 'and the capture map holds both default nodes');
 });
@@ -203,7 +203,7 @@ test('AUDIT — nested light-slot components hydrate in place, both levels', asy
     '<h2 slot="header">OUTER HEAD</h2><slot-inner-ssr><b slot="tag">TAG</b>INNER BODY</slot-inner-ssr>',
     'slot-nested-ssr'
   );
-  assert.match(serverHtml, /<i><b slot="tag">TAG<\/b><\/i>/, 'CONTROL: the server distributed the inner one');
+  assert.match(bare(serverHtml), /<i><b slot="tag">TAG<\/b><\/i>/, 'CONTROL: the server distributed the inner one');
   const outer = hostFromServer(serverHtml);
   const inner = outer.querySelector('slot-inner-ssr');
   const tagBefore = outer.querySelector('b[slot="tag"]');
@@ -229,11 +229,12 @@ test('AUDIT — nested light-slot components hydrate in place, both levels', asy
  * render at all. Reserved attribute or not, a page's markup cannot be allowed to do that.
  */
 test('AUDIT — a reserved marker on a non-template element does not break the render', async () => {
-  const host = dom.window.document.createElement('my-host');
-  host.innerHTML =
-    '<article><header><h2 slot="h">KEEP</h2></header>' +
-    '<aside><div data-vm-unassigned>USER DIV</div></aside></article>';
-  dom.window.document.getElementById('root').appendChild(host);
+  /** Server-shaped (the host states its light tree) with a reserved marker the server never wrote,
+   *  on a direct child — exactly where the carrier is looked for. */
+  const host = hostFromServer(
+    '<my-host data-vm-light="0"><article><header data-vm-slotted="0,1"><h2 slot="h">KEEP</h2></header></article>' +
+      '<div data-vm-unassigned>USER DIV</div></my-host>'
+  );
   /** Disagrees at the root, so the rescue runs over that subtree. */
   renderInto(html`<section><header><slot name="h">fb</slot></header></section>`, host);
   await settle();
@@ -253,7 +254,7 @@ test('AUDIT — a reserved marker on a non-template element does not break the r
  */
 test('AUDIT — a slot carrying bindings hydrates in place, and its API is live', async () => {
   const serverHtml = server('<h2 slot="header">MINE</h2>', 'slot-bound-ssr');
-  assert.match(serverHtml, /<header><h2 slot="header">MINE<\/h2><\/header>/,
+  assert.match(bare(serverHtml), /<header><h2 slot="header">MINE<\/h2><\/header>/,
     'CONTROL: the server routed the dynamic name');
   const host = hostFromServer(serverHtml);
   const before = host.querySelector('h2');
@@ -307,7 +308,7 @@ test('AUDIT — three levels of light-slot components hydrate in place, all at o
     'slot-deep-ssr',
     /* awaited */ true
   );
-  assert.match(serverHtml, /<c><i slot="x">C-NAMED<\/i><\/c>/, 'CONTROL: the server distributed all three levels');
+  assert.match(bare(serverHtml), /<c><i slot="x">C-NAMED<\/i><\/c>/, 'CONTROL: the server distributed all three levels');
   const host = hostFromServer(serverHtml);
   const innermost = host.querySelector('i[slot="x"]');
 
@@ -346,16 +347,22 @@ test('AUDIT — three levels of light-slot components hydrate in place, all at o
  * this one covers the wrong VALUE. Every case must complete, and none may claim more nodes than
  * the element actually has.
  */
-for (const [label, value] of [
+for (const [label, value, light = '0'] of [
   ['a count far beyond the child list', '0,999999'],
   ['a negative offset', '-5,3'],
   ['non-numeric halves', 'abc,def'],
   ['no comma at all', '7'],
   ['an empty value', ''],
   ['an overflowing exponent', '1e400,1e400'],
+  /** And the host's statement, which indexes those ranges. */
+  ['a light run far beyond its range', '0,1', '0*1e9'],
+  ['a light index past every range', '0,1', '9,-3,abc'],
+  ['a light run with a hostile count', '0,1', '0*-1,0*abc,0*1e400'],
 ])
   test(`AUDIT — a hostile slotted mark (${label}) degrades safely`, async () => {
+    /** Stated, as server output is — an unstated component host is client-made and never reads marks. */
     const host = dom.window.document.createElement('my-host');
+    host.setAttribute('data-vm-light', light);
     host.innerHTML = `<article><main data-vm-slotted="${value}">USER</main></article>`;
     dom.window.document.getElementById('root').appendChild(host);
     /** Disagrees at the root, so the rescue reads the mark on the way to a clean render. */
@@ -514,21 +521,21 @@ test('AUDIT — a template-changed mismatch preserves unnamed content and bare t
 });
 
 /**
- * **The one shape where content IS lost, and the warning that now says so.** A container holding
- * children that were never server output — no `data-vm-slotted`, no carrier — hands the rescue
- * nothing to prove ownership with: an unnamed `<span>` is structurally indistinguishable from the
- * stale template markup being discarded, so it goes with it. That line is deliberate (the
- * alternative is resurrecting stale server DOM as slot content), but the old message promised "the
- * page is correct" unconditionally, which was false exactly here. The absence of marks is the
- * discriminator, and the message pivots on it: it must name the loss and the fix (client-only
- * containers belong to the plain renderer). Named nodes still survive — a `slot` attribute IS
- * proof of ownership.
+ * **A component the server did not render is rendered, not hydrated — and loses nothing.** Under an
+ * app-wide hydrate renderer, every light component created on the client (by a template, by the
+ * user, inside `serializeTemplate` markup) reaches hydration's first render with its LIGHT children
+ * in it. Adopting them as its render failed and discarded them: all of an unnamed child, and all of a
+ * named one before the `slot`-attribute heuristic kept those. With slots wired the server states the
+ * light tree on every component host it renders, so a custom element without that statement is known
+ * to be client-made, and gets a client first render: named and unnamed survive, with identity, and
+ * nothing claims a mismatch because there was none.
  */
-test('AUDIT — non-server children: named survive, and the warning names the possible loss', { skip: isProduction }, async () => {
+test('AUDIT — non-server children: a client-made component keeps every child, named and unnamed, silently', async () => {
   const host = dom.window.document.createElement('mm-host');
-  host.innerHTML = '<h2 slot="header">named</h2><span>plain</span>';
+  host.innerHTML = '<h2 slot="header">named</h2><span>plain</span>bare';
   dom.window.document.getElementById('root').appendChild(host);
   const h2 = host.querySelector('h2');
+  const span = host.querySelector('span');
 
   const said = [];
   const original = console.warn;
@@ -540,26 +547,23 @@ test('AUDIT — non-server children: named survive, and the warning names the po
     console.warn = original;
   }
 
-  assert.equal(host.querySelector('h2'), h2, 'the slot attribute is proof of ownership — the named node survives');
-  const warning = said.find((line) => line.includes('fell back'));
-  assert.ok(warning, 'the fallback said so');
-  assert.match(warning, /carried none of the marks/, 'and named the discriminator');
-  assert.match(warning, /cannot be told apart from the stale markup/, 'stated the loss instead of promising correctness');
-  assert.match(warning, /renderInto instead/, 'and named the fix');
+  assert.equal(host.querySelector('header h2'), h2, 'the named node, same identity, distributed');
+  assert.equal(host.querySelector('main span'), span, 'the unnamed one too');
+  assert.equal(host.querySelector('main').textContent, 'plainbare', 'and the bare text');
+  assert.deepEqual(said.filter((line) => line.includes('fell back')), [], 'no mismatch is reported, because there was none');
   host.remove();
 });
 
-/** The behavioral half of the test above, valid in BOTH builds: a `slot` attribute is proof of
- *  ownership, so a named node survives the bail even when nothing else can. */
-test('AUDIT — non-server children: the named node survives the bail in any build', async () => {
-  const host = dom.window.document.createElement('mm-host-prod');
-  host.innerHTML = '<h2 slot="header">named</h2>';
+/** The same through a template: a light component created by a client render inside a hydrated app. */
+test('AUDIT — non-server children: a light component a client template creates keeps its content', async () => {
+  const host = dom.window.document.createElement('div');
   dom.window.document.getElementById('root').appendChild(host);
-  const h2 = host.querySelector('h2');
-  renderInto(card(), host);
+  const inner = () => html`<mm-inner><b>mine</b> text</mm-inner>`;
+  renderInto(inner(), host);
+  const created = host.querySelector('mm-inner');
+  renderInto(card(), created);
   await settle();
-  assert.equal(host.querySelector('h2'), h2, 'same identity, distributed');
-  assert.equal(host.querySelector('header').textContent, 'named');
+  assert.equal(created.querySelector('main').textContent, 'mine text', 'distributed, not discarded');
   host.remove();
 });
 

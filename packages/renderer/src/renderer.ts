@@ -492,13 +492,16 @@ type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | n
 /**
  * The seam function plus the members it carries for callers that are not committing a slot —
  * sigil-named, so they survive property mangling across bundle boundaries (the child-applier
- * precedent). `_$capture$` lifts a light host's children on its first render; `_$rescue$` puts
- * them back when hydration has to discard the server's markup; `_$server$`/`_$adopt$` belong to
+ * precedent). `_$capture$` lifts a light host's children on its first render; `_$rescue$` returns
+ * them to holding when hydration has to discard the server's markup; `_$server$`/`_$adopt$` belong to
  * SSR and the hydrate entry and are reached off the same object.
  */
 type SlotSeam = SlotSeamFn & {
   _$capture$?: (host: Element, boundary?: Comment, adopting?: boolean) => void;
-  _$rescue$?: (host: Element) => Node[] | null;
+  _$rescue$?: (host: Element) => void;
+  /** Hydration's readers of the server-stated light tree — see `lightOf` in slots. */
+  _$light$?: (host: Element) => Node[] | null;
+  _$assigned$?: (host: Element, name: string) => Node[];
   /** A part's content in a light host, from its markers — see `_$span$` in slots and `_clear`. */
   _$span$?: (start: Node, end: Node) => Node[] | undefined;
   /**

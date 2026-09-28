@@ -71,12 +71,29 @@ const describe = (node: Node | null) =>
           ? 'a comment'
           : `a ${node.nodeName} node`;
 
-type Cursor = { parent: Node; node: Node | null; offset: number };
+/**
+ * Where the walk stands. Over a parent's children as the DOM has them — or, for the light children of
+ * a nested light host, over the SEQUENCE the server stated (`_$light$`), which are not siblings: they
+ * sit in that host's slots. `after` is that sequence, node to next, so a step stays O(1).
+ */
+type Cursor = { parent: Node; node: Node | null; offset: number; after?: Map<Node, Node | null> };
+
+/** The node after `node` in the cursor's walk. */
+const next = (cursor: Cursor, node: Node): Node | null =>
+  cursor.after !== undefined ? (cursor.after.get(node) ?? null) : node.nextSibling;
+
+/** Inserts at the cursor — before `ref` in ITS parent, which in a sequence is not always `cursor.parent`. */
+const insertAt = (cursor: Cursor, node: Node, ref: Node | null) => (ref?.parentNode ?? cursor.parent).insertBefore(node, ref);
 
 /** Splits mid-text cursors onto a node boundary and returns the node now at the cursor. */
 const cursorSplit = (cursor: Cursor): Node | null => {
   if (cursor.offset > 0) {
-    cursor.node = (cursor.node as Text).splitText(cursor.offset);
+    const head = cursor.node as Text;
+    cursor.node = head.splitText(cursor.offset);
+    if (cursor.after !== undefined) {
+      cursor.after.set(cursor.node, cursor.after.get(head) ?? null);
+      cursor.after.set(head, cursor.node);
+    }
     cursor.offset = 0;
   }
   return cursor.node;
@@ -105,7 +122,7 @@ const cursorSplit = (cursor: Cursor): Node | null => {
  */
 const passComments = (cursor: Cursor) => {
   while (cursor.offset === 0 && cursor.node !== null && cursor.node.nodeType === 8) {
-    cursor.node = cursor.node.nextSibling;
+    cursor.node = next(cursor, cursor.node);
   }
 };
 
@@ -122,7 +139,7 @@ const expectText = (cursor: Cursor, text: string) => {
     const data = (node as Text).data;
     const available = data.length - cursor.offset;
     if (available === 0) {
-      cursor.node = node.nextSibling;
+      cursor.node = next(cursor, node);
       cursor.offset = 0;
       continue;
     }
@@ -135,7 +152,7 @@ const expectText = (cursor: Cursor, text: string) => {
     need = need.slice(take);
     cursor.offset += take;
     if (cursor.offset === data.length) {
-      cursor.node = node.nextSibling;
+      cursor.node = next(cursor, node);
       cursor.offset = 0;
     }
   }
@@ -147,7 +164,7 @@ const claimValueText = (cursor: Cursor, text: string): Text => {
   if (text === '') {
     /** Nothing was rendered — install a fresh primed anchor at the cursor. */
     const primed = doc.createTextNode('');
-    cursor.parent.insertBefore(primed, at);
+    insertAt(cursor, primed, at);
     return primed;
   }
   if (at === null || at.nodeType !== 3) {
@@ -160,7 +177,7 @@ const claimValueText = (cursor: Cursor, text: string): Text => {
     if (__DEV__) why = `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(node.data)}`;
     throw MISMATCH;
   }
-  cursor.node = node.nextSibling;
+  cursor.node = next(cursor, node);
   cursor.offset = 0;
   return node;
 };
@@ -197,8 +214,8 @@ type AdoptState = {
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in
  *  `tryAdopt` (the render container), null when no slot handler is wired. */
 let _adoptHost: Element | null = null;
-/** Whether the default slot's assignment has been claimed (the host count is for the first one). */
-let _defaultTaken = false;
+/** Slot names whose server content this adoption has placed — the first slot of a name takes it. */
+let _takenNames = new Set<string>();
 /**
  * Every slot binding this adoption attempt created. If the attempt BAILS, each is parked — which
  * returns the user's nodes to holding and unregisters the binding. Without it the abandoned
@@ -281,43 +298,19 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
   passComments(cursor);
   const parent = cursor.parent;
 
-  /** Collect the server nodes assigned to this slot. */
-  const assigned: Node[] = [];
-  if (name !== '') {
-    let node = cursorSplit(cursor);
-    while (node !== null && node.nodeType === 1 && (node as Element).getAttribute('slot') === name) {
-      assigned.push(node);
-      cursor.node = node.nextSibling;
-      node = cursorSplit(cursor);
+  /**
+   * What the server put at this slot: its name's share of the host's light list (stated by the
+   * server's marks, read at capture), at the FIRST slot of that name — the one the server filled.
+   * Each node must stand exactly where the walk does; anything else is a disagreement like any other.
+   */
+  const assigned = _takenNames.has(name) ? [] : (slotSeam()?._$assigned$?.(_adoptHost!, name) ?? []);
+  if (assigned.length > 0) _takenNames.add(name);
+  for (const node of assigned) {
+    if (cursorSplit(cursor) !== node) {
+      if (__DEV__) why = `the <slot${name ? ` name="${name}"` : ''}> content is not where the server put it`;
+      throw MISMATCH;
     }
-  } else if (!_defaultTaken) {
-    /**
-     * `"offset,count"` on the slot's own parent — see `SLOTTED_ATTR`. Only the count is needed
-     * here (the walk is already standing in the right place); the offset is what lets a FAILED
-     * adoption find these same nodes again instead of destroying them.
-     *
-     * `_defaultTaken` still guards: two default slots sharing a parent would otherwise both read
-     * the one mark, and by native semantics only the first receives anything.
-     */
-    const mark = (parent as Element).getAttribute?.('data-vm-slotted');
-    const count = mark === undefined || mark === null ? 0 : Number(mark.slice(mark.indexOf(',') + 1));
-    if (count > 0) {
-      _defaultTaken = true;
-      /**
-       * **The mark does not survive the page it delivered.** It describes what the SERVER emitted
-       * and is meaningless the moment those nodes are adopted, so leaving it behind would put a
-       * framework marker in the user's live DOM permanently — queryable, stylable, and stale.
-       * `data-vm-select` sets the precedent: it is stripped before the markup even ships, with
-       * a test asserting the mark must not survive.
-       */
-      (parent as Element).removeAttribute('data-vm-slotted');
-      for (let i = 0; i < count; i++) {
-        const node = cursorSplit(cursor);
-        if (node === null) break;
-        assigned.push(node);
-        cursor.node = node.nextSibling;
-      }
-    }
+    cursor.node = next(cursor, node);
   }
 
   if (assigned.length > 0) {
@@ -343,7 +336,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
       if (c.nodeType === 1 || c.nodeType === 3) adoptNode(c, cursor, state);
     /** The fallback nodes now sit between fallbackStart and cursor.node. */
     const fallback: Node[] = [];
-    for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
+    for (let n = fallbackStart; n !== null && n !== cursor.node; n = next(cursor, n)) fallback.push(n);
     const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
     (state._slotStates ??= []).push(seam as never);
@@ -401,7 +394,18 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     drainIgnored(state);
   }
 
-  const inner: Cursor = { parent: live, node: live.firstChild, offset: 0 };
+  /**
+   * **A nested LIGHT host's children are walked as its light tree, not as its DOM.** The server has
+   * already distributed them into that host's slots, so its DOM children are its own render; what
+   * this template placed there is the light list the server stated (`_$light$`), in light order.
+   */
+  const light = (live as Element).hasAttribute?.('data-vm-light') ? slotSeam()?._$light$?.(live as Element) : undefined;
+  let inner: Cursor;
+  if (light != null) {
+    const after = new Map<Node, Node | null>();
+    for (let i = 0; i < light.length; i++) after.set(light[i], light[i + 1] ?? null);
+    inner = { parent: live, node: light[0] ?? null, offset: 0, after };
+  } else inner = { parent: live, node: live.firstChild, offset: 0 };
   let child = canonical.firstChild;
   while (child !== null) {
     if (child.nodeType === 1 || child.nodeType === 3) adoptNode(child, inner, state);
@@ -457,7 +461,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     throw MISMATCH;
   }
 
-  cursor.node = live.nextSibling;
+  cursor.node = next(cursor, live);
   cursor.offset = 0;
 };
 
@@ -502,7 +506,7 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
 
   /** Structured content gets a markered ChildPart wrapped around whatever it rendered. */
   const start = comment();
-  cursor.parent.insertBefore(start, cursorSplit(cursor));
+  insertAt(cursor, start, cursorSplit(cursor));
   const part = new ChildPart(start, null);
 
   if (value == null) {
@@ -518,7 +522,7 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
      * not moved, because no server node was claimed) puts it exactly where the end marker is about
      * to go, and leaves the part in the same state a client-side commit would.
      */
-    cursor.parent.insertBefore(value as Node, cursorSplit(cursor));
+    insertAt(cursor, value as Node, cursorSplit(cursor));
     part._value = value;
     part._mode = NODE;
   } else {
@@ -537,7 +541,7 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
   }
 
   const end = comment();
-  cursor.parent.insertBefore(end, cursorSplit(cursor));
+  insertAt(cursor, end, cursorSplit(cursor));
   part._end = end;
   out.push(part);
 };
@@ -561,10 +565,10 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
       };
     }
     const start = comment();
-    cursor.parent.insertBefore(start, cursorSplit(cursor));
+    insertAt(cursor, start, cursorSplit(cursor));
     const instance = adoptInstance(template, result.values, cursor);
     const end = comment();
-    cursor.parent.insertBefore(end, cursorSplit(cursor));
+    insertAt(cursor, end, cursorSplit(cursor));
     const part = new ChildPart(start, end);
     part._instance = instance;
     part._shape = result.strings;
@@ -629,29 +633,14 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
   if (__DEV__) why = '';
   const start = comment();
   container.insertBefore(start, first);
-  /** The container is the light host every slot in this render projects; `_defaultTaken` resets
-   *  per adoption (the host count is for the first default slot). */
+  /** The container is the light host every slot in this render projects. */
   _adoptHost = container.nodeType === 1 ? (container as Element) : null;
-  _defaultTaken = false;
+  _takenNames = new Set();
   _adoptedSlots = [];
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(at(getTemplate(result), container), result.values, cursor);
     passComments(cursor);
-    /**
-     * The server's carrier for content NO slot claimed — `<template data-vm-unassigned>` after the
-     * render — is not markup the template describes, and failing on it threw away a whole hydration
-     * whenever a component rendered no `<slot>` in its server state. It is inert, and the slots
-     * module recovers it into holding whenever it captures this host. Moved BEFORE the root marker,
-     * out of the render's range: a later render of a different template clears that range, and the
-     * user's content would go with it.
-     */
-    const carrier = cursor.node as Element | null;
-    if (carrier?.localName === 'template' && carrier.hasAttribute('data-vm-unassigned')) {
-      cursor.node = carrier.nextSibling;
-      passComments(cursor);
-      container.insertBefore(carrier, start);
-    }
     if (cursor.node !== null) {
       if (__DEV__) why = `${describe(cursor.node)} follows everything the template describes`;
       throw MISMATCH;
@@ -689,19 +678,37 @@ const clearPreservingStyles = (container: Node) => {
 };
 
 /**
+ * **A component the server did not render is not hydrated.** With slots wired, the server states the
+ * light tree on EVERY component host it renders (`data-vm-light`, empty when there is none), so a
+ * custom element without the statement was not server output as a component: it was created on the
+ * client — by a template (`<x-card>` in a client render), by the user (`innerHTML`), or inside
+ * `serializeTemplate` markup, which renders no components. Its children are its LIGHT children, and
+ * trying to adopt them as its render failed, fell back, and discarded them with the stale markup —
+ * measured: every such component under an app-wide hydrate renderer lost all its content. It gets
+ * the client first render it is. A plain container (a `serializeTemplate` root) carries no statement
+ * either way, so it is adopted as before.
+ */
+const clientHost = (seam: ReturnType<typeof slotSeam>, container: Node) =>
+  seam?._$b$ !== undefined &&
+  container.nodeType === 1 &&
+  (container as Element).localName.includes('-') &&
+  !(container as Element).hasAttribute('data-vm-light');
+
+/**
  * The hydrating `render`: a drop-in for the base entry's. The first render into a container that
  * already has children adopts them; any mismatch clears (keeping `<style data-vm-sheet="styles">`) and falls
  * through to a clean base render. After the first render, this IS the base render.
  */
 export const renderInto = (result: unknown, container: Node) => {
+  const seam = slotSeam();
   if (
     !rootParts.has(container) &&
+    !clientHost(seam, container) &&
     container.firstChild !== null &&
     result !== null &&
     typeof result === 'object' &&
     isTemplateResult(result as object)
   ) {
-    /** Latches the slots module's insert hook before anything commits — see `own` in renderer.ts. */
     /**
      * **Hydration is a first render that ADOPTS instead of creating** — so it does what a client
      * first render does for slots: every light container is captured (its children are the server's
@@ -710,7 +717,12 @@ export const renderInto = (result: unknown, container: Node) => {
      * Without either, a host whose server state had no `<slot>` was never watched, and a node the
      * adoption itself inserted read as the user's.
      */
-    const seam = slotSeam();
+    /** Read before capture strips it — the fallback warning below says something different without it. */
+    const stated =
+      __DEV__ &&
+      container.nodeType === 1 &&
+      ((container as Element).hasAttribute('data-vm-light') ||
+        (container as Element).querySelector('[data-vm-light],[data-vm-slotted]') !== null);
     if (seam?._$b$ !== undefined && container.nodeType === 1) seam._$capture$?.(container as Element, undefined, true);
     seam?._$b$?.(container);
     let part: ChildPart | null;
@@ -752,27 +764,20 @@ export const renderInto = (result: unknown, container: Node) => {
     if (__DEV__) {
       /**
        * **"The page is correct" is a promise this message must not make blindly.** The bail rescue
-       * preserves everything it can PROVE is the user's: content inside `data-vm-slotted` marks,
-       * the `data-vm-unassigned` carrier, and elements carrying a `slot` attribute. Real server
-       * output always marks its distributed default-slot content, so on genuine deploy skew the
-       * rescue is complete and the promise holds — measured, named and unnamed and bare text alike.
-       * But a container holding CLIENT-side markup that was never server output has no marks, and
-       * its unnamed slottables are structurally indistinguishable from the stale template output
-       * being discarded — so they go with it, under a message that said everything was fine. The
-       * marks are the discriminator: their total absence is exactly the shape where the promise
-       * can fail, so that is when the message changes.
+       * returns the host's light list, which the server STATES (`data-vm-light`) — complete for real
+       * server output, named and unnamed and bare text alike. A component host without the statement
+       * never gets here (`clientHost`); a plain container carrying no statement anywhere in it may
+       * hold client-side children, which cannot be told apart from the stale markup being discarded,
+       * so they go with it — and the message says so instead of promising a correct page.
        */
-      const unmarked =
-        container.nodeType === 1 &&
-        (container as Element).querySelector('[data-vm-slotted],[data-vm-unassigned]') === null;
+      const unmarked = container.nodeType === 1 && !stated;
       console.warn(
         `[vera] hydration fell back to a client render: ${why}. This container's server markup was ` +
           `discarded and rebuilt (its SSR <style> is kept), ` +
           (unmarked
-            ? `and it carried none of the marks server output carries. If its children were ` +
-              `CLIENT-side markup rather than this template's server output, unnamed light-slot ` +
-              `content (bare text, elements without a \`slot\` attribute) cannot be told apart ` +
-              `from the stale markup and was discarded with it — hydrate adopts existing children ` +
+            ? `and it carried none of the marks server output of a light host carries. If its ` +
+              `children were CLIENT-side markup rather than this template's server output, they ` +
+              `cannot be told apart from the stale markup and were discarded with it — hydrate adopts existing children ` +
               `AS server output; render client-only containers with @verajs/renderer's renderInto ` +
               `instead. `
             : `so the page is correct but the server's work on this part of it was wasted. `) +
@@ -785,13 +790,12 @@ export const renderInto = (result: unknown, container: Node) => {
      * **Un-distribute before discarding.** A light host's slotted content lives INSIDE the markup
      * about to be thrown away, so clearing destroyed it: the slots fell back and the user's nodes
      * were gone from the page permanently, under a warning that said the page was still correct.
-     * The slots module lifts them back out (`_$rescue$`), and re-attaching them as the host's
-     * children puts it in exactly the state a first client render starts from — the clean render
-     * below captures and redistributes them with no special case anywhere.
+     * The host has owned its light list since the capture above, so the slots module returns the
+     * whole list to holding (`_$rescue$`) — and the clean render below finds a captured host with
+     * nothing shown and fills its slots as any render does, with no special case anywhere.
      */
-    const rescued = container.nodeType === 1 ? slotSeam()?._$rescue$?.(container as Element) : null;
+    if (container.nodeType === 1) slotSeam()?._$rescue$?.(container as Element);
     clearPreservingStyles(container);
-    if (rescued !== null && rescued !== undefined) for (const node of rescued) container.appendChild(node);
   }
   baseRender(result, container);
 };

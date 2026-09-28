@@ -23,7 +23,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dir = mkdtempSync(join(process.cwd(), 'tests', '.hydrate-conformance-'));
 test.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -125,6 +125,9 @@ const run = async ({ source, state, children, steps, inner }) => {
     const host = wrap.firstElementChild;
     doc.body.append(host);
     const renderInto = mode === 'hydrated' ? hydrating.renderInto : base.renderInto;
+    const warned = [];
+    const warn = console.warn;
+    console.warn = (...args) => warned.push(args.join(' '));
     const side = {
       host,
       view: viewer(),
@@ -143,26 +146,47 @@ const run = async ({ source, state, children, steps, inner }) => {
         side.trace.push(`${label}: THREW ${error.message}`);
       }
     }
+    console.warn = warn;
     host.remove();
     sides[mode] = side.trace;
+    sides[`${mode}Warned`] = warned;
   }
   return sides;
 };
 
 /** name → what diverges, filled from what the suite measures. */
-const KNOWN = new Map([
-  ['a light component nested in another\'s template hydrates, and the outer updates what it placed',
-    'the outer template cannot find its placed content in the nested component\'s server markup (the server does not record the light tree), so hydration falls back and the nested component shows its fallback'],
-]);
+const KNOWN = new Map([]);
 
 const scenario = (name, spec) =>
   test(name, async () => {
-    const { client, hydrated } = await run(spec);
+    const { client, hydrated, hydratedWarned } = await run(spec);
     assert.ok(client.every((line) => !line.includes('THREW')), `CONTROL: the client render never throws: ${client}`);
+    /**
+     * A fallback to a client render would pass the view comparison — it IS a client render — so
+     * adoption is asserted separately: the hydrating renderer reports every fallback in development.
+     */
+    if (!isProduction && !KNOWN.has(name))
+      assert.deepEqual(hydratedWarned.filter((line) => line.includes('fell back')), [], 'hydration adopted rather than falling back');
     const known = KNOWN.get(name);
     if (known === undefined) assert.deepEqual(hydrated, client);
     else assert.notDeepEqual(hydrated, client, `KNOWN divergence (${known}) now CONFORMS — take it off KNOWN`);
   });
+
+test('CONTROL: a fallback is visible to the adoption check', { skip: isProduction && 'the warning is development-only' }, () => {
+  const host = doc.createElement('div');
+  host.innerHTML = '<p>not what the template says</p>';
+  doc.body.append(host);
+  const warned = [];
+  const warn = console.warn;
+  console.warn = (...args) => warned.push(args.join(' '));
+  try {
+    hydrating.renderInto(drawFrom('<main>${S}</main>')('x'), host);
+  } finally {
+    console.warn = warn;
+  }
+  host.remove();
+  assert.ok(warned.some((line) => line.includes('fell back')), `a mismatch is reported: ${warned}`);
+});
 
 const text = (host, value) => host.ownerDocument.createTextNode(value);
 const el = (host, tag, attrs = {}, content = '') => {
