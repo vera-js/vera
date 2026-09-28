@@ -1,4 +1,4 @@
-import { coalesce } from './coalesce.js';
+import { coalesce, frame } from './coalesce.js';
 import type { ComponentElement, HookCallback } from '../types.js';
 
 /**
@@ -10,5 +10,5 @@ import type { ComponentElement, HookCallback } from '../types.js';
  * @param element The owner, instead of the element being set up
  */
 export const useEffect = (callback: HookCallback, element?: ComponentElement) => {
-  coalesce(callback, 75, requestAnimationFrame, element);
+  coalesce(callback, 75, frame, element);
 };

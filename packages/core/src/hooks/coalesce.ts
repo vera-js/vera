@@ -2,6 +2,13 @@ import { createHook, reportHookError } from '../modules/createHook.js';
 import type { ComponentElement, HookCallback, HookCleanup } from '../types.js';
 
 /**
+ * The next animation frame, looked up when a pass is scheduled rather than when a hook is created —
+ * `render()` runs in environments with no `requestAnimationFrame` (a test, a server) and must not
+ * fail there merely by naming it.
+ */
+export const frame = (run: () => void) => requestAnimationFrame(run);
+
+/**
  * **One hook, run at once on the first pass and then at most once per `schedule`, however many
  * writes land before it runs** — the shape `useRender`, `useEffect` and `useLayoutEffect` all share,
  * differing only in priority and in when `schedule` runs the pass.
