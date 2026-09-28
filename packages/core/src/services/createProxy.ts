@@ -236,6 +236,21 @@ const wrap = (data: object, chosen: ProxyHandler<object>) => {
   return proxy;
 };
 
+/**
+ * A SHALLOW view of `data`: reads subscribe and writes notify like any store, but what a read returns
+ * is handed back as it is — never wrapped. `shallowRef`'s handler: a large immutable value (a list of
+ * rows, a parsed document) behind a deep store costs a proxy and a subscription per nested read, for
+ * objects that never mutate; replacing `.value` is the change that matters, and it notifies.
+ */
+const shallowHandler: ProxyHandler<object> = {
+  ...handler,
+  get(obj, prop, receiver) {
+    track(obj, prop);
+    return Reflect.get(obj, prop, receiver);
+  },
+};
+export const createShallow = <T extends object>(data: T): T => wrap(data, shallowHandler) as T;
+
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
 export const createProxy = <T extends object>(data: T): T => {
   let proxy = proxies.get(data);

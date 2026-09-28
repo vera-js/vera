@@ -8,7 +8,7 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  * dependency. A stack rather than one slot because a hook can run inside another — a nested
  * component rendering in the middle of its parent's template.
  */
-export const hooksQueue: WeakRef<HookCallback>[] = [];
+export const hooksQueue: (WeakRef<HookCallback> | undefined)[] = [];
 
 /**
  * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —

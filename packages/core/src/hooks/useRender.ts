@@ -17,5 +17,6 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
       inserts.get('render')?.forEach((renderer) => (renderer as Renderer)(result, target, ...args));
     },
     RENDER_PRIORITY,
-    deferred
+    deferred,
+    element
   );
