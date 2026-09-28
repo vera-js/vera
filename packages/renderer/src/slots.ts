@@ -76,7 +76,7 @@
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the
  *  instance's DOM is bulk-discarded on a branch-away, and un-registers the binding. */
-import type { InstanceHook, OwnHook } from './types.js';
+import type { InstanceHook } from './types.js';
 
 type SeamState = { _$park$: () => void };
 
@@ -165,30 +165,15 @@ type HostState = {
   /** Each kept `<slot>` element back to its binding, so a `name` change is recognized. */
   _ghosts: WeakMap<Element, Binding>;
   /**
-   * **Light-tree order, remembered — because distributing a node destroys it.**
-   *
-   * Native `assignedNodes()` answers in flat-tree order, which for a light child is simply its
-   * position among the host's children. A shadow host keeps every child where it was, so that
-   * position is always readable. Here the children are MOVED — into a slot's region, or out to
-   * the holding fragment when nothing claims them — and once two captured nodes live in different
-   * places, nothing in the DOM says which came first.
-   *
-   * That is invisible while a node stays in one bucket, because the bucket was built in order. It
-   * surfaces when a node CHANGES slot: it joins a bucket that may already hold nodes which come
-   * after it in the light tree, and the only honest answer is a position the DOM no longer knows.
-   * Appending was the old answer and it read as arrival order — an item toggled into a "pinned"
-   * slot jumped to the end of the pinned list instead of holding its place.
-   *
-   * A rank per node is the whole mechanism: assigned once, when the node is first captured, and
-   * never touched again — because re-slotting does not move a node in the LIGHT tree, which is the
-   * tree this orders. Ranks are compared, never trusted as indices, so gaps from removals are
-   * harmless.
+   * **The host's light children as they would be if nothing were distributed** — the spec's list of
+   * slottables, plus the comment anchors writers position against. Distribution MOVES nodes, so the
+   * DOM stops saying which came first; this list is where that order lives. Every change is applied
+   * to it with the neighbors its writer used (`place`), and each slot's content is simply this list
+   * filtered by name (`rebuild`), so order is never inferred afterwards. It replaced six mechanisms
+   * that each recovered a piece of it: ranks, front/back counters, landmark comments, ownership
+   * stamps grouping placed content, a merge around the run on screen, and a document-order sort.
    */
-  _rank: WeakMap<Node, number>;
-  _next: number;
-  /** Ranks below every existing one, for a node inserted into the light region ahead of content
-   *  already distributed away — see `take`. Counts down; the two never meet in any real host. */
-  _min: number;
+  _light: Node[];
   /** The host window's `Event` — see `signal` for why it cannot be taken from the slot. */
   _event: typeof Event;
   _observer: MutationObserver;
@@ -219,17 +204,6 @@ const HOSTS = new WeakMap<Element, HostState>();
 const HOSTED: PropertyDescriptor = { value: true, enumerable: false, configurable: true };
 /** Every captured node → its host's sentinel, for `_$home$`. Entries die with their nodes. */
 const HOMES = new WeakMap<Node, Comment>();
-/**
- * **The light tree's surviving skeleton, indexed.** Distribution moves the CONTENT out of the
- * host, but the part markers never move — so a comment's neighbors at capture time are exactly
- * the positional record a late hand-edit needs. Each comment in the initial walk maps to the
- * member captured immediately after it; placement walks forward from an inserted node to the
- * first recorded comment whose member is still in the right bucket, and goes before that member.
- * A WeakMap and a walk over LIVE nodes only, so a torn-down part's markers take their entries
- * with them and staleness needs no bookkeeping. (Verified before building: a part keeps the SAME
- * marker nodes across template-identity rebuilds, emptying included, so landmarks cannot churn.)
- */
-const LANDMARKS = new WeakMap<Node, Node>();
 
 /**
  * What the observer watches, wherever it watches. Hoisted because captured nodes rest in more than
@@ -261,193 +235,52 @@ const bucketOf = (state: HostState, name: string): Node[] => {
 };
 
 /** Take one node into the slot system: bucket it, remember it, and physically hold it. */
-/** `ordered`: the caller vouches the node arrives in its final relative order (the initial
- *  capture walk and the server-park recovery — both iterate host order), so placement is a plain
- *  append: O(1), and immune to the fact that earlier-taken siblings are already in holding and
- *  can no longer be position-compared. */
-const take = (state: HostState, node: Node, ordered = false, atTail = false): string | null => {
+/**
+ * **Takes a slottable into its host's care**: its name recorded, and lifted into holding unless it
+ * already sits where its slot shows content. WHERE it belongs is not decided here — that is its
+ * position in `_light`, set by whoever put it there (`place`).
+ */
+const take = (state: HostState, node: Node): string | null => {
   const name = slotNameOf(node);
   if (name === null) return null;
-  const bucket = bucketOf(state, name);
-  const binding = activeFor(state, name);
-  /**
-   * **A node captured where it already belongs stays there.** Whoever put it inside the run put it
-   * in a POSITION, and evacuating it to the holding fragment throws that away — it comes back at
-   * the end, because the fragment has no idea where it was. A keyed list inserting a row into a
-   * light host's children is the case: the row is created under the host, moved among its
-   * neighbors, and captured in the same batch, and the position is the only thing that says where
-   * it goes.
-   *
-   * Everything else — a node the user appended, one arriving from the holding fragment — is held
-   * as before, and `fill` places it.
-   */
-  const settled = binding !== undefined && node.parentNode === binding._start.parentNode;
-  /**
-   * **Where a captured node goes in the bucket — one branch per way of knowing.**
-   *
-   * SETTLED (already inside its slot's run): document order — whoever moved it there meant that
-   * position; a keyed mid-insert lands here. PLACED (stamped with the part that put it in the
-   * host): after that part's last member, so a grown row extends its own list and two parts'
-   * content in one host cannot interleave; no member yet means append, where a first row belongs.
-   * UNSTAMPED (a human's): its position speaks — before the boundary it precedes everything
-   * distributed away (document order among nodes still beside it); at or past the boundary it
-   * was appended, and appends. The last-member fast path keeps the initial capture walk O(1) per
-   * node — each child follows the one before it — instead of O(n²) over a big light list.
-   */
-  /** A group is a part's MARKER; a host stamp — another host's output moved here — is no group. */
-  const stamp = (node as { _$own$?: Node })._$own$;
-  const own = stamp?.nodeType === 8 ? stamp : undefined;
-  let at = bucket.length;
-  /**
-   * Set when this node sits in the light region ahead of everything already distributed — the rule
-   * the unstamped branch below states in words. It is tracked separately from `at` because `at` is
-   * a position in ONE bucket, and a node can land at the end of its own bucket while still
-   * preceding every node in every other one. That is exactly the case a prepend into an empty
-   * bucket makes: `at` is 0 and means nothing, and ranking from bucket neighbors put the node
-   * last when it belonged first.
-   */
-  let front = false;
-  if (ordered) {
-    /* the caller's order is the order — fall through to the splice */
-  } else if (settled) {
-    for (let i = 0; i < bucket.length; i++)
-      // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's own flag
-      if ((node.compareDocumentPosition(bucket[i]) & 4) !== 0) {
-        at = i;
-        break;
-      }
-  } else if (own !== undefined) {
-    for (let i = bucket.length - 1; i >= 0; i--)
-      if ((bucket[i] as { _$own$?: unknown })._$own$ === own) {
-        at = i + 1;
-        break;
-      }
-  } else {
-    const home = node.parentNode;
-    const last = bucket[bucket.length - 1];
-    const sentinel = state._sentinel;
-    /**
-     * **The record is the light-tree truth; the sentinel is only a proxy for it.**
-     *
-     * `front` is "this node precedes everything already distributed" — inferred here from the
-     * node preceding the `_sentinel` in the LIVE DOM. That inference holds when the host is
-     * settled, and BREAKS mid-storm on an adopted seam: `flushPending` can process a genuine
-     * tail-append while the sentinel is transiently positioned AFTER it, so the append reads as
-     * front and takes a negative rank, sorting before the adopted nodes (run-18 residual, root
-     * cause). The observer path knows better: a childList record whose `nextSibling` is null was
-     * an APPEND at the light-tree tail, immune to any later churn — so `atTail` overrides the
-     * proxy outright. A non-null `nextSibling` (prepend, insertBefore) is left to the existing
-     * inference, which the settled and client-storm paths already exercise.
-     */
-    front =
-      !atTail &&
-      sentinel.parentNode === home &&
-      // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
-      (node.compareDocumentPosition(sentinel) & 4) !== 0;
-    if (
-      !atTail &&
-      sentinel.parentNode === home &&
-      // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
-      (node.compareDocumentPosition(sentinel) & 4) !== 0 &&
-      last !== undefined &&
-      // eslint-disable-next-line no-bitwise -- fast append: skip the scan when the last member already precedes it
-      !(last.parentNode === home && (last.compareDocumentPosition(node) & 4) !== 0)
-    ) {
-      /**
-       * LANDMARKS first — exact where available: the nearest recorded comment after the node
-       * names the member it belongs before, which places a hand-edit BETWEEN two parts' groups
-       * where the scan below can only say "ahead of everything distributed". Skips members that
-       * left this bucket (pulled, or another slot's) by walking on; bounded by the sentinel.
-       */
-      let placed = false;
-      for (let next = node.nextSibling; next !== null && next !== sentinel; next = next.nextSibling) {
-        const member = next.nodeType === 8 ? LANDMARKS.get(next) : undefined;
-        if (member !== undefined) {
-          const found = bucket.indexOf(member);
-          if (found !== -1) {
-            at = found;
-            front = false;
-            placed = true;
-            break;
-          }
-        }
-      }
-      /**
-       * **Backward too, because the skeleton has landmarks on both sides.** Looking only forward
-       * meant that when every following landmark named a member that had since been removed or
-       * re-slotted elsewhere, placement fell through to the scan below — which knows nothing
-       * finer than "ahead of everything distributed" and so put the edit FIRST. Measured against a
-       * shadow root given the same disturbance: it answers `A,U` and this answered `U,A`.
-       *
-       * A preceding landmark names the member captured just after it, so a node inserted after
-       * that comment belongs after that member — the mirror of the forward rule, and it resolves
-       * exactly when the forward walk cannot.
-       */
-      if (!placed)
-        for (let prev = node.previousSibling; prev !== null; prev = prev.previousSibling) {
-          const member = prev.nodeType === 8 ? LANDMARKS.get(prev) : undefined;
-          if (member !== undefined) {
-            const found = bucket.indexOf(member);
-            if (found !== -1) {
-              at = found + 1;
-              front = false;
-              placed = true;
-              break;
-            }
-          }
-        }
-      if (!placed)
-        for (let i = 0; i < bucket.length; i++) {
-          const member = bucket[i];
-          // eslint-disable-next-line no-bitwise -- first distributed member, or an in-place member that follows
-          if (member.parentNode !== home || (node.compareDocumentPosition(member) & 4) !== 0) {
-            at = i;
-            break;
-          }
-        }
-    }
-  }
-  /**
-   * **A first sighting takes its light-tree rank from the position just computed.**
-   *
-   * `at` is this module's best answer to "where does this node belong", worked out from whatever
-   * evidence exists — document position, the part that placed it, landmarks, the sentinel. That
-   * answer is about ONE bucket, and re-slotting needs the same fact about the light tree, so the
-   * rank is interpolated between the neighbors it landed among rather than invented separately.
-   * Deriving it here is what makes the two agree by construction; a counter bumped on arrival
-   * instead gave a node inserted at the FRONT of the light tree a tail rank, and re-slotting it
-   * then sent it to the end — right where it was, wrong where it went.
-   *
-   * Midpoints, so an insertion never has to renumber. Doubles run out after about fifty
-   * insertions between one adjacent pair, which no light host reaches; a re-capture (removed and
-   * re-added) starts fresh at the tail, which is also where the platform puts it.
-   */
-  if (!state._rank.has(node)) {
-    const before = at > 0 ? state._rank.get(bucket[at - 1]) : undefined;
-    const after = at < bucket.length ? state._rank.get(bucket[at]) : undefined;
-    state._rank.set(
-      node,
-      front
-        ? --state._min
-        : after === undefined
-          ? state._next++
-          : before === undefined
-            ? after - 1
-            : (before + after) / 2
-    );
-  }
-  bucket.splice(at, 0, node);
   state._names.set(node, name);
   HOMES.set(node, state._sentinel);
-  if (!settled) state._holding.appendChild(node);
+  const binding = activeFor(state, name);
+  if (!(binding !== undefined && node.parentNode === binding._start.parentNode)) state._holding.appendChild(node);
   return name;
 };
 
-const pull = (state: HostState, node: Node, name: string) => {
-  const bucket = state._map.get(name);
-  if (bucket === undefined) return;
-  const at = bucket.indexOf(node);
-  if (at !== -1) bucket.splice(at, 1);
+/**
+ * **Puts `node` into the logical list where its writer put it.** At the host's top level, a node that
+ * became its FIRST child is first and one that became its LAST is last — what the writer asked for,
+ * whatever else now sits there. Otherwise before `next` when the list has it (the reference an
+ * `insertBefore` names), else after `prev`, else at the end. A node already in the list is MOVED: a
+ * writer re-inserting a node is a reorder, whoever the writer is.
+ */
+const place = (state: HostState, node: Node, prev: Node | null, next: Node | null, top: boolean) => {
+  const light = state._light;
+  const from = light.indexOf(node);
+  if (from !== -1) light.splice(from, 1);
+  let at = top && prev === null ? 0 : top && next === null ? light.length : next === null ? -1 : light.indexOf(next);
+  if (at === -1) {
+    const after = prev === null ? -1 : light.indexOf(prev);
+    at = after !== -1 ? after + 1 : light.length;
+  }
+  light.splice(at, 0, node);
+};
+
+/** Drops a node from the host's care — the list, and its name. Returns the name it had. */
+const forget = (state: HostState, node: Node): string | undefined => {
+  const at = state._light.indexOf(node);
+  if (at !== -1) state._light.splice(at, 1);
+  const name = state._names.get(node);
+  state._names.delete(node);
+  return name;
+};
+
+/** A slot's content: the logical list filtered by name — in light-tree order by construction. */
+const rebuild = (state: HostState, name: string) => {
+  state._map.set(name, state._light.filter((node) => state._names.get(node) === name));
 };
 
 /**
@@ -509,11 +342,14 @@ const dispatch = (records: MutationRecord[], author: Node | null) => {
     if (list === undefined) byHost.set(state, (list = []));
     list.push(record);
   }
+  if (byHost.size === 0) return;
   dispatching = true;
   try {
     for (const [state, list] of byHost) processRecords(state._host, state, list);
   } finally {
     dispatching = false;
+    /** Processing MOVES nodes (fills, fallbacks) — slots' own writes, discarded like any others. */
+    drain();
   }
 };
 /** Discards what is queued — called right after slots' own moves, so all of it is slots' own. */
@@ -619,46 +455,15 @@ const fill = (state: HostState, binding: Binding) => {
   flushPending(state);
   const parent = binding._start.parentNode;
   if (parent === null) return; // anchors already discarded mid-teardown — nothing to show
-  /**
-   * **The run's current order is remembered before it is taken apart, because it is the intent.**
-   *
-   * The bucket records what is assigned; its order is the order things were CAPTURED. Re-placing
-   * from it therefore undoes any reordering that happened after distribution — and a keyed list
-   * rendering a host's children reorders exactly those nodes, in place, where they now live. The
-   * symptom was a list that reordered correctly and then snapped back to its original order the
-   * next time anything caused a refill.
-   *
-   * Only the case that is currently wrong changes: when nothing has reordered the run, this order
-   * IS the bucket's order and the sort below is the identity.
-   */
-  const wasShowing = new Map<Node, number>();
+  /** Everything on screen goes back to where it waits; what the slot shows is then placed afresh. */
   let node = binding._start.nextSibling;
   while (node !== null && node !== binding._end) {
     const next = node.nextSibling;
-    wasShowing.set(node, wasShowing.size);
     if (binding._assigned) state._holding.appendChild(node);
     else binding._fallback.appendChild(node);
     node = next;
   }
   const bucket = activeFor(state, binding._name) === binding ? bucketOf(state, binding._name) : NOTHING;
-  /**
-   * **A stable MERGE, not a re-sort.** Run members keep the run's order (a keyed reorder happens
-   * in place, invisible to the observer — the run is its only record). Everything else keeps its
-   * BUCKET position, ranked beside the run member it follows: a prepend `take` placed at index 0
-   * stays ahead of the run instead of being shoved to the end — which is exactly how the first
-   * ordering attempt broke two suites. Equal ranks fall back to bucket order (sort stability is
-   * guaranteed), and `NOTHING` is shared and never written to.
-   */
-  if (wasShowing.size > 0 && bucket !== NOTHING) {
-    const rank = new Map<Node, number>();
-    let carried = -1;
-    for (const member of bucket) {
-      const shown = wasShowing.get(member);
-      if (shown !== undefined) carried = shown;
-      rank.set(member, shown ?? carried + 0.5);
-    }
-    bucket.sort((a, b) => rank.get(a)! - rank.get(b)!);
-  }
   const shown: Node[] = [];
   for (let i = 0; i < bucket.length; i++) {
     const candidate = bucket[i];
@@ -688,7 +493,7 @@ const fill = (state: HostState, binding: Binding) => {
        * was physically relocated). Another run is the last of our regions the guard did not name.
        */
       bucket.splice(i--, 1);
-      state._names.delete(candidate);
+      forget(state, candidate);
       continue;
     }
     parent.insertBefore(candidate, binding._end);
@@ -852,17 +657,12 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
   const touched = new Set<string>();
   const moved: Binding[] = [];
   for (const record of records) {
+    const target = record.target;
     if (record.type === 'attributes') {
-      const node = record.target;
-      /**
-       * A kept `<slot>` element renaming itself — `<slot name=${section}>` with a new value. Both
-       * names are refilled: the one it left (whose next duplicate, if any, inherits) and the one it
-       * joined. The binding itself is filled either way, since it may now be a duplicate and owe
-       * its fallback.
-       */
-      const ghost = state._ghosts.get(node as Element);
+      /** A kept `<slot>` renamed (`name=${…}`): it now takes, and shows, the other name. */
+      const ghost = state._ghosts.get(target as Element);
       if (ghost !== undefined) {
-        const next = (node as Element).getAttribute('name') ?? '';
+        const next = (target as Element).getAttribute('name') ?? '';
         if (next !== ghost._name) {
           touched.add(ghost._name);
           ghost._name = next;
@@ -871,142 +671,46 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
         }
         continue;
       }
-      const previous = state._names.get(node);
+      /** A slottable re-slotted: same place in the light tree, another slot's content. */
+      const previous = state._names.get(target);
       if (previous !== undefined) {
-        const next = slotNameOf(node)!;
+        const next = slotNameOf(target)!;
         if (next !== previous) {
-          pull(state, node, previous);
-          /**
-           * By LIGHT ORDER, not arrival. The node has not moved in the light tree — only its
-           * `slot` attribute changed — so its rank still says where it belongs among whatever the
-           * new bucket already holds. Appending here was the whole of the ordering divergence.
-           * `fill`'s stable merge preserves this: a member ahead of the current run ranks before
-           * it, which is the same rule that keeps a prepend ahead.
-           */
-          const joining = bucketOf(state, next);
-          const rank = state._rank.get(node)!;
-          let at = joining.length;
-          for (let i = 0; i < joining.length; i++) {
-            const other = state._rank.get(joining[i]);
-            if (other !== undefined && other > rank) {
-              at = i;
-              break;
-            }
-          }
-          joining.splice(at, 0, node);
-          state._names.set(node, next);
+          state._names.set(target, next);
           touched.add(previous);
           touched.add(next);
         }
       }
       continue;
     }
+    /**
+     * Only two places hold the host's light children: its own top level, and the region a slot
+     * shows content in. Anything else inside the host is the component's own markup, which the
+     * user may edit like any DOM without it becoming slot content — as in a shadow root.
+     */
+    const top = target === host;
     for (const node of record.addedNodes) {
-      /**
-       * **Ownership answers capture outright — the heuristic stack this replaces is gone.**
-       *
-       * Every node the renderer puts at a captured host's top level is stamped: `true` when it
-       * is the render's own output, the placing part when it is content from an outer template.
-       * So "may I capture this?" is one property read:
-       *
-       *   `true`   — the component's own output. Never content. (Without this, a component whose
-       *              rendered root carries a `slot` attribute had its output eaten.)
-       *   a part   — placed content: captured, ordered by its part (see `take`).
-       *   absent   — a human put it here: captured with full native semantics, TEXT INCLUDED,
-       *              which retires the `slot=`-after-first-render rule and the tail-text hole in
-       *              one move. Safe for exactly one reason: the renderer stamps 100% of its own
-       *              top-level output — measured across every template shape, and structurally
-       *              guaranteed by the `_end === null` root test, async commits included — so
-       *              unstamped genuinely means "not the renderer's".
-       *
-       * Deleted here: the insertion-site reconstruction (`record.nextSibling`, the region helper)
-       * — it existed because created-then-moved keyed rows were positionally indistinguishable
-       * from user content, and they are stamped now — and the tail attribute arm, the fail-closed
-       * stand-in for ownership nobody could know. `record.target === host` still bounds this to
-       * TOP-LEVEL additions (current parent alone misses same-batch moves); a component's
-       * internal renders mutate deeper parents and are never considered.
-       */
-      if (
-        (record.target === host || node.parentNode === host) &&
-        (node as { _$own$?: unknown })._$own$ !== host &&
-        !state._names.has(node)
-      ) {
-        /** `nextSibling === null` in the record means an APPEND at the host's end — the
-         *  light-tree tail, snapshotted at mutation time. `take` uses it to override the
-         *  sentinel proxy that misfires mid-storm. See the front-detection note there. */
-        const name = take(state, node, false, record.nextSibling === null);
-        if (name !== null) touched.add(name);
-      } else if (!state._names.has(node) && (node as { _$own$?: unknown })._$own$ !== host) {
-        /**
-         * **A slottable that appeared INSIDE a run, never passing the host's top level.**
-         *
-         * `splitText` on distributed text is the real case — a highlighting library's core
-         * gesture — and the tail is created as a sibling in the COMPONENT's tree, where the rule
-         * above does not look. Left uncaptured it was missing from the bucket, so the next refill
-         * evacuated it to holding and never brought it back: the text silently lost half of
-         * itself, while a shadow root reports both halves assigned and shows them.
-         *
-         * Captured here, from the record, rather than by having `fill` sweep its run for
-         * surprises — the observer holds the exact node, and re-deriving it downstream would be
-         * the same inference-instead-of-ownership this module spent its history removing, at the
-         * cost of an O(run) scan on every fill of every host forever.
-         *
-         * Three conditions make it safe, and each is a fact rather than a proxy: the run must be
-         * ASSIGNED (a run showing FALLBACK holds the component's own nodes, and adopting those
-         * would make a component's fallback into the user's content); the node must lie BETWEEN
-         * the anchors, not merely share their parent, or anything dropped elsewhere in that
-         * element would be pulled into the slot; and the node's own slot name must MATCH the
-         * binding it landed in, so a stray element in a named slot's run is left alone rather
-         * than filed under a name it never claimed.
-         *
-         * Measured before keeping the scan over bindings: with 500 rows rendered inside a host,
-         * every one of them an unstamped nested addition that reaches this loop, four bindings
-         * cost the same as one (44.5–51.5 ms against 45.1–53.9). DOM work dominates completely.
-         */
-        for (const binding of state._bindings)
-          if (
-            binding._assigned &&
-            binding._start.parentNode === record.target &&
-            // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's flag
-            (binding._start.compareDocumentPosition(node) & 4) !== 0 &&
-            // eslint-disable-next-line no-bitwise -- and the end anchor follows the node in turn
-            (node.compareDocumentPosition(binding._end) & 4) !== 0 &&
-            slotNameOf(node) === binding._name
-          ) {
-            take(state, node);
-            touched.add(binding._name);
-            break;
-          }
-      }
+      if (!top && !inAnyRun(state, node)) continue;
+      place(state, node, record.previousSibling, record.nextSibling, top);
+      const known = state._names.get(node);
+      const name = known ?? take(state, node);
+      if (name !== null) touched.add(name);
     }
     for (const node of record.removedNodes) {
-      const name = state._names.get(node);
       /**
-       * Our evacuations were drained, so an undrained removal of a captured node is the user's.
-       * The question is only whether it is still OURS to hold, and there are three answers:
-       * detached entirely (`parentNode === null`) is gone; the holding fragment or anywhere in
-       * the host's own subtree is a MOVE the add/attribute handling covers — a keyed row created
-       * under the host and positioned inside the component in one batch is exactly that; and
-       * anywhere else is the user taking the node for themselves.
-       *
-       * That third case used to read as a move and kept the node captured forever: it was no
-       * longer in the run, so the slot showed nothing — not the node, and not its fallback — where
-       * a shadow root un-assigns and falls back. `fill` already had the corresponding guard
-       * ("the user took this node") but nothing brought it a reason to run.
+       * Gone from the host — not merely moved within it (a writer re-inserting a node is handled by
+       * its addition), and not resting in one of OUR places (holding, a displaced fallback).
        */
-      if (
-        name !== undefined &&
-        node.parentNode !== state._holding &&
-        !host.contains(node) &&
-        !inAnyRun(state, node)
-      ) {
-        pull(state, node, name);
-        state._names.delete(node);
-        touched.add(name);
-      }
+      const home = node.parentNode;
+      if (host.contains(node) || home === state._holding || (home !== null && state._parks.has(home))) continue;
+      const name = forget(state, node);
+      if (name !== undefined) touched.add(name);
     }
   }
-  for (const name of touched) refill(state, name);
+  for (const name of touched) {
+    rebuild(state, name);
+    refill(state, name);
+  }
   for (const binding of moved) fill(state, binding);
 };
 
@@ -1023,9 +727,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _bindings: [],
     _holding: doc.createDocumentFragment(),
     _parks: new WeakSet(),
-    _rank: new WeakMap(),
-    _next: 0,
-    _min: 0,
+    _light: [],
     _names: new WeakMap(),
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,
@@ -1059,22 +761,23 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
   for (const child of [...host.children])
     if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) {
       const held = (child as HTMLTemplateElement).content;
-      for (const node of [...held.childNodes]) take(created, node, true);
+      for (const node of [...held.childNodes]) {
+        created._light.push(node);
+        take(created, node);
+      }
       host.removeChild(child);
     }
   /** Hydration already has the children distributed and registers them itself; a fresh CSR
-   *  capture lifts them from the host. */
-  if (!skipChildren) {
-    /** Comments seen since the last member become its landmarks — see LANDMARKS. */
-    let pending: Node[] | null = null;
+   *  capture lifts them from the host — comments stay where they are, but join the list as the
+   *  anchors later writers position against. */
+  if (!skipChildren)
     for (const node of [...host.childNodes]) {
-      if (node.nodeType === 8) (pending ??= []).push(node);
-      else if (take(created, node, true) !== null && pending !== null) {
-        for (const mark of pending) LANDMARKS.set(mark, node);
-        pending = null;
-      }
+      /** The render's own anchors are the host's, not light children — only foreign nodes join. */
+      if (node === created._sentinel || node === boundary) continue;
+      created._light.push(node);
+      take(created, node);
     }
-  }
+  for (const name of new Set(created._light.map((node) => created._names.get(node)))) if (name !== undefined) rebuild(created, name);
   created._observer.observe(host, WATCHING);
   /**
    * HOLDING IS WATCHED TOO. Unassigned nodes wait in a detached fragment, which is not in the
@@ -1088,6 +791,9 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
 
 /** The seam function — called by the renderer once per `<slot>` per instance (see the seam). */
 const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null => {
+  /** Every entry that moves nodes flushes first: `drain` discards what is queued, which is only ours
+   *  once everyone else's has been handed on. */
+  flushPending();
   /**
    * The SERVER declines the client path entirely: SSR renders once and distributes through
    * `_$server$` (markerless, no observer, no anchors). If this ran under the shim it would insert
@@ -1191,34 +897,6 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
   return seam;
 };
 
-/**
- * **The capture map records membership, not order.** Native `assignedNodes()` answers in flat-tree
- * order, so this has to as well, and the bucket's own order is the order things were CAPTURED —
- * which stops being the document's the moment anything reorders the distributed nodes. A keyed list
- * rendering a host's children is exactly that: the DOM came out `cab` and this still said `abc`,
- * while the same component in shadow mode said `cab`. The observer cannot fix it either — it
- * deliberately ignores moves inside the component's own tree, or it would react to every render.
- *
- * The common case is a handful of nodes sharing one parent, so that is the fast path: one walk of
- * that parent's children. Members split across parents — some distributed, some still parked in the
- * holding template — fall back to comparing positions, which is exact wherever they are.
- */
-const inDocumentOrder = (bucket: Node[] | undefined): Node[] => {
-  if (bucket === undefined || bucket.length < 2) return bucket === undefined ? [] : [...bucket];
-  const parent = bucket[0].parentNode;
-  let shared = parent !== null;
-  for (let i = 1; shared && i < bucket.length; i++) if (bucket[i].parentNode !== parent) shared = false;
-  if (!shared)
-    return [...bucket].sort((a, b) =>
-      // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's own flag
-      a === b ? 0 : a.compareDocumentPosition(b) & 4 ? -1 : 1
-    );
-  const members = new Set(bucket);
-  const ordered: Node[] = [];
-  for (let node = parent!.firstChild; node !== null; node = node.nextSibling)
-    if (members.has(node)) ordered.push(node);
-  return ordered;
-};
 
 /**
  * What the user slotted, by name — the component-internal accessor that answers identically in
@@ -1227,7 +905,7 @@ const inDocumentOrder = (bucket: Node[] | undefined): Node[] => {
  */
 export const slotted = (host: Element, name = ''): Node[] => {
   const state = HOSTS.get(host);
-  if (state !== undefined) return inDocumentOrder(state._map.get(name));
+  if (state !== undefined) return [...(state._map.get(name) ?? NOTHING)];
   /**
    * **`_root` before `shadowRoot`, because a CLOSED root is not reachable through `shadowRoot`** —
    * it is null there, and reading only that made this return `[]` for a closed component: a silent
@@ -1411,6 +1089,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
   boundary,
 ) => {
   if ((globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return;
+  flushPending();
   capture(host, false, boundary);
   drain(HOSTS.get(host)!);
 };
@@ -1449,6 +1128,7 @@ const adoptSlot = (
    *  degrades to no element rather than breaking. */
   slot?: Element,
 ): SeamState => {
+  flushPending();
   const state = capture(host, /* skipChildren */ true);
   const doc = host.ownerDocument!;
   const start = doc.createComment('');
@@ -1473,17 +1153,14 @@ const adoptSlot = (
   if (isAssigned) for (const node of fallback) held.appendChild(node);
   if (isAssigned)
     for (const node of assigned!) {
-      bucketOf(state, name).push(node);
-      state._names.set(node, name);
       /**
-       * RANKED, like every captured node — the adoption walk visits slots in document order and
-       * the server preserved within-name order, so sequential ranks reproduce the light tree.
-       * Without this, adopted nodes had NO rank: every later rank-ordered merge (a re-slot's
-       * splice, take's interpolation) compared against `undefined` and misplaced them — found by
-       * the run-18 adopted-seam storms as membership-right, ORDER-wrong divergences from native.
+       * Into the logical list in visit order: the adoption walk visits slots in document order and
+       * the server preserved within-name order, so this reproduces the light tree as it can be known.
        */
-      state._rank.set(node, state._next++);
+      state._light.push(node);
+      state._names.set(node, name);
     }
+  if (isAssigned) rebuild(state, name);
   const binding: Binding = {
     _start: start,
     _end: end,
@@ -1530,6 +1207,7 @@ const adoptSlot = (
  * host's children — so the markup was already saying something it does not mean.
  */
 const rescue = (host: Element): Node[] | null => {
+  flushPending();
   const rescued: Node[] = [];
   const collect = (parent: Element) => {
     const mark = parent.getAttribute(SLOTTED_ATTR);
@@ -1574,76 +1252,9 @@ const rescue = (host: Element): Node[] | null => {
 };
 (takeOverSlot as { _$rescue$?: typeof rescue })._$rescue$ = rescue;
 
-/**
- * Marks a node as the render root's OWN output, for the ownership rules above. The renderer reports
- * every node it inserts, with its owner, once this strategy is wired (see `_insert` there); this
- * stamps only at a captured host's top level. Sigil-named so property mangling cannot rename it
- * across the bundle boundary, and a module-scoped Symbol would be minted twice on a CDN page (the
- * `@verajs/styles` lesson).
- *
- * The stamp is VALUED, and the value is the discriminator the ordering rules read:
- *
- *   `true`        — the render root's own output: never slot content.
- *   a ChildPart   — light content PLACED by that part from an outer template. The part identity
- *                   is the ordering group: a grown row belongs after ITS part's other rows, and
- *                   `<host>${a}${b}</host>` must not interleave a's refill into b's content —
- *                   which is exactly what happens if the group is the render root, shared by both.
- *   absent        — an imperative user mutation; the light region orders it by document position.
- *
- * **Why the root's own output needs a mark at all:** capture takes a top-level element carrying a
- * `slot` attribute as the host's content — and a component's own rendered root may legitimately
- * carry one, when it renders something destined for ITS parent's slot. Measured: unmarked,
- * `renderInto(html\`<div slot="x">…</div>\`, element)` distributed the component's output into its
- * own holding fragment and the component rendered NOTHING, with nothing thrown.
- *
- * **One property read decides it.** `_$hosted$` is set on the host itself at capture, so "does
- * anything care about ownership here" is a single own-property read, and every container that is
- * not a captured host writes nothing. The mark cannot go stale in the direction that matters: a
- * part's first commit runs in a detached fragment before its host is captured, reads `undefined`
- * and stamps nothing — and that content is exactly what the initial capture walk lifts anyway.
- *
- * A fragment is stamped through to its children, because inserting one moves the children and the
- * fragment itself never enters the document — the observer reports the children.
- *
- * **Defined rather than assigned, so it is NON-ENUMERABLE.** A plain `node._$own$ = true` is an own
- * enumerable property: measured, it then shows up in `Object.keys(element)` — which is `[]` for
- * every other DOM element — and in `for…in`. Invisibility to everything outside the framework is
- * the whole reason this is a property and not a marker or an attribute. One shared, mutated
- * descriptor: `defineProperty` reads it synchronously, so this allocates nothing per node.
- *
- * Lived in the renderer until 2026-09-24; only this strategy reads the stamp, so an app without
- * slots no longer ships it.
- */
-const OWN_DESCRIPTOR: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
-const own: OwnHook = (parent, node, owner) => {
-  if ((parent as { _$hosted$?: boolean })._$hosted$ !== true) return;
-  /**
-   * **A part whose marker is the render's own output is the render's own part.** The renderer
-   * reports `true` only for the root part; every other part reports its start marker. A top-level
-   * `${…}` of the host's OWN template has its markers stamped `true` when the template is inserted,
-   * so its content is the render's output as well — reported as the part, it read as content placed
-   * from outside and was captured into a slot: `${busy ? spinner() : list()}` in a light component
-   * emptied on update, and a top-level list showed one row of three. Nested parts inherit it, since
-   * their markers arrive in a fragment their parent part stamped.
-   */
-  /**
-   * **The stamp names the HOST, not `true`**, so "the render's own" means "this host's own": a node a
-   * light host rendered and user code then moved into ANOTHER light host was never captured there,
-   * because a bare `true` read as that host's own output too. A marker stamped as this host's own
-   * belongs to one of its own parts, so what that part inserts is the host's own as well.
-   */
-  OWN_DESCRIPTOR.value = owner === true || (owner as { _$own$?: unknown })._$own$ === parent ? parent : owner;
-  if (node.nodeType === 11) {
-    for (let child = node.firstChild; child !== null; child = child.nextSibling)
-      Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
-    return;
-  }
-  Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
-};
+/** Development only: the renderer checks that it and this module come from one version. */
 (takeOverSlot as { _$b$?: typeof beginRender })._$b$ = beginRender;
 (takeOverSlot as { _$e$?: typeof endRender })._$e$ = endRender;
-(takeOverSlot as { $o?: OwnHook }).$o = own;
-/** Development only: the renderer checks that it and this module come from one version. */
 if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
 
 /**

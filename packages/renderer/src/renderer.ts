@@ -61,7 +61,7 @@
 import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
 import { reportUncaught } from '@verajs/shared-utils';
 
-import type { InstanceHook, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
+import type { InstanceHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -501,8 +501,6 @@ type SlotSeam = SlotSeamFn & {
   _$rescue$?: (host: Element) => Node[] | null;
   /** A captured node's host-side anchor (the light-region sentinel) — see the upgrade below. */
   _$home$?: (node: Node) => Comment | null;
-  /** Told about every insert, so slots can mark the render's own output — see `own`. */
-  $o?: OwnHook;
   /**
    * **The render bracket** — called as every render starts (with its root) and ends, so slots can
    * credit each DOM change to whoever made it: a change inside a light host is the host's own only
@@ -534,7 +532,7 @@ const warnSlotless = (root: Element) => {
     `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but ` +
       (seam === undefined
         ? `no 'slot' insert is wired`
-        : seam.$o === undefined && seam._$capture$ !== undefined
+        : seam._$b$ === undefined && seam._$capture$ !== undefined
           ? `the wired @verajs/renderer/slots is OLDER than this renderer and cannot distribute for it`
           : `nothing marked this template's \`<slot>\`s for the wired 'slot' strategy — \`slotDiscovery\` is ` +
             `not wired beside it, or was wired after this template first rendered`) +
@@ -2113,20 +2111,6 @@ type TemplateHook = (template: Template, result: TemplateResult, read: () => unk
  * out again. One accessor, spelled once.
  */
 /**
- * **The slots module's insert hook, latched the first time the seam answers** — `null` for the
- * life of a page that never wires slots, so every insert everywhere else pays one comparison.
- *
- * Every node the renderer inserts is reported to it with its owner, so slots can tell the render's
- * own output in a light host from the user's children; the marking itself lives in slots. It is
- * latched before any insert can reach a light host, because a host only becomes one when its
- * first render calls `_$capture$` — through this accessor.
- *
- * A seam with `_$capture$` and no `$o` is a slots module OLDER than this renderer: it neither marks
- * templates nor takes inserts, so nothing would distribute. Both builds treat it as unwired —
- * capture is gated on `own` — and development names it in the slotless warning.
- */
-let own: OwnHook | null = null;
-/**
  * **Any slot strategy is wired**, so content may be MOVED out of its part's marker range and a
  * template's top-level nodes have to be recorded for `_clear` and `hold` to find it. Latched beside
  * `own` but not the same thing: a custom strategy without `$o` relocates too, and gating the record
@@ -2137,7 +2121,6 @@ let skewNamed = false;
 const slotSeam = (): SlotSeam | undefined => {
   const seam = (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
   if (seam !== undefined) {
-    own = seam.$o ?? null;
     relocating = true;
     /**
      * **Development only: the slots module and this renderer are one contract, so one version.**
@@ -2267,27 +2250,8 @@ class ChildPart implements Part {
     return index + 1;
   }
 
-  /**
-   * **Every insert is reported to the slot strategy's `own` hook, with its OWNER** — `true` for a
-   * root part (`_end === null`), whose inserts are by definition the render's own output, and the
-   * part's START MARKER otherwise, which groups what one part placed.
-   *
-   * **Also `true` for an insert straight into the container being rendered** (`renderRoot`): during
-   * a light host's own `renderInto`, anything placed at its top level is its own output — a
-   * top-level `${…}` of its template, a row of a top-level list, a shape change inside one — however
-   * that part's markers came to be there. Content an OUTER template places into the host arrives
-   * while the outer container renders, so it is still told apart. Deciding this from a stamp on the
-   * part's marker missed every marker that never passed through a stamped fragment: one a text part
-   * creates on its first template, a live keyed insert, and every marker hydration adopts — so a
-   * hydrated component's own `${busy ? a : b}` emptied on update. The marker is still passed, and
-   * the strategy still reads a stamped one as the render's own, for commits outside any render (an
-   * applier resolving later). The value is structural rather than temporal, so it stays right for an applier committing
-   * from a microtask long after `renderInto` returned. `@verajs/renderer/slots` turns it into the
-   * `_$own$` stamp — see `own` there; an app without a strategy pays one comparison.
-   */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (own !== null) own(parent, node, this._end === null || parent === renderRoot || this._start);
     /**
      * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
      * parent is foreign, so an ordinary insert allocates nothing even in development.
@@ -2674,17 +2638,6 @@ class ChildPart implements Part {
    * markers at all; anything else gets its own start/end marker pair so moves can never dangle.
    */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
-    /** Rows reach the DOM here rather than through `_insert`; same one-read gate, same
-     *  structural value — a root list's rows are the render's own output, any other part's rows
-     *  are content it places into the host, stamped with the part as the ordering group. */
-    const owner = own;
-    /**
-     * Reported against the LIST's parent, not `parent`: a batched row is built in a fragment, and
-     * `@verajs/renderer/keyed` inserts that fragment itself, so reporting against the fragment told
-     * the strategy nothing and a keyed list growing by two rows at a light host's top level had them
-     * captured as the user's content. The row node is what gets stamped; the host is what decides.
-     */
-    const host = this._start.parentNode!;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
@@ -2707,7 +2660,6 @@ class ChildPart implements Part {
       } else instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        if (owner !== null) owner(host, rootNode, this._end === null || host === renderRoot || this._start);
         parent.insertBefore(rootNode, ref);
         /**
          * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
@@ -2743,7 +2695,6 @@ class ChildPart implements Part {
       part._shape = result.strings;
       part._mode = TEMPLATE;
       if (relocating) part._value = [...instance._fragment.childNodes];
-      if (owner !== null) owner(host, instance._fragment, this._end === null || host === renderRoot || this._start);
       /**
        * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
        * survived minification as a live reference and put the warning's strings in the production
@@ -2988,7 +2939,7 @@ export const renderInto = (result: unknown, container: Node) => {
      * host. Gated, the old module is simply unwired — fallback shows, nothing is lost. Production
      * pays for this because production is where a pinned CDN page runs.
      */
-    if (own !== null && container.nodeType === 1) seam!._$capture$?.(container as Element, marker);
+    if (seam?._$b$ !== undefined && container.nodeType === 1) seam._$capture$?.(container as Element, marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   /**

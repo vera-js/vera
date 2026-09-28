@@ -165,8 +165,6 @@ const KNOWN = new Map([
     'when the earlier slot of a duplicate pair returns, the content stays in the later one'],
   ['a slot forwarded into a nested component\'s slot',
     'slot forwarding: the forwarded content never reaches the nested component, which shows the outer fallback'],
-  ['placed content: the first of two parts swaps template',
-    'a swapped part inside placed content is re-inserted after its sibling — b, a2 where native shows a2, b'],
   ['placed content: hold() restores a template whose inner text became a template',
     'a hold() restore inside placed content keeps the old text beside the new node, and leaves it on screen after'],
 ]);

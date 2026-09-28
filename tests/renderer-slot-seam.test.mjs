@@ -5,9 +5,10 @@
  * `<slot>` through the `'template'` hook (`_$inst$`), and the renderer's whole job is to call `$c`
  * for each instance — with the fresh fragment and the render root, before the first update — `$m`
  * AFTER that update with what `$c` returned (so a bound `name` has committed), keep what `$m`
- * returns, and hand it to `$q` before a branch-away discards the instance's DOM. Every insert is
- * reported to the seam's `$o` with its owner — `true` for the root part, a part's start marker
- * otherwise. Slot bindings still consume expression values in order.
+ * returns, and hand it to `$q` before a branch-away discards the instance's DOM. Every render is
+ * BRACKETED — `_$b$(root)` as it starts, `_$e$()` as it ends — which is how the slots module credits
+ * each DOM change to whoever made it (ownership by authorship). Slot bindings still consume
+ * expression values in order.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -31,7 +32,7 @@ const { renderer, renderInto, hold } = await load('renderer');
 /** The fake seam fn: records every consultation, takes over only light roots, parks on teardown. */
 const calls = [];
 const parked = [];
-const inserts = [];
+const brackets = [];
 const fakeSeam = (slot, root, name) => {
   calls.push({ name, root, tag: slot.localName });
   /** Decline shadow roots the way the real module will — duck-checked, realm-safe. */
@@ -39,8 +40,9 @@ const fakeSeam = (slot, root, name) => {
   slot.setAttribute('data-taken', name);
   return { name, _$park$: () => parked.push(name) };
 };
-/** The insert hook: records what the renderer reports. A seam without it reads as an old module. */
-fakeSeam.$o = (parent, node, owner) => inserts.push({ parent, node, owner });
+/** The render bracket: records every render's start and end. A seam without it reads as an old module. */
+fakeSeam._$b$ = (root) => brackets.push(['begin', root]);
+fakeSeam._$e$ = () => brackets.push(['end']);
 /** The instance hook, in the real module's shape: find now, hand over after the first update, park later. */
 const instanceHook = {
   $c: (fragment, root) => (root === null ? undefined : [...fragment.querySelectorAll('slot')]),
@@ -150,15 +152,19 @@ test('the mount runs AFTER the first update, so a bound slot name has committed'
   calls.length = 0;
 });
 
-test('every insert is reported to the seam, with the root part as `true` and any other part as itself', () => {
-  inserts.length = 0;
-  const host = dom.window.document.createElement('div');
-  const inner = (t) => html`<em>${t}</em>`;
-  renderInto(html`<p>${inner('a')}</p>`, host);
-  assert.ok(inserts.length >= 2, `the root commit and the nested template were both reported: ${inserts.length}`);
-  assert.equal(inserts[inserts.length - 1].owner, true, "the root part's own output is owned by `true`");
-  assert.ok(inserts.some((entry) => entry.owner !== true && typeof entry.owner === 'object'), 'a nested part reports its start marker');
-  inserts.length = 0;
+test('every render is bracketed with its root, and a render nested in another nests its bracket', () => {
+  brackets.length = 0;
+  const outer = dom.window.document.createElement('div');
+  const aside = dom.window.document.createElement('div');
+  /** A ref that renders elsewhere DURING the outer render — the shape a tooltip or portal takes. */
+  const portal = () => renderInto(html`<i>tip</i>`, aside);
+  renderInto(html`<p &ref=${portal}>x</p>`, outer);
+  assert.deepEqual(
+    brackets.map(([kind, root]) => (kind === 'begin' ? `begin ${root === outer ? 'outer' : root === aside ? 'aside' : root}` : 'end')),
+    ['begin outer', 'begin aside', 'end', 'end'],
+    'the inner render opens and closes inside the outer one — so its writes are credited to it'
+  );
+  brackets.length = 0;
 });
 
 test('development names a slots module from a different version of the package', { skip: isProduction }, () => {
@@ -171,10 +177,10 @@ test('development names a slots module from a different version of the package',
   const warn = console.warn;
   console.warn = (message) => warned.push(String(message));
   try {
-    wire({ name: 'fake-slots', on: 'slot', fn: Object.assign(fakeSeam.bind(null), { $o: fakeSeam.$o }), priority: 50 });
+    wire({ name: 'fake-slots', on: 'slot', fn: Object.assign(fakeSeam.bind(null), { _$b$: fakeSeam._$b$, _$e$: fakeSeam._$e$ }), priority: 50 });
     renderInto(html`<p>unversioned</p>`, dom.window.document.createElement('div'));
     assert.deepEqual(warned.filter((w) => w.includes('same version')), [], 'CONTROL: a strategy without $v is not checked');
-    wire({ name: 'fake-slots', on: 'slot', fn: Object.assign(fakeSeam.bind(null), { $o: fakeSeam.$o, $v: '0.0.0-elsewhere' }), priority: 50 });
+    wire({ name: 'fake-slots', on: 'slot', fn: Object.assign(fakeSeam.bind(null), { _$b$: fakeSeam._$b$, _$e$: fakeSeam._$e$, $v: '0.0.0-elsewhere' }), priority: 50 });
     renderInto(html`<p>versioned</p>`, dom.window.document.createElement('div'));
     assert.ok(warned.some((w) => w.includes('0.0.0-elsewhere') && w.includes('same version')), `named: ${warned.join(' | ')}`);
   } finally {
