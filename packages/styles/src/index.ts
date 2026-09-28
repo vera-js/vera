@@ -30,4 +30,4 @@
  * app paid 300 B gzipped for one unconditional call.
  */
 export type * from './types.js';
-export { adoptStyles, css, styles } from './styles.js';
+export { adoptStyles, applyStyles, css, styles } from './styles.js';
