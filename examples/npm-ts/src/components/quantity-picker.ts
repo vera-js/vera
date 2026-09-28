@@ -1,4 +1,5 @@
-import { css, html, init, ref, render, createStore } from '@verajs/core';
+import { html, init, ref, render, createStore } from '@verajs/core';
+import { css } from '@verajs/styles';
 
 const styles = css`
   * {

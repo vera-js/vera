@@ -1,4 +1,5 @@
-import { init, render, html, css } from '@verajs/core';
+import { init, render, html } from '@verajs/core';
+import { css } from '@verajs/styles';
 /** Selectors that carry characters escapeHtml would mangle. */
 customElements.define('css-string', class extends HTMLElement {
   static styles = '.a > .b { color: red } .c[x="y"] { color: blue } .d::after { content: "&" }';

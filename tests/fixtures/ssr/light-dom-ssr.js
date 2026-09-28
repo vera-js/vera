@@ -1,4 +1,5 @@
-import { init, render, html, css } from '@verajs/core';
+import { init, render, html } from '@verajs/core';
+import { css } from '@verajs/styles';
 
 customElements.define('light-child', class extends HTMLElement {
   static styles = css`.c { color: green }`;

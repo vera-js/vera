@@ -6,7 +6,8 @@
  * invisible to the click listener, because the event is retargeted at the boundary. The `autoloader`
  * attribute is what makes `<sink-lazy>` discoverable; it is per-component opt-in by design.
  */
-import { init, render, html, css, createStore } from '@verajs/core';
+import { init, render, html, createStore } from '@verajs/core';
+import { css } from '@verajs/styles';
 import { initRouter } from '@verajs/router';
 
 import './sink-basics.js';

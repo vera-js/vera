@@ -23,7 +23,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
 const core = await load('core');
 const {
   init, createStore, render, useEffect, useSyncEffect, useLayoutEffect, useRender,
-  ref, shallowRef, untrack, html, css,
+  ref, shallowRef, untrack, html,
   setRenderScheduler, microtask, wire, setStaticStores} = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */

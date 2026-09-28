@@ -4,7 +4,8 @@
  * `style` must be a **string** in JSX — an object is a compile error — which is the one place the
  * two authoring styles are written differently for the same result.
  */
-import { init, render, css, createStore } from '@verajs/core';
+import { init, render, createStore } from '@verajs/core';
+import { css } from '@verajs/styles';
 
 /** Cycled by the button below; `var()` re-resolves without the sheet being touched. */
 const ACCENTS = ['teal', 'crimson', 'rebeccapurple', 'darkorange'];

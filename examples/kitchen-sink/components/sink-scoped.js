@@ -7,7 +7,8 @@
  * rules off the rest of the page. Server-side the same CSS comes back on `styles` rather than in
  * the markup, which is what a page shell is expected to place.
  */
-import { init, render, html, css } from '@verajs/core';
+import { init, render, html } from '@verajs/core';
+import { css } from '@verajs/styles';
 
 export default class SinkScoped extends HTMLElement {
   static styles = css`

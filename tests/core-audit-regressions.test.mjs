@@ -12,6 +12,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
+const { css } = await load('styles');
 
 /* ── falsy-but-legal values ──────────────────────────────────────────────────────────────────── */
 
@@ -21,13 +22,13 @@ const core = await load('core');
  * Every zero out of a computed layout hit this.
  */
 test('css interpolates a zero', () => {
-  const { cssText } = core.css`margin: ${0}px; z-index: ${0}; opacity: ${0.5}`;
+  const { cssText } = css`margin: ${0}px; z-index: ${0}; opacity: ${0.5}`;
   assert.equal(cssText, 'margin: 0px; z-index: 0; opacity: 0.5');
 });
 
 /** An empty string is the one value that should still vanish. */
 test('css interpolates an empty string as nothing', () => {
-  assert.equal(core.css`a: ${''}b`.cssText, 'a: b');
+  assert.equal(css`a: ${''}b`.cssText, 'a: b');
 });
 
 /**

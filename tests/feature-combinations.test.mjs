@@ -299,7 +299,8 @@ test('keyed + spread: bags ride reorders, update in place, and leave with their 
  * test its shape).
  */
 test('styles + hold: five park/restore cycles adopt once and hoist once', async () => {
-  const { css, init, render } = core;
+  const { init, render } = core;
+  const { css } = await load('styles');
   const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
   const realWarn = console.warn;
   console.warn = () => {};

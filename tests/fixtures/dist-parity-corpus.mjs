@@ -23,7 +23,8 @@ for (const n of ['window','document','HTMLElement','customElements','CSSStyleShe
 const which = process.env.VERA_DIST === 'production' ? 'production' : 'development';
 const load = async (spec) => import(spec);
 const core = await load('@verajs/core');
-const { html, init, render, createStore, ref, useEffect, useSyncEffect, wire, mount: commit, untrack, shallowRef, css } = core;
+const { html, init, render, createStore, ref, useEffect, useSyncEffect, wire, mount: commit, untrack, shallowRef } = core;
+const { css } = await load('@verajs/styles');
 const { renderer, renderInto, hold } = await load('@verajs/renderer');
 const { keyed } = await load('@verajs/renderer/keyed');
 const { spread } = await load('@verajs/renderer/spread');

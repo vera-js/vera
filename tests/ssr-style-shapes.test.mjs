@@ -20,7 +20,8 @@ let results;
 try {
   writeFileSync(
     `${dir}/shapes.js`,
-    `import { init, render, html, css } from '@verajs/core';
+    `import { init, render, html } from '@verajs/core';
+import { css } from '@verajs/styles';
 const KINDS = {
   'shape-result': css\`.a { color: red }\`,
   'shape-array': [css\`.a { color: red }\`, css\`.b { color: blue }\`],

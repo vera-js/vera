@@ -43,7 +43,7 @@ const CASES = [
   ['html("markup")', () => core.html('<p>x</p>'), /html: expected a template literal/],
   ['svg("markup")', () => core.svg('<c/>'), /svg: expected a template literal/],
   ['mathml("markup")', () => core.mathml('<m/>'), /mathml: expected a template literal/],
-  ['css("text")', () => core.css('p{}'), /css: expected a template literal/],
+  ['css("text")', () => styleModule.css('p{}'), /css: expected a template literal/],
   ['renderInto(result) with no container', () => renderInto({}), /renderInto: expected a container node/],
   ['keyed(key) with no template', () => keyed('a'), /keyed: expected a template/],
   ['tag("h1") called, not tagged', () => tag('h1'), /tag: expected a template literal/],
@@ -137,9 +137,9 @@ test('no guard refuses a legitimate input', async () => {
     ['tag with no interpolation', () => tag`h1`],
     ['tag used in a template', () => tagHtml`<${heading}>x</${heading}>`],
     ['html with no interpolation', () => core.html`<p>x</p>`],
-    ['css with interpolation', () => core.css`p { color: ${'red'} }`],
+    ['css with interpolation', () => styleModule.css`p { color: ${'red'} }`],
     ['untrack with a named function', () => core.untrack(function named() { return 1; })],
-    ['applyStyles(sheet, element)', () => styleModule.applyStyles(core.css`p{}`, shadowHost)],
+    ['applyStyles(sheet, element)', () => styleModule.applyStyles(styleModule.css`p{}`, shadowHost)],
   ];
 
   for (const [label, call] of accepted) assert.doesNotThrow(call, `a guard refuses ${label}`);

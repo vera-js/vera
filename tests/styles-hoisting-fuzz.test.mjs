@@ -42,9 +42,9 @@ for (const key of [
 const { isProduction } = await import('./dist.mjs');
 const core = await load('core');
 const { renderer } = await load('renderer');
-const { styles } = await load('styles');
+const { styles, css } = await load('styles');
 core.wire([renderer, styles]);
-const { init, render, html, css } = core;
+const { init, render, html } = core;
 
 const D = dom.window.document;
 const host = D.getElementById('host');
@@ -169,7 +169,7 @@ test('a light host is told about ::slotted(), and NOT about :host', { skip: isPr
     customElements.define(
       name,
       class extends dom.window.HTMLElement {
-        static styles = core.css`:host { color: red } ::slotted(b) { color: blue } p { color: green }`;
+        static styles = css`:host { color: red } ::slotted(b) { color: blue } p { color: green }`;
         connectedCallback() {
           core.init(this); // LIGHT
           core.render(() => core.html`<p>own</p>`);
@@ -214,7 +214,7 @@ test('a stylesheet that only mentions ::slotted() in prose is not warned about',
     customElements.define(
       name,
       class extends dom.window.HTMLElement {
-        static styles = core.css`
+        static styles = css`
           /* ::slotted() cannot reach a descendant, so this sheet uses a plain one instead. */
           [slot='title'] em { color: blue }
           .badge::after { content: '::slotted(x)' }
@@ -243,7 +243,7 @@ test('the light-DOM rewrite translates selectors and leaves values alone', async
     customElements.define(
       name,
       class extends dom.window.HTMLElement {
-        static styles = core.css`
+        static styles = css`
           :host { a: 1 }
           :host(.flag) { b: 2 }
           :host(:not(.x)) { c: 3 }

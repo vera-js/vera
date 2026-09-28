@@ -26,8 +26,8 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { init, render, html, css, wire } = core;
-const { styles, applyStyles } = await load('styles');
+const { init, render, html, wire } = core;
+const { styles, applyStyles, css } = await load('styles');
 const { renderer } = await load('renderer');
 wire([renderer, styles]);
 

@@ -27,7 +27,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'cust
 
 const core = await load('core');
 const { renderer } = await load('renderer');
-const { styles } = await load('styles');
+const { styles, css } = await load('styles');
 const routerModule = await load('router');
 core.wire([renderer, styles, routerModule.router]);
 
@@ -36,7 +36,7 @@ const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(()
 
 test('two instances of one component keep separate state and both get the class sheet', async () => {
   customElements.define('x-twin', class extends HTMLElement {
-    static styles = core.css`p { color: rgb(9, 9, 9) }`;
+    static styles = css`p { color: rgb(9, 9, 9) }`;
     connectedCallback() {
       core.init(this, { mode: 'open' });
       const state = core.createStore({ n: 0 });

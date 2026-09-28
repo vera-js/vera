@@ -1,4 +1,5 @@
-import { init, render, html, css } from '@verajs/core';
+import { init, render, html } from '@verajs/core';
+import { css } from '@verajs/styles';
 import './island-a-ssr.js';
 export default class IslandBSsr extends HTMLElement {
   static styles = css`.b { color: blue }`;

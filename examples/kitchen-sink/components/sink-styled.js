@@ -5,7 +5,8 @@
  * `var()` re-resolves when one changes and inherits through the shadow boundary, which is the whole
  * reason the docs say `static styles` need not be reactive. Both halves are exercised here.
  */
-import { init, render, html, css, createStore } from '@verajs/core';
+import { init, render, html, createStore } from '@verajs/core';
+import { css } from '@verajs/styles';
 
 /** Cycled by the button below; `var()` re-resolves without the sheet being touched. */
 const ACCENTS = ['teal', 'crimson', 'rebeccapurple', 'darkorange'];

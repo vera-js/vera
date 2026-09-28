@@ -34,7 +34,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'cust
 
 const core = await load('core');
 const { renderer } = await load('renderer');
-const { styles } = await load('styles');
+const { styles, css } = await load('styles');
 const routerModule = await load('router');
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
@@ -52,7 +52,7 @@ test('handing every module to core leaves exactly one render registry', () => {
 
 test('a component using core, renderer, styles, keyed and spread works with all of them loaded', async () => {
   customElements.define('x-cdn-page', class extends HTMLElement {
-    static styles = core.css`p { color: rgb(1, 2, 3) }`;
+    static styles = css`p { color: rgb(1, 2, 3) }`;
     connectedCallback() {
       core.init(this, { mode: 'open' });
       const state = core.createStore({ rows: ['a', 'b'], n: 1 });

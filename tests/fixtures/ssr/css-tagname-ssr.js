@@ -1,4 +1,5 @@
-import { init, render, html, css } from '@verajs/core';
+import { init, render, html } from '@verajs/core';
+import { css } from '@verajs/styles';
 customElements.define('injected-comp', class extends HTMLElement {
   connectedCallback() { init(this, { mode: 'open' }); render(() => html`<b>INJECTED</b>`); }
 });
