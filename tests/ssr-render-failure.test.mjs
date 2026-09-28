@@ -47,3 +47,36 @@ test('a failed render does not poison the next one', async () => {
   const again = await good();
   assert.equal(again.html, before.html, 'and the one after that');
 });
+
+/**
+ * **A `'settle'` handler that throws fails the render by component name**, through the same channel as a
+ * hook or a frame callback — not as a bare exception out of the middle of the walk. Pinned by the lean
+ * rebuild's mutation controls (2026-09-28).
+ */
+test('a throwing settle handler fails the render, naming the component', async () => {
+  const { wire } = await import('@verajs/core');
+  const thrower = () => {
+    throw new Error('settle exploded');
+  };
+  wire({ on: 'settle', fn: thrower, priority: 77 });
+  try {
+    await assert.rejects(
+      () => renderToString(url('settle-throws-ssr.js')),
+      (error) => /<settle-throws-ssr> threw while rendering/.test(error.message) && /settle exploded/.test(error.message)
+    );
+  } finally {
+    wire({ on: 'settle', fn: () => {}, priority: 77 });
+  }
+});
+
+/**
+ * **A value the `props` option cannot deliver is refused by name** — the component, the option and the
+ * fix — rather than as `Cannot set property locked of #<ReadonlyChild>`, which names none of them. Pinned
+ * by the lean rebuild's mutation controls (2026-09-28).
+ */
+test('a read-only property in `props` is refused, naming the component and the option', async () => {
+  await assert.rejects(
+    () => renderToString(url('component-props-readonly-ssr.js'), { tag: 'readonly-child', props: { locked: 'x' } }),
+    (error) => error instanceof TypeError && /<readonly-child> refused a value from `props`/.test(error.message)
+  );
+});

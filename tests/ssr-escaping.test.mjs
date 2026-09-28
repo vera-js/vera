@@ -179,3 +179,29 @@ test('`props` cannot replace the component prototype', async () => {
   assert.ok(html, 'the render survived a __proto__ key');
   assert.equal(/** @type {Record<string, unknown>} */ ({}).pwned, undefined, 'Object.prototype was not touched');
 });
+
+/**
+ * **The object form of `attributes` escapes VALUES as well as refusing bad names.** A request value put
+ * into an entry — `{ title: userInput }` — must stay one attribute value however it is quoted. The name
+ * check above could not see this: pinned by the lean rebuild's mutation controls (2026-09-28), where
+ * removing the value escape turned nothing red.
+ */
+test('an object `attributes` value cannot break out of its attribute', async () => {
+  const payload = '" onload="alert(1)" x="';
+  const { html } = await renderToString(new URL('./fixtures/ssr/xss-ssr.js', import.meta.url), { attributes: { title: payload } });
+  const host = new JSDOM(`<!doctype html><body>${html}</body>`).window.document.querySelector('xss-ssr');
+  assert.equal(host.getAttribute('title'), payload, 'the whole payload is one value, decoded back exactly');
+  assert.equal(host.getAttribute('onload'), null, 'and produced no second attribute');
+});
+
+/**
+ * **The `styles` a render returns cannot close the `<style>` the caller puts them in.** Light-DOM
+ * `static styles` come back for the page shell, which writes them into a `<style>` — that is the
+ * caller's render boundary, so the text must not be able to end the element and open a `<script>`.
+ * Pinned by the lean rebuild's mutation controls (2026-09-28).
+ */
+test('the returned `styles` cannot break out of the page shell\'s <style>', async () => {
+  const { styles } = await renderToString(new URL('./fixtures/ssr/styles-breakout-ssr.js', import.meta.url));
+  assert.ok(styles.includes('alert(1)'), 'CONTROL: the hostile stylesheet was hoisted into the result');
+  assert.ok(!/<\/style/i.test(styles), 'no `</style` survives to close the shell\'s element');
+});
