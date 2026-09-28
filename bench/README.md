@@ -39,8 +39,8 @@ hot path states before/after numbers — `--compare` produces them.
 the queue, so reads *outside* a hook skip dependency registration entirely. Only the **tracked**
 rows describe what happens inside a real render.
 
-`tracked + insert` registers a passthrough `'proxy-handler'` insert (Map/Set support itself now lives in core). Insert chains are
-walked on every read, so how they are stored shows up in that row and nowhere else.
+`tracked + insert` wires a passthrough `'store'` insert that wraps core's `get`. The insert is
+consulted once per value, so what that row adds is one call through the composed trap per read.
 
 ## Size
 

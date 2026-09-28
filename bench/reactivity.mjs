@@ -96,11 +96,11 @@ const results = dom.window.eval(`(() => {
   });
   el.runHooks();
 
-  /* ---- tracked WITH an insert registered --------------------------------
-     Measures the cost of ANY registered proxy-handler insert (a passthrough here — map
-     support itself is in core now). Insert chains are walked on every
-     read, so how they are stored shows up here and nowhere else.                              */
-  Vera.wire({ on: 'proxy-handler', fn: (obj, prop, value) => value, priority: 50 });
+  /* ---- tracked WITH a store module wired ---------------------------------
+     A passthrough 'store' insert wrapping core's get — the shape batching and devtools take.
+     The insert itself is consulted once per value; what a read pays is one extra call through
+     the composed trap, and that shows up here and nowhere else.                                */
+  Vera.wire({ on: 'store', fn: (value, handler) => handler?.get && { ...handler, get: (o, p, r) => handler.get(o, p, r) }, priority: 50 });
   const iEl = document.createElement('div');
   document.body.appendChild(iEl);
   init(iEl);
