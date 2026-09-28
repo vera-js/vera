@@ -109,3 +109,19 @@ test('a throw does not block the queue', async () => {
   const { html } = await renderToStringAsync(hello, { tag: 'hello-ssr' });
   assert.match(html, /hello-ssr/, 'the next render still ran');
 });
+
+/**
+ * **What the async chain is for: a routed app's first view in the first response.** The router's
+ * initial navigation runs on a frame and awaits the route, so the synchronous chain serializes the
+ * shell with an empty outlet (the control), and the async one waits for the route this request's
+ * `location` names.
+ */
+test('a routed shell renders the requested route, and only through the async chain', async () => {
+  const shell = new URL('./fixtures/ssr/routed/first-view.js', import.meta.url);
+  const sync = await renderToString(shell, { location: '/about' });
+  assert.match(sync.html, /<main view="main"><\/main>/, 'CONTROL: synchronously, the outlet is empty');
+  const about = await renderToStringAsync(shell, { location: '/about' });
+  assert.match(about.html, /<main view="main"><p>about<\/p><\/main>/);
+  const home = await renderToStringAsync(shell, { location: '/' });
+  assert.match(home.html, /<main view="main"><p>home<\/p><\/main>/, 'per request, not the first one cached');
+});
