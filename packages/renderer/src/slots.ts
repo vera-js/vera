@@ -225,8 +225,63 @@ const WATCHING = { childList: true, subtree: true, attributes: true, attributeFi
  * leaves them where they are on the client and drops them on a server that has already re-rendered
  * the host. Two different consequences from one answer — see `serverDistribute`.
  */
+/**
+ * **A slot region that belongs to ANOTHER host is one slottable — the spec's forwarding.** When a
+ * component's template puts a `<slot>` inside another light component, that slot is the inner
+ * component's light child, assigned by the slot element's OWN `slot` attribute, and it shows
+ * whatever the outer slot shows (the spec's "flattened" slottables). Here the outer slot is a region
+ * between two anchors, so its start anchor stands for the whole unit: named by its kept `<slot>`,
+ * moved as one range (`move`), and what happens INSIDE it is the outer host's business (`inUnit`).
+ */
+const UNITS = new WeakMap<Node, Binding>();
 const slotNameOf = (node: Node): string | null =>
   node.nodeType === 3 ? '' : node.nodeType === 1 ? ((node as Element).getAttribute('slot') ?? '') : null;
+/**
+ * A node's name as a slottable OF THIS HOST: the platform's rule, plus the start anchor of a slot that
+ * belongs to another host — a forwarded slot. A host's own slots are regions of it, never slottables,
+ * which is why this asks which host is asking and `slotNameOf` stays the platform's answer.
+ */
+const nameIn = (state: HostState, node: Node): string | null => {
+  const unit = UNITS.get(node);
+  if (unit === undefined || state._bindings.includes(unit)) return slotNameOf(node);
+  return unit._slot?.getAttribute('slot') ?? '';
+};
+/** Moves a slottable — a forwarded slot as its whole anchor-to-anchor range. */
+const move = (node: Node, parent: Node, before: Node | null) => {
+  const unit = UNITS.get(node);
+  if (unit === undefined) {
+    parent.insertBefore(node, before);
+    return;
+  }
+  const stop = unit._end.nextSibling;
+  for (let at: Node | null = node; at !== null && at !== stop; ) {
+    const next: Node | null = at.nextSibling;
+    parent.insertBefore(at, before);
+    at = next;
+  }
+};
+/** Each binding's end anchor, and each binding's host — for `enclosing` and routing. */
+const ENDS = new WeakMap<Node, Binding>();
+const BINDING_HOST = new WeakMap<Binding, HostState>();
+/** The host whose logical list holds a node — so a removal reaches it wherever the node was. */
+const OWNER = new WeakMap<Node, HostState>();
+/**
+ * **The innermost slot range enclosing the gap after `prev`** — walked back through its siblings,
+ * stepping over any range that closes before it. Anchors share a parent, so a gap at the start of a
+ * parent is enclosed by none there.
+ */
+const enclosing = (prev: Node | null): Binding | undefined => {
+  for (let at = prev; at !== null; at = at.previousSibling) {
+    const closed = ENDS.get(at);
+    if (closed !== undefined) {
+      at = closed._start;
+      continue;
+    }
+    const open = UNITS.get(at);
+    if (open !== undefined) return open;
+  }
+  return undefined;
+};
 
 const bucketOf = (state: HostState, name: string): Node[] => {
   let bucket = state._map.get(name);
@@ -241,12 +296,12 @@ const bucketOf = (state: HostState, name: string): Node[] => {
  * position in `_light`, set by whoever put it there (`place`).
  */
 const take = (state: HostState, node: Node): string | null => {
-  const name = slotNameOf(node);
+  const name = nameIn(state, node);
   if (name === null) return null;
   state._names.set(node, name);
   HOMES.set(node, state._sentinel);
   const binding = activeFor(state, name);
-  if (!(binding !== undefined && node.parentNode === binding._start.parentNode)) state._holding.appendChild(node);
+  if (!(binding !== undefined && node.parentNode === binding._start.parentNode)) move(node, state._holding, null);
   return name;
 };
 
@@ -259,12 +314,26 @@ const take = (state: HostState, node: Node): string | null => {
  */
 const place = (state: HostState, node: Node, prev: Node | null, next: Node | null, top: boolean) => {
   const light = state._light;
-  const from = light.indexOf(node);
-  if (from !== -1) light.splice(from, 1);
-  let at = top && prev === null ? 0 : top && next === null ? light.length : next === null ? -1 : light.indexOf(next);
-  if (at === -1) {
+  OWNER.set(node, state);
+  /** Where the writer's references put it; `undefined` when neither is a light child. */
+  let at: number | undefined;
+  if (top && prev === null) at = 0;
+  else if (top && next === null) at = light.length;
+  else {
+    const before = next === null ? -1 : light.indexOf(next);
     const after = prev === null ? -1 : light.indexOf(prev);
-    at = after !== -1 ? after + 1 : light.length;
+    if (before !== -1) at = before;
+    else if (after !== -1) at = after + 1;
+  }
+  const from = light.indexOf(node);
+  /** A known node whose neighbours are not light children — a whole slot range moved — keeps its place. */
+  if (at === undefined) {
+    if (from !== -1) return;
+    at = light.length;
+  }
+  if (from !== -1) {
+    light.splice(from, 1);
+    if (at > from) at--;
   }
   light.splice(at, 0, node);
 };
@@ -273,6 +342,7 @@ const place = (state: HostState, node: Node, prev: Node | null, next: Node | nul
 const forget = (state: HostState, node: Node): string | undefined => {
   const at = state._light.indexOf(node);
   if (at !== -1) state._light.splice(at, 1);
+  if (OWNER.get(node) === state) OWNER.delete(node);
   const name = state._names.get(node);
   state._names.delete(node);
   return name;
@@ -308,53 +378,76 @@ const rebuild = (state: HostState, name: string) => {
  */
 let shared: MutationObserver | undefined;
 const observer = (): MutationObserver =>
-  (shared ??= new MutationObserver((records) => {
-    dispatch(records, null);
-    drain();
-  }));
+  (shared ??= new MutationObserver((records) => dispatch(records, null)));
 /** Fragments and kept `<slot>` elements that live outside their host's tree, back to its state. */
 const OUTSIDE = new WeakMap<Node, HostState>();
 /** The render roots whose renders are in progress, innermost last — whoever is writing right now. */
 const authors: (Node | null)[] = [];
-let dispatching = false;
-const hostOf = (target: Node): HostState | undefined => {
-  for (let node: Node | null = target; node !== null; node = node.parentNode) {
-    const state = HOSTS.get(node as Element) ?? OUTSIDE.get(node);
-    if (state !== undefined) return state;
-  }
-  return undefined;
-};
-/** Hands each host the records it did not author itself, in order. */
+/** How deep dispatch is nested — a host's processing can move nodes into a host nested in it. */
+let depth = 0;
+/**
+ * One change, routed to the host it belongs to: a node ADDED (with the neighbours its writer used,
+ * and whether it landed at the host's top level), a node REMOVED, or an ATTRIBUTE changed.
+ */
+type Change = { _kind: 0 | 1 | 2; _node: Node; _prev: Node | null; _next: Node | null; _top: boolean };
+const ADDED = 0;
+const REMOVED = 1;
+const ATTRIBUTE = 2;
+
+/**
+ * **Routes each change to the host it belongs to, and hands every host the ones it did not author.**
+ * A change belongs to the host whose slot range CONTAINS it, not to the nearest host above it: a
+ * forwarded slot's content sits physically inside the inner component, and is the outer one's. So a
+ * removed node goes to the host whose list holds it; an added node to the host whose range encloses
+ * where it landed (a host's top level is that host); an attribute to its node's owner, or to the
+ * host of a kept `<slot>` being renamed. What is enclosed by nothing is some component's own markup.
+ */
 const dispatch = (records: MutationRecord[], author: Node | null) => {
   if (records.length === 0) return;
-  const byHost = new Map<HostState, MutationRecord[]>();
-  for (const record of records) {
-    const state = hostOf(record.target);
-    if (state === undefined) continue;
-    /**
-     * The host's own render is skipped — except a rename of one of its kept `<slot>`s, which the
-     * render itself makes through `name=${…}` and which slots must act on whoever made it.
-     * Authorship answers "is this user content?", and a slot is never content.
-     */
-    if (state._host === author && !(record.type === 'attributes' && state._ghosts.has(record.target as Element)))
-      continue;
+  const byHost = new Map<HostState, Change[]>();
+  const route = (state: HostState | undefined, change: Change) => {
+    if (state === undefined) return;
+    /** A host's own writes are skipped — except its kept `<slot>`'s rename, which it must act on. */
+    if (state._host === author && !(change._kind === ATTRIBUTE && state._ghosts.has(change._node as Element))) return;
     let list = byHost.get(state);
     if (list === undefined) byHost.set(state, (list = []));
-    list.push(record);
+    list.push(change);
+  };
+  for (const record of records) {
+    const target = record.target;
+    const prev = record.previousSibling;
+    const next = record.nextSibling;
+    if (record.type === 'attributes') {
+      route(OUTSIDE.get(target) ?? OWNER.get(target), { _kind: ATTRIBUTE, _node: target, _prev: null, _next: null, _top: false });
+      continue;
+    }
+    const top = HOSTS.get(target as Element);
+    const at = top ?? OUTSIDE.get(target) ?? BINDING_HOST.get(enclosing(prev)!);
+    for (const node of record.removedNodes)
+      route(OWNER.get(node) ?? at, { _kind: REMOVED, _node: node, _prev: prev, _next: next, _top: false });
+    for (const node of record.addedNodes)
+      route(at, { _kind: ADDED, _node: node, _prev: prev, _next: next, _top: top !== undefined });
   }
   if (byHost.size === 0) return;
-  dispatching = true;
+  depth++;
   try {
-    for (const [state, list] of byHost) processRecords(state._host, state, list);
+    for (const [state, list] of byHost) {
+      processRecords(state._host, state, list);
+      /** Processing MOVES nodes (fills, fallbacks): this host's own writes, credited to it. */
+      drain(state);
+    }
   } finally {
-    dispatching = false;
-    /** Processing MOVES nodes (fills, fallbacks) — slots' own writes, discarded like any others. */
-    drain();
+    depth--;
   }
-};
-/** Discards what is queued — called right after slots' own moves, so all of it is slots' own. */
-const drain = (_state?: HostState) => {
-  shared?.takeRecords();
+};/**
+ * **Credits what is queued to the host whose moves made it** — called right after slots' own moves.
+ * Inside that host they are its own and skipped, exactly as a discard would; but a host NESTED in
+ * one of its slot regions receives them as foreign, like content any outer writer places there. That
+ * is slot forwarding: an outer slot's content, placed inside an inner component, becomes the inner
+ * component's light children. Hosts nest finitely, so the chain ends.
+ */
+const drain = (state: HostState) => {
+  if (shared !== undefined) dispatch(shared.takeRecords(), state._host);
 };
 
 /**
@@ -369,7 +462,7 @@ const drain = (_state?: HostState) => {
  * Re-entrant-safe: processing refills, refills fill, and the inner fill's flush must not recurse.
  */
 const flushPending = (_state?: HostState) => {
-  if (dispatching || shared === undefined) return;
+  if (depth > 0 || shared === undefined) return;
   dispatch(shared.takeRecords(), authors.length === 0 ? null : authors[authors.length - 1]);
 };
 
@@ -496,7 +589,7 @@ const fill = (state: HostState, binding: Binding) => {
       forget(state, candidate);
       continue;
     }
-    parent.insertBefore(candidate, binding._end);
+    move(candidate, parent, binding._end);
     shown.push(candidate);
   }
   binding._assigned = shown.length > 0;
@@ -528,6 +621,9 @@ const refill = (state: HostState, name: string) => {
  * duplicate slot to the assignment — native's next-in-tree-order.
  */
 const bind = (state: HostState, binding: Binding): SeamState => {
+  UNITS.set(binding._start, binding);
+  ENDS.set(binding._end, binding);
+  BINDING_HOST.set(binding, state);
   /**
    * In TREE order, not mount order: the first slot in the tree takes a name. A slot that mounts later
    * but sits earlier — the one a re-render brings back — goes ahead of those after it. A binding
@@ -676,16 +772,16 @@ const inAnyRun = (state: HostState, node: Node): boolean => {
   return false;
 };
 
-const processRecords = (host: Element, state: HostState, records: MutationRecord[]) => {
+const processRecords = (host: Element, state: HostState, changes: Change[]) => {
   const touched = new Set<string>();
   const moved: Binding[] = [];
-  for (const record of records) {
-    const target = record.target;
-    if (record.type === 'attributes') {
+  for (const change of changes) {
+    const node = change._node;
+    if (change._kind === ATTRIBUTE) {
       /** A kept `<slot>` renamed (`name=${…}`): it now takes, and shows, the other name. */
-      const ghost = state._ghosts.get(target as Element);
+      const ghost = state._ghosts.get(node as Element);
       if (ghost !== undefined) {
-        const next = (target as Element).getAttribute('name') ?? '';
+        const next = (node as Element).getAttribute('name') ?? '';
         if (next !== ghost._name) {
           touched.add(ghost._name);
           ghost._name = next;
@@ -695,40 +791,31 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
         continue;
       }
       /** A slottable re-slotted: same place in the light tree, another slot's content. */
-      const previous = state._names.get(target);
+      const previous = state._names.get(node);
       if (previous !== undefined) {
-        const next = slotNameOf(target)!;
+        const next = slotNameOf(node)!;
         if (next !== previous) {
-          state._names.set(target, next);
+          state._names.set(node, next);
           touched.add(previous);
           touched.add(next);
         }
       }
       continue;
     }
-    /**
-     * Only two places hold the host's light children: its own top level, and the region a slot
-     * shows content in. Anything else inside the host is the component's own markup, which the
-     * user may edit like any DOM without it becoming slot content — as in a shadow root.
-     */
-    const top = target === host;
-    for (const node of record.addedNodes) {
-      if (!top && !inAnyRun(state, node)) continue;
-      place(state, node, record.previousSibling, record.nextSibling, top);
-      const known = state._names.get(node);
-      const name = known ?? take(state, node);
+    if (change._kind === ADDED) {
+      place(state, node, change._prev, change._next, change._top);
+      const name = state._names.get(node) ?? take(state, node);
       if (name !== null) touched.add(name);
+      continue;
     }
-    for (const node of record.removedNodes) {
-      /**
-       * Gone from the host — not merely moved within it (a writer re-inserting a node is handled by
-       * its addition), and not resting in one of OUR places (holding, a displaced fallback).
-       */
-      const home = node.parentNode;
-      if (host.contains(node) || home === state._holding || (home !== null && state._parks.has(home))) continue;
-      const name = forget(state, node);
-      if (name !== undefined) touched.add(name);
-    }
+    /**
+     * Gone from the host — not merely moved within it (a writer re-inserting a node is handled by its
+     * addition), and not resting in one of OUR places (holding, a displaced fallback).
+     */
+    const home = node.parentNode;
+    if (host.contains(node) || home === state._holding || (home !== null && state._parks.has(home))) continue;
+    const name = forget(state, node);
+    if (name !== undefined) touched.add(name);
   }
   for (const name of touched) {
     rebuild(state, name);
@@ -786,6 +873,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
       const held = (child as HTMLTemplateElement).content;
       for (const node of [...held.childNodes]) {
         created._light.push(node);
+        OWNER.set(node, created);
         take(created, node);
       }
       host.removeChild(child);
@@ -798,6 +886,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
       /** The render's own anchors are the host's, not light children — only foreign nodes join. */
       if (node === created._sentinel || node === boundary) continue;
       created._light.push(node);
+      OWNER.set(node, created);
       take(created, node);
     }
   for (const name of new Set(created._light.map((node) => created._names.get(node)))) if (name !== undefined) rebuild(created, name);
@@ -1183,6 +1272,7 @@ const adoptSlot = (
        * the server preserved within-name order, so this reproduces the light tree as it can be known.
        */
       state._light.push(node);
+      OWNER.set(node, state);
       state._names.set(node, name);
     }
   if (isAssigned) rebuild(state, name);

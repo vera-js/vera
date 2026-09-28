@@ -161,8 +161,6 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
  * changes all three in the same commit.
  */
 const KNOWN = new Map([
-  ['a slot forwarded into a nested component\'s slot',
-    'slot forwarding: the forwarded content never reaches the nested component, which shows the outer fallback'],
   ['placed content: hold() restores a template whose inner text became a template',
     'a hold() restore inside placed content keeps the old text beside the new node, and leaves it on screen after'],
 ]);

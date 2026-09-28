@@ -42,7 +42,7 @@ counts as a difference:
 npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
 ```
 
-Every scenario there matches native on Chromium, Firefox and WebKit except the two listed under the
+Every scenario there matches native on Chromium, Firefox and WebKit except the one listed under the
 caveats below, which the file pins as known divergences: each asserts that it still diverges, so one
 cannot be fixed, or regress, without the list changing.
 
@@ -87,10 +87,9 @@ a comparison or a property read at those points and nothing else.
 
 ## The honest caveats
 
-- **Two shapes still differ from native, measured.** From the conformance suite above, identically
-  on three engines: a `<slot>` forwarded into a nested component's slot shows the outer fallback
-  instead of the forwarded content; and a `hold()` restore inside content one template places into
-  another light component leaves stale nodes on screen. Hydration is outside that suite and has its own tests.
+- **One shape still differs from native, measured.** From the conformance suite above, identically on
+  three engines: a `hold()` restore inside content one template places into another light component
+  leaves stale nodes on screen. Hydration is outside that suite and has its own tests.
 - **It is not unique.** Stencil does the same thing in its `scoped` mode. The difference is that
   Stencil is a compiler and this is a wired module you can leave out — but "nobody else has this"
   would be false.

@@ -507,10 +507,10 @@ survive; SSR emits already-distributed markup and hydration adopts it.
 
 **Measured, including where it still differs.** `tests/browser/slots-conformance.test.js` runs whole
 component lifecycles through a real shadow root and through this module on Chromium, Firefox and
-WebKit, comparing the composed tree and element identity after every step. Two shapes still differ,
-and the file pins each: a `<slot>` forwarded into a nested component's slot shows the outer fallback;
-and a `hold()` restore inside content one template places into another light component leaves stale
-nodes on screen.
+WebKit, comparing the composed tree and element identity after every step. One shape still differs,
+and the file pins it: a `hold()` restore inside content one template places into another light
+component leaves stale nodes on screen. Slot forwarding — a `<slot>` placed inside another light
+component — works as the platform's does: the inner component shows what the outer slot shows.
 
 **A `<slot>` inside another slot's fallback works**, and takes over at the moment that fallback
 becomes visible — the same thing the platform does, verified by layout on three engines. Slots are
