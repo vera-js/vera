@@ -162,6 +162,9 @@ test('a write that changes nothing notifies nobody', () => {
   let runs = 0;
   mount(() => useSyncEffect(() => { void state.n; void state.o; runs++; }));
   const afterSetup = runs;
+  /** Without this the test passed with the effect never running at all — "nobody was notified" is
+   *  satisfied perfectly by nobody listening (found when `mount` was missing, 2026-09-27). */
+  assert.ok(afterSetup > 0, 'CONTROL: the effect ran and subscribed');
   state.n = 1;
   /** The self-assignment is the subject, not an accident: reads are wrapped, so this arrives at the
    * set trap as proxy-against-raw and is exactly the comparison being tested. */
