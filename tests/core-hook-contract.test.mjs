@@ -106,3 +106,23 @@ test('an effect that writes what it read steps once per frame rather than recurs
   await nextFrame();
   assert.equal(state.n, 3, 'and it still settles, a frame per step');
 });
+
+/**
+ * **A coalesced pass runs with the signal of the write that queued it.** The scheduled run is one
+ * closure per hook, reused across updates, so the signal travels beside it rather than being captured
+ * per update — this pins that it still arrives: the property written and its value.
+ */
+test('a coalesced effect receives the signal of the write that queued it', async () => {
+  const el = element();
+  core.init(el);
+  const state = core.createStore({ n: 0 });
+  const seen = [];
+  core.useEffect((signal) => {
+    void state.n;
+    seen.push(signal?.prop === undefined ? 'init' : `${signal.prop}=${signal.value}`);
+  });
+  core.mount();
+  state.n = 5;
+  await nextFrame();
+  assert.deepEqual(seen, ['init', 'n=5'], 'the queued pass carried the write that scheduled it');
+});

@@ -284,6 +284,33 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
   element.remove();
 }
 
+/**
+ * **And an INHERITED setter** — a class's, on the prototype. A write goes to the target directly
+ * only where no setter can run (an own data property, or a key the object has nowhere on its chain);
+ * a key the prototype answers keeps the proxy as receiver, or what the setter writes is invisible.
+ */
+{
+  const element = document.createElement('div');
+  document.body.appendChild(element);
+  class Named {
+    first = 'a';
+    last = 'b';
+    set full(value) { [this.first, this.last] = value.split(' '); }
+  }
+  const store = core.createStore(new Named());
+
+  let seen = '';
+  core.createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
+  [...element._hooks[0]][0](undefined, true);
+
+  store.full = 'x y';
+  if (seen === 'x y') pass++;
+  else failures.push(`an inherited setter writes through the proxy
+      component: ${seen}
+      data:      x y`);
+  element.remove();
+}
+
 if (failures.length) {
   console.log(`\n  ${failures.length} mutation(s) a component does not see correctly:\n`);
   for (const f of failures) console.log(`    ${f}\n`);
