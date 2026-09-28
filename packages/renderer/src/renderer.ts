@@ -503,6 +503,13 @@ type SlotSeam = SlotSeamFn & {
   _$home$?: (node: Node) => Comment | null;
   /** Told about every insert, so slots can mark the render's own output — see `own`. */
   $o?: OwnHook;
+  /**
+   * **The render bracket** — called as every render starts (with its root) and ends, so slots can
+   * credit each DOM change to whoever made it: a change inside a light host is the host's own only
+   * when the host's own render made it. See "ownership by authorship" in slots.
+   */
+  _$b$?: (root: Node | null) => void;
+  _$e$?: () => void;
   /** Development only: the slots module's package version — see `slotSeam`. */
   $v?: string;
 };
@@ -2442,6 +2449,8 @@ class ChildPart implements Part {
       const mounts = pendingMounts.length;
       renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
       create.scope = null;
+      const seam = slotSeam();
+      seam?._$b$?.(renderRoot);
       try {
         this._set(value);
       } finally {
@@ -2449,6 +2458,7 @@ class ChildPart implements Part {
         create.scope = outerScope;
         flushSelects(mark);
         flushMounts(mounts);
+        seam?._$e$?.();
       }
     } else this._set(value);
     this._applierState = applierState;
@@ -3008,6 +3018,9 @@ export const renderInto = (result: unknown, container: Node) => {
   const mounts = pendingMounts.length;
   renderRoot = container;
   create.scope = null;
+  /** Bracketed for slots' authorship — see `_$b$` on the seam. After the lookup below has latched it. */
+  const seam = slotSeam();
+  seam?._$b$?.(container);
   try {
     part._set(result);
   } finally {
@@ -3015,6 +3028,7 @@ export const renderInto = (result: unknown, container: Node) => {
     create.scope = outerScope;
     flushSelects(mark);
     flushMounts(mounts);
+    seam?._$e$?.();
   }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };

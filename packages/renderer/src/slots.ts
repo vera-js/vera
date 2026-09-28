@@ -460,8 +460,65 @@ const pull = (state: HostState, node: Node, name: string) => {
  * processed while the queue is provably pure-user, ours are discarded while it is provably
  * pure-ours.)
  */
-const drain = (state: HostState) => {
-  state._observer.takeRecords();
+/**
+ * **One observer for the page, and every change credited to whoever made it — ownership by
+ * AUTHORSHIP.** A change inside host H is H's own when H's own render made it, and the user's (a
+ * slottable change) when anyone else did: the user, or an OUTER render placing content into H. The
+ * renderer brackets every render (`_$b$`/`_$e$` below), and slots brackets its own moves
+ * (`flushPending` before, `drain` after), so the observer's queue is split at each boundary and each
+ * batch carries its author. That replaces inferring ownership node by node — the stamps every
+ * insertion path had to cooperate with, which three audit rounds showed cannot be made complete.
+ *
+ * One observer rather than one per host: a record belongs to the nearest host above its target (or
+ * to the host whose holding, fallback or slot element it is), so nested hosts sort themselves out,
+ * and the per-host observers' WebKit memory growth under churn goes with them.
+ */
+let shared: MutationObserver | undefined;
+const observer = (): MutationObserver =>
+  (shared ??= new MutationObserver((records) => {
+    dispatch(records, null);
+    drain();
+  }));
+/** Fragments and kept `<slot>` elements that live outside their host's tree, back to its state. */
+const OUTSIDE = new WeakMap<Node, HostState>();
+/** The render roots whose renders are in progress, innermost last — whoever is writing right now. */
+const authors: (Node | null)[] = [];
+let dispatching = false;
+const hostOf = (target: Node): HostState | undefined => {
+  for (let node: Node | null = target; node !== null; node = node.parentNode) {
+    const state = HOSTS.get(node as Element) ?? OUTSIDE.get(node);
+    if (state !== undefined) return state;
+  }
+  return undefined;
+};
+/** Hands each host the records it did not author itself, in order. */
+const dispatch = (records: MutationRecord[], author: Node | null) => {
+  if (records.length === 0) return;
+  const byHost = new Map<HostState, MutationRecord[]>();
+  for (const record of records) {
+    const state = hostOf(record.target);
+    if (state === undefined) continue;
+    /**
+     * The host's own render is skipped — except a rename of one of its kept `<slot>`s, which the
+     * render itself makes through `name=${…}` and which slots must act on whoever made it.
+     * Authorship answers "is this user content?", and a slot is never content.
+     */
+    if (state._host === author && !(record.type === 'attributes' && state._ghosts.has(record.target as Element)))
+      continue;
+    let list = byHost.get(state);
+    if (list === undefined) byHost.set(state, (list = []));
+    list.push(record);
+  }
+  dispatching = true;
+  try {
+    for (const [state, list] of byHost) processRecords(state._host, state, list);
+  } finally {
+    dispatching = false;
+  }
+};
+/** Discards what is queued — called right after slots' own moves, so all of it is slots' own. */
+const drain = (_state?: HostState) => {
+  shared?.takeRecords();
 };
 
 /**
@@ -475,16 +532,23 @@ const drain = (state: HostState) => {
  * ended by draining its own), so processing here is exactly the observer callback running early.
  * Re-entrant-safe: processing refills, refills fill, and the inner fill's flush must not recurse.
  */
-const flushPending = (state: HostState) => {
-  if (state._flushing) return;
-  const records = state._observer.takeRecords();
-  if (records.length === 0) return;
-  state._flushing = true;
-  try {
-    processRecords(state._host, state, records);
-  } finally {
-    state._flushing = false;
-  }
+const flushPending = (_state?: HostState) => {
+  if (dispatching || shared === undefined) return;
+  dispatch(shared.takeRecords(), authors.length === 0 ? null : authors[authors.length - 1]);
+};
+
+/**
+ * **The renderer's bracket.** At a render's start, what is queued was written by whoever was writing
+ * before it (the user, or the render this one is nested in); at its end, by this render. Attached to
+ * the seam below, so the renderer reaches it across the bundle boundary.
+ */
+const beginRender = (root: Node | null) => {
+  flushPending();
+  authors.push(root);
+};
+const endRender = () => {
+  flushPending();
+  authors.pop();
 };
 
 /** The binding that OWNS a name — the first in tree order, as the platform picks the first
@@ -655,6 +719,7 @@ const bind = (state: HostState, binding: Binding): SeamState => {
   const slot = binding._slot;
   if (slot !== undefined) {
     state._ghosts.set(slot, binding);
+    OUTSIDE.set(slot, state);
     expose(state, binding);
     /** A `name` that is a binding can change between renders, and the element it changes on is
      *  not in the host's subtree — so it is watched directly. */
@@ -945,11 +1010,6 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
   for (const binding of moved) fill(state, binding);
 };
 
-const onMutations = (host: Element, records: MutationRecord[]) => {
-  const state = HOSTS.get(host)!;
-  processRecords(host, state, records);
-  drain(state);
-};
 
 /** Capture the host's children — once, at the first slot the seam hands us for it. */
 const capture = (host: Element, skipChildren = false, boundary?: Comment): HostState => {
@@ -969,7 +1029,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _names: new WeakMap(),
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,
-    _observer: new MutationObserver((records) => onMutations(host, records)),
+    _observer: observer(),
     /**
      * **The renderer's own root marker, when it has one** — it already delimits where the render's
      * output begins, which is exactly this boundary, so a sentinel of our own was a second comment
@@ -979,6 +1039,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _sentinel: boundary ?? doc.createComment(''),
   });
   HOSTS.set(host, created);
+  OUTSIDE.set(created._holding, created);
   /**
    * The host is MARKED as captured, on itself — this is what the renderer's stamp gate reads in
    * `_insert`/`$c`: one own-property read instead of a seam call, and it cannot go stale in the
@@ -1092,6 +1153,7 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
   }
   const fallback = doc.createDocumentFragment();
   state._parks.add(fallback);
+  OUTSIDE.set(fallback, state);
   /**
    * **And a park is watched too, for exactly the reason holding is.** A displaced fallback is a
    * second detached place captured nodes rest in: a slot nested here goes on distributing while the
@@ -1406,6 +1468,7 @@ const adoptSlot = (
    */
   const held = doc.createDocumentFragment();
   state._parks.add(held);
+  OUTSIDE.set(held, state);
   state._observer.observe(held, WATCHING);
   if (isAssigned) for (const node of fallback) held.appendChild(node);
   if (isAssigned)
@@ -1577,6 +1640,8 @@ const own: OwnHook = (parent, node, owner) => {
   }
   Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
 };
+(takeOverSlot as { _$b$?: typeof beginRender })._$b$ = beginRender;
+(takeOverSlot as { _$e$?: typeof endRender })._$e$ = endRender;
 (takeOverSlot as { $o?: OwnHook }).$o = own;
 /** Development only: the renderer checks that it and this module come from one version. */
 if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
