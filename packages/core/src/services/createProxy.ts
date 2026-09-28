@@ -80,7 +80,7 @@ const handler: ProxyHandler<object> = {
         (proxy =
           (own && !own.writable && !own.configurable) || !PROXYABLE.test(getType(value))
             ? null
-            : new Proxy(value, handler))
+            : wrap(value))
       );
     }
     return proxy ?? value;
@@ -159,15 +159,25 @@ const handler: ProxyHandler<object> = {
  * proxy — `state.a === state.a`, and `createStore(config) === createStore(config)` — where a fresh
  * proxy per read broke every identity comparison in consumer code (a list re-keying, a memo missing).
  * One map serves all stores because there is one handler: nothing about a proxy depends on which
- * store reached it.
+ * store reached it. **Each proxy also maps to itself**, so a store placed inside another store —
+ * `state.child = otherStore` — is recognized and handed back as it is, never wrapped a second time
+ * (which tracked every read twice and notified every write twice). That is the whole job the old
+ * `_isSignal` marker property did, done by the map that was already being consulted.
  */
 const proxies = new WeakMap<object, object | null>();
+
+/** A new proxy over `data`, registered as mapping to itself — see `proxies`. */
+const wrap = (data: object) => {
+  const proxy = new Proxy(data, handler);
+  proxies.set(proxy, proxy);
+  return proxy;
+};
 
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
 export const createProxy = <T extends object>(data: T): T => {
   let proxy = proxies.get(data);
   /** `null` is a nested value some store must hand back verbatim; asked for as a store itself, it is wrapped fresh. */
-  if (proxy === null) return new Proxy(data, handler) as T;
-  if (proxy === undefined) proxies.set(data, (proxy = new Proxy(data, handler)));
+  if (proxy === null) return wrap(data) as T;
+  if (proxy === undefined) proxies.set(data, (proxy = wrap(data)));
   return proxy as T;
 };
