@@ -308,7 +308,7 @@ element (`this.state ??= createStore(…)`) or in a store, so it survives the tr
 a fresh generation of hooks and the previous one goes inert, so re-attached components show current
 state and have live effects. Guarding setup with `if (this.started) return` — the habit the platform's
 own guidance on repeated `connectedCallback` suggests — leaves effects torn down as soon as they run
-after a re-attach, and development says so, naming the element.
+after a re-attach, and what it shows stays as it was.
 
 **Setup is one synchronous block, which matters for `async connectedCallback()`.** Only one component
 is being set up at a time, so a second component's `init()` takes the slot from the first — and an

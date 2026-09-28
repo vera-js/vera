@@ -1,5 +1,5 @@
 import { inserts, InitInsert } from '@verajs/inserts';
-import { currentInstance, swept } from '../store/store.js';
+import { currentInstance } from '../store/store.js';
 import type { ComponentElement } from '../types.js';
 import { createStore } from './createStore.js';
 import { reportHookError, RENDER_PRIORITY } from './createHook.js';
@@ -346,7 +346,6 @@ if (typeof customElements !== 'undefined') {
     proto.disconnectedCallback = function (this: ComponentElement) {
       own?.call(this);
       this._cleanups?.forEach((cleanup) => {
-        swept.add(cleanup);
         try {
           cleanup();
         } catch (error) {

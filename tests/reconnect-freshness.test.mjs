@@ -21,7 +21,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load, isProduction } from './dist.mjs';
+import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body><div id="app"></div><div id="other"></div></body>', {
   url: 'https://x.test/',
@@ -106,48 +106,3 @@ test('a write to a disconnected element renders nothing, which is what makes the
   assert.equal(shown(detached), '1', 'the write was skipped while it was out of the tree');
 });
 
-/**
- * From another project's report (2026-09-27): a component that sets up only ONCE is the trap. After a
- * re-attach its effects are torn down as soon as they run, which development now names; and an
- * effect's cleanup the disconnect sweep already ran is never run a second time.
- */
-test('a set-up-once component is named on re-attach, and no cleanup runs twice', { skip: isProduction ? 'the warning is development-only' : false }, async () => {
-  const log = [];
-  const said = [];
-  const original = console.warn;
-  console.warn = (message) => said.push(String(message));
-  let store;
-  customElements.define('x-once-only', class extends HTMLElement {
-    connectedCallback() {
-      if (this.started) return;
-      this.started = true;
-      core.init(this);
-      const state = (this.state ??= core.createStore({ count: 0 }));
-      store = state;
-      core.useEffect(() => {
-        const count = state.count;
-        log.push(`setup(${count})`);
-        return () => log.push(`cleanup(${count})`);
-      });
-      core.render(() => html`<p>${state.count}</p>`);
-    }
-  });
-  try {
-    const element = dom.window.document.createElement('x-once-only');
-    app.append(element);
-    await frame();
-    store.count = 1;
-    await frame();
-    element.remove();
-    await frame();
-    assert.equal(log.filter((entry) => entry === 'cleanup(1)').length, 1, 'CONTROL: the sweep ran cleanup(1)');
-    app.append(element);
-    store.count = 3;
-    await frame();
-    assert.equal(log.filter((entry) => entry === 'cleanup(1)').length, 1, 'cleanup(1) did not run a second time');
-    assert.equal(said.filter((message) => message.includes('<x-once-only> was put back in the page without calling init()')).length, 1);
-    element.remove();
-  } finally {
-    console.warn = original;
-  }
-});

@@ -30,16 +30,6 @@ export const hooksQueue: ComponentHook[] = [];
  * previously lived only inside effect closures — unreachable at disconnect, which meant a removed
  * element's last interval or listener ran forever and pinned the element in memory.
  */
-/**
- * **Cleanups the disconnect sweep already ran.** An effect keeps its last cleanup to run before its
- * next pass, and the sweep ran that same function when the element left the page — so the next pass,
- * after a re-attach, ran it a second time. Harmless for a listener, wrong for a socket, a lock or a
- * count. The sweep records what it ran; an effect skips a previous cleanup found here.
- */
-export const swept = new WeakSet<HookCleanup>();
-/** Development only: elements already told they were re-attached without `init()` — once each. */
-const warnedReattach = /* @__PURE__ */ new WeakSet<object>();
-
 export const swapCleanup = (previous: HookCleanup | void, next: HookCleanup | void) => {
   const element = hooksQueue[hooksQueue.length - 1]?.element?.deref();
   if (!element) return;
@@ -60,23 +50,6 @@ export const swapCleanup = (previous: HookCleanup | void, next: HookCleanup | vo
    * and its cleanups are still owed a later removal.
    */
   if (element._removed) {
-    /**
-     * **Development only: connected again, never initialized again.** `connectedCallback` runs on
-     * every attach, and `init()` there is what clears `_removed` and starts a fresh generation of
-     * hooks. A component that sets up only once (`if (this.started) return`) reaches this with its
-     * element back in the page, and every effect it runs is torn down the moment it is set up —
-     * silently. An element that removed ITSELF from inside an effect is not connected, and is not
-     * named.
-     */
-    if (__DEV__ && element.isConnected && !warnedReattach.has(element)) {
-      warnedReattach.add(element);
-      console.warn(
-        `[vera] <${element.localName}> was put back in the page without calling init() again, so its ` +
-          `effects are torn down as soon as they run and what it shows stays as it was. connectedCallback ` +
-          `runs on every attach: call init() and register its hooks there every time, keeping state on ` +
-          `the element (this.state ??= createStore(…)) or in a store.`
-      );
-    }
     /**
      * Not routed through `reportHookError`: that lives in `createHook`, which imports this module,
      * and a cycle for one call site is a worse trade than repeating the prefix. A cleanup that

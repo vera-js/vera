@@ -2378,16 +2378,19 @@ class ChildPart implements Part {
      */
     /**
      * Whenever the render in progress is not its own — none, or ANOTHER container's (an applier
-     * resolving synchronously inside some other render) — and only while the part is still in the
-     * document: a part its template already discarded has no host to distribute into, and running
-     * it as its old container's render let a `<slot>` in it take that host's content for good.
+     * resolving synchronously inside some other render) — the commit is bracketed as a render of the
+     * container that attached it, and only while that container still CONTAINS the part. A part its
+     * template already discarded, or one attached outside any render, commits with no root: running it
+     * against its old container let a `<slot>` in it take that host's content for good, and running it
+     * against the render in progress took THAT host's. Containment, not `isConnected`: a container
+     * rendered off the page still holds its parts, and its late commits distribute and flush like any.
      */
-    if (this._root != null && renderRoot !== this._root && this._start.isConnected) {
-      /** And its root and scope are restored however it ends, as `renderInto`'s are. */
+    if (renderRoot !== this._root || renderRoot === null) {
+      /** And the root and scope in progress are restored however it ends, as `renderInto`'s are. */
       const outerRoot = renderRoot;
       const outerScope = create.scope;
       const mark = pendingSelects?.length ?? 0;
-      renderRoot = this._root;
+      renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
       create.scope = null;
       try {
         this._set(value);
