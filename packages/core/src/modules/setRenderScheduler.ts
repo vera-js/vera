@@ -20,6 +20,15 @@ export const microtask: RenderScheduler = (run) => queueMicrotask(run);
 export let renderScheduler: RenderScheduler = animationFrame;
 
 /**
+ * Bumped whenever the scheduler is replaced, so a pass queued under a scheduler that never ran it is
+ * recognized as stranded and queued again. A coalescing flag is raised when a pass is handed over and
+ * lowered inside it, so a scheduler that DROPS the pass leaves the component frozen — and at the moment
+ * of scheduling a dropped pass cannot be told from a deferred one. Replacement is when it becomes
+ * knowable: whatever the old scheduler held will never run, because nothing calls it again.
+ */
+export let schedulerGeneration = 0;
+
+/**
  * Replaces the render scheduler, and **returns the one it replaced** — which is what makes a temporary
  * swap possible, and a temporary swap is the only way to render synchronously (the View Transitions API
  * snapshots the DOM around a callback, and a pass deferred to the next frame lands after the snapshot):
@@ -37,5 +46,6 @@ export let renderScheduler: RenderScheduler = animationFrame;
 export const setRenderScheduler = (scheduler: RenderScheduler) => {
   const previous = renderScheduler;
   renderScheduler = scheduler;
+  schedulerGeneration++;
   return previous;
 };

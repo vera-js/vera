@@ -1,6 +1,6 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
-import { renderScheduler } from '../modules/setRenderScheduler.js';
+import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
 import type { ComponentElement, HookCallback, HookCleanup } from '../types.js';
 
 /**
@@ -47,6 +47,8 @@ export const coalesce = (
 ) => {
   const owner = element ?? currentInstance.element;
   let queued = false;
+  /** Which scheduler generation the queued pass was handed to — see `schedulerGeneration`. */
+  let queuedUnder = 0;
   let now = false;
   let cleanup: void | HookCleanup;
   const hook = createHook({
@@ -69,14 +71,25 @@ export const coalesce = (
         }
         return;
       }
-      if (queued) return;
+      /** A pass queued under a scheduler since replaced is stranded, not pending — queue it again. */
+      if (queued && queuedUnder === schedulerGeneration) return;
       queued = true;
-      schedule(() => {
+      queuedUnder = schedulerGeneration;
+      /**
+       * Lowered again if the scheduler throws: otherwise the flag stays raised and every later write
+       * returns above — the component never renders again, silently, even after the scheduler is fixed.
+       */
+      try {
+        schedule(() => {
+          queued = false;
+          now = true;
+          hook!(signal);
+          now = false;
+        }, owner);
+      } catch (error) {
         queued = false;
-        now = true;
-        hook!(signal);
-        now = false;
-      }, owner);
+        throw error;
+      }
     },
   });
   return hook;
