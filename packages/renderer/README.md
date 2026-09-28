@@ -224,7 +224,9 @@ renderInto(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>
 ```
 
 `keyed(key, result)` tags a result with its identity, so a reorder **moves** the existing elements
-instead of rebuilding them — focus, scroll position, form state and running animations all survive.
+instead of rebuilding them — form state, scroll position and running animations survive. Focus does
+not survive a MOVE: the platform blurs any node that is re-inserted, framework or not (pinned in the
+browser suite), so only the elements that actually moved lose it.
 It is its own entry because most apps never reorder a list, and the algorithm that makes reordering
 cheap is <!--size:keyed.gzip-->923 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
 nothing registers, and there is no `wire()` call — the marker stamps each result with the strategy
@@ -252,6 +254,9 @@ unkeyed item in a keyed list has no identity to match on.
 
 An unkeyed list is not wrong — it updates each position in place, which is exactly right for a list
 whose order never changes.
+
+One position can switch between a keyed and an unkeyed list, in either direction, and render
+correctly — the items are the same kind of thing, and an unkeyed one simply has no key to match on.
 
 ## Preserving DOM — `hold()`
 
