@@ -13,6 +13,9 @@ import type { ComponentElement } from '../types.js';
  */
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
   currentInstance.element = element;
-  element._hooks = new Set();
+  /** A new generation: the previous connection's hooks go inert — see `createHook`. */
+  element._gen = (element._gen ?? 0) + 1;
+  element._hooks = [];
+  element._hookPriorities = [];
   if (shadowProps && !element.shadowRoot && !element._root) element._root = element.attachShadow(shadowProps);
 };

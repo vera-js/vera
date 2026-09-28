@@ -1,10 +1,17 @@
 /** A component element, carrying what `init` and the hooks attach to it. */
 export interface ComponentElement extends HTMLElement {
   /**
-   * The element's hooks. Attached to the element so they are collected with it — the store holds
-   * them only weakly.
+   * The element's hooks, dense and priority-sorted. Attached to the element so they are collected
+   * with it — the store holds them only weakly.
    */
-  _hooks?: Set<HookCallback>;
+  _hooks?: Hooks;
+  /** Priorities parallel to `_hooks`, which is kept dense rather than indexed by priority. */
+  _hookPriorities?: number[];
+  /**
+   * How many times this element has been `init()`ed. A hook captures the value it was created
+   * under and does nothing when it no longer matches — see `createHook`.
+   */
+  _gen?: number;
   /**
    * The root this element renders into, kept because `element.shadowRoot` is **null for a closed
    * shadow root** — that is what closed means, and it applies to the framework too. Read across
@@ -14,8 +21,21 @@ export interface ComponentElement extends HTMLElement {
   _root?: ShadowRoot;
 }
 
+/** What `createHook` registers: the callback, its priority, and optionally its owner. */
+export type Hook = {
+  /** Run on the first pass and again whenever a store it read changes. */
+  callback: HookCallback | null;
+  /** The owner, instead of the element being set up — an element, or any object owning a value. */
+  element?: ComponentElement;
+  /** Lower runs earlier; `0` is legal and the earliest. */
+  priority: number | null;
+};
+
 /** A hook's callback: handed the signal that woke it, and `init` on the first pass. */
 export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void;
+
+/** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
+export type Hooks = Set<HookCallback>[];
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

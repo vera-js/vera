@@ -22,6 +22,6 @@ export const render = (template: unknown, ...args: unknown[]) => {
   const element = currentInstance.element;
   if (element === null) return;
   useRender(template, element, ...args);
-  element._hooks!.forEach((hook) => hook({}, true));
+  element._hooks!.forEach((hooks) => hooks.forEach((hook) => hook({}, true)));
   currentInstance.element = null;
 };

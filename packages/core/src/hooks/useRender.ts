@@ -1,5 +1,5 @@
 import type { ComponentElement, RenderTemplate } from '../types.js';
-import { createHook } from '../modules/createHook.js';
+import { createHook, RENDER_PRIORITY } from '../modules/createHook.js';
 import { inserts } from '@verajs/inserts';
 import type { Renderer } from '@verajs/shared-types';
 
@@ -14,18 +14,21 @@ import type { Renderer } from '@verajs/shared-types';
  */
 export const useRender = (template: unknown, element: ComponentElement, ...args: unknown[]) => {
   let queued = false;
-  const hook = createHook((signal, init) => {
-    if (init) {
-      const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
-      const target = element._root ?? element.shadowRoot ?? element;
-      inserts.get('render')?.forEach((renderer) => (renderer as Renderer)(result, target, ...args));
-      return;
-    }
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(() => {
-      queued = false;
-      hook!(signal, true);
-    });
+  const hook = createHook({
+    priority: RENDER_PRIORITY,
+    callback: (signal, init) => {
+      if (init) {
+        const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
+        const target = element._root ?? element.shadowRoot ?? element;
+        inserts.get('render')?.forEach((renderer) => (renderer as Renderer)(result, target, ...args));
+        return;
+      }
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        hook!(signal, true);
+      });
+    },
   });
 };
