@@ -1,10 +1,10 @@
 import { useRender } from '../hooks/useRender.js';
 import { currentInstance } from '../store/store.js';
+import { commit } from './mount.js';
 
 /**
- * Declares a component's template and ends its setup — the closing half of the pair `init()` opens.
- * Runs the first pass of every hook registered since `init()`, then clears the current instance so
- * the next component's `init()` starts clean.
+ * Declares a component's template and ends its setup — the closing half of the pair `init()` opens,
+ * for a component that has markup. Exactly `useRender(template)` followed by {@link mount}'s commit.
  *
  * ```js
  * connectedCallback() {
@@ -22,6 +22,5 @@ export const render = (template: unknown, ...args: unknown[]) => {
   const element = currentInstance.element;
   if (element === null) return;
   useRender(template, element, ...args);
-  element._hooks!.forEach((hooks) => hooks.forEach((hook) => hook({}, true)));
-  currentInstance.element = null;
+  commit(element);
 };

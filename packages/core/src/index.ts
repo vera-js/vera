@@ -4,6 +4,7 @@ export type * from './types.js';
 export { createHook } from './modules/createHook.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
+export { mount } from './modules/mount.js';
 export { render } from './modules/render.js';
 export { html } from './store/store.js';
 export { useEffect } from './hooks/useEffect.js';
