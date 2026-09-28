@@ -1687,6 +1687,32 @@ const flushSelects = (from = 0) => {
   for (let i = 0; i < mine.length; i += 2) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
 };
 
+/**
+ * **Instances whose instance hook mounts once the render that created them has finished** — flat
+ * pairs of instance and root, queued after each one's first update and run by that render, as
+ * `pendingSelects` are. Mounting right after the first update meant mounting a DETACHED instance:
+ * the fragment is inserted only afterwards, and a nested instance only when its outer one is, so a
+ * claim that focuses, measures or observes saw an element in no document. At the end of the render
+ * the whole tree is in place — connected, if the container is.
+ */
+let pendingMounts: unknown[] | null = null;
+
+/** Mounts what was queued from `from` on — each render mounts only its own, as `flushSelects`. */
+const flushMounts = (from: number) => {
+  const queued = pendingMounts;
+  if (queued === null || queued.length <= from) return;
+  const mine = queued.splice(from);
+  if (queued.length === 0) pendingMounts = null;
+  for (let i = 0; i < mine.length; i += 2) {
+    const instance = mine[i] as Instance;
+    const state = instance.$s;
+    /** Torn down before its render finished: it never mounts, so it has nothing to unmount. */
+    if (state === undefined) continue;
+    instance.$s = undefined;
+    if ((instance.$k = instance.$h!.$m(state, mine[i + 1] as Node | null)) !== undefined) notifyOnRemoval = true;
+  }
+};
+
 const SCRATCH = doc.createDocumentFragment();
 
 
@@ -1822,6 +1848,13 @@ class Instance {
       if (state !== undefined) {
         this.$h = hook;
         this.$s = state;
+        /**
+         * Mounted when this render finishes, not after the first update — see `pendingMounts`.
+         * `notifyOnRemoval` is armed now rather than at mount, so an instance discarded before its
+         * render ends is walked at teardown, which clears `$s` and keeps it from mounting.
+         */
+        (pendingMounts ??= []).push(this, renderRoot);
+        notifyOnRemoval = true;
       }
     }
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
@@ -1880,6 +1913,7 @@ class Instance {
       (part as TextPart)._upgraded?._detach();
     }
     /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
+    this.$s = undefined;
     if (this.$k !== undefined) this.$h!.$q(this.$k);
   }
 
@@ -1887,22 +1921,6 @@ class Instance {
     let valueIndex = 0;
     const parts = this._parts;
     for (let i = 0; i < parts.length; i++) valueIndex = parts[i]._commit(values, valueIndex);
-    /**
-     * **Slots mount after the first `_update`, not during construction, because a `<slot>`'s own
-     * bindings are part of its meaning.** `<slot name=${section}>` has no name at all until its
-     * `AttrPart` has committed, and mounting first read the static markup and got `''` — the slot
-     * registered as a second DEFAULT slot, took the default content, and left the real default slot
-     * showing fallback. Committing first also means `@slotchange` and `&ref` are already attached.
-     *
-     * Once per instance; every later `_update` costs one compare. A `$m` that keeps something sets
-     * `notifyOnRemoval`: for slots, `$q` must rescue the USER'S nodes before a bulk `_clear`
-     * discards the DOM holding them.
-     */
-    const state = this.$s;
-    if (state !== undefined) {
-      this.$s = undefined;
-      if ((this.$k = this.$h!.$m(state, renderRoot)) !== undefined) notifyOnRemoval = true;
-    }
   }
 
 }
@@ -2420,6 +2438,7 @@ class ChildPart implements Part {
       const outerRoot = renderRoot;
       const outerScope = create.scope;
       const mark = pendingSelects?.length ?? 0;
+      const mounts = pendingMounts?.length ?? 0;
       renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
       create.scope = null;
       try {
@@ -2428,6 +2447,7 @@ class ChildPart implements Part {
         renderRoot = outerRoot;
         create.scope = outerScope;
         flushSelects(mark);
+        flushMounts(mounts);
       }
     } else this._set(value);
     this._applierState = applierState;
@@ -2984,6 +3004,7 @@ export const renderInto = (result: unknown, container: Node) => {
   const outerRoot = renderRoot;
   const outerScope = create.scope;
   const mark = pendingSelects?.length ?? 0;
+  const mounts = pendingMounts?.length ?? 0;
   renderRoot = container;
   create.scope = null;
   try {
@@ -2992,6 +3013,7 @@ export const renderInto = (result: unknown, container: Node) => {
     renderRoot = outerRoot;
     create.scope = outerScope;
     flushSelects(mark);
+    flushMounts(mounts);
   }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };
@@ -3004,6 +3026,7 @@ export const renderInto = (result: unknown, container: Node) => {
 /** @internal */
 export {
   flushSelects,
+  flushMounts,
   sayShape,
   getTemplate,
   Template,

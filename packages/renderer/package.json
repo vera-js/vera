@@ -54,6 +54,11 @@
       "development": "./dist/development/vera-renderer-slots.js",
       "default": "./dist/vera-renderer-slots.min.js"
     },
+    "./elements": {
+      "types": "./dist/development/vera-renderer-elements.d.ts",
+      "development": "./dist/development/vera-renderer-elements.js",
+      "default": "./dist/vera-renderer-elements.min.js"
+    },
     "./namespaces": {
       "types": "./dist/development/vera-renderer-namespaces.d.ts",
       "development": "./dist/development/vera-renderer-namespaces.js",

@@ -131,6 +131,24 @@ export type SlotInsert = (
 ) => { _$park$?: () => void } | null | undefined;
 
 /**
+ * **Claims elements in templates** — `@verajs/renderer/elements`. Asked about each element of a
+ * template ONCE, as the template is first used, with the template's own inert element: its tag and
+ * static attributes are real, bindings are not applied yet. Returns a shared behavior for an element it
+ * wants, `undefined` for the rest. Every instance of the template then runs `mount` after its first
+ * update and `unmount` at teardown with what `mount` returned.
+ *
+ * Declared here, structurally, for the same reason `SlotInsert` is — so `wire([renderer, elements,
+ * claim])` typechecks without the renderer importing this package. The renderer's `ElementBehavior`
+ * is the same shape, documented there.
+ */
+export type ElementInsert = (element: Element) =>
+  | {
+      mount?(element: Element, context: { root: Node | null; adopted: boolean }): unknown;
+      unmount?(kept: unknown, element: Element): void;
+    }
+  | undefined;
+
+/**
  * Resolves a DIRECTIVE NAME nobody has wired to a module that provides it — the seam
  * `@verajs/directives` asks (through the substrate stamp) before rejecting an unknown
  * `data-vd-*` name, and `@verajs/autoloader`'s `directiveLoader` answers by convention
@@ -186,6 +204,7 @@ export type InsertFunctionMap = {
   'value': ValueInsert;
   'slot': SlotInsert;
   'template': TemplateInsert;
+  'element': ElementInsert;
   'loader': LoaderInsert;
   'settle': SettleInsert;
 };
@@ -211,6 +230,7 @@ export type Inserts = Map<
     | ValueInsert
     | SlotInsert
     | TemplateInsert
+    | ElementInsert
     | LoaderInsert
     | SettleInsert
   )[]

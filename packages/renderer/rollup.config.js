@@ -74,6 +74,11 @@ export default [
    * through the wired `'template'` insert and the sigiled `_$at$`/`_$ns$` members.
    */
   defaultRollupConfig(`${pkg.filename}-namespaces`, [], /^_[a-z]/, { input: 'src/namespaces.ts' }),
+  /**
+   * Additive for the same reason: imports nothing; the renderer reaches it only through the wired
+   * `'template'` insert and the `$`-named instance hook, and claimants reach it through `'element'`.
+   */
+  defaultRollupConfig(`${pkg.filename}-elements`, [], /^_[a-z]/, { input: 'src/elements.ts' }),
   ...(isProduction
     ? []
     : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),

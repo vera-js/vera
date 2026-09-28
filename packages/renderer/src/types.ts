@@ -66,8 +66,10 @@ export type SlotSeamState = { _$park$?: () => void };
  * instance's fresh fragment and the render root (`null` for a commit outside any `renderInto`, such as
  * an applier resolving later) — an instance hydration ADOPTS is never created, so it calls neither
  * `$c` nor `$m`, and slots adopts its `<slot>`s through its own seam instead; `$m`
- * once that first update has committed — so bindings are live, and a `<slot name=${…}>` has its name
- * — with whatever `$c` returned; and `$q` at teardown with whatever `$m` returned. An `undefined` at
+ * once the RENDER that created the instance has finished — so bindings are live, a `<slot
+ * name=${…}>` has its name, and the instance is in place in its container rather than in a detached
+ * fragment (a nested instance is inserted only when its outer one is) — with whatever `$c` returned;
+ * an instance torn down before then never gets `$m`; and `$q` at teardown with whatever `$m` returned. An `undefined` at
  * either step ends the instance's part in it.
  *
  * **Its shape is measured, not chosen for tidiness** (2026-09-26, three engines):
@@ -91,6 +93,24 @@ export type InstanceHook = {
   $m(state: unknown, root: Node | null): unknown;
   /** At teardown, with what `$m` kept. */
   $q(kept: unknown): void;
+};
+
+/**
+ * **What a claimant attaches to an element it claimed** — `@verajs/renderer/elements`. One shared
+ * object for every claimed element of every instance of a template; plain method names, which
+ * mangling leaves alone, so it crosses the bundle boundary. The `'element'` insert in
+ * `@verajs/inserts` is declared with this same shape.
+ */
+export type ElementBehavior = {
+  /**
+   * Once per instance, after its first update — bindings committed, the element possibly not yet
+   * connected (a host rendered off-page, a row in its batching fragment). `root` is the render root
+   * the instance was committed into, `null` outside any render; `adopted` is true when hydration
+   * adopted the server's element rather than creating one. Whatever it returns is kept for `unmount`.
+   */
+  mount?(element: Element, context: { root: Node | null; adopted: boolean }): unknown;
+  /** Once, at the instance's teardown, with what `mount` returned — only when that was not undefined. */
+  unmount?(kept: unknown, element: Element): void;
 };
 
 /**
