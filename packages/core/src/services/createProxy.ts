@@ -52,7 +52,22 @@ const handler: ProxyHandler<object> = {
   get(obj, prop, receiver) {
     const value = Reflect.get(obj, prop, receiver);
     track(obj, prop);
-    return value !== null && typeof value === 'object' ? createProxy(value) : value;
+    /**
+     * **A property the language says must be returned verbatim is.** A non-writable,
+     * non-configurable data property may not be answered with a substitute — the engine throws — and
+     * every property of a frozen object is one, so reading a nested object out of
+     * `createStore(Object.freeze(config))` threw. A non-extensible parent is handed back raw without
+     * asking further (no allocation on the read path); an extensible one can still carry an explicitly
+     * readonly slot, which is caught on the cache miss and remembered as `null` — "never wrap" — so
+     * the descriptor is read once per value, never per read.
+     */
+    if (value === null || typeof value !== 'object' || !Object.isExtensible(obj)) return value;
+    let proxy = proxies.get(value);
+    if (proxy === undefined) {
+      const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+      proxies.set(value, (proxy = own && !own.writable && !own.configurable ? null : new Proxy(value, handler)));
+    }
+    return proxy ?? value;
   },
   /** `key in state.form` decides what renders, so it subscribes like a read. */
   has(obj, prop) {
@@ -130,11 +145,13 @@ const handler: ProxyHandler<object> = {
  * One map serves all stores because there is one handler: nothing about a proxy depends on which
  * store reached it.
  */
-const proxies = new WeakMap<object, object>();
+const proxies = new WeakMap<object, object | null>();
 
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
 export const createProxy = <T extends object>(data: T): T => {
   let proxy = proxies.get(data);
+  /** `null` is a nested value some store must hand back verbatim; asked for as a store itself, it is wrapped fresh. */
+  if (proxy === null) return new Proxy(data, handler) as T;
   if (proxy === undefined) proxies.set(data, (proxy = new Proxy(data, handler)));
   return proxy as T;
 };
