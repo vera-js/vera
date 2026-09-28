@@ -133,7 +133,6 @@ the right tool.
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders — unless `@verajs/renderer/namespaces` is wired, which parses an `html` template where it lands. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | What you use. |
-| `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
 | `setRenderScheduler` | `(scheduler) => previous` | Defaults to the element's own window's `requestAnimationFrame` (a popped-out window or iframe runs on its own frames). A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
@@ -351,8 +350,8 @@ is read from a store, and the call after it throws — collection methods cannot
 
 ### Styles (`@verajs/styles`)
 
-`static styles` adoption. **Not in core since 0.2.0** — most apps do not use it and every app was
-paying for it. Wire once at your app entry:
+The `css` tag and `static styles` adoption. **Not in core** — most apps do not use `static styles`, and
+every app was paying for it. Wire once at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
@@ -361,12 +360,22 @@ import { styles } from '@verajs/styles';
 wire([renderer, styles]);
 ```
 
-`styles` is the module; `adoptStyles` is the function it registers. `wire({ on: 'init', fn:
-adoptStyles, priority: 50 })` is the same registration written out, for a non-default priority.
+| Export | Notes |
+| --- | --- |
+| `styles` | The module. `wire([renderer, styles])`. |
+| `css` | Tagged template → `{ styleSheet, cssText }`. `import { css } from '@verajs/styles'` — **not** from core. |
+| `adoptStyles(element)` | What `styles` registers on `'init'` (priority 50); `wire({ on: 'init', fn: adoptStyles, priority })` for another priority. |
+| `applyStyles(styles, element)` | The adoption step alone, for an element this package's `init` insert never sees. |
 
-Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style data-vm-sheet="styles">` for plain
-strings); light DOM is hoisted to the document once per component class, wrapped in
-`@scope (tag-name) { … }`. `applyStyles(styles, element)` is exported for manual use. Omit the
+`static styles` takes a `css` result, a CSS string, or an array; falsy members are skipped
+(`[base, compact && compactSheet]`). **Shadow DOM:** sheets adopted by the shadow root, strings as one
+`<style data-vm-sheet="styles">`, closed roots included; re-`init` safe, and a server-rendered `<style>`
+copy is dropped once every style is an adopted sheet. **Light DOM:** hoisted to the document once per
+class, inside `@scope (tag-name) { … }`, with `:host` → `:scope` translated so one sheet works in both
+modes; `::slotted()` has no light-DOM equivalent (use a descendant selector); unscoped (and warned about
+in development) where `@scope` is unsupported. **Windows:** styles go into the element's OWN document
+with its own window's constructor — a component in a popped-out window or iframe is styled there; a
+sheet from another window reaches a shadow root as a `<style>` (a document cannot adopt it). Omit the
 wiring and a component with `static styles` renders unstyled — core warns once, in development.
 
 **Take `wire` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js` inlines
@@ -374,11 +383,10 @@ the registry into every bundle, so registering through your own copy writes to a
 reads: it works in development and silently does nothing in production. This applies to any module
 that registers an insert.
 
-**`static styles` is not reactive, and does not need to be.** The sheet is adopted once — per
-element for shadow DOM, per class ever for light DOM — and is shared by every instance of the class,
-so reassigning `MyComponent.styles` does nothing and mutating the sheet would hit every instance.
-What changes goes in custom properties: `var()` re-resolves whenever one changes, custom properties
-inherit through the shadow boundary, and neither needs a re-adopt.
+**`static styles` is not reactive, and does not need to be.** The sheet is adopted once and shared by
+every instance of the class, so reassigning `MyComponent.styles` does nothing and mutating the sheet
+would hit every instance. What changes goes in custom properties: `var()` re-resolves whenever one
+changes, custom properties inherit through the shadow boundary, and neither needs a re-adopt.
 
 ```js
 static styles = css`p { color: var(--accent, blue); }`;

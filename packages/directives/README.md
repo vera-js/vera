@@ -59,7 +59,7 @@ an app using motion pays more than everything else combined.
 | entry | gzip | what it is |
 | --- | --- | --- |
 | `@verajs/directives/core` | <!--size:directives.gzip.bytes-->6 158 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 513 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 275 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 361 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 942 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 202 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |

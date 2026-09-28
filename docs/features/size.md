@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->8 293 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->7 404 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->7 492 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->7 404 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -78,7 +78,7 @@ already produces from the same package when the code does not reach for a store.
 
 **There is no smaller honest number than <!--size:app.kb-->7.2 KB<!--/size:app.kb-->.** Core ships no
 renderer — `render()` with none registered warns and paints nothing — so "core alone" is not a tier
-anyone can ship. Quoting core's standalone <!--size:core.gzip-->3.32 KB<!--/size:core.gzip--> as an
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->2.54 KB<!--/size:core.gzip--> as an
 app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
@@ -109,7 +109,7 @@ directions.
 
 The renderer still earns its place on speed rather than bytes; see
 [performance.md](performance.md). An app that uses `static styles` adds `@verajs/styles`
-(<!--size:styles.gzip-->772 B<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
+(<!--size:styles.gzip-->875 B<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
 
 *(Size grew as the renderer was rebuilt for template identity and keying, and again when reactive
 Map/Set moved into core and `@verajs/map-support` was retired. Both were deliberate trades. Whether
@@ -121,26 +121,26 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 3 400 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/core` | 2 599 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 4 893 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 560 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 681 B | lazy component discovery |
-| `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
+| `@verajs/styles` | 875 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 620 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 2 242 B | `<${tag}>` — runtime tag names, in templates and JSX |
-| `@verajs/store` | 673 B | the standalone store — subscriptions without components |
+| `@verajs/store` | 812 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 5 737 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
 | `@verajs/jsx/standalone` | 2 236 B | JSX in the browser with no build — the CodePen path |
 | `@verajs/store/computed` | 238 B | memoized derived values |
-| `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
+| `@verajs/store/collections` | 714 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 4 175 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/namespaces` | 742 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/elements` | 530 B | behavior attached to claimed elements in templates, mounted and unmounted with their instances |
 | `@verajs/renderer/hydrate` | 6 814 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
-| `@verajs/inserts` | 357 B | the extension point |
+| `@verajs/inserts` | 344 B | the extension point |
 | `@verajs/directives/core` | 6 158 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 7 513 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/standalone` | 7 275 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 361 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 942 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |
