@@ -92,7 +92,7 @@ const refusedSink = (key: string): string | null => {
   /** The event spelling the constructor converts: `on` + Capital, lowercase `on` only. */
   if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) return null;
   const lower = key.toLowerCase();
-  if (lower === 'srcdoc') return 'an inline iframe document is markup injection by definition — bind it in the template if you truly mean it';
+  if (lower === 'srcdoc') return 'an inline iframe document is markup injection by definition — bind the property in the template (`.srcdoc=${trusted}`) if you truly mean it';
   if (lower.length > 2 && lower.startsWith('on'))
     return 'an inline handler attribute is code from data — pass a function as `on` + Capital (onClick) or `@click` instead';
   return null;

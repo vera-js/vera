@@ -162,6 +162,11 @@ unsanitized. Everything else is checked:
   every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
 - **A `__proto__` key in `props` is skipped**, so handing the option a parsed request body cannot
   replace the component's prototype.
+- **A bound `javascript:` URL is never served.** A template value bound where a browser navigates
+  (`href`, `src`, `action`, `formaction`, `xlink:href`, `data`) is dropped when it parses as a
+  `javascript:` URL — judged on the attribute's whole value, statics and character references
+  included, as the browser will read it — and a bound `srcdoc` attribute is never served. The client
+  renderer refuses exactly the same values, so the two agree.
 - **`base` contains the module URL.** `renderToString` executes the module it is given, and mapping
   a route to a component file is the obvious way to use a server renderer — so pass `base` whenever
   any part of the URL came from a request:

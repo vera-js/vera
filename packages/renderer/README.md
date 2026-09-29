@@ -1005,6 +1005,17 @@ Greppable, obviously yours, reviewable as the security decision it is. Sanitize 
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
+**Security: a bound URL cannot be a `javascript:` URL, and a bound `srcdoc` is refused.** A value
+bound where a browser *navigates* — `href`, `src`, `action`, `formaction`, `xlink:href` or `data`,
+as the attribute or as its property — is refused when it parses as a `javascript:` URL, and the
+attribute is removed. It is read the way the URL Standard reads a scheme, so `" jAvA\tscript:"` is
+caught as surely as `javascript:`, and it is judged on the whole JOINED value, so `href="java${x}"` is
+caught too; the statics you write are yours and are never refused on their own. A bound `srcdoc`
+*attribute* is refused outright, because it renders its value as an HTML document —
+`.srcdoc=${trusted}` is the deliberate spelling, exactly as `.innerHTML` is. There is no opt-out for
+URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.
+Development builds name each refusal.
+
 **Security: spread refuses the injection sinks.** The `.innerHTML` posture above rests on the
 template spelling being greppable, obviously yours, and reviewable — three properties a spread key
 does not have, because spread names arrive at runtime inside a props object that is often built
@@ -1013,7 +1024,7 @@ and any inline-handler attribute name (`onclick` and friends, any casing — `on
 function remains the documented event spelling and still works), on the client AND in the SSR
 serializer alike. Development builds name each refused key and the sanctioned template spelling.
 If you genuinely need one of these dynamically, write the binding in the template where a reviewer
-can see it.
+can see it — for `srcdoc`, the property: `.srcdoc=${trusted}`.
 
 ## `@verajs/renderer/tag`
 
