@@ -133,3 +133,36 @@ export const VOID_ELEMENTS = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
   'link', 'meta', 'param', 'source', 'track', 'wbr',
 ]);
+
+/**
+ * **A URL a browser reads as `javascript:`** — the twin of `SCRIPT_URL` in `@verajs/shared-utils`,
+ * which this package cannot import (it publishes its `src` with no dependencies). Matched the way the
+ * URL Standard's parser reads a scheme: leading C0 controls and spaces stripped, ASCII tab, LF and CR
+ * removed anywhere, case-insensitive. A bound value that parses this way is code arriving as data, so
+ * the client refuses it — and a server that emitted it would serve the very link the client refuses,
+ * and a working exploit to anyone who never hydrates. `tests/url-sinks.test.mjs` drives both homes
+ * against one stated spec.
+ */
+// eslint-disable-next-line no-control-regex
+export const SCRIPT_URL = /^[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
+
+/** The attributes a browser navigates to or loads as a document — the twin of `URL_ATTRIBUTE` there. */
+export const URL_ATTRIBUTE = /^(?:href|src|action|formaction|xlink:href|data)$/i;
+
+/**
+ * The character references that can spell part of a scheme, decoded — enough to give the verdict a
+ * browser gives on an attribute's static text, without a full entity table. Numeric references (with
+ * or without their `;`) and the three named ones that are scheme-relevant (`&colon;`, `&Tab;`,
+ * `&NewLine;`); every other named reference decodes to a character that cannot be part of
+ * `javascript:`, so leaving it encoded gives the same verdict.
+ */
+/** A numeric reference's character, as a parser decodes it: NUL, a surrogate or an out-of-range value is U+FFFD. */
+const decodeCodePoint = (code) =>
+  code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || Number.isNaN(code) ? '\ufffd' : String.fromCodePoint(code);
+
+export const decodeSchemeReferences = (text) =>
+  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(colon|Tab|NewLine));?/g, (whole, decimal, hex, name) =>
+    decimal !== undefined || hex !== undefined
+      ? decodeCodePoint(parseInt(decimal ?? hex, decimal !== undefined ? 10 : 16))
+      : name === 'colon' ? ':' : name === 'Tab' ? '\t' : name === 'NewLine' ? '\n' : whole
+  );

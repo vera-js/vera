@@ -78,3 +78,28 @@ export const RESERVED_ELEMENT_NAMES = new Set([
   'annotation-xml', 'color-profile', 'font-face', 'font-face-src',
   'font-face-uri', 'font-face-format', 'font-face-name', 'missing-glyph',
 ]);
+
+/**
+ * A URL whose scheme a browser reads as `javascript:` — navigating to one runs it, so a BOUND value
+ * that parses this way is code arriving as data, never a link.
+ *
+ * Matched the way the URL Standard's parser reads a scheme, because that is the only reading that
+ * matters: leading C0 controls and spaces are stripped, ASCII tab, LF and CR are removed anywhere, and
+ * the scheme is case-insensitive. A check that only lowercases is bypassed by `" jAvA\tscript:"`,
+ * which every engine navigates to. React's blocking pattern is the same rule.
+ *
+ * `@verajs/ssr` keeps a twin (it cannot import this package), held to this one by
+ * `tests/url-sinks.test.mjs`, so a server never emits a link the client refuses.
+ */
+// eslint-disable-next-line no-control-regex
+export const SCRIPT_URL = /^[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
+
+/**
+ * The attributes (and their reflecting properties) whose value a browser NAVIGATES to or loads as a
+ * document — where a `javascript:` URL executes: links and areas (`href`, SVG's `xlink:href`), forms
+ * (`action`, `formaction`), frames (`src`), and `<object data>`. `src` is matched on every element —
+ * refusing one on an `<img>` costs nothing, since an image never runs it. Resource-only attributes
+ * (`poster`, `srcset`) are fetched, never run, so they are not listed. Case-insensitive, because
+ * property spellings (`formAction`) and attribute spellings meet here.
+ */
+export const URL_ATTRIBUTE = /^(?:href|src|action|formaction|xlink:href|data)$/i;

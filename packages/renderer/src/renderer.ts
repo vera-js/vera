@@ -16,7 +16,7 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { reportUncaught } from '@verajs/shared-utils';
+import { reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
 
 import type { TemplateResult } from './types.js';
 
@@ -217,13 +217,17 @@ const BOOLEAN = 5;
 const EVENT = 6;
 /** An element-position expression: a ref, or a value that applies itself (`_$apply$`). */
 const REF = 7;
+/** `.name` on a custom element — see `commitAdopt`. */
+const ADOPT = 8;
 /**
  * Kinds from here on re-assert on EVERY render, so the update loop never skips them as unchanged:
  * `!name` writes from the live DOM's point of view (a sibling radio's click unchecks this one with no
  * event on it), and a `<select>`'s value is re-applied once its options exist — see `pendingSelects`.
  */
-const LIVE = 8;
-const SELECT = 9;
+const LIVE = 9;
+const SELECT = 10;
+/** A binding that must never write — it still consumes its values. */
+const REFUSED = 11;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
@@ -243,6 +247,8 @@ class Template {
   _paths: number[][] = [];
   /** The template statically writes the attribute too, so a first nullish commit must still remove it. */
   _present: boolean[];
+  /** The binding names a URL a browser navigates to — a `javascript:` value is refused (see `SCRIPT_URL`). */
+  _urls: boolean[];
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
@@ -268,6 +274,7 @@ class Template {
     const names = (this._names = new Array(count).fill(''));
     const staticsList = (this._statics = new Array(count).fill(null));
     const present = (this._present = new Array(count).fill(false));
+    const urls = (this._urls = new Array(count).fill(false));
     let specIndex = 0;
     const skipIgnored = () => {
       while (specIndex < specs.length && specs[specIndex] === SPEC_IGNORED) specIndex++;
@@ -298,6 +305,28 @@ class Template {
               real = name.slice(2).toLowerCase();
             }
             if (kind === PROPERTY && real === 'value' && el.localName === 'select') kind = SELECT;
+            /**
+             * `el.__proto__ = v` is not a property write: it replaces the element's prototype and
+             * destroys it. No use is legitimate, so the binding is refused — the deliberate twin of
+             * spread's `refusedSink` (`tests/dangerous-binding-matrix.test.mjs` holds the two together).
+             */
+            if ((kind === PROPERTY || kind === LIVE) && real === '__proto__') {
+              kind = REFUSED;
+              if (__DEV__)
+                console.warn(
+                  `[vera] <${el.localName}> binds \`${name}\`, which would replace the element's own prototype ` +
+                    `and destroy it — no property write does this, and no use of it is legitimate. The binding is ignored.`
+                );
+            } else if (kind === ATTR && real.toLowerCase() === 'srcdoc') {
+              /** A bound `srcdoc` ATTRIBUTE renders its value as an HTML document: markup injection by construction. */
+              kind = REFUSED;
+              if (__DEV__)
+                console.warn(
+                  `[vera] <${el.localName}> binds the \`srcdoc\` attribute, which renders its value as an HTML ` +
+                    `document — refused. If the markup is trusted and sanitized, bind the property: \`.srcdoc=\${…}\`.`
+                );
+            } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
+            urls[index] = (kind === ATTR || kind === PROPERTY || kind === LIVE || kind === ADOPT) && URL_ATTRIBUTE.test(real);
             nodes[index] = el;
             kinds[index] = kind;
             names[index] = real;
@@ -382,6 +411,87 @@ class Ref {
   }
 }
 
+/** A custom element's `.prop` binding: the element, and where its adoption stands (`ADOPT` until received). */
+class Adopting {
+  _element: Element;
+  _state = ADOPT;
+  constructor(element: Element) {
+    this._element = element;
+  }
+}
+
+/**
+ * One commit of `.name` to a custom element nothing may receive yet. Returns what the binding
+ * becomes: `PROPERTY` once something receives the property (a setter anywhere on the chain, or an
+ * initialized component's `_$adopt$`) or the element is upgraded; `REFUSED` for a getter with no
+ * setter (the plain write would throw); `ADOPT` to keep recording.
+ *
+ * An unreceived write is recorded in `_$props$`, which core's `init()` drains — re-applying the bound
+ * values over whatever the class's field initializers wrote at upgrade, which is what repairs both the
+ * lazy-definition clobber and the eager one. Element-carried and `$`-named because spread writes the
+ * same record from another bundle (its `adopt` is this function's twin).
+ */
+const commitAdopt = (element: Element, name: string, value: unknown): number => {
+  const el = element as unknown as Record<string, unknown>;
+  const adopt = el._$adopt$ as ((key: string, value: unknown) => void) | undefined;
+  /** The walk comes first: what it finds decides whether writing is even legal. */
+  for (let carrier: object | null = el; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
+    const desc = Object.getOwnPropertyDescriptor(carrier, name);
+    if (desc === undefined) continue;
+    if (desc.set !== undefined) {
+      el[name] = value;
+      return PROPERTY;
+    }
+    if (desc.get !== undefined) {
+      if (adopt !== undefined) adopt(name, value);
+      else if (__DEV__)
+        console.warn(
+          `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no setter — the value ` +
+            `bound by \`.${name}=\${…}\` cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
+        );
+      return REFUSED;
+    }
+    break; // a data property: an own field, or an inherited default — nothing receives it
+  }
+  el[name] = value;
+  /** An initialized component receives live: `init()` left `_$adopt$`, and the drain already ran. */
+  if (adopt !== undefined) {
+    adopt(name, value);
+    return PROPERTY;
+  }
+  const record = (el._$props$ ??= {}) as Record<string, unknown>;
+  const first = __DEV__ && !Object.hasOwn(record, name);
+  record[name] = value;
+  /** Upgrade is read off the PROTOTYPE — a bag key named `constructor` can shadow `el.constructor`. The realm is the element's. */
+  const view = element.ownerDocument.defaultView as unknown as { HTMLElement: { prototype: object }; customElements: CustomElementRegistry } | null;
+  const upgraded = view === null || Object.getPrototypeOf(el) !== view.HTMLElement.prototype;
+  /**
+   * Development only: an element that never drains (a plain custom element with a class field) still
+   * loses the value at upgrade — told apart by OWNERSHIP once the definition arrives, never by value.
+   */
+  if (__DEV__ && view !== null && !upgraded && first) {
+    const tag = element.localName;
+    view.customElements.whenDefined(tag).then(() => {
+      let owned = false;
+      for (let carrier: object | null = el; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
+        const desc = Object.getOwnPropertyDescriptor(carrier, name);
+        if (desc === undefined) continue;
+        owned = desc.get !== undefined || desc.set !== undefined;
+        break;
+      }
+      if (!owned && el[name] !== record[name])
+        console.warn(
+          `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced while the element ` +
+            `upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits \`${name};\`, which runs ` +
+            `during upgrade and overwrites whatever was set beforehand — write it \`declare ${name}?: …\` instead. ` +
+            `A component that calls init() adopts bound properties automatically and never sees this; this ` +
+            `element did not. Ignore this if the component replaced the value on purpose.`
+        );
+    });
+  }
+  return upgraded ? PROPERTY : ADOPT;
+};
+
 /**
  * Calls an element ref, and survives one that throws — it runs mid-commit, and an unguarded throw left
  * the render half applied. Reported where a hook's error is: the app's `'error'` chain, handed the
@@ -464,7 +574,8 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
       node = node.firstChild!;
       for (let hops = path[step]; hops > 0; hops--) node = node.nextSibling!;
     }
-    bindings[i * 2] = kind === EVENT ? new Listener(node as Element) : kind === REF ? new Ref(node as Element) : node;
+    bindings[i * 2] =
+      kind === EVENT ? new Listener(node as Element) : kind === REF ? new Ref(node as Element) : kind === ADOPT ? new Adopting(node as Element) : node;
     bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
   }
   const instance = new Instance(template, result.strings, root, bindings);
@@ -532,6 +643,8 @@ const commitBinding = (
     return valueIndex + 1;
   }
   const statics = template._statics[i];
+  const next = valueIndex + (statics === null ? 1 : statics.length - 1);
+  if (kind === REFUSED) return next;
   let value: unknown;
   if (statics === null || kind === EVENT || kind === REF) value = values[valueIndex];
   else {
@@ -539,8 +652,22 @@ const commitBinding = (
     for (let s = 1; s < statics.length; s++) joined += toText(values[valueIndex + s - 1]) + statics[s];
     value = joined;
   }
-  const next = valueIndex + (statics === null ? 1 : statics.length - 1);
   const name = template._names[i];
+  /**
+   * A `javascript:` URL bound where a browser navigates is code arriving as data: refused, and the
+   * attribute removed, on the JOINED value (so `href="java${x}"` is caught too). Statics are the author's
+   * and never checked; the check runs only for bindings the template marked as URL-bearing.
+   */
+  if (template._urls[i] && value != null && SCRIPT_URL.test(value as string)) {
+    if (__DEV__ && value !== committed)
+      console.warn(
+        `[vera] renderer: \`${name}\` was given a javascript: URL — refused, and the attribute removed. A bound ` +
+          `URL is data, and data must never become code.`
+      );
+    bindings[slot + 1] = value;
+    ((kind === ADOPT ? (bindings[slot] as Adopting)._element : bindings[slot]) as Element).removeAttribute(name);
+    return next;
+  }
   if (kind === LIVE) {
     bindings[slot + 1] = value;
     const target = bindings[slot] as Record<string, unknown>;
@@ -561,6 +688,11 @@ const commitBinding = (
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
   } else if (kind === PROPERTY) (bindings[slot] as Record<string, unknown>)[name] = value;
+  else if (kind === ADOPT) {
+    const adopting = bindings[slot] as Adopting;
+    if (adopting._state === PROPERTY) (adopting._element as unknown as Record<string, unknown>)[name] = value;
+    else if (adopting._state === ADOPT) adopting._state = commitAdopt(adopting._element, name, value);
+  }
   else if (kind === BOOLEAN) (bindings[slot] as Element).toggleAttribute(name, !!value);
   else if (kind === REF) {
     /** A function is called with the element; an object gets it as `.value` (core's `ref()`); one with `_$apply$` applies itself, keyed by this binding. */

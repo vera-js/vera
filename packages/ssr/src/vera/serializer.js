@@ -1,4 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
+import { SCRIPT_URL, URL_ATTRIBUTE, decodeSchemeReferences } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 
@@ -219,7 +220,7 @@ const closesTag = (text, inTag) => {
 const RAWTEXT = new Set(['style', 'script']);
 
 const scanTag = (text, state) => {
-  let { inTag, inValue, quote, rawTag, tagName, naming } = state;
+  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial } = state;
   for (let i = 0; i < text.length; i++) {
     const character = text[i];
     /**
@@ -268,6 +269,13 @@ const scanTag = (text, state) => {
       naming = false;
     } else if (character === '=') {
       naming = false;
+      /** Which attribute this value belongs to, and a serial per value — the URL-sink check needs both. */
+      let end = i;
+      while (end > 0 && /\s/.test(text[end - 1])) end--;
+      let start = end;
+      while (start > 0 && !/[\s"'<>/=]/.test(text[start - 1])) start--;
+      attrName = text.slice(start, end).toLowerCase();
+      serial++;
       let next = i + 1;
       while (next < text.length && /\s/.test(text[next])) next++;
       quote = text[next] === '"' || text[next] === "'" ? text[next] : '';
@@ -282,7 +290,7 @@ const scanTag = (text, state) => {
       }
     }
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming };
+  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -339,7 +347,10 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0 };
+  /** Per binding: the quoted attribute value it sits in (sparse), and whether its bound name is a URL sink. */
+  const valueOf = [];
+  const urls = [];
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
@@ -397,6 +408,7 @@ const compile = (strings) => {
          * answered in the case below.
          */
         kinds.push(COMPONENT_PROP);
+        urls[kinds.length - 1] = URL_ATTRIBUTE.test(sigilName);
       } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigilName)) {
         kinds.push(FORM_PROP);
       } else {
@@ -445,8 +457,10 @@ const compile = (strings) => {
       const before = part.slice(0, attribute.index).replace(/ $/, '');
       record(before);
       parts.push(before);
-      kinds.push(ATTRIBUTE);
+      /** A bound `srcdoc` attribute renders its value as a document — the client refuses it, so it is never served. */
       const name = attribute[0].slice(0, -1);
+      kinds.push(name.toLowerCase() === 'srcdoc' ? DROPPED : ATTRIBUTE);
+      urls[kinds.length - 1] = URL_ATTRIBUTE.test(name);
       names.push(name);
       strip.push(dynamicTag || written.has(name.toLowerCase()));
       owners.push(owner);
@@ -472,6 +486,8 @@ const compile = (strings) => {
      * `setAttribute`, produced `a 1,2 b`.
      */
     attrValues.push(tagState.inTag && tagState.inValue);
+    if (tagState.inTag && tagState.inValue && tagState.quote)
+      valueOf[kinds.length - 1] = { name: tagState.attrName, serial: tagState.serial, quote: tagState.quote };
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     elementPositions.push(elementPosition);
@@ -484,15 +500,54 @@ const compile = (strings) => {
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements };
+  /**
+   * **URL sinks in quoted values, settled here once.** The client joins a bound attribute's statics and
+   * values and refuses the WHOLE value when it parses as a `javascript:` URL — so `href="java${x}"` is
+   * caught, not only `href=${x}` — and never writes a bound `srcdoc`. The stream here emits statics and
+   * values piecemeal, so each binding of such a value gets its group: where the attribute starts in the
+   * output (to cut it back out), the decoded statics the client would join, and how much of the next
+   * static to skip (the suffix and the closing quote).
+   */
+  const groups = [];
+  for (let i = 0; i < kinds.length; i++) {
+    const value = valueOf[i];
+    if (value === undefined) continue;
+    const refuse = value.name === 'srcdoc' ? 2 : URL_ATTRIBUTE.test(value.name) ? 1 : 0;
+    if (refuse === 0) continue;
+    const first = valueOf[i - 1]?.serial !== value.serial;
+    const last = valueOf[i + 1]?.serial !== value.serial;
+    const group = { refuse, first, last, tail: 0, prefix: '', between: '', suffix: '', skip: 0 };
+    if (first) {
+      const part = parts[i];
+      const quote = part.lastIndexOf(value.quote);
+      let at = quote - 1;
+      while (at >= 0 && /[\s=]/.test(part[at])) at--;
+      while (at >= 0 && !/[\s"'<>/=]/.test(part[at])) at--;
+      while (at >= 0 && /\s/.test(part[at])) at--;
+      group.tail = part.length - (at + 1);
+      group.prefix = decodeSchemeReferences(part.slice(quote + 1));
+    } else group.between = decodeSchemeReferences(parts[i]);
+    if (last) {
+      const quote = parts[i + 1].indexOf(value.quote);
+      group.suffix = decodeSchemeReferences(parts[i + 1].slice(0, quote));
+      group.skip = quote + 1;
+    }
+    groups[i] = group;
+  }
+
+  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements, groups, urls };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements } =
+  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements, groups, urls } =
     plans.get(strings) ?? compile(strings);
+  /** A refused URL-sink value in progress: where its attribute starts, what the client would join, and what to skip next. */
+  let cut = 0;
+  let joined = '';
+  let skip = 0;
   let out = '';
   /**
    * The instances this application is delivering properties to, allocated on the FIRST
@@ -518,9 +573,11 @@ export const serializeTemplate = (template) => {
   const selectValues = [];
 
   for (let i = 0; i < kinds.length; i++) {
-    if (pendingText === null) out += parts[i];
+    const part = skip === 0 ? parts[i] : parts[i].slice(skip);
+    skip = 0;
+    if (pendingText === null) out += part;
     else {
-      out += insertContent(parts[i], pendingText);
+      out += insertContent(part, pendingText);
       pendingText = null;
     }
     const value = values[i];
@@ -616,7 +673,23 @@ export const serializeTemplate = (template) => {
          * where the client writes its source. The single-expression form was corrected for exactly
          * this; the form with static text beside it was reached by a different branch and kept it.
          */
-        else if (attrValues[i]) out += escapeHtml(serializeValue(value, true));
+        else if (attrValues[i]) {
+          const group = groups[i];
+          const text = serializeValue(value, true);
+          if (group !== undefined) {
+            if (group.first) {
+              cut = out.length - group.tail;
+              joined = group.prefix;
+            } else joined += group.between;
+            joined += text;
+            if (group.last && (group.refuse === 2 || SCRIPT_URL.test(joined + group.suffix))) {
+              out = out.slice(0, cut);
+              skip = group.skip;
+              break;
+            }
+          }
+          out += escapeHtml(text);
+        }
         else out += serializeValue(value);
         break;
       case BOOLEAN:
@@ -681,7 +754,11 @@ export const serializeTemplate = (template) => {
       case ATTRIBUTE:
         /** Unquoted `attr=${x}`: quoted so spacey values stay one attribute, absent when nullish. */
         if (strip[i]) out = removeAttribute(out, names[i]);
-        if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
+        if (value != null) {
+          const text = serializeValue(value, true);
+          /** A `javascript:` URL bound where a browser navigates is refused, as the client refuses it. */
+          if (!(urls[i] && SCRIPT_URL.test(text))) out += ` ${names[i]}="${escapeHtml(text)}"`;
+        }
         break;
       case COMPONENT_PROP:
         /**
@@ -692,7 +769,7 @@ export const serializeTemplate = (template) => {
          * Registration is asked per render, not per plan, because the registry fills as component
          * modules execute.
          */
-        if (registry.has(owners[i])) {
+        if (registry.has(owners[i]) && !(urls[i] && value != null && SCRIPT_URL.test(`${value}`))) {
           adoption ??= { instances: new Map(), mark: '' };
           deliverProperty(claimInstance(adoption, elements[i], owners[i]), owners[i], names[i], value);
           if (adoption.mark !== '') {
@@ -704,7 +781,7 @@ export const serializeTemplate = (template) => {
       /** DROPPED: '@' and '&' and a non-component, non-form '.' or '!': nothing — client concerns. */
     }
   }
-  const tail = parts[kinds.length];
+  const tail = skip === 0 ? parts[kinds.length] : parts[kinds.length].slice(skip);
   const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText);
   return selectValues.length ? resolveSelects(finished, selectValues) : finished;
 };
