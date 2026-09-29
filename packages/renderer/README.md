@@ -1020,9 +1020,10 @@ Development builds name each refusal.
 template spelling being greppable, obviously yours, and reviewable — three properties a spread key
 does not have, because spread names arrive at runtime inside a props object that is often built
 from data. So `spread()` refuses `.innerHTML`/`!outerHTML` property keys, the `srcdoc` attribute,
-and any inline-handler attribute name (`onclick` and friends, any casing — `on` + Capital with a
-function remains the documented event spelling and still works), on the client AND in the SSR
-serializer alike. Development builds name each refused key and the sanctioned template spelling.
+any inline-handler attribute name (`onclick` and friends, any casing — `on` + Capital with a
+function remains the documented event spelling and still works), and — as a template binding is —
+a `javascript:` URL on a key a browser navigates (`href`, `.href` and the rest), on the client AND
+in the SSR serializer alike. A key's verdict is decided once, when it first appears, not per render. Development builds name each refused key and the sanctioned template spelling.
 If you genuinely need one of these dynamically, write the binding in the template where a reviewer
 can see it — for `srcdoc`, the property: `.srcdoc=${trusted}`.
 

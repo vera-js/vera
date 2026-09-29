@@ -510,10 +510,12 @@ after page load takes focus — later forms need the claim.
 
 ### Spread (`@verajs/renderer/spread`)
 
-⚠️ Spread REFUSES the injection sinks — `.innerHTML`/`!outerHTML`, `srcdoc`, and inline-handler
-attribute names (`onclick`, any casing) — on client and server alike, because spread keys arrive at
-runtime and lose the greppable-reviewable property the template spelling has. `on` + Capital with a
-function is the event spelling and works. Need such a sink? Write it in the template.
+⚠️ Spread REFUSES the injection sinks — `.innerHTML`/`!outerHTML`, `srcdoc`, inline-handler
+attribute names (`onclick`, any casing), and a `javascript:` URL on a key a browser navigates
+(`href`, `.href`, `src`, …) — on client and server alike, because spread keys arrive at runtime and
+lose the greppable-reviewable property the template spelling has. `on` + Capital with a function is
+the event spelling and works. Need such a sink? Write it in the template (`.srcdoc=${trusted}`,
+`.innerHTML=${trusted}`) — a `javascript:` URL has no spelling anywhere.
 
 Bindings whose names are not known when the template is parsed.
 

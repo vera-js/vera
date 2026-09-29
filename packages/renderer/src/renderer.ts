@@ -16,7 +16,7 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
 
 import type { TemplateResult } from './types.js';
 
@@ -60,7 +60,7 @@ const BOOLEAN = 5;
 const EVENT = 6;
 /** An element-position expression: a ref, or a value that applies itself (`_$apply$`). */
 const REF = 7;
-/** `.name` on a custom element — see `commitAdopt`. */
+/** `.name` on a custom element — see `adoptProperty` in shared-utils. */
 const ADOPT = 8;
 /**
  * Kinds from here on re-assert on EVERY render, so the update loop never skips them as unchanged:
@@ -298,12 +298,13 @@ const toText = (value: unknown) => (value == null ? '' : `${value}`);
  * The record an `@event`, element-position or custom-element `.prop` binding holds in its node slot.
  * For an event it is the LISTENER — a stable object, so swapping handlers never touches the DOM and a
  * re-add through `null` is deduped by the platform; for a ref it is the key an `_$apply$` value keeps
- * its ownership by; for `.prop` on a custom element, `_state` is where adoption stands.
+ * its ownership by; for `.prop` on a custom element, `_state` is where adoption stands (`adoptProperty`:
+ * 0 still adopting, 1 received, 2 refused).
  */
 class Slot {
   _element: Element;
   _handler: unknown = null;
-  _state = ADOPT;
+  _state = 0;
   constructor(element: Element) {
     this._element = element;
   }
@@ -314,74 +315,6 @@ class Slot {
     else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
   }
 }
-
-/**
- * One commit of `.name` to a custom element nothing may receive yet. Returns what the binding becomes:
- * `PROPERTY` once something receives it (a setter anywhere on the chain, or an initialized component's
- * `_$adopt$`) or the element is upgraded; `REFUSED` for a getter with no setter (the plain write would
- * throw); `ADOPT` to keep recording. An unreceived write is recorded in `_$props$`, which core's
- * `init()` drains over whatever class fields wrote at upgrade. Element-carried and `$`-named because
- * spread writes the same record from another bundle (its `adopt` is this function's twin).
- */
-const commitAdopt = (element: Element, name: string, value: unknown): number => {
-  const el = element as unknown as Record<string, unknown>;
-  const adopt = el._$adopt$ as ((key: string, value: unknown) => void) | undefined;
-  /** The walk comes first: what it finds decides whether writing is even legal. */
-  for (let carrier: object | null = el; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
-    const desc = Object.getOwnPropertyDescriptor(carrier, name);
-    if (desc === undefined) continue;
-    if (desc.set !== undefined) {
-      el[name] = value;
-      return PROPERTY;
-    }
-    if (desc.get !== undefined) {
-      if (adopt !== undefined) adopt(name, value);
-      else if (__DEV__)
-        console.warn(
-          `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no setter — the value ` +
-            `bound by \`.${name}=\${…}\` cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
-        );
-      return REFUSED;
-    }
-    break; // a data property: an own field, or an inherited default — nothing receives it
-  }
-  el[name] = value;
-  if (adopt !== undefined) {
-    adopt(name, value);
-    return PROPERTY;
-  }
-  const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const first = __DEV__ && !Object.hasOwn(record, name);
-  record[name] = value;
-  /** Upgrade is read off the PROTOTYPE — a bag key named `constructor` can shadow `el.constructor`. The realm is the element's. */
-  const view = element.ownerDocument.defaultView as unknown as {
-    HTMLElement: { prototype: object };
-    customElements: CustomElementRegistry;
-  } | null;
-  const upgraded = view === null || Object.getPrototypeOf(el) !== view.HTMLElement.prototype;
-  /** Development only: an element that never drains still loses the value at upgrade — told apart by ownership. */
-  if (__DEV__ && view !== null && !upgraded && first) {
-    const tag = element.localName;
-    view.customElements.whenDefined(tag).then(() => {
-      let owned = false;
-      for (let carrier: object | null = el; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
-        const desc = Object.getOwnPropertyDescriptor(carrier, name);
-        if (desc === undefined) continue;
-        owned = desc.get !== undefined || desc.set !== undefined;
-        break;
-      }
-      if (!owned && el[name] !== record[name])
-        console.warn(
-          `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced while the element ` +
-            `upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits \`${name};\`, which runs ` +
-            `during upgrade and overwrites whatever was set beforehand — write it \`declare ${name}?: …\` instead. ` +
-            `A component that calls init() adopts bound properties automatically and never sees this; this ` +
-            `element did not. Ignore this if the component replaced the value on purpose.`
-        );
-    });
-  }
-  return upgraded ? PROPERTY : ADOPT;
-};
 
 /**
  * Calls an element ref, and survives one that throws — it runs mid-commit, and an unguarded throw left
@@ -551,8 +484,8 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     listener._handler = value ?? null;
   } else if (kind === ADOPT) {
     const adopting = node as Slot;
-    if (adopting._state === PROPERTY) (element as unknown as Record<string, unknown>)[name] = value;
-    else if (adopting._state === ADOPT) adopting._state = commitAdopt(element, name, value);
+    if (adopting._state === 1) (element as unknown as Record<string, unknown>)[name] = value;
+    else if (adopting._state === 0) adopting._state = adoptProperty(element, name, value);
   } else if (kind === REF && value != null) {
     /** A function is called with the element; an object gets it as `.value` (core's `ref()`); one with `_$apply$` applies itself, keyed by this binding. */
     notifyOnRemoval = true;

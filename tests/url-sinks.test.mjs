@@ -69,6 +69,15 @@ cases.push(
   { label: 'a referenced scheme colon (&colon;) before a binding', kind: 'hostile', payload: 'javascript:alert(1)',
     position: { sel: 'a', attr: 'href', strings: ['<a href="javascript&colon;', '">x</a>'], values: () => ['alert(1)'] } }
 );
+/**
+ * The same payloads through `spread` — the twin of the template rule — as an attribute key and as a
+ * property key. The client applies the bag; the server serializes its `_$attrs$` half.
+ */
+for (const [kind, list] of [['hostile', HOSTILE], ['benign', BENIGN]])
+  for (const payload of list)
+    for (const bagKey of ['href', '.href'])
+      cases.push({ label: `spread { ${bagKey} } · ${kind} · ${JSON.stringify(payload)}`, kind, payload, spreadKey: bagKey,
+        position: { sel: 'a', attr: 'href', strings: ['<a ', '>x</a>'], values: (v) => [v] } });
 /** A bound `srcdoc` attribute renders its value as a document: refused whatever it holds. */
 for (const strings of [['<iframe srcdoc=', '></iframe>'], ['<iframe srcdoc="', '"></iframe>']])
   cases.push({ label: `bound srcdoc (${strings[0]})`, kind: 'hostile', position: { sel: 'iframe', attr: 'srcdoc', strings, values: (v) => [v] }, payload: '<b>x</b>' });
@@ -76,9 +85,11 @@ for (const strings of [['<iframe srcdoc=', '></iframe>'], ['<iframe srcdoc="', '
 /* ── server, in its own process (the SSR DOM and jsdom cannot share one) ─────────────────────── */
 const serverScript = `
 import { serializeTemplate } from '@verajs/ssr';
-const cases = ${JSON.stringify(cases.map((c) => [c.position.strings, c.position.values(c.payload)]))};
-process.stdout.write(JSON.stringify(cases.map(([strings, values]) =>
-  serializeTemplate({ _$litType$: 1, strings: Object.freeze(Object.assign([...strings], { raw: [...strings] })), values }))));
+const { spread } = await import('@verajs/renderer/spread');
+const cases = ${JSON.stringify(cases.map((c) => [c.position.strings, c.position.values(c.payload), c.spreadKey ?? null]))};
+process.stdout.write(JSON.stringify(cases.map(([strings, values, spreadKey]) =>
+  serializeTemplate({ _$litType$: 1, strings: Object.freeze(Object.assign([...strings], { raw: [...strings] })),
+    values: spreadKey === null ? values : [spread({ [spreadKey]: values[0] })] }))));
 `;
 const served = JSON.parse(
   execFileSync(process.execPath, ['--input-type=module', '-e', serverScript], { cwd: new URL('..', import.meta.url), encoding: 'utf8' })
@@ -90,6 +101,7 @@ globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 const { renderInto } = await load('renderer');
+const { spread } = await load('renderer/spread');
 const silence = console.warn;
 
 const attributeOf = (host, { sel, attr }) => host.querySelector(sel)?.getAttribute(attr) ?? null;
@@ -105,12 +117,16 @@ test('a javascript: URL bound where a browser navigates is refused by the client
   try {
     cases.forEach((c, i) => {
       const host = document.createElement('div');
-      renderInto({ _$litType$: 1, strings: Object.freeze(Object.assign([...c.position.strings], { raw: [...c.position.strings] })), values: c.position.values(c.payload) }, host);
+      const values = c.position.values(c.payload);
+      renderInto({ _$litType$: 1, strings: Object.freeze(Object.assign([...c.position.strings], { raw: [...c.position.strings] })),
+        values: c.spreadKey === undefined ? values : [spread({ [c.spreadKey]: values[0] })] }, host);
       const client = attributeOf(host, c.position);
       const parsed = document.createElement('div');
       parsed.innerHTML = served[i];
       const server = attributeOf(parsed, c.position);
-      if (c.kind === 'hostile' ? client !== null || server !== null : client !== c.payload || server !== c.payload)
+      /** A property key is the client's concern: `@verajs/ssr`'s serializer drops a `.prop` binding on an ordinary element. */
+      const serverShows = c.spreadKey !== '.href';
+      if (c.kind === 'hostile' ? client !== null || server !== null : client !== c.payload || (serverShows && server !== c.payload))
         wrong.push(`${c.label}: client ${JSON.stringify(client)}, server ${JSON.stringify(server)}`);
     });
   } finally {

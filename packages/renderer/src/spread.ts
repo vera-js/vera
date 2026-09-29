@@ -1,21 +1,25 @@
-import { attributeValueComplaint } from './dev-values.js';
 /**
- * `<div ${spread(props)}>` — bindings whose names are not known when the template is parsed.
+ * `<div ${spread(props)}>` — bindings whose NAMES are not known when the template is parsed.
  *
- * Template renderers bake attribute names in at parse time; that is what makes them small and fast,
- * and it is why neither this renderer nor lit-html has had spread. Lit's spread PR has sat open as a
- * draft since 2021, blocked on the questions answered below.
+ * Ships separately: the renderer holds one property read (a value at element position carrying
+ * `_$apply$` applies itself), so an app that never spreads pays only that. This entry imports nothing
+ * from the renderer and reaches it only through that protocol, so it works beside any renderer entry.
  *
- * **Why this ships separately.** The renderer holds one property read — a value at element position
- * carrying `_$apply$` applies itself — and nothing else, so a base bundle grows 16 B rather than
- * 176 B and an app that never spreads pays only that. Core and the renderer are the two packages
- * where weight is absolute; this is not one of them, but it is still measured.
+ * **One key, one rule, decided once.** A key's kind and name follow the renderer's template sigils
+ * exactly (`.prop`, `?bool`, `@event`, `&ref`, `!live`, `onClick`), and its verdict — including every
+ * refusal — is decided when its binding is first created, never again per render. The rules are
+ * repeated rather than imported from the renderer (the bundles cannot share state);
+ * `tests/spread-written-parity.test.mjs` drives both spellings against each other.
  *
- * The sigil rules are repeated here rather than shared through `@verajs/shared-utils`. That was
- * tried: a shared resolver has to hand back both a kind and a name, and the tuple it allocates cost
- * the renderer 10 B. Principle #5 permits deliberate duplication where two callers can legitimately
- * diverge; #7 decides it, because the renderer is where bytes are not negotiable.
+ * **Security: spread is where the template security model would break**, because its names arrive at
+ * runtime, often from data, and are neither greppable nor reviewable. So it refuses, on the client and
+ * in the server half (`_$attrs$`) alike: `.innerHTML`/`.outerHTML` (and `!`), `.__proto__`, the `srcdoc`
+ * attribute, inline-handler attributes (`onclick` in any casing — `on` + Capital is the event spelling
+ * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
+ * where a browser navigates.
  */
+import { adoptProperty, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { attributeValueComplaint } from './dev-values.js';
 
 const ATTR = 0;
 const PROPERTY = 1;
@@ -24,269 +28,119 @@ const BOOLEAN = 2;
 const LIVE = 3;
 const EVENT = 4;
 const REF = 5;
-/** A binding gone inert — a get-only property refusal; `write` matches it against nothing. */
-const REFUSED = -1;
+const REFUSED = 6;
 
 /**
- * A key that cannot be written into a tag, and therefore cannot be used at all.
- *
- * Measured in Chromium, `setAttribute` accepts `"`, `'` and `<` and rejects whitespace, `>`, `=`,
- * `/` and NUL — but a name carrying a quote or a `<` cannot survive **markup**, so `@verajs/ssr`
- * has to refuse it, and a key that works here and vanishes server-side is worse than one that works
- * nowhere. The rule is therefore the HTML attribute-name restriction (control characters,
- * whitespace, `"`, `'`, `>`, `/`, `=`) plus `<` and a backtick, applied identically on both sides.
- *
- * Skipped rather than thrown. `setAttribute` throws `InvalidCharacterError` on some of these, which
- * took down the whole render — for one bad key in a props bag, on a binding whose entire purpose is
- * names that are not known until runtime.
- *
- * The control-character range is the point of the rule, not a mistake in it: a name carrying one
- * is exactly what must never reach markup.
+ * A name that cannot be written into a tag: the HTML attribute-name restriction (control characters,
+ * whitespace, `"`, `'`, `>`, `/`, `=`) plus `<` and a backtick — refused identically on both sides, so a
+ * key cannot work here and vanish server-side. Skipped, never thrown: one bad key must not cost a render.
  */
 // eslint-disable-next-line no-control-regex
 const UNSAFE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
+/** Development only: why a key was refused, by refusal code. */
+const WHY = __DEV__
+  ? [
+      '',
+      'an attribute name cannot contain whitespace, a quote, `<`, `>`, `/`, `=` or a control character, and one that cannot be written into markup would not survive server rendering',
+      'write it in the template — html`<div .innerHTML=${trusted}>` — sanitized first (renderer README, security note)',
+      "assigning __proto__ replaces the element's own prototype and destroys it — no property write does this, and no use of it is legitimate",
+      'an inline iframe document is markup injection by definition — bind the property in the template (`.srcdoc=${trusted}`) if you truly mean it',
+      'an inline handler attribute is code from data — pass a function as `on` + Capital (onClick) or `@click` instead',
+    ]
+  : [];
+
 /**
- * **Sinks spread refuses, because spread is the one place the template security model breaks.**
- *
- * The renderer's posture on `.innerHTML` (README, "security") rests on three properties of the
- * template spelling: greppable, obviously yours, reviewable as the decision it is. A spread key
- * arrives at RUNTIME inside a props object — often built from data — and has none of the three:
- * `spread(fromJson)` carrying `.innerHTML` or an inline `onclick` attribute is markup or code
- * injection through a door no grep can see. So spread refuses the sinks and points at the template
- * spelling, which remains fully available to an author who means it.
- *
- * The list, deliberately minimal and named: `innerHTML`/`outerHTML` as property or live-property
- * keys; `srcdoc` as an attribute (an iframe's inline document); and any attribute whose name the
- * browser would treat as an inline handler (`on…` in any casing) — EXCEPT the documented event
- * spelling `on` + Capital, which the constructor converts to a real listener and which therefore
- * never becomes an attribute. The exemption mirrors the constructor's test byte for byte, because
- * `ONCLICK` must not slip through as "looks like the event spelling": the constructor only
- * converts a lowercase `on`, so only that exact shape is exempt.
- *
- * Returns the hint for the diagnostic, or null for a permitted key.
+ * A key's kind and name, and — for a refused key — why (`[REFUSED, code]`). The twin of the renderer's
+ * template construction; a refused key's verdict never changes, so it is decided once per binding.
  */
-const refusedSink = (key: string): string | null => {
+const resolve = (key: string): [number, string | number] => {
   const first = key[0];
-  if (first === '.' || first === '!') {
-    const name = key.slice(1);
-    if (name === 'innerHTML' || name === 'outerHTML')
-      return 'write it in the template — html`<div .innerHTML=${trusted}>` — sanitized first (renderer README, security note)';
-    /**
-     * `element.__proto__ = value` is not a property write — it hits Object.prototype's
-     * `__proto__` ACCESSOR and replaces the element's prototype, stripping every DOM method it
-     * has. The element is bricked, and the crash lands LATER, in whatever binding next calls
-     * `removeAttribute` on it — a data-driven render-kill with a stack that names the renderer
-     * and not the data. Found by the run-14 payload probe; there is no legitimate use, so unlike
-     * `.innerHTML` there is no template spelling to point at.
-     */
-    /** The deliberate twin of the same refusal in `AttrPart`'s constructor (`./renderer.ts`), for
-     *  the template spellings `.name` / `!name`. Independent bundles, neither imports the other, so
-     *  the rule is copied — and a fix visits both. `tests/dangerous-binding-matrix.test.mjs` holds
-     *  the two spellings to the same answer. */
-    if (name === '__proto__')
-      return "assigning __proto__ replaces the element's own prototype and destroys it — no property write does this, and no use of it is legitimate";
-    return null;
+  let kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : first === '!' ? LIVE : ATTR;
+  let name = kind === ATTR ? key : key.slice(1);
+  if (kind === ATTR && /^on[A-Z]/.test(key)) {
+    kind = EVENT;
+    name = key.slice(2).toLowerCase();
   }
-  if (first === '?' || first === '@' || first === '&') return null;
-  /** The event spelling the constructor converts: `on` + Capital, lowercase `on` only. */
-  if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) return null;
-  const lower = key.toLowerCase();
-  if (lower === 'srcdoc') return 'an inline iframe document is markup injection by definition — bind the property in the template (`.srcdoc=${trusted}`) if you truly mean it';
-  if (lower.length > 2 && lower.startsWith('on'))
-    return 'an inline handler attribute is code from data — pass a function as `on` + Capital (onClick) or `@click` instead';
-  return null;
+  const property = kind === PROPERTY || kind === LIVE;
+  const refusal = UNSAFE_NAME.test(name)
+    ? 1
+    : property && (name === 'innerHTML' || name === 'outerHTML')
+      ? 2
+      : property && name === '__proto__'
+        ? 3
+        : kind === ATTR && name.toLowerCase() === 'srcdoc'
+          ? 4
+          : kind === ATTR && name.length > 2 && /^on/i.test(name)
+            ? 5
+            : 0;
+  return refusal ? [REFUSED, refusal] : [kind, name];
 };
 
-/** Module-local: one identity comparison, not a global symbol-registry lookup per binding. */
-const UNSET = Symbol();
+/** A bound URL a browser navigates to, holding a `javascript:` URL — refused, as the renderer refuses it. */
+const scriptUrl = (kind: number, name: string, value: unknown) =>
+  kind !== BOOLEAN && kind !== EVENT && kind !== REF && value != null && URL_ATTRIBUTE.test(name) && SCRIPT_URL.test(value as string);
 
-/**
- * The deliberate twin of `commitAdopt` in `./renderer.ts` — independent bundles, neither imports
- * the other, so the rule is copied IN FULL and a fix visits both. Full reasoning there; the short
- * form: after the write, an accessor anywhere on the chain means something receives this property
- * and the binding can latch onto the plain write for good. Unreceived, the value is recorded under
- * the element-carried `_$props$` — the cross-bundle channel core's `init()` drains — and the latch
- * closes once the element is upgraded (its record is final) or has no realm. The development
- * clobber detector rides along, because a bag key and a written binding are the same mistake with
- * the same author watching.
- *
- * Returns the binding's NEXT kind, exactly as the twin does: `PROPERTY` to latch onto the plain
- * write, `REFUSED` to go inert (a get-only surface), `0` to keep adopting.
- */
-const adopt = (element: Element, name: string, value: unknown): number => {
-  const el = element as unknown as Record<string, unknown>;
-  /** The walk comes BEFORE the write — see the twin: a setter receives (its throw is the
-   *  component's own error), a getter with no setter refuses instead of throwing a raw TypeError
-   *  out of the render, and the dev warning defers to `_$adopt$`'s own refusal where it exists. */
-  let carrier: object | null = el;
-  while (carrier !== null) {
-    const desc = Object.getOwnPropertyDescriptor(carrier, name);
-    if (desc !== undefined) {
-      if (desc.set !== undefined) {
-        el[name] = value;
-        return PROPERTY;
-      }
-      if (desc.get !== undefined) {
-        if (el._$adopt$ !== undefined) (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
-        else if (__DEV__)
-          console.warn(
-            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no ` +
-              `setter — the value bound by \`.${name}\` cannot be delivered and the binding is ` +
-              `ignored. Add a setter, or stop binding it.`
-          );
-        return REFUSED;
-      }
-      break; // a data property — an own field, or an inherited default: nothing receives it
-    }
-    carrier = Object.getPrototypeOf(carrier);
-  }
-  el[name] = value;
-  /** An initialized component receives live through `_$adopt$` — a record after the drain would
-   *  never be read again. The door a spread bag's conditional key arrives through, reactive. */
-  if (el._$adopt$ !== undefined) {
-    (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
-    return PROPERTY;
-  }
-  const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const firstRecording = __DEV__ && !Object.hasOwn(record, name);
-  record[name] = value;
-  /** Prototype, never `el.constructor` — a bag key named `constructor` shadows the real one with
-   *  an own property, and no property write can move a prototype (`__proto__` is refused above). */
-  const win = element.ownerDocument.defaultView as unknown as {
-    HTMLElement: { prototype: object };
-    customElements: CustomElementRegistry;
-  } | null;
-  const upgraded = win === null || Object.getPrototypeOf(el) !== win.HTMLElement.prototype;
-  if (__DEV__ && win !== null && !upgraded && firstRecording) {
-    const tag = element.localName;
-    win.customElements.whenDefined(tag).then(() => {
-      /** Ownership is asked of the whole CHAIN — see the twin: a drain accessor, a handed-to
-       *  prototype pair, or a refused get-only surface all mean nothing is left to report. */
-      let owner: object | null = el;
-      let owned = false;
-      while (owner !== null) {
-        const desc = Object.getOwnPropertyDescriptor(owner, name);
-        if (desc !== undefined) {
-          owned = desc.get !== undefined || desc.set !== undefined;
-          break;
-        }
-        owner = Object.getPrototypeOf(owner);
-      }
-      if (!owned && el[name] !== record[name])
-        console.warn(
-          `[vera] renderer: the value bound by \`.${name}\` on <${tag}> was replaced while the ` +
-            `element upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits ` +
-            `\`${name};\`, which runs during upgrade and overwrites whatever was set beforehand — ` +
-            `write it \`declare ${name}?: …\` instead, which emits nothing. A component that ` +
-            `calls init() adopts bound properties automatically and never sees this; this ` +
-            `element did not. Ignore this if the component replaced the value on purpose.`
-        );
-    });
-  }
-  return upgraded ? PROPERTY : 0;
-};
+const UNSET = {};
 
-/**
- * A class, not an object literal, so `handleEvent` exists once on the prototype. As a literal it was
- * a fresh closure per bound key — allocation proportional to the size of every props bag.
- */
+/** One key's binding on one element. It is also the `@event` listener — a stable object, so the platform dedupes re-adds. */
 class Binding {
   _kind: number;
   _name: string;
   _element: Element;
-  /** What the element held before this binding took over. Releasing puts it back. */
-  _initial: unknown;
+  /** What the element held before the bag first wrote this key — restored when the key leaves the bag. */
+  _initial: unknown = null;
   _committed: unknown = UNSET;
-  _handler: EventListener | null = null;
-  /** Twin of AttrPart's `PROP_ADOPT`: a property binding on a dashed tag goes through `adopt`
-   *  until something receives the property, then latches onto the plain write. Bindings persist
-   *  per element in `owned`, so the latch is safe here too. */
-  _recording = false;
-
+  _handler: unknown = null;
+  /** For `.prop`: where adoption stands (`adoptProperty`: 0 still adopting, 1 received, 2 refused). */
+  _state = 1;
   constructor(element: Element, key: string) {
-    const first = key[0];
-    let kind =
-      first === '.'
-        ? PROPERTY
-        : first === '?'
-          ? BOOLEAN
-          : first === '@'
-            ? EVENT
-            : first === '&'
-              ? REF
-              : first === '!'
-                ? LIVE
-                : ATTR;
-    let name = kind ? key.slice(1) : key;
-    /** `on` + a capital: `onClick` ≡ `@click`. All-lowercase `onclick` never reaches here — it is
-     *  an inline-handler attribute, which `refusedSink` rejects before a binding exists. */
-    if (kind === ATTR && first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
-      kind = EVENT;
-      name = key.slice(2).toLowerCase();
-    }
+    const [kind, name] = resolve(key);
     this._kind = kind;
-    this._name = name;
+    this._name = name as string;
     this._element = element;
-    this._recording = kind === PROPERTY && element.localName.includes('-');
-    this._initial =
-      kind === ATTR
-        ? element.getAttribute(name)
-        : kind === BOOLEAN
-          ? element.hasAttribute(name)
-          : kind === PROPERTY || kind === LIVE
-            ? (element as unknown as Record<string, unknown>)[name]
-            : null;
+    if (kind === REFUSED) {
+      if (__DEV__)
+        console.warn(
+          `[vera] spread: refusing ${JSON.stringify(key)} — spread names arrive at runtime, which is exactly ` +
+            `the property that makes this sink unreviewable; ${WHY[name as number]}.`
+        );
+      return;
+    }
+    const el = element as unknown as Record<string, unknown>;
+    if (kind === ATTR) this._initial = element.getAttribute(name as string);
+    else if (kind === BOOLEAN) this._initial = element.hasAttribute(name as string);
+    else if (kind === PROPERTY || kind === LIVE) this._initial = el[name as string];
+    if (kind === PROPERTY && element.localName.includes('-')) this._state = 0;
   }
-
-  /**
-   * **Two shapes, because `addEventListener` takes two** — the same rule `AttrPart.handleEvent`
-   * applies, and it did not travel here when that one was fixed. A function is called with the
-   * element as `this`; an object with a `handleEvent` method is invoked through it — the platform's
-   * own `EventListenerObject` protocol, which every engine accepts. This called `.call()`
-   * unconditionally, so `spread({ onClick: { handleEvent } })` bound without complaint, never
-   * fired, and raised `this._handler.call is not a function` on **every** dispatch — while the
-   * identical value through a written `@click` worked.
-   *
-   * Anything else is inert rather than throwing, exactly as there: development names it at the
-   * binding (see the event branch in `write`), where the mistake still is.
-   */
+  /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
   handleEvent(event: Event) {
     const handler = this._handler as EventListener | EventListenerObject | null;
     if (typeof handler === 'function') handler.call(this._element as never, event);
-    else if (typeof (handler as EventListenerObject)?.handleEvent === 'function')
-      (handler as EventListenerObject).handleEvent(event);
+    else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
   }
 }
 
-/**
- * Keyed by the **part**, not the element.
- *
- * Keyed by element, `<div ${spread(a)} ${spread(b)}>` shares one map: whichever applies second sees
- * the other's keys as absent from its own props and releases them. Measured — the first spread's
- * attributes silently vanished. The part is one per element-position slot, which is exactly the
- * ownership boundary, and the renderer reuses it across renders.
- */
-const owned = new WeakMap<object, Map<string, Binding>>();
-
 const write = (binding: Binding, value: unknown) => {
-  /** One comparison per key per render — the same dirty check a written binding gets. */
-  /**
-   * A live property asks the element rather than its own memory — see `AttrPart` in the renderer.
-   * The dirty check is what keeps a field someone typed into, and it is exactly wrong for a control
-   * whose DOM state changes when a *sibling* is interacted with, a radio group being the case.
-   */
-  if (binding._kind === LIVE) {
+  const kind = binding._kind;
+  const name = binding._name;
+  const element = binding._element;
+  const el = element as unknown as Record<string, unknown>;
+  if (kind === REFUSED) return;
+  if (scriptUrl(kind, name, value)) {
+    if (__DEV__ && value !== binding._committed)
+      console.warn(`[vera] spread: \`${name}\` was given a javascript: URL — refused, and the attribute removed.`);
     binding._committed = value;
-    const live = binding._element as unknown as Record<string, unknown>;
-    if (live[binding._name] !== value) live[binding._name] = value;
+    element.removeAttribute(name);
+    return;
+  }
+  if (kind === LIVE) {
+    binding._committed = value;
+    if (el[name] !== value) el[name] = value;
     return;
   }
   if (value === binding._committed) return;
   binding._committed = value;
-  const element = binding._element;
-  const name = binding._name;
-  const kind = binding._kind;
   if (kind === ATTR) {
     if (value == null) element.removeAttribute(name);
     else {
@@ -294,239 +148,87 @@ const write = (binding: Binding, value: unknown) => {
         const complaint = attributeValueComplaint(element.localName, name, value);
         if (complaint !== null) console.warn(`[vera] ${complaint}`);
       }
-      /**
-       * `` `${value}` ``, never `String(value)` — the two differ on exactly one thing and it is the
-       * one that matters here. `String(sym)` returns `"Symbol(s)"` while every DOM conversion and
-       * `@verajs/ssr`'s own escaper throw, so this sink was the ONLY one of three that accepted a
-       * symbol, writing to the client an attribute the server refuses to produce. The rule was
-       * already recorded in `@verajs/ssr`'s `escapeHtml` — "serving Symbol(s) into markup the client
-       * cannot reproduce does not make anything work, it moves the failure across the boundary and
-       * strips the context" — and this file used the other form anyway. A house rule written down
-       * in one of three homes is a house rule in none of them.
-       */
       element.setAttribute(name, `${value}`);
     }
   } else if (kind === PROPERTY) {
-    if (binding._recording) {
-      const next = adopt(element, name, value);
-      if (next !== 0) {
-        binding._recording = false;
-        if (next === REFUSED) binding._kind = REFUSED; // inert: `write` matches it against nothing
-      }
-    } else (element as unknown as Record<string, unknown>)[name] = value;
-  } else if (kind === BOOLEAN) {
-    element.toggleAttribute(name, !!value);
-  } else if (kind === REF) {
-    /**
-     * `&name` is the written form's ref sigil (`<input &field=${myRef} />`), and it was the one
-     * binding kind a spread could not express: the key fell through to `ATTR` and
-     * `setAttribute('&field', …)` threw on the client while the server wrote `&field="[object
-     * Object]"` into the markup. A function is called with the element, an object gets it assigned
-     * to `.value` — the same two shapes `AttrPart` handles.
-     */
+    if (binding._state === 1) el[name] = value;
+    else if (binding._state === 0) binding._state = adoptProperty(element, name, value);
+  } else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
+  else if (kind === REF) {
     if (typeof value === 'function') (value as (el: Element) => void)(element);
     else if (value !== null && typeof value === 'object') (value as { value: unknown }).value = element;
   } else {
-    /**
-     * A listener is validated when a *user* clicks, which in development may be never — so it is
-     * checked where it is written, the same rule `AttrPart` applies to `@event`. `false` stays
-     * silent: `{ onClick: enabled && onClick }` is the ordinary conditional form and already
-     * behaves correctly, since `handleEvent` finds nothing callable and does nothing.
-     */
     if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&
         typeof (value as EventListenerObject)?.handleEvent !== 'function')
       console.warn(
         `[vera] spread: @${name} on <${element.localName}> was given ` +
-          `${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
-          `which cannot listen — the event will do nothing.\n` +
-          `Pass a function, or an object with a handleEvent method. A missing handler is ` +
-          `\`undefined\` or \`false\`, both of which are fine; this is neither.`
+          `${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, which cannot ` +
+          `listen — the event will do nothing.\nPass a function, or an object with a handleEvent method. A missing ` +
+          'handler is `undefined` or `false`, both of which are fine; this is neither.'
       );
     if (binding._handler === null && value != null) element.addEventListener(name, binding);
-    binding._handler = (value as EventListener) ?? null;
+    binding._handler = value ?? null;
   }
 };
 
 /**
- * A key that disappeared between renders restores what the element held before the binding existed.
- *
- * This is the question Lit's PR is stuck on, and the trap is asking it as "what value means absent".
- * For a property there is no answer: assigning `undefined` runs through coercing setters, so
- * dropping `.value` yields `""` rather than reverting, and `delete` cannot remove a prototype
- * accessor. Asked instead as *"undo what this binding did"* it is well defined for every kind and
- * never invents a value the author did not write — the initial state was, by definition, acceptable
- * before the binding arrived.
- *
- * And asked that way it needs no code of its own: releasing is writing the initial value back.
- * `null` removes an attribute, `false` untoggles a boolean, `undefined` restores a property to
- * pristine, and an event handler falls to `null` — every case the existing commit already handles.
- * The separate per-kind teardown this replaced was fourteen lines saying the same thing twice.
- *
- * Deliberately unguarded by an ownership check (`is the value still the one we wrote?`). That only
- * matters when a component reassigns a property its parent is binding, which is already confused;
- * per principle #3 the machinery waits for evidence rather than being pre-built.
+ * Each binding is owned by the renderer's binding record it arrived through (the `key`), so one element can
+ * carry several spreads. A key that leaves the bag is written back to what the element held before.
  */
-function apply(this: { _props: Record<string, unknown> }, element: Element, part: object) {
+const owned = new WeakMap<object, Map<string, Binding>>();
+function apply(this: SpreadResult, element: Element, key: object) {
   const props = this._props;
-  let bindings = owned.get(part);
-  if (bindings === undefined) owned.set(part, (bindings = new Map()));
-
-  /**
-   * Counted here rather than with `Object.keys(props).length`, which allocates an array on every
-   * render of every spread — garbage in the render path, for a number already being walked.
-   */
+  let bindings = owned.get(key);
+  if (bindings === undefined) owned.set(key, (bindings = new Map()));
   let count = 0;
-  for (const key in props) {
+  for (const name in props) {
     count++;
-    /**
-     * Counted before it is skipped, so the size comparison below still describes the key set — a
-     * refused key that changed the count would make every render look like a removal.
-     */
-    if (UNSAFE_NAME.test(key[0] === '.' || key[0] === '?' || key[0] === '@' || key[0] === '&' ? key.slice(1) : key)) {
-      if (__DEV__)
-        console.warn(
-          `[vera] spread: ignoring the key ${JSON.stringify(key)} — an attribute name ` +
-            `cannot contain whitespace, a quote, \`<\`, \`>\`, \`/\`, \`=\` or a control character, ` +
-            `and one that cannot be written into markup would not survive server rendering.`
-        );
-      continue;
-    }
-    /** Counted above for the same reason the unsafe skip is. */
-    const refused = refusedSink(key);
-    if (refused !== null) {
-      if (__DEV__)
-        console.warn(
-          `[vera] spread: refusing ${JSON.stringify(key)} — spread names arrive at runtime, which is ` +
-            `exactly the property that makes this sink unreviewable; ${refused}.`
-        );
-      continue;
-    }
-    let binding = bindings.get(key);
-    if (binding === undefined) bindings.set(key, (binding = new Binding(element, key)));
-    write(binding, props[key]);
+    let binding = bindings.get(name);
+    if (binding === undefined) bindings.set(name, (binding = new Binding(element, name)));
+    write(binding, props[name]);
   }
-
-  /**
-   * A size mismatch is the only way a key can have gone: every key in `props` was just visited, so
-   * equal sizes means equal sets. The steady-state render of an unchanged shape — overwhelmingly the
-   * common case — costs one integer comparison, not a scan.
-   */
-  if (bindings.size !== count) {
-    for (const [key, binding] of bindings) {
-      if (key in props) continue;
-      bindings.delete(key);
-      write(binding, binding._initial);
-    }
-  }
+  if (bindings.size !== count)
+    for (const [name, binding] of bindings)
+      if (!(name in props)) {
+        bindings.delete(name);
+        write(binding, binding._initial);
+      }
 }
 
 /**
- * The server half of the protocol: hand back every binding, resolved, and let the renderer that
- * asked decide what belongs in markup.
- *
- * Deliberately *not* a serializer. This package knows what a key means — `.value` is a property,
- * `?disabled` a boolean, `onClick` an event — and nothing else. Whether a property belongs in
- * server markup (`value`, `checked`, `selected` do; the rest are client state) and how a value is
- * escaped are `@verajs/ssr`'s decisions, and principle #8 wants escaping in exactly one place. So
- * this returns data, never a string.
- *
- * Kinds are single characters rather than the module's numeric constants, because this crosses a
- * package boundary: `a`ttribute, `b`oolean, `p`roperty, `e`vent, `r`ef. A ref is client state with
- * no markup, exactly like an event, and the serializer drops both.
+ * The server half of the protocol: `[kind, name, value]` for each key `@verajs/ssr` should serialize —
+ * `a`ttribute, `b`oolean, `p`roperty, `e`vent, `r`ef — with every refusal and every refused URL already
+ * applied, by the same `resolve` the client uses, so the two cannot disagree.
  */
-function attributes(this: { _props: Record<string, unknown> }): [string, string, unknown][] {
+function attributes(this: SpreadResult): [string, string, unknown][] {
   const out: [string, string, unknown][] = [];
   for (const key in this._props) {
-    /** The client refusal, applied at the serializer boundary too — one predicate, both renders.
-     *  Without this, a refused key was merely inert in the browser and LIVE in server markup. */
-    if (refusedSink(key) !== null) continue;
-    const first = key[0];
-    /** `!` reports as a property: the server has nothing to re-read, so it serializes as `.` does. */
-    const kind =
-      first === '.' || first === '!'
-        ? 'p'
-        : first === '?'
-          ? 'b'
-          : first === '@'
-            ? 'e'
-            : first === '&'
-              ? 'r'
-              : 'a';
-    if (kind !== 'a') {
-      out.push([kind, key.slice(1), this._props[key]]);
-    } else if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
-      out.push(['e', key.slice(2).toLowerCase(), this._props[key]]);
-    } else {
-      out.push(['a', key, this._props[key]]);
-    }
+    const [kind, name] = resolve(key);
+    const value = this._props[key];
+    if (kind === REFUSED || scriptUrl(kind, name as string, value)) continue;
+    out.push([kind === ATTR ? 'a' : kind === BOOLEAN ? 'b' : kind === EVENT ? 'e' : kind === REF ? 'r' : 'p', name as string, value]);
   }
   return out;
 }
 
-/**
- * Branded rather than duck-typed: the element position already means "element ref", and a props bag
- * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
- */
 /** The branded, self-applying result — what the renderer's element position recognizes. */
 type SpreadResult = {
   _props: Record<string, unknown>;
   _$apply$: unknown;
   _$attrs$: unknown;
 };
+
 /**
- * `object | null | undefined`, not `Record<string, unknown>`, and the difference is the whole
- * reason this signature is written out: a type ALIAS satisfies an index signature implicitly while
- * an INTERFACE does not, so `spread(myProps)` was a TS2345 for every user who declared their props
- * the way the TypeScript handbook teaches — while the sibling `props()` accepted the same value,
- * because it is generic. Two functions in one module disagreeing about a user's own type is the
- * kind of thing nobody reports as a bug; they just stop using the one that refused them.
+ * Binds every key of `props` to the element it is placed on. Keys follow the template sigils — `.prop`,
+ * `?bool`, `@event` (or `onClick`), `&ref`, `!live` — and a plain key is an attribute.
  *
- * `null`/`undefined` stay admissible on purpose: JSX compiles `{...maybe}` straight to a call here,
- * and the runtime already answers for a bad bag with a development warning a few lines down rather
- * than a throw. Narrowing the type would move that failure to compile time for a pattern the
- * runtime deliberately tolerates.
+ * Already-branded input is returned as-is (JSX compiles `{...spread(x)}` to a spread of a spread). A
+ * value that is not a plain object is refused in BOTH builds — a string would otherwise be iterated by
+ * character index into attributes named `0`, `1`, `2` — and development says so.
  */
 export const spread = (props: object | null | undefined): SpreadResult => {
-  /**
-   * **Already branded → returned as-is.** `spread(spread(x))` arises legitimately: JSX compiles
-   * `{...props({ date })}` to `spread(props({ date }))`, and `props()` below already returns the
-   * branded result. Without this line the brand itself would be iterated as a bag and bind
-   * attributes named `_props`, `_$apply$` and `_$attrs$`. Detected by the brand's PRESENCE, never
-   * by identity with this bundle's `apply` — on a CDN page the renderer and a second copy of this
-   * module are separate bundles with separate `apply` functions, and a result from either must
-   * pass through both (the two-registry failure shape `tests/cdn-cross-bundle.test.mjs` guards).
-   */
   if (props !== null && typeof props === 'object' && (props as SpreadResult)._$apply$ !== undefined)
     return props as SpreadResult;
-  /**
-   * **A props bag that is not an object is iterated anyway, and a browser accepts the result.**
-   *
-   * Everything below reads `props` with `Object.keys`/`Object.entries`, which answer for any value:
-   * a **string** yields its character indices, so `spread('text')` sets four attributes named `0`,
-   * `1`, `2`, `3` — measured in Chromium, with no error and no warning. A number, a boolean and
-   * `null` yield nothing at all, so `spread(someUndefinedVariable)` applies no props and says
-   * nothing, which reads as a renderer that ignored the spread.
-   *
-   * **jsdom hides this rather than catching it.** It implements the XML Name production and throws
-   * `InvalidCharacterError` on `setAttribute('0', …)`, so a probe under jsdom sees a loud failure
-   * for the case a real engine performs silently — the inverse of the usual trap, and the reason
-   * this was verified in a browser before being called a defect (`tests/browser/spread-names.test.js`
-   * records the engines' actual rule).
-   *
-   * Warned and ignored rather than thrown, which is exactly what an unusable *key* already does a
-   * few lines above: one bad props bag should not cost the render.
-   *
-   * **The message is `__DEV__`-only; the refusal is not.** They were both inside the guard, which
-   * made the two builds behave differently for the same code — and differently in the direction that
-   * hides the bug. Measured: `spread('text')` applies nothing in development, so the app under test
-   * looks fine; in production the string is iterated by character index and the element ends up with
-   * attributes named `0`, `1`, `2` and `3` (under jsdom, an `InvalidCharacterError` instead — the
-   * usual inversion, and why this was measured against both builds rather than reasoned about).
-   *
-   * A diagnostic belongs in `__DEV__`. A guard that changes what the program does cannot, or the
-   * development build stops being a faithful model of the production one, which is the property that
-   * makes testing in it worth anything. Costs 27 B gzipped (842 → 869, A-B-A) and buys the two builds agreeing.
-   */
   if (props === null || typeof props !== 'object' || Array.isArray(props)) {
     if (__DEV__)
       console.warn(
@@ -538,45 +240,10 @@ export const spread = (props: object | null | undefined): SpreadResult => {
       );
     props = {};
   }
-  return {
-    /**
-     * The one cast the widened parameter costs. Everything downstream reads this bag with
-     * `Object.keys`/`Object.entries`, which answer for any object, and the branch above has already
-     * replaced anything that is not a plain object — so the shape is a record by construction, not
-     * by assertion.
-     */
-    _props: props as Record<string, unknown>,
-    _$apply$: apply,
-    _$attrs$: attributes,
-  };
+  return { _props: props as Record<string, unknown>, _$apply$: apply, _$attrs$: attributes };
 };
 
-/**
- * A bag of PROPERTY bindings — the object form of `.name=${value}`, one call in both surfaces:
- *
- * ```js
- * html`<calendar-day ${props({ date, events })}></calendar-day>`
- * ```
- * ```jsx
- * <calendar-day {...props({ date, events })}></calendar-day>
- * ```
- *
- * Exists because an attribute is always a string: an array, a `Date` or a store can only reach a
- * custom element as a property — vera's JSX accepts the sigil spelling, TSX's type-checker refuses
- * it (`TS1003`), and this bag is the typed path either way. Every key is a
- * property NAME, never a sigil — `props({ date })` binds `.date`, so `props({ '.date': d })` would
- * bind `..date` and is the caller's mistake to keep.
- *
- * Properties only, by definition: events and boolean attributes keep their own spellings
- * (`@click`/`onClick`, `?disabled`). **Prefer keys spelled conditionally over bags that change
- * shape** — `props({ date: loaded ? date : null })` over `props(loaded ? { date } : {})`. Both
- * work: a key appearing later on a component goes through `_$adopt$` and arrives reactive, and a
- * key that disappears restores what the element held — but a stable shape updates in place, the
- * same reason templates prefer `?hidden` over swapped subtrees.
- *
- * With an explicit type argument the bag is checked against the element —
- * `props<CalendarDay>({ dat })` is a compile error naming the misspelling.
- */
+/** Every key as a property: `props({ items })` is `spread({ '.items': items })` — how a component receives data. */
 export const props = <T extends object = Record<string, unknown>>(values: Partial<T>): SpreadResult => {
   const sigiled: Record<string, unknown> = {};
   for (const key of Object.keys(values)) sigiled[`.${key}`] = (values as Record<string, unknown>)[key];
