@@ -11,118 +11,97 @@ import type { Item, KeyedResult, ListStrategy } from './renderer.js';
 
 const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const count = values.length;
-
-  /**
-   * The unchanged run at each end — matched without allocating. When what remains between them is only
-   * removals (a row deleted) or only insertions (rows appended, prepended, inserted), it is settled here
-   * with one `splice`; a same-order update is the case where nothing remains at all.
-   */
+  const key = (i: number) => (values[i] as KeyedResult).key;
   let start = 0;
   let oldEnd = items.length - 1;
   let newEnd = count - 1;
-  while (start <= oldEnd && start <= newEnd && items[start].$k === (values[start] as KeyedResult).key) {
+
+  /**
+   * The unchanged run at each end, matched without allocating. When what remains between them is only
+   * removals (a row deleted) or only insertions (rows appended, prepended, inserted), it is settled here;
+   * a same-order update is the case where nothing remains at all.
+   */
+  while (start <= oldEnd && start <= newEnd && items[start].$k === key(start)) {
     items[start] = part.$u(items[start], values[start]);
     start++;
   }
-  while (oldEnd >= start && newEnd >= start && items[oldEnd].$k === (values[newEnd] as KeyedResult).key) {
+  while (start <= oldEnd && start <= newEnd && items[oldEnd].$k === key(newEnd)) {
     items[oldEnd] = part.$u(items[oldEnd], values[newEnd]);
     oldEnd--;
     newEnd--;
   }
   if (start > newEnd) {
     for (let i = start; i <= oldEnd; i++) part.$d(items[i]);
-    if (start <= oldEnd) items.splice(start, oldEnd - start + 1);
+    items.splice(start, oldEnd - start + 1);
     return items;
   }
+  /** Joined with `concat`, never spread into `splice`: an engine caps a call's arguments (JavaScriptCore at 65 536). */
+  const ref = start < items.length ? part.$f(items[start]) : end;
+  const added: Item[] = [];
   if (start > oldEnd) {
-    const ref = start < items.length ? part.$f(items[start]) : end;
-    const added: Item[] = new Array(newEnd - start + 1);
-    for (let i = start; i <= newEnd; i++) added[i - start] = part.$c(values[i], parent, ref);
-    items.splice(start, 0, ...added);
-    return items;
+    for (let i = start; i <= newEnd; i++) added.push(part.$c(values[i], parent, ref));
+    return items.slice(0, start).concat(added, items.slice(start));
   }
 
-  /** A genuine reorder: the full algorithm, picking up where the ends left off. */
-  const oldItems: (Item | null)[] = items;
-  const newKeys: unknown[] = new Array(count);
-  for (let i = start; i <= newEnd; i++) newKeys[i] = (values[i] as KeyedResult).key;
-  const newItems: Item[] = new Array(count);
-  for (let i = 0; i < start; i++) newItems[i] = items[i];
-  for (let i = newEnd + 1, j = oldEnd + 1; i < count; i++, j++) newItems[i] = items[j];
+  /**
+   * A genuine reorder: two-ended from where the scans stopped, with a key map of the old middle built only
+   * when both ends miss. An old item the new list no longer holds stays until the final sweep removes it.
+   */
+  const old: (Item | null)[] = items;
+  const next: Item[] = items.slice(0, start).concat(new Array(newEnd - start + 1), items.slice(oldEnd + 1));
+  const before = (i: number): Node | null => (i < count ? part.$f(next[i]) : end);
+  let map: Map<unknown, number> | undefined;
   let oldHead = start;
-  let oldTail = oldEnd;
   let newHead = start;
-  let newTail = newEnd;
-  let newKeyToIndex: Map<unknown, number> | undefined;
-  let oldKeyToIndex: Map<unknown, number> | undefined;
-  const refAt = (i: number): Node | null => (i < count && newItems[i] !== undefined ? part.$f(newItems[i]) : end);
-
-  /** Two-ended: matching heads and tails cost a compare; a key map is built only when both ends miss. */
-  while (oldHead <= oldTail && newHead <= newTail) {
-    if (oldItems[oldHead] === null) oldHead++;
-    else if (oldItems[oldTail] === null) oldTail--;
-    else if (oldItems[oldHead]!.$k === newKeys[newHead]) {
-      newItems[newHead] = part.$u(oldItems[oldHead]!, values[newHead]);
+  while (oldHead <= oldEnd && newHead <= newEnd) {
+    const head = old[oldHead];
+    const tail = old[oldEnd];
+    if (head === null) oldHead++;
+    else if (tail === null) oldEnd--;
+    else if (head.$k === key(newHead)) {
+      next[newHead] = part.$u(head, values[newHead]);
       oldHead++;
       newHead++;
-    } else if (oldItems[oldTail]!.$k === newKeys[newTail]) {
-      newItems[newTail] = part.$u(oldItems[oldTail]!, values[newTail]);
-      oldTail--;
-      newTail--;
-    } else if (oldItems[oldHead]!.$k === newKeys[newTail]) {
-      const item = oldItems[oldHead]!;
-      part.$m(item, refAt(newTail + 1), parent);
-      newItems[newTail] = part.$u(item, values[newTail]);
+    } else if (tail.$k === key(newEnd)) {
+      next[newEnd] = part.$u(tail, values[newEnd]);
+      oldEnd--;
+      newEnd--;
+    } else if (head.$k === key(newEnd)) {
+      part.$m(head, before(newEnd + 1), parent);
+      next[newEnd] = part.$u(head, values[newEnd]);
       oldHead++;
-      newTail--;
-    } else if (oldItems[oldTail]!.$k === newKeys[newHead]) {
-      const item = oldItems[oldTail]!;
-      part.$m(item, part.$f(oldItems[oldHead]!), parent);
-      newItems[newHead] = part.$u(item, values[newHead]);
-      oldTail--;
+      newEnd--;
+    } else if (tail.$k === key(newHead)) {
+      part.$m(tail, part.$f(head), parent);
+      next[newHead] = part.$u(tail, values[newHead]);
+      oldEnd--;
       newHead++;
     } else {
-      if (newKeyToIndex === undefined) {
-        newKeyToIndex = new Map();
-        for (let i = newHead; i <= newTail; i++) newKeyToIndex.set(newKeys[i], i);
-        oldKeyToIndex = new Map();
-        for (let i = oldHead; i <= oldTail; i++) if (oldItems[i] !== null) oldKeyToIndex.set(oldItems[i]!.$k, i);
+      if (map === undefined) {
+        map = new Map();
+        for (let i = oldHead; i <= oldEnd; i++) if (old[i] !== null) map.set(old[i]!.$k, i);
       }
-      if (!newKeyToIndex.has(oldItems[oldHead]!.$k)) {
-        part.$d(oldItems[oldHead]!);
-        oldHead++;
-      } else if (!newKeyToIndex.has(oldItems[oldTail]!.$k)) {
-        part.$d(oldItems[oldTail]!);
-        oldTail--;
-      } else {
-        /**
-         * A slot the map points at may already be spoken for when a key repeats: nulled by an earlier
-         * reuse, or consumed by the head/tail branches (which move pointers without nulling). Either
-         * is treated as "not found" and gets a fresh item — duplicate keys are undefined behavior,
-         * but undefined must still mean a list, never a throw or a row rendered twice.
-         */
-        const oldIndex = oldKeyToIndex!.get(newKeys[newHead]);
-        const reusable = oldIndex === undefined || oldIndex < oldHead || oldIndex > oldTail ? null : oldItems[oldIndex];
-        if (reusable === null) newItems[newHead] = part.$c(values[newHead], parent, part.$f(oldItems[oldHead]!));
-        else {
-          part.$m(reusable, part.$f(oldItems[oldHead]!), parent);
-          newItems[newHead] = part.$u(reusable, values[newHead]);
-          oldItems[oldIndex!] = null;
-        }
-        newHead++;
+      /**
+       * A slot the map points at may already be spoken for when a key repeats: nulled by an earlier reuse,
+       * or consumed by the two-ended branches (which move pointers without nulling). Either is treated as
+       * "not found" and gets a fresh item — duplicate keys are undefined behavior, but undefined must still
+       * mean a list, never a throw or a row rendered twice.
+       */
+      const at = map.get(key(newHead));
+      const reusable = at === undefined || at < oldHead || at > oldEnd ? null : old[at];
+      if (reusable === null) next[newHead] = part.$c(values[newHead], parent, part.$f(head));
+      else {
+        part.$m(reusable, part.$f(head), parent);
+        next[newHead] = part.$u(reusable, values[newHead]);
+        old[at!] = null;
       }
+      newHead++;
     }
   }
-  /** New items fill before one fixed reference, straight into the parent — the loop only fills slots below it. */
-  if (newHead <= newTail) {
-    const ref = refAt(newTail + 1);
-    for (; newHead <= newTail; newHead++) newItems[newHead] = part.$c(values[newHead], parent, ref);
-  }
-  while (oldHead <= oldTail) {
-    const item = oldItems[oldHead++];
-    if (item !== null) part.$d(item);
-  }
-  return newItems;
+  const fill = before(newEnd + 1);
+  for (; newHead <= newEnd; newHead++) next[newHead] = part.$c(values[newHead], parent, fill);
+  for (; oldHead <= oldEnd; oldHead++) if (old[oldHead] !== null) part.$d(old[oldHead]!);
+  return next;
 };
 
 /**

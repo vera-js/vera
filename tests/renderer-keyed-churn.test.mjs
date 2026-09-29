@@ -106,3 +106,19 @@ test('replacing every key costs twice as much, which is how we know the count me
   assert.ok(replaced > reversed * 1.5, `a full replacement cost ${replaced} against a reverse's ${reversed}`);
   assert.ok(replaced <= n * 2.5, `a full replacement cost ${replaced} for ${n} rows — more than a remove and an insert each`);
 });
+
+/**
+ * The benchmark's swap — two rows far apart trade places — is two moves, not the rows between them. The
+ * two-ended branches ("the old head belongs at the new tail" and its mirror) are what make it two; the key
+ * map alone still produces the right list, with far more moves, so only a count can see them go.
+ */
+test('swapping two distant rows moves exactly those two rows', () => {
+  const host = document.createElement('div');
+  const ids = listOf(100, 'k');
+  draw(ids, host);
+  const swapped = [...ids];
+  [swapped[1], swapped[98]] = [swapped[98], swapped[1]];
+  const moved = mutations(() => draw(swapped, host));
+  assert.deepEqual([...host.querySelectorAll('li')].map((li) => li.dataset.id), swapped, 'the order is right');
+  assert.equal(moved, 2, `the swap made ${moved} DOM moves`);
+});
