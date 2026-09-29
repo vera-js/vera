@@ -25,192 +25,35 @@ export type { TemplateResult } from './types.js';
 /** Unique per module load, so user text can never collide with it. */
 // eslint-disable-next-line no-bitwise -- >>> 0 is the integer truncation, not arithmetic
 const MARKER = '$v' + ((Math.random() * 1e9) >>> 0).toString(36) + '$';
-/** `<?xyz>` parses as a bogus comment whose data is `?xyz`. */
-const MARKER_COMMENT_DATA = '?' + MARKER;
 
 const doc = document;
 const comment = () => doc.createComment('');
 
-/** One walker for every template construction, re-aimed through `currentNode`. ELEMENT | TEXT | COMMENT. */
-const markerWalker = doc.createTreeWalker(doc, 133);
-
 /**
- * Elements whose children the parser reads as TEXT, so a marker inside one arrives as characters
- * rather than a comment. The scan writes a text marker there and construction turns it back into a
- * marker comment; both sides read this one rule. (`noscript` because Firefox parses it as raw text in
- * a template and Chromium and WebKit do not — listed, it is safe in both parses.)
- */
-const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
-const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
-
-/** What the scan found at an expression position: a child, nothing (inside a comment, a junk position), or an attribute's name. */
-const SPEC_CHILD = 0;
-const SPEC_IGNORED = 2;
-type Spec = 0 | 2 | string;
-
-/** Scanner states. */
-const IN_TEXT = 0;
-const IN_TAG = 1;
-const IN_QUOTED_VALUE = 2; // a static quoted attribute value, no binding yet
-const IN_COMMENT = 3;
-const IN_RAW_TEXT = 4;
-const IN_BOUND_VALUE = 5; // collecting a bound attribute's statics
-
-/**
- * One pass over the template strings: parseable markup with markers, and the ordered specs. A small
- * state machine rather than regexes, because `>` inside quoted values and comments must not end a tag
- * and raw-text elements swallow markup. Runs once per template shape.
- *
- * A bound attribute becomes ONE marker attribute named `<spec index><MARKER>` whose value carries its
- * statics joined by the marker — read back from the parsed attribute, entities arrive decoded. The
- * index in the name makes pairing ADDRESSED: an element the parser drops takes only its own binding
- * with it, and never shifts a later value onto another element (a security property — see
+ * The scanner — one regex per state, each finding the next thing that matters (lit-html's design). It
+ * decides only what each expression position IS; the browser's parser builds the tree. Every marker
+ * carries its binding's index, so pairing is ADDRESSED: an element the parser drops takes only its own
+ * binding with it and never shifts a later value onto another element (a security property —
  * `tests/dropped-element-bindings.test.mjs`).
  */
-const scan = (strings: TemplateStringsArray) => {
-  const specs: Spec[] = [];
-  let markup = '';
-  let state = IN_TEXT;
-  let quote = '';
-  let quoteStart = 0;
-  let rawTag = '';
-  let tagNameStart = 0;
-  let isClosing = false;
-  let attrName = '';
-  let statics: string[] = [];
-  let pending = '';
-
-  /** The attribute name ending at `end` (exclusive); '' when malformed. */
-  const attrNameBefore = (end: number) => {
-    let at = end;
-    while (at > 0 && !ATTR_NAME_DELIMITER.test(markup[at - 1])) at--;
-    return markup.slice(at, end);
-  };
-
-  for (let i = 0; i < strings.length; i++) {
-    const segment = strings[i];
-    let pos = 0;
-    while (pos < segment.length) {
-      const ch = segment[pos];
-      if (state === IN_BOUND_VALUE) {
-        if (ch === quote || (quote === '' && /[ \t\n\r>/]/.test(ch))) {
-          statics.push(pending);
-          const quoteChar = quote || '"';
-          markup += ` ${specs.length}${MARKER}=${quoteChar}${statics.join(MARKER)}${quoteChar}`;
-          specs.push(attrName);
-          state = IN_TAG;
-          if (quote !== '') pos++; // consume the closing quote; an unquoted terminator is re-read IN_TAG
-          continue;
-        }
-        pending += ch;
-        pos++;
-      } else if (state === IN_TEXT) {
-        if (ch === '<') {
-          if (segment.startsWith('!--', pos + 1)) {
-            state = IN_COMMENT;
-            markup += '<!--';
-            pos += 4;
-            continue;
-          }
-          isClosing = segment[pos + 1] === '/';
-          tagNameStart = markup.length + (isClosing ? 2 : 1);
-          state = IN_TAG;
-        }
-        markup += ch;
-        pos++;
-      } else if (state === IN_TAG) {
-        if (ch === '"' || ch === "'") {
-          quote = ch;
-          quoteStart = markup.length;
-          state = IN_QUOTED_VALUE;
-        } else if (ch === '>') {
-          const tagName = markup.slice(tagNameStart).match(/^[a-zA-Z][^\s/>]*/)?.[0] ?? '';
-          if (!isClosing && RAW_TEXT_TAGS.test(tagName) && !markup.endsWith('/')) {
-            rawTag = tagName.toLowerCase();
-            state = IN_RAW_TEXT;
-          } else state = IN_TEXT;
-        }
-        markup += ch;
-        pos++;
-      } else if (state === IN_QUOTED_VALUE) {
-        if (ch === quote) state = IN_TAG;
-        markup += ch;
-        pos++;
-      } else if (state === IN_COMMENT) {
-        if (ch === '-' && segment.startsWith('->', pos + 1)) {
-          markup += '-->';
-          pos += 3;
-          state = IN_TEXT;
-          continue;
-        }
-        markup += ch;
-        pos++;
-      } else {
-        // IN_RAW_TEXT: only this element's own end tag leaves it
-        if (
-          ch === '<' &&
-          segment.slice(pos + 1, pos + 2 + rawTag.length).toLowerCase() === '/' + rawTag &&
-          (pos + 2 + rawTag.length >= segment.length || /[\s/>]/.test(segment[pos + 2 + rawTag.length]))
-        ) {
-          isClosing = true;
-          tagNameStart = markup.length + 2;
-          state = IN_TAG;
-        }
-        markup += ch;
-        pos++;
-      }
-    }
-
-    // ── the expression boundary ──
-    if (i === strings.length - 1) break;
-    if (state === IN_TEXT) {
-      markup += `<?${MARKER}>`;
-      specs.push(SPEC_CHILD);
-    } else if (state === IN_RAW_TEXT) {
-      markup += MARKER; // a comment cannot be parsed here — construction turns this back into one
-      specs.push(SPEC_CHILD);
-    } else if (state === IN_COMMENT) {
-      specs.push(SPEC_IGNORED);
-    } else if (state === IN_BOUND_VALUE) {
-      statics.push(pending); // the attribute spans another expression
-      pending = '';
-    } else if (state === IN_QUOTED_VALUE) {
-      const name = markup[quoteStart - 1] === '=' ? attrNameBefore(quoteStart - 1) : '';
-      if (name) {
-        attrName = name;
-        statics = [markup.slice(quoteStart + 1)];
-        pending = '';
-        markup = markup.slice(0, quoteStart - 1 - name.length); // cut `name="` back out
-        state = IN_BOUND_VALUE;
-      } else specs.push(SPEC_IGNORED);
-    } else {
-      // IN_TAG: `name=${x}` unquoted, or an element-position expression (marked like an attribute named `&`)
-      const name = markup.endsWith('=') ? attrNameBefore(markup.length - 1) : '';
-      if (name) {
-        attrName = name;
-        statics = [''];
-        pending = '';
-        quote = '';
-        markup = markup.slice(0, markup.length - 1 - name.length);
-        state = IN_BOUND_VALUE;
-      } else {
-        markup += ` ${specs.length}${MARKER}="${MARKER}"`;
-        specs.push('&');
-      }
-    }
-  }
-  return { markup, specs };
-};
-
+const TEXT_END = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
+const COMMENT_END = /-->/g;
+const COMMENT2_END = />/g;
+/** `>`, or whitespace then an attribute name (with `=` and the start of its value), or the string's end. */
+const TAG_END = />|[ \t\n\f\r](?:([^\s"'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
+const DOUBLE_QUOTE_END = /"/g;
+const SINGLE_QUOTE_END = /'/g;
 /**
- * A binding's kind, resolved once per template. `CHILD` is anchored on a primed empty text node the
- * template carries; `SOLE` is a child position that is its element's only content, so the template
- * carries nothing and the first commit writes `textContent` (the text node is created with its value
- * rather than cloned empty and written again).
+ * Elements whose content the parser reads as TEXT, so a comment marker cannot live there: the scan
+ * writes a text marker and construction turns it into an anchor. `noscript` because Firefox parses it
+ * as raw text in a template while Chromium and WebKit do not — listed, it is right in both.
  */
-const IGNORED = 0;
-const CHILD = 1;
-const SOLE = 2;
+const RAW_TEXT = /^(?:script|style|textarea|title|iframe|noscript)$/i;
+
+/** A binding's kind, resolved once per template. */
+const IGNORED = 0; // consumed, nothing rendered: inside a comment, the later values of a multi-part attribute
+const CHILD = 1; // anchored on a primed empty text node the template carries
+const SOLE = 2; // its element's only content: no anchor in the template, the first commit writes `textContent`
 const ATTR = 3;
 const PROPERTY = 4;
 const BOOLEAN = 5;
@@ -226,19 +69,23 @@ const ADOPT = 8;
  */
 const LIVE = 9;
 const SELECT = 10;
-/** A binding that must never write — it still consumes its values. */
+/** A binding that must never write. */
 const REFUSED = 11;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
-/** The value slot of a child binding that holds a `ChildPart` in its node slot. */
+/** The value slot of a child binding whose node slot holds a `ChildPart`. */
 const UPGRADED = {};
 
+/**
+ * A template's bindings are indexed by VALUE position: a multi-part attribute sits at its first value
+ * and the positions of its other values are `IGNORED`, so the commit loop needs no bookkeeping.
+ */
 class Template {
   /** What an instance clones: the single root element, or the whole content fragment. */
   _root: Node;
   /** No element in it can be custom — see `instantiate`. */
-  _plain: boolean;
+  _plain = true;
   _kinds: number[];
   _names: string[];
   /** The statics around a bound attribute's values; `null` for one full-value expression. */
@@ -251,145 +98,189 @@ class Template {
   _urls: boolean[];
 
   constructor(result: TemplateResult) {
+    const strings = result.strings;
+    const count = strings.length - 1;
+    const kinds = (this._kinds = new Array(count).fill(IGNORED));
+    const names = (this._names = new Array(count).fill(''));
+    const statics = (this._statics = new Array(count).fill(null));
+    const present = (this._present = new Array(count).fill(false));
+    const urls = (this._urls = new Array(count).fill(false));
+    const nodes: (Node | null)[] = new Array(count).fill(null);
+
+    // ── scan ──
+    let markup = '';
+    let regex = TEXT_END;
+    let rawEnd: RegExp | undefined;
+    /** The previous binding opened an UNQUOTED value, so a string that matches nothing continues it (`a=${x}${y}`). */
+    let open: boolean = false;
+    for (let i = 0; i < count; i++) {
+      const s = strings[i];
+      /** Where this string's bound attribute name ends (≥ 0), -1 for none, -2 for an element position. */
+      let nameEnd = -1;
+      let continues: boolean = open;
+      let name = '';
+      let at = 0;
+      let match: RegExpExecArray | null;
+      while (at < s.length) {
+        regex.lastIndex = at;
+        if ((match = regex.exec(s)) === null) break;
+        at = regex.lastIndex;
+        if (regex === TEXT_END) {
+          if (match[1] === '!--') regex = COMMENT_END;
+          else if (match[1] !== undefined) regex = COMMENT2_END;
+          else {
+            if (match[2] !== undefined && RAW_TEXT.test(match[2])) rawEnd = new RegExp(`</${match[2]}`, 'gi');
+            regex = TAG_END;
+          }
+        } else if (regex === TAG_END) {
+          continues = false;
+          if (match[0] === '>') {
+            regex = rawEnd ?? TEXT_END;
+            nameEnd = -1;
+          } else if (match[1] === undefined) nameEnd = -2;
+          else {
+            name = match[1];
+            nameEnd = at - match[2].length;
+            regex = match[3] === undefined ? TAG_END : match[3] === '"' ? DOUBLE_QUOTE_END : SINGLE_QUOTE_END;
+          }
+        } else if (regex === DOUBLE_QUOTE_END || regex === SINGLE_QUOTE_END) {
+          regex = TAG_END;
+          /** A value that closes with nothing after it before the expression: the expression is an element position. */
+          nameEnd = -2;
+        } else if (regex === COMMENT_END || regex === COMMENT2_END) regex = TEXT_END;
+        else {
+          regex = TAG_END;
+          rawEnd = undefined;
+        }
+      }
+      if (regex === TEXT_END) {
+        markup += `${s}<?${MARKER}${i}>`;
+        kinds[i] = CHILD;
+      } else if (regex === rawEnd) {
+        markup += `${s}${MARKER}${i}${MARKER}`;
+        kinds[i] = CHILD;
+      } else if (regex === COMMENT_END || regex === COMMENT2_END) markup += s;
+      else if (nameEnd >= 0) {
+        /** The attribute is renamed to its binding's address; the value keeps its statics, split by the marker. */
+        names[i] = name;
+        markup += `${s.slice(0, nameEnd - name.length)}${i}${MARKER}${s.slice(nameEnd)}${MARKER}`;
+        /** An unquoted value followed by `/>` would absorb the slash. */
+        if (regex === TAG_END && strings[i + 1].startsWith('/>')) markup += ' ';
+      } else if (nameEnd === -2) markup += `${s} ${i}${MARKER}`;
+      else if (continues || regex !== TAG_END) markup += s + MARKER; // another value of the attribute a previous binding opened
+      /** A tag-name or attribute-name position (`<${x}>`, `<b data-${x}="1">`): no marker — the value is consumed and ignored. */
+      else markup += s;
+      open = regex === TAG_END && (nameEnd >= 0 || continues);
+    }
+    markup += strings[count];
+
+    // ── parse, then one walk ──
     const type = result._$litType$ ?? 1;
-    const { markup, specs } = scan(result.strings);
     const element = doc.createElement('template');
     /** svg/mathml fragments only parse inside their root: wrap, then unwrap. */
     element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
     const content = element.content;
-    if (type !== 1) {
-      const wrapper = content.firstChild!;
-      while (wrapper.firstChild) content.insertBefore(wrapper.firstChild, wrapper);
-      content.removeChild(wrapper);
-    }
-
-    /**
-     * Pair specs with the parsed tree in document order: each marker attribute names its spec, and each
-     * marker comment becomes a primed empty text node. A marker that never arrived (its element dropped
-     * by the parser) leaves its spec IGNORED, and nothing after it moves.
-     */
-    const count = specs.length;
-    const nodes: (Node | null)[] = new Array(count).fill(null);
-    const kinds = (this._kinds = new Array(count).fill(IGNORED));
-    const names = (this._names = new Array(count).fill(''));
-    const staticsList = (this._statics = new Array(count).fill(null));
-    const present = (this._present = new Array(count).fill(false));
-    const urls = (this._urls = new Array(count).fill(false));
-    let specIndex = 0;
-    const skipIgnored = () => {
-      while (specIndex < specs.length && specs[specIndex] === SPEC_IGNORED) specIndex++;
-    };
-    skipIgnored();
-    markerWalker.currentNode = content;
+    if (type !== 1) content.replaceChildren(...content.firstChild!.childNodes);
+    const walker = doc.createTreeWalker(content, 129 /* ELEMENT | COMMENT */);
     let node: Node | null;
-    while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
-      if (node.nodeType === 1) {
-        const el = node as Element;
-        if (el.hasAttributes()) {
-          for (const attributeName of el.getAttributeNames()) {
-            if (!attributeName.endsWith(MARKER)) continue;
-            const index = parseInt(attributeName, 10);
-            specIndex = index + 1;
-            const name = specs[index] as string;
-            const statics = el.getAttribute(attributeName)!.split(MARKER);
-            el.removeAttribute(attributeName);
-            skipIgnored();
-            const first = name[0];
-            let kind =
-              first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : first === '!' ? LIVE : ATTR;
-            /** The parser lowercases attribute names; the spec keeps the author's case (`.someProp`). */
-            let real = kind === ATTR ? name : name.slice(1);
-            /** React muscle memory, buildless: `onClick=${fn}` is `@click`. Strictly `on` + a capital — `onclick` stays an attribute. */
-            if (kind === ATTR && /^on[A-Z]/.test(name)) {
-              kind = EVENT;
-              real = name.slice(2).toLowerCase();
-            }
-            if (kind === PROPERTY && real === 'value' && el.localName === 'select') kind = SELECT;
-            /**
-             * `el.__proto__ = v` is not a property write: it replaces the element's prototype and
-             * destroys it. No use is legitimate, so the binding is refused — the deliberate twin of
-             * spread's `refusedSink` (`tests/dangerous-binding-matrix.test.mjs` holds the two together).
-             */
-            if ((kind === PROPERTY || kind === LIVE) && real === '__proto__') {
-              kind = REFUSED;
-              if (__DEV__)
-                console.warn(
-                  `[vera] <${el.localName}> binds \`${name}\`, which would replace the element's own prototype ` +
-                    `and destroy it — no property write does this, and no use of it is legitimate. The binding is ignored.`
-                );
-            } else if (kind === ATTR && real.toLowerCase() === 'srcdoc') {
-              /** A bound `srcdoc` ATTRIBUTE renders its value as an HTML document: markup injection by construction. */
-              kind = REFUSED;
-              if (__DEV__)
-                console.warn(
-                  `[vera] <${el.localName}> binds the \`srcdoc\` attribute, which renders its value as an HTML ` +
-                    `document — refused. If the markup is trusted and sanitized, bind the property: \`.srcdoc=\${…}\`.`
-                );
-            } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
-            urls[index] = (kind === ATTR || kind === PROPERTY || kind === LIVE || kind === ADOPT) && URL_ATTRIBUTE.test(real);
-            nodes[index] = el;
-            kinds[index] = kind;
-            names[index] = real;
-            staticsList[index] = statics.length === 2 && statics[0] === '' && statics[1] === '' ? null : statics;
-            present[index] = kind === ATTR && el.hasAttribute(name);
-          }
+    while ((node = walker.nextNode()) !== null) {
+      if (node.nodeType === 8) {
+        const data = (node as Comment).data;
+        if (!data.startsWith('?' + MARKER)) continue;
+        const anchor = doc.createTextNode('');
+        (node as Comment).replaceWith(anchor);
+        walker.currentNode = anchor;
+        nodes[+data.slice(MARKER.length + 1)] = anchor;
+        continue;
+      }
+      const el = node as Element;
+      if (el.localName.includes('-') || el.hasAttribute('is')) this._plain = false;
+      for (const attribute of el.getAttributeNames()) {
+        if (!attribute.endsWith(MARKER)) continue;
+        const i = parseInt(attribute, 10);
+        const value = el.getAttribute(attribute)!.split(MARKER);
+        el.removeAttribute(attribute);
+        nodes[i] = el;
+        const written = names[i];
+        const first = written[0];
+        /** An element position (`<p ${ref}>`) arrives with no value; `&=${ref}` is its explicit spelling. */
+        if (value.length === 1 || first === '&') {
+          kinds[i] = REF;
+          continue;
         }
-        if (RAW_TEXT_TAGS.test(el.tagName) && el.textContent!.includes(MARKER)) {
-          /** Comments cannot be PARSED here but are legal DOM: rebuild the text markers as marker comments. */
-          const pieces = el.textContent!.split(MARKER);
-          el.textContent = '';
-          for (let p = 0; p < pieces.length - 1; p++) {
+        let kind =
+          first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '!' ? LIVE : ATTR;
+        /** The parser lowercases attribute names; the scan kept the author's case (`.someProp`). */
+        let real = kind === ATTR ? written : written.slice(1);
+        /** React muscle memory, buildless: `onClick=${fn}` is `@click`. Strictly `on` + a capital — `onclick` stays an attribute. */
+        if (kind === ATTR && /^on[A-Z]/.test(written)) {
+          kind = EVENT;
+          real = written.slice(2).toLowerCase();
+        }
+        if (kind === PROPERTY && real === 'value' && el.localName === 'select') kind = SELECT;
+        /**
+         * `el.__proto__ = v` is not a property write: it replaces the element's prototype and destroys it.
+         * No use is legitimate, so the binding is refused — the deliberate twin of spread's `refusedSink`
+         * (`tests/dangerous-binding-matrix.test.mjs` holds the two together).
+         */
+        if ((kind === PROPERTY || kind === LIVE) && real === '__proto__') {
+          kind = REFUSED;
+          if (__DEV__)
+            console.warn(
+              `[vera] <${el.localName}> binds \`${written}\`, which would replace the element's own prototype ` +
+                `and destroy it — no property write does this, and no use of it is legitimate. The binding is ignored.`
+            );
+        } else if (kind === ATTR && real.toLowerCase() === 'srcdoc') {
+          /** A bound `srcdoc` ATTRIBUTE renders its value as an HTML document: markup injection by construction. */
+          kind = REFUSED;
+          if (__DEV__)
+            console.warn(
+              `[vera] <${el.localName}> binds the \`srcdoc\` attribute, which renders its value as an HTML ` +
+                `document — refused. If the markup is trusted and sanitized, bind the property: \`.srcdoc=\${…}\`.`
+            );
+        } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
+        kinds[i] = kind;
+        names[i] = real;
+        statics[i] = value.length === 2 && value[0] === '' && value[1] === '' ? null : value;
+        present[i] = kind === ATTR && el.hasAttribute(real);
+        urls[i] = kind !== REFUSED && kind !== BOOLEAN && kind !== EVENT && URL_ATTRIBUTE.test(real);
+      }
+      /** A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. */
+      if (RAW_TEXT.test(el.localName) && el.textContent!.includes(MARKER)) {
+        const pieces = el.textContent!.split(MARKER);
+        el.textContent = '';
+        for (let p = 0; p < pieces.length; p++) {
+          if (p % 2 === 0) {
             if (pieces[p]) el.append(pieces[p]);
-            el.append(doc.createComment(MARKER_COMMENT_DATA));
-          }
-          if (pieces[pieces.length - 1]) el.append(pieces[pieces.length - 1]);
+          } else el.append((nodes[+pieces[p]] = doc.createTextNode('')));
         }
-      } else if (node.nodeType === 8 && (node as Comment).data === MARKER_COMMENT_DATA) {
-        const primed = doc.createTextNode('');
-        node.parentNode!.insertBefore(primed, node);
-        markerWalker.currentNode = primed; // re-aim before removing the node the walker stands on
-        (node as Comment).remove();
-        nodes[specIndex] = primed;
-        kinds[specIndex++] = CHILD;
-        skipIgnored();
       }
     }
 
     /**
-     * A child binding that is its element's only content needs no anchor in the template — except
-     * inside a raw-text element, whose content is never markup.
+     * A child binding that is its element's only content needs no anchor in the template — except inside
+     * a raw-text element, whose content is never markup. Then each binding's path from the root.
      */
-    for (let i = 0; i < nodes.length; i++) {
-      const primed = nodes[i];
-      if (kinds[i] !== CHILD) continue;
-      const parent = primed!.parentNode!;
-      if (
-        parent.nodeType === 1 &&
-        primed!.previousSibling === null &&
-        primed!.nextSibling === null &&
-        !RAW_TEXT_TAGS.test((parent as Element).tagName)
-      ) {
-        parent.removeChild(primed!);
-        nodes[i] = parent;
-        kinds[i] = SOLE;
-      }
-    }
-
     const first = content.firstChild;
     const root = (this._root = first !== null && first.nodeType === 1 && first.nextSibling === null ? first : content);
-    for (let i = 0; i < nodes.length; i++) {
+    for (let i = 0; i < count; i++) {
+      let at = nodes[i];
+      if (kinds[i] === CHILD) {
+        const parent = at!.parentNode!;
+        if (parent.nodeType === 1 && parent.childNodes.length === 1 && !RAW_TEXT.test((parent as Element).localName)) {
+          parent.removeChild(at!);
+          nodes[i] = at = parent;
+          kinds[i] = SOLE;
+        }
+      }
       const path: number[] = [];
-      for (let at = nodes[i]; at !== null && at !== root; at = at.parentNode) {
+      for (; at != null && at !== root; at = at.parentNode) {
         let index = 0;
         for (let sibling = at.previousSibling; sibling !== null; sibling = sibling.previousSibling) index++;
         path.unshift(index);
       }
       this._paths.push(path);
     }
-
-    let plain = content.querySelector('[is]') === null;
-    if (plain) for (const el of content.querySelectorAll('*')) if (el.localName.includes('-')) plain = false;
-    this._plain = plain;
   }
 }
 
@@ -403,33 +294,34 @@ const getTemplate = (result: TemplateResult) => {
 /** `${value}` rather than `String(value)`: a symbol throws here as it does at every other sink. */
 const toText = (value: unknown) => (value == null ? '' : `${value}`);
 
-/** An element-position binding's record: the element, and the stable identity an `_$apply$` value keys its ownership by. */
-class Ref {
+/**
+ * The record an `@event`, element-position or custom-element `.prop` binding holds in its node slot.
+ * For an event it is the LISTENER — a stable object, so swapping handlers never touches the DOM and a
+ * re-add through `null` is deduped by the platform; for a ref it is the key an `_$apply$` value keeps
+ * its ownership by; for `.prop` on a custom element, `_state` is where adoption stands.
+ */
+class Slot {
   _element: Element;
-  constructor(element: Element) {
-    this._element = element;
-  }
-}
-
-/** A custom element's `.prop` binding: the element, and where its adoption stands (`ADOPT` until received). */
-class Adopting {
-  _element: Element;
+  _handler: unknown = null;
   _state = ADOPT;
   constructor(element: Element) {
     this._element = element;
   }
+  /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
+  handleEvent(event: Event) {
+    const handler = this._handler as EventListener | EventListenerObject | null;
+    if (typeof handler === 'function') handler.call(this._element as never, event);
+    else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
+  }
 }
 
 /**
- * One commit of `.name` to a custom element nothing may receive yet. Returns what the binding
- * becomes: `PROPERTY` once something receives the property (a setter anywhere on the chain, or an
- * initialized component's `_$adopt$`) or the element is upgraded; `REFUSED` for a getter with no
- * setter (the plain write would throw); `ADOPT` to keep recording.
- *
- * An unreceived write is recorded in `_$props$`, which core's `init()` drains — re-applying the bound
- * values over whatever the class's field initializers wrote at upgrade, which is what repairs both the
- * lazy-definition clobber and the eager one. Element-carried and `$`-named because spread writes the
- * same record from another bundle (its `adopt` is this function's twin).
+ * One commit of `.name` to a custom element nothing may receive yet. Returns what the binding becomes:
+ * `PROPERTY` once something receives it (a setter anywhere on the chain, or an initialized component's
+ * `_$adopt$`) or the element is upgraded; `REFUSED` for a getter with no setter (the plain write would
+ * throw); `ADOPT` to keep recording. An unreceived write is recorded in `_$props$`, which core's
+ * `init()` drains over whatever class fields wrote at upgrade. Element-carried and `$`-named because
+ * spread writes the same record from another bundle (its `adopt` is this function's twin).
  */
 const commitAdopt = (element: Element, name: string, value: unknown): number => {
   const el = element as unknown as Record<string, unknown>;
@@ -454,7 +346,6 @@ const commitAdopt = (element: Element, name: string, value: unknown): number => 
     break; // a data property: an own field, or an inherited default — nothing receives it
   }
   el[name] = value;
-  /** An initialized component receives live: `init()` left `_$adopt$`, and the drain already ran. */
   if (adopt !== undefined) {
     adopt(name, value);
     return PROPERTY;
@@ -463,12 +354,12 @@ const commitAdopt = (element: Element, name: string, value: unknown): number => 
   const first = __DEV__ && !Object.hasOwn(record, name);
   record[name] = value;
   /** Upgrade is read off the PROTOTYPE — a bag key named `constructor` can shadow `el.constructor`. The realm is the element's. */
-  const view = element.ownerDocument.defaultView as unknown as { HTMLElement: { prototype: object }; customElements: CustomElementRegistry } | null;
+  const view = element.ownerDocument.defaultView as unknown as {
+    HTMLElement: { prototype: object };
+    customElements: CustomElementRegistry;
+  } | null;
   const upgraded = view === null || Object.getPrototypeOf(el) !== view.HTMLElement.prototype;
-  /**
-   * Development only: an element that never drains (a plain custom element with a class field) still
-   * loses the value at upgrade — told apart by OWNERSHIP once the definition arrives, never by value.
-   */
+  /** Development only: an element that never drains still loses the value at upgrade — told apart by ownership. */
   if (__DEV__ && view !== null && !upgraded && first) {
     const tag = element.localName;
     view.customElements.whenDefined(tag).then(() => {
@@ -509,21 +400,6 @@ const applyRef = (callback: (element: Element | null) => void, element: Element 
   }
 };
 
-/** The listener an `@event` binding registers — stable, so swapping handlers never touches the DOM. */
-class Listener {
-  _element: Element;
-  _handler: unknown = null;
-  constructor(element: Element) {
-    this._element = element;
-  }
-  /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
-  handleEvent(event: Event) {
-    const handler = this._handler as EventListener | EventListenerObject | null;
-    if (typeof handler === 'function') handler.call(this._element as never, event);
-    else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
-  }
-}
-
 /**
  * A rendered template. Its bindings live in ONE array of `[node, committed value]` pairs rather than a
  * part object each — a row allocates the instance and that array, nothing else. The instance is also
@@ -550,14 +426,13 @@ class Instance {
  *
  * **The clone.** Creating an element in a document WITH a custom-element registry costs a definition
  * lookup per element; the template's inert document has none. So a template that cannot contain a
- * custom element (no dash-named element, no `is`) is cloned with `cloneNode` — its nodes adopt into
- * the page on insertion — and one that can is imported into `owner` with `importNode`, which upgrades
- * defined elements at clone time in the owner's own registry, so a `.prop` commit reaches the class's
- * setter rather than shadowing it. A foreign `owner` (a popped-out window, an iframe) always imports.
+ * custom element is cloned with `cloneNode` — its nodes adopt into the page on insertion — and one that
+ * can is imported into `owner`, which upgrades defined elements at clone time in the owner's own
+ * registry, so a `.prop` commit reaches the class's setter rather than shadowing it. A foreign `owner`
+ * (a popped-out window, an iframe) always imports.
  *
- * **Every node is located before anything commits.** The paths index the pristine clone; a commit
- * that upgrades a child position inserts markers and content, which would shift the siblings a later
- * path counts.
+ * **Every node is located before anything commits.** The paths index the pristine clone; an upgrading
+ * child position inserts markers and content, which would shift the siblings a later path counts.
  */
 const instantiate = (template: Template, result: TemplateResult, owner: Document): Instance => {
   const source = template._root;
@@ -574,8 +449,7 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
       node = node.firstChild!;
       for (let hops = path[step]; hops > 0; hops--) node = node.nextSibling!;
     }
-    bindings[i * 2] =
-      kind === EVENT ? new Listener(node as Element) : kind === REF ? new Ref(node as Element) : kind === ADOPT ? new Adopting(node as Element) : node;
+    bindings[i * 2] = kind === EVENT || kind === REF || kind === ADOPT ? new Slot(node as Element) : node;
     bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
   }
   const instance = new Instance(template, result.strings, root, bindings);
@@ -592,35 +466,27 @@ const update = (instance: Instance, values: unknown[]) => {
   const kinds = template._kinds;
   const statics = template._statics;
   const bindings = instance._bindings;
-  let valueIndex = 0;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
-    if (kind === IGNORED || (kind < LIVE && statics[i] === null && values[valueIndex] === bindings[i * 2 + 1])) valueIndex++;
-    else valueIndex = commitBinding(template, bindings, i, kind, values, valueIndex);
+    if (kind !== IGNORED && (kind >= LIVE || statics[i] !== null || values[i] !== bindings[i * 2 + 1]))
+      commit(template, bindings, i, kind, values);
   }
 };
 
-/** Commits one binding; returns the next value index. */
-const commitBinding = (
-  template: Template,
-  bindings: unknown[],
-  i: number,
-  kind: number,
-  values: unknown[],
-  valueIndex: number
-): number => {
+/** Commits the binding at value position `i`. */
+const commit = (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => {
   const slot = i * 2;
   const committed = bindings[slot + 1];
-  if (kind === CHILD || kind === SOLE) {
-    const value = values[valueIndex];
-    if (committed === UPGRADED) (bindings[slot] as ChildPart)._set(value);
+  const node = bindings[slot];
+  if (kind <= SOLE) {
+    const value = values[i];
+    if (committed === UPGRADED) (node as ChildPart)._set(value);
     else if (value == null || typeof value === 'object') {
       /** A template, list, node or nothing: the position becomes a full part, anchored where its text was. */
-      let text = bindings[slot] as Text;
+      let text = node as Text;
       if (committed === UNSET) {
-        const holder = text as unknown as Element;
-        holder.append('');
-        text = holder.firstChild as Text;
+        (node as Element).append('');
+        text = (node as Element).firstChild as Text;
       }
       const part = markered(text.parentNode!, text);
       text.parentNode!.insertBefore(text, part._end);
@@ -633,30 +499,27 @@ const commitBinding = (
     } else if (value !== committed) {
       if (committed === UNSET) {
         /** SOLE's first text: created holding its value. `''` creates no node, so that one is appended. */
-        const holder = bindings[slot] as Element;
-        if (value === '') holder.append('');
-        else holder.textContent = value as string;
-        bindings[slot] = holder.firstChild;
-      } else (bindings[slot] as Text).data = value as string;
+        if (value === '') (node as Element).append('');
+        else (node as Element).textContent = value as string;
+        bindings[slot] = (node as Element).firstChild;
+      } else (node as Text).data = value as string;
       bindings[slot + 1] = value;
     }
-    return valueIndex + 1;
+    return;
   }
-  const statics = template._statics[i];
-  const next = valueIndex + (statics === null ? 1 : statics.length - 1);
-  if (kind === REFUSED) return next;
-  let value: unknown;
-  if (statics === null || kind === EVENT || kind === REF) value = values[valueIndex];
-  else {
-    let joined = statics[0];
-    for (let s = 1; s < statics.length; s++) joined += toText(values[valueIndex + s - 1]) + statics[s];
-    value = joined;
+  if (kind === REFUSED) return;
+  const parts = template._statics[i];
+  let value = values[i];
+  if (parts !== null && kind !== EVENT && kind !== REF) {
+    value = parts[0];
+    for (let p = 1; p < parts.length; p++) value += toText(values[i + p - 1]) + parts[p];
   }
   const name = template._names[i];
+  const element = (kind === EVENT || kind === REF || kind === ADOPT ? (node as Slot)._element : node) as Element;
   /**
    * A `javascript:` URL bound where a browser navigates is code arriving as data: refused, and the
    * attribute removed, on the JOINED value (so `href="java${x}"` is caught too). Statics are the author's
-   * and never checked; the check runs only for bindings the template marked as URL-bearing.
+   * and never checked alone; only bindings the template marked as URL-bearing pay for the test.
    */
   if (template._urls[i] && value != null && SCRIPT_URL.test(value as string)) {
     if (__DEV__ && value !== committed)
@@ -665,54 +528,41 @@ const commitBinding = (
           `URL is data, and data must never become code.`
       );
     bindings[slot + 1] = value;
-    ((kind === ADOPT ? (bindings[slot] as Adopting)._element : bindings[slot]) as Element).removeAttribute(name);
-    return next;
+    element.removeAttribute(name);
+    return;
   }
   if (kind === LIVE) {
-    bindings[slot + 1] = value;
-    const target = bindings[slot] as Record<string, unknown>;
-    if (target[name] !== value) target[name] = value;
-    return next;
-  }
-  if (kind === SELECT) {
+    if ((element as unknown as Record<string, unknown>)[name] !== value) (element as unknown as Record<string, unknown>)[name] = value;
+  } else if (kind === SELECT) {
     /** Queued, not dirty-checked: the options can be replaced under an unchanged value, which drops the selection just as surely. */
-    bindings[slot + 1] = value;
-    (pendingSelects ??= []).push(bindings[slot], value);
-    return next;
-  }
-  if (value === committed) return next;
+    (pendingSelects ??= []).push(element, value);
+  } else if (value === committed) return;
   bindings[slot + 1] = value;
   if (kind === ATTR) {
-    const element = bindings[slot] as Element;
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
-  } else if (kind === PROPERTY) (bindings[slot] as Record<string, unknown>)[name] = value;
-  else if (kind === ADOPT) {
-    const adopting = bindings[slot] as Adopting;
-    if (adopting._state === PROPERTY) (adopting._element as unknown as Record<string, unknown>)[name] = value;
-    else if (adopting._state === ADOPT) adopting._state = commitAdopt(adopting._element, name, value);
-  }
-  else if (kind === BOOLEAN) (bindings[slot] as Element).toggleAttribute(name, !!value);
-  else if (kind === REF) {
-    /** A function is called with the element; an object gets it as `.value` (core's `ref()`); one with `_$apply$` applies itself, keyed by this binding. */
-    if (value != null) {
-      notifyOnRemoval = true;
-      const ref = bindings[slot] as Ref;
-      if (typeof value === 'function') applyRef(value as (element: Element | null) => void, ref._element);
-      else if (typeof value === 'object') {
-        const self = value as { _$apply$?: (element: Element, key: object) => void; value: unknown };
-        if (self._$apply$) self._$apply$(ref._element, ref);
-        else self.value = ref._element;
-      }
-    }
-  } else {
-    const listener = bindings[slot] as Listener;
+  } else if (kind === PROPERTY) (element as unknown as Record<string, unknown>)[name] = value;
+  else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
+  else if (kind === EVENT) {
+    const listener = node as Slot;
     /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */
-    if (listener._handler === null && value != null) listener._element.addEventListener(name, listener);
+    if (listener._handler === null && value != null) element.addEventListener(name, listener);
     listener._handler = value ?? null;
+  } else if (kind === ADOPT) {
+    const adopting = node as Slot;
+    if (adopting._state === PROPERTY) (element as unknown as Record<string, unknown>)[name] = value;
+    else if (adopting._state === ADOPT) adopting._state = commitAdopt(element, name, value);
+  } else if (kind === REF && value != null) {
+    /** A function is called with the element; an object gets it as `.value` (core's `ref()`); one with `_$apply$` applies itself, keyed by this binding. */
+    notifyOnRemoval = true;
+    if (typeof value === 'function') applyRef(value as (element: Element | null) => void, element);
+    else if (typeof value === 'object') {
+      const self = value as { _$apply$?: (element: Element, key: object) => void; value: unknown };
+      if (self._$apply$) self._$apply$(element, node as Slot);
+      else self.value = element;
+    }
   }
-  return next;
 };
 
 /**
@@ -724,9 +574,8 @@ const teardown = (instance: Instance) => {
   const kinds = instance._template._kinds;
   const bindings = instance._bindings;
   for (let i = 0; i < kinds.length; i++) {
-    const kind = kinds[i];
     const value = bindings[i * 2 + 1];
-    if (kind === REF) {
+    if (kinds[i] === REF) {
       if (typeof value === 'function') applyRef(value as (element: Element | null) => void, null);
       else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
         (value as { value: unknown }).value = null;
@@ -835,8 +684,7 @@ class ChildPart {
   /**
    * How a `_$child$` applier renders — `_$`-named so it survives mangling, because third parties call
    * it. Its own state survives its own commit. A commit that arrives outside its container's render (an
-   * applier resolving later) runs as a render of that container, while it still contains the part, so
-   * queued `<select>` values are flushed like any render's.
+   * applier resolving later) runs as a render of that container, while it still contains the part.
    */
   _$commit$(value: unknown) {
     const applierState = this._applierState;

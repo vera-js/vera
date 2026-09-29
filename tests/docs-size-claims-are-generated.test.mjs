@@ -29,17 +29,17 @@ const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { 
  * a feature *within* a bundle, measured by building with and without it.
  */
 const MEASURED_DELTAS = {
-  '116 B gzipped': 'packages/renderer/README.md — the directive protocol inside the renderer, not a module',
+  '134 B gzipped': 'packages/renderer/README.md — the child-applier protocol inside the renderer, not a module (re-measured by deletion 2026-09-28)',
   /**
    * Found by widening the pattern below, having sat unnoticed in a published README. It is written
    * `**5 B** gzipped`, with the emphasis closing between the unit and the word, and the old pattern
    * required whitespace there — so a live claim was invisible to the guard that exists to find them.
    *
-   * The README states its own provenance: measured 2026-08-27 by deleting the `_$apply$` branch and
+   * The README states its own provenance: measured (2026-09-28, the lean rebuild) by deleting the `_$apply$` branch and
    * rebuilding, as a difference rather than a pair of totals, "and nothing regenerates it, so it is
    * dated". That is precisely what this list is for.
    */
-  '5 B gzipped': 'packages/renderer/README.md — what the directive protocol adds to the renderer, a delta',
+  '25 B gzipped': 'packages/renderer/README.md — what the `_$apply$` protocol adds to the renderer, a delta',
 };
 
 const MARKED = /<!--size:[\w.-]+-->[\s\S]*?<!--\/size:[\w.-]+-->/g;

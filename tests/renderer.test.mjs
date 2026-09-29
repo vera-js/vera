@@ -182,6 +182,23 @@ test('svg renders in the SVG namespace', () => {
   assert.equal(c.getAttribute('r'), '5');
 });
 
+test('an expression in tag-name or attribute-name position consumes its value and leaks nothing onto the page', () => {
+  const [warn, error] = [console.warn, console.error];
+  console.warn = console.error = () => {};
+  try {
+    renderInto(html`<b data-${'x'}="1">a</b><${'i'}>b<p>${'c'}</p>`, el);
+  } finally {
+    [console.warn, console.error] = [warn, error];
+  }
+  assert.doesNotMatch(el.innerHTML, /\$v[0-9a-z]+\$/, 'the internal marker reached the page');
+  assert.equal(el.querySelector('p').textContent, 'c', 'the bindings after it are still aligned');
+});
+
+test('an unquoted value before a self-closing slash does not take the slash', () => {
+  renderInto(html`<input value=${'x'}/><b>after</b>`, el);
+  assert.equal(el.querySelector('input').getAttribute('value'), 'x');
+});
+
 test('binding inside a comment is ignored but keeps later values aligned', () => {
   renderInto(html`<!--${'gone'}--><p>${'kept'}</p>`, el);
   assert.equal(el.querySelector('p').textContent, 'kept');
