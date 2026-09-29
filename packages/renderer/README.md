@@ -926,12 +926,11 @@ written `@event` bindings behave too.
 
 ### What it costs, and why it is a separate entry
 
-`@verajs/renderer` grows **5 B** gzipped for the protocol this uses, whether or not you import it —
-measured 2026-08-27 by deleting the `_$apply$` branch and rebuilding, as a **difference** rather than
-a pair of totals — the totals move with every change to this package and the difference does not,
-which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
-for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
-dated; re-measure the same way if it matters.
+`@verajs/renderer` grows **20 B** gzipped for the protocol this uses, whether or not you import it —
+measured 2026-09-28 by deleting the `_$apply$` branch and its teardown guard (a released ref must not
+write `.value = null` onto an object that applies itself) and rebuilding, as a **difference** rather
+than a pair of totals — the totals move with every change to this package and the difference does not.
+Nothing regenerates it, so it is dated; re-measure the same way if it matters.
 The entry itself is **<!--size:spread.gzip-->1.58 KB<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
@@ -1106,7 +1105,7 @@ BOOLEAN_ATTRIBUTES.has('disabled'); // true — the names the tag entry toggles 
 
 The renderer holds no directive system. It holds a **protocol**, at the two positions worth
 extending, and everything built on it is an ordinary package the renderer knows nothing about —
-`@verajs/renderer/spread` is the proof, at 5 B of protocol in this bundle and its own weight only
+`@verajs/renderer/spread` is the proof, at 20 B of protocol in this bundle and its own weight only
 for apps that import it.
 
 | position | brand | called as |
@@ -1182,9 +1181,11 @@ The check costs the hot path nothing: it sits after the template branch, and a t
 common object at a child position — returns before ever reading it, so only arrays, nodes and
 appliers pay a property read. Measured with no runtime difference distinguishable from noise.
 
-The whole protocol is **116 B gzipped** — the check, the two fields holding an applier's state and
-whose it is, the save/restore in `_$commit$` that stops an applier's own rendering from destroying
-its continuity, and the `_$detach$` call. It was 94 B before teardown existed.
+The whole protocol is **138 B gzipped** (measured 2026-09-28 by deleting it and rebuilding) — the
+check, the two fields holding an applier's state and whose it is, the save/restore in `_$commit$` that
+stops an applier's own rendering from destroying its continuity, running a commit that arrives after
+the render returned as a render of the container that attached it (so a `<select>` it renders gets its
+value), and the `_$detach$` call.
 
 ## Animating things in and out
 

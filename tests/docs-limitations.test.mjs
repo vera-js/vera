@@ -78,15 +78,15 @@ for (const [what, file, phrase, why] of LIMITATIONS) {
 /**
  * The one figure in the docs that no generator can produce: the bytes `@verajs/renderer` spends on
  * the spread protocol, which can only be measured by deleting the branch and rebuilding. `llms.txt`
- * and the renderer README disagreed about it for a while — 16 B against 8 B, both wrong, the real
- * figure 5 B — so what is asserted here is that the two still agree and that the method is recorded,
+ * and the renderer README disagreed about it for a while — 16 B against 8 B, both wrong (the figure
+ * was 5 B then, and 20 B since the lean rebuild) — so what is asserted here is that the two still agree and that the method is recorded,
  * since agreement between two hand-maintained numbers is the part that rotted.
  */
 test('the two hand-maintained protocol figures agree, and say how they were measured', () => {
   const renderer = read('packages/renderer/README.md');
   const llms = read('llms.txt');
-  assert.match(renderer, /grows \*\*5 B\*\* gzipped for the protocol/, 'the renderer README figure moved');
-  assert.match(llms, /costs 5 B for the protocol/, 'the llms.txt figure moved — the two disagreed once before');
-  assert.match(renderer, /measured 2026-08-27 by deleting the `_\$apply\$` branch/,
+  assert.match(renderer, /grows \*\*20 B\*\* gzipped for the protocol/, 'the renderer README figure moved');
+  assert.match(llms, /costs 20 B for the protocol/, 'the llms.txt figure moved — the two disagreed once before');
+  assert.match(renderer, /measured 2026-09-28 by deleting the `_\$apply\$` branch/,
     'the method must stay recorded: nothing regenerates this number');
 });
