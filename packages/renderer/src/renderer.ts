@@ -16,6 +16,8 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
+import { reportUncaught } from '@verajs/shared-utils';
+
 import type { TemplateResult } from './types.js';
 
 export type { TemplateResult } from './types.js';
@@ -214,6 +216,15 @@ const ATTR = 3;
 const PROPERTY = 4;
 const BOOLEAN = 5;
 const EVENT = 6;
+/** An element-position expression: a ref, or a value that applies itself (`_$apply$`). */
+const REF = 7;
+/**
+ * Kinds from here on re-assert on EVERY render, so the update loop never skips them as unchanged:
+ * `!name` writes from the live DOM's point of view (a sibling radio's click unchecks this one with no
+ * event on it), and a `<select>`'s value is re-applied once its options exist — see `pendingSelects`.
+ */
+const LIVE = 8;
+const SELECT = 9;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
@@ -284,13 +295,19 @@ class Template {
             el.removeAttribute(attributeName);
             skipIgnored();
             const first = name[0];
-            /** `&` (element refs) and `!` (live properties) arrive with their pieces. */
-            if (first === '&' || first === '!') continue;
-            const kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : ATTR;
+            let kind =
+              first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : first === '!' ? LIVE : ATTR;
+            /** The parser lowercases attribute names; the spec keeps the author's case (`.someProp`). */
+            let real = kind === ATTR ? name : name.slice(1);
+            /** React muscle memory, buildless: `onClick=${fn}` is `@click`. Strictly `on` + a capital — `onclick` stays an attribute. */
+            if (kind === ATTR && /^on[A-Z]/.test(name)) {
+              kind = EVENT;
+              real = name.slice(2).toLowerCase();
+            }
+            if (kind === PROPERTY && real === 'value' && el.localName === 'select') kind = SELECT;
             nodes[index] = el;
             kinds[index] = kind;
-            /** The parser lowercases attribute names; the spec keeps the author's case (`.someProp`). */
-            names[index] = kind === ATTR ? name : name.slice(1);
+            names[index] = real;
             staticsList[index] = statics.length === 2 && statics[0] === '' && statics[1] === '' ? null : statics;
             present[index] = kind === ATTR && el.hasAttribute(name);
           }
@@ -364,6 +381,31 @@ const getTemplate = (result: TemplateResult) => {
 /** `${value}` rather than `String(value)`: a symbol throws here as it does at every other sink. */
 const toText = (value: unknown) => (value == null ? '' : `${value}`);
 
+/** An element-position binding's record: the element, and the stable identity an `_$apply$` value keys its ownership by. */
+class Ref {
+  _element: Element;
+  constructor(element: Element) {
+    this._element = element;
+  }
+}
+
+/**
+ * Calls an element ref, and survives one that throws — it runs mid-commit, and an unguarded throw left
+ * the render half applied. Reported where a hook's error is: the app's `'error'` chain, handed the
+ * component being rendered, else `reportError`.
+ */
+const applyRef = (callback: (element: Element | null) => void, element: Element | null) => {
+  try {
+    callback(element);
+  } catch (error) {
+    const handlers = registry?.get('error') as ((error: unknown, element?: Element) => void)[] | undefined;
+    if (handlers?.length) {
+      const host = renderRoot?.nodeType === 11 ? (renderRoot as ShadowRoot).host : (renderRoot as Element | null);
+      for (const handler of handlers) handler(error, host ?? undefined);
+    } else reportUncaught(error, __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
+  }
+};
+
 /** The listener an `@event` binding registers — stable, so swapping handlers never touches the DOM. */
 class Listener {
   _element: Element;
@@ -429,7 +471,7 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
       node = node.firstChild!;
       for (let hops = path[step]; hops > 0; hops--) node = node.nextSibling!;
     }
-    bindings[i * 2] = kind === EVENT ? new Listener(node as Element) : node;
+    bindings[i * 2] = kind === EVENT ? new Listener(node as Element) : kind === REF ? new Ref(node as Element) : node;
     bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
   }
   const instance = new Instance(template, result.strings, root, bindings);
@@ -449,7 +491,7 @@ const update = (instance: Instance, values: unknown[]) => {
   let valueIndex = 0;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
-    if (kind === IGNORED || (statics[i] === null && values[valueIndex] === bindings[i * 2 + 1])) valueIndex++;
+    if (kind === IGNORED || (kind < LIVE && statics[i] === null && values[valueIndex] === bindings[i * 2 + 1])) valueIndex++;
     else valueIndex = commitBinding(template, bindings, i, kind, values, valueIndex);
   }
 };
@@ -501,16 +543,28 @@ const commitBinding = (
   }
   const statics = template._statics[i];
   let value: unknown;
-  if (statics === null || kind === EVENT) value = values[valueIndex];
+  if (statics === null || kind === EVENT || kind === REF) value = values[valueIndex];
   else {
     let joined = statics[0];
     for (let s = 1; s < statics.length; s++) joined += toText(values[valueIndex + s - 1]) + statics[s];
     value = joined;
   }
   const next = valueIndex + (statics === null ? 1 : statics.length - 1);
+  const name = template._names[i];
+  if (kind === LIVE) {
+    bindings[slot + 1] = value;
+    const target = bindings[slot] as Record<string, unknown>;
+    if (target[name] !== value) target[name] = value;
+    return next;
+  }
+  if (kind === SELECT) {
+    /** Queued, not dirty-checked: the options can be replaced under an unchanged value, which drops the selection just as surely. */
+    bindings[slot + 1] = value;
+    (pendingSelects ??= []).push(bindings[slot], value);
+    return next;
+  }
   if (value === committed) return next;
   bindings[slot + 1] = value;
-  const name = template._names[i];
   if (kind === ATTR) {
     const element = bindings[slot] as Element;
     if (value != null) element.setAttribute(name, value as string);
@@ -518,7 +572,19 @@ const commitBinding = (
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
   } else if (kind === PROPERTY) (bindings[slot] as Record<string, unknown>)[name] = value;
   else if (kind === BOOLEAN) (bindings[slot] as Element).toggleAttribute(name, !!value);
-  else {
+  else if (kind === REF) {
+    /** A function is called with the element; an object gets it as `.value` (core's `ref()`); one with `_$apply$` applies itself, keyed by this binding. */
+    if (value != null) {
+      notifyOnRemoval = true;
+      const ref = bindings[slot] as Ref;
+      if (typeof value === 'function') applyRef(value as (element: Element | null) => void, ref._element);
+      else if (typeof value === 'object') {
+        const self = value as { _$apply$?: (element: Element, key: object) => void; value: unknown };
+        if (self._$apply$) self._$apply$(ref._element, ref);
+        else self.value = ref._element;
+      }
+    }
+  } else {
     const listener = bindings[slot] as Listener;
     /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */
     if (listener._handler === null && value != null) listener._element.addEventListener(name, listener);
@@ -526,6 +592,27 @@ const commitBinding = (
   }
   return next;
 };
+
+/**
+ * Tells what an instance holds that it is going away: a ref is released (`null`, so a component reading
+ * it after a subtree was replaced does not get a detached element back), and a child position that
+ * became a part passes the news down. Reached only when `notifyOnRemoval` is set.
+ */
+const teardown = (instance: Instance) => {
+  const kinds = instance._template._kinds;
+  const bindings = instance._bindings;
+  for (let i = 0; i < kinds.length; i++) {
+    const kind = kinds[i];
+    const value = bindings[i * 2 + 1];
+    if (kind === REF) {
+      if (typeof value === 'function') applyRef(value as (element: Element | null) => void, null);
+      else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
+        (value as { value: unknown }).value = null;
+      bindings[i * 2 + 1] = UNSET;
+    } else if (value === UPGRADED) (bindings[i * 2] as ChildPart)._detach();
+  }
+};
+const detachItem = (item: Item) => (item instanceof ChildPart ? item._detach() : teardown(item));
 
 /** A single property read — it runs once per list item per render. */
 const isTemplateResult = (value: object): value is TemplateResult =>
@@ -572,6 +659,13 @@ class ChildPart {
   _items: Item[] | null = null;
   /** The key a keyed list reads when this part is one of its items. */
   $k: unknown = undefined;
+  /** Instances `hold()` parked here, by template identity — they outlive interim content. */
+  _held: Map<TemplateStringsArray, Instance> | null = null;
+  /** Whatever the last `_$child$` applier returned here (its continuity), and which applier that was. */
+  _applierState: unknown = undefined;
+  _applier: unknown = undefined;
+  /** The container whose render attached the applier — a later `_$commit$` runs as a render of it. */
+  declare _root?: Node | null;
 
   constructor(start: Comment, end: Node | null) {
     this._start = start;
@@ -582,7 +676,16 @@ class ChildPart {
     this._start.parentNode!.insertBefore(node, this._end);
   }
 
+  /** Tells everything under this part that it is going away — reached only when `notifyOnRemoval` is set. */
+  _detach() {
+    if (this._applier !== undefined) (this._applier as Applier)._$detach$?.(this._applierState);
+    if (this._instance !== null) teardown(this._instance);
+    const items = this._items;
+    if (items !== null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
+  }
+
   _clear() {
+    if (notifyOnRemoval) this._detach();
     const parent = this._start.parentNode!;
     const end = this._end;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
@@ -603,6 +706,68 @@ class ChildPart {
     this._text = null;
     this._instance = null;
     this._items = null;
+    this._applierState = undefined;
+    this._applier = undefined;
+  }
+
+  /**
+   * How a `_$child$` applier renders — `_$`-named so it survives mangling, because third parties call
+   * it. Its own state survives its own commit. A commit that arrives outside its container's render (an
+   * applier resolving later) runs as a render of that container, while it still contains the part, so
+   * queued `<select>` values are flushed like any render's.
+   */
+  _$commit$(value: unknown) {
+    const applierState = this._applierState;
+    const applier = this._applier;
+    if (renderRoot !== this._root || renderRoot === null) {
+      const outer = renderRoot;
+      const mark = pendingSelects?.length ?? 0;
+      renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
+      try {
+        this._set(value);
+      } finally {
+        renderRoot = outer;
+        flushSelects(mark);
+      }
+    } else this._set(value);
+    this._applierState = applierState;
+    this._applier = applier;
+  }
+
+  /** Commits a template while parking whatever template it replaces — see `hold()`. */
+  _commitHeld(result: TemplateResult) {
+    if (this._mode === TEMPLATE && this._instance!._strings === result.strings) {
+      update(this._instance!, result.values);
+      return;
+    }
+    const held = (this._held ??= new Map());
+    if (this._mode === TEMPLATE) {
+      const instance = this._instance!;
+      const root = instance._root;
+      /** A fragment root takes its nodes back; an element root IS the range. */
+      if (root.nodeType === 11) {
+        let node = this._start.nextSibling;
+        while (node !== this._end) {
+          const next = node!.nextSibling;
+          root.appendChild(node!);
+          node = next;
+        }
+      } else (root as ChildNode).remove();
+      held.set(instance._strings, instance);
+      this._mode = EMPTY;
+      this._instance = null;
+    } else if (this._mode !== EMPTY) this._clear();
+    let instance = held.get(result.strings);
+    if (instance === undefined) {
+      instance = instantiate(getTemplate(result), result, this._start.ownerDocument!);
+      this._insert(instance._root);
+    } else {
+      /** Inserted first, then updated, as every update is: its nodes are live when its values commit. */
+      this._insert(instance._root);
+      update(instance, result.values);
+    }
+    this._instance = instance;
+    this._mode = TEMPLATE;
   }
 
   _set(value: unknown) {
@@ -621,6 +786,8 @@ class ChildPart {
       this._value = value;
       return;
     }
+    const heldResult = (value as { $h?: TemplateResult }).$h;
+    if (heldResult !== undefined) return this._commitHeld(heldResult);
     if (isTemplateResult(value)) {
       /** The hottest line of a list update: same strings, commit the values and nothing else. */
       if (this._mode === TEMPLATE && this._instance!._strings === value.strings) {
@@ -634,10 +801,26 @@ class ChildPart {
       this._mode = TEMPLATE;
       return;
     }
+    /** A value kind a module handles (`'value'` insert) — how a kind becomes a package, not a branch here. */
+    const handlers = registry?.get('value') as ValueHandler[] | undefined;
+    if (handlers !== undefined) for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
     if (Array.isArray(value)) return this._commitList(value);
     /** Any other iterable is a list — but a node is placed, not iterated (a `<select>`, a `<form>`). */
     if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined)
       return this._commitList([...(value as Iterable<unknown>)]);
+    /**
+     * A value that applies itself at a child position: `_$child$(part, previous)` renders through
+     * `part._$commit$` and returns its continuity, handed back next time — to THIS applier only.
+     */
+    const applyChild = (value as { _$child$?: Applier })._$child$;
+    if (applyChild !== undefined) {
+      const previous = this._applier === applyChild ? this._applierState : undefined;
+      this._applier = applyChild;
+      this._root = renderRoot;
+      if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
+      this._applierState = applyChild.call(value, this, previous);
+      return;
+    }
     if ((value as Node).nodeType !== undefined) {
       if (this._mode !== NODE || this._value !== value) {
         if (this._mode !== EMPTY) this._clear();
@@ -712,6 +895,7 @@ class ChildPart {
 
   /** Removes an item. */
   $d(item: Item) {
+    if (notifyOnRemoval) detachItem(item);
     this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
@@ -749,12 +933,63 @@ class ChildPart {
     for (let i = 0; i < shared; i++) items[i] = this.$u(items[i], values[i]);
     for (let i = items.length; i < count; i++) items.push(this.$c(values[i], parent, end));
     if (count < items.length) {
+      if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
       for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
       SCRATCH.textContent = '';
       items.length = count;
     }
   }
 }
+
+/** A value at a child position a module claims — the `'value'` insert. Return `true` to take it. */
+type ValueHandler = (part: object, value: unknown) => boolean | void;
+/** A child-position applier: renders through `part._$commit$`, keeps continuity in its return value. */
+type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
+  /** Told, with its last state, when its position goes away. */
+  _$detach$?: (previous: unknown) => void;
+};
+
+/**
+ * The registry `renderer.connect` was handed — the app's own, so a CDN page with separate bundles still
+ * meets one `'value'`/`'error'` chain. Never imported: a production bundle inlines `@verajs/inserts`.
+ */
+let registry: { get(name: string): unknown[] | undefined } | null = null;
+
+/** The container of the `renderInto` in progress — a ref's error names its component through it. */
+let renderRoot: Node | null = null;
+
+/**
+ * Whether anything asked to be told when a subtree goes away: a ref to release, an applier with
+ * `_$detach$`. Process-wide — an app with neither walks nothing, and a clear stays one `textContent = ''`.
+ */
+let notifyOnRemoval = false;
+
+/**
+ * `<select>.value` assignments held until the pass has committed: assigned where it is written, the
+ * options may not exist yet (a nested list has not run), and the select falls back to its first option.
+ * Flat pairs; a render flushes only what it queued, so a nested render cannot apply its caller's early.
+ */
+let pendingSelects: unknown[] | null = null;
+const flushSelects = (from: number) => {
+  const queued = pendingSelects;
+  if (queued === null || queued.length <= from) return;
+  /** Taken off first: an assignment can run a `change` handler that renders again. */
+  const mine = queued.splice(from);
+  if (queued.length === 0) pendingSelects = null;
+  for (let i = 0; i < mine.length; i += 2) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
+};
+
+/**
+ * Preserves the DOM of a template a position toggles away from, instead of destroying it — form values
+ * and media state survive the round trip. Anything that is not a template passes straight through, so
+ * `hold(editing && editor())` is fine.
+ *
+ * ```js
+ * html`<div>${hold(editing ? editor() : viewer())}</div>`
+ * ```
+ */
+export const hold = <T>(result: T): T | { $h: TemplateResult } =>
+  result != null && typeof result === 'object' && isTemplateResult(result) ? { $h: result as TemplateResult } : result;
 
 const rootParts = new WeakMap<Node, ChildPart>();
 
@@ -770,7 +1005,16 @@ export const renderInto = (result: unknown, container: Node) => {
     container.appendChild(marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
-  part._set(result);
+  /** A render can run inside another's commit, so the root is saved and restored; the selects this pass queued flush on the way out, even when it throws. */
+  const outer = renderRoot;
+  const mark = pendingSelects?.length ?? 0;
+  renderRoot = container;
+  try {
+    part._set(result);
+  } finally {
+    renderRoot = outer;
+    flushSelects(mark);
+  }
 };
 
 /** Everything this renderer needs, in one entry: `wire([renderer])`. */
@@ -779,4 +1023,8 @@ export const renderer = {
   on: 'render' as const,
   fn: renderInto as never,
   priority: 50,
+  /** Typed against the registry `wire` hands over, so `wire([renderer])` compiles in a consumer's project. */
+  connect: (given: { get(name: never): unknown }) => {
+    registry = given as { get(name: string): unknown[] | undefined };
+  },
 };
