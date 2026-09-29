@@ -518,11 +518,8 @@ const commitBinding = (
         holder.append('');
         text = holder.firstChild as Text;
       }
-      const end = comment();
-      const part = new ChildPart(comment(), end);
-      const parent = text.parentNode!;
-      parent.insertBefore(part._start, text);
-      parent.insertBefore(end, text.nextSibling);
+      const part = markered(text.parentNode!, text);
+      text.parentNode!.insertBefore(text, part._end);
       part._mode = TEXT;
       part._text = text;
       part._value = committed === UNSET ? '' : committed;
@@ -719,55 +716,11 @@ class ChildPart {
   _$commit$(value: unknown) {
     const applierState = this._applierState;
     const applier = this._applier;
-    if (renderRoot !== this._root || renderRoot === null) {
-      const outer = renderRoot;
-      const mark = pendingSelects?.length ?? 0;
-      renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
-      try {
-        this._set(value);
-      } finally {
-        renderRoot = outer;
-        flushSelects(mark);
-      }
-    } else this._set(value);
+    if (renderRoot !== this._root || renderRoot === null)
+      commitAs(this._root != null && this._root.contains(this._start) ? this._root : null, this, value);
+    else this._set(value);
     this._applierState = applierState;
     this._applier = applier;
-  }
-
-  /** Commits a template while parking whatever template it replaces — see `hold()`. */
-  _commitHeld(result: TemplateResult) {
-    if (this._mode === TEMPLATE && this._instance!._strings === result.strings) {
-      update(this._instance!, result.values);
-      return;
-    }
-    const held = (this._held ??= new Map());
-    if (this._mode === TEMPLATE) {
-      const instance = this._instance!;
-      const root = instance._root;
-      /** A fragment root takes its nodes back; an element root IS the range. */
-      if (root.nodeType === 11) {
-        let node = this._start.nextSibling;
-        while (node !== this._end) {
-          const next = node!.nextSibling;
-          root.appendChild(node!);
-          node = next;
-        }
-      } else (root as ChildNode).remove();
-      held.set(instance._strings, instance);
-      this._mode = EMPTY;
-      this._instance = null;
-    } else if (this._mode !== EMPTY) this._clear();
-    let instance = held.get(result.strings);
-    if (instance === undefined) {
-      instance = instantiate(getTemplate(result), result, this._start.ownerDocument!);
-      this._insert(instance._root);
-    } else {
-      /** Inserted first, then updated, as every update is: its nodes are live when its values commit. */
-      this._insert(instance._root);
-      update(instance, result.values);
-    }
-    this._instance = instance;
-    this._mode = TEMPLATE;
   }
 
   _set(value: unknown) {
@@ -786,17 +739,44 @@ class ChildPart {
       this._value = value;
       return;
     }
-    const heldResult = (value as { $h?: TemplateResult }).$h;
-    if (heldResult !== undefined) return this._commitHeld(heldResult);
-    if (isTemplateResult(value)) {
+    /** `hold()` wraps a template as `{ $h }`: the one it replaces is parked by template identity, not destroyed. */
+    const held = (value as { $h?: TemplateResult }).$h;
+    if (held !== undefined || isTemplateResult(value)) {
+      const result = held ?? (value as TemplateResult);
       /** The hottest line of a list update: same strings, commit the values and nothing else. */
-      if (this._mode === TEMPLATE && this._instance!._strings === value.strings) {
-        update(this._instance!, value.values);
+      if (this._mode === TEMPLATE && this._instance!._strings === result.strings) {
+        update(this._instance!, result.values);
         return;
       }
+      let instance: Instance | undefined;
+      if (held !== undefined) {
+        const parked = (this._held ??= new Map());
+        if (this._mode === TEMPLATE) {
+          const current = this._instance!;
+          const root = current._root;
+          /** A fragment root takes its nodes back; an element root IS the range. */
+          if (root.nodeType === 11) {
+            let node = this._start.nextSibling;
+            while (node !== this._end) {
+              const next = node!.nextSibling;
+              root.appendChild(node!);
+              node = next;
+            }
+          } else (root as ChildNode).remove();
+          parked.set(current._strings, current);
+          this._mode = EMPTY;
+        }
+        instance = parked.get(result.strings);
+      }
       if (this._mode !== EMPTY) this._clear();
-      const instance = instantiate(getTemplate(value), value, this._start.ownerDocument!);
-      this._insert(instance._root);
+      if (instance === undefined) {
+        instance = instantiate(getTemplate(result), result, this._start.ownerDocument!);
+        this._insert(instance._root);
+      } else {
+        /** Inserted first, then updated, as every update is: its nodes are live when its values commit. */
+        this._insert(instance._root);
+        update(instance, result.values);
+      }
       this._instance = instance;
       this._mode = TEMPLATE;
       return;
@@ -844,10 +824,7 @@ class ChildPart {
         return instance;
       }
     }
-    const end = comment();
-    const part = new ChildPart(comment(), end);
-    parent.insertBefore(part._start, ref);
-    parent.insertBefore(end, ref);
+    const part = markered(parent, ref);
     part._set(value);
     part.$k = (value as TemplateResult | null)?.key;
     return part;
@@ -864,9 +841,7 @@ class ChildPart {
       return item;
     }
     const element = item._root as Element;
-    const end = comment();
-    const part = new ChildPart(comment(), end);
-    element.before(part._start, end);
+    const part = markered(element.parentNode!, element);
     element.remove();
     part.$k = item.$k;
     part._set(value);
@@ -991,6 +966,31 @@ const flushSelects = (from: number) => {
 export const hold = <T>(result: T): T | { $h: TemplateResult } =>
   result != null && typeof result === 'object' && isTemplateResult(result) ? { $h: result as TemplateResult } : result;
 
+/** A fresh part whose two markers sit before `ref` in `parent`. */
+const markered = (parent: Node, ref: Node | null) => {
+  const end = comment();
+  const part = new ChildPart(comment(), end);
+  parent.insertBefore(part._start, ref);
+  parent.insertBefore(end, ref);
+  return part;
+};
+
+/**
+ * Commits `value` into `part` as a render of `root`: the root is set and restored (a render can run
+ * inside another's commit), and the `<select>` values this pass queued are flushed however it ends.
+ */
+const commitAs = (root: Node | null, part: ChildPart, value: unknown) => {
+  const outer = renderRoot;
+  const mark = pendingSelects?.length ?? 0;
+  renderRoot = root;
+  try {
+    part._set(value);
+  } finally {
+    renderRoot = outer;
+    flushSelects(mark);
+  }
+};
+
 const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
@@ -1005,16 +1005,7 @@ export const renderInto = (result: unknown, container: Node) => {
     container.appendChild(marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
-  /** A render can run inside another's commit, so the root is saved and restored; the selects this pass queued flush on the way out, even when it throws. */
-  const outer = renderRoot;
-  const mark = pendingSelects?.length ?? 0;
-  renderRoot = container;
-  try {
-    part._set(result);
-  } finally {
-    renderRoot = outer;
-    flushSelects(mark);
-  }
+  commitAs(container, part, result);
 };
 
 /** Everything this renderer needs, in one entry: `wire([renderer])`. */
