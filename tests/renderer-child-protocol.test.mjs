@@ -49,6 +49,26 @@ function applyUntil(part, previous) {
 }
 const until = (promise, placeholder) => ({ _$child$: applyUntil, promise, placeholder });
 
+/** Commits once now (nothing) and once when its promise settles — after the render that attached it returned. */
+function applyLater(part, previous) {
+  if (previous) return previous;
+  part._$commit$(null);
+  this.promise.then((value) => part._$commit$(value));
+  return {};
+}
+const later = (promise) => ({ _$child$: applyLater, promise });
+
+test('a late commit runs as a render of its container — a <select> it renders shows its value', async () => {
+  const container = into();
+  let resolve;
+  const promise = new Promise((r) => (resolve = r));
+  renderInto(html`<div>${later(promise)}</div>`, container);
+  resolve(html`<select .value=${'b'}><option value="a">A</option><option value="b">B</option></select>`);
+  await promise;
+  await Promise.resolve();
+  assert.equal(container.querySelector('select').value, 'b', 'the queued value was applied by the late commit itself');
+});
+
 test('a directive renders, keeps its place across renders, and updates asynchronously', async () => {
   const container = into();
   let resolve;

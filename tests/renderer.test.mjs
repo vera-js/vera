@@ -405,6 +405,20 @@ test('hold() preserves DOM and element state across a toggle', () => {
   assert.equal(el.querySelector('p').textContent, 'view:2');
 });
 
+test('hold() parks and restores a MULTI-ROOT template — its own nodes come back', () => {
+  const pair = (v) => html`<b>${v}</b><i>tail</i>`;
+  const other = () => html`<p>other</p>`;
+  const t = (on, v) => html`<div>${hold(on ? pair(v) : other())}</div>`;
+  renderInto(t(true, 1), el);
+  const b = el.querySelector('b');
+  const i = el.querySelector('i');
+  renderInto(t(false), el);
+  assert.equal(el.querySelector('b'), null, 'parked, not left on the page');
+  renderInto(t(true, 2), el);
+  assert.ok(el.querySelector('b') === b && el.querySelector('i') === i, 'the same nodes came back');
+  assert.equal(read(), '<div><b>2</b><i>tail</i></div>');
+});
+
 test('hold() updates values in place when the template does not change', () => {
   const t = (v) => html`<div>${hold(html`<b>${v}</b>`)}</div>`;
   renderInto(t('x'), el);

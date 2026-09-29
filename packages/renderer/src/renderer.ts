@@ -43,11 +43,10 @@ const markerWalker = doc.createTreeWalker(doc, 133);
 const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
 const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 
-/** What the scan found at an expression position. */
+/** What the scan found at an expression position: a child, nothing (inside a comment, a junk position), or an attribute's name. */
 const SPEC_CHILD = 0;
-const SPEC_ATTRIBUTE = 1;
-const SPEC_IGNORED = 2; // consumed, nothing rendered (inside a comment, a junk position)
-type Spec = { _type: 0 | 2 } | { _type: 1; _name: string };
+const SPEC_IGNORED = 2;
+type Spec = 0 | 2 | string;
 
 /** Scanner states. */
 const IN_TEXT = 0;
@@ -98,7 +97,7 @@ const scan = (strings: TemplateStringsArray) => {
           statics.push(pending);
           const quoteChar = quote || '"';
           markup += ` ${specs.length}${MARKER}=${quoteChar}${statics.join(MARKER)}${quoteChar}`;
-          specs.push({ _type: SPEC_ATTRIBUTE, _name: attrName });
+          specs.push(attrName);
           state = IN_TAG;
           if (quote !== '') pos++; // consume the closing quote; an unquoted terminator is re-read IN_TAG
           continue;
@@ -166,12 +165,12 @@ const scan = (strings: TemplateStringsArray) => {
     if (i === strings.length - 1) break;
     if (state === IN_TEXT) {
       markup += `<?${MARKER}>`;
-      specs.push({ _type: SPEC_CHILD });
+      specs.push(SPEC_CHILD);
     } else if (state === IN_RAW_TEXT) {
       markup += MARKER; // a comment cannot be parsed here — construction turns this back into one
-      specs.push({ _type: SPEC_CHILD });
+      specs.push(SPEC_CHILD);
     } else if (state === IN_COMMENT) {
-      specs.push({ _type: SPEC_IGNORED });
+      specs.push(SPEC_IGNORED);
     } else if (state === IN_BOUND_VALUE) {
       statics.push(pending); // the attribute spans another expression
       pending = '';
@@ -183,7 +182,7 @@ const scan = (strings: TemplateStringsArray) => {
         pending = '';
         markup = markup.slice(0, quoteStart - 1 - name.length); // cut `name="` back out
         state = IN_BOUND_VALUE;
-      } else specs.push({ _type: SPEC_IGNORED });
+      } else specs.push(SPEC_IGNORED);
     } else {
       // IN_TAG: `name=${x}` unquoted, or an element-position expression (marked like an attribute named `&`)
       const name = markup.endsWith('=') ? attrNameBefore(markup.length - 1) : '';
@@ -196,7 +195,7 @@ const scan = (strings: TemplateStringsArray) => {
         state = IN_BOUND_VALUE;
       } else {
         markup += ` ${specs.length}${MARKER}="${MARKER}"`;
-        specs.push({ _type: SPEC_ATTRIBUTE, _name: '&' });
+        specs.push('&');
       }
     }
   }
@@ -236,14 +235,14 @@ class Template {
   _root: Node;
   /** No element in it can be custom — see `instantiate`. */
   _plain: boolean;
-  _kinds: number[] = [];
-  _names: string[] = [];
+  _kinds: number[];
+  _names: string[];
   /** The statics around a bound attribute's values; `null` for one full-value expression. */
-  _statics: (string[] | null)[] = [];
+  _statics: (string[] | null)[];
   /** Child-index hops from `_root` to each binding's node. */
   _paths: number[][] = [];
   /** The template statically writes the attribute too, so a first nullish commit must still remove it. */
-  _present: boolean[] = [];
+  _present: boolean[];
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
@@ -263,21 +262,15 @@ class Template {
      * marker comment becomes a primed empty text node. A marker that never arrived (its element dropped
      * by the parser) leaves its spec IGNORED, and nothing after it moves.
      */
-    const nodes: (Node | null)[] = [];
-    const kinds = this._kinds;
-    const names = this._names;
-    const staticsList = this._statics;
-    const present = this._present;
-    for (let s = 0; s < specs.length; s++) {
-      nodes.push(null);
-      kinds.push(IGNORED);
-      names.push('');
-      staticsList.push(null);
-      present.push(false);
-    }
+    const count = specs.length;
+    const nodes: (Node | null)[] = new Array(count).fill(null);
+    const kinds = (this._kinds = new Array(count).fill(IGNORED));
+    const names = (this._names = new Array(count).fill(''));
+    const staticsList = (this._statics = new Array(count).fill(null));
+    const present = (this._present = new Array(count).fill(false));
     let specIndex = 0;
     const skipIgnored = () => {
-      while (specIndex < specs.length && specs[specIndex]._type === SPEC_IGNORED) specIndex++;
+      while (specIndex < specs.length && specs[specIndex] === SPEC_IGNORED) specIndex++;
     };
     skipIgnored();
     markerWalker.currentNode = content;
@@ -290,7 +283,7 @@ class Template {
             if (!attributeName.endsWith(MARKER)) continue;
             const index = parseInt(attributeName, 10);
             specIndex = index + 1;
-            const name = (specs[index] as { _name: string })._name;
+            const name = specs[index] as string;
             const statics = el.getAttribute(attributeName)!.split(MARKER);
             el.removeAttribute(attributeName);
             skipIgnored();
