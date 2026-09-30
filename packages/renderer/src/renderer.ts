@@ -25,6 +25,8 @@ export type { TemplateResult } from './types.js';
 /** Unique per module load, so user text can never collide with it. */
 // eslint-disable-next-line no-bitwise -- >>> 0 is the integer truncation, not arithmetic
 const MARKER = '$v' + ((Math.random() * 1e9) >>> 0).toString(36) + '$';
+/** Every marker as a nested `<template>` serializes it: an addressed attribute, a child comment, a raw-text pair. */
+const INERT_MARKERS = ((m) => new RegExp(` \\d+${m}(?:="[^"]*")?|<!--\\?${m}\\d+-->|${m}\\d+${m}`, 'g'))(MARKER.replaceAll('$', '\\$'));
 
 const doc = document;
 const comment = () => doc.createComment('');
@@ -197,6 +199,12 @@ class Template {
         continue;
       }
       const el = node as Element;
+      /**
+       * A nested `<template>`'s content is inert markup the walk never enters, so its bindings can never be
+       * reached — they are ignored, as the server ignores them. Their markers are scrubbed from its markup,
+       * every depth at once, or they would sit in the live page.
+       */
+      if (el.localName === 'template') (el as HTMLTemplateElement).innerHTML = (el as HTMLTemplateElement).innerHTML.replace(INERT_MARKERS, '');
       if (el.localName.includes('-') || el.hasAttribute('is')) this._plain = false;
       for (const attribute of el.getAttributeNames()) {
         if (!attribute.endsWith(MARKER)) continue;
@@ -277,7 +285,14 @@ class Template {
     const root = (this._root = first !== null && first.nodeType === 1 && first.nextSibling === null ? first : content);
     for (let i = 0; i < count; i++) {
       let at = nodes[i];
-      if (kinds[i] === CHILD) {
+      if (at === null) {
+        if (__DEV__ && (kinds[i] === CHILD || names[i] !== ''))
+          console.warn(
+            `[vera] renderer: the value at position ${i} sits inside a nested <template>'s content — inert markup that is ` +
+              `never rendered — so it is ignored (and the server ignores it too). Render into the live tree instead.`
+          );
+        kinds[i] = IGNORED;
+      } else if (kinds[i] === CHILD) {
         const parent = at!.parentNode!;
         if (parent.nodeType === 1 && parent.childNodes.length === 1 && !RAW_TEXT.test((parent as Element).localName)) {
           parent.removeChild(at!);

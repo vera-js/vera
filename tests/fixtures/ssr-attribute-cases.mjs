@@ -64,6 +64,16 @@ export const EXPLICIT = [
   /** Other kinds of binding before the attribute: per-binding compile data is indexed by BINDING, not by attribute. */
   { label: 'a text binding, then an attribute', strings: ['<b>', '</b><p title=pre', '>t</p>'], values: ['bold', 'v'] },
   { label: 'a boolean, then a quoted attribute', strings: ['<p ?hidden=', ' title="', '">t</p>'], values: [false, 'v'] },
+  /**
+   * A nested `<template>`'s content is inert markup the client never walks: its bindings are ignored on BOTH
+   * sides — no value, no marker — while a binding on the `<template>` element itself is an ordinary attribute.
+   */
+  { label: 'nested template: a child binding', strings: ['<div><template><p>', '</p></template></div>'], values: ['x'] },
+  { label: 'nested template: an attribute with statics', strings: ['<div><template><p title="a', 'b" id="k">t</p></template></div>'], values: ['x'] },
+  { label: 'nested template: a boolean and a sole attribute', strings: ['<div><template><p ?hidden=', ' lang=', '>t</p></template></div>'], values: [true, 'en'] },
+  { label: 'nested template, twice nested', strings: ['<template><template><p title=', '>', '</p></template></template>'], values: ['x', 'y'] },
+  { label: 'a binding ON the template element is reached', strings: ['<div><template id=', '><p>t</p></template></div>'], values: ['k'] },
+  { label: 'a binding AFTER a nested template closes is reached', strings: ['<div><template><p>t</p></template><p title=', '>', '</p></div>'], values: ['k', 'text'] },
   /** The template ends inside a value: nothing may be dropped or duplicated compared with the client. */
   { label: 'unterminated value at the end of the template', strings: ['<p title="', ''], values: ['x'] },
 ];

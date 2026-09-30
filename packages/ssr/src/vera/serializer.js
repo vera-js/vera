@@ -215,7 +215,7 @@ const closesTag = (text, inTag) => {
 const RAWTEXT = new Set(['style', 'script']);
 
 const scanTag = (text, state) => {
-  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial } = state;
+  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert } = state;
   /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
   let opened = false;
   let attrRaw = state.attrRaw;
@@ -263,10 +263,16 @@ const scanTag = (text, state) => {
     }
     if (character === '>') {
       inTag = false;
+      /**
+       * How deep inside nested `<template>` content this is. That content is inert markup the client never walks,
+       * so a binding there is ignored on both sides — see `compile`.
+       */
+      if (tagName === 'template') inert += closing ? -1 : text[i - 1] === '/' ? 0 : 1;
       /** A self-closing tag has no content to be raw, and a closing tag opens nothing. */
-      if (text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
+      else if (!closing && text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
       tagName = '';
       naming = false;
+      closing = false;
     } else if (character === '=') {
       naming = false;
       /** Which attribute this value belongs to, and a serial per value — the URL-sink check needs both. */
@@ -289,13 +295,12 @@ const scanTag = (text, state) => {
     } else if (naming) {
       /** The name runs until the first character that cannot be in one; `/` means a closing tag. */
       if (/[a-zA-Z0-9-]/.test(character)) tagName += character.toLowerCase();
-      else {
-        naming = false;
-        if (character === '/' && tagName === '') tagName = '\u0000';
-      }
+      /** A closing tag keeps its name, so `</template>` can be counted. */
+      else if (character === '/' && tagName === '') closing = true;
+      else naming = false;
     }
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, attrRaw, opened, attrStart, valueStart };
+  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, attrRaw, opened, attrStart, valueStart };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -357,7 +362,7 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, attrRaw: '' };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, attrRaw: '' };
   /** Per binding: whether a component property's name is a URL sink. */
   const urls = [];
   /**
@@ -382,6 +387,11 @@ const compile = (strings) => {
      * template as one attribute value, which made every element position after it invisible.
      */
     tagState = scanTag(strings[i], tagState);
+    /**
+     * Inside a nested `<template>`'s content: inert markup the client never walks, so it never reaches this
+     * binding — it neither renders the value nor keeps the attribute holding it. Nor does this.
+     */
+    const inert = tagState.inert > 0;
     /** A new tag starts wherever the text opens one; what the previous tag held is irrelevant. */
     const opensTag = part.lastIndexOf('<') > part.lastIndexOf('>');
     if (opensTag || (!inTag && wasInTag)) {
@@ -410,7 +420,9 @@ const compile = (strings) => {
       const kind = sigil[1];
       /** Absent after a bare `&=`, which is an element ref with no name. */
       const sigilName = sigil[2] ?? '';
-      if (kind === '?') {
+      if (inert) {
+        kinds.push(DROPPED);
+      } else if (kind === '?') {
         kinds.push(BOOLEAN);
       } else if ((kind === '.' || kind === '!') && sigilName && owner.includes('-')) {
         /**
@@ -498,8 +510,8 @@ const compile = (strings) => {
           quote: tagState.quote,
           first: kinds.length,
           last: kinds.length,
-          /** A bound `srcdoc` renders its value as a document; a URL sink refuses `javascript:` — as the client does. */
-          refuse: lower === 'srcdoc' ? 2 : URL_ATTRIBUTE.test(lower) ? 1 : 0,
+          /** Never served: inert content, and a bound `srcdoc` (it renders its value as a document). A URL sink refuses `javascript:` — as the client does. */
+          refuse: inert || lower === 'srcdoc' ? 2 : URL_ATTRIBUTE.test(lower) ? 1 : 0,
           /** An earlier write of this name in the tag: the client's `setAttribute` replaces it, so it is removed. */
           strip: dynamicTag || written.has(lower),
           /** The WHOLE value is this one binding — the only shape where a nullish value removes the attribute. */
@@ -524,7 +536,7 @@ const compile = (strings) => {
     }
     record(part);
     parts.push(part);
-    kinds.push(TEXT);
+    kinds.push(inert ? DROPPED : TEXT);
     names.push('');
     strip.push(false);
     owners.push(owner);

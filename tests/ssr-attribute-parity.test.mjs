@@ -43,10 +43,17 @@ globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 const { renderInto } = await load('renderer');
 
-/** Every element as `name{sorted attributes}`, then the text — attribute ORDER is not a difference. */
+/**
+ * Every element as `name{sorted attributes}`, then the text — attribute ORDER is not a difference. A
+ * `<template>`'s content is a separate fragment `querySelectorAll` never enters, so it is walked explicitly:
+ * that is where a client marker would leak and where the server would render bindings the client ignores.
+ */
 const shapeOf = (root) =>
   [...root.querySelectorAll('*')]
-    .map((el) => `${el.localName}${JSON.stringify([...el.attributes].map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)))}`)
+    .map((el) =>
+      `${el.localName}${JSON.stringify([...el.attributes].map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)))}` +
+      (el.localName === 'template' ? `{${shapeOf(el.content)}}` : '')
+    )
     .join(' ') + ` | ${JSON.stringify(root.textContent)}`;
 
 test('the table is exercised — every shape, every value, both sides', () => {

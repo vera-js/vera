@@ -625,6 +625,8 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   template holds something another library owns (a charting canvas, a map container, an editor).
 - Async values are not special: render a loading state and re-render from an effect.
 - Plain strings render as TEXT, never parsed as HTML (there is no innerHTML sink).
+- A binding INSIDE a nested `<template>`'s content is ignored (inert markup, never walked) — client and
+  `@verajs/ssr` alike; the attribute holding it is dropped. Bindings on the `<template>` element itself work.
 - A bound `javascript:` URL is REFUSED where a browser navigates (`href`, `src`, `action`,
   `formaction`, `xlink:href`, `data` — attribute or property), judged on the joined value as the URL
   parser reads it; the attribute is removed. A non-string is converted ONCE (the string checked is the

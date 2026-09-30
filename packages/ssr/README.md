@@ -289,6 +289,10 @@ dependency involved.
 
 ## What cannot round-trip
 
+- **A binding inside a nested `<template>`'s content is ignored, on the server and the client alike.**
+  That content is inert markup the renderer never walks, so a value there is never rendered and an
+  attribute holding one is dropped whole; a binding on the `<template>` element itself is ordinary.
+  Render into the live tree instead.
 - **A `<select>`'s value is served as `<option selected>`** — assigning the property *selects an
   option*, so that is all markup can say. Matching follows the platform (the `value` attribute
   verbatim, otherwise the option's text stripped and collapsed; first match wins), asserted against
