@@ -155,7 +155,8 @@ export type SettleInsert = (element: HTMLElement) => void;
  * A hook may set `_$at$` on the template: a resolver the renderer asks, once per instance created,
  * which template to build at a position given that position's parent node — `null`/an element, or
  * a detached fragment answered through `readScope`. `@verajs/renderer/namespaces` is the first
- * consumer: it parses an `html` template in the namespace of the position it lands in.
+ * consumer: it parses an `html` template in the namespace of the position it lands in. It may also set
+ * `_$inst$`, an instance hook — `@verajs/renderer/elements` asks its claimants about `root` here, once.
  *
  * `template` is the renderer's own object, exposed only through `_$…$` members (mangling exempts
  * them, which is what lets a separately built module reach it).
@@ -163,7 +164,14 @@ export type SettleInsert = (element: HTMLElement) => void;
 export type TemplateInsert = (
   template: object,
   result: { _$litType$?: number; strings: TemplateStringsArray },
-  readScope: () => unknown
+  readScope: () => unknown,
+  /**
+   * The template's CANONICAL content — its one root element, or its fragment — inert, with static attributes only
+   * (bindings are never applied to it). **Read-only**: every instance is cloned from it, but a hydrated instance is not
+   * (the server made its nodes), so a change here would reach some instances and not others. An svg/mathml variant a
+   * module builds is its own template, and is handed its own root.
+   */
+  root: Node
 ) => void;
 
 /**

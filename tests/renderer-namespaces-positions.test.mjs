@@ -43,3 +43,55 @@ test('MathML too', () => {
   renderInto(html`<math>${html`<mi>x</mi>`}</math>`, host);
   assert.deepEqual(namespacesOf(host, 'mi'), [MATH]);
 });
+
+/** The SVG build of an html template is its own template: a claimant is asked about ITS content — SVG elements. */
+test("a claim inside svg content is asked on the SVG variant, not the html original", async () => {
+  const { elements } = await load('renderer/elements');
+  const asked = [];
+  const quiet = console.warn;
+  console.warn = () => {};
+  try {
+    core.wire([elements, { on: 'element', fn: (el) => { if (el.localName === 'rect') asked.push(el.namespaceURI); }, priority: 50 }]);
+  } finally {
+    console.warn = quiet;
+  }
+  const host = document.createElement('div');
+  const shape = () => html`<rect width="1"></rect><!-- a fresh template, built after the claimant was wired -->`;
+  renderInto(html`<svg>${shape()}</svg>`, host);
+  assert.equal(host.querySelector('rect').namespaceURI, SVG, 'CONTROL: rendered as SVG');
+  assert.ok(asked.includes(SVG), `the claimant saw the SVG variant's element: ${asked.join(', ')}`);
+});
+
+/** The parser is asked once per KIND of parent: two different <g> elements share one answer. */
+test('the namespace probe runs once per kind of parent, not once per parent element', () => {
+  const clone = dom.window.Element.prototype.cloneNode;
+  let probes = 0;
+  dom.window.Element.prototype.cloneNode = function (deep) {
+    if (deep === false && this.namespaceURI === SVG) probes++;
+    return clone.call(this, deep);
+  };
+  try {
+    const leaf = () => html`<line x1="0"></line><!-- unique -->`;
+    const a = document.createElement('div');
+    const b = document.createElement('div');
+    renderInto(html`<svg><polyline></polyline><switch>${leaf()}</switch></svg>`, a);
+    renderInto(html`<svg><switch>${leaf()}</switch><!-- another parent element, the same kind --></svg>`, b);
+    assert.equal(b.querySelector('line').namespaceURI, SVG, 'CONTROL: resolved');
+    assert.ok(probes <= 1, `probed ${probes} times for two <switch> parents`);
+  } finally {
+    dom.window.Element.prototype.cloneNode = clone;
+  }
+});
+
+/** `<annotation-xml encoding="text/html">` is an HTML integration point: its children are HTML, as the parser decides. */
+test('annotation-xml with an HTML encoding takes HTML children; without one, MathML', () => {
+  const parsed = document.createElement('div');
+  parsed.innerHTML = '<math><annotation-xml encoding="text/html"><div></div></annotation-xml><annotation-xml><mi></mi></annotation-xml></math>';
+  const block = () => html`<div>x</div><!-- html block -->`;
+  const ident = () => html`<mi>y</mi><!-- math ident -->`;
+  const host = document.createElement('div');
+  renderInto(html`<math><annotation-xml encoding="text/html">${block()}</annotation-xml><annotation-xml>${ident()}</annotation-xml></math>`, host);
+  assert.equal(host.querySelector('div').namespaceURI, parsed.querySelector('div').namespaceURI, 'HTML inside the text/html one');
+  assert.equal(parsed.querySelector('div').namespaceURI, 'http://www.w3.org/1999/xhtml', 'CONTROL: the parser says HTML');
+  assert.equal(host.querySelector('mi').namespaceURI, MATH, 'MathML inside the plain one');
+});

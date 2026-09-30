@@ -31,3 +31,22 @@ test('an adopted element mounts with adopted: true — the server node itself; a
   renderInto(draw('f'), fresh);
   assert.deepEqual(log.slice(1).map(([el, adopted]) => [el.id, adopted]), [['f', false]]);
 });
+
+/**
+ * Claims are asked about a template's CANONICAL content as it is built — so a template whose first instance is one
+ * hydration adopted (the server's element, bound values in it) is still asked about static attributes only.
+ */
+test("a claim is asked about the template, not its first instance — a hydrated one's bound values are invisible", () => {
+  const seen = [];
+  core.wire({ on: 'element', fn: (el) => { if (el.localName === 'em') seen.push(el.getAttribute('data-x')); }, priority: 60 });
+  const host = document.body.appendChild(document.createElement('div'));
+  host.innerHTML = '<em data-x="bound-value">x</em>';
+  const quiet = console.warn;
+  console.warn = () => {};
+  try {
+    renderInto(html`<em data-x=${'bound-value'}>x</em>`, host);
+  } finally {
+    console.warn = quiet;
+  }
+  assert.deepEqual(seen, [null], 'asked once, with no bound value');
+});

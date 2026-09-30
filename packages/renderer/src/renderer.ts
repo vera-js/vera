@@ -378,14 +378,14 @@ class Template {
      * position at its top level cannot be resolved.
      */
     if (hooks !== undefined && hooks.length > 0) {
-      for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope);
+      for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope, root);
       this._x = true;
     }
   }
 }
 
 /** A `'template'` insert: called once as each template is built. */
-type TemplateHook = (template: Template, result: TemplateResult, readScope: () => unknown) => void;
+type TemplateHook = (template: Template, result: TemplateResult, readScope: () => unknown, root: Node) => void;
 
 /**
  * **The create scope**: the template whose instance is being built, while its first update runs — how a resolver

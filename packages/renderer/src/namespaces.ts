@@ -1,43 +1,25 @@
 /**
  * **`@verajs/renderer/namespaces` — a template is parsed in the namespace of the position it lands in.**
  *
- * Wired like `slots`: `wire([renderer, namespaces])`. From then on `` html`<path/>` `` committed inside
- * an `<svg>` is built as SVG, exactly as the platform's fragment parser takes a context element — so
- * a component's children cross a function boundary without anyone choosing `svg\`…\`` for them.
- * `@verajs/jsx` wires it in every module it compiles, because JSX cannot write `svg\`…\``; a template
- * author may wire it or keep choosing tags, and pays nothing unless it is wired.
+ * `wire([renderer, namespaces])`, and `` html`<path/>` `` committed inside an `<svg>` is built as SVG — as the
+ * platform's fragment parser treats markup given a context element — so a component's children cross a function
+ * boundary without anyone choosing `svg\`…\`` for them. `@verajs/jsx` wires it for every module it compiles, because
+ * JSX cannot write `svg\`…\``. An app that does not wire it pays nothing.
  *
- * Additive, like `slots`: it imports nothing, and the renderer reaches it only through the wired
- * `'template'` insert point and the sigil-named `_$at$`/`_$ns$` members, which mangling exempts.
- *
- * Namespaces are ASKED OF THE PARSER, not listed: a probe element's `innerHTML` answers which
- * namespace a child takes, so integration points and camelCase names come from the platform. The one
- * exception is `annotation-xml`, where the engines disagree about it as a parsing context.
+ * It imports nothing: the renderer reaches it through the `'template'` insert, and it answers through the
+ * sigil-named `_$at$` (which template to build at a position) and `_$ns$` (a template's own namespace), which
+ * mangling leaves alone. **The child namespace is asked of the PARSER**, not written down — integration points
+ * (`<foreignObject>`, `<annotation-xml>`, MathML's text elements) answer as the engine answers — with one exception
+ * the engines disagree about.
  */
 import type { TemplateResult } from './types.js';
 
-/**
- * The three namespaces, **read off the parser rather than written here**: `<svg>` and `<math>` parse
- * into theirs, and the wrapper is HTML. Built on first use, never at import — this module can be
- * imported where there is no DOM (a server bundle) as long as nothing renders with it there.
- */
-let reference: Element | undefined;
-const namespaceOf = (index: -1 | 0 | 1): string | null => {
-  if (reference === undefined) {
-    reference = document.createElement('div');
-    reference.innerHTML = '<svg></svg><math></math>';
-  }
-  return index === -1 ? reference.namespaceURI : (reference.childNodes[index] as Element).namespaceURI;
-};
+/** The three namespaces — fixed by the specifications, so written rather than read off a probe element. */
+const HTML = 'http://www.w3.org/1999/xhtml';
+const SVG = 'http://www.w3.org/2000/svg';
+const MATHML = 'http://www.w3.org/1998/Math/MathML';
 
-/**
- * **The answer cached on a parent element, under a Symbol** — invisible to `Object.keys` and `for…in`
- * (every other DOM element answers `[]` there), and a plain property store, where `defineProperty`
- * would add a call for every new parent on the create path. Only this module reads it.
- */
-const ANSWER = Symbol();
-type Cached = Element & { [ANSWER]?: string | null };
-
+/** The renderer's template, as this module sees it: two sigil-named members and a way to build a variant. */
 type Template = {
   _$at$?: (parent: Node) => Template;
   _$ns$?: string | null;
@@ -45,114 +27,88 @@ type Template = {
 };
 
 /**
- * The namespace `tag` takes as a CHILD of `parent`, or `null` for HTML — **asked of the parser**.
- * A clone of the parent is given that child through `innerHTML`, which runs the fragment parser with
- * that element as its context, so integration points answer as the platform answers.
+ * **The namespace a `tag` takes as a child of `parent`** (`null` for HTML), asked of the parser: a shallow clone of
+ * the parent is handed that child through `innerHTML`, which runs the fragment parser with it as the context. Cached
+ * by the parent's KIND — namespace and name — and the tag, because nothing else decides it: one probe per kind of
+ * parent for the life of the page, and no DOM node held. Nested objects rather than a joined key: building the key
+ * cost more than the lookup, on a path walked once per instance.
  *
- * **The tag matters only under a MathML parent**, and there it decides: `<svg>` inside
- * `<annotation-xml>` is SVG while any other child is MathML, and `<mglyph>`/`<malignmark>` inside
- * `<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>` stay MathML while any other child is HTML. So a MathML
- * parent is asked with the template's own first tag; every other parent with a stand-in, since its
- * answer is the same for every tag.
+ * **The tag decides only under a MathML parent**: `<svg>` in `<annotation-xml>` is SVG where any other child is
+ * MathML, and `<mglyph>`/`<malignmark>` stay MathML inside `<mi>`/`<mo>`/`<mn>`/`<ms>`/`<mtext>` where any other child
+ * is HTML. Every other parent is asked with a stand-in tag, since its answer is the same for all.
  */
 const answers: Record<string, Record<string, Record<string, string | null>>> = {};
 const childOf = (parent: Element, tag: string): string | null => {
-  if (parent.namespaceURI === namespaceOf(-1)) return null;
+  if (parent.namespaceURI === HTML) return null;
   /**
-   * The one position the probe cannot answer: the engines DISAGREE about `<annotation-xml>` as a
-   * fragment parser's context — Chromium reads its `encoding`, Firefox does not — while all three
-   * agree in full markup, where the `encoding` on its start tag decides. So the attribute is read.
+   * The one context the probe cannot answer: the engines DISAGREE about `<annotation-xml>` as a fragment parser's
+   * context — Chromium reads its `encoding`, Firefox does not — while all agree in full markup, where the `encoding`
+   * on its start tag decides. So the attribute is read, and the answer is not cached (a binding can change it).
    */
   if (parent.localName === 'annotation-xml') {
     const encoding = parent.getAttribute('encoding')?.toLowerCase();
     if (encoding === 'text/html' || encoding === 'application/xhtml+xml') return null;
   }
-  /**
-   * **Cached by namespace and name**, because the parser's answer depends on nothing else here
-   * (`annotation-xml`, the one element it can depend on an attribute for, is left above). Unasked,
-   * this probe ran once per instance CREATED in a foreign position — a clone and a parse per icon.
-   * Nested plain objects rather than a joined string key: building the key cost more than the
-   * lookup it served, on a path the renderer walks once per instance.
-   */
   const byTag = ((answers[parent.namespaceURI!] ??= {})[parent.localName] ??= {});
   let answer = byTag[tag];
   if (answer === undefined) {
     const probe = parent.cloneNode(false) as Element;
     probe.innerHTML = `<${tag}></${tag}>`;
     const ns = (probe.firstChild as Element | null)?.namespaceURI ?? null;
-    byTag[tag] = answer = ns === namespaceOf(-1) ? null : ns;
+    byTag[tag] = answer = ns === HTML ? null : ns;
   }
   return answer;
 };
 
 /**
- * Where a position is, from its parent — or, when that parent is still a detached fragment, from the
- * renderer's create-path scope: the template whose instance the fragment is (its own namespace), or
- * `[a list's parent, the scope outside it]` for a row built in a batching fragment.
+ * **A parent element's answer, cached ON it** under a Symbol — the fast path: every row of a list shares one parent,
+ * and once this is wired EVERY `html` instance asks, so the common case must be one property read, not the
+ * `namespaceURI`/`localName` reads the kind cache needs. A string stored on the element holds nothing and dies with
+ * it (measured alternatives: a `WeakRef` to the last parent cost Firefox 8.7% on plain creation; a strong reference
+ * would keep a removed subtree alive). Invisible to `Object.keys` and `for…in`. Not used under a MathML parent, whose
+ * answer depends on the tag.
  */
-const within = (node: Node, scope: unknown, tag: string): string | null =>
-  node.nodeType === 1
-    ? childOf(node as Element, (node as Element).namespaceURI === namespaceOf(1) ? tag : 'x')
-    : Array.isArray(scope)
-      ? within(scope[0], scope[1], tag)
-      : ((scope as Template | null)?._$ns$ ?? null);
-
+const ANSWER = Symbol();
+type Cached = Element & { [ANSWER]?: string | null };
 
 export const namespaces = {
   name: '@verajs/renderer/namespaces',
   on: 'template' as const,
   priority: 50,
   /**
-   * Typed as the `'template'` insert point declares it — the renderer hands its own template as an
-   * `object` — so `wire([renderer, namespaces])` type-checks for a consumer; the sigil-named members
-   * this module uses are its own view of that object.
+   * Typed as the `'template'` insert declares it — the renderer hands its template as an `object` — so
+   * `wire([renderer, namespaces])` type-checks for a consumer; the sigil-named members are this module's view of it.
    */
-  fn: (built: object, result: Pick<TemplateResult, '_$litType$' | 'strings'>, read: () => unknown): void => {
+  fn: (built: object, result: Pick<TemplateResult, '_$litType$' | 'strings'>, readScope: () => unknown): void => {
     const template = built as Template;
     const type = result._$litType$ ?? 1;
+    /** An `svg\`…\``/`mathml\`…\`` template — or a variant this module built — is in its namespace already. */
     if (type !== 1) {
-      template._$ns$ = namespaceOf((type - 2) as 0 | 1);
+      template._$ns$ = type === 2 ? SVG : MATHML;
       return;
     }
-    /** The `svg` and `mathml` builds of this template's markup, made the first time one is needed. */
-    let svg: Template | undefined;
-    let mathml: Template | undefined;
     /**
-     * The template's first ELEMENT's tag, which a MathML parent's answer depends on — past any leading
-     * text, comment or expression (read from all the strings, comments removed), `x` when there is
-     * none. Matching only a tag at the very start answered a template opening `<!--c--><svg>`,
-     * `label <svg>` or `${x}<svg>` as if it held no element at all. A template whose roots differ in
-     * kind still gets one answer, its first element's.
+     * The template's first ELEMENT's tag — past leading text, comments and expressions (`<!--c--><svg>`, `label <svg>`,
+     * `${x}<svg>`), `x` when it has none — which is what a MathML parent's answer depends on.
      */
     const tag = /<([a-zA-Z][^\s/>]*)/.exec(result.strings.join('').replace(/<!--[\s\S]*?-->/g, ''))?.[1] ?? 'x';
+    /** Its SVG and MathML builds, made the first time one is needed — the renderer's own constructor, so every
+     *  construction-time decision (every refusal) is made again there, never copied. */
+    let svg: Template | undefined;
+    let mathml: Template | undefined;
     const pick = (ns: string | null): Template =>
       ns === null
         ? template
-        : ns === namespaceOf(0)
+        : ns === SVG
           ? (svg ??= new template.constructor({ _$litType$: 2, strings: result.strings }))
           : (mathml ??= new template.constructor({ _$litType$: 3, strings: result.strings }));
     template._$at$ = (parent) => {
-      /** The cache first: it is only ever written on an element, so a hit skips the `nodeType` read. */
       const cached = (parent as Cached)[ANSWER];
       if (cached !== undefined) return pick(cached);
-      if (parent.nodeType !== 1) return pick(within(parent, read(), tag));
-      /**
-       * **The answer is cached ON the parent element.** Every row of a list shares one parent, and once
-       * this module is wired EVERY `html` instance on the page asks — plain HTML lists included — so
-       * the common case has to be one property read. Two other homes were measured and rejected: a
-       * `WeakRef` to the last parent cost Firefox 8.7% on plain HTML creation (`deref()` per row), and
-       * a strong reference would keep a removed subtree alive for the life of the cached template.
-       * On the element, the answer lives and dies with the thing it describes.
-       */
-      /**
-       * Not cached under a MathML parent: its answer depends on the tag, and for `annotation-xml` on
-       * an `encoding` a binding can change later. MathML is rare enough that asking each time is free.
-       */
-      if ((parent as Element).namespaceURI === namespaceOf(1)) return pick(childOf(parent as Element, tag));
-      const answer = childOf(parent as Element, 'x');
-      (parent as Cached)[ANSWER] = answer;
-      return pick(answer);
+      /** Still inside an instance's detached clone: the template being built answers, with its own namespace. */
+      if (parent.nodeType !== 1) return pick((readScope() as Template | null)?._$ns$ ?? null);
+      if ((parent as Element).namespaceURI === MATHML) return pick(childOf(parent as Element, tag));
+      return pick(((parent as Cached)[ANSWER] = childOf(parent as Element, 'x')));
     };
   },
 };
-
