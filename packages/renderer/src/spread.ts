@@ -150,13 +150,22 @@ class Binding {
   }
 }
 
-const write = (binding: Binding, given: unknown) => {
+const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   const kind = binding._kind;
   const value = checked(binding._url, given);
   const name = binding._name;
   const element = binding._element;
   const el = element as unknown as Record<string, unknown>;
   if (kind === REFUSED) return;
+  /**
+   * **Adopting server markup** (hydration hands this in): a built-in control's value and a `!name` are RECORDED, not
+   * written — the server's default, and anything the user typed before the script arrived, stand, exactly as for a
+   * written binding. A component's property is still delivered.
+   */
+  if (adopting && binding._read === null && (kind === LIVE || (kind === PROPERTY && (name === 'value' || name === 'checked' || name === 'selected')))) {
+    binding._committed = value;
+    return;
+  }
   if (value === REFUSE) {
     if (__DEV__ && given !== binding._committed)
       console.warn(`[vera] spread: \`${name}\` was given a javascript: URL — refused, and the attribute removed.`);
@@ -211,7 +220,7 @@ const owned = new WeakMap<object, Map<string, Binding>>();
  * Each binding keeps the one it was CREATED with, so nothing about it is paid per render, and an apply nested inside
  * another (a component setter rendering a spread) can never change what the outer's bindings use.
  */
-function apply(this: SpreadResult, element: Element, key: object, untracked: Untracked = call) {
+function apply(this: SpreadResult, element: Element, key: object, untracked: Untracked = call, adopting = false) {
   const props = this._props;
   let bindings = owned.get(key);
   if (bindings === undefined) owned.set(key, (bindings = new Map()));
@@ -220,7 +229,7 @@ function apply(this: SpreadResult, element: Element, key: object, untracked: Unt
     count++;
     let binding = bindings.get(name);
     if (binding === undefined) bindings.set(name, (binding = new Binding(element, name, untracked)));
-    write(binding, props[name]);
+    write(binding, props[name], adopting);
   }
   if (bindings.size !== count)
     for (const [name, binding] of bindings)

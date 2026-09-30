@@ -536,6 +536,31 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     element.removeAttribute(name);
     return;
   }
+  /**
+   * **Adopting server markup** (the hydrate entry only — `__HYDRATING__` folds this away everywhere else). The server
+   * wrote the attribute already, so it is READ and written only on a difference — a wrong one is repaired, a right one
+   * costs no write. A form control's value, a `!name` on a plain element and a select's selection are RECORDED, not
+   * written: the server's default, and anything the user typed before the script arrived, stand. (A `!name` then
+   * compares on the next render and overwrites what was typed — the controlled contract, unchanged.)
+   */
+  if (__HYDRATING__ && adopting) {
+    if (kind === ATTR) {
+      bindings[slot + 1] = value;
+      if (value == null) {
+        if (element.hasAttribute(name)) element.removeAttribute(name);
+      } else if (element.getAttribute(name) !== toText(value)) element.setAttribute(name, value as string);
+      return;
+    }
+    if (kind === BOOLEAN) {
+      bindings[slot + 1] = value;
+      if (element.hasAttribute(name) !== !!value) element.toggleAttribute(name, !!value);
+      return;
+    }
+    if (kind === SELECT || kind === LIVE || (kind === PROPERTY && (name === 'value' || name === 'checked' || name === 'selected'))) {
+      bindings[slot + 1] = value;
+      return;
+    }
+  }
   /** The kinds that re-assert every render sit from `LIVE` up (`REFUSED` returned above): ONE test routes them all. */
   if (kind >= LIVE) {
     if (kind === SELECT) {
@@ -576,7 +601,9 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      */
     if ((value as { _$apply$?: unknown })._$apply$) {
       /** On a `<select>` it may set the selection (a spread's `.value`), so it waits for the options too — see `flush`. */
-      if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, [value, element, node]);
+      if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, __HYDRATING__ ? [value, element, node, adopting] : [value, element, node]);
+      /** Adopting, it is told so (the hydrate entry only): a form control's value the user typed must stand. */
+      else if (__HYDRATING__) (value as Applies)._$apply$(element, node as Slot, untracked, adopting);
       else (value as Applies)._$apply$(element, node as Slot, untracked);
     }
     /**
@@ -636,7 +663,34 @@ const NODE = 4;
 /** Removal is a move into this fragment, then one clear. */
 const SCRATCH = doc.createDocumentFragment();
 
-export type { ChildPart, Instance };
+/**
+ * Internals the hydrate entry adopts through. The base entry (`index.ts`) re-exports none of them, so its bundle
+ * tree-shakes them away; the hydrate bundle inlines this module and reaches them.
+ */
+export {
+  getTemplate,
+  Instance,
+  ChildPart,
+  Slot,
+  comment,
+  toText,
+  isTemplateResult,
+  rootParts,
+  registry,
+  renderRoot,
+  UNSET,
+  UPGRADED,
+  IGNORED,
+  CHILD,
+  SOLE,
+  EVENT,
+  ADOPT,
+  TEXT,
+  TEMPLATE,
+  LIST,
+  NODE,
+};
+export type { Template };
 
 /** A list item: an instance of a single-root template (its element is its whole range), or a markered part. */
 export type Item = Instance | ChildPart;
@@ -953,7 +1007,7 @@ class ChildPart {
 /** A value at a child position a module claims — the `'value'` insert. Return `true` to take it. */
 type ValueHandler = (part: object, value: unknown) => boolean | void;
 /** An element-position value that applies itself — a spread. */
-type Applies = { _$apply$: (element: Element, key: object, run: Untracked) => void };
+type Applies = { _$apply$: (element: Element, key: object, run: Untracked, adopting?: boolean) => void };
 
 /** A child-position applier: renders through `part._$commit$`, keeps continuity in its return value. */
 type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
@@ -983,6 +1037,28 @@ let renderRoot: Node | null = null;
  * `_$detach$`. Process-wide — an app with neither walks nothing, and a clear stays one `textContent = ''`.
  */
 let notifyOnRemoval = false;
+
+/**
+ * The binding being committed belongs to ADOPTED server markup — true only inside `commitAdopting`, only in the hydrate
+ * entry. Scoped to one commit, never to the pass: client code runs during adoption (an applier rendering, a component
+ * setter rendering), and what it instantiates is fresh and must be written in full — `commitAs` clears it for them.
+ */
+let adopting = false;
+
+/** Something adopted must be told when it goes away — an applier with `_$detach$` (the hydrate entry's setter). */
+export const needRemovalWork = () => {
+  notifyOnRemoval = true;
+};
+
+/** Commits one binding of adopted server markup. */
+export const commitAdopting = (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => {
+  adopting = true;
+  try {
+    commit(template, bindings, i, kind, values);
+  } finally {
+    adopting = false;
+  }
+};
 
 /**
  * Refs held until the pass's DOM exists, as flat `(bindings, slot)` pairs: each is handed its element once that
@@ -1024,7 +1100,8 @@ const flush = (selectsFrom: number, refsFrom: number) => {
         /** Read and written BY NAME: a computed `select[name]` on a DOM accessor measured 5% slower. */
         if (r.length === 2) {
           if ((r[0] as HTMLSelectElement).selectedIndex !== r[1]) (r[0] as HTMLSelectElement).selectedIndex = r[1] as number;
-        } else (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked);
+        } else if (__HYDRATING__) (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked, r[3] === true);
+        else (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked);
       } else if ((a as HTMLSelectElement).value !== b) (a as HTMLSelectElement).value = b as string;
     }
   }
@@ -1090,12 +1167,44 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   const outerDoc = passDoc;
   const selectsMark = pendingSelects?.length ?? 0;
   const refsMark = pendingRefs?.length ?? 0;
+  /** A render nested inside an adopted binding's commit builds fresh DOM: it is never adopting (hydrate entry only). */
+  const outerAdopting = __HYDRATING__ && adopting;
+  if (__HYDRATING__) adopting = false;
   renderRoot = root;
   /** A document's own `ownerDocument` is null — so a document container is its own. */
   if (home !== null) passDoc = home.ownerDocument ?? (home as Document);
   try {
     part._set(value);
   } finally {
+    flush(selectsMark, refsMark);
+    renderRoot = outer;
+    passDoc = outerDoc;
+    if (__HYDRATING__) adopting = outerAdopting;
+  }
+};
+
+/**
+ * **Hydration's bracket** — the hydrate entry's only way into the pass state, which another module cannot assign.
+ * The same as `commitAs`, except that if `run` throws — a mismatch — everything the pass queued is dropped before
+ * the flush, so a ref inside markup about to be discarded is
+ * never handed its element. Unused by the base entry, so its bundle never carries it.
+ */
+export const adoptAs = (container: Node, run: () => void) => {
+  const outer = renderRoot;
+  const outerDoc = passDoc;
+  const selectsMark = pendingSelects?.length ?? 0;
+  const refsMark = pendingRefs?.length ?? 0;
+  renderRoot = container;
+  passDoc = container.ownerDocument ?? (container as Document);
+  let adopted = false;
+  try {
+    run();
+    adopted = true;
+  } finally {
+    if (!adopted) {
+      if (pendingSelects !== null) pendingSelects.length = selectsMark;
+      if (pendingRefs !== null) pendingRefs.length = refsMark;
+    }
     flush(selectsMark, refsMark);
     renderRoot = outer;
     passDoc = outerDoc;

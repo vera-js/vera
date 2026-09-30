@@ -770,8 +770,15 @@ adoption of everything around it.
 `<p>` and found `<div>`"*, *"`<ul>` contains `<li>`, which the template does not describe"*. The page
 is correct either way, which is the point of the fallback and also why it needs saying: that
 container's markup was just thrown away, and with nothing observable to notice, the only symptom is
-a first paint that is slower than the one you paid a server render for. An attribute that disagrees
-is simply re-set during adoption and is not a fallback at all.
+a first paint that is slower than the one you paid a server render for. An attribute is **read** during
+adoption and written only if it disagrees — a right one costs no write, a wrong one is repaired — and
+neither is a fallback.
+
+**Form state stands.** A form control's `.value`, `.checked` and `.selected`, a `!name` on a built-in
+element and a `<select>`'s selection are recorded, not written, so whatever the user typed before the
+script arrived is kept (a `!name` then compares on the next render and takes over, as it always does).
+**A custom element's children are its own render**: when the template writes nothing inside the tag,
+adoption leaves them to the component.
 
 **A fallback costs one container, not the page.** Adoption is decided per container, so components
 hydrating into their own roots are independent: one that disagrees rebuilds and warns, and every
@@ -790,8 +797,7 @@ nothing else changes. Apps that never hydrate download none of this.
 ### Importing this in Node
 
 **`@verajs/renderer` needs a DOM to be imported at all**, not merely to render. It captures
-`document` at module scope and builds two shared `TreeWalker`s there, which is what saves an
-allocation per instance — so `import '@verajs/renderer'` on a server throws
+`document` at module scope (and creates its scratch fragment there) — so `import '@verajs/renderer'` on a server throws
 `ReferenceError: document is not defined` before any of your code runs. The same is true of
 `/hydrate` and `/profiler`, and of `@verajs/jsx/standalone`, which contains a renderer.
 
@@ -1153,8 +1159,13 @@ for apps that import it.
 
 | position | brand | called as |
 | --- | --- | --- |
-| element — `<div ${value}>` | `_$apply$` | `value._$apply$(element, part)` |
-| child — `<div>${value}</div>` | `_$child$` | `value._$child$(part, previous)` |
+| element — `<div ${value}>` | `_$apply$` | `value._$apply$(element, part, untracked, adopting)` |
+| child — `<div>${value}</div>` | `_$child$` | `value._$child$(part, previous, adopting)` |
+
+`adopting` is `true` exactly once, while `@verajs/renderer/hydrate` adopts server markup: leave form state
+alone, and adopt what the server rendered at the position or replace it — an applier that ignores the flag
+renders, which replaces. (`untracked` is how an applier runs someone else's code without subscribing the
+render — see core's `untrack`.)
 
 A child-position value carrying `_$child$` applies itself. It is handed the part and whatever it
 returned last time **at that part**, and calls `part._$commit$(value)` to render content. That is

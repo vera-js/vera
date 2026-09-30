@@ -590,8 +590,10 @@ COMPONENT tag is DELIVERED to that child's server render instead (written `.prop
 carries the property, and an unregistered dashed tag passes through for the client to handle.
 Escaping stays in `@verajs/ssr`, in one place, exactly as for written bindings.
 
-**The protocol is public.** A value at element position carrying `_$apply$(element, part)` applies
-itself, and `_$attrs$()` lets it serialize server-side. Spread is the first user; any renderer
+**The protocol is public.** A value at element position carrying `_$apply$(element, part, untracked,
+adopting)` applies itself, and `_$attrs$()` lets it serialize server-side; at a child position,
+`_$child$(part, previous, adopting)`. `adopting` is `true` once, while hydration adopts server markup —
+leave form state alone, adopt or replace what the server rendered (ignoring it renders, which replaces). Spread is the first user; any renderer
 honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
@@ -705,11 +707,13 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   (with light slots wired, the handoff is one offset attribute, one inert unassigned-content
   `<template>`, and a rare `<!---->` where two text runs would merge — each present only when
   needed, each consumed on adoption), node identity preserved, listeners attached, keyed updates
-  move adopted nodes. Any
-  mismatch is **repaired**: the result is always exactly what the template describes, and nothing the
-  server sent survives that it does not — a stale attribute, a leftover element, corrected text.
-  (It adopts and corrects where it can rather than clearing wholesale, so a partial mismatch still
-  keeps most of the server's work.) Never mix the two entries in one app. The base entry
+  move adopted nodes. An attribute is READ and written only on a difference (a wrong one is
+  repaired, a right one costs no write); any other disagreement discards that ONE container's
+  server markup (keeping its SSR `<style>`) and renders it fresh — the result is always exactly what
+  the template describes, and development names the first disagreement. Form state stands:
+  `.value`/`.checked`/`.selected`, `!name` on built-ins and a select's selection are recorded, not
+  written (a `!name` then compares on the next render). A custom element's children are its own
+  render when the template writes nothing inside the tag. Never mix the two entries in one app. The base entry
   carries zero hydration code.
 - **Profiling (development only).** `@verajs/renderer/profiler` is another drop-in entry that
   re-exports the whole renderer API and adds measurement. It exists to make the rule above
