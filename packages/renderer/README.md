@@ -168,6 +168,12 @@ What a child position does with each kind of value. These match lit-html exactly
 Strings render as **text**, always. There is no path by which an interpolated value becomes markup
 — see [Trusted HTML](#trusted-html-and-why-there-is-no-unsafehtml).
 
+**An element whose whole content is one `${…}` belongs to that value.** `<ul>${rows}</ul>` renders its rows
+straight into the `<ul>` with no marker nodes at all, so nodes added to that `<ul>` by other code are removed when
+the value changes. Anywhere else a position is bracketed by two empty comments, and what sits outside them is
+left alone. A custom element is never owned this way — a light-DOM component renders into its own children, so a
+`${…}` inside `<my-panel>` keeps its markers and the two coexist.
+
 ### A boolean child renders the word, and JSX is the exception
 
 `${items.length > 0 && html\`…\`}` is the ordinary conditional idiom, and when the test fails the

@@ -314,7 +314,18 @@ class Template {
         kinds[i] = IGNORED;
       } else if (kinds[i] === CHILD) {
         const parent = at!.parentNode!;
-        if (parent.nodeType === 1 && parent.childNodes.length === 1 && !RAW_TEXT.test((parent as Element).localName)) {
+        /**
+         * Only on a PLAIN element (no dash, no `is`): a light-DOM component renders into its own children, and the part
+         * this position may become owns its element's whole content — so there it keeps its anchor, bounded by markers.
+         */
+        const host = parent as Element;
+        if (
+          parent.nodeType === 1 &&
+          parent.childNodes.length === 1 &&
+          !RAW_TEXT.test(host.localName) &&
+          !host.localName.includes('-') &&
+          !host.hasAttribute('is')
+        ) {
           parent.removeChild(at!);
           nodes[i] = at = parent;
           kinds[i] = SOLE;
@@ -463,16 +474,24 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     if (committed === UPGRADED) (node as ChildPart)._set(value);
     else if (value == null || typeof value === 'object') {
       /** A template, list, node or nothing: the position becomes a full part, anchored where its text was. */
-      let text = node as Text;
-      if (committed === UNSET) {
-        (node as Element).append('');
-        text = (node as Element).firstChild as Text;
+      let part: ChildPart;
+      if (kind === SOLE) {
+        /** Its plain element's whole content is this binding's: the element is the range, and no comment is added. */
+        part = new ChildPart(null, null);
+        if (committed === UNSET) part._owner = node as Element;
+        else {
+          part._owner = (node as Text).parentNode;
+          part._mode = TEXT;
+          part._text = node as Text;
+          part._value = committed;
+        }
+      } else {
+        part = markered((node as Text).parentNode!, node as Text);
+        (node as Text).parentNode!.insertBefore(node as Text, part._end);
+        part._mode = TEXT;
+        part._text = node as Text;
+        part._value = committed;
       }
-      const part = markered(text.parentNode!, text);
-      text.parentNode!.insertBefore(text, part._end);
-      part._mode = TEXT;
-      part._text = text;
-      part._value = committed === UNSET ? '' : committed;
       bindings[slot] = part;
       bindings[slot + 1] = UPGRADED;
       part._set(value);
@@ -636,11 +655,14 @@ export interface KeyedResult extends TemplateResult {
 /**
  * A child position that holds anything but plain text: a template, a list, a node, or nothing — or
  * text it took over from an upgraded binding. It owns the range between two comment markers
- * (`_end === null`: to the end of its parent — the root part).
+ * (`_end === null`: to the end of its parent — the root part) — or, for a SOLE position, its element's whole
+ * content (`_owner`, no markers at all: **a PLAIN element's whole content belongs to its one SOLE binding**).
  */
 class ChildPart {
-  _start: Comment;
+  _start: Comment | null;
   _end: Node | null;
+  /** The element this part owns entirely (a SOLE position), or `null` for a part between markers. */
+  _owner: Node | null = null;
   _mode = EMPTY;
   _value: unknown = undefined;
   _text: Text | null = null;
@@ -656,13 +678,13 @@ class ChildPart {
   /** The container whose render attached the applier — a later `_$commit$` runs as a render of it. */
   declare _root?: Node | null;
 
-  constructor(start: Comment, end: Node | null) {
+  constructor(start: Comment | null, end: Node | null) {
     this._start = start;
     this._end = end;
   }
 
   _insert(node: Node) {
-    this._start.parentNode!.insertBefore(node, this._end);
+    (this._owner ?? this._start!.parentNode!).insertBefore(node, this._end);
   }
 
   /**
@@ -688,15 +710,19 @@ class ChildPart {
 
   _clear() {
     if (notifyOnRemoval) this._detach();
-    const parent = this._start.parentNode!;
+    const owner = this._owner;
+    const start = this._start!;
     const end = this._end;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
-    if (this._start.previousSibling === null && (end === null || end.nextSibling === null)) {
+    if (owner !== null) owner.textContent = '';
+    else if (start.previousSibling === null && (end === null || end.nextSibling === null)) {
+      const parent = start.parentNode!;
       parent.textContent = '';
-      parent.appendChild(this._start);
+      parent.appendChild(start);
       if (end !== null) parent.appendChild(end);
     } else {
-      let node = this._start.nextSibling;
+      const parent = start.parentNode!;
+      let node = start.nextSibling;
       /** `node !== null` is a backstop: a detached boundary leaves nodes behind rather than throwing mid-render. */
       while (node !== null && node !== end) {
         const next = node.nextSibling;
@@ -721,7 +747,7 @@ class ChildPart {
     const applierState = this._applierState;
     const applier = this._applier;
     if (renderRoot !== this._root || renderRoot === null)
-      commitAs(this._root != null && this._root.contains(this._start) ? this._root : null, this, value, this._root ?? null);
+      commitAs(this._root != null && this._root.contains(this._owner ?? this._start) ? this._root : null, this, value, this._root ?? null);
     else this._set(value);
     this._applierState = applierState;
     this._applier = applier;
@@ -760,7 +786,7 @@ class ChildPart {
           const root = current._root;
           /** A fragment root takes its nodes back; an element root IS the range. */
           if (root.nodeType === 11) {
-            let node = this._start.nextSibling;
+            let node = this._owner !== null ? this._owner.firstChild : this._start!.nextSibling;
             while (node !== this._end) {
               const next = node!.nextSibling;
               root.appendChild(node!);
@@ -858,16 +884,16 @@ class ChildPart {
 
   /** The item's first node — its move handle and the insertion reference before it. */
   $f(item: Item): Node {
-    return item instanceof ChildPart ? item._start : item._root;
+    return item instanceof ChildPart ? item._start! : item._root;
   }
 
   /** Moves an item before `ref`. */
-  $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
+  $m(item: Item, ref: Node | null, parent: Node = this._owner ?? this._start!.parentNode!) {
     if (!(item instanceof ChildPart)) {
       parent.insertBefore(item._root, ref);
       return;
     }
-    let node: Node | null = item._start;
+    let node: Node | null = item._start!;
     const stop = item._end!.nextSibling;
     while (node !== stop) {
       const next: Node | null = node!.nextSibling;
@@ -905,7 +931,7 @@ class ChildPart {
       }
       return;
     }
-    const parent = this._start.parentNode!;
+    const parent = this._owner ?? this._start!.parentNode!;
     const end = this._end;
     if (strategy !== undefined) {
       this._items = strategy(this, values, items, parent, end);
@@ -1046,7 +1072,7 @@ export const hold = <T>(result: T): T | { $h: TemplateResult } =>
 const markered = (parent: Node, ref: Node | null) => {
   const end = comment();
   const part = new ChildPart(comment(), end);
-  parent.insertBefore(part._start, ref);
+  parent.insertBefore(part._start!, ref);
   parent.insertBefore(end, ref);
   return part;
 };

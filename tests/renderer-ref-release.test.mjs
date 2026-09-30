@@ -149,6 +149,7 @@ test('every removal site in renderer.ts is accounted for', () => {
     "el.textContent = '';": 'template construction: rebuilding a raw-text element in the inert template, before any instance exists',
     'parent.removeChild(at!);': "template construction: a sole child position's placeholder, in the inert template",
     "parent.textContent = '';": "_clear's fast path — after _detach() told the content (when anything asked to be told)",
+    "if (owner !== null) owner.textContent = '';": "_clear for a SOLE part that owns its plain element's whole content — after _detach(), as above",
     'parent.removeChild(node);': "_clear's walk — after _detach(), as above",
     '} else (root as ChildNode).remove();': 'hold() parking an element-rooted instance: a move, not a destruction',
     'element.remove();': "$u, a row's shape changed — after teardown(item)",
