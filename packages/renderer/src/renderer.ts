@@ -94,8 +94,11 @@ class Template {
   _paths: number[][] = [];
   /** The template statically writes the attribute too, so a first nullish commit must still remove it. */
   _present: boolean[];
-  /** The binding names a URL a browser navigates to — a `javascript:` value is refused (see `SCRIPT_URL`). */
-  _urls: boolean[];
+  /**
+   * Per binding, whether it names a URL a browser navigates to (a `javascript:` value is refused, see `SCRIPT_URL`):
+   * 0 not one; 1 converted once, and that string checked and written; 2 a custom element's property — strings only.
+   */
+  _urls: number[];
 
   constructor(result: TemplateResult) {
     const strings = result.strings;
@@ -104,7 +107,7 @@ class Template {
     const names = (this._names = new Array(count).fill(''));
     const statics = (this._statics = new Array(count).fill(null));
     const present = (this._present = new Array(count).fill(false));
-    const urls = (this._urls = new Array(count).fill(false));
+    const urls = (this._urls = new Array(count).fill(0));
     const nodes: (Node | null)[] = new Array(count).fill(null);
 
     // ── scan ──
@@ -243,7 +246,16 @@ class Template {
         names[i] = real;
         statics[i] = value.length === 2 && value[0] === '' && value[1] === '' ? null : value;
         present[i] = kind === ATTR && el.hasAttribute(real);
-        urls[i] = kind !== REFUSED && kind !== BOOLEAN && kind !== EVENT && URL_ATTRIBUTE.test(real);
+        /**
+         * A custom element's `src` or `data` PROPERTY is its own business — often an object (`.data=${rows}`) —
+         * so only a string is checked there, and nothing else is converted; everywhere else the value is converted once.
+         */
+        urls[i] =
+          kind === REFUSED || kind === BOOLEAN || kind === EVENT || !URL_ATTRIBUTE.test(real)
+            ? 0
+            : kind !== ATTR && el.localName.includes('-')
+              ? 2
+              : 1;
       }
       /** A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. */
       if (RAW_TEXT.test(el.localName) && el.textContent!.includes(MARKER)) {
@@ -453,8 +465,14 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
    * A `javascript:` URL bound where a browser navigates is code arriving as data: refused, and the
    * attribute removed, on the JOINED value (so `href="java${x}"` is caught too). Statics are the author's
    * and never checked alone; only bindings the template marked as URL-bearing pay for the test.
+   *
+   * **Converted ONCE, and the string checked is the string written.** Testing the value and then handing it
+   * to `setAttribute` converted it twice, so an object whose `toString` answered differently each time
+   * passed the check as `https:` and was written as `javascript:`.
    */
-  if (template._urls[i] && value != null && SCRIPT_URL.test(value as string)) {
+  const url = template._urls[i];
+  if (url === 1 && value != null && typeof value !== 'string') value = `${value}`;
+  if (url !== 0 && typeof value === 'string' && SCRIPT_URL.test(value)) {
     if (__DEV__ && value !== committed)
       console.warn(
         `[vera] renderer: \`${name}\` was given a javascript: URL — refused, and the attribute removed. A bound ` +

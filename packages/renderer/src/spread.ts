@@ -77,9 +77,24 @@ const resolve = (key: string): [number, string | number] => {
   return refusal ? [REFUSED, refusal] : [kind, name];
 };
 
-/** A bound URL a browser navigates to, holding a `javascript:` URL — refused, as the renderer refuses it. */
-const scriptUrl = (kind: number, name: string, value: unknown) =>
-  kind !== BOOLEAN && kind !== EVENT && kind !== REF && value != null && URL_ATTRIBUTE.test(name) && SCRIPT_URL.test(value as string);
+/**
+ * How a key names a URL a browser navigates to — the renderer's rule, by the same numbers: 0 not one; 1 converted
+ * ONCE, and that string checked and written (so a `toString` that answers differently each time cannot pass the
+ * check as one URL and be written as another); 2 a custom element's property — often an object
+ * (`.data=${rows}`), so only a string is checked and nothing is converted. A refused key needs no case: its
+ * name is a refusal code, which no URL attribute name matches.
+ */
+const urlRule = (kind: number, name: string, custom: boolean) =>
+  kind === BOOLEAN || kind === EVENT || kind === REF || !URL_ATTRIBUTE.test(name) ? 0 : kind !== ATTR && custom ? 2 : 1;
+
+/** What `checked` answers for a `javascript:` URL where the rule looks. */
+const REFUSE = {};
+
+/** `value` as it is checked AND written under `rule` — converted once, or left as it is — or `REFUSE`. */
+const checked = (rule: number, value: unknown) => {
+  if (rule === 1 && value != null && typeof value !== 'string') value = `${value}`;
+  return rule !== 0 && typeof value === 'string' && SCRIPT_URL.test(value) ? REFUSE : value;
+};
 
 const UNSET = {};
 
@@ -94,11 +109,14 @@ class Binding {
   _handler: unknown = null;
   /** For `.prop`: where adoption stands (`adoptProperty`: 0 still adopting, 1 received, 2 refused). */
   _state = 1;
+  /** How this key is checked as a URL (`urlRule`) — decided once, with the element in hand. */
+  _url: number;
   constructor(element: Element, key: string) {
     const [kind, name] = resolve(key);
     this._kind = kind;
     this._name = name as string;
     this._element = element;
+    this._url = urlRule(kind, name as string, element.localName.includes('-'));
     if (kind === REFUSED) {
       if (__DEV__)
         console.warn(
@@ -121,16 +139,17 @@ class Binding {
   }
 }
 
-const write = (binding: Binding, value: unknown) => {
+const write = (binding: Binding, given: unknown) => {
   const kind = binding._kind;
+  const value = checked(binding._url, given);
   const name = binding._name;
   const element = binding._element;
   const el = element as unknown as Record<string, unknown>;
   if (kind === REFUSED) return;
-  if (scriptUrl(kind, name, value)) {
-    if (__DEV__ && value !== binding._committed)
+  if (value === REFUSE) {
+    if (__DEV__ && given !== binding._committed)
       console.warn(`[vera] spread: \`${name}\` was given a javascript: URL — refused, and the attribute removed.`);
-    binding._committed = value;
+    binding._committed = given;
     element.removeAttribute(name);
     return;
   }
@@ -204,8 +223,10 @@ function attributes(this: SpreadResult): [string, string, unknown][] {
   const out: [string, string, unknown][] = [];
   for (const key in this._props) {
     const [kind, name] = resolve(key);
-    const value = this._props[key];
-    if (kind === REFUSED || scriptUrl(kind, name as string, value)) continue;
+    /** No element here: a property key is judged as a custom element's — the server only ever delivers one to a component. */
+    const rule = urlRule(kind, name as string, true);
+    const value = checked(rule, this._props[key]);
+    if (kind === REFUSED || value === REFUSE) continue;
     out.push([kind === ATTR ? 'a' : kind === BOOLEAN ? 'b' : kind === EVENT ? 'e' : kind === REF ? 'r' : 'p', name as string, value]);
   }
   return out;

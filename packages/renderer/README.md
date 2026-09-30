@@ -1010,7 +1010,11 @@ bound where a browser *navigates* — `href`, `src`, `action`, `formaction`, `xl
 as the attribute or as its property — is refused when it parses as a `javascript:` URL, and the
 attribute is removed. It is read the way the URL Standard reads a scheme, so `" jAvA\tscript:"` is
 caught as surely as `javascript:`, and it is judged on the whole JOINED value, so `href="java${x}"` is
-caught too; the statics you write are yours and are never refused on their own. A bound `srcdoc`
+caught too; the statics you write are yours and are never refused on their own. A value that is not a
+string is converted ONCE and the string checked is the string written, so an object whose `toString`
+changes its answer cannot pass as one URL and land as another. A custom element's property of the same
+name (`<my-chart .data=${rows}>`) is its own business: an object arrives untouched, and only a string is
+checked. A bound `srcdoc`
 *attribute* is refused outright, because it renders its value as an HTML document —
 `.srcdoc=${trusted}` is the deliberate spelling, exactly as `.innerHTML` is. There is no opt-out for
 URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.

@@ -185,3 +185,94 @@ test('development names the refusal where it happens', { skip: isProduction && '
   }
   assert.ok(said.some((line) => /^\[vera\] renderer: `href` was given a javascript: URL/.test(line)), said.join('\n'));
 });
+
+/**
+ * **A value is converted once: what is checked is what is written.** Checking a value and then handing it to
+ * `setAttribute` converted it twice, so an object whose `toString` answered `https:` first and `javascript:`
+ * after passed the check and was written as the second. Every path converts once now — the template attribute
+ * and property, spread's attribute and property keys, and the server — and writes the string it checked.
+ */
+const turncoat = () => {
+  let calls = 0;
+  return { toString: () => (calls++ ? 'javascript:alert(1)' : 'https://example.com/') };
+};
+const T = (strings, values) => ({ _$litType$: 1, strings: Object.freeze(Object.assign([...strings], { raw: [...strings] })), values });
+
+test('a value whose toString changes its answer is checked and written as ONE string — client', () => {
+  const ways = {
+    'attribute': (v) => T(['<a href=', '>x</a>'], [v]),
+    'quoted attribute with a static prefix': (v) => T(['<a href="', '">x</a>'], [v]),
+    'property': (v) => T(['<a .href=', '>x</a>'], [v]),
+    'spread attribute key': (v) => T(['<a ', '>x</a>'], [spread({ href: v })]),
+    'spread property key': (v) => T(['<a ', '>x</a>'], [spread({ '.href': v })]),
+  };
+  const wrong = [];
+  for (const [way, build] of Object.entries(ways)) {
+    const host = document.createElement('div');
+    renderInto(build(turncoat()), host);
+    const href = host.querySelector('a').getAttribute('href');
+    if (href !== 'https://example.com/') wrong.push(`${way}: ${JSON.stringify(href)}`);
+  }
+  assert.deepEqual(wrong, [], `\n  ${wrong.join('\n  ')}`);
+});
+
+test('a value whose toString changes its answer is checked and written as ONE string — server', () => {
+  const script = `
+import { serializeTemplate } from '@verajs/ssr';
+const { spread } = await import('@verajs/renderer/spread');
+const turncoat = ${turncoat.toString()};
+const T = (strings, values) => ({ _$litType$: 1, strings: Object.freeze(Object.assign([...strings], { raw: [...strings] })), values });
+process.stdout.write(JSON.stringify([
+  serializeTemplate(T(['<a href=', '>x</a>'], [turncoat()])),
+  serializeTemplate(T(['<a href="', '">x</a>'], [turncoat()])),
+  serializeTemplate(T(['<a ', '>x</a>'], [spread({ href: turncoat() })])),
+]));`;
+  const out = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: new URL('..', import.meta.url), encoding: 'utf8' }));
+  for (const markup of out) {
+    const parsed = document.createElement('div');
+    parsed.innerHTML = markup;
+    assert.equal(parsed.querySelector('a').getAttribute('href'), 'https://example.com/', markup);
+  }
+});
+
+/** An object that is ALWAYS `javascript:` when converted is refused like the string — the check must not skip non-strings. */
+test('a non-string value that converts to a javascript: URL is refused on every path', () => {
+  console.warn = () => {};
+  try {
+    const hostile = () => ({ toString: () => 'javascript:alert(1)' });
+    const builds = [
+      (v) => T(['<a href=', '>x</a>'], [v]),
+      (v) => T(['<a .href=', '>x</a>'], [v]),
+      (v) => T(['<a ', '>x</a>'], [spread({ href: v })]),
+      (v) => T(['<a ', '>x</a>'], [spread({ '.href': v })]),
+    ];
+    for (const build of builds) {
+      const host = document.createElement('div');
+      renderInto(build(hostile()), host);
+      assert.equal(host.querySelector('a').getAttribute('href'), null, build.toString());
+    }
+  } finally {
+    console.warn = silence;
+  }
+});
+
+/**
+ * A custom element's `src`/`data` PROPERTY is its own business — the commonest custom-element binding there is
+ * is `.data=${rows}` — so it is never converted: an object arrives as the object. Only a STRING is checked there.
+ */
+test('a custom element receives an object at a URL-named property untouched; a javascript: string is still refused', () => {
+  console.warn = () => {};
+  try {
+    const rows = [{ a: 1 }];
+    const host = document.createElement('div');
+    renderInto(T(['<x-chart .data=', '></x-chart><x-chart ', '></x-chart>'], [rows, spread({ '.data': rows })]), host);
+    const [written, spreadTo] = host.querySelectorAll('x-chart');
+    assert.equal(written.data, rows, 'a template property delivered the object');
+    assert.equal(spreadTo.data, rows, 'a spread property key delivered the object');
+    const hostile = document.createElement('div');
+    renderInto(T(['<x-link .href=', '></x-link><x-link ', '></x-link>'], ['javascript:alert(1)', spread({ '.href': 'javascript:alert(1)' })]), hostile);
+    for (const el of hostile.querySelectorAll('x-link')) assert.notEqual(el.href, 'javascript:alert(1)');
+  } finally {
+    console.warn = silence;
+  }
+});
