@@ -79,7 +79,12 @@ public and both are documented, so a reader who knew one misread the other.
 | `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
 | `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
 
-A ref runs once per **distinct value**, not once per render.
+A ref runs once per **distinct value**, not once per render — and **after its render pass**, once the
+pass's DOM exists: the element is inserted, a custom element is upgraded, and it belongs to its own
+document, so a ref can measure it, focus it, or read its window. Within a pass, refs run in commit order
+— document pre-order, so an element's ref runs before the refs inside it and before its next sibling's —
+after the pass's `<select>` values are set; a
+ref replaced or removed before its turn is handed nothing.
 
 **A ref is released when its subtree is rendered away, and not when its component is removed from
 the document.** Toggling `${show ? html`<i ${box}>` : 'gone'}` sets `box.value` back to `null` (and
@@ -1132,6 +1137,12 @@ for apps that import it.
 A child-position value carrying `_$child$` applies itself. It is handed the part and whatever it
 returned last time **at that part**, and calls `part._$commit$(value)` to render content. That is
 the whole surface: `until()` is nine lines against it.
+
+Both kinds apply **mid-commit** — `_$apply$` has to, because properties must reach an element before it
+is inserted and upgraded. So an element an applier receives may not be in its document yet: a template
+with no custom element is cloned from the browser's inert template document and inserted after its
+values commit. Read the realm lazily (`element.ownerDocument.defaultView` when it is needed, not at apply
+time), or use a ref, which runs once the element is in place.
 
 ```js
 /** Hoisted — the applier's identity is its own continuity key. */

@@ -625,6 +625,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   template holds something another library owns (a charting canvas, a map container, an editor).
 - Async values are not special: render a loading state and re-render from an effect.
 - Plain strings render as TEXT, never parsed as HTML (there is no innerHTML sink).
+- A ref (`${fn}` or `&=${ref()}`) runs AFTER its render pass: the element is inserted, upgraded, in its own
+  document — measure/focus there. Document pre-order; after the pass's `<select>` values. A value
+  with `_$apply$`/`_$child$` applies MID-commit, so read its element's window lazily.
 - A binding INSIDE a nested `<template>`'s content is ignored (inert markup, never walked) — client and
   `@verajs/ssr` alike; the attribute holding it is dropped. Bindings on the `<template>` element itself work.
 - A bound `javascript:` URL is REFUSED where a browser navigates (`href`, `src`, `action`,

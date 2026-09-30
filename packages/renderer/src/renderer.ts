@@ -520,13 +520,21 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     if (adopting._state === 1) (element as unknown as Record<string, unknown>)[name] = value;
     else if (adopting._state === 0) adopting._state = adoptProperty(element, name, value);
   } else if (kind === REF && value != null) {
-    /** A function is called with the element; an object gets it as `.value` (core's `ref()`); one with `_$apply$` applies itself, keyed by this binding. */
     notifyOnRemoval = true;
-    if (typeof value === 'function') applyRef(value as (element: Element | null) => void, element);
-    else if (typeof value === 'object') {
-      const self = value as { _$apply$?: (element: Element, key: object) => void; value: unknown };
-      if (self._$apply$) self._$apply$(element, node as Slot);
-      else self.value = element;
+    /**
+     * A value with `_$apply$` applies itself NOW, mid-commit, keyed by this binding — spread delivers
+     * properties through it, and they must arrive before the element is inserted and upgraded.
+     */
+    if ((value as { _$apply$?: unknown })._$apply$) (value as { _$apply$: (element: Element, key: object) => void })._$apply$(element, node as Slot);
+    /**
+     * A ref — a function, or an object taking `.value` (core's `ref()`) — is handed its element once the pass's
+     * DOM exists: inserted, upgraded, in its own document. Queued at most once per pass (`_state`), and the
+     * flush reads whatever the binding holds THEN, so a ref replaced, removed or torn down in the meantime is
+     * never handed a stale element.
+     */
+    else if ((typeof value === 'function' || typeof value === 'object') && (node as Slot)._state === 0) {
+      (node as Slot)._state = 1;
+      (pendingRefs ??= []).push(bindings, slot);
     }
   }
 };
@@ -542,8 +550,10 @@ const teardown = (instance: Instance) => {
   for (let i = 0; i < kinds.length; i++) {
     const value = bindings[i * 2 + 1];
     if (kinds[i] === REF) {
-      if (typeof value === 'function') applyRef(value as (element: Element | null) => void, null);
-      else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
+      /** A ref still queued was never handed its element, so it is not told it is gone. */
+      const queued = (bindings[i * 2] as Slot)._state === 1;
+      if (!queued && typeof value === 'function') applyRef(value as (element: Element | null) => void, null);
+      else if (!queued && value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
         (value as { value: unknown }).value = null;
       bindings[i * 2 + 1] = UNSET;
     } else if (value === UPGRADED) (bindings[i * 2] as ChildPart)._detach();
@@ -656,7 +666,7 @@ class ChildPart {
     const applierState = this._applierState;
     const applier = this._applier;
     if (renderRoot !== this._root || renderRoot === null)
-      commitAs(this._root != null && this._root.contains(this._start) ? this._root : null, this, value);
+      commitAs(this._root != null && this._root.contains(this._start) ? this._root : null, this, value, this._root ?? null);
     else this._set(value);
     this._applierState = applierState;
     this._applier = applier;
@@ -709,7 +719,7 @@ class ChildPart {
       }
       if (this._mode !== EMPTY) this._clear();
       if (instance === undefined) {
-        instance = instantiate(getTemplate(result), result, this._start.ownerDocument!);
+        instance = instantiate(getTemplate(result), result, passDoc);
         this._insert(instance._root);
       } else {
         /** Inserted first, then updated, as every update is: its nodes are live when its values commit. */
@@ -757,7 +767,7 @@ class ChildPart {
     if (value !== null && typeof value === 'object' && isTemplateResult(value)) {
       const template = getTemplate(value);
       if (template._root.nodeType === 1) {
-        const instance = instantiate(template, value, this._start.ownerDocument!);
+        const instance = instantiate(template, value, passDoc);
         parent.insertBefore(instance._root, ref);
         instance.$k = value.key;
         return instance;
@@ -879,19 +889,45 @@ let renderRoot: Node | null = null;
 let notifyOnRemoval = false;
 
 /**
- * `<select>.value` assignments held until the pass has committed: assigned where it is written, the
- * options may not exist yet (a nested list has not run), and the select falls back to its first option.
- * Flat pairs; a render flushes only what it queued, so a nested render cannot apply its caller's early.
+ * Work held until the pass's DOM exists, in two flat queues of pairs. A `<select>`'s value `(select, value)`:
+ * assigned where it is written, the options may not exist yet (a nested list has not run), and the select
+ * falls back to its first option. A ref `(bindings, slot)`: handed its element once that element is inserted,
+ * upgraded and in its own document. A render flushes only what it queued, so a nested render cannot apply
+ * its caller's early — select values first, so a ref on a `<select>` sees the value its pass set. Refs then
+ * run in commit order, which is document PRE-order — `<div ${a}>${child}</div><p ${b}>` runs a, then the
+ * child's refs, then b — not all parents first.
  */
 let pendingSelects: unknown[] | null = null;
-const flushSelects = (from: number) => {
-  const queued = pendingSelects;
-  if (queued === null || queued.length <= from) return;
-  /** Taken off first: an assignment can run a `change` handler that renders again. */
-  const mine = queued.splice(from);
-  if (queued.length === 0) pendingSelects = null;
-  for (let i = 0; i < mine.length; i += 2) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
+let pendingRefs: unknown[] | null = null;
+const flush = (selectsFrom: number, refsFrom: number) => {
+  /** Taken off first: an assignment can run a `change` handler, and a ref can render, again. */
+  const selects = pendingSelects;
+  if (selects !== null && selects.length > selectsFrom) {
+    const mine = selects.splice(selectsFrom);
+    if (selects.length === 0) pendingSelects = null;
+    for (let i = 0; i < mine.length; i += 2) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
+  }
+  const refs = pendingRefs;
+  if (refs === null || refs.length <= refsFrom) return;
+  const mine = refs.splice(refsFrom);
+  if (refs.length === 0) pendingRefs = null;
+  for (let i = 0; i < mine.length; i += 2) {
+    const bindings = mine[i] as unknown[];
+    const at = mine[i + 1] as number;
+    const record = bindings[at] as Slot;
+    const value = bindings[at + 1];
+    record._state = 0;
+    if (typeof value === 'function') applyRef(value as (element: Element | null) => void, record._element);
+    else if (value !== null && typeof value === 'object' && value !== UNSET) (value as { value: unknown }).value = record._element;
+  }
 };
+
+/**
+ * The document the pass renders into — the container's own (a popped-out window's, an iframe's), so every
+ * instance is built in its realm. Read off the container once per pass, never off a node that may still sit
+ * in the inert template document.
+ */
+let passDoc: Document = doc;
 
 /**
  * Preserves the DOM of a template a position toggles away from, instead of destroying it — form values
@@ -915,18 +951,27 @@ const markered = (parent: Node, ref: Node | null) => {
 };
 
 /**
- * Commits `value` into `part` as a render of `root`: the root is set and restored (a render can run
- * inside another's commit), and the `<select>` values this pass queued are flushed however it ends.
+ * Commits `value` into `part` as a render of `root`: the root and its document are set and restored (a render
+ * can run inside another's commit), and the work this pass queued is flushed however it ends — before the
+ * restore, so a ref's error still names its own component and a ref that renders renders into this document.
+ * `home` is where the document comes from when `root` is not the render being attributed: the container an
+ * applier was attached under, even after the part has moved out of it (a parked `hold` fragment belongs to the
+ * inert template document, and must never become the document a render builds in).
  */
-const commitAs = (root: Node | null, part: ChildPart, value: unknown) => {
+const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node | null = root) => {
   const outer = renderRoot;
-  const mark = pendingSelects?.length ?? 0;
+  const outerDoc = passDoc;
+  const selectsMark = pendingSelects?.length ?? 0;
+  const refsMark = pendingRefs?.length ?? 0;
   renderRoot = root;
+  /** A document's own `ownerDocument` is null — so a document container is its own. */
+  if (home !== null) passDoc = home.ownerDocument ?? (home as Document);
   try {
     part._set(value);
   } finally {
+    flush(selectsMark, refsMark);
     renderRoot = outer;
-    flushSelects(mark);
+    passDoc = outerDoc;
   }
 };
 
