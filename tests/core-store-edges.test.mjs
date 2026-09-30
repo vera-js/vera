@@ -82,6 +82,10 @@ const watch = async (read) => {
   check('a symbol-keyed write on a store array succeeds', error === null, String(error));
   check('and reads back', state.rows[mark] === true, String(state.rows[mark]));
   check('and does not notify a length reader', seen.runs === before, `${before} -> ${seen.runs}`);
+  /** The control: a real length change DOES reach the reader, so the silence above means something. */
+  state.rows.push(3);
+  await frame();
+  check('the length reader is live — a real length change notifies it', seen.runs > before, `${before} -> ${seen.runs}`);
 }
 
 /* ── a whole subtree replaced ───────────────────────────────────────────────────────────────── */

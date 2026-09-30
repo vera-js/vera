@@ -89,16 +89,11 @@ const openTagName = (out) => {
  * `?=`, `@=` or `!=` has no meaning either, and dropping such a binding is a better answer than
  * writing it into the tag with its value stringified beside it.
  */
-const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)?=(["']?)$/;
+/** Space is allowed around `=`, as the platform's tokenizer allows it and the client's scanner reads it. */
+const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)?\s*=\s*(["']?)$/;
 
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
-const EVENT_TAIL = /on[A-Z][\w:-]*=(["']?)$/;
-
-/**
- * An **unquoted** plain attribute, which is the only one that needs quotes adding. A quoted one
- * carries its quotes in the statics either side, so the value is just escaped text between them.
- */
-const PLAIN_ATTRIBUTE_TAIL = /[a-zA-Z][\w:-]*=$/;
+const EVENT_TAIL = /on[A-Z][\w:-]*\s*=\s*(["']?)$/;
 
 /** Slot kinds: text, boolean, form-prop, dropped binding, plain attribute. */
 const TEXT = 0;
@@ -221,6 +216,11 @@ const RAWTEXT = new Set(['style', 'script']);
 
 const scanTag = (text, state) => {
   let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial } = state;
+  /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
+  let opened = false;
+  let attrRaw = state.attrRaw;
+  let attrStart = 0;
+  let valueStart = 0;
   for (let i = 0; i < text.length; i++) {
     const character = text[i];
     /**
@@ -274,12 +274,17 @@ const scanTag = (text, state) => {
       while (end > 0 && /\s/.test(text[end - 1])) end--;
       let start = end;
       while (start > 0 && !/[\s"'<>/=]/.test(text[start - 1])) start--;
-      attrName = text.slice(start, end).toLowerCase();
+      attrRaw = text.slice(start, end);
+      attrName = attrRaw.toLowerCase();
       serial++;
       let next = i + 1;
       while (next < text.length && /\s/.test(text[next])) next++;
       quote = text[next] === '"' || text[next] === "'" ? text[next] : '';
       inValue = true;
+      opened = true;
+      attrStart = start;
+      while (attrStart > 0 && /\s/.test(text[attrStart - 1])) attrStart--;
+      valueStart = quote ? next + 1 : next;
       i = quote ? next : next - 1;
     } else if (naming) {
       /** The name runs until the first character that cannot be in one; `/` means a closing tag. */
@@ -290,7 +295,7 @@ const scanTag = (text, state) => {
       }
     }
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial };
+  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, attrRaw, opened, attrStart, valueStart };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -301,6 +306,13 @@ const scanTag = (text, state) => {
  * has to be seen.
  */
 const STATIC_ATTRIBUTE = /\s([a-zA-Z][\w:-]*)(?==|[\s>]|$)/g;
+
+/**
+ * An author's static, ready to sit inside the DOUBLE quotes the server writes around every bound value.
+ * Only a `"` can end them; an entity stays an entity, because the browser decodes one identically in any
+ * quoting.
+ */
+const forDoubleQuotes = (text, quote) => (quote === '"' || !text.includes('"') ? text : text.replaceAll('"', '&#34;'));
 
 const compile = (strings) => {
   const parts = [];
@@ -320,8 +332,6 @@ const compile = (strings) => {
   const owners = [];
   /** Which RAWTEXT element each binding sits inside, `''` when none. See `RAWTEXT`. */
   const raws = [];
-  /** Per part: this binding sits inside a quoted attribute value, so the attribute rule applies. */
-  const attrValues = [];
   /**
    * Whether each slot is an **element position** — inside a tag but not inside an attribute value.
    *
@@ -347,10 +357,16 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0 };
-  /** Per binding: the quoted attribute value it sits in (sparse), and whether its bound name is a URL sink. */
-  const valueOf = [];
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, attrRaw: '' };
+  /** Per binding: whether a component property's name is a URL sink. */
   const urls = [];
+  /**
+   * Per attribute-value binding, by binding index (sparse): its attribute's group (shared by every hole in one value), the static
+   * written before the value — ready for double quotes — and that static decoded, for the URL check.
+   */
+  const groups = [];
+  const leads = [];
+  const decodedLeads = [];
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
@@ -418,7 +434,6 @@ const compile = (strings) => {
       strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);
       raws.push(tagState.rawTag);
-      attrValues.push(false);
       elementPositions.push(false);
       elements.push(elementOrdinal);
       if (sigilName) written.add(sigilName.toLowerCase());
@@ -439,36 +454,70 @@ const compile = (strings) => {
       strip.push(false);
       owners.push(owner);
       raws.push(tagState.rawTag);
-      attrValues.push(false);
       elementPositions.push(false);
       elements.push(elementOrdinal);
       continue;
     }
 
-    const attribute = inTag && PLAIN_ATTRIBUTE_TAIL.exec(part);
-    if (attribute) {
-      /**
-       * The name comes off the static and is re-attached at render time, because a nullish value
-       * has to take the whole attribute with it — `title=${null}` removes it on the client, exactly
-       * as lit does, and this emitted `title=""`. Adoption still succeeded (the statics matched), so
-       * the jsdom matrix passed on identity while the two sides disagreed about the attribute; the
-       * browser suite adopting through real declarative shadow DOM is what saw it.
-       */
-      const before = part.slice(0, attribute.index).replace(/ $/, '');
-      record(before);
-      parts.push(before);
-      /** A bound `srcdoc` attribute renders its value as a document — the client refuses it, so it is never served. */
-      const name = attribute[0].slice(0, -1);
-      kinds.push(name.toLowerCase() === 'srcdoc' ? DROPPED : ATTRIBUTE);
-      urls[kinds.length - 1] = URL_ATTRIBUTE.test(name);
-      names.push(name);
-      strip.push(dynamicTag || written.has(name.toLowerCase()));
+    /**
+     * **A bound attribute value, in any position** — double-quoted, single-quoted or unquoted, with space
+     * around `=`, with statics beside it, or several holes in one value.
+     *
+     * The client never lets the tokenizer see a value: it joins the attribute's statics and values and calls
+     * `setAttribute`. This streamed each position differently instead — a lone unquoted `title=${x}` was
+     * quoted, a quoted value was escaped between the author's quotes, and every other shape went out raw
+     * and UNQUOTED: `title=pre${x}`, `title=${a}${b}` and `title = ${x}` let a value carrying
+     * ` onmouseover=…` end the attribute and start a live handler, while the client rendered one harmless
+     * `title`. So every hole in one value shares ONE group, compiled here from `scanTag`'s state: the
+     * attribute's head (name, `=`, opening quote, static prefix) and tail (static suffix, closing quote)
+     * come off the statics, and the render writes the whole attribute once, always double-quoted — or not
+     * at all. Position stops mattering because nothing a value holds can reach the tokenizer.
+     */
+    if (tagState.inTag && tagState.inValue && (tagState.opened || groups[kinds.length - 1]?.serial === tagState.serial)) {
+      const previous = groups[kinds.length - 1];
+      let group;
+      if (previous !== undefined && previous.serial === tagState.serial) {
+        group = previous;
+        group.sole = false;
+        parts.push('');
+        leads[kinds.length] = forDoubleQuotes(part, group.quote);
+        decodedLeads[kinds.length] = decodeSchemeReferences(part);
+      } else {
+        /** Offsets are in the author's static; `part` may have lost a leading quote to the binding before it. */
+        const shift = strings[i].length - part.length;
+        const before = part.slice(0, tagState.attrStart - shift);
+        const prefix = part.slice(tagState.valueStart - shift);
+        const lower = tagState.attrName;
+        record(before);
+        parts.push(before);
+        group = {
+          name: tagState.attrRaw,
+          serial: tagState.serial,
+          quote: tagState.quote,
+          first: kinds.length,
+          last: kinds.length,
+          /** A bound `srcdoc` renders its value as a document; a URL sink refuses `javascript:` — as the client does. */
+          refuse: lower === 'srcdoc' ? 2 : URL_ATTRIBUTE.test(lower) ? 1 : 0,
+          /** An earlier write of this name in the tag: the client's `setAttribute` replaces it, so it is removed. */
+          strip: dynamicTag || written.has(lower),
+          /** The WHOLE value is this one binding — the only shape where a nullish value removes the attribute. */
+          sole: prefix === '',
+          suffix: '',
+          decodedSuffix: '',
+        };
+        written.add(lower);
+        leads[kinds.length] = forDoubleQuotes(prefix, group.quote);
+        decodedLeads[kinds.length] = decodeSchemeReferences(prefix);
+      }
+      group.last = kinds.length;
+      groups[kinds.length] = group;
+      kinds.push(ATTRIBUTE);
+      names.push(group.name);
+      strip.push(false);
       owners.push(owner);
       raws.push(tagState.rawTag);
-      attrValues.push(false);
       elementPositions.push(false);
       elements.push(elementOrdinal);
-      written.add(name.toLowerCase());
       continue;
     }
     record(part);
@@ -478,16 +527,6 @@ const compile = (strings) => {
     strip.push(false);
     owners.push(owner);
     raws.push(tagState.rawTag);
-    /**
-     * `<p title="a ${x} b">` reaches here as TEXT — the name is in the static, so there is no sigil
-     * and no `name=` tail to match — and it is emitted straight into the stream between the
-     * statics. That made it take the **child-position** rule while `title=${x}` took the attribute
-     * rule, so an array served `a 12 b` where the client, which builds the string and calls
-     * `setAttribute`, produced `a 1,2 b`.
-     */
-    attrValues.push(tagState.inTag && tagState.inValue);
-    if (tagState.inTag && tagState.inValue && tagState.quote)
-      valueOf[kinds.length - 1] = { name: tagState.attrName, serial: tagState.serial, quote: tagState.quote };
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     elementPositions.push(elementPosition);
@@ -500,54 +539,34 @@ const compile = (strings) => {
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  /**
-   * **URL sinks in quoted values, settled here once.** The client joins a bound attribute's statics and
-   * values and refuses the WHOLE value when it parses as a `javascript:` URL — so `href="java${x}"` is
-   * caught, not only `href=${x}` — and never writes a bound `srcdoc`. The stream here emits statics and
-   * values piecemeal, so each binding of such a value gets its group: where the attribute starts in the
-   * output (to cut it back out), the decoded statics the client would join, and how much of the next
-   * static to skip (the suffix and the closing quote).
-   */
-  const groups = [];
-  for (let i = 0; i < kinds.length; i++) {
-    const value = valueOf[i];
-    if (value === undefined) continue;
-    const refuse = value.name === 'srcdoc' ? 2 : URL_ATTRIBUTE.test(value.name) ? 1 : 0;
-    if (refuse === 0) continue;
-    const first = valueOf[i - 1]?.serial !== value.serial;
-    const last = valueOf[i + 1]?.serial !== value.serial;
-    const group = { refuse, first, last, tail: 0, prefix: '', between: '', suffix: '', skip: 0 };
-    if (first) {
-      const part = parts[i];
-      const quote = part.lastIndexOf(value.quote);
-      let at = quote - 1;
-      while (at >= 0 && /[\s=]/.test(part[at])) at--;
-      while (at >= 0 && !/[\s"'<>/=]/.test(part[at])) at--;
-      while (at >= 0 && /\s/.test(part[at])) at--;
-      group.tail = part.length - (at + 1);
-      group.prefix = decodeSchemeReferences(part.slice(quote + 1));
-    } else group.between = decodeSchemeReferences(parts[i]);
-    if (last) {
-      const quote = parts[i + 1].indexOf(value.quote);
-      group.suffix = decodeSchemeReferences(parts[i + 1].slice(0, quote));
-      group.skip = quote + 1;
-    }
-    groups[i] = group;
+  /** Each attribute's tail — its static suffix and closing quote — comes off the static after its last hole. */
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    if (group === undefined || group.last !== i) continue;
+    const next = parts[i + 1];
+    let end = group.quote ? next.indexOf(group.quote) : next.search(/[\s>]/);
+    /** A template that ends inside the value: the rest is the suffix, as the client's parser reads it. */
+    const closed = end !== -1;
+    if (!closed) end = next.length;
+    const suffix = next.slice(0, end);
+    if (suffix !== '') group.sole = false;
+    group.suffix = forDoubleQuotes(suffix, group.quote);
+    group.decodedSuffix = decodeSchemeReferences(suffix);
+    parts[i + 1] = next.slice(closed && group.quote ? end + 1 : end);
   }
 
-  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements, groups, urls };
+  const plan = { parts, kinds, names, strip, owners, raws, elementPositions, elements, groups, leads, decodedLeads, urls };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements, groups, urls } =
+  const { parts, kinds, names, strip, owners, raws, elementPositions, elements, groups, leads, decodedLeads, urls } =
     plans.get(strings) ?? compile(strings);
-  /** A refused URL-sink value in progress: where its attribute starts, what the client would join, and what to skip next. */
-  let cut = 0;
+  /** The attribute being built: its escaped value so far, and the value the client would join (for the URL check). */
+  let attribute = '';
   let joined = '';
-  let skip = 0;
   let out = '';
   /**
    * The instances this application is delivering properties to, allocated on the FIRST
@@ -573,8 +592,7 @@ export const serializeTemplate = (template) => {
   const selectValues = [];
 
   for (let i = 0; i < kinds.length; i++) {
-    const part = skip === 0 ? parts[i] : parts[i].slice(skip);
-    skip = 0;
+    const part = parts[i];
     if (pendingText === null) out += part;
     else {
       out += insertContent(part, pendingText);
@@ -664,34 +682,30 @@ export const serializeTemplate = (template) => {
          * they keep ordinary escaping, which is what the client produces for them too.
          */
         else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
-        /**
-         * **Inside a quoted attribute value, the attribute rule applies** — the same rule
-         * `title=${x}` takes one case below, and for the same reason: the client builds the whole
-         * value as a string and hands it to `setAttribute`, which is ToString and nothing else. The
-         * child-position rule renders a value instead, so an array was iterated into `12` against
-         * the browser's `1,2`, a `Set` into `12` against `[object Set]`, and a function vanished
-         * where the client writes its source. The single-expression form was corrected for exactly
-         * this; the form with static text beside it was reached by a different branch and kept it.
-         */
-        else if (attrValues[i]) {
-          const group = groups[i];
-          const text = serializeValue(value, true);
-          if (group !== undefined) {
-            if (group.first) {
-              cut = out.length - group.tail;
-              joined = group.prefix;
-            } else joined += group.between;
-            joined += text;
-            if (group.last && (group.refuse === 2 || SCRIPT_URL.test(joined + group.suffix))) {
-              out = out.slice(0, cut);
-              skip = group.skip;
-              break;
-            }
-          }
-          out += escapeHtml(text);
-        }
         else out += serializeValue(value);
         break;
+      case ATTRIBUTE: {
+        const group = groups[i];
+        /**
+         * ONE conversion, the platform's own (`String`, as `setAttribute` does): the URL check reads the very
+         * string that is written, so a value whose `toString` answers differently each time cannot pass the
+         * check with one answer and be written with another.
+         */
+        const text = serializeValue(value, true);
+        if (group.first === i) {
+          attribute = '';
+          joined = '';
+        }
+        attribute += leads[i] + escapeHtml(text);
+        joined += decodedLeads[i] + text;
+        if (group.last !== i) break;
+        /** Written whole, or not at all: a sole nullish value removes it, as do a bound srcdoc and a `javascript:` URL. */
+        if (group.sole && value == null) break;
+        if (group.refuse === 2 || (group.refuse === 1 && SCRIPT_URL.test(joined + group.decodedSuffix))) break;
+        if (group.strip) out = removeAttribute(out, group.name);
+        out += ` ${group.name}="${attribute}${group.suffix}"`;
+        break;
+      }
       case BOOLEAN:
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value) out += ` ${names[i]}=""`;
@@ -751,15 +765,6 @@ export const serializeTemplate = (template) => {
           out += ` ${names[i]}="${escapeHtml(value)}"`;
         }
         break;
-      case ATTRIBUTE:
-        /** Unquoted `attr=${x}`: quoted so spacey values stay one attribute, absent when nullish. */
-        if (strip[i]) out = removeAttribute(out, names[i]);
-        if (value != null) {
-          const text = serializeValue(value, true);
-          /** A `javascript:` URL bound where a browser navigates is refused, as the client refuses it. */
-          if (!(urls[i] && SCRIPT_URL.test(text))) out += ` ${names[i]}="${escapeHtml(text)}"`;
-        }
-        break;
       case COMPONENT_PROP:
         /**
          * Delivered only when the tag is REGISTERED — a component this process will render, whose
@@ -781,7 +786,7 @@ export const serializeTemplate = (template) => {
       /** DROPPED: '@' and '&' and a non-component, non-form '.' or '!': nothing — client concerns. */
     }
   }
-  const tail = skip === 0 ? parts[kinds.length] : parts[kinds.length].slice(skip);
+  const tail = parts[kinds.length];
   const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText);
   return selectValues.length ? resolveSelects(finished, selectValues) : finished;
 };

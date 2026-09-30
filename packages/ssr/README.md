@@ -162,6 +162,12 @@ unsanitized. Everything else is checked:
   every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
 - **A `__proto__` key in `props` is skipped**, so handing the option a parsed request body cannot
   replace the component's prototype.
+- **Every bound attribute value is served double-quoted, whatever quoting the template used.** A value
+  shares its attribute with any statics and other holes around it — `title=pre${x}`, `title=${a}${b}`,
+  `title = ${x}`, single or double quotes — and the server writes that whole attribute once, the way the
+  client's `setAttribute` stores it, so nothing a value holds can end the attribute or start another.
+  A hole that is the whole value omits the attribute for `null` and `undefined`, as the client does; a
+  hole joined with statics contributes empty text.
 - **A bound `javascript:` URL is never served.** A template value bound where a browser navigates
   (`href`, `src`, `action`, `formaction`, `xlink:href`, `data`) is dropped when it parses as a
   `javascript:` URL — judged on the attribute's whole value, statics and character references

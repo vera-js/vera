@@ -379,7 +379,7 @@ the renderer has no built-in answer for).
 ```js
 import { wire, inserts, createHook } from '@verajs/core';
 
-wire({ on: 'error', fn: (error, element) => report(error, element.localName), priority: 50 });
+wire({ on: 'error', fn: (error, element) => report(error, element?.localName), priority: 50 });
 
 const errorChain = inserts.get('error');            // the registry itself: name -> ordered chain
 

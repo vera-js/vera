@@ -1569,7 +1569,9 @@ Rules an assistant must not guess around:
   templates that must also server-render use plain `.map`. `document.title` set during the render
   comes back as `title`.
 - Escaping is at the render boundary, always; `<style>`/`<script>` contents get end-tag
-  neutralization instead (references are not decoded there). `children` and a string `attributes`
+  neutralization instead (references are not decoded there). Every bound attribute value is served
+  DOUBLE-QUOTED whatever the template's quoting (`title=pre${x}`, `title=${a}${b}`, `title = ${x}`),
+  written whole as the client's `setAttribute` stores it — a value cannot end its attribute. `children` and a string `attributes`
   are raw markup — never put request data in them. `registry` (tag → class seen by
   `customElements.define`) and `serializeTemplate` (the template flattener) are exported for
   advanced integration.

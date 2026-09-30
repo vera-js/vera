@@ -44,6 +44,11 @@ const POSITIONS = [
   { name: 'iframe src', sel: 'iframe', attr: 'src', strings: ['<iframe src=', '></iframe>'], values: (v) => [v] },
   { name: 'form action', sel: 'form', attr: 'action', strings: ['<form action="', '"></form>'], values: (v) => [v] },
   { name: 'button formaction', sel: 'button', attr: 'formaction', strings: ['<button formaction=', '>b</button>'], values: (v) => [v] },
+  /** Space around `=`, both quotings — the tokenizer allows it, so the value is the same sink. */
+  { name: 'spaced =', sel: 'a', attr: 'href', strings: ['<a href = ', '>x</a>'], values: (v) => [v] },
+  { name: 'spaced =, quoted', sel: 'a', attr: 'href', strings: ['<a href = "', '">x</a>'], values: (v) => [v] },
+  { name: 'single-quoted', sel: 'a', attr: 'href', strings: ["<a href='", "'>x</a>"], values: (v) => [v] },
+  { name: 'unquoted, split across two bindings', sel: 'a', attr: 'href', strings: ['<a href=', '', '>x</a>'], values: (v) => [v.slice(0, 5), v.slice(5)] },
 ];
 
 const cases = [];
@@ -59,6 +64,14 @@ for (const payload of HOSTILE)
     position: { sel: 'a', attr: 'href', strings: [`<a href="${payload.slice(0, 3)}`, '">x</a>'], values: (v) => [v.slice(3)] },
     payload,
   });
+/** The same, unquoted: the static prefix and the binding are one value however the author quoted it. */
+for (const payload of HOSTILE)
+  cases.push({
+    label: `unquoted static prefix joined to a binding · ${JSON.stringify(payload)}`,
+    kind: 'hostile',
+    position: { sel: 'a', attr: 'href', strings: [`<a href=${payload.slice(0, 3).replace(/[\s]/g, '')}`, '>x</a>'], values: (v) => [v.slice(3)] },
+    payload,
+  });
 /**
  * The author's static spelled with character references: the browser DECODES them before the client joins
  * the value, so the server has to read them the same way (`&#106;` is `j`, `&colon;` is `:`).
@@ -67,7 +80,9 @@ cases.push(
   { label: 'a referenced static prefix (&#106;ava) joined to a binding', kind: 'hostile', payload: 'javascript:alert(1)',
     position: { sel: 'a', attr: 'href', strings: ['<a href="&#106;ava', '">x</a>'], values: () => ['script:alert(1)'] } },
   { label: 'a referenced scheme colon (&colon;) before a binding', kind: 'hostile', payload: 'javascript:alert(1)',
-    position: { sel: 'a', attr: 'href', strings: ['<a href="javascript&colon;', '">x</a>'], values: () => ['alert(1)'] } }
+    position: { sel: 'a', attr: 'href', strings: ['<a href="javascript&colon;', '">x</a>'], values: () => ['alert(1)'] } },
+  { label: 'a referenced UNQUOTED static prefix (&#106;ava) joined to a binding', kind: 'hostile', payload: 'javascript:alert(1)',
+    position: { sel: 'a', attr: 'href', strings: ['<a href=&#106;ava', '>x</a>'], values: () => ['script:alert(1)'] } }
 );
 /**
  * The same payloads through `spread` — the twin of the template rule — as an attribute key and as a

@@ -1,0 +1,86 @@
+/**
+ * The one table `tests/ssr-attribute-parity.test.mjs` renders on both sides. A module rather than JSON so
+ * both processes build the SAME values — an object with its own `toString` cannot cross a process
+ * boundary as data. Data only: importing this renders nothing.
+ */
+
+/** Every position a bound attribute value can take. Each shape is filled with one value per hole. */
+export const SHAPES = {
+  'unquoted': ['<p title=', '>t</p>'],
+  'unquoted, static prefix': ['<p title=pre', '>t</p>'],
+  'unquoted, static suffix': ['<p title=', 'suf>t</p>'],
+  'unquoted, two holes': ['<p title=', '', '>t</p>'],
+  'unquoted, statics between holes': ['<p title=a', 'b', 'c>t</p>'],
+  'unquoted, then another attribute': ['<p title=', ' id=x>t</p>'],
+  'unquoted prefix, then another attribute': ['<p title=pre', ' id=x>t</p>'],
+  'spaced =': ['<p title = ', '>t</p>'],
+  'spaced =, quoted': ['<p title = "', '">t</p>'],
+  'double-quoted': ['<p title="', '">t</p>'],
+  'single-quoted': ["<p title='", "'>t</p>"],
+  'double-quoted, static prefix': ['<p title="x', '">t</p>'],
+  'double-quoted, two holes': ['<p title="', '', '">t</p>'],
+  /** A `"` inside a single-quoted static must not close the double quotes the server writes around it. */
+  'single-quoted, static with a double quote': ["<p title='a\"b", "'>t</p>"],
+  /** An entity in a STATIC is decoded by the browser in any quoting — it must stay an entity. */
+  'double-quoted, static entity': ['<p title="&amp;', '">t</p>'],
+  'two bound attributes': ['<p title=', ' lang=', '>t</p>'],
+};
+
+/** The coercion edges: sole nullish drops the attribute, joined nullish is `''`, `false` is the text "false". */
+export const VALUES = [
+  'a b',
+  null,
+  undefined,
+  false,
+  true,
+  0,
+  '',
+  ' onmouseover=alert(1) x=',
+  'q"u\'o&t',
+  /** An entity in a VALUE is text: it must come out as the literal `&amp;`, never decoded. */
+  '&amp;',
+  '<b>',
+  ['x', 'y'],
+  { toString: () => 'from toString' },
+];
+
+/**
+ * Shapes whose holes take DIFFERENT values, so the answer shows which one won. Duplicate names are where
+ * the two sides differ by construction: the client renames each bound attribute to its own marker, so every
+ * binding survives parsing and the last `setAttribute` wins; the parser keeps the FIRST of two written names.
+ */
+export const EXPLICIT = [
+  { label: 'duplicate: bound then bound', strings: ['<p title=', ' title=', '>t</p>'], values: ['first', 'second'] },
+  { label: 'duplicate: static then bound', strings: ['<p title="s" title=', '>t</p>'], values: ['bound'] },
+  { label: 'duplicate: bound then static', strings: ['<p title=', ' title="s">t</p>'], values: ['bound'] },
+  { label: 'duplicate: static then QUOTED bound', strings: ['<p title="s" title="', '">t</p>'], values: ['bound'] },
+  /** Space around `=` does not stop a sigil being a sigil — the client's scanner reads it, so must the server's. */
+  { label: 'spaced sigil: ?hidden = true', strings: ['<p ?hidden = ', '>t</p>'], values: [true] },
+  { label: 'spaced sigil: ?hidden = false', strings: ['<p ?hidden = ', '>t</p>'], values: [false] },
+  { label: 'spaced event: onClick = fn', strings: ['<p onClick = ', '>t</p>'], values: [() => {}] },
+  { label: 'spaced event, quoted: @click = "fn"', strings: ['<p @click = "', '">t</p>'], values: [() => {}] },
+  { label: 'joined nullish is empty text: "x${null}"', strings: ['<p title="x', '">t</p>'], values: [null] },
+  { label: 'sole false is the text "false"', strings: ['<p title=', '>t</p>'], values: [false] },
+  /** Other kinds of binding before the attribute: per-binding compile data is indexed by BINDING, not by attribute. */
+  { label: 'a text binding, then an attribute', strings: ['<b>', '</b><p title=pre', '>t</p>'], values: ['bold', 'v'] },
+  { label: 'a boolean, then a quoted attribute', strings: ['<p ?hidden=', ' title="', '">t</p>'], values: [false, 'v'] },
+  /** The template ends inside a value: nothing may be dropped or duplicated compared with the client. */
+  { label: 'unterminated value at the end of the template', strings: ['<p title="', ''], values: ['x'] },
+];
+
+export const CASES = [
+  ...Object.entries(SHAPES).flatMap(([shape, strings]) =>
+    VALUES.map((value) => ({
+      label: `${shape} · ${typeof value === 'object' && value !== null && !Array.isArray(value) ? '{toString}' : JSON.stringify(value)}`,
+      strings,
+      values: Array(strings.length - 1).fill(value),
+    }))
+  ),
+  ...EXPLICIT,
+];
+
+export const template = ({ strings, values }) => ({
+  _$litType$: 1,
+  strings: Object.freeze(Object.assign([...strings], { raw: [...strings] })),
+  values,
+});
