@@ -122,3 +122,17 @@ test('swapping two distant rows moves exactly those two rows', () => {
   assert.deepEqual([...host.querySelectorAll('li')].map((li) => li.dataset.id), swapped, 'the order is right');
   assert.equal(moved, 2, `the swap made ${moved} DOM moves`);
 });
+
+/**
+ * A `null` among keyed items renders nothing and is unkeyed. The first render never reads a key through the
+ * strategy, so it passed; the reorder read `null.key` and threw with the DOM half-applied.
+ */
+test('a null item in a keyed list survives a reorder', () => {
+  const host = document.createElement('div');
+  const row = (id) => keyed(id, html`<li>${id}</li>`);
+  const drawRows = (rows) => renderInto(html`<ul>${rows}</ul>`, host);
+  drawRows([row(1), null, row(3)]);
+  assert.equal(host.textContent, '13');
+  drawRows([row(3), null, row(1)]);
+  assert.equal(host.textContent, '31');
+});

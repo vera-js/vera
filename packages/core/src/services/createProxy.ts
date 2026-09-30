@@ -223,7 +223,8 @@ const handler: ProxyHandler<object> = {
      * Assigning past the end of an array moves `length` as an internal consequence, never through
      * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write.
      */
-    const grew = Array.isArray(obj) && +(prop as string) >= obj.length;
+    /** A symbol key (a library's tag on an array) is never an index — and `+symbol` throws. */
+    const grew = Array.isArray(obj) && typeof prop === 'string' && +prop >= obj.length;
     writingObj = obj;
     writingProp = prop;
     let written;

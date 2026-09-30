@@ -11,7 +11,8 @@ import type { Item, KeyedResult, ListStrategy } from './renderer.js';
 
 const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const count = values.length;
-  const key = (i: number) => (values[i] as KeyedResult).key;
+  /** A `null` item is unkeyed, as the renderer's `$c` already treats it — never a throw on the second render. */
+  const key = (i: number) => (values[i] as KeyedResult | null)?.key;
   let start = 0;
   let oldEnd = items.length - 1;
   let newEnd = count - 1;

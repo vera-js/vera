@@ -65,6 +65,25 @@ const watch = async (read) => {
   check('and reads back', state.a.b.c.value === 2, String(state.a.b.c.value));
 }
 
+/* ── a symbol key on an array: a library's tag, never an index ────────────────────────────────── */
+{
+  /** `+symbol` throws, so the index check must never coerce one — immer-style marks and devtools tag arrays this way. */
+  const state = core.createStore({ rows: [1, 2] });
+  const seen = await watch(() => state.rows.length);
+  const before = seen.runs;
+  const mark = Symbol('mark');
+  let error = null;
+  try {
+    state.rows[mark] = true;
+  } catch (thrown) {
+    error = thrown;
+  }
+  await frame();
+  check('a symbol-keyed write on a store array succeeds', error === null, String(error));
+  check('and reads back', state.rows[mark] === true, String(state.rows[mark]));
+  check('and does not notify a length reader', seen.runs === before, `${before} -> ${seen.runs}`);
+}
+
 /* ── a whole subtree replaced ───────────────────────────────────────────────────────────────── */
 {
   const state = core.createStore({ user: { name: 'Ada' } });
