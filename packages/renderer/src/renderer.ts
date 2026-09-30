@@ -710,7 +710,13 @@ export interface KeyedResult extends TemplateResult {
  * A child position that holds anything but plain text: a template, a list, a node, or nothing — or
  * text it took over from an upgraded binding. It owns the range between two comment markers
  * (`_end === null`: to the end of its parent — the root part) — or, for a SOLE position, its element's whole
- * content (`_owner`, no markers at all: **a PLAIN element's whole content belongs to its one SOLE binding**).
+ * content (`_owner`, no markers at all).
+ *
+ * **The ownership invariant — whoever writes an element's content owns it, and owns its verification.** Two cases:
+ * a PLAIN element whose whole content is one binding belongs to that binding (the part is its range, and hydration
+ * adopts it with no markers); a CUSTOM element's children belong to the component (a binding inside it keeps its
+ * markers, and hydration compares them only when the template itself writes content inside the tag). Slots (piece 8)
+ * inherit both.
  */
 class ChildPart {
   _start: Comment | null;

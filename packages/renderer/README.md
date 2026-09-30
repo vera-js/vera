@@ -777,8 +777,10 @@ neither is a fallback.
 **Form state stands.** A form control's `.value`, `.checked` and `.selected`, a `!name` on a built-in
 element and a `<select>`'s selection are recorded, not written, so whatever the user typed before the
 script arrived is kept (a `!name` then compares on the next render and takes over, as it always does).
-**A custom element's children are its own render**: when the template writes nothing inside the tag,
-adoption leaves them to the component.
+**Whoever writes an element's content owns its verification.** A custom element's children are its own
+render: when the template writes nothing inside the tag, adoption leaves them to the component (what the
+template does write inside it is compared as usual). And an element whose whole content is one `${…}`
+adopts as that value's range, with no marker put in.
 
 **A fallback costs one container, not the page.** Adoption is decided per container, so components
 hydrating into their own roots are independent: one that disagrees rebuilds and warns, and every
