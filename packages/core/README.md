@@ -100,7 +100,10 @@ worth knowing:
   receives bound values through the setter — adoption never shadows it — which also means the
   pair owns its reactivity: back it with your own store (`set item(v) { this.#state.item = v }`)
   and later commits re-render exactly as adopted props do. A getter with no setter refuses the
-  binding by name in development instead of silently losing the value.
+  binding by name in development instead of silently losing the value. **A setter that READS state
+  (`this.#state.seen = this.#state.item`) must read it through `untrack()`** — the setter runs during the
+  parent's render, so a tracked read subscribes the PARENT, and a parent that passes a fresh object each
+  render (`.items=${[...]}`) then re-renders forever. A plain write, as above, is safe.
 - **SSR delivers them too.** Under `@verajs/ssr`, a property bound on a rendered component tag
   reaches that child's server render by identity, so the server's output comes from the same data
   the client render gets.
