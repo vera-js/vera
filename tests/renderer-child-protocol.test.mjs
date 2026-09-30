@@ -175,3 +175,30 @@ test('ordinary child values are unaffected', () => {
   draw({ toString: () => 'stringified' });
   assert.equal(read(container), '<p>stringified</p>');
 });
+
+/**
+ * A bound `<select>` re-asserts its value on every render — its options can be replaced under an unchanged
+ * value — but only WRITES when the value it holds differs: the write resets every option's selectedness, and
+ * paying it per row per render made a table with a select per row several times slower. Counted, not timed.
+ */
+test('an unchanged <select> value is not written again; replaced options still get it', () => {
+  const host = document.createElement('div');
+  const proto = Object.getPrototypeOf(document.createElement('select'));
+  const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+  let writes = 0;
+  Object.defineProperty(proto, 'value', { ...desc, set(v) { writes++; desc.set.call(this, v); } });
+  try {
+    const option = (o) => html`<option value=${o}>${o}</option>`;
+    const draw = (opts) => renderInto(html`<select .value=${'b'}>${opts.map(option)}</select>`, host);
+    draw(['a', 'b', 'c']);
+    const first = writes;
+    assert.equal(host.querySelector('select').value, 'b');
+    draw(['a', 'b', 'c']);
+    draw(['a', 'b', 'c']);
+    assert.equal(writes, first, 'no write while the select already holds its value');
+    draw(['x', 'b']);
+    assert.equal(host.querySelector('select').value, 'b', 'replaced options still end with the bound value selected');
+  } finally {
+    Object.defineProperty(proto, 'value', desc);
+  }
+});
