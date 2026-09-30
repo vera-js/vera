@@ -18,7 +18,8 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, read, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
 const ATTR = 0;
@@ -111,12 +112,19 @@ class Binding {
   _state = 1;
   /** How this key is checked as a URL (`urlRule`) — decided once, with the element in hand. */
   _url: number;
-  constructor(element: Element, key: string) {
+  /**
+   * On a custom element, a property read is the component's GETTER, so it goes through the `untracked` this binding was
+   * created with; `null` on a built-in element, whose getters read no state. Decided once.
+   */
+  _read: Untracked | null;
+  constructor(element: Element, key: string, untracked: Untracked) {
     const [kind, name] = resolve(key);
     this._kind = kind;
     this._name = name as string;
     this._element = element;
-    this._url = urlRule(kind, name as string, element.localName.includes('-'));
+    const custom = element.localName.includes('-');
+    this._read = custom ? untracked : null;
+    this._url = urlRule(kind, name as string, custom);
     if (kind === REFUSED) {
       if (__DEV__)
         console.warn(
@@ -128,8 +136,9 @@ class Binding {
     const el = element as unknown as Record<string, unknown>;
     if (kind === ATTR) this._initial = element.getAttribute(name as string);
     else if (kind === BOOLEAN) this._initial = element.hasAttribute(name as string);
-    else if (kind === PROPERTY || kind === LIVE) this._initial = el[name as string];
-    if (kind === PROPERTY && element.localName.includes('-')) this._state = 0;
+    /** On a custom element this is the component's getter, run on the parent's behalf: read through `untracked`. */
+    else if (kind === PROPERTY || kind === LIVE) this._initial = custom ? untracked(read, el, name as string) : el[name as string];
+    if (kind === PROPERTY && custom) this._state = 0;
   }
   /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
   handleEvent(event: Event) {
@@ -155,7 +164,7 @@ const write = (binding: Binding, given: unknown) => {
   }
   if (kind === LIVE) {
     binding._committed = value;
-    if (el[name] !== value) el[name] = value;
+    if ((binding._read !== null ? binding._read(read, el, name) : el[name]) !== value) el[name] = value;
     return;
   }
   if (value === binding._committed) return;
@@ -195,7 +204,12 @@ const write = (binding: Binding, given: unknown) => {
  * carry several spreads. A key that leaves the bag is written back to what the element held before.
  */
 const owned = new WeakMap<object, Map<string, Binding>>();
-function apply(this: SpreadResult, element: Element, key: object) {
+/**
+ * `untracked` is `_$apply$`'s third argument — core's, through the renderer; `call` when a renderer leaves it out.
+ * Each binding keeps the one it was CREATED with, so nothing about it is paid per render, and an apply nested inside
+ * another (a component setter rendering a spread) can never change what the outer's bindings use.
+ */
+function apply(this: SpreadResult, element: Element, key: object, untracked: Untracked = call) {
   const props = this._props;
   let bindings = owned.get(key);
   if (bindings === undefined) owned.set(key, (bindings = new Map()));
@@ -203,7 +217,7 @@ function apply(this: SpreadResult, element: Element, key: object) {
   for (const name in props) {
     count++;
     let binding = bindings.get(name);
-    if (binding === undefined) bindings.set(name, (binding = new Binding(element, name)));
+    if (binding === undefined) bindings.set(name, (binding = new Binding(element, name, untracked)));
     write(binding, props[name]);
   }
   if (bindings.size !== count)

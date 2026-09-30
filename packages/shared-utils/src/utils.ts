@@ -1,3 +1,4 @@
+import type { Untracked } from './types.js';
 
 /**
  * Get an object's type.
@@ -65,3 +66,12 @@ export const reportUncaught = (error: unknown, sentence: string) => {
     reportError(error);
   }
 };
+
+/** `fn(a, b, c)`, tracked as the caller is — the stand-in for core's `untracked` when no core was wired. */
+export const call: Untracked = (fn, a, b, c) => fn(a!, b!, c!);
+
+/**
+ * `target[key]`, as a function — how a component's GETTER is read through `untracked`. Not `Reflect.get`: `untracked`
+ * passes three arguments, and `Reflect.get`'s third is the RECEIVER — `undefined` there runs the getter with no `this`.
+ */
+export const read = (target: object, key: string) => (target as Record<string, unknown>)[key];

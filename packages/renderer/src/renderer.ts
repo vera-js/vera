@@ -16,7 +16,8 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { adoptProperty, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, read, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import type { Untracked } from '@verajs/shared-utils';
 
 import type { TemplateResult } from './types.js';
 
@@ -79,6 +80,8 @@ const LIVE = 9;
 const SELECT = 10;
 /** A binding that must never write. */
 const REFUSED = 11;
+/** `!name` on a custom element: compared against the LIVE value — read through `untracked`, it is the component's getter. */
+const LIVE_CUSTOM = 12;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
@@ -267,6 +270,7 @@ class Template {
                 `document — refused. If the markup is trusted and sanitized, bind the property: \`.srcdoc=\${…}\`.`
             );
         } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
+        else if (kind === LIVE && el.localName.includes('-')) kind = LIVE_CUSTOM;
         kinds[i] = kind;
         names[i] = real;
         statics[i] = value.length === 2 && value[0] === '' && value[1] === '' ? null : value;
@@ -514,11 +518,13 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     element.removeAttribute(name);
     return;
   }
-  if (kind === LIVE) {
-    if ((element as unknown as Record<string, unknown>)[name] !== value) (element as unknown as Record<string, unknown>)[name] = value;
-  } else if (kind === SELECT) {
+  /** The kinds that re-assert every render sit from `LIVE` up (`REFUSED` returned above): ONE test routes them all. */
+  if (kind >= LIVE) {
     /** Queued, not dirty-checked: the options can be replaced under an unchanged value, which drops the selection just as surely. */
-    (pendingSelects ??= []).push(element, value);
+    if (kind === SELECT) (pendingSelects ??= []).push(element, value);
+    /** A component's getter is its own code: read on the parent's behalf, it must not subscribe the parent's render. */
+    else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value)
+      (element as unknown as Record<string, unknown>)[name] = value;
   } else if (value === committed) return;
   bindings[slot + 1] = value;
   if (kind === ATTR) {
@@ -548,7 +554,8 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      * A value with `_$apply$` applies itself NOW, mid-commit, keyed by this binding — spread delivers
      * properties through it, and they must arrive before the element is inserted and upgraded.
      */
-    if ((value as { _$apply$?: unknown })._$apply$) (value as { _$apply$: (element: Element, key: object) => void })._$apply$(element, node as Slot);
+    if ((value as { _$apply$?: unknown })._$apply$)
+      (value as { _$apply$: (element: Element, key: object, run: Untracked) => void })._$apply$(element, node as Slot, untracked);
     /**
      * A ref — a function, or an object taking `.value` (core's `ref()`) — is handed its element once the pass's
      * DOM exists: inserted, upgraded, in its own document. Queued at most once per pass (`_state`), and the
@@ -927,6 +934,14 @@ type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) =
  */
 let registry: { get(name: string): unknown[] | undefined } | null = null;
 
+/**
+ * Core's `untracked`, taken off that registry at `connect` (`call` without core): what the renderer runs someone
+ * else's code through during a render — a ref, and a component's getter it reads on the parent's behalf — so that
+ * code's reads subscribe nothing. What the renderer reads ITSELF stays tracked: a store array handed to a template
+ * is walked here, and that walk is what subscribes the parent to its length and items.
+ */
+let untracked: Untracked = call;
+
 /** The container of the `renderInto` in progress — a ref's error names its component through it. */
 let renderRoot: Node | null = null;
 
@@ -967,6 +982,11 @@ const flush = (selectsFrom: number, refsFrom: number) => {
   if (refs === null || refs.length <= refsFrom) return;
   const mine = refs.splice(refsFrom);
   if (refs.length === 0) pendingRefs = null;
+  /** A ref is someone else's code: what it reads must not subscribe the render that handed it the element. */
+  untracked(applyRefs, mine);
+};
+
+const applyRefs = (mine: unknown[]) => {
   for (let i = 0; i < mine.length; i += 2) {
     const bindings = mine[i] as unknown[];
     const at = mine[i + 1] as number;
@@ -1057,5 +1077,6 @@ export const renderer = {
   /** Typed against the registry `wire` hands over, so `wire([renderer])` compiles in a consumer's project. */
   connect: (given: { get(name: never): unknown }) => {
     registry = given as { get(name: string): unknown[] | undefined };
+    untracked = (given as { $t?: Untracked }).$t ?? call;
   },
 };

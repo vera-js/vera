@@ -63,3 +63,10 @@ export type Parsed = string | number | boolean | null | Path | ParsedObject | Pa
  * not write. Duplicate keys are a parse failure rather than a last-one-wins silent overwrite.
  */
 export type ParsedObject = { [key: string]: Parsed };
+
+/**
+ * `fn(a, b, c)` with dependency tracking suspended — core's `untracked`, or `call` where no core was wired. It is what
+ * the framework runs SOMEONE ELSE'S code through during a render (a ref; a component's getter read on the parent's
+ * behalf), so that code's reads cannot subscribe the render.
+ */
+export type Untracked = <A, B, C, R>(fn: (a: A, b: B, c: C) => R, a?: A, b?: B, c?: C) => R;

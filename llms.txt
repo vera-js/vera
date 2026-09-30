@@ -627,7 +627,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - Plain strings render as TEXT, never parsed as HTML (there is no innerHTML sink).
 - A ref (`${fn}` or `&=${ref()}`) runs AFTER its render pass: the element is inserted, upgraded, in its own
   document — measure/focus there. Document pre-order; after the pass's `<select>` values. A value
-  with `_$apply$`/`_$child$` applies MID-commit, so read its element's window lazily.
+  with `_$apply$`/`_$child$` applies MID-commit, so read its element's window lazily. A ref runs UNTRACKED
+  (its reads never subscribe the component), and so do the renderer's reads of a component's getter
+  (`!value` compares, spread's initial values).
 - Replacing a ref calls the OLD one with `null` first (a `{ value }` ref is emptied). `hold()` parks only when
   another held template replaces it (`null`/`false` rebuild on return); a parked ref keeps its element and
   is released only when the section itself goes away.

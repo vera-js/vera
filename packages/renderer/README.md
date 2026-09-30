@@ -84,7 +84,8 @@ pass's DOM exists: the element is inserted, a custom element is upgraded, and it
 document, so a ref can measure it, focus it, or read its window. Within a pass, refs run in commit order
 — document pre-order, so an element's ref runs before the refs inside it and before its next sibling's —
 after the pass's `<select>` values are set; a
-ref replaced or removed before its turn is handed nothing.
+ref replaced or removed before its turn is handed nothing. A ref runs **untracked**: what it reads never
+subscribes the component that rendered it — a ref captures an element, it is not a dependency.
 
 **Replacing a ref tells the old one first.** Changing `${a}` to `${b}` calls `a(null)` at once and hands `b`
 the element after the pass; changing it to `${null}` calls `a(null)`. A `{ value }` ref is emptied the same way.

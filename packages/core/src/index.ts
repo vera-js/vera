@@ -22,6 +22,13 @@ export { mount } from './modules/mount.js';
 export { render } from './modules/render.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
+import { untracked } from './modules/untrack.js';
+/**
+ * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
+ * not an extension point — it is core's own tracking stack, and nothing wired later may replace it. `$`-named, so it
+ * survives mangling.
+ */
+(inserts as unknown as { $t: typeof untracked }).$t = untracked;
 export { useRender } from './hooks/useRender.js';
 export { setRenderScheduler, microtask } from './modules/setRenderScheduler.js';
 export { html, mathml, svg } from './store/store.js';

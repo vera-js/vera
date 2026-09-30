@@ -1,4 +1,5 @@
 import { hooksQueue } from '../store/store.js';
+import type { Untracked } from '@verajs/shared-utils';
 
 /**
  * Reads state without subscribing to it — the escape hatch for an effect that needs the CURRENT value of
@@ -16,10 +17,17 @@ import { hooksQueue } from '../store/store.js';
  * @param fn Function to run without tracking
  * @return Whatever `fn` returns
  */
-export const untrack = <T>(fn: () => T): T => {
+export const untrack = <T>(fn: () => T): T => untracked(fn);
+
+/**
+ * `fn(a, b, c)` with nothing on top of the tracking stack — `untrack` with its arguments passed through, so a hot
+ * caller allocates no closure. Core hands it to the modules it is wired to: the renderer runs a ref, and reads a
+ * component's getter on the parent's behalf, through it — that code's reads must not subscribe the render.
+ */
+export const untracked: Untracked = (fn, a, b, c) => {
   hooksQueue.push(undefined);
   try {
-    return fn();
+    return fn(a!, b!, c!);
   } finally {
     hooksQueue.pop();
   }
