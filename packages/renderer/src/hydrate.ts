@@ -21,6 +21,8 @@ import {
   comment,
   getTemplate,
   hold,
+  hookUp,
+  resolved,
   needRemovalWork,
   Instance,
   isTemplateResult,
@@ -274,24 +276,31 @@ const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
 
 /** Adopts a template's instance at the cursor. */
 const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
-  const template = getTemplate(result);
+  let template = getTemplate(result);
+  /** Adoption is in place: an extension resolving the template (namespaces) is asked with the LIVE parent. */
+  if (template._x) template = resolved(template, cursor.parent);
   const into: Adoption = {
     template,
-    bindings: new Array(template._kinds.length * 2),
+    bindings: new Array(template._kinds.length * 2 + (template._x ? 1 : 0)),
     values: result.values,
     plan: planOf(template),
   };
   const root = template._root;
-  let adopted: Node;
   if (root.nodeType === 1) {
-    adopted = claimElement(cursor, (root as Element).localName);
-    adoptElement(root as Element, adopted as Element, into, into.plan.get(root));
-  } else {
-    walk(root.firstChild, cursor, into);
-    /** A fragment-rooted instance's root is an empty fragment once inserted — `hold()` parks its nodes into it. */
-    adopted = cursor.parent.ownerDocument!.createDocumentFragment();
+    const adopted = claimElement(cursor, (root as Element).localName);
+    const instance = new Instance(template, result.strings, adopted, into.bindings);
+    /** Its instance hook meets it before its bindings commit, as a client instance does — told it was adopted. */
+    if (template._x) hookUp(instance, adopted, true);
+    adoptElement(root as Element, adopted, into, into.plan.get(root));
+    return instance;
   }
-  return new Instance(template, result.strings, adopted, into.bindings);
+  walk(root.firstChild, cursor, into);
+  /**
+   * A fragment-rooted instance's root is an empty fragment once inserted — `hold()` parks its nodes into it. (Its
+   * adopted nodes are a range of live siblings with no one node to hand an instance hook, so an adopted
+   * fragment-rooted instance is not hooked yet — piece 8 settles ranges for slots too.)
+   */
+  return new Instance(template, result.strings, cursor.parent.ownerDocument!.createDocumentFragment(), into.bindings);
 };
 
 /**
@@ -353,9 +362,15 @@ const adoptValue = (part: ChildPart, value: unknown, cursor: Cursor) => {
   adoptValue(part, String(value), cursor);
 };
 
+/** The root the template at this position will build — after an extension resolves it, as `$c` asks. */
+const rootOf = (result: TemplateResult, cursor: Cursor) => {
+  const template = getTemplate(result);
+  return (template._x ? resolved(template, cursor.parent) : template)._root;
+};
+
 /** Adopts one list item — the same shapes `ChildPart.$c` builds. */
 const adoptItem = (value: unknown, cursor: Cursor): Item => {
-  if (value !== null && typeof value === 'object' && isTemplateResult(value) && getTemplate(value)._root.nodeType === 1) {
+  if (value !== null && typeof value === 'object' && isTemplateResult(value) && rootOf(value, cursor).nodeType === 1) {
     const instance = adoptInstance(value, cursor);
     instance.$k = (value as KeyedResult).key;
     return instance;

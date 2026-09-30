@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, isSelection, read, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, INLINE_HANDLER, isSelection, read, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
@@ -72,7 +72,7 @@ const resolve = (key: string): [number, string | number] => {
         ? 3
         : kind === ATTR && name.toLowerCase() === 'srcdoc'
           ? 4
-          : kind === ATTR && name.length > 2 && /^on/i.test(name)
+          : kind === ATTR && INLINE_HANDLER.test(name)
             ? 5
             : 0;
   return refusal ? [REFUSED, refusal] : [kind, name];

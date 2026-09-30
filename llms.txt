@@ -655,6 +655,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
 - Bindings inside comments are not supported (values consumed, ignored).
+- A BOUND inline-handler attribute (`onclick=${…}`, `on` + a letter, any case) is REFUSED in templates, spread and
+  SSR alike — its value would run as code. A STATIC `onclick="save()"` stays; bind a function as `@click=${fn}` or
+  `onClick=${fn}`.
 - A PLAIN element whose whole content is one `${…}` belongs to it: `<ul>${rows}</ul>` renders with no marker
   nodes, and nodes other code adds to that `<ul>` are removed when the value changes. Elsewhere a position is
   bracketed by two empty comments. A custom element is never owned (a light component renders into its children).

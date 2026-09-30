@@ -9,9 +9,26 @@ export { inserts };
  */
 export const wire: typeof register = (item) => {
   const before = inserts.get('store')?.slice() ?? [];
+  const decided = __DEV__ ? (inserts.get('template')?.length ?? 0) + (inserts.get('element')?.length ?? 0) : 0;
   register(item);
   const after = inserts.get('store') ?? [];
   if (after.length !== before.length || after.some((insert, i) => insert !== before[i])) redecideStores();
+  /**
+   * **A template decision is made once, as the template is built** — so a `'template'` or `'element'` module wired
+   * after the renderer built templates never reaches those (they are cached for the life of the page), silently.
+   * Stores are re-decided in place above; templates cannot be (the cache is a WeakMap, not a list), so development
+   * says so. The renderer marks the registry once it has built a template.
+   */
+  if (
+    __DEV__ &&
+    (inserts as unknown as { $b?: boolean }).$b === true &&
+    (inserts.get('template')?.length ?? 0) + (inserts.get('element')?.length ?? 0) > decided
+  )
+    console.warn(
+      "[vera] wire: a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had " +
+        'already built templates — those never ask it, and keep rendering without it. Wire it beside the renderer, ' +
+        'before the first render.'
+    );
 };
 export type * from '@verajs/inserts';
 export type * from './types.js';

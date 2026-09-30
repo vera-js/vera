@@ -88,12 +88,16 @@ export type SlotSeamState = { _$park$?: () => void };
  * bundle boundary.
  */
 export type InstanceHook = {
-  /** Before the first update: this instance's state, or `undefined` to take no part. */
-  $c(fragment: DocumentFragment, root: Node | null): unknown;
-  /** After the first update, with that state: what to keep for teardown, or `undefined`. */
-  $m(state: unknown, root: Node | null): unknown;
-  /** At teardown, with what `$m` kept. */
-  $q(kept: unknown): void;
+  /**
+   * Before the first update: the hook's own state for this instance, or `undefined` to take no part. `root` is the
+   * instance's root — the clone's fragment, or its one element for a single-root template (then position 0). The
+   * renderer keeps the state in one slot of the instance and hands it back; what is in it is the hook's business.
+   */
+  $c(root: Node, renderRoot: Node | null, adopted: boolean): unknown;
+  /** Once the render that created the instance has finished, with that state. */
+  $m(state: unknown): void;
+  /** At the instance's teardown — before or after its mount — with that state. */
+  $q(state: unknown): void;
 };
 
 /**

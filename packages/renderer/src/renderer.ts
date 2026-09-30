@@ -16,10 +16,10 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { adoptProperty, call, isSelection, read, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, INLINE_HANDLER, isSelection, read, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 
-import type { TemplateResult } from './types.js';
+import type { InstanceHook, TemplateResult } from './types.js';
 
 export type { TemplateResult } from './types.js';
 
@@ -116,6 +116,17 @@ class Template {
    * 0 not one; 1 converted once, and that string checked and written; 2 a custom element's property — strings only.
    */
   _urls: number[];
+  /**
+   * **An extension marked this template** (`'template'` insert): namespaces' resolver, an instance hook. False for
+   * every template of an app that wires none — ONE read per instance created, never a per-row cost otherwise.
+   */
+  _x = false;
+  /** Namespaces' resolver: which template to build at a position, given its parent. */
+  declare _$at$?: (parent: Node) => Template;
+  /** The namespace this template was parsed in, for a resolver asked about a detached fragment. */
+  declare _$ns$?: string | null;
+  /** The instance hook — elements (and slots): claim at creation, mount at the render's end, unmount at teardown. */
+  declare _$inst$?: InstanceHook;
 
   constructor(result: TemplateResult) {
     const strings = result.strings;
@@ -200,7 +211,12 @@ class Template {
     /** svg/mathml fragments only parse inside their root: wrap, then unwrap. */
     element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
     const content = element.content;
-    if (type !== 1) content.replaceChildren(...content.firstChild!.childNodes);
+    /**
+     * Unwrapped by removing the wrapper and keeping EVERYTHING the parser made: an HTML element in foreign content
+     * (`<div>` inside `<svg>`) breaks out, and the parser places it AFTER the wrapper — keeping only the wrapper's
+     * children dropped it, and everything it held, silently.
+     */
+    if (type !== 1) (content.firstChild as Element).replaceWith(...content.firstChild!.childNodes);
     const walker = doc.createTreeWalker(content, 129 /* ELEMENT | COMMENT */);
     let node: Node | null;
     while ((node = walker.nextNode()) !== null) {
@@ -269,6 +285,14 @@ class Template {
             console.warn(
               `[vera] <${el.localName}> binds the \`srcdoc\` attribute, which renders its value as an HTML ` +
                 `document — refused. If the markup is trusted and sanitized, bind the property: \`.srcdoc=\${…}\`.`
+            );
+        } else if (kind === ATTR && INLINE_HANDLER.test(real)) {
+          /** A bound inline handler runs its value as code: refused, as spread and the server refuse it. */
+          kind = REFUSED;
+          if (__DEV__)
+            console.warn(
+              `[vera] <${el.localName}> binds the \`${real}\` attribute, which runs its value as code — refused. ` +
+                `Bind a function as an event instead: \`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`).`
             );
         } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
         else if (kind === LIVE && el.localName.includes('-')) kind = LIVE_CUSTOM;
@@ -341,8 +365,38 @@ class Template {
       }
       this._paths.push(path);
     }
+    /**
+     * **The `'template'` insert** — asked once, as each template is built (cold): a hook may set `_$at$`/`_$inst$`.
+     * A module wired AFTER a template was built never hears about it; development says so at `wire` (core reads the
+     * mark below).
+     */
+    if (__DEV__ && registry !== null) (registry as unknown as { $b?: boolean }).$b = true;
+    const hooks = registry?.get('template') as TemplateHook[] | undefined;
+    /**
+     * Marked whenever a hook exists, not only when one set a resolver or an instance hook here: a variant parsed in
+     * another namespace carries only its namespace (`_$ns$`), and its instances must still set the create scope, or a
+     * position at its top level cannot be resolved.
+     */
+    if (hooks !== undefined && hooks.length > 0) {
+      for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope);
+      this._x = true;
+    }
   }
 }
+
+/** A `'template'` insert: called once as each template is built. */
+type TemplateHook = (template: Template, result: TemplateResult, readScope: () => unknown) => void;
+
+/**
+ * **The create scope**: the template whose instance is being built, while its first update runs — how a resolver
+ * answers for a position whose parent is still the instance's detached FRAGMENT (a fragment-rooted template's top
+ * level). Set only by a marked template's instantiation.
+ */
+let scope: unknown = null;
+const readScope = () => scope;
+
+/** The template to build at a position — the same one, unless an extension resolves it by `parent` (namespaces). */
+const resolved = (template: Template, parent: Node) => (template._$at$ !== undefined ? template._$at$(parent) : template);
 
 const templateCache = new WeakMap<TemplateStringsArray, Template>();
 const getTemplate = (result: TemplateResult) => {
@@ -432,7 +486,9 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
   const root = template._plain && owner === doc ? source.cloneNode(true) : owner.importNode(source, true);
   const kinds = template._kinds;
   const paths = template._paths;
-  const bindings = new Array(kinds.length * 2);
+  const marked = template._x;
+  /** A marked template's instance keeps its hook's state in ONE slot after its bindings — the hook's own object. */
+  const bindings = new Array(kinds.length * 2 + (marked ? 1 : 0));
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
     if (kind === IGNORED) continue;
@@ -446,8 +502,31 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
     bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
   }
   const instance = new Instance(template, result.strings, root, bindings);
-  update(instance, result.values);
+  if (marked) {
+    hookUp(instance, root, false);
+    const outer = scope;
+    scope = template;
+    update(instance, result.values);
+    scope = outer;
+  } else update(instance, result.values);
   return instance;
+};
+
+/**
+ * **An instance of a marked template meets its instance hook** — before its first update (claims see the inert
+ * clone), with its mount queued for when the render that created it finishes. Arms removal work, so an instance
+ * discarded before then is walked at teardown and never mounts. Also how hydration hooks an adopted instance.
+ */
+export const hookUp = (instance: Instance, root: Node, adopted: boolean) => {
+  const hook = instance._template._$inst$;
+  if (hook === undefined) return;
+  /** The hook's own state — what to mount, and later what to unmount — or nothing to take part. */
+  const state = hook.$c(root, renderRoot, adopted);
+  if (state === undefined) return;
+  instance._bindings[instance._template._kinds.length * 2] = state;
+  /** Mounted by the ref flush: a record whose second half is not a slot number is a mount. */
+  (pendingRefs ??= []).push(hook, state);
+  notifyOnRemoval = true;
 };
 
 /**
@@ -637,6 +716,15 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
 const teardown = (instance: Instance) => {
   const kinds = instance._template._kinds;
   const bindings = instance._bindings;
+  /** An instance hook is told, with its state: it unmounts what it mounted, and one not yet mounted never mounts. */
+  if (instance._template._x) {
+    const at = kinds.length * 2;
+    const state = bindings[at];
+    if (state !== undefined) {
+      bindings[at] = undefined;
+      instance._template._$inst$!.$q(state);
+    }
+  }
   for (let i = 0; i < kinds.length; i++) {
     const value = bindings[i * 2 + 1];
     if (kinds[i] === REF || kinds[i] === SELECT_REF) {
@@ -679,6 +767,7 @@ const SCRATCH = doc.createDocumentFragment();
  */
 export {
   getTemplate,
+  resolved,
   Instance,
   ChildPart,
   Slot,
@@ -872,7 +961,9 @@ class ChildPart {
       }
       if (this._mode !== EMPTY) this._clear();
       if (instance === undefined) {
-        instance = instantiate(getTemplate(result), result, passDoc);
+        let template = getTemplate(result);
+        if (template._x) template = resolved(template, this._owner ?? this._start!.parentNode!);
+        instance = instantiate(template, result, passDoc);
         this._insert(instance._root);
       } else {
         /** Inserted first, then updated, as every update is: its nodes are live when its values commit. */
@@ -918,7 +1009,8 @@ class ChildPart {
   /** Creates one list item before `ref`. */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
     if (value !== null && typeof value === 'object' && isTemplateResult(value)) {
-      const template = getTemplate(value);
+      let template = getTemplate(value);
+      if (template._x) template = resolved(template, parent);
       if (template._root.nodeType === 1) {
         const instance = instantiate(template, value, passDoc);
         parent.insertBefore(instance._root, ref);
@@ -1130,10 +1222,19 @@ const flush = (selectsFrom: number, refsFrom: number) => {
   untracked(applyRefs, mine);
 };
 
+/**
+ * Refs, and instance mounts, in commit order — once the pass's DOM exists, so a claim sees the finished tree. (A
+ * claim that RELOCATES a node — elements', slots' — may run after refs inside it, so such a ref saw its element before
+ * the move: the same element, but pre-claim geometry. Measure in a mount, or after the render, not in a ref.)
+ */
 const applyRefs = (mine: unknown[]) => {
   for (let i = 0; i < mine.length; i += 2) {
     const bindings = mine[i] as unknown[];
     const at = mine[i + 1] as number;
+    if (typeof at !== 'number') {
+      (mine[i] as InstanceHook).$m(at);
+      continue;
+    }
     const record = bindings[at] as Slot;
     const value = bindings[at + 1];
     record._state = 0;
@@ -1183,6 +1284,8 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   const outerDoc = passDoc;
   const selectsMark = pendingSelects?.length ?? 0;
   const refsMark = pendingRefs?.length ?? 0;
+  const outerScope = scope;
+  scope = null;
   /** A render nested inside an adopted binding's commit builds fresh DOM: it is never adopting (hydrate entry only). */
   const outerAdopting = __HYDRATING__ && adopting;
   if (__HYDRATING__) adopting = false;
@@ -1195,6 +1298,7 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
     flush(selectsMark, refsMark);
     renderRoot = outer;
     passDoc = outerDoc;
+    scope = outerScope;
     if (__HYDRATING__) adopting = outerAdopting;
   }
 };

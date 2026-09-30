@@ -103,3 +103,12 @@ export const SCRIPT_URL = /^[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s
  * property spellings (`formAction`) and attribute spellings meet here.
  */
 export const URL_ATTRIBUTE = /^(?:href|src|action|formaction|xlink:href|data)$/i;
+
+/**
+ * **An inline event-handler attribute** — `on` and a letter, any case (`onclick`, `onLoad`, `onbeforeinput`): its
+ * value is run as CODE, so a BOUND one is code arriving as data, refused by the template scanner, `spread` and the
+ * server alike (a static `onclick="save()"` is the author's own and untouched). Broad on purpose — it also refuses a
+ * bound `once=`/`online=` attribute; the precise rule would need the platform's list of handler names. `@verajs/ssr`
+ * keeps a twin, held to this one by `tests/inline-handlers.test.mjs`.
+ */
+export const INLINE_HANDLER = /^on./i;

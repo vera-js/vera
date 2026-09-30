@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { SCRIPT_URL, URL_ATTRIBUTE, decodeSchemeReferences } from './escaping.js';
+import { INLINE_HANDLER, SCRIPT_URL, URL_ATTRIBUTE, decodeSchemeReferences } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 
@@ -516,8 +516,11 @@ const compile = (strings) => {
           quote: tagState.quote,
           first: kinds.length,
           last: kinds.length,
-          /** Never served: inert content, and a bound `srcdoc` (it renders its value as a document). A URL sink refuses `javascript:` — as the client does. */
-          refuse: inert || lower === 'srcdoc' ? 2 : URL_ATTRIBUTE.test(lower) ? 1 : 0,
+          /**
+           * Never served: inert content, a bound `srcdoc` (it renders its value as a document) and a bound inline
+           * handler (`onclick=${…}` runs its value as code). A URL sink refuses `javascript:` — as the client does.
+           */
+          refuse: inert || lower === 'srcdoc' || INLINE_HANDLER.test(lower) ? 2 : URL_ATTRIBUTE.test(lower) ? 1 : 0,
           /** An earlier write of this name in the tag: the client's `setAttribute` replaces it, so it is removed. */
           strip: dynamicTag || written.has(lower),
           /** The WHOLE value is this one binding — the only shape where a nullish value removes the attribute. */

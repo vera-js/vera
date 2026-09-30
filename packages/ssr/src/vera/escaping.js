@@ -149,6 +149,9 @@ export const SCRIPT_URL = /^[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s
 /** The attributes a browser navigates to or loads as a document — the twin of `URL_ATTRIBUTE` there. */
 export const URL_ATTRIBUTE = /^(?:href|src|action|formaction|xlink:href|data)$/i;
 
+/** A bound inline event-handler attribute runs its value as code — the twin of `INLINE_HANDLER` there. */
+export const INLINE_HANDLER = /^on./i;
+
 /**
  * The character references that can spell part of a scheme, decoded — enough to give the verdict a
  * browser gives on an attribute's static text, without a full entity table. Numeric references (with

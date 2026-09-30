@@ -466,7 +466,7 @@ test('hold() evicts nothing — fifty shapes through one call site all re-adopt 
 });
 
 // ── React-shaped event bindings: onClick ≡ @click, buildless ───────────────────────────────────
-test('onClick-style bindings attach listeners; onclick stays an attribute', () => {
+test('onClick-style bindings attach listeners; a BOUND onclick is refused, a static one stays', () => {
   let clicks = 0;
   renderInto(html`<button onClick=${() => clicks++} onDblClick=${() => clicks++}>go</button>`, el);
   const button = el.querySelector('button');
@@ -476,9 +476,15 @@ test('onClick-style bindings attach listeners; onclick stays an attribute', () =
   assert.equal(button.hasAttribute('onClick'), false, 'no attribute residue');
 
   const el2 = document.createElement('div');
-  renderInto(html`<i onclick=${'alert(1)'}></i>`, el2);
-  assert.equal(el2.querySelector('i').getAttribute('onclick'), 'alert(1)',
-    'all-lowercase onclick remains a plain attribute (inline-handler HTML)');
+  const { warn } = console;
+  console.warn = () => {};
+  try {
+    renderInto(html`<i onclick=${'alert(1)'}></i><b onclick="static()"></b>`, el2);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(el2.querySelector('i').getAttribute('onclick'), null, 'a bound inline handler runs data as code: refused');
+  assert.equal(el2.querySelector('b').getAttribute('onclick'), 'static()', "a static one is the author's own"); 
 });
 
 // ── value injection ─────────────────────────────────────────────────────────

@@ -74,7 +74,7 @@ public and both are documented, so a reader who knew one misread the other.
 | `<p ?hidden=${value}>` | boolean attribute, present when truthy |
 | `<input !checked=${value}>` | property written from the **live DOM** rather than from what the binding last wrote — see below |
 | `<button @click=${fn}>` | event listener. An object with a `handleEvent` method works too — `addEventListener` takes both |
-| `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — a template-written `onclick` stays a plain attribute (yours, greppable); **spread refuses it** (see the spread section's security note) |
+| `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital. A STATIC `onclick="…"` stays a plain attribute (yours, greppable); a BOUND `onclick=${…}` runs its value as code, so it is **refused** — in templates, in spread and on the server alike |
 | `<input ${fn}>` | element ref: a function is called with the element |
 | `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
 | `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
@@ -411,7 +411,8 @@ What a claimant can rely on:
   **static** attributes are real, bindings are not applied yet — `autofocus=${x}` cannot be claimed on
   `x`. Claim the attribute's presence and decide in `mount`. SVG and MathML elements are asked too.
 - **`mount(element, { root, adopted })` runs once the render that created the instance has
-  finished**, so the whole tree is in place and connected if its container is — a nested instance is
+  finished** — in the same end-of-render pass as refs, in document order, so a claim that MOVES an
+  element does so after refs above it saw it in place (measure in `mount`, not in a ref) — so the whole tree is in place and connected if its container is — a nested instance is
   inserted only when its outer one is, which is why it does not run straight after the instance's own
   update. `root` is the render's container. An instance discarded before its render ends never mounts.
 - **`unmount(kept, element)` runs once, at teardown** — a template swapped out, a keyed row dropped, a
@@ -422,7 +423,8 @@ What a claimant can rely on:
   claim — which is what keeps claims off the hot path. A throwing `mount` propagates, as a throwing
   `&ref` does.
 - **Wire it before anything renders**, like `slots`: a template asks its claimants when it is first
-  used, and a claimant wired later never hears about templates already built. An app that wires no
+  used, and a claimant wired later never hears about templates already built — development says so
+  at `wire`, for this module and every other that decides per template (`namespaces`, `slots`). An app that wires no
   claimant pays nothing; one that does pays one walk per new template, and one short walk per
   instance of a template something claimed.
 
