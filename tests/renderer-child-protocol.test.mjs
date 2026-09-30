@@ -12,7 +12,7 @@
  *
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -201,4 +201,20 @@ test('an unchanged <select> value is not written again; replaced options still g
   } finally {
     Object.defineProperty(proto, 'value', desc);
   }
+});
+
+/**
+ * `.value` on a `<select multiple>` sets only the FIRST selection and does not control the rest — always writing
+ * to make it controlled cost 2–3% on every select-per-row table. Development says so where the template is built.
+ */
+test('.value on a <select multiple> is named in development: it controls only the first selection', { skip: isProduction && 'diagnostics are folded away' }, () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (m) => said.push(String(m));
+  try {
+    renderInto(html`<select multiple .value=${'a'}><option value="a">a</option></select>`, document.createElement('div'));
+  } finally {
+    console.warn = warn;
+  }
+  assert.ok(said.some((m) => /^\[vera\] renderer: `\.value` on a <select multiple>/.test(m)), said.join('\n'));
 });

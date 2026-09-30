@@ -234,7 +234,18 @@ class Template {
           kind = EVENT;
           real = written.slice(2).toLowerCase();
         }
-        if (kind === PROPERTY && real === 'value' && el.localName === 'select') kind = SELECT;
+        if (kind === PROPERTY && real === 'value' && el.localName === 'select') {
+          kind = SELECT;
+          /**
+           * Development only. Always writing for a multiple select measured 2–3% slower on every table with a
+           * select per row, to serve an API that does not fit: `.value` reads and sets only the FIRST selection.
+           */
+          if (__DEV__ && el.hasAttribute('multiple'))
+            console.warn(
+              '[vera] renderer: `.value` on a <select multiple> sets only its FIRST selection, and a selection the user ' +
+                'adds is kept — it is not controlled. Bind `?selected=${…}` on each <option> to control every selection.'
+            );
+        }
         /**
          * `el.__proto__ = v` is not a property write: it replaces the element's prototype and destroys it.
          * No use is legitimate, so the binding is refused — the deliberate twin of spread's `refusedSink`
@@ -945,7 +956,9 @@ const flush = (selectsFrom: number, refsFrom: number) => {
     /**
      * Read, and write only on a difference: the write resets every option's selectedness, and it was what a
      * table with a bound `<select>` per row paid on every render (select 703 → 95 µs at 1k rows). Options replaced
-     * under an unchanged value drop the selection, the read sees it, and the write still happens.
+     * under an unchanged value drop the selection, the read sees it, and the write still happens. (On a
+     * `<select multiple>`, `.value` reads the FIRST selection only, so it is not controlled there — see the
+     * development warning where the kind is decided.)
      */
     for (let i = 0; i < mine.length; i += 2)
       if ((mine[i] as HTMLSelectElement).value !== mine[i + 1]) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;

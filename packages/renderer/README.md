@@ -124,6 +124,11 @@ first binding still says `true`, still matches what it committed, and never writ
 and the page diverge and no amount of re-rendering reconciles them. A `<select>`'s options are the
 same shape.
 
+A bound `<select .value=${v}>` is controlled — re-asserted after its options exist, and written only when the
+select holds a different value (the write resets every option, so skipping it is what keeps a table with a
+select per row fast). On a `<select multiple>`, `.value` sets only the FIRST selection and a selection the user
+adds is kept; bind `?selected=${…}` on each `<option>` to control every one. Development says so.
+
 It is deliberately narrow, and it is a **property** binding only:
 
 - **Not for text inputs.** Bind those with `.value` and let a person's typing stand. `!value` exists
