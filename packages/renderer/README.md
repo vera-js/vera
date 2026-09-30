@@ -86,6 +86,11 @@ document, so a ref can measure it, focus it, or read its window. Within a pass, 
 after the pass's `<select>` values are set; a
 ref replaced or removed before its turn is handed nothing.
 
+**Replacing a ref tells the old one first.** Changing `${a}` to `${b}` calls `a(null)` at once and hands `b`
+the element after the pass; changing it to `${null}` calls `a(null)`. A `{ value }` ref is emptied the same way.
+A value that applies itself (`_$apply$`, such as a spread) is never written to — it owns its own lifecycle,
+so a position switching from a spread to a ref leaves the spread's keys as they were.
+
 **A ref is released when its subtree is rendered away, and not when its component is removed from
 the document.** Toggling `${show ? html`<i ${box}>` : 'gone'}` sets `box.value` back to `null` (and
 calls a function ref with `null`); removing the whole component leaves `box.value` pointing at the
@@ -281,7 +286,9 @@ parked, `0` on return, and `0` even for a node moved directly between two attach
 applier does with the nodes can hold it, and lit's `cache()` cannot either. If a scroll position
 matters, read it before the toggle and restore it after.
 
-Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write.
+Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write, and the editor is rebuilt when it returns: parking happens only when another held template takes its place.
+
+**A parked template's refs keep their element** — parking is not destruction, and the element comes back. They are released when the section itself goes away, along with everything it parked; clearing the section (`null`) keeps what it parked.
 
 It only re-adopts a template it has seen at **that same call site** — two `hold()` calls in
 different templates are two different templates, and neither adopts the other's DOM. The other

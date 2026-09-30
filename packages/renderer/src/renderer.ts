@@ -22,11 +22,17 @@ import type { TemplateResult } from './types.js';
 
 export type { TemplateResult } from './types.js';
 
-/** Unique per module load, so user text can never collide with it. */
-// eslint-disable-next-line no-bitwise -- >>> 0 is the integer truncation, not arithmetic
-const MARKER = '$v' + ((Math.random() * 1e9) >>> 0).toString(36) + '$';
+/**
+ * The marker the one parse per template writes into each hole — into an attribute name (`0\uFFFF`), a bogus
+ * comment (`<?\uFFFF0>`) and raw text (`\uFFFF0\uFFFF`). U+FFFF is a Unicode noncharacter: real text never contains
+ * it, so an author's statics cannot collide with it, and the HTML preprocessor keeps it (a parse error, never a
+ * rewrite) — in every engine, `tests/browser/template-marker.test.js`. Data never reaches the parsed string at all:
+ * values are committed through the DOM, and the one path that builds strings at runtime (`tag`) refuses any name
+ * outside `[a-zA-Z0-9._-]`. Fixed rather than random, so the parse is deterministic.
+ */
+const MARKER = '\uFFFF';
 /** Every marker as a nested `<template>` serializes it: an addressed attribute, a child comment, a raw-text pair. */
-const INERT_MARKERS = ((m) => new RegExp(` \\d+${m}(?:="[^"]*")?|<!--\\?${m}\\d+-->|${m}\\d+${m}`, 'g'))(MARKER.replaceAll('$', '\\$'));
+const INERT_MARKERS = / \d+\uFFFF(?:="[^"]*")?|<!--\?\uFFFF\d+-->|\uFFFF\d+\uFFFF/g;
 
 const doc = document;
 const comment = () => doc.createComment('');
@@ -519,7 +525,13 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     const adopting = node as Slot;
     if (adopting._state === 1) (element as unknown as Record<string, unknown>)[name] = value;
     else if (adopting._state === 0) adopting._state = adoptProperty(element, name, value);
-  } else if (kind === REF && value != null) {
+  } else if (kind === REF) {
+    /**
+     * The ref this binding held was handed its element (it is not still queued), and it is being replaced or
+     * removed: it is told now, before its successor is handed the element after the pass.
+     */
+    if (committed !== UNSET && (node as Slot)._state === 0) release(committed);
+    if (value == null) return;
     notifyOnRemoval = true;
     /**
      * A value with `_$apply$` applies itself NOW, mid-commit, keyed by this binding — spread delivers
@@ -551,15 +563,23 @@ const teardown = (instance: Instance) => {
     const value = bindings[i * 2 + 1];
     if (kinds[i] === REF) {
       /** A ref still queued was never handed its element, so it is not told it is gone. */
-      const queued = (bindings[i * 2] as Slot)._state === 1;
-      if (!queued && typeof value === 'function') applyRef(value as (element: Element | null) => void, null);
-      else if (!queued && value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
-        (value as { value: unknown }).value = null;
+      if ((bindings[i * 2] as Slot)._state !== 1) release(value);
       bindings[i * 2 + 1] = UNSET;
-    } else if (value === UPGRADED) (bindings[i * 2] as ChildPart)._detach();
+    } else if (value === UPGRADED) (bindings[i * 2] as ChildPart)._destroy();
   }
 };
-const detachItem = (item: Item) => (item instanceof ChildPart ? item._detach() : teardown(item));
+/** A list item is going away for good. */
+const detachItem = (item: Item) => (item instanceof ChildPart ? item._destroy() : teardown(item));
+
+/**
+ * Tells a ref its element is no longer its: a function is called with `null`, an object's `.value` becomes
+ * `null` (core's `ref()` — "deliberately nothing"). A value with `_$apply$` owns its own lifecycle.
+ */
+const release = (value: unknown) => {
+  if (typeof value === 'function') applyRef(value as (element: Element | null) => void, null);
+  else if (value !== null && typeof value === 'object' && value !== UNSET && (value as { _$apply$?: unknown })._$apply$ === undefined)
+    (value as { value: unknown }).value = null;
+};
 
 /** A single property read — it runs once per list item per render. */
 const isTemplateResult = (value: object): value is TemplateResult =>
@@ -623,12 +643,25 @@ class ChildPart {
     this._start.parentNode!.insertBefore(node, this._end);
   }
 
-  /** Tells everything under this part that it is going away — reached only when `notifyOnRemoval` is set. */
+  /**
+   * Tells the CURRENT content that it is going away — the part itself stays, so what `hold()` parked here stays
+   * parked and can still come back. Reached only when `notifyOnRemoval` is set.
+   */
   _detach() {
     if (this._applier !== undefined) (this._applier as Applier)._$detach$?.(this._applierState);
     if (this._instance !== null) teardown(this._instance);
     const items = this._items;
     if (items !== null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
+  }
+
+  /** The part itself is going away: its current content, and everything `hold()` parked here (then collectable). */
+  _destroy() {
+    this._detach();
+    const held = this._held;
+    if (held !== null) {
+      for (const instance of held.values()) teardown(instance);
+      this._held = null;
+    }
   }
 
   _clear() {
@@ -715,7 +748,9 @@ class ChildPart {
           parked.set(current._strings, current);
           this._mode = EMPTY;
         }
+        /** The map holds exactly what is PARKED: an instance coming back leaves it, so a later clear cannot strand it there. */
         instance = parked.get(result.strings);
+        if (instance !== undefined) parked.delete(result.strings);
       }
       if (this._mode !== EMPTY) this._clear();
       if (instance === undefined) {
@@ -791,6 +826,8 @@ class ChildPart {
     }
     const element = item._root as Element;
     const part = markered(element.parentNode!, element);
+    /** The row's shape changed: the instance is gone for good, so what it holds is told. */
+    if (notifyOnRemoval) teardown(item);
     element.remove();
     part.$k = item.$k;
     part._set(value);

@@ -628,6 +628,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - A ref (`${fn}` or `&=${ref()}`) runs AFTER its render pass: the element is inserted, upgraded, in its own
   document — measure/focus there. Document pre-order; after the pass's `<select>` values. A value
   with `_$apply$`/`_$child$` applies MID-commit, so read its element's window lazily.
+- Replacing a ref calls the OLD one with `null` first (a `{ value }` ref is emptied). `hold()` parks only when
+  another held template replaces it (`null`/`false` rebuild on return); a parked ref keeps its element and
+  is released only when the section itself goes away.
 - A binding INSIDE a nested `<template>`'s content is ignored (inert markup, never walked) — client and
   `@verajs/ssr` alike; the attribute holding it is dropped. Bindings on the `<template>` element itself work.
 - A bound `javascript:` URL is REFUSED where a browser navigates (`href`, `src`, `action`,
