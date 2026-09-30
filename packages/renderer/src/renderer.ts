@@ -84,8 +84,10 @@ const LIVE = 10;
 const SELECT = 11;
 /** `!name` on a custom element: compared against the LIVE value — read through `untracked`, it is the component's getter. */
 const LIVE_CUSTOM = 12;
-/** A binding that must never write. */
+/** A binding that must never write — and, from here on, the kinds `commit` handles before anything is computed. */
 const REFUSED = 13;
+/** A `<select>`'s `selectedIndex` — the rare spelling of its selection, queued as `SELECT` is (see `flush`). */
+const SELECT_INDEX = 14;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
@@ -247,7 +249,7 @@ class Template {
          * its options can be replaced under an unchanged value, which drops the selection. It is written when the
          * pass ends, once its options exist — see `flush`.
          */
-        if ((kind === PROPERTY || kind === LIVE) && isSelection(el, real)) kind = SELECT;
+        if ((kind === PROPERTY || kind === LIVE) && isSelection(el, real)) kind = real === 'value' ? SELECT : SELECT_INDEX;
         /**
          * `el.__proto__ = v` is not a property write: it replaces the element's prototype and destroys it.
          * No use is legitimate, so the binding is refused — the deliberate twin of spread's `refusedSink`
@@ -506,7 +508,18 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     }
     return;
   }
-  if (kind === REFUSED) return;
+  /**
+   * One test for the kinds decided before anything is computed — the same one comparison `REFUSED` alone cost. A
+   * `selectedIndex` has no statics and no URL: queued, as a select's value is — except while adopting, where the
+   * server marked the option and whatever the user chose before the script arrived stands.
+   */
+  if (kind >= REFUSED) {
+    if (kind === SELECT_INDEX) {
+      bindings[slot + 1] = values[i];
+      if (!(__HYDRATING__ && adopting)) (pendingSelects ??= []).push(LATER, [node, values[i]]);
+    }
+    return;
+  }
   const parts = template._statics[i];
   let value = values[i];
   if (parts !== null && kind !== EVENT && kind !== REF) {
@@ -563,10 +576,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   }
   /** The kinds that re-assert every render sit from `LIVE` up (`REFUSED` returned above): ONE test routes them all. */
   if (kind >= LIVE) {
-    if (kind === SELECT) {
-      if (name === 'value') (pendingSelects ??= []).push(element, value);
-      else (pendingSelects ??= []).push(LATER, [element, value]);
-    }
+    if (kind === SELECT) (pendingSelects ??= []).push(element, value);
     /** A component's getter is its own code: read on the parent's behalf, it must not subscribe the parent's render. */
     else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value)
       (element as unknown as Record<string, unknown>)[name] = value;

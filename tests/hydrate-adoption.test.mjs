@@ -159,3 +159,15 @@ test("a component's own children are its render: a parent that writes none insid
   assert.deepEqual(said, [], 'adopted, not fallen back');
   assert.equal(host.querySelector('h2'), h2, "the component's node was kept");
 });
+
+test("a .selectedIndex is recorded on adoption — the user's choice before the script arrived stands", () => {
+  const draw = (i) => html`<select .selectedIndex=${i}><option>a</option><option>b</option><option>c</option></select>`;
+  const { host } = served('<select><option selected>a</option><option>b</option><option>c</option></select>');
+  const select = host.querySelector('select');
+  select.selectedIndex = 2;
+  const said = quietly(() => hydrateInto(draw(0), host));
+  assert.deepEqual(said, [], 'CONTROL: adopted');
+  assert.equal(select.selectedIndex, 2, 'adoption did not overwrite the choice');
+  hydrateInto(draw(1), host);
+  assert.equal(select.selectedIndex, 1, 'a real change still lands');
+});
