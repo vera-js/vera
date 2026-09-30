@@ -492,6 +492,8 @@ const compile = (strings) => {
         parts.push(before);
         group = {
           name: tagState.attrRaw,
+          /** Everything the render writes before the value: the separating space, the name, `=` and the quote. */
+          open: ` ${tagState.attrRaw}="`,
           serial: tagState.serial,
           quote: tagState.quote,
           first: kinds.length,
@@ -692,18 +694,29 @@ export const serializeTemplate = (template) => {
          * check with one answer and be written with another.
          */
         const text = serializeValue(value, true);
-        if (group.first === i) {
-          attribute = '';
-          joined = '';
+        /** Assembled two ways — one hole that is the whole value, or holes joined with statics — and escaped by one function. */
+        if (group.sole) {
+          attribute = group.open + escapeHtml(text);
+          joined = text;
+        } else {
+          if (group.first === i) {
+            attribute = group.open;
+            joined = '';
+          }
+          attribute += leads[i] + escapeHtml(text);
+          /** Only a URL sink needs the value the client would join. */
+          if (group.refuse === 1) joined += decodedLeads[i] + text;
+          if (group.last !== i) break;
+          attribute += group.suffix;
+          if (group.refuse === 1) joined += group.decodedSuffix;
         }
-        attribute += leads[i] + escapeHtml(text);
-        joined += decodedLeads[i] + text;
-        if (group.last !== i) break;
-        /** Written whole, or not at all: a sole nullish value removes it, as do a bound srcdoc and a `javascript:` URL. */
-        if (group.sole && value == null) break;
-        if (group.refuse === 2 || (group.refuse === 1 && SCRIPT_URL.test(joined + group.decodedSuffix))) break;
+        /**
+         * ONE decision for every shape, written whole or not at all: a sole nullish value removes the attribute,
+         * and a bound srcdoc or a `javascript:` URL is refused — as the client decides each of them.
+         */
+        if ((group.sole && value == null) || group.refuse === 2 || (group.refuse === 1 && SCRIPT_URL.test(joined))) break;
         if (group.strip) out = removeAttribute(out, group.name);
-        out += ` ${group.name}="${attribute}${group.suffix}"`;
+        out += attribute + '"';
         break;
       }
       case BOOLEAN:

@@ -82,7 +82,12 @@ cases.push(
   { label: 'a referenced scheme colon (&colon;) before a binding', kind: 'hostile', payload: 'javascript:alert(1)',
     position: { sel: 'a', attr: 'href', strings: ['<a href="javascript&colon;', '">x</a>'], values: () => ['alert(1)'] } },
   { label: 'a referenced UNQUOTED static prefix (&#106;ava) joined to a binding', kind: 'hostile', payload: 'javascript:alert(1)',
-    position: { sel: 'a', attr: 'href', strings: ['<a href=&#106;ava', '>x</a>'], values: () => ['script:alert(1)'] } }
+    position: { sel: 'a', attr: 'href', strings: ['<a href=&#106;ava', '>x</a>'], values: () => ['script:alert(1)'] } },
+  /** The scheme can also be completed by the static AFTER the value — the joined value is what the browser reads. */
+  { label: 'a static suffix completing the scheme (quoted)', kind: 'hostile', payload: 'javascript:alert(1)',
+    position: { sel: 'a', attr: 'href', strings: ['<a href="', ':alert(1)">x</a>'], values: () => ['javascript'] } },
+  { label: 'a static suffix completing the scheme (unquoted)', kind: 'hostile', payload: 'javascript:alert(1)',
+    position: { sel: 'a', attr: 'href', strings: ['<a href=', ':alert(1)>x</a>'], values: () => ['javascript'] } }
 );
 /**
  * The same payloads through `spread` — the twin of the template rule — as an attribute key and as a
