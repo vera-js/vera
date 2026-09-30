@@ -71,12 +71,14 @@ test("an applier committing later into a hold-parked subtree still builds in the
   const host = other.body.appendChild(other.createElement('div'));
   let later = null;
   const applier = { _$child$: (part) => { later = part; } };
-  const shown = () => html`<b>a</b><i>${applier}</i>`;
+  /** Found through a ref, not the part's internals — production mangles those, and this must hold in both builds. */
+  let italic = null;
+  const shown = () => html`<b>a</b><i ${(el) => el && (italic = el)}>${applier}</i>`;
   const elsewhere = () => html`<p>elsewhere</p>`;
   renderInto(html`<div>${hold(shown())}</div>`, host);
   renderInto(html`<div>${hold(elsewhere())}</div>`, host); // parks the fragment-rooted instance, applier and all
   later._$commit$(html`<x-parked></x-parked>`);
-  const built = later._start.parentNode.querySelector?.('x-parked') ?? [...later._start.parentNode.childNodes].find((n) => n.localName === 'x-parked');
+  const built = italic.querySelector('x-parked');
   assert.ok(built, 'the applier rendered');
   /** Which window constructed it — a node moved between documents keeps the realm it was created in. */
   assert.ok(built instanceof other.defaultView.HTMLElement, "built by the container's window, not the module's or the inert template's");

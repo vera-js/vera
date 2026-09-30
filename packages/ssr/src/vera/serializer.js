@@ -29,6 +29,12 @@ import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 
 /** `.prop` bindings whose server-side truth belongs in an attribute. */
 const FORM_ATTRIBUTES = ['value', 'checked', 'selected'];
+/**
+ * Whether a property binding on `owner` is one this serializer writes. `selectedIndex` is a form property on a
+ * `<select>` only — it chooses an option, exactly as `value` does (see `SELECT_MARK`) — and on anything else it is
+ * the client's concern, with no markup. The written form and a spread key ask the same question, here.
+ */
+const isFormProperty = (owner, name) => FORM_ATTRIBUTES.includes(name) || (owner === 'select' && name === 'selectedIndex');
 
 /**
  * `checked` and `selected` are **boolean** properties; `value` is a string one.
@@ -437,7 +443,7 @@ const compile = (strings) => {
          */
         kinds.push(COMPONENT_PROP);
         urls[kinds.length - 1] = URL_ATTRIBUTE.test(sigilName);
-      } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigilName)) {
+      } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
         kinds.push(FORM_PROP);
       } else {
         kinds.push(DROPPED);
@@ -600,7 +606,7 @@ export const serializeTemplate = (template) => {
    */
   let pendingText = null;
   /**
-   * Values bound to a `<select>`'s `.value`, resolved into `<option selected>` after the loop —
+   * What each `<select>`'s `.value` or `.selectedIndex` asks for, resolved into `<option selected>` after the loop —
    * the options are usually a nested template, so nothing can be decided until the string is whole.
    */
   const selectValues = [];
@@ -748,9 +754,9 @@ export const serializeTemplate = (template) => {
          * once the options exist; writing ` value="b"` on the tag, which is what this used to do,
          * means nothing to a parser and left the control showing its first option.
          */
-        if (owners[i] === 'select' && names[i] === 'value') {
+        if (owners[i] === 'select' && (names[i] === 'value' || names[i] === 'selectedIndex')) {
           if (strip[i]) out = removeAttribute(out, names[i]);
-          out += ` ${SELECT_MARK}="${selectValues.push(`${value}`) - 1}"`;
+          out += ` ${SELECT_MARK}="${selectValues.push(selection(names[i], value)) - 1}"`;
           break;
         }
         if (owners[i] === 'textarea' && names[i] === 'value') {
@@ -832,8 +838,19 @@ export const serializeTemplate = (template) => {
  * The mark is an index into a per-render list rather than the value itself, so nothing has to be
  * escaped on the way in and unescaped on the way out; it is removed again by `resolveSelects`, and
  * removing it is what terminates that loop.
+ *
+ * `selectedIndex` chooses an option too, by position rather than by value, so it rides the same mark: the list holds
+ * a string for `value` and a number for `selectedIndex`. A tag carrying two marks resolves to its LAST, because on the
+ * client the later assignment is the one that stands. Two things each guarantee it, so either may change alone: the
+ * greedy `[^>]*` in `MARKED_SELECT` reads a tag's last mark, and a pass removes only one mark, so the tag is resolved
+ * again (clearing what the previous pass marked) until its last mark is gone.
  */
 const SELECT_MARK = 'data-vm-select';
+/**
+ * What a `<select>` binding asks for: the value's string, or the index as the platform converts it — `selectedIndex`
+ * is a WebIDL `long`, and `| 0` is exactly its conversion (ToInt32: `'1'` is 1, `null` and `NaN` are 0, 1.7 is 1).
+ */
+const selection = (name, value) => (name === 'value' ? `${value}` : value | 0);
 const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
 const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
 const OPTION_VALUE = /\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
@@ -874,13 +891,15 @@ const optionValue = (attributes, text) => {
  *
  * When nothing matches, nothing is marked — and that is a divergence markup cannot close. The client
  * leaves `selectedIndex` at `-1` with nothing showing; a parsed `<select>` with no selected option
- * takes its **first**. See the SSR README.
+ * takes its **first**. See the SSR README. An index is the same: one out of range — `-1` included — selects nothing
+ * on the client, and marks nothing here.
  */
 const markSelected = (content, wanted) => {
   const cleared = content.replace(SELECTED_ATTR, '$1');
   OPTION.lastIndex = 0;
+  let at = 0;
   for (let match = OPTION.exec(cleared); match; match = OPTION.exec(cleared)) {
-    if (optionValue(match[1], match[2]) !== wanted) continue;
+    if (typeof wanted === 'number' ? at++ !== wanted : optionValue(match[1], match[2]) !== wanted) continue;
     const open = match[0].slice(0, match[0].indexOf('>'));
     return (
       cleared.slice(0, match.index) +
@@ -1033,7 +1052,7 @@ const foldSpread = (out, entries, deliverProp) => {
       continue;
     }
     const serializes =
-      kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && FORM_ATTRIBUTES.includes(name));
+      kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && isFormProperty(owner, name));
     if (!serializes) continue;
 
     /**
@@ -1055,9 +1074,9 @@ const foldSpread = (out, entries, deliverProp) => {
      * while the client, which sets the property, showed the text. The written form was fixed and
      * this one was not: a spread key means what the written binding means, always.
      */
-    if (kind === 'p' && owner === 'select' && name === 'value') {
+    if (kind === 'p' && owner === 'select' && (name === 'value' || name === 'selectedIndex')) {
       /** A spread key means what the written binding means, always — see `SELECT_MARK`. */
-      select = `${value}`;
+      select = selection(name, value);
       continue;
     }
     if (kind === 'p' && owner === 'textarea' && name === 'value') {

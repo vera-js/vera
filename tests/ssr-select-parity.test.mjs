@@ -1,5 +1,6 @@
 /**
- * `<select .value=${x}>` — the one form property with no attribute to write.
+ * `<select .value=${x}>` — the one form property with no attribute to write. (`.selectedIndex` is its twin, choosing
+ * by position, and every spelling — `.`, `!`, a spread key — must serve what the client shows.)
  *
  * Assigning `select.value` *selects an option*; there is no `value` content attribute, so the only
  * thing markup can say is `<option selected>` on the matching one. This is what React's server
@@ -50,6 +51,17 @@ const CASES = {
     html`<select .value=${v}>${ITEMS.map((item) => html`<option value=${item.id}>${item.label}</option>`)}</select>`,
   'a spread key rather than a written binding': (v) =>
     html`<select ${spread({ '.value': v })}><option value="a">A</option><option value="b">B</option></select>`,
+  /** `!value` is the same binding compared against the live value — on the server there is only one value to serve. */
+  'the live spelling, !value': (v) => html`<select !value=${v}><option value="a">A</option><option value="b">B</option></select>`,
+  'a spread !value key': (v) =>
+    html`<select ${spread({ '!value': v })}><option value="a">A</option><option value="b">B</option></select>`,
+  /** `selectedIndex` chooses an option by position, which markup expresses the same way — `<option selected>`. */
+  '.selectedIndex': (v) =>
+    html`<select .selectedIndex=${ITEMS.findIndex((item) => item.id === v)}>${ITEMS.map((item) => html`<option value=${item.id}>${item.label}</option>`)}</select>`,
+  '!selectedIndex': (v) =>
+    html`<select !selectedIndex=${ITEMS.findIndex((item) => item.id === v)}><option value="a">A</option><option value="b">B</option></select>`,
+  'a spread .selectedIndex key': (v) =>
+    html`<select ${spread({ '.selectedIndex': ITEMS.findIndex((item) => item.id === v) })}>${ITEMS.map((item) => html`<option value=${item.id}>${item.label}</option>`)}</select>`,
 };
 
 for (const [label, build] of Object.entries(CASES)) {
@@ -100,6 +112,40 @@ test('two selects on one page are independent', () => {
   );
 });
 
+test('an index is converted as the platform converts a long: a string, a fraction, null', () => {
+  const build = (i) => html`<select .selectedIndex=${i}><option>A</option><option>B</option><option>C</option></select>`;
+  for (const index of ['2', 1.7, null, undefined, 'x']) {
+    assert.deepEqual(onServer(build(index)), onClient(build(index)), `selectedIndex = ${String(index)}`);
+  }
+});
+
+test('options inside an optgroup are counted in order, as select.options counts them', () => {
+  const build = (i) =>
+    html`<select .selectedIndex=${i}><optgroup label="g"><option>A</option><option>B</option></optgroup><option>C</option></select>`;
+  for (const index of [0, 1, 2]) assert.deepEqual(onServer(build(index)), onClient(build(index)), `index ${index}`);
+});
+
+test('a binding overrides a selected the author wrote, by index as by value', () => {
+  const build = (i) => html`<select .selectedIndex=${i}><option selected>A</option><option>B</option></select>`;
+  assert.deepEqual(onServer(build(1)), onClient(build(1)));
+  assert.equal(onClient(build(1)).index, 1);
+});
+
+/** Two bindings on one select: the client assigns both, in order, and the later one stands — so the server serves it. */
+test('the later of two bindings on one select is the one served', () => {
+  const byValueThenIndex = html`<select .value=${'a'} .selectedIndex=${1}><option value="a">A</option><option value="b">B</option></select>`;
+  assert.deepEqual(onServer(byValueThenIndex), onClient(byValueThenIndex));
+  assert.equal(onClient(byValueThenIndex).index, 1);
+  const writtenThenSpread = html`<select .value=${'a'} ${spread({ '.value': 'b' })}><option value="a">A</option><option value="b">B</option></select>`;
+  assert.deepEqual(onServer(writtenThenSpread), onClient(writtenThenSpread));
+  assert.doesNotMatch(serializeTemplate(writtenThenSpread), /data-vm-select/, 'and no mark survives');
+});
+
+test('selectedIndex on anything but a select is the client\'s concern, with no markup', () => {
+  const markup = serializeTemplate(html`<input .selectedIndex=${1}><div ${spread({ '.selectedIndex': 1 })}></div>`);
+  assert.doesNotMatch(markup, /selectedindex/i);
+});
+
 test('a select with no binding is untouched', () => {
   const template = html`<select><option value="a">A</option><option value="b">B</option></select>`;
   assert.deepEqual(onServer(template), onClient(template));
@@ -119,6 +165,13 @@ test('a value matching no option is a divergence markup cannot close, and the RE
   const build = (v) => html`<select .value=${v}><option value="a">A</option><option value="b">B</option></select>`;
   assert.equal(onClient(build('zzz')).index, -1, 'the client selects nothing');
   assert.equal(onServer(build('zzz')).index, 0, 'markup can only fall back to the first option');
+
+  /** An index out of range is the same case: the client selects nothing, markup its first option. */
+  const byIndex = (i) => html`<select .selectedIndex=${i}><option value="a">A</option><option value="b">B</option></select>`;
+  for (const index of [-1, 5]) {
+    assert.equal(onClient(byIndex(index)).index, -1, `the client selects nothing at ${index}`);
+    assert.equal(onServer(byIndex(index)).index, 0, `markup falls back to the first option at ${index}`);
+  }
 
   const readme = readFileSync(new URL('../packages/ssr/README.md', import.meta.url), 'utf8');
   assert.ok(

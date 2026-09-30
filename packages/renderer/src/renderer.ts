@@ -16,7 +16,7 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { adoptProperty, call, read, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, isSelection, read, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 
 import type { TemplateResult } from './types.js';
@@ -66,22 +66,26 @@ const SOLE = 2; // its element's only content: no anchor in the template, the fi
 const ATTR = 3;
 const PROPERTY = 4;
 const BOOLEAN = 5;
+/** `EVENT` through `ADOPT` hold a `Slot` record in their node slot — one range test, in `instantiate` and `commit`. */
 const EVENT = 6;
 /** An element-position expression: a ref, or a value that applies itself (`_$apply$`). */
 const REF = 7;
+/** An element-position expression ON a `<select>`: a value applying itself there (a spread) waits for `flush`. */
+const SELECT_REF = 8;
 /** `.name` on a custom element — see `adoptProperty` in shared-utils. */
-const ADOPT = 8;
+const ADOPT = 9;
 /**
  * Kinds from here on re-assert on EVERY render, so the update loop never skips them as unchanged:
  * `!name` writes from the live DOM's point of view (a sibling radio's click unchecks this one with no
- * event on it), and a `<select>`'s value is re-applied once its options exist — see `pendingSelects`.
+ * event on it), and a `<select>`'s selection is re-applied after its options exist — see `flush`.
  */
-const LIVE = 9;
-const SELECT = 10;
-/** A binding that must never write. */
-const REFUSED = 11;
+const LIVE = 10;
+/** A `<select>`'s selection — `value` or `selectedIndex` (`isSelection`) — written when the pass ends: see `flush`. */
+const SELECT = 11;
 /** `!name` on a custom element: compared against the LIVE value — read through `untracked`, it is the component's getter. */
 const LIVE_CUSTOM = 12;
+/** A binding that must never write. */
+const REFUSED = 13;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
@@ -225,7 +229,8 @@ class Template {
         const first = written[0];
         /** An element position (`<p ${ref}>`) arrives with no value; `&=${ref}` is its explicit spelling. */
         if (value.length === 1 || first === '&') {
-          kinds[i] = REF;
+          /** Decided here, once: `localName` is a DOM accessor, too dear to read on every commit. */
+          kinds[i] = el.localName === 'select' ? SELECT_REF : REF;
           continue;
         }
         let kind =
@@ -237,18 +242,12 @@ class Template {
           kind = EVENT;
           real = written.slice(2).toLowerCase();
         }
-        if (kind === PROPERTY && real === 'value' && el.localName === 'select') {
-          kind = SELECT;
-          /**
-           * Development only. Always writing for a multiple select measured 2–3% slower on every table with a
-           * select per row, to serve an API that does not fit: `.value` reads and sets only the FIRST selection.
-           */
-          if (__DEV__ && el.hasAttribute('multiple'))
-            console.warn(
-              '[vera] renderer: `.value` on a <select multiple> sets only its FIRST selection, and a selection the user ' +
-                'adds is kept — it is not controlled. Bind `?selected=${…}` on each <option> to control every selection.'
-            );
-        }
+        /**
+         * A `<select>`'s selection is re-asserted every render and compared against the LIVE value (as `!value` is):
+         * its options can be replaced under an unchanged value, which drops the selection. It is written when the
+         * pass ends, once its options exist — see `flush`.
+         */
+        if ((kind === PROPERTY || kind === LIVE) && isSelection(el, real)) kind = SELECT;
         /**
          * `el.__proto__ = v` is not a property write: it replaces the element's prototype and destroys it.
          * No use is legitimate, so the binding is refused — the deliberate twin of spread's `refusedSink`
@@ -430,7 +429,7 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
       node = node.firstChild!;
       for (let hops = path[step]; hops > 0; hops--) node = node.nextSibling!;
     }
-    bindings[i * 2] = kind === EVENT || kind === REF || kind === ADOPT ? new Slot(node as Element) : node;
+    bindings[i * 2] = kind >= EVENT && kind <= ADOPT ? new Slot(node as Element) : node;
     bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
   }
   const instance = new Instance(template, result.strings, root, bindings);
@@ -496,7 +495,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     for (let p = 1; p < parts.length; p++) value += toText(values[i + p - 1]) + parts[p];
   }
   const name = template._names[i];
-  const element = (kind === EVENT || kind === REF || kind === ADOPT ? (node as Slot)._element : node) as Element;
+  const element = (kind >= EVENT && kind <= ADOPT ? (node as Slot)._element : node) as Element;
   /**
    * A `javascript:` URL bound where a browser navigates is code arriving as data: refused, and the
    * attribute removed, on the JOINED value (so `href="java${x}"` is caught too). Statics are the author's
@@ -520,8 +519,10 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   }
   /** The kinds that re-assert every render sit from `LIVE` up (`REFUSED` returned above): ONE test routes them all. */
   if (kind >= LIVE) {
-    /** Queued, not dirty-checked: the options can be replaced under an unchanged value, which drops the selection just as surely. */
-    if (kind === SELECT) (pendingSelects ??= []).push(element, value);
+    if (kind === SELECT) {
+      if (name === 'value') (pendingSelects ??= []).push(element, value);
+      else (pendingSelects ??= []).push(LATER, [element, value]);
+    }
     /** A component's getter is its own code: read on the parent's behalf, it must not subscribe the parent's render. */
     else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value)
       (element as unknown as Record<string, unknown>)[name] = value;
@@ -542,7 +543,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     const adopting = node as Slot;
     if (adopting._state === 1) (element as unknown as Record<string, unknown>)[name] = value;
     else if (adopting._state === 0) adopting._state = adoptProperty(element, name, value);
-  } else if (kind === REF) {
+  } else if (kind === REF || kind === SELECT_REF) {
     /**
      * The ref this binding held was handed its element (it is not still queued), and it is being replaced or
      * removed: it is told now, before its successor is handed the element after the pass.
@@ -554,8 +555,11 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      * A value with `_$apply$` applies itself NOW, mid-commit, keyed by this binding — spread delivers
      * properties through it, and they must arrive before the element is inserted and upgraded.
      */
-    if ((value as { _$apply$?: unknown })._$apply$)
-      (value as { _$apply$: (element: Element, key: object, run: Untracked) => void })._$apply$(element, node as Slot, untracked);
+    if ((value as { _$apply$?: unknown })._$apply$) {
+      /** On a `<select>` it may set the selection (a spread's `.value`), so it waits for the options too — see `flush`. */
+      if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, [value, element, node]);
+      else (value as Applies)._$apply$(element, node as Slot, untracked);
+    }
     /**
      * A ref — a function, or an object taking `.value` (core's `ref()`) — is handed its element once the pass's
      * DOM exists: inserted, upgraded, in its own document. Queued at most once per pass (`_state`), and the
@@ -579,7 +583,7 @@ const teardown = (instance: Instance) => {
   const bindings = instance._bindings;
   for (let i = 0; i < kinds.length; i++) {
     const value = bindings[i * 2 + 1];
-    if (kinds[i] === REF) {
+    if (kinds[i] === REF || kinds[i] === SELECT_REF) {
       /** A ref still queued was never handed its element, so it is not told it is gone. */
       if ((bindings[i * 2] as Slot)._state !== 1) release(value);
       bindings[i * 2 + 1] = UNSET;
@@ -922,6 +926,9 @@ class ChildPart {
 
 /** A value at a child position a module claims — the `'value'` insert. Return `true` to take it. */
 type ValueHandler = (part: object, value: unknown) => boolean | void;
+/** An element-position value that applies itself — a spread. */
+type Applies = { _$apply$: (element: Element, key: object, run: Untracked) => void };
+
 /** A child-position applier: renders through `part._$commit$`, keeps continuity in its return value. */
 type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
   /** Told, with its last state, when its position goes away. */
@@ -952,32 +959,50 @@ let renderRoot: Node | null = null;
 let notifyOnRemoval = false;
 
 /**
- * Work held until the pass's DOM exists, in two flat queues of pairs. A `<select>`'s value `(select, value)`:
- * assigned where it is written, the options may not exist yet (a nested list has not run), and the select
- * falls back to its first option. A ref `(bindings, slot)`: handed its element once that element is inserted,
- * upgraded and in its own document. A render flushes only what it queued, so a nested render cannot apply
- * its caller's early — select values first, so a ref on a `<select>` sees the value its pass set. Refs then
- * run in commit order, which is document PRE-order — `<div ${a}>${child}</div><p ${b}>` runs a, then the
- * child's refs, then b — not all parents first.
+ * Refs held until the pass's DOM exists, as flat `(bindings, slot)` pairs: each is handed its element once that
+ * element is inserted, upgraded and in its own document. A render flushes only what it queued, so a nested render
+ * cannot apply its caller's early. Refs run in commit order, which is document PRE-order — `<div ${a}>${child}</div><p
+ * ${b}>` runs a, then the child's refs, then b — not all parents first.
  */
-let pendingSelects: unknown[] | null = null;
 let pendingRefs: unknown[] | null = null;
+/**
+ * **A `<select>`'s selection is written when the pass ends**, once its options exist. In document order a binding ON
+ * the select comes before the options inside it, so a selection written in place — `.value`, `!value`,
+ * `.selectedIndex`, or a spread's key — found no options and fell back to the first. Every source of options is
+ * content inside the select (a list, a nested template, a keyed list: the content model allows only `<option>`,
+ * `<optgroup>` and `<hr>`), so all of it exists when the pass ends. Options a user's code appends later are out of
+ * scope.
+ *
+ * Flat PAIRS, one queue, in commit order. The common record is `(select, value)` for a `value` binding — compared
+ * against the live value and written only on a difference (the write resets every option). The rare ones are
+ * `(LATER, [select, index])` for `selectedIndex` and `(LATER, [applier, element, slot])` for a value applying itself
+ * on a select, a spread. Flushed first, so a ref on the select sees its selection. A render flushes only what it
+ * queued, however it ends, so nothing it held can land on a later, unrelated render.
+ *
+ * The shape is measured, on a table with a bound select per row (`.probe/renderer-lean/runs/race-late-*`): committing
+ * each instance's selects after its own bindings, 2–4% slower; deferring the whole binding to a second commit,
+ * 8–13%; records of three with the name in them, 3–6%. Pairs whose common case is exactly `(select, value)` tie.
+ */
+const LATER = {};
+let pendingSelects: unknown[] | null = null;
 const flush = (selectsFrom: number, refsFrom: number) => {
-  /** Taken off first: an assignment can run a `change` handler, and a ref can render, again. */
   const selects = pendingSelects;
   if (selects !== null && selects.length > selectsFrom) {
     const mine = selects.splice(selectsFrom);
     if (selects.length === 0) pendingSelects = null;
-    /**
-     * Read, and write only on a difference: the write resets every option's selectedness, and it was what a
-     * table with a bound `<select>` per row paid on every render (select 703 → 95 µs at 1k rows). Options replaced
-     * under an unchanged value drop the selection, the read sees it, and the write still happens. (On a
-     * `<select multiple>`, `.value` reads the FIRST selection only, so it is not controlled there — see the
-     * development warning where the kind is decided.)
-     */
-    for (let i = 0; i < mine.length; i += 2)
-      if ((mine[i] as HTMLSelectElement).value !== mine[i + 1]) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
+    for (let i = 0; i < mine.length; i += 2) {
+      const a = mine[i];
+      const b = mine[i + 1];
+      if (a === LATER) {
+        const r = b as unknown[];
+        /** Read and written BY NAME: a computed `select[name]` on a DOM accessor measured 5% slower. */
+        if (r.length === 2) {
+          if ((r[0] as HTMLSelectElement).selectedIndex !== r[1]) (r[0] as HTMLSelectElement).selectedIndex = r[1] as number;
+        } else (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked);
+      } else if ((a as HTMLSelectElement).value !== b) (a as HTMLSelectElement).value = b as string;
+    }
   }
+  /** Taken off first: a ref can render again. */
   const refs = pendingRefs;
   if (refs === null || refs.length <= refsFrom) return;
   const mine = refs.splice(refsFrom);

@@ -125,10 +125,13 @@ first binding still says `true`, still matches what it committed, and never writ
 and the page diverge and no amount of re-rendering reconciles them. A `<select>`'s options are the
 same shape.
 
-A bound `<select .value=${v}>` is controlled — re-asserted after its options exist, and written only when the
-select holds a different value (the write resets every option, so skipping it is what keeps a table with a
-select per row fast). On a `<select multiple>`, `.value` sets only the FIRST selection and a selection the user
-adds is kept; bind `?selected=${…}` on each `<option>` to control every one. Development says so.
+A `<select>`'s selection is controlled however it is spelled — `.value`, `!value` or `.selectedIndex`, written
+in the template or as a `spread()` key. Every binding on a select is committed when the render pass ends, so
+its options exist whether they are static, a list, a nested template or a keyed list; the selection is re-asserted
+on every render (its options can move under an unchanged value) and written only when the select holds a different
+one (the write resets every option, so skipping it is what keeps a table with a select per row fast). On a
+`<select multiple>`, `value` and `selectedIndex` each control ONE selection and a selection the user adds is kept;
+bind `?selected=${…}` on each `<option>` to control every one. Development says so.
 
 It is deliberately narrow, and it is a **property** binding only:
 
@@ -1224,8 +1227,8 @@ appliers pay a property read. Measured with no runtime difference distinguishabl
 The whole protocol is **134 B gzipped** (measured 2026-09-28 by deleting it and rebuilding) — the
 check, the two fields holding an applier's state and whose it is, the save/restore in `_$commit$` that
 stops an applier's own rendering from destroying its continuity, running a commit that arrives after
-the render returned as a render of the container that attached it (so a `<select>` it renders gets its
-value), and the `_$detach$` call.
+the render returned as a render of the container that attached it (so it builds in that container's document and
+its refs run once it is done), and the `_$detach$` call.
 
 ## Animating things in and out
 

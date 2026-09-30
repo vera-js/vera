@@ -583,7 +583,8 @@ Keys are strings carrying sigils, so TypeScript cannot check them against the el
 for names not known until runtime.
 
 SSR serializes a spread: attributes, truthy booleans and — on form controls — the form properties
-(`value`, `checked`, `selected`) reach markup; events are client state. A property on a rendered
+(`value`, `checked`, `selected`; a `<select>`'s `value`/`selectedIndex` as `<option selected>`) reach markup;
+events are client state. A property on a rendered
 COMPONENT tag is DELIVERED to that child's server render instead (written `.prop` and
 `props()`/spread alike): the child SSRs from the same data its client render gets, the markup never
 carries the property, and an unregistered dashed tag passes through for the client to handle.
@@ -630,6 +631,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   with `_$apply$`/`_$child$` applies MID-commit, so read its element's window lazily. A ref runs UNTRACKED
   (its reads never subscribe the component), and so do the renderer's reads of a component's getter
   (`!value` compares, spread's initial values).
+- A `<select>`'s selection — `.value`, `!value`, `.selectedIndex`, written or a spread key — is controlled:
+  committed after its options exist (static, list, nested or keyed), re-asserted every render. On
+  `<select multiple>` it controls ONE selection; bind `?selected=${…}` per `<option>` for all of them.
 - Replacing a ref calls the OLD one with `null` first (a `{ value }` ref is emptied). `hold()` parks only when
   another held template replaces it (`null`/`false` rebuild on return); a parked ref keeps its element and
   is released only when the section itself goes away.

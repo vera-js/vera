@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, read, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, isSelection, read, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
@@ -118,7 +118,9 @@ class Binding {
    */
   _read: Untracked | null;
   constructor(element: Element, key: string, untracked: Untracked) {
-    const [kind, name] = resolve(key);
+    const [resolved, name] = resolve(key);
+    /** A `<select>`'s selection is live, as in a template — the same rule, asked of the same function. */
+    const kind = (resolved === PROPERTY || resolved === LIVE) && isSelection(element, name) ? LIVE : resolved;
     this._kind = kind;
     this._name = name as string;
     this._element = element;

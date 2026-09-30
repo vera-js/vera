@@ -167,3 +167,22 @@ test('every removal site in renderer.ts is accounted for', () => {
   const gone = Object.keys(ALLOWED).filter((line) => !found.includes(line));
   assert.deepEqual(gone, [], 'a listed site no longer exists — update the list');
 });
+
+/**
+ * A ref ON a `<select>` has a kind of its own (a spread there waits for the select's options), and teardown must know
+ * it as a ref: every path above releases it the same way.
+ */
+test('a ref on a <select> is released like any other when its row is rendered away', () => {
+  const host = document.body.appendChild(document.createElement('div'));
+  const box = { value: null };
+  const log = [];
+  const fn = (el) => log.push(tag(el));
+  const draw = (rows) => renderInto(html`<ul>${rows}</ul>`, host);
+  const withRefs = () => keyed(1, html`<li><select ${box}></select><select ${fn}></select></li>`);
+  const plain = () => keyed(1, html`<li>row, reshaped</li>`);
+  draw([withRefs()]);
+  assert.equal(box.value?.localName, 'select', 'CONTROL: the object ref was handed its select');
+  draw([plain()]);
+  assert.equal(box.value, null, 'the object ref was emptied');
+  assert.deepEqual(log, ['select', null], 'the function ref was told');
+});

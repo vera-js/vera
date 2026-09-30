@@ -204,17 +204,114 @@ test('an unchanged <select> value is not written again; replaced options still g
 });
 
 /**
- * `.value` on a `<select multiple>` sets only the FIRST selection and does not control the rest — always writing
- * to make it controlled cost 2–3% on every select-per-row table. Development says so where the template is built.
+ * `.value` and `.selectedIndex` on a `<select multiple>` read and set a SINGLE selection and do not control the rest —
+ * always writing to make it controlled cost 2–3% on every select-per-row table. Development says so, naming the
+ * property actually bound, for a template and a spread key alike (one rule, `isSelection`, decides both).
  */
-test('.value on a <select multiple> is named in development: it controls only the first selection', { skip: isProduction && 'diagnostics are folded away' }, () => {
+test('a selection binding on a <select multiple> is named in development — template and spread', { skip: isProduction && 'diagnostics are folded away' }, async () => {
+  const { spread } = await load('renderer/spread');
   const said = [];
   const warn = console.warn;
   console.warn = (m) => said.push(String(m));
   try {
-    renderInto(html`<select multiple .value=${'a'}><option value="a">a</option></select>`, document.createElement('div'));
+    for (const t of [
+      html`<select multiple .value=${'a'}><option value="a">a</option></select>`,
+      html`<select multiple .selectedIndex=${0}><option value="a">a</option></select>`,
+      html`<select multiple ${spread({ '!value': 'a' })}><option value="a">a</option></select>`,
+    ])
+      renderInto(t, document.createElement('div'));
   } finally {
     console.warn = warn;
   }
-  assert.ok(said.some((m) => /^\[vera\] renderer: `\.value` on a <select multiple>/.test(m)), said.join('\n'));
+  for (const name of ['value', 'selectedIndex'])
+    assert.ok(said.some((m) => m.startsWith(`[vera] \`${name}\` on a <select multiple>`)), `${name}: ${said.join('\n')}`);
+  assert.equal(said.filter((m) => m.startsWith('[vera] `value` on a <select multiple>')).length, 2, 'the spread key was named too');
+});
+
+/**
+ * **A `<select>`'s own bindings commit after its content — every spelling, every applier.** In document order a
+ * binding ON the select comes before its options, so everything but a template `.value` used to write before the
+ * options existed and fell back to the first. The options' source varies too: a list, a nested template, a keyed list.
+ */
+test('a select gets its selection whatever spells it and wherever its options come from', async () => {
+  const { spread } = await load('renderer/spread');
+  const { keyed } = await load('renderer/keyed');
+  const option = (o) => html`<option value=${o}>${o}</option>`;
+  const sources = {
+    'a list': () => ['a', 'b', 'c'].map(option),
+    'a nested template': () => html`<option value="a">a</option><option value="b">b</option>`,
+    'a keyed list': () => ['a', 'b'].map((o) => keyed(o, option(o))),
+  };
+  const spellings = {
+    '.value': (opts) => html`<select .value=${'b'}>${opts}</select>`,
+    '!value': (opts) => html`<select !value=${'b'}>${opts}</select>`,
+    ".selectedIndex": (opts) => html`<select .selectedIndex=${1}>${opts}</select>`,
+    "spread({ '.value' })": (opts) => html`<select ${spread({ '.value': 'b' })}>${opts}</select>`,
+    "spread({ '!value' })": (opts) => html`<select ${spread({ '!value': 'b' })}>${opts}</select>`,
+  };
+  const wrong = [];
+  for (const [source, opts] of Object.entries(sources))
+    for (const [spelling, build] of Object.entries(spellings)) {
+      const host = document.createElement('div');
+      renderInto(build(opts()), host);
+      const got = host.querySelector('select').value;
+      if (got !== 'b') wrong.push(`${spelling} from ${source}: ${JSON.stringify(got)}`);
+    }
+  assert.deepEqual(wrong, []);
+});
+
+/**
+ * **A select's binding is re-asserted on every update — every spelling, `.` and `!` alike, written or spread** — because
+ * its options can move under an unchanged value, and only the binding says which one should now be selected.
+ *
+ * - By value, over an unkeyed list: `b` moves from second to third, so the option element that WAS selected now
+ *   holds `y`, and a binding skipped as unchanged leaves `y` showing.
+ * - By index, over a keyed list: an option is prepended, so the selected ELEMENT moves to index 2, keeping its
+ *   selectedness, while the binding still says 1.
+ */
+test('a select binding is re-asserted when its options move under it — every spelling', async () => {
+  const { spread } = await load('renderer/spread');
+  const { keyed } = await load('renderer/keyed');
+  const plain = (opts) => opts.map((o) => html`<option value=${o}>${o}</option>`);
+  const keyedOpts = (opts) => opts.map((o) => keyed(o, html`<option value=${o}>${o}</option>`));
+  const cases = [
+    ...[
+      ['.value', (o) => html`<select .value=${'b'}>${o}</select>`],
+      ['!value', (o) => html`<select !value=${'b'}>${o}</select>`],
+      ["spread({ '.value' })", (o) => html`<select ${spread({ '.value': 'b' })}>${o}</select>`],
+      ["spread({ '!value' })", (o) => html`<select ${spread({ '!value': 'b' })}>${o}</select>`],
+    ].map(([spelling, draw]) => ({ spelling, draw, options: plain, before: ['a', 'b'], after: ['x', 'y', 'b'], read: (el) => el.value, want: 'b' })),
+    ...[
+      ['.selectedIndex', (o) => html`<select .selectedIndex=${1}>${o}</select>`],
+      ['!selectedIndex', (o) => html`<select !selectedIndex=${1}>${o}</select>`],
+      ["spread({ '.selectedIndex' })", (o) => html`<select ${spread({ '.selectedIndex': 1 })}>${o}</select>`],
+      ["spread({ '!selectedIndex' })", (o) => html`<select ${spread({ '!selectedIndex': 1 })}>${o}</select>`],
+    ].map(([spelling, draw]) => ({ spelling, draw, options: keyedOpts, before: ['a', 'b'], after: ['z', 'a', 'b'], read: (el) => el.selectedIndex, want: 1 })),
+  ];
+  const wrong = [];
+  for (const { spelling, draw, options, before, after, read, want } of cases) {
+    const host = document.createElement('div');
+    /** One call site per spelling, so the second render UPDATES the first rather than replacing it. */
+    renderInto(draw(options(before)), host);
+    renderInto(draw(options(after)), host);
+    const got = read(host.querySelector('select'));
+    if (got !== want) wrong.push(`${spelling}: ${JSON.stringify(got)}`);
+  }
+  assert.deepEqual(wrong, []);
+});
+
+/**
+ * **A render flushes only the bindings IT held.** A select's bindings wait for the end of their pass; a render nested
+ * inside that pass — here an applier that renders into another container, between the select's binding and its
+ * options — ends first, and must not commit the outer select early, before its options exist (it would fall back to
+ * the first). (An applier's own `_$commit$` during its container's render is not a nested pass: it sets in place.)
+ */
+test("a render nested inside a pass does not commit its caller's select early", () => {
+  /** Inside the select, AFTER its binding was held and BEFORE its options: the one place an early flush shows. */
+  let ran = 0;
+  const nested = { _$child$: () => { ran++; renderInto(html`<i></i>`, document.createElement('div')); } };
+  const host = document.createElement('div');
+  renderInto(html`<select .value=${'b'}>${nested}${[html`<option value="a">a</option>`, html`<option value="b">b</option>`]}</select>`, host);
+  assert.equal(ran, 1, 'CONTROL: the nested render ran, inside the pass');
+  assert.equal(host.querySelector('select').value, 'b');
 });

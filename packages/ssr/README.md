@@ -294,11 +294,11 @@ dependency involved.
   attribute holding one is dropped whole; a binding on the `<template>` element itself is ordinary.
   Render into the live tree instead.
 - **A `<select>`'s value is served as `<option selected>`** — assigning the property *selects an
-  option*, so that is all markup can say. Matching follows the platform (the `value` attribute
+  option*, so that is all markup can say, and `.selectedIndex` is served the same way by position. Matching follows the platform (the `value` attribute
   verbatim, otherwise the option's text stripped and collapsed; first match wins), asserted against
   Chromium, Firefox and WebKit in `tests/browser/select-value.test.js`. But a value matching no option cannot be served:
   the client leaves nothing selected, while a parsed `<select>` with no `selected` option shows its
-  first, and there is no markup for "none of them".
+  first, and there is no markup for "none of them". An index out of range, `-1` included, is the same case.
 - **A carriage return survives, as `&#13;`** — the HTML parser collapses a raw CR before tokenizing,
   so escaping it is what keeps a `<textarea>` value or a CSV cell identical on both sides.
   **RAWTEXT is the exception, and it is not fixable**: inside `<style>` and `<script>` a reference is

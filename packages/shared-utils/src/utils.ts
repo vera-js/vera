@@ -71,6 +71,26 @@ export const reportUncaught = (error: unknown, sentence: string) => {
 export const call: Untracked = (fn, a, b, c) => fn(a!, b!, c!);
 
 /**
+ * **Whether a property binding is a `<select>`'s SELECTION** — `value` or `selectedIndex` — which the renderer and
+ * `spread` both treat as live: re-asserted every render and compared against the live value (as `!value` is), because
+ * a select's options can be replaced under an unchanged value, which drops the selection. One rule, asked once per
+ * binding by both, so a template and a spread key cannot disagree about it.
+ *
+ * In development it names the one shape it cannot serve: on a `<select multiple>` both properties read and set a
+ * SINGLE selection, so a selection the user adds is kept rather than controlled. Always writing there was measured
+ * 2–3% slower on every table with a select per row, to serve an API that does not fit — hence a warning, not a cost.
+ */
+export const isSelection = (element: Element, name: unknown) => {
+  if ((name !== 'value' && name !== 'selectedIndex') || element.localName !== 'select') return false;
+  if (__DEV__ && element.hasAttribute('multiple'))
+    console.warn(
+      `[vera] \`${name}\` on a <select multiple> controls only ONE selection, and a selection the user adds is kept — ` +
+        'it is not controlled. Bind `?selected=${…}` on each <option> to control every selection.'
+    );
+  return true;
+};
+
+/**
  * `target[key]`, as a function — how a component's GETTER is read through `untracked`. Not `Reflect.get`: `untracked`
  * passes three arguments, and `Reflect.get`'s third is the RECEIVER — `undefined` there runs the getter with no `this`.
  */
