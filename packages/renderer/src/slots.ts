@@ -17,6 +17,7 @@
  * off-chain light seam; it imports nothing of the renderer. An app that does not wire it pays one boolean per
  * structural write.
  */
+import { RESERVED_ELEMENT_NAMES } from '@verajs/shared-utils';
 import { elements } from './elements.js';
 
 /** A slot's assignment name: an element's `slot` attribute, `''` for text; a comment is never slottable. */
@@ -225,6 +226,8 @@ const capture = (host: Element): Light => {
       (child as Lit).$light = light;
     }
   }
+  /** Out of the host's own children at once — to its slot, or invisibly to holding until one arrives. */
+  for (const node of light.list) light.place(node);
   return light;
 };
 
@@ -451,6 +454,15 @@ export const slotDiscovery = [
     shared = registry as unknown as typeof shared;
     shared!.$s = true;
     shared!.$light?.();
+    /**
+     * Told by the renderer at a container's FIRST render: a CUSTOM element (the compiler's rule — a dash, and not one
+     * of the reserved SVG/MathML names) is a slot host, so its existing children are light content, captured now even
+     * if its `<slot>` arrives later. A plain container (`#app`) keeps what it had — the render owns only its range.
+     */
+    (registry as unknown as { $first?: (container: Node) => void }).$first = (container) => {
+      const name = (container as Element).localName;
+      if (container.nodeType === 1 && name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name)) capture(container as Element);
+    };
     /** Told by the renderer when a binding writes `slot` on a light node or `name` on a kept slot. */
     (registry as unknown as { $slotted?: (element: Element, name: string) => void }).$slotted = (element, name) => {
       if (name === 'slot') (element as Lit).$light?.$place(element);

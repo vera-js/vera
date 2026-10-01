@@ -1736,7 +1736,11 @@ export const renderInto = (result: unknown, container: Node) => {
   if (__DEV__) expectContainer(container);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
-  if (part === undefined) rootParts.set(container, (part = markered(container, null)));
+  if (part === undefined) {
+    rootParts.set(container, (part = markered(container, null)));
+    /** A first render while slots is wired: a light host's existing children are captured before its output exists. */
+    if (slotsWired) (registry as unknown as { $first?: (container: Node) => void }).$first?.(container);
+  }
   commitAs(container, part, result);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_END, container, null);
 };
