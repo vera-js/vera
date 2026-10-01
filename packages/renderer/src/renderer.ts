@@ -513,6 +513,8 @@ class Template {
           parent.childNodes.length === 1 &&
           !RAW_TEXT_TAGS.test(host.localName) &&
           !host.localName.includes('-') &&
+          /** A `<slot>`'s content is its FALLBACK, which light-DOM slots moves between anchors: never owned in place. */
+          host.localName !== 'slot' &&
           !host.hasAttribute('is')
         ) {
           parent.removeChild(at!);
@@ -1746,11 +1748,15 @@ export const renderer = {
      * Light-DOM slots, wired in either order: slots sets `$s` and calls `$light`; the renderer hands it the root range of
      * a container (`$r`, the output/light line) — off-chain, sigiled, like `$t`.
      */
-    const shared = given as unknown as { $s?: boolean; $light?: () => void; $r?: (container: Node) => ChildPart | undefined };
+    const shared = given as unknown as { $s?: boolean; $light?: () => void; $r?: (container: Node) => [Node, Node] | undefined };
     shared.$light = () => {
       slotsWired = true;
     };
-    shared.$r = (container) => rootParts.get(container);
+    /** The root range's two markers — nodes, not the part, whose fields production mangles. */
+    shared.$r = (container) => {
+      const part = rootParts.get(container);
+      return part === undefined ? undefined : [part._start!, part._end!];
+    };
     if (shared.$s) slotsWired = true;
   },
 };
