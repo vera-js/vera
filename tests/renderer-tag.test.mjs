@@ -195,6 +195,19 @@ test('an object style is refused in development, as the compiler refuses it', { 
   assert.throws(() => H({ style: { color: 'red' } }), /`style` expects a STRING/);
 });
 
+/**
+ * **A tag stands in tag position only.** It was spliced wherever it appeared — as text, an attribute value, or an
+ * attribute NAME (`<p ${T}=${v}>`), which went around the renderer's refusal of a name expression.
+ */
+test('a tag outside tag position is refused in development', { skip: isProduction && 'a development check' }, () => {
+  const T = tag`title`;
+  assert.throws(() => html`<p ${T}=${'v'}>x</p>`, /may only stand in tag position/, 'an attribute name');
+  assert.throws(() => html`<p>${T}</p>`, /may only stand in tag position/, 'text');
+  assert.throws(() => html`<p class=${T}>x</p>`, /may only stand in tag position/, 'an attribute value');
+  const H = tag`h2`;
+  assert.doesNotThrow(() => html`<${H} class="t">x</${H}>`, 'CONTROL: tag position, open and close');
+});
+
 test('a JSX tag with no props renders bare', () => {
   const container = into();
   renderInto(html`<section>${HEADING[1]()}</section>`, container);

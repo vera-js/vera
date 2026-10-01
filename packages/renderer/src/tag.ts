@@ -56,7 +56,19 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
   let key = '';
   for (let i = 0; i < values.length; i++) {
     const value = values[i] as Tag | undefined;
-    if (value && value[STATIC] !== undefined) key += `${i}:${value[STATIC]};`;
+    if (value && value[STATIC] !== undefined) {
+      /**
+       * A tag belongs in TAG position only. Spliced anywhere else it became text, an attribute value, or an attribute
+       * NAME (`<p ${T}=${v}>`) — a route around the renderer's refusal of a name expression. Development only: the
+       * name text is fixed by source either way, so this is consistency, not safety.
+       */
+      if (__DEV__ && !(strings[i].endsWith('<') || strings[i].endsWith('</')))
+        throw new Error(
+          `tag: a tag (\`${value[STATIC]}\`) may only stand in tag position — \`<\${T}>…</\${T}>\`. Spliced anywhere ` +
+            `else it would become text or part of an attribute, which a tag never means.`
+        );
+      key += `${i}:${value[STATIC]};`;
+    }
     /**
      * A non-tag in **tag position** — `<${name}>` with a string. The refusal is the whole security
      * property of this entry, and it lived only in `tag` itself, which guards interpolation into a
