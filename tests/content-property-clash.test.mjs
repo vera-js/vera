@@ -37,6 +37,10 @@ test('outerText replaces the element itself: refused beside content', { skip: is
   assert.throws(() => renderInto(html`<my-el .outerText=${'a'}>${'k'}</my-el>`, into()), /binds `\.outerText`/);
 });
 
+test('an &nbsp; is content, not formatting — HTML whitespace is [ \\t\\n\\f\\r] only', { skip: isProduction && 'a development check' }, () => {
+  assert.throws(() => renderInto(html`<p .innerHTML=${'<b>x</b>'}>&nbsp;</p>`, into()), CLASH);
+});
+
 test('formatting whitespace is not content — the property strands nothing', () => {
   const host = into();
   renderInto(html`<div .innerHTML=${'<b>x</b>'}>

@@ -152,8 +152,11 @@ export const CONTENT_PROPERTY = /^(?:textContent|innerHTML|innerText|outerHTML|o
 export const ownsContent = (element: Element): boolean => {
   if ((element as Element & { $content?: boolean }).$content === true) return true;
   for (let node = element.firstChild; node !== null; node = node.nextSibling)
-    /** An EMPTY text node is a child binding's anchor, not formatting: formatting whitespace is never empty. */
-    if (node.nodeType !== 3 || (node as Text).data === '' || (node as Text).data.trim() !== '') return true;
+    /**
+     * An EMPTY text node is a child binding's anchor, not formatting: formatting whitespace is never empty. And
+     * formatting is HTML's whitespace, `[ \t\n\f\r]` — not JS's `trim()`, which would let an `&nbsp;` be overwritten.
+     */
+    if (node.nodeType !== 3 || (node as Text).data === '' || /[^ \t\n\f\r]/.test((node as Text).data)) return true;
   return false;
 };
 export const contentClash = (tag: string, name: string): never => {

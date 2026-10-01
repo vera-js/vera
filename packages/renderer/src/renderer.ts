@@ -230,7 +230,10 @@ class Template {
   declare _$inst$?: InstanceHook;
   /** Development only: tag-shape mistakes found at construction, said at the template's FIRST instance (`sayShape`). */
   declare _shape?: string[];
-  /** Development only: element positions on an element a SOLE binding owns — see `ownsContent`. */
+  /**
+   * Development only: element positions on an element a SOLE binding owns — see `ownsContent`. Marked per instance in
+   * `instantiate`; hydration needs no mark, because the server's output carries the content or its empty anchor.
+   */
   declare _owned?: number[];
 
   constructor(result: TemplateResult) {
