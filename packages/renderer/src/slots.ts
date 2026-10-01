@@ -311,8 +311,6 @@ const take = (slot: HTMLSlotElement & { $host?: Element; $binding?: Binding }, h
   slot.assignedNodes = (options?: AssignedNodesOptions) => assigned(binding, false, options?.flatten);
   slot.assignedElements = (options?: AssignedNodesOptions) => assigned(binding, true, options?.flatten) as Element[];
   (start as Comment & { $slot?: Binding }).$slot = binding;
-  /** A spread writing `name` on this kept slot reaches it here — spread is its own bundle and cannot import slots. */
-  (slot as HTMLSlotElement & { $rename?: () => void }).$rename = () => rename(slot);
   const bindings = light.bindings;
   let at = bindings.length;
   while (at > 0 && before(binding, bindings[at - 1])) at--;

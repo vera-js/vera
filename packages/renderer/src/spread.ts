@@ -156,16 +156,6 @@ class Binding {
   }
 }
 
-/**
- * A spread wrote `slot` on a light-DOM slots node, or `name` on one of its kept `<slot>`s: the assignment can change.
- * Light-DOM slots marks what it holds (`$light` on a light node, `$rename` on a kept slot); nothing else carries them.
- */
-const slotted = (element: Element) => {
-  const marked = element as Element & { $light?: { $place(node: Node): void }; $rename?: () => void };
-  if (marked.$light !== undefined) marked.$light.$place(element);
-  else marked.$rename?.();
-};
-
 const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   const kind = binding._kind;
   const value = checked(binding._url, given);
@@ -205,11 +195,9 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
       }
       element.setAttribute(name, `${value}`);
     }
-    if (name === 'slot' || name === 'name') slotted(element);
   } else if (kind === PROPERTY) {
     if (binding._state === 1) el[name] = value;
     else if (binding._state === 0) binding._state = adoptProperty(element, name, value);
-    if (name === 'slot' || name === 'name') slotted(element);
   } else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
   else if (kind === REF) {
     if (typeof value === 'function') (value as (el: Element) => void)(element);

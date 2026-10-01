@@ -526,7 +526,7 @@ class Template {
           !RAW_TEXT_TAGS.test(host.localName) &&
           !host.localName.includes('-') &&
           /** A `<slot>`'s content is its FALLBACK, which light-DOM slots moves between anchors: never owned in place. */
-          host.localName !== 'slot' &&
+          (!__SLOTS__ || host.localName !== 'slot') &&
           !host.hasAttribute('is')
         ) {
           parent.removeChild(at!);
@@ -852,9 +852,14 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
           part._value = committed;
         }
       } else {
-        const parent = parentOf(node as Text);
-        part = markered(parent, node as Text);
-        parent.insertBefore(node as Text, part._end);
+        if (__SLOTS__) {
+          const parent = parentOf(node as Text);
+          part = markered(parent, node as Text);
+          parent.insertBefore(node as Text, part._end);
+        } else {
+          part = markered((node as Text).parentNode!, node as Text);
+          (node as Text).parentNode!.insertBefore(node as Text, part._end);
+        }
         part._mode = TEXT;
         part._text = node as Text;
         part._value = committed;
@@ -946,7 +951,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     /** A component's getter is its own code: read on the parent's behalf, it must not subscribe the parent's render. */
     else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value) {
       (element as unknown as Record<string, unknown>)[name] = value;
-      if (slotsWired) slotted(element, name);
+      if (__SLOTS__ && slotsWired) slotted(element, name);
     }
   } else if (value === committed) return;
   bindings[slot + 1] = value;
@@ -963,10 +968,10 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
-    if (slotsWired) slotted(element, name);
+    if (__SLOTS__ && slotsWired) slotted(element, name);
   } else if (kind === PROPERTY) {
     (element as unknown as Record<string, unknown>)[name] = value;
-    if (slotsWired) slotted(element, name);
+    if (__SLOTS__ && slotsWired) slotted(element, name);
   }
   else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
   else if (kind === EVENT) {
@@ -1010,6 +1015,14 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
       /** Adopting, it is told so (the hydrate entry only): a form control's value the user typed must stand. */
       else if (__HYDRATING__) (value as Applies)._$apply$(element, node as Slot, untracked, adopting);
       else (value as Applies)._$apply$(element, node as Slot, untracked);
+      /**
+       * A spread may have written `slot` (on a light node) or `name` (on a kept `<slot>`). The renderer is what runs a
+       * spread, so it tells slots afterwards — `spread`, a bundle every renderer shares, carries nothing for slots.
+       */
+      if (__SLOTS__ && slotsWired) {
+        slotted(element, 'slot');
+        slotted(element, 'name');
+      }
     }
     /**
      * A ref — a function, or an object taking `.value` (core's `ref()`) — is handed its element once the pass's
@@ -1163,7 +1176,7 @@ const slotted = (element: Element, name: string) => {
   if (name === 'slot' || name === 'name') (registry as unknown as { $slotted?: (e: Element, n: string) => void }).$slotted?.(element, name);
 };
 /** The parent a node's structural writes go to: its light parent while slots holds it, else its DOM parent. */
-const parentOf = (node: Node): Node => (slotsWired && (node as Lit).$light) || node.parentNode!;
+const parentOf = (node: Node): Node => (__SLOTS__ && slotsWired && (node as Lit).$light) || node.parentNode!;
 /**
  * The nodes strictly between `start` and `end` in the order the renderer wrote them — the light list's order for a
  * light part, the DOM's otherwise. Only read on the light path; the DOM path keeps its streaming loops.
@@ -1197,9 +1210,14 @@ class ChildPart {
 
   _insert(node: Node) {
     const placed = __DEV__ ? landing(node) : undefined;
-    const parent = this._owner ?? parentOf(this._start!);
-    parent.insertBefore(node, this._end);
-    if (__DEV__) checkForeign(parent, placed!);
+    if (__SLOTS__) {
+      const parent = this._owner ?? parentOf(this._start!);
+      parent.insertBefore(node, this._end);
+      if (__DEV__) checkForeign(parent, placed!);
+    } else {
+      (this._owner ?? this._start!.parentNode!).insertBefore(node, this._end);
+      if (__DEV__) checkForeign(this._owner ?? this._start!.parentNode!, placed!);
+    }
   }
 
   /**
@@ -1230,7 +1248,7 @@ class ChildPart {
     const end = this._end;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
     if (owner !== null) owner.textContent = '';
-    else if (slotsWired && (start as Lit).$light !== undefined) {
+    else if (__SLOTS__ && slotsWired && (start as Lit).$light !== undefined) {
       /** A light part: its nodes sit in different slots, so they are removed through the light parent, in its order. */
       (start as Lit).$light!.$drop(start, end, false);
     } else if (start.previousSibling === null && end!.nextSibling === null) {
@@ -1306,7 +1324,7 @@ class ChildPart {
           const current = this._instance!;
           const root = current._root;
           /** A fragment root takes its nodes back; an element root IS the range. */
-          if (slotsWired && this._start !== null && (this._start as Lit).$light !== undefined) {
+          if (__SLOTS__ && slotsWired && this._start !== null && (this._start as Lit).$light !== undefined) {
             /** A light part's nodes leave its light parent first, then return to the fragment that parks them. */
             const parent = (this._start as Lit).$light!;
             if (root.nodeType === 11) for (const node of parent.$drop(this._start, this._end, false)) root.appendChild(node);
@@ -1329,7 +1347,7 @@ class ChildPart {
       if (this._mode !== EMPTY) this._clear();
       if (instance === undefined) {
         let template = getTemplate(result);
-        if (template._x) template = resolved(template, this._owner ?? parentOf(this._start!));
+        if (template._x) template = resolved(template, this._owner ?? (__SLOTS__ ? parentOf(this._start!) : this._start!.parentNode!));
         instance = instantiate(template, result, passDoc);
         this._insert(instance._root);
       } else {
@@ -1418,11 +1436,12 @@ class ChildPart {
       return item;
     }
     const element = item._root as Element;
-    const parent = parentOf(element);
+    const parent = __SLOTS__ ? parentOf(element) : element.parentNode!;
     const part = markered(parent, element);
     /** The row's shape changed: the instance is gone for good, so what it holds is told. */
     if (notifyOnRemoval) teardown(item);
-    parent.removeChild(element);
+    if (__SLOTS__) parent.removeChild(element);
+    else element.remove();
     part.$k = item.$k;
     part._set(value);
     return part;
@@ -1434,12 +1453,12 @@ class ChildPart {
   }
 
   /** Moves an item before `ref`. */
-  $m(item: Item, ref: Node | null, parent: Node = this._owner ?? parentOf(this._start!)) {
+  $m(item: Item, ref: Node | null, parent: Node = this._owner ?? (__SLOTS__ ? parentOf(this._start!) : this._start!.parentNode!)) {
     if (!(item instanceof ChildPart)) {
       parent.insertBefore(item._root, ref);
       return;
     }
-    if (slotsWired && isLight(parent)) {
+    if (__SLOTS__ && slotsWired && isLight(parent)) {
       /** A light item moves through its light parent, boundary to boundary, in light order. */
       parent.$move(item._start!, item._end!, ref);
       return;
@@ -1456,7 +1475,7 @@ class ChildPart {
   /** Removes an item. */
   $d(item: Item) {
     if (notifyOnRemoval) detachItem(item);
-    if (slotsWired && this._owner === null && (this._start as Lit).$light !== undefined) return lightRemove(item);
+    if (__SLOTS__ && slotsWired && this._owner === null && (this._start as Lit).$light !== undefined) return lightRemove(item);
     this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
@@ -1483,7 +1502,7 @@ class ChildPart {
       }
       return;
     }
-    const parent = this._owner ?? parentOf(this._start!);
+    const parent = this._owner ?? (__SLOTS__ ? parentOf(this._start!) : this._start!.parentNode!);
     const end = this._end;
     if (strategy !== undefined) {
       this._items = strategy(this, values, items, parent, end);
@@ -1495,7 +1514,7 @@ class ChildPart {
     for (let i = items.length; i < count; i++) items.push(this.$c(values[i], parent, end));
     if (count < items.length) {
       if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
-      if (slotsWired && this._owner === null && (this._start as Lit).$light !== undefined)
+      if (__SLOTS__ && slotsWired && this._owner === null && (this._start as Lit).$light !== undefined)
         for (let i = count; i < items.length; i++) lightRemove(items[i]);
       else {
         for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
@@ -1759,7 +1778,7 @@ export const renderInto = (result: unknown, container: Node) => {
   if (part === undefined) {
     rootParts.set(container, (part = markered(container, null)));
     /** A first render while slots is wired: a light host's existing children are captured before its output exists. */
-    if (slotsWired) (registry as unknown as { $first?: (container: Node) => void }).$first?.(container);
+    if (__SLOTS__ && slotsWired) (registry as unknown as { $first?: (container: Node) => void }).$first?.(container);
   }
   commitAs(container, part, result);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_END, container, null);
@@ -1785,15 +1804,17 @@ export const renderer = {
      * Light-DOM slots, wired in either order: slots sets `$s` and calls `$light`; the renderer hands it the root range of
      * a container (`$r`, the output/light line) — off-chain, sigiled, like `$t`.
      */
-    const shared = given as unknown as { $s?: boolean; $light?: () => void; $r?: (container: Node) => [Node, Node] | undefined };
-    shared.$light = () => {
-      slotsWired = true;
-    };
-    /** The root range's two markers — nodes, not the part, whose fields production mangles. */
-    shared.$r = (container) => {
-      const part = rootParts.get(container);
-      return part === undefined ? undefined : [part._start!, part._end!];
-    };
-    if (shared.$s) slotsWired = true;
+    if (__SLOTS__) {
+      const shared = given as unknown as { $s?: boolean; $light?: () => void; $r?: (container: Node) => [Node, Node] | undefined };
+      shared.$light = () => {
+        slotsWired = true;
+      };
+      /** The root range's two markers — nodes, not the part, whose fields production mangles. */
+      shared.$r = (container) => {
+        const part = rootParts.get(container);
+        return part === undefined ? undefined : [part._start!, part._end!];
+      };
+      if (shared.$s) slotsWired = true;
+    }
   },
 };

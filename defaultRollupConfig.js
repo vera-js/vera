@@ -74,10 +74,16 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
          * the base bundle instead of shipping dead branches to every non-SSR app (−31 B gzipped).
          */
         const hydrating = (options.hydrating ? 'true' : 'false').padEnd('__HYDRATING__'.length);
+        /**
+         * `__SLOTS__` folds per entry too: light-DOM slots' seams compile only into the entries that carry them (the
+         * slots-capable renderer and hydrate), so the base renderer is byte-for-byte what it is without slots.
+         */
+        const slots = (options.slots ? 'true' : 'false').padEnd('__SLOTS__'.length);
         return {
           code: code
             .replace(/\b__DEV__\b/g, replacement)
             .replace(/\b__HYDRATING__\b/g, hydrating)
+            .replace(/\b__SLOTS__\b/g, slots)
             .replace(/\b__VERSION__\b/g, version),
           map: null,
         };
