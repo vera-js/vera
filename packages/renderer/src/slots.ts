@@ -179,7 +179,9 @@ const rename = (slot: HTMLSlotElement & { $binding?: Binding; $host?: Element })
 /** The fallback goes to a fragment while anything is assigned (its own parts keep a parent there). */
 const parkFallback = (binding: Binding) => {
   if (binding.parked !== null) return;
-  const parked = binding.start.ownerDocument!.createDocumentFragment();
+  const parked = binding.start.ownerDocument!.createDocumentFragment() as DocumentFragment & { $owner?: Binding };
+  /** Whose fallback this is — a slot nested in it keeps its tree-order place through its owner (see `before`). */
+  parked.$owner = binding;
   for (let node = binding.start.nextSibling; node !== null && node !== binding.end; ) {
     const next: ChildNode | null = node.nextSibling;
     if ((node as Lit).$in !== binding) parked.appendChild(node);
@@ -231,8 +233,31 @@ const capture = (host: Element): Light => {
   return light;
 };
 
-/** Where a binding's start sits in document order relative to another's — tree order decides the winning slot. */
-const before = (a: Binding, b: Binding) => (a.start.compareDocumentPosition(b.start) & 4) !== 0;
+/**
+ * **Tree order, as the platform counts it** — which decides the winning slot of a name. A slot inside another slot's
+ * fallback is still in the tree under shadow DOM even while that fallback is not shown; here the fallback is parked in
+ * a fragment, which the DOM reports as DISCONNECTED from everything. So a parked binding is placed by the chain of
+ * owners up to the live tree: compared at the outermost pair of positions that share a tree.
+ */
+const chain = (binding: Binding): Node[] => {
+  const out: Node[] = [binding.start];
+  for (let root = binding.start.getRootNode() as Node & { $owner?: Binding }; root.$owner !== undefined; ) {
+    out.unshift(root.$owner.start);
+    root = root.$owner.start.getRootNode() as Node & { $owner?: Binding };
+  }
+  return out;
+};
+const before = (a: Binding, b: Binding) => {
+  const x = chain(a);
+  const y = chain(b);
+  for (let i = 0; i < x.length && i < y.length; i++) {
+    if (x[i] === y[i]) continue;
+    /** Same owner, or both live: the DOM answers; a node inside the other's owner range follows it. */
+    return (x[i].compareDocumentPosition(y[i]) & 4) !== 0;
+  }
+  /** One sits inside the other's fallback: the outer slot comes first in tree order. */
+  return x.length < y.length;
+};
 
 /**
  * The `<slot>` element's own answers, from the live assignment (a detached native slot would answer nothing). With
