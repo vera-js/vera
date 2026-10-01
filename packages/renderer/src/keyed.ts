@@ -31,6 +31,26 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
     oldEnd--;
     newEnd--;
   }
+  /**
+   * A repeated key, said where it is nearly free: past the end scans, so a same-order update (nothing left between
+   * them) never pays for it. It behaves correctly in the common case and arbitrarily in the rest — the shape of bug
+   * that survives a test suite. Development only; the keys are gathered only here.
+   */
+  if (__DEV__ && !(start > newEnd && start > oldEnd)) {
+    const seen = new Set<unknown>();
+    for (let i = 0; i < count; i++) {
+      const k = key(i);
+      if (seen.has(k)) {
+        console.warn(
+          `[vera] keyed: the key ${String(k)} is used by more than one item in this list. ` +
+            `A key identifies one item, so which of them keeps the existing DOM is not defined — ` +
+            `the list still renders, but nothing about which node ends up where can be relied on.`
+        );
+        break;
+      }
+      seen.add(k);
+    }
+  }
   if (start > newEnd) {
     for (let i = start; i <= oldEnd; i++) part.$d(items[i]);
     items.splice(start, oldEnd - start + 1);
@@ -116,6 +136,15 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
  * ```
  */
 export const keyed = <T>(key: unknown, result: T): T => {
+  /**
+   * The second argument is the one that goes missing — `keyed(row.id)`. It failed with `Cannot set properties of
+   * undefined (setting 'key')`, which names this function's internals and not the call.
+   */
+  if (__DEV__ && (result === null || typeof result !== 'object'))
+    throw new TypeError(
+      `keyed: expected a template as the second argument and received ${String(result)}. ` +
+        `It marks a template with a key — \`keyed(row.id, html\`<li>…</li>\`)\`.`
+    );
   (result as KeyedResult).key = key;
   (result as KeyedResult).$r = reconcile;
   return result;

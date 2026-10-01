@@ -1043,6 +1043,13 @@ Greppable, obviously yours, reviewable as the security decision it is. Sanitize 
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
+**Development tells you; production pays nothing.** Misuse the renderer can see in a template's own source, or in an
+obviously wrong call, is caught in development: a template that cannot work as written throws there (a name
+expression, below; `renderInto` without a container; `keyed` without a template), and a mistake that still renders
+but not as meant is a `[vera]` warning, said once (a self-closed `<div />`, a boolean child, a value that cannot
+listen, `@clik`, a binding on an element the parser drops, content in the wrong namespace, a repeated key). None of
+it exists in the production build — those bundles are byte-for-byte what they would be without it.
+
 **An attribute name cannot be an expression.** `<p data-${key}="1">` (or `<b ${name}="x">`, or
 `<p ${key}-x>`) throws in development when the template is first used — `@verajs/ssr` refuses it in every
 build — because the parser reads a name before any value exists. (Production pays nothing for the check:

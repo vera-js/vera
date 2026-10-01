@@ -19,6 +19,8 @@ import {
   ChildPart,
   commitAdopting,
   comment,
+  expectContainer,
+  sayShape,
   getTemplate,
   hold,
   hookUp,
@@ -279,6 +281,7 @@ const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
   let template = getTemplate(result);
   /** Adoption is in place: an extension resolving the template (namespaces) is asked with the LIVE parent. */
   if (template._x) template = resolved(template, cursor.parent);
+  if (__DEV__) sayShape(template);
   const into: Adoption = {
     template,
     bindings: new Array(template._kinds.length * 2 + (template._x ? 1 : 0)),
@@ -400,6 +403,7 @@ const clearPreservingStyles = (container: Node) => {
  * clears that container (keeping its SSR stylesheets) and renders it fresh. After that it IS the base render.
  */
 export const renderInto = (result: unknown, container: Node) => {
+  if (__DEV__) expectContainer(container);
   if (
     !rootParts.has(container) &&
     container.firstChild !== null &&
@@ -467,3 +471,5 @@ export const renderInto = (result: unknown, container: Node) => {
  * `connect` is shared: it operates on this bundle's own copy of the renderer's state, which both functions read.
  */
 export const renderer = { ...baseRenderer, fn: renderInto as never };
+/** The same development marker as the base entry's: `wire(renderInto)` is named as the raw function it is. */
+if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';

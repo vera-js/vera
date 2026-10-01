@@ -27,6 +27,7 @@ import {
   SCRIPT_URL_ITEM,
   URL_SINK,
 } from '@verajs/shared-utils';
+import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
 import type { Untracked } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
@@ -93,7 +94,13 @@ const SINGLE_QUOTE_END = /'/g;
  * writes a text marker and construction turns it into an anchor. `noscript` because Firefox parses it
  * as raw text in a template while Chromium and WebKit do not — listed, it is right in both.
  */
-const RAW_TEXT = /^(?:script|style|textarea|title|iframe|noscript)$/i;
+const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
+/**
+ * The 14 void elements — a start tag with no content and no end tag. Read only by the development tag-shape pass
+ * (`<div />` is an open tag; `</br>` is another `<br>`), so production drops it. A regex rather than shared-utils'
+ * Set, as `RAW_TEXT_TAGS` is: an imported `new Set` measured 62 B in production.
+ */
+const VOID_TAGS = /^(?:area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr|param)$/i;
 
 /** A binding's kind, resolved once per template. */
 const IGNORED = 0; // consumed, nothing rendered: inside a comment, the later values of a multi-part attribute
@@ -134,6 +141,60 @@ const UPGRADED = {};
  * A template's bindings are indexed by VALUE position: a multi-part attribute sits at its first value
  * and the positions of its other values are `IGNORED`, so the commit loop needs no bookkeeping.
  */
+/**
+ * **Tag-shape mistakes, development only** — a self-closed non-void element (`<div />` is an OPEN tag: what follows
+ * becomes its child) and an end tag on a void one (`</br>` is ANOTHER `<br>`), in HTML content only (`<svg>`/`<math>`
+ * keep self-closing). A separate pass over ALL the statics, the last one too — the production scan never reads it,
+ * and a template with no expressions is never scanned — and it only READS: a development-only counter once changed
+ * the SCAN, so development and production parsed one template differently.
+ */
+const SHAPE = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+const tagShape = (strings: TemplateStringsArray, type: number): string[] | undefined => {
+  const markup = strings.join('');
+  let foreign = type === 1 ? 0 : 1;
+  let found: string[] | undefined;
+  SHAPE.lastIndex = 0;
+  for (let m: RegExpExecArray | null; (m = SHAPE.exec(markup)) !== null; ) {
+    if (m[2] === undefined) continue;
+    const tag = m[2].toLowerCase();
+    const closing = m[1] === '/';
+    const selfClosed = !closing && m[3].trimEnd().endsWith('/');
+    if (tag === 'svg' || tag === 'math') {
+      if (closing) foreign--;
+      else if (!selfClosed) foreign++;
+      continue;
+    }
+    if (!closing && RAW_TEXT_TAGS.test(tag)) {
+      const end = markup.toLowerCase().indexOf(`</${tag}`, SHAPE.lastIndex);
+      SHAPE.lastIndex = end === -1 ? markup.length : end;
+    }
+    if (foreign > 0) continue;
+    if (selfClosed && !VOID_TAGS.test(tag))
+      (found ??= []).push(
+        `<${tag}> is left OPEN by this template, so everything after it becomes its child rather than its sibling. HTML ` +
+          `has no self-closing syntax outside <svg> and <math> — \`<${tag} />\` is an open tag, not an empty element. ` +
+          `Write \`<${tag}></${tag}>\`. (@verajs/jsx rewrites this for you; a hand-written template has to say it.)`
+      );
+    else if (closing && VOID_TAGS.test(tag))
+      (found ??= []).push(
+        `\`</${tag}>\` is read by the parser as ANOTHER <${tag}>, so this template renders two where it describes one. A ` +
+          `void element has no end tag — write \`<${tag}>\` alone.`
+      );
+  }
+  return found;
+};
+/**
+ * Said at the template's FIRST instance, not at construction: `namespaces` constructs an HTML build of a template it
+ * then only ever instantiates in SVG, and that build's shape is not a mistake anyone wrote.
+ */
+export const sayShape = (template: Template) => {
+  const shape = template._shape;
+  if (shape !== undefined) {
+    template._shape = undefined;
+    for (let i = 0; i < shape.length; i++) console.warn(`[vera] renderer: ${shape[i]}`);
+  }
+};
+
 class Template {
   /** What an instance clones: the single root element, or the whole content fragment. */
   _root: Node;
@@ -163,6 +224,8 @@ class Template {
   declare _$ns$?: string | null;
   /** The instance hook — elements (and slots): claim at creation, mount at the render's end, unmount at teardown. */
   declare _$inst$?: InstanceHook;
+  /** Development only: tag-shape mistakes found at construction, said at the template's FIRST instance (`sayShape`). */
+  declare _shape?: string[];
 
   constructor(result: TemplateResult) {
     const strings = result.strings;
@@ -173,6 +236,20 @@ class Template {
     const present = (this._present = new Array(count).fill(false));
     const urls = (this._urls = new Array(count).fill(0));
     const nodes: (Node | null)[] = new Array(count).fill(null);
+    /**
+     * Development bookkeeping for a binding whose marker never arrives: the tag it was written in, whether it is an
+     * element position (a ref has no name), and which bindings sat in a nested `<template>`'s inert content — so a
+     * DROPPED element is told apart from inert markup. Read only; production never builds them.
+     */
+    let tags: string[] | undefined;
+    let refs: boolean[] | undefined;
+    let inert: Set<number> | undefined;
+    if (__DEV__) {
+      tags = [];
+      refs = [];
+      inert = new Set();
+      this._shape = tagShape(strings, result._$litType$ ?? 1);
+    }
 
     // ── scan ──
     let markup = '';
@@ -182,6 +259,7 @@ class Template {
     let open: boolean = false;
     for (let i = 0; i < count; i++) {
       const s = strings[i];
+      if (__DEV__ && i > 0) tags![i] = tags![i - 1];
       /** Where this string's bound attribute name ends (≥ 0), -1 for none, -2 for an element position. */
       let nameEnd = -1;
       let continues: boolean = open;
@@ -196,7 +274,8 @@ class Template {
           if (match[1] === '!--') regex = COMMENT_END;
           else if (match[1] !== undefined) regex = COMMENT2_END;
           else {
-            if (match[2] !== undefined && RAW_TEXT.test(match[2])) rawEnd = new RegExp(`</${match[2]}`, 'gi');
+            if (match[2] !== undefined && RAW_TEXT_TAGS.test(match[2])) rawEnd = new RegExp(`</${match[2]}`, 'gi');
+            if (__DEV__) tags![i] = match[2] ?? '';
             regex = TAG_END;
           }
         } else if (regex === TAG_END) {
@@ -235,6 +314,7 @@ class Template {
         if (regex === TAG_END && strings[i + 1].startsWith('/>')) markup += ' ';
       } else if (nameEnd === -2) {
         if (__DEV__ && NAME_AFTER.test(strings[i + 1])) nameHole(s, strings[i + 1]);
+        if (__DEV__) refs![i] = true;
         markup += `${s} ${i}${MARKER}`;
       }
       else if (continues || regex !== TAG_END) markup += s + MARKER; // another value of the attribute a previous binding opened
@@ -278,7 +358,11 @@ class Template {
        * reached — they are ignored, as the server ignores them. Their markers are scrubbed from its markup,
        * every depth at once, or they would sit in the live page.
        */
-      if (el.localName === 'template') (el as HTMLTemplateElement).innerHTML = (el as HTMLTemplateElement).innerHTML.replace(INERT_MARKERS, '');
+      if (el.localName === 'template') {
+        const held = (el as HTMLTemplateElement).innerHTML;
+        if (__DEV__) for (const m of held.matchAll(/(\d+)\uFFFF|\uFFFF(\d+)/g)) inert!.add(+(m[1] ?? m[2]));
+        (el as HTMLTemplateElement).innerHTML = held.replace(INERT_MARKERS, '');
+      }
       if (el.localName.includes('-') || el.hasAttribute('is')) this._plain = false;
       for (const attribute of el.getAttributeNames()) {
         if (!attribute.endsWith(MARKER)) continue;
@@ -359,7 +443,7 @@ class Template {
                 : 3;
       }
       /** A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. */
-      if (RAW_TEXT.test(el.localName) && el.textContent!.includes(MARKER)) {
+      if (RAW_TEXT_TAGS.test(el.localName) && el.textContent!.includes(MARKER)) {
         const pieces = el.textContent!.split(MARKER);
         el.textContent = '';
         for (let p = 0; p < pieces.length; p++) {
@@ -379,14 +463,36 @@ class Template {
     for (let i = 0; i < count; i++) {
       let at = nodes[i];
       if (at === null) {
-        if (__DEV__ && (kinds[i] === CHILD || names[i] !== ''))
-          console.warn(
-            `[vera] renderer: the value at position ${i} sits inside a nested <template>'s content — inert markup that is ` +
-              `never rendered — so it is ignored (and the server ignores it too). Render into the live tree instead.`
-          );
+        if (__DEV__ && (kinds[i] === CHILD || names[i] !== '' || refs![i])) {
+          if (inert!.has(i))
+            console.warn(
+              `[vera] renderer: the value at position ${i} sits inside a nested <template>'s content — inert markup that is ` +
+                `never rendered — so it is ignored (and the server ignores it too). Render into the live tree instead.`
+            );
+          /** A run of consecutive casualties is one dropped element: said once, naming the first. */
+          else if (i === 0 || nodes[i - 1] !== null || inert!.has(i - 1) || !(kinds[i - 1] === CHILD || names[i - 1] !== '' || refs![i - 1])) {
+            let lost = 1;
+            while (i + lost < count && nodes[i + lost] === null && !inert!.has(i + lost)) lost++;
+            const where = tags![i] ? `\`${names[i] !== '' ? `${names[i]}=` : refs![i] ? '&=' : ''}\` on <${tags![i]}>` : 'a binding';
+            console.warn(
+              `[vera] renderer: ${where} never reached the parsed tree — the HTML parser DROPPED the element it was written ` +
+                `on, because its parent's content model forbids it (\`<select>\` takes only options, \`<form>\` cannot nest, ` +
+                `and so on).\n${lost} binding(s) lost. The element is gone from the DOM and its binding does nothing; the ` +
+                `bindings AFTER it are unaffected, because each marker carries its own index.\nMove the element out of its ` +
+                `parent, or use one the parent can hold.`
+            );
+          }
+        }
         kinds[i] = IGNORED;
       } else if (kinds[i] === CHILD) {
         const parent = at!.parentNode!;
+        if (__DEV__ && (parent as Element).localName === 'table')
+          console.warn(
+            '[vera] renderer: a binding sits directly inside <table>, where the HTML parser inserts a <tbody> that a ' +
+              'client render does not. The same template then renders as `table > tr` and parses as `table > tbody > tr`, ' +
+              'so `table > tr` selectors match on only one path and hydration rebuilds this container instead of adopting ' +
+              'it. Write the section explicitly — `<table><tbody>${rows}</tbody></table>` — and every path agrees.'
+          );
         /**
          * Only on a PLAIN element (no dash, no `is`): a light-DOM component renders into its own children, and the part
          * this position may become owns its element's whole content — so there it keeps its anchor, bounded by markers.
@@ -395,7 +501,7 @@ class Template {
         if (
           parent.nodeType === 1 &&
           parent.childNodes.length === 1 &&
-          !RAW_TEXT.test(host.localName) &&
+          !RAW_TEXT_TAGS.test(host.localName) &&
           !host.localName.includes('-') &&
           !host.hasAttribute('is')
         ) {
@@ -529,6 +635,7 @@ class Instance {
  * child position inserts markers and content, which would shift the siblings a later path counts.
  */
 const instantiate = (template: Template, result: TemplateResult, owner: Document): Instance => {
+  if (__DEV__) sayShape(template);
   const source = template._root;
   const root = template._plain && owner === doc ? source.cloneNode(true) : owner.importNode(source, true);
   const kinds = template._kinds;
@@ -593,6 +700,86 @@ const update = (instance: Instance, values: unknown[]) => {
 };
 
 /** Commits the binding at value position `i`. */
+/**
+ * **A boolean at a child position renders as the WORD** — `${cond && …}` with a false `cond` shows "false". Said in
+ * development on each CHANGE to a boolean (the dirty check already skips a repeat), so a binding that keeps
+ * producing `false` speaks once, and one that flips to `true` speaks again.
+ */
+const warnBooleanChild = (value: boolean) =>
+  console.warn(
+    `[vera] renderer: a child position was given \`${value}\`, which renders as the word "${value}" — the usual cause ` +
+      `is \`\${cond && …}\` with a false \`cond\`.\nWrite \`\${cond ? … : null}\`, or \`\${(cond && …) || null}\`; \`null\` ` +
+      `and \`undefined\` are the values that render nothing. If you meant to display the boolean, say so with ` +
+      `\`\${String(value)}\` and this goes quiet.`
+  );
+
+/**
+ * **Content in the wrong namespace does not render** — `` html`<path/>` `` handed into an `<svg>` builds an HTML
+ * `<path>`, which draws nothing and says nothing. Development only, at each insert: the host is read from where the
+ * content LANDS, and a mismatch is named once per host and content (a toggled subtree would otherwise warn every
+ * frame). Silent where HTML is correct — integration points (`<foreignObject>`, `<desc>`, `<title>`, MathML's token
+ * elements, an HTML-encoded `<annotation-xml>`) and `<style>`/`<script>`, which never draw.
+ */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
+const foreignHost = (parent: Node): string | null => {
+  const element = parent as Element;
+  const namespace = element.namespaceURI;
+  const svg = namespace === SVG_NS;
+  if (!svg && namespace !== MATHML_NS) return null;
+  const name = element.localName;
+  if (svg) return name === 'foreignObject' || name === 'desc' || name === 'title' ? null : name;
+  if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') return null;
+  if (name === 'annotation-xml') {
+    /** The ATTRIBUTE — what the parser reads; `image/svg+xml` is MathML's own spelling for an SVG annotation. */
+    const encoding = element.getAttribute('encoding')?.toLowerCase();
+    return encoding === 'text/html' || encoding === 'application/xhtml+xml' || encoding === 'image/svg+xml' ? null : name;
+  }
+  return name;
+};
+const warnedForeign = /* @__PURE__ */ new Set<string>();
+/** The nodes an insert is about to place — a fragment empties as it is inserted, so they are read first. */
+const landing = (node: Node): Node[] => (node.nodeType === 11 ? [...node.childNodes] : [node]);
+const checkForeign = (parent: Node, nodes: Node[]) => {
+  const host = foreignHost(parent);
+  if (host === null) return;
+  const hostNamespace = (parent as Element).namespaceURI;
+  for (const node of nodes) {
+    if (node.nodeType !== 1) continue;
+    const element = node as Element;
+    if (element.namespaceURI === hostNamespace) continue;
+    const tag = element.localName;
+    if (tag === 'style' || tag === 'script') continue;
+    /** The parser itself opens SVG content for an `<svg>` inside `<annotation-xml>`, whatever the encoding. */
+    if (host === 'annotation-xml' && tag === 'svg' && element.namespaceURI === SVG_NS) continue;
+    const built = element.namespaceURI === MATHML_NS ? 'MathML' : element.namespaceURI === SVG_NS ? 'SVG' : 'HTML';
+    /** The island and its placement are chosen by the HOST's namespace; the encoding follows the CONTENT. */
+    const island =
+      hostNamespace === MATHML_NS
+        ? `<mtext>, or <annotation-xml encoding="${built === 'SVG' ? 'image/svg+xml' : 'text/html'}">, ` +
+          'inside a MathML container such as <mrow> or <math> rather than inside a token element'
+        : 'a <foreignObject>, which has to sit in an element whose content model accepts one — a container such as ' +
+          '<g> or <svg>, not a text, clipping, gradient or filter element';
+    /** Keyed by host namespace AND content namespace: `<a>` is a real element in all three. */
+    const seen = `${hostNamespace}${host}>${element.namespaceURI}${tag}`;
+    if (warnedForeign.has(seen)) continue;
+    warnedForeign.add(seen);
+    const advice =
+      built === 'HTML'
+        ? `If it is meant to be an SVG or MathML element, the template holding it needs the svg\`…\` or mathml\`…\` tag ` +
+          `at the call site — or wire @verajs/renderer/namespaces, which parses a template where it lands (compiled JSX ` +
+          `wires it itself). A template built before it was wired keeps the namespace it was first built in. If it is ` +
+          `genuinely HTML (a <div>, a custom element), it belongs in ${island}: tagging it will not help, and a custom ` +
+          `element only upgrades in the HTML namespace.`
+        : `The template's tag is already right — these two namespaces cannot nest directly. Put the ` +
+          `${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}.`;
+    console.warn(`[vera] renderer: <${tag}> was built as ${built} and placed inside <${host}>, where it will not render. ${advice}`);
+  }
+};
+
+/** How many times a part's child applier changed identity — development only; `@__PURE__` keeps it out of production. */
+const applierSwaps = /* @__PURE__ */ new WeakMap<object, number>();
+
 const commit = (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => {
   const slot = i * 2;
   const committed = bindings[slot + 1];
@@ -624,6 +811,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
       bindings[slot + 1] = UPGRADED;
       part._set(value);
     } else if (value !== committed) {
+      if (__DEV__ && typeof value === 'boolean') warnBooleanChild(value);
       if (committed === UNSET) {
         /** SOLE's first text: created holding its value. `''` creates no node, so that one is appended. */
         if (value === '') (node as Element).append('');
@@ -709,6 +897,15 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   } else if (value === committed) return;
   bindings[slot + 1] = value;
   if (kind === ATTR) {
+    /**
+     * A value that is not text becomes something nobody meant — a function's source, an array joined by commas, a
+     * Date in the machine's timezone. Asked of the RAW value: a URL-bearing name was converted above. Said once per
+     * element, name and kind of value (`dev-values`), so fixing one mistake never hides the next.
+     */
+    if (__DEV__ && value != null) {
+      const complaint = attributeValueComplaint(element.localName, name, parts === null ? values[i] : value);
+      if (complaint !== null) console.warn(`[vera] ${complaint}`);
+    }
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
@@ -716,6 +913,20 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
   else if (kind === EVENT) {
     const listener = node as Slot;
+    if (__DEV__ && value != null && value !== false) {
+      /** Something that cannot listen does nothing, silently — `false`/`undefined` are the deliberate "no handler". */
+      if (typeof value !== 'function' && typeof (value as EventListenerObject).handleEvent !== 'function')
+        console.warn(
+          `[vera] @${name} on <${element.localName}> was given ${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
+            `which cannot listen — the event will do nothing.\nPass a function, or an object with a handleEvent method. A ` +
+            `missing handler is \`undefined\` or \`false\`, both of which are fine; this is neither.`
+        );
+      /** A misspelled event name (`@clik`), asked at the first attachment, once per tag and name. */
+      if (listener._handler === null) {
+        const complaint = eventNameComplaint(element, name);
+        if (complaint !== null) console.warn('[vera] ' + complaint);
+      }
+    }
     /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */
     if (listener._handler === null && value != null) element.addEventListener(name, listener);
     listener._handler = value ?? null;
@@ -890,7 +1101,9 @@ class ChildPart {
   }
 
   _insert(node: Node) {
+    const placed = __DEV__ ? landing(node) : undefined;
     (this._owner ?? this._start!.parentNode!).insertBefore(node, this._end);
+    if (__DEV__) checkForeign(this._owner ?? this._start!.parentNode!, placed!);
   }
 
   /**
@@ -965,6 +1178,7 @@ class ChildPart {
       return;
     }
     if (typeof value !== 'object') {
+      if (__DEV__ && typeof value === 'boolean' && (this._mode !== TEXT || this._value !== value)) warnBooleanChild(value);
       if (this._mode === TEXT) {
         if (this._value !== value) this._text!.data = value as string;
       } else {
@@ -1035,6 +1249,21 @@ class ChildPart {
     const applyChild = (value as { _$child$?: Applier })._$child$;
     if (applyChild !== undefined) {
       const previous = this._applier === applyChild ? this._applierState : undefined;
+      /**
+       * An applier written as an object-literal method is a new function every call, so `previous` is always
+       * undefined and it restarts every render. Said on the third swap at one part — once or twice is a real change.
+       */
+      if (__DEV__ && this._applier !== undefined && this._applier !== applyChild) {
+        const swaps = (applierSwaps.get(this) ?? 0) + 1;
+        applierSwaps.set(this, swaps);
+        if (swaps === 3)
+          console.warn(
+            `[vera] a child applier changed identity ${swaps} times at one part, so \`previous\` is always undefined ` +
+              `and it restarts every render.\nHoist the applier — written as an object-literal method it is a new ` +
+              `function per call:\n\n  function applyThing(part, previous) { … }            // once, at module scope\n` +
+              `  const thing = (x) => ({ _$child$: applyThing, x });  // state on the object\n`
+          );
+      }
       this._applier = applyChild;
       this._root = renderRoot;
       if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
@@ -1061,6 +1290,7 @@ class ChildPart {
       if (template._root.nodeType === 1) {
         const instance = instantiate(template, value, passDoc);
         parent.insertBefore(instance._root, ref);
+        if (__DEV__) checkForeign(parent, [instance._root]);
         instance.$k = value.key;
         return instance;
       }
@@ -1381,16 +1611,36 @@ export const adoptAs = (container: Node, run: () => void) => {
 const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
+ * The container is the argument people forget, and forgetting it failed with `Cannot read properties of undefined`
+ * — a message about the internals of a function the caller never named. Development only; the hydrate entry calls
+ * it too, since it reads the container before it reaches the base render.
+ */
+export const expectContainer = (container: unknown) => {
+  if (!container || typeof (container as Node).appendChild !== 'function')
+    throw new TypeError(
+      `renderInto: expected a container node as the second argument and received ${String(container)}. ` +
+        `It renders *into* something — \`renderInto(html\`…\`, document.body)\`.`
+    );
+};
+
+/**
  * Writes a template result into a container — the renderer's imperative draw: no reactivity, no
  * lifecycle. The first call appends two markers and anchors a root part between them; later calls reuse it
  * and commit only the values. Content already in the container stays, and so does content other code adds
  * after it — the render owns its range, never the container. lit-html's argument order.
  */
 export const renderInto = (result: unknown, container: Node) => {
+  if (__DEV__) expectContainer(container);
   let part = rootParts.get(container);
   if (part === undefined) rootParts.set(container, (part = markered(container, null)));
   commitAs(container, part, result);
 };
+
+/**
+ * Marks the raw function so `wire(renderInto)` — wiring the draw instead of the module — is caught by name in
+ * development: the inserts registry reads `$module` and says `did you mean \`renderer\``. Production carries neither.
+ */
+if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
 
 /** Everything this renderer needs, in one entry: `wire([renderer])`. */
 export const renderer = {
