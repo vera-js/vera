@@ -184,6 +184,11 @@ export const decodeSchemeReferences = (text) =>
  *
  * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. Every
  * scanner here that meets a comment asks this one rule, and the client's scanner holds its twin.
+ *
+ * @param {string} markup
+ * @param {number} open
+ * @returns {number} The index past the comment, or `-1`. (JSDoc in this package does not catch a caller reading the
+ *   old `[dataEnd, end]` shape — `server-content.test.mjs` pins every comment shape before a script instead.)
  */
 export const commentEnd = (markup, open) => {
   const start = open + 4;
@@ -196,5 +201,12 @@ export const commentEnd = (markup, open) => {
   }
   return -1;
 };
-/** Where a comment's TEXT stops, given the end `commentEnd` answered: before `-->`/`--!>`, or at once when abrupt. */
+/**
+ * Where a comment's TEXT stops, given the end `commentEnd` answered: before `-->`/`--!>`, or at once when abrupt.
+ *
+ * @param {string} markup
+ * @param {number} open
+ * @param {number} end
+ * @returns {number}
+ */
 export const commentDataEnd = (markup, open, end) => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);

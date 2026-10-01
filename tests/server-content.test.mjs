@@ -39,8 +39,14 @@ for (const prop of ['innerHTML', 'textContent'])
 const SCRIPTS = ['<script>globalThis.__ran = 1<\\/script>', '<SCRIPT>globalThis.__ran = 1<\\/SCRIPT>', '<ScRiPt>globalThis.__ran = 1<\\/ScRiPt>',
   '<script/data-x>globalThis.__ran = 1<\\/script>', '<script\\n>globalThis.__ran = 1<\\/script>', '<script type=module>globalThis.__ran = 1<\\/script>'];
 const scripts = SCRIPTS.map((markup) => serializeTemplate(tpl('div', 'innerHTML', markup)));
+/** A comment BEFORE the script or template: the scan must resume after every comment shape, or what follows is raw. */
+const COMMENTS = ['<!-- note -->', '<!-->', '<!--->', '<!-- a --!>', '<!---->'];
+const afterComments = COMMENTS.flatMap((c) => [
+  serializeTemplate(tpl('div', 'innerHTML', c + '<script>globalThis.__ran = 1<\\/script>')),
+  serializeTemplate(tpl('div', 'innerHTML', c + '<template shadowrootmode="open"><b>s</b></template>')),
+]);
 const page = (await renderToString(new URL('./tests/fixtures/ssr/content-ssr.js', 'file://' + process.cwd() + '/'))).html;
-process.stdout.write(JSON.stringify({ out, conv, page, scripts }));
+process.stdout.write(JSON.stringify({ out, conv, page, scripts, afterComments }));
 `;
 const served = JSON.parse(
   execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', serverScript], {
@@ -69,6 +75,17 @@ test('every spelling of a script start tag is made inert — and the parse that 
     assert.match(markup, /<script type="text\/x-vera-inert"/i, markup);
     const win = new JSDOM(`<body>${markup}`, { runScripts: 'dangerously', virtualConsole: new VirtualConsole() }).window;
     assert.equal(win.__ran, undefined, markup);
+  }
+});
+
+test('after every comment shape, a script is still inert and a shadowrootmode template still renamed', () => {
+  assert.equal(served.afterComments.length, 10);
+  for (let i = 0; i < served.afterComments.length; i += 2) {
+    const script = served.afterComments[i];
+    assert.match(script, /<script type="text\/x-vera-inert"/, script);
+    const win = new JSDOM(`<body>${script}`, { runScripts: 'dangerously', virtualConsole: new VirtualConsole() }).window;
+    assert.equal(win.__ran, undefined, script);
+    assert.match(served.afterComments[i + 1], /<template data-vera-shadowrootmode="open">/, served.afterComments[i + 1]);
   }
 });
 

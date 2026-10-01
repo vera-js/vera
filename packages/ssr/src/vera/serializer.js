@@ -1199,7 +1199,7 @@ const neutralize = (markup) => {
     out += markup.slice(i, lt);
     if (markup.startsWith('<!--', lt)) {
       const end = commentEnd(markup, lt);
-      const stop = end === null ? markup.length : end[1];
+      const stop = end === -1 ? markup.length : end;
       out += markup.slice(lt, stop);
       i = stop;
       continue;
