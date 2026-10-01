@@ -134,6 +134,12 @@ code, so they are not re-litigated.
   `@verajs/*` to the MAIN tree's packages, so a mutation made in the worktree "passes" while the test runs the
   untouched code. Check `readlink -f node_modules/@verajs/<pkg>` before trusting a worktree mutation — the
   mutation must turn something red, or it measured nothing.
+- **In a hot function, an arrow that captures a parameter taxes EVERY call, and a sparse array taxes every read.**
+  Measured 2026-10-01 on the SSR serializer, which lost 4.7% in a day to both: `value.map((e) => serializeValue(e,
+  false, depth))` makes V8 heap-allocate a context on every `serializeValue` call, whichever branch runs (CPU profile:
+  its self time 9.0 → 12.3 ms), and `depths[i] ?? 0` on an array filled only where needed walks the prototype chain on
+  each hole. Use plain loops inside hot functions, and build per-binding arrays dense. Neither shows in a code read, so
+  every hot-path change gets a cold-process or race measurement before it lands.
 - **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
   to be an insert point no package registers and no doc mentions; the pattern had matched inside
   **`setupTarget('mount')`** and there is no such insert point. `!live` appeared to be a public
