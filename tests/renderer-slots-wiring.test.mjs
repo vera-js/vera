@@ -32,7 +32,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire, html } = await load('core');
+const { wire, html, init } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 const doc = dom.window.document;
@@ -120,7 +120,9 @@ test('elements wired beside slots stays quiet and both kinds of claim work', asy
   const mounted = [];
   try {
     wire([renderer, elements, slots, { on: 'element', fn: (el) => (el.hasAttribute('data-claim') ? { mount: (e) => mounted.push(e.localName) } : undefined), priority: 60 }]);
-    const host = doc.createElement('div');
+    /** A slot host is a custom element that calls `init` (ruling 4) — where its children are captured. */
+    if (!customElements.get('wiring-host')) customElements.define('wiring-host', class extends HTMLElement { connectedCallback() { init(this); } });
+    const host = doc.createElement('wiring-host');
     host.innerHTML = '<b>MINE</b>';
     doc.body.append(host);
     renderInto(html`<section><i data-claim></i><slot>fb</slot></section>`, host);

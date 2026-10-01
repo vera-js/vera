@@ -46,8 +46,16 @@ const live = (node: Lit): Light | undefined => {
   if (light !== undefined && !light.holds(node)) light.forget(node);
   return node.$light;
 };
-const OVERLAY: PropertyDescriptorMap = {
+/**
+ * A part's BOUNDARY (a comment, never slotted, invisible) answers its light parent as `parentNode` — that is the
+ * parent the renderer writes the part's content through. A slotted element or text keeps its PHYSICAL `parentNode`:
+ * it sits where it renders (`header > h2` matches it), so `parentNode`, `parentElement` and `closest()` agree for user
+ * code; the renderer reaching it from there removes it natively, which `live` sees.
+ */
+const BOUNDARY_OVERLAY: PropertyDescriptorMap = {
   parentNode: { configurable: true, get(this: Lit) { const light = live(this); return light === undefined ? physicalParent(this) : light; } },
+};
+const OVERLAY: PropertyDescriptorMap = {
   nextSibling: { configurable: true, get(this: Lit) { const light = live(this); if (light === undefined) return physicalNext(this); const list = light.valid(); return list[list.indexOf(this) + 1] ?? null; } },
   previousSibling: { configurable: true, get(this: Lit) { const light = live(this); if (light === undefined) return physicalPrevious(this); const list = light.valid(); return list[list.indexOf(this) - 1] ?? null; } },
   remove: { configurable: true, writable: true, value(this: Lit) { this.$light!.removeChild(this); } },
@@ -68,10 +76,11 @@ const ELEMENT_OVERLAY: PropertyDescriptorMap = {
   toggleAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string, force?: boolean) { const on = Element.prototype.toggleAttribute.call(this, name, force); if (name === 'slot') this.$light?.$place(this); return on; } },
   slot: { configurable: true, get(this: Element) { return this.getAttribute('slot') ?? ''; }, set(this: Element, value: string) { this.setAttribute('slot', `${value}`); } },
 };
-const OVERLAID = [...Object.keys(OVERLAY), ...Object.keys(ELEMENT_OVERLAY)];
+const OVERLAID = [...Object.keys(OVERLAY), ...Object.keys(ELEMENT_OVERLAY), ...Object.keys(BOUNDARY_OVERLAY)];
 const own = (node: Node) => {
   Object.defineProperties(node, OVERLAY);
   if (node.nodeType === 1) Object.defineProperties(node, ELEMENT_OVERLAY);
+  else if (node.nodeType === 8) Object.defineProperties(node, BOUNDARY_OVERLAY);
 };
 const disown = (node: Node) => {
   for (const key of OVERLAID) delete (node as unknown as Record<string, unknown>)[key];

@@ -69,11 +69,13 @@ test('a plain move re-enters cleanly — the control that isolates blame', async
 });
 
 test('the park roundtrip: cleanup out, re-init back, state kept, reactivity live', async () => {
-  const host = doc.createElement('div');
-  doc.body.append(host);
+  /** A slot host is a custom element that calls `init` (ruling 4); its child is in place before it connects. */
+  if (!customElements.get('park-host')) customElements.define('park-host', class extends HTMLElement { connectedCallback() { init(this); } });
+  const host = doc.createElement('park-host');
   const item = doc.createElement('stateful-item');
   item.setAttribute('slot', 'o');
   host.append(item);
+  doc.body.append(host);
 
   const drawSlot = () => html`<div><slot name="o">fall</slot></div>`;
   const drawAway = () => html`<p>away</p>`;
