@@ -21,6 +21,7 @@ import {
   call,
   CONTENT_PROPERTY,
   contentClash,
+  ownsContent,
   INLINE_HANDLER,
   isSelection,
   read,
@@ -229,6 +230,8 @@ class Template {
   declare _$inst$?: InstanceHook;
   /** Development only: tag-shape mistakes found at construction, said at the template's FIRST instance (`sayShape`). */
   declare _shape?: string[];
+  /** Development only: element positions on an element a SOLE binding owns — see `ownsContent`. */
+  declare _owned?: number[];
 
   constructor(result: TemplateResult) {
     const strings = result.strings;
@@ -431,7 +434,7 @@ class Template {
          * content of its own — markup, or a child binding whose anchor is in it: the write strands the binding, and a
          * later commit into it throws on a missing parent. Cannot work as written, so development throws.
          */
-        if (__DEV__ && kind !== ATTR && kind !== EVENT && kind !== BOOLEAN && CONTENT_PROPERTY.test(real) && el.firstChild !== null)
+        if (__DEV__ && kind !== ATTR && kind !== EVENT && kind !== BOOLEAN && CONTENT_PROPERTY.test(real) && ownsContent(el))
           contentClash(el.localName, real);
         kinds[i] = kind;
         names[i] = real;
@@ -527,6 +530,15 @@ class Template {
         path.unshift(index);
       }
       this._paths.push(path);
+    }
+    /**
+     * Development: an element position (a spread) on an element whose whole content is a SOLE binding — the content is
+     * invisible until that binding commits, so the spread's content-property check is told by a mark per instance.
+     */
+    if (__DEV__) {
+      for (let i = 0; i < count; i++)
+        if ((kinds[i] === REF || kinds[i] === SELECT_REF) && nodes.some((n, j) => kinds[j] === SOLE && n === nodes[i]))
+          (this._owned ??= []).push(i);
     }
     /**
      * **The `'template'` insert** — asked once, as each template is built (cold): a hook may set `_$at$`/`_$inst$`.
@@ -665,6 +677,8 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
     bindings[i * 2] = kind >= EVENT && kind <= ADOPT ? new Slot(node as Element) : node;
     bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
   }
+  if (__DEV__ && template._owned !== undefined)
+    for (const i of template._owned) ((bindings[i * 2] as Slot)._element as Element & { $content?: boolean }).$content = true;
   const instance = new Instance(template, result.strings, root, bindings);
   if (marked) {
     hookUp(instance, root, false);

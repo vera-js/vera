@@ -141,7 +141,21 @@ export const INLINE_HANDLER = /^on./i;
  * cannot share the element with content of its own (markup, or a child binding the write would strand: a later commit
  * into it then throws on a missing parent). Development refuses the pair in the template scanner and in `spread` alike.
  */
-export const CONTENT_PROPERTY = /^(?:textContent|innerHTML|innerText|outerHTML)$/;
+export const CONTENT_PROPERTY = /^(?:textContent|innerHTML|innerText|outerHTML|outerText)$/;
+/**
+ * Whether an element has content of its own that a content-replacing write would strand or lose: a child that is not
+ * whitespace-only text (formatting whitespace loses nothing), or — `$content`, set in development by the renderer — a
+ * child binding that owns the element whole and leaves no node behind until it commits. The element-specific `.text`
+ * setters (`<a>`, `<option>`, `<title>`, `<script>`) are deliberately not in the list: a custom element's own `text`
+ * prop is common, and would be refused for nothing.
+ */
+export const ownsContent = (element: Element): boolean => {
+  if ((element as Element & { $content?: boolean }).$content === true) return true;
+  for (let node = element.firstChild; node !== null; node = node.nextSibling)
+    /** An EMPTY text node is a child binding's anchor, not formatting: formatting whitespace is never empty. */
+    if (node.nodeType !== 3 || (node as Text).data === '' || (node as Text).data.trim() !== '') return true;
+  return false;
+};
 export const contentClash = (tag: string, name: string): never => {
   throw new Error(
     `renderer: <${tag}> binds \`.${name}\`, which replaces the element's content, and also has content of its own — ` +
