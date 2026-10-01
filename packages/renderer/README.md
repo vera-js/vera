@@ -1043,6 +1043,13 @@ Greppable, obviously yours, reviewable as the security decision it is. Sanitize 
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
+**Only a tagged template is a template.** A value renders as markup only when its strings came from a tagged
+template literal — an array owning `raw`, which nothing from `JSON.parse` can be. Data shaped like a template (an
+API field an attacker turned into `{"strings": [...]}`, a real template sent through JSON, or a hand-built
+`html([markup])`) renders as the text any object does, `[object Object]`, here and in `@verajs/ssr` alike, with a
+development warning. Never a throw: the value is attacker-controlled, and a throw would hand over the subtree. The
+check runs where a template is first built, so a cached template pays nothing.
+
 **Development tells you; production pays nothing.** Misuse the renderer can see in a template's own source, or in an
 obviously wrong call, is caught in development: a template that cannot work as written throws there (a name
 expression, below; a value in TAG position, `<${x}>`, which needs a tag value from `@verajs/renderer/tag`;

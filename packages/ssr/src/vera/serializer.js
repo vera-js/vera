@@ -137,6 +137,10 @@ const ATTRIBUTE = 4;
 /** `.prop` on a component tag: delivered to the instance the scan will render, never markup. */
 const COMPONENT_PROP = 5;
 
+/** What `compile` answers for data shaped like a template: no plan, so `serializeTemplate` renders it as text. */
+const FORGED = {};
+/** A tagged template literal's strings: an array owning `raw`, which nothing from `JSON.parse` can be (see `compile`). */
+const isLiteral = (strings) => Array.isArray(strings) && Object.hasOwn(strings, 'raw');
 /** strings identity -> { parts, kinds, names } — computed once per call site, ever. */
 const plans = new WeakMap();
 /**
@@ -446,6 +450,16 @@ const STATIC_ATTRIBUTE = /\s([a-zA-Z][\w:-]*)(?==|[\s>]|$)/g;
 const forDoubleQuotes = (text, quote) => (quote === '"' || !text.includes('"') ? text : text.replaceAll('"', '&#34;'));
 
 const compile = (strings, depth) => {
+  /**
+   * **A template is a tagged template literal's, never data shaped like one.** Template detection is by shape (`strings`),
+   * so `JSON.parse('{"strings":["<img src=x onerror=…>"]}')` — a request body, an API field an attacker can make an
+   * object — was rendered as MARKUP wherever it was interpolated. A literal's strings array owns a `raw` property, which
+   * JSON cannot give an array (and an object that owns one is not an array): the check Lit makes, here on the plan
+   * cache's miss, which a forged array always is — so it costs a cached template nothing. A forgery is answered with
+   * `null` — the caller renders it as the ordinary object it is — and never a throw: the value is attacker-controlled
+   * by definition, and a throw would trade the injection for the whole response.
+   */
+  if (!isLiteral(strings)) return null;
   const parts = [];
   const kinds = [];
   const names = [];
@@ -765,7 +779,9 @@ export const serializeTemplate = (template, depth = 0) => {
   const { strings, values } = template;
   if (template['_$litType$'] > 1 && depth === 0) depth = 1;
   const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls } =
-    (depth === 0 ? plans.get(strings) : foreignPlans.get(strings)?.get(depth)) ?? compile(strings, depth);
+    (depth === 0 ? plans.get(strings) : foreignPlans.get(strings)?.get(depth)) ?? compile(strings, depth) ?? FORGED;
+  /** Not a template — data shaped like one (see `compile`): the text any other object renders as, as on the client. */
+  if (parts === undefined) return escapeHtml(`${template}`);
   /** The attribute being built: its escaped value so far, and the value the client would join (for the URL check). */
   let attribute = '';
   let joined = '';
@@ -804,7 +820,7 @@ export const serializeTemplate = (template, depth = 0) => {
     switch (kinds[i]) {
       case TEXT:
         /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
-        if (value !== null && typeof value === 'object' && value._$attrs$) {
+        if (value !== null && typeof value === 'object' && typeof value._$attrs$ === 'function') {
           /**
            * A spread's property keys deliver exactly as the written form above does — `props()`
            * IS a spread, so this is the surface the headline API arrives through. Lazily: the
@@ -1339,7 +1355,7 @@ export const serializeValue = (value, raw = false, depth = 0, text = false) => {
      * can CLOSE the element — `${html`</textarea>`}` — and turn the statics after it into unchecked markup.
      */
     if (value.strings) {
-      if (text) throw new Error('ssr: a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text. Render a string there.');
+      if (text && isLiteral(value.strings)) throw new Error('ssr: a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text. Render a string there.');
       return serializeTemplate(value, depth);
     }
     /**
@@ -1359,7 +1375,7 @@ export const serializeValue = (value, raw = false, depth = 0, text = false) => {
      * hydration reads them back, and events and other properties are client state. Escaping happens
      * here and only here — principle #8 puts it at the render boundary, not at the source.
      */
-    if (value._$attrs$) return '';
+    if (typeof value._$attrs$ === 'function') return '';
 
     /**
      * An iterable renders its entries, exactly as the client's child position does — a `Set` or a

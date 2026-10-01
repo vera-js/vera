@@ -165,6 +165,9 @@ unsanitized. Everything else is checked:
 - **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
   whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
   every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
+- **Data shaped like a template is text.** A value renders as markup only when its strings came from a tagged
+  template literal; a `{"strings": [...]}` from `JSON.parse` — or a real template sent through JSON, or a
+  hand-built `html([markup])` — is served as `[object Object]`, as the client renders it, and never throws.
 - **A `__proto__` key in `props` is skipped**, so handing the option a parsed request body cannot
   replace the component's prototype.
 - **Every bound attribute value is served double-quoted, whatever quoting the template used.** A value

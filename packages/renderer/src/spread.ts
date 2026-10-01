@@ -279,7 +279,7 @@ type SpreadResult = {
  * character index into attributes named `0`, `1`, `2` — and development says so.
  */
 export const spread = (props: object | null | undefined): SpreadResult => {
-  if (props !== null && typeof props === 'object' && (props as SpreadResult)._$apply$ !== undefined)
+  if (props !== null && typeof props === 'object' && typeof (props as SpreadResult)._$apply$ === 'function')
     return props as SpreadResult;
   if (props === null || typeof props !== 'object' || Array.isArray(props)) {
     if (__DEV__)

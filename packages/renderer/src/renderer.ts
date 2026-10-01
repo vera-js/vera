@@ -594,9 +594,30 @@ const readScope = () => scope;
 const resolved = (template: Template, parent: Node) => (template._$at$ !== undefined ? template._$at$(parent) : template);
 
 const templateCache = new WeakMap<TemplateStringsArray, Template>();
+/**
+ * **Only a tagged template literal is a template.** Detection is by shape (`strings`), so a value from `JSON.parse` —
+ * a request body, an API field an attacker can turn into an object — that looked like a template was rendered as
+ * MARKUP. A literal's strings array owns `raw`, which JSON cannot give an array (and an object owning one is not an
+ * array): the check Lit makes. It runs here, on the cache's miss, which a forged array always is, so a cached
+ * template pays nothing. A forgery is the text any object renders as, `[object Object]` — one shared template, never
+ * cached under the forger's own `strings` (a WeakMap throws on a primitive key) — and never a throw: the value is
+ * attacker-controlled, and a throw would hand over the subtree.
+ */
+let forged: Template | undefined;
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
-  if (template === undefined) templateCache.set(result.strings, (template = new Template(result)));
+  if (template === undefined) {
+    const strings = result.strings;
+    if (!(Array.isArray(strings) && Object.hasOwn(strings, 'raw'))) {
+      if (__DEV__)
+        console.warn(
+          '[vera] renderer: a value shaped like a template was not made by html`` — rendered as text. A template from ' +
+            'data (JSON, or html([markup])) is never markup; for trusted markup, bind it: <div .innerHTML=${markup}>.'
+        );
+      return (forged ??= new Template({ strings: [`${{}}`] } as unknown as TemplateResult));
+    }
+    templateCache.set(strings, (template = new Template(result)));
+  }
   return template;
 };
 
@@ -1006,7 +1027,8 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      * A value with `_$apply$` applies itself NOW, mid-commit, keyed by this binding — spread delivers
      * properties through it, and they must arrive before the element is inserted and upgraded.
      */
-    if ((value as { _$apply$?: unknown })._$apply$) {
+    /** A FUNCTION, not merely present: parsed JSON can carry the key, never a function — data stays data. */
+    if (typeof (value as { _$apply$?: unknown })._$apply$ === 'function') {
       /** On a `<select>` it may set the selection (a spread's `.value`), so it waits for the options too — see `flush`. */
       if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, __HYDRATING__ ? [value, element, node, adopting] : [value, element, node]);
       /** Adopting, it is told so (the hydrate entry only): a form control's value the user typed must stand. */

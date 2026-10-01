@@ -20,7 +20,8 @@ for (const key of ['window', 'document', 'Node', 'HTMLElement', 'Element', 'Docu
 const { renderInto } = await load('renderer');
 const { spread } = await load('renderer/spread');
 const { serializeTemplate } = await import('@verajs/ssr');
-const raw = (strings, ...values) => ({ _$litType$: 1, strings, values });
+/** A hand-built template: its strings own `raw`, as a tagged literal's do, or it is data shaped like a template. */
+const raw = (strings, ...values) => ({ _$litType$: 1, strings: Object.assign(strings, { raw: strings }), values });
 const quietly = (work) => {
   const { warn } = console;
   const said = [];
