@@ -112,28 +112,34 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
  * build-time and runtime, and `tests/jsx-name-mapping.test.mjs` asserts they agree on every key —
  * which is the drift protection a shared module would have bought, without the dependency.
  */
-const NAME_MAP: Record<string, string> = { className: 'class', htmlFor: 'for' };
-const PROPERTIES: Record<string, string> = { value: '.value', checked: '.checked' };
-const DEFAULTS: Record<string, string> = { defaultValue: 'value', defaultChecked: '?checked' };
-/**
- * The props that name a BINDING rather than an attribute — and the reason this table is here and
- * not in the transform's twin.
- *
- * The compiler must NOT rewrite these on a component: `<Card ref={r}>` hands `ref` to `Card`, which
- * decides what it means, exactly as React does. But a tag's component forwards to a real element,
- * so at THIS boundary — and only here — `ref` has a binding to become. Before 2026-09-12 it had
- * none: it fell through to the attribute sink and `<H ref={r}>` wrote the FUNCTION'S SOURCE TEXT
- * into the DOM as `ref="el => (got = el)"`, which under SSR shipped the closure body to the client,
- * while the identical `<h1 ref={r}>` bound correctly.
- */
-const BINDINGS: Record<string, string> = { ref: '&ref' };
 export const BOOLEAN_ATTRIBUTES = new Set([
   'disabled', 'hidden', 'readonly', 'required', 'open', 'selected', 'multiple',
   'autofocus', 'autoplay', 'controls', 'loop', 'muted', 'playsinline', 'inert', 'reversed',
 ]);
+/**
+ * ONE table, with no prototype: React's names (`className`, `htmlFor`), the form controls' properties and defaults,
+ * the booleans (`?disabled`), and `ref` — the prop that names a BINDING rather than an attribute. The compiler must
+ * not rewrite `ref` on a component (`<Card ref={r}>` hands it to `Card`), but a tag's component forwards to a real
+ * element, so at THIS boundary it has a binding to become; before 2026-09-12 it fell through to the attribute sink
+ * and wrote the function's SOURCE TEXT into the DOM.
+ *
+ * No prototype, because four plain object literals answered for `constructor`, `toString` and the rest of
+ * `Object.prototype` — those props were mapped to a function, refused as a name, and silently dropped.
+ */
+const NAMES = {
+  __proto__: null,
+  className: 'class',
+  htmlFor: 'for',
+  value: '.value',
+  checked: '.checked',
+  defaultValue: 'value',
+  defaultChecked: '?checked',
+  ref: '&ref',
+} as unknown as Record<string, string>;
+for (const name of BOOLEAN_ATTRIBUTES) NAMES[name] = `?${name}`;
 
-export const jsxName = (key: string): string =>
-  NAME_MAP[key] ?? PROPERTIES[key] ?? DEFAULTS[key] ?? BINDINGS[key] ?? (BOOLEAN_ATTRIBUTES.has(key) ? `?${key}` : key);
+export const jsxName = (key: string): string => NAMES[key] ?? key;
+
 
 /**
  * Declares a tag name.
@@ -236,8 +242,9 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
           `Write the element directly, with the value sanitized first: ` +
           `html\`<\${Tag} .innerHTML=\${trusted}>\` (see the renderer README's security note).`
       );
-    const mapped: Record<string, unknown> = {};
-    for (const name in props) mapped[jsxName(name)] = props[name];
+    /** No prototype, and `__proto__` is no prop: a bag key by that name would otherwise reach `spread` as one. */
+    const mapped = { __proto__: null } as unknown as Record<string, unknown>;
+    for (const name in props) if (name !== '__proto__') mapped[jsxName(name)] = props[name];
     return html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   self[STATIC] = text;

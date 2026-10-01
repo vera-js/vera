@@ -103,6 +103,32 @@ test('a tag is a JSX component, and maps React names the way the transform does'
   assert.equal(read(container), '<section><h2 class="title">two</h2></section>');
 });
 
+/**
+ * **A prop named like an `Object.prototype` member reaches the element** — `constructor`, `toString` and the rest were
+ * looked up in plain object tables, answered with the prototype's FUNCTION, refused as a name and silently dropped.
+ * And `__proto__` is still no prop: it never reaches `spread`, and no prototype changes.
+ */
+test('props named like Object.prototype members arrive, and __proto__ is still refused', () => {
+  const H = tag`h1`;
+  const container = into();
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const props = { constructor: 'c', toString: 't', valueOf: 'v' };
+    Object.defineProperty(props, '__proto__', { value: { polluted: true }, enumerable: true, configurable: true, writable: true });
+    renderInto(H(props), container);
+  } finally {
+    console.warn = warn;
+  }
+  const h1 = container.querySelector('h1');
+  assert.equal(h1.getAttribute('constructor'), 'c');
+  assert.equal(h1.getAttribute('tostring'), 't');
+  assert.equal(h1.getAttribute('valueof'), 'v');
+  assert.equal(h1.hasAttribute('__proto__'), false, '__proto__ is not written');
+  assert.equal(Object.getPrototypeOf(h1), dom.window.HTMLHeadingElement.prototype, 'and no prototype changed');
+  assert.equal({}.polluted, undefined, 'nor any shared one');
+});
+
 test('a JSX tag with no props renders bare', () => {
   const container = into();
   renderInto(html`<section>${HEADING[1]()}</section>`, container);
