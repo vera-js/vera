@@ -190,7 +190,9 @@ unsanitized. Everything else is checked:
   development. `<b ${name}="x">`, `<p data-${k}="1">`, `<p ${k}-x>`: the parser reads a name before any
   value exists, so no position can hold it. Both throw at the template's first use, and the message shows
   the `@verajs/renderer/spread` rewrite — `${spread({ [`data-${k}`]: '1' })}` — which applies the refusals
-  a runtime name needs.
+  a runtime name needs. The server refuses in production too, so a production server render of such a
+  template throws even though the client's production build would not — render it once in development
+  and it never gets that far.
 
 ## Styles
 
