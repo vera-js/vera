@@ -161,8 +161,14 @@ const UPGRADED = {};
  * the SCAN, so development and production parsed one template differently.
  */
 const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+/** The obsolete elements a parser reads as text whole, which the scanner does not list (production pays nothing for them). */
+const OBSOLETE_RAW = /^(?:xmp|noembed|noframes|plaintext)$/i;
 const tagShape = (strings: TemplateStringsArray, type: number): string[] | undefined => {
   const markup = strings.join('');
+  /** Where each binding sits in `markup`, so a refusal can ask whether one falls inside an element's content. */
+  const holes: number[] = [];
+  for (let i = 0, at = 0; i < strings.length - 1; i++) holes.push((at += strings[i].length));
+  const bound = (from: number, to: number) => holes.some((at) => at >= from && at <= to);
   let foreign = type === 1 ? 0 : 1;
   let found: string[] | undefined;
   SHAPE.lastIndex = 0;
@@ -176,9 +182,27 @@ const tagShape = (strings: TemplateStringsArray, type: number): string[] | undef
       else if (!selfClosed) foreign++;
       continue;
     }
-    if (!closing && RAW_TEXT_TAGS.test(tag)) {
+    if (!closing && (RAW_TEXT_TAGS.test(tag) || OBSOLETE_RAW.test(tag))) {
       const end = markup.toLowerCase().indexOf(`</${tag}`, SHAPE.lastIndex);
-      SHAPE.lastIndex = end === -1 ? markup.length : end;
+      const stop = end === -1 ? markup.length : end;
+      /**
+       * Two shapes that silently lose a binding, refused. Inside `<svg>`/`<math>` a `<title>` or `<style>` is a
+       * foreign element whose content the browser reads as MARKUP, while the renderer reads it as raw text and
+       * rebuilds that text around its bindings — destroying any element inside it. And the obsolete raw-text
+       * elements are text to the parser whole, which the scanner does not know, so a binding there never renders.
+       */
+      if (foreign > 0 && RAW_TEXT_TAGS.test(tag) && bound(SHAPE.lastIndex, stop) && /<[a-zA-Z]/.test(markup.slice(SHAPE.lastIndex, stop)))
+        throw new Error(
+          `renderer: a binding inside <${tag}> in SVG or MathML cannot sit beside an element there — the renderer reads ` +
+            `<${tag}> as text and rebuilds it around its bindings, which destroys the elements in it. Bind text ` +
+            `directly in the <${tag}> (no elements), or move the element out of it.`
+        );
+      if (foreign === 0 && OBSOLETE_RAW.test(tag) && bound(SHAPE.lastIndex, stop))
+        throw new Error(
+          `renderer: a binding inside <${tag}> is never rendered — the parser reads its content as text whole, and ` +
+            `<${tag}> is obsolete. Use <pre> for preformatted text.`
+        );
+      SHAPE.lastIndex = stop;
     }
     if (foreign > 0) continue;
     if (selfClosed && !VOID_TAGS.test(tag))
