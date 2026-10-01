@@ -817,8 +817,9 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
           part._value = committed;
         }
       } else {
-        part = markered((node as Text).parentNode!, node as Text);
-        (node as Text).parentNode!.insertBefore(node as Text, part._end);
+        const parent = parentOf(node as Text);
+        part = markered(parent, node as Text);
+        parent.insertBefore(node as Text, part._end);
         part._mode = TEXT;
         part._text = node as Text;
         part._value = committed;
@@ -1097,6 +1098,24 @@ export interface KeyedResult extends TemplateResult {
  * markers, and hydration compares them only when the template itself writes content inside the tag). Slots (piece 8)
  * inherit both.
  */
+/**
+ * **Light-DOM slots' one seam.** `@verajs/renderer/slots` marks every node it takes into a host's LIGHT list with
+ * `$light` — the host's light parent, which places each node in its slot and keeps light-tree order. A part whose
+ * boundary carries it is light: its structural writes (insert, remove, move, park) go through that parent instead of
+ * the DOM, because its nodes sit in different slots and its markers rest in the host's holding fragment. Read only
+ * while slots is wired (`slotsWired`), so an app without it pays one boolean per structural write.
+ */
+type LightParent = Node & { $range(start: Node, end: Node | null): Node[] };
+type Lit = Node & { $light?: LightParent };
+let slotsWired = false;
+/** The parent a node's structural writes go to: its light parent while slots holds it, else its DOM parent. */
+const parentOf = (node: Node): Node => (slotsWired && (node as Lit).$light) || node.parentNode!;
+/**
+ * The nodes strictly between `start` and `end` in the order the renderer wrote them — the light list's order for a
+ * light part, the DOM's otherwise. Only read on the light path; the DOM path keeps its streaming loops.
+ */
+const isLight = (parent: Node): parent is LightParent => (parent as Partial<LightParent>).$range !== undefined;
+
 class ChildPart {
   _start: Comment | null;
   _end: Node | null;
@@ -1124,8 +1143,9 @@ class ChildPart {
 
   _insert(node: Node) {
     const placed = __DEV__ ? landing(node) : undefined;
-    (this._owner ?? this._start!.parentNode!).insertBefore(node, this._end);
-    if (__DEV__) checkForeign(this._owner ?? this._start!.parentNode!, placed!);
+    const parent = this._owner ?? parentOf(this._start!);
+    parent.insertBefore(node, this._end);
+    if (__DEV__) checkForeign(parent, placed!);
   }
 
   /**
@@ -1156,7 +1176,12 @@ class ChildPart {
     const end = this._end;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
     if (owner !== null) owner.textContent = '';
-    else if (start.previousSibling === null && end!.nextSibling === null) {
+    else if (slotsWired && (start as Lit).$light !== undefined) {
+      /** A light part: its nodes sit in different slots, so they are removed through the light parent, in its order. */
+      const parent = (start as Lit).$light!;
+      const nodes = parent.$range(start, end);
+      for (let i = 0; i < nodes.length; i++) parent.removeChild(nodes[i]);
+    } else if (start.previousSibling === null && end!.nextSibling === null) {
       const parent = start.parentNode!;
       parent.textContent = '';
       parent.appendChild(start);
@@ -1229,7 +1254,15 @@ class ChildPart {
           const current = this._instance!;
           const root = current._root;
           /** A fragment root takes its nodes back; an element root IS the range. */
-          if (root.nodeType === 11) {
+          if (slotsWired && this._start !== null && (this._start as Lit).$light !== undefined) {
+            /** A light part's nodes leave its light parent first, then return to the fragment that parks them. */
+            const parent = (this._start as Lit).$light!;
+            const nodes = root.nodeType === 11 ? parent.$range(this._start, this._end) : [root];
+            for (let i = 0; i < nodes.length; i++) {
+              parent.removeChild(nodes[i]);
+              if (root.nodeType === 11) root.appendChild(nodes[i]);
+            }
+          } else if (root.nodeType === 11) {
             let node = this._owner !== null ? this._owner.firstChild : this._start!.nextSibling;
             while (node !== this._end) {
               const next = node!.nextSibling;
@@ -1247,7 +1280,7 @@ class ChildPart {
       if (this._mode !== EMPTY) this._clear();
       if (instance === undefined) {
         let template = getTemplate(result);
-        if (template._x) template = resolved(template, this._owner ?? this._start!.parentNode!);
+        if (template._x) template = resolved(template, this._owner ?? parentOf(this._start!));
         instance = instantiate(template, result, passDoc);
         this._insert(instance._root);
       } else {
@@ -1336,10 +1369,11 @@ class ChildPart {
       return item;
     }
     const element = item._root as Element;
-    const part = markered(element.parentNode!, element);
+    const parent = parentOf(element);
+    const part = markered(parent, element);
     /** The row's shape changed: the instance is gone for good, so what it holds is told. */
     if (notifyOnRemoval) teardown(item);
-    element.remove();
+    parent.removeChild(element);
     part.$k = item.$k;
     part._set(value);
     return part;
@@ -1351,9 +1385,15 @@ class ChildPart {
   }
 
   /** Moves an item before `ref`. */
-  $m(item: Item, ref: Node | null, parent: Node = this._owner ?? this._start!.parentNode!) {
+  $m(item: Item, ref: Node | null, parent: Node = this._owner ?? parentOf(this._start!)) {
     if (!(item instanceof ChildPart)) {
       parent.insertBefore(item._root, ref);
+      return;
+    }
+    if (slotsWired && isLight(parent)) {
+      /** A light item moves through its light parent, boundary to boundary, in light order. */
+      const nodes = [item._start!, ...parent.$range(item._start!, item._end), item._end!];
+      for (let i = 0; i < nodes.length; i++) parent.insertBefore(nodes[i], ref);
       return;
     }
     let node: Node | null = item._start!;
@@ -1368,6 +1408,7 @@ class ChildPart {
   /** Removes an item. */
   $d(item: Item) {
     if (notifyOnRemoval) detachItem(item);
+    if (slotsWired && this._owner === null && (this._start as Lit).$light !== undefined) return lightRemove(item);
     this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
@@ -1394,7 +1435,7 @@ class ChildPart {
       }
       return;
     }
-    const parent = this._owner ?? this._start!.parentNode!;
+    const parent = this._owner ?? parentOf(this._start!);
     const end = this._end;
     if (strategy !== undefined) {
       this._items = strategy(this, values, items, parent, end);
@@ -1406,8 +1447,12 @@ class ChildPart {
     for (let i = items.length; i < count; i++) items.push(this.$c(values[i], parent, end));
     if (count < items.length) {
       if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
-      for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
-      SCRATCH.textContent = '';
+      if (slotsWired && this._owner === null && (this._start as Lit).$light !== undefined)
+        for (let i = count; i < items.length; i++) lightRemove(items[i]);
+      else {
+        for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
+        SCRATCH.textContent = '';
+      }
       items.length = count;
     }
   }
@@ -1572,6 +1617,15 @@ const markered = (parent: Node, ref: Node | null) => {
   return part;
 };
 
+/** Removes a light list item through its light parent — boundary to boundary for a part, its root for an instance. */
+const lightRemove = (item: Item) => {
+  if (item instanceof ChildPart) {
+    const parent = (item._start as Lit).$light!;
+    const nodes = [item._start!, ...parent.$range(item._start!, item._end), item._end!];
+    for (let i = 0; i < nodes.length; i++) parent.removeChild(nodes[i]);
+  } else parentOf(item._root).removeChild(item._root);
+};
+
 /**
  * Commits `value` into `part` as a render of `root`: the root and its document are set and restored (a render
  * can run inside another's commit), and the work this pass queued is flushed however it ends — before the
@@ -1678,5 +1732,15 @@ export const renderer = {
   connect: (given: { get(name: never): unknown }) => {
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
+    /**
+     * Light-DOM slots, wired in either order: slots sets `$s` and calls `$light`; the renderer hands it the root range of
+     * a container (`$r`, the output/light line) — off-chain, sigiled, like `$t`.
+     */
+    const shared = given as unknown as { $s?: boolean; $light?: () => void; $r?: (container: Node) => ChildPart | undefined };
+    shared.$light = () => {
+      slotsWired = true;
+    };
+    shared.$r = (container) => rootParts.get(container);
+    if (shared.$s) slotsWired = true;
   },
 };
