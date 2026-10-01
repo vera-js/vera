@@ -363,17 +363,15 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 
 ## Source of truth rules
 
-- **TypeScript is the source.** `packages/*/src` is `.ts` and stays `.ts`. **`packages/ssr` is the
-  one exemption** (agreed 2026-08-24): it publishes its `src` directly, with no build and no `dist`,
-  so `.ts` there would either need the build step the package deliberately does not have or ship
-  `.ts` to consumers. It is still type-checked — `checkJs` plus JSDoc types and explicit casts, in
-  `npm run gate` alongside every other package — so the intent of the rule is met without the
-  toolchain. Nothing else gets this exemption.
-  **It does emit `.d.ts` now** (`packages/ssr/types/`, gitignored, generated from that same JSDoc).
-  Without them a TypeScript consumer got `TS7016` and was told to write their own
-  `declare module` — npm+TypeScript and SSR are both first-class modes and their intersection did
-  not work. This does not weaken the exemption: nothing is transpiled, `src` is still what ships,
-  and the declarations cannot drift from the JSDoc they are generated from.
+- **TypeScript is the source — every package, with no exemption.** `packages/*/src` is `.ts` and stays `.ts`,
+  under the shared strict config. `packages/ssr` is Node-only, so `tsc` compiles it **file by file** to `dist/` (no
+  rollup, no minification, never through `defaultRollupConfig`), with its own config overriding the base in two places
+  that matter: **define-semantics class fields** (`useDefineForClassFields: true` — the DOM shim ran as native JS, and
+  a type-only field is `declare x: T`, which emits nothing) and inline-source maps (only `dist` ships).
+  It was a JSDoc-typed JavaScript package until 2026-10-01 — an exemption an earlier session recorded here, not one
+  Brian made — and that exemption's lenient checking (`noImplicitAny: false`) let a stale caller of a changed function
+  through as a security bug (`e1af0c7`). The conversion was proven runtime-identical by hashing the comment-stripped,
+  minified output of every file against the JavaScript it replaced.
 - **A component never exists as both `.ts` and `.js`.** Twins drift silently in both directions. When
   a richer `.js` version exists it is **ported forward into `.ts`** — never the reverse.
   (`goodbye-component.js` was 220 lines against a 43-line `.ts` stub; assuming the `.ts` was newer
@@ -426,7 +424,7 @@ became primary. Read-only, never cloned into this tree, never pushed to again.
 
 ```
 packages/          published framework modules; each independent
-  ssr/             Node-only, plain ESM, NOT run through defaultRollupConfig
+  ssr/             Node-only; TypeScript compiled per file by tsc, NOT run through defaultRollupConfig
 examples/          hand-run playgrounds, one per consumption mode
 tests/             self-running; never requires a human to look at a page
 bench/             performance harness; `--compare` gives before/after numbers

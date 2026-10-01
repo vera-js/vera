@@ -14,11 +14,11 @@
   "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "type": "module",
-  "main": "./src/vera/index.js",
+  "main": "./dist/vera/index.js",
   "exports": {
     ".": {
-      "types": "./types/index.d.ts",
-      "default": "./src/vera/index.js"
+      "types": "./dist/vera/index.d.ts",
+      "default": "./dist/vera/index.js"
     }
   },
   "peerDependencies": {
@@ -26,8 +26,8 @@
     "@verajs/styles": "^0.1.2"
   },
   "files": [
-    "src",
-    "types"
+    "dist",
+    "!dist/vera/types.js"
   ],
   "keywords": [
     "ssr",
@@ -40,7 +40,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "types": "./types/index.d.ts",
+  "types": "./dist/vera/index.d.ts",
   "scripts": {
     "build": "wireit"
   },
@@ -50,16 +50,15 @@
         "../core:build",
         "../styles:build"
       ],
-      "command": "npx tsc -p tsconfig.json --noEmit false --declaration --emitDeclarationOnly --rootDir src/vera --outDir types",
+      "command": "npx tsc -p tsconfig.json",
       "clean": "if-file-deleted",
       "files": [
-        "src/**/*.js",
+        "src/**/*.ts",
         "tsconfig.json",
-        "../../tsconfig.json",
         "../tsconfig/base.json"
       ],
       "output": [
-        "types/**/*.d.ts"
+        "dist/**"
       ]
     }
   }

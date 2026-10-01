@@ -14,7 +14,7 @@
  *
  * ## Why this exists as a standing test rather than a probe
  *
- * `packages/ssr/src/vera/nodes.js` was modified 29 times during the 2026-08-26 audit, more than any
+ * `packages/ssr/src/vera/nodes.ts` was modified 29 times during the 2026-08-26 audit, more than any
  * other file in the repository. Each change was verified on its own; nothing checked what they did
  * together. A matrix is the cheap way to keep asking.
  *

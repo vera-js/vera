@@ -1,3 +1,5 @@
+import type { SsrRegistry } from './types.js';
+
 /**
  * The custom-element registry: the definitions this process has seen.
  *
@@ -6,4 +8,4 @@
  * something to render or something to leave alone.
  */
 
-export const registry = new Map();
+export const registry: SsrRegistry = new Map();

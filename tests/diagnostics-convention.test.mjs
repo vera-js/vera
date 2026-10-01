@@ -57,7 +57,7 @@ const ANY_CONSOLE_CALL = /console\.(warn|error)\(/g;
  */
 const NOT_A_LITERAL = new Map([
   ['autoloader/src/autoloader.ts', [1, "forwards a caught error's own message"]],
-  ['ssr/src/vera/shim.js', [1, 'forwards a caught error object']],
+  ['ssr/src/vera/shim.ts', [1, 'forwards a caught error object']],
   ['router/src/services.ts', [1, 'a ternary between two messages — both branches are checked below']],
 ]);
 

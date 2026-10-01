@@ -1,12 +1,33 @@
 {
   "extends": "@verajs/tsconfig/base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "allowJs": true,
-    "checkJs": true,
-    "noImplicitAny": false,
-    "types": ["node"],
-    "lib": ["ES2022", "DOM"]
+    "rootDir": "src",
+    "outDir": "dist",
+    /**
+     * ES2022 is the floor `engines` allows (Node 20 runs all of it), so tsc transforms no syntax and injects no helper:
+     * what it emits is the source with its types removed — `minify` of it hashes identical to the JavaScript this
+     * package shipped before it was TypeScript.
+     */
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    /**
+     * The base sets `false` for the bundled packages; this one ran as native JavaScript, whose class fields are DEFINED
+     * — and the DOM shim's classes depend on it (a field must not become a constructor assignment, or a base-class
+     * accessor is called where a property used to be defined). Type-only fields are `declare`, which emits nothing.
+     */
+    "useDefineForClassFields": true,
+    "declaration": true,
+    /**
+     * No source maps, unlike the bundled packages: the emitted JavaScript keeps every comment and the source's structure,
+     * so a stack trace into `dist` lands on readable, documented code — and maps carrying their sources (the only kind
+     * that works when just `dist` ships) more than doubled the published package, 457 KB to 1.09 MB unpacked.
+     */
+    "sourceMap": false,
+    /** The source's doc comments are this package's documentation, for whoever reads `dist`. */
+    "removeComments": false,
+    "types": ["node"]
   },
-  "include": ["src/**/*.js"]
+  "include": ["src/**/*.ts"]
 }

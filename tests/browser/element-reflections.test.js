@@ -1,7 +1,7 @@
 /**
  * The element-specific reflection table, checked against the engine running it.
  *
- * `packages/ssr/src/vera/reflections.js` says which properties each tag has, which attribute each
+ * `packages/ssr/src/vera/reflections.ts` says which properties each tag has, which attribute each
  * one reflects, and what it answers when that attribute is absent. It was measured from Chromium,
  * Firefox and WebKit rather than written from memory — this suite is what keeps that true as the
  * engines change, in the same way `dom-surface.test.js` keeps the generic surface honest.
@@ -16,7 +16,7 @@
  * listed at the bottom of `reflections.js` with the measurement that produced each one.
  */
 import { expect } from '@esm-bundle/chai';
-import { ELEMENT_REFLECTIONS } from '../../packages/ssr/src/vera/reflections.js';
+import { ELEMENT_REFLECTIONS } from '../../packages/ssr/dist/vera/reflections.js';
 
 /** Named in `reflections.js` as measured-and-excluded, each with the reason it cannot be answered
  * on a server: resolved against a document URL, read back from layout, clamped, or present in one

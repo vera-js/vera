@@ -37,6 +37,33 @@
  * and the browser have drifted apart.
  */
 
+import type { ElementShim } from './nodes.js';
+
+/** `presence`: the attribute's presence is the value; the third cell answers for absent when that is not `false`. */
+type PresenceReflection = readonly [kind: 'presence', attribute: string, absent?: boolean];
+/** `string`: the attribute's text, or `''` when it is absent. */
+type StringReflection = readonly [kind: 'string', attribute: string];
+/** `number`: the attribute parsed as an integer, or the third cell when absent or unparseable. */
+type NumberReflection = readonly [kind: 'number', attribute: string, absent: number];
+/** `enum`: a limited set of states, answered canonically, with its own answer for absent and for invalid. */
+type EnumReflection = readonly [
+  kind: 'enum',
+  attribute: string,
+  missing: string,
+  invalid: string,
+  states: readonly string[],
+];
+/** One row of the table: how a property answers from, and writes to, its content attribute. */
+type Reflection = PresenceReflection | StringReflection | NumberReflection | EnumReflection;
+/** Per tag, per property. */
+type ReflectionTable = Readonly<Record<string, Readonly<Record<string, Reflection>>>>;
+
+/** The accessor pair a property is defined with; `this` is the element it is read or written on. */
+type Accessors = {
+  get(this: ElementShim): unknown;
+  set(this: ElementShim, value: unknown): void;
+};
+
 /**
  * `[kind, attribute, ...]`, where kind is one of:
  *
@@ -523,7 +550,7 @@ export const ELEMENT_REFLECTIONS = {
     width: ["number","width",0],
   },
 
-};
+} satisfies ReflectionTable;
 
 /**
  * The four properties a browser deliberately does **not** reflect, and which this DOM does anyway.
@@ -560,9 +587,9 @@ export const ELEMENT_REFLECTIONS = {
  * `undefined` is **not** included: the platform stringifies it to `"undefined"`, and only `null` is
  * special-cased by the extended attribute.
  */
-const legacyNullToEmptyString = (value) => (value === null ? '' : `${value}`);
+const legacyNullToEmptyString = (value: unknown): string => (value === null ? '' : `${value}`);
 
-const FORM_STATE = {
+const FORM_STATE: Readonly<Record<string, Readonly<Record<string, Accessors>>>> = {
   input: {
     value: {
       get() {
@@ -613,7 +640,7 @@ const FORM_STATE = {
     value: {
       get() {
         const options = this.querySelectorAll('option');
-        const chosen = options.find((option) => option.hasAttribute('selected')) ?? options[0];
+        const chosen = options.find((option: ElementShim) => option.hasAttribute('selected')) ?? options[0];
         return chosen === undefined ? '' : (chosen.getAttribute('value') ?? chosen.textContent);
       },
       set(value) {
@@ -629,9 +656,9 @@ const FORM_STATE = {
 };
 
 /** Per-tag constructors, built once and shared by every element of that tag. */
-const constructors = new Map();
+const constructors = new Map<string, typeof ElementShim>();
 
-const define = (proto, property, accessors) =>
+const define = (proto: ElementShim, property: string, accessors: Accessors): ElementShim =>
   Object.defineProperty(proto, property, { ...accessors, configurable: true });
 
 /**
@@ -649,8 +676,8 @@ const define = (proto, property, accessors) =>
  * worth recording — the penalty was local to the element whose prototype was mutated, not spread
  * across the shared path, so the first draft of this comment blamed a deopt it had not measured.
  */
-export const interfaceFor = (tag, Base) => {
-  const table = ELEMENT_REFLECTIONS[tag];
+export const interfaceFor = (tag: string, Base: typeof ElementShim): typeof ElementShim => {
+  const table = (ELEMENT_REFLECTIONS as ReflectionTable)[tag];
   const state = FORM_STATE[tag];
   if (table === undefined && state === undefined) return Base;
   const cached = constructors.get(tag);
@@ -661,7 +688,7 @@ export const interfaceFor = (tag, Base) => {
   for (const [property, entry] of Object.entries(table ?? {})) {
     const [kind, attribute] = entry;
     if (kind === 'presence') {
-      const absent = entry[2] ?? false;
+      const absent = (entry as PresenceReflection)[2] ?? false;
       define(proto, property, {
         get() {
           return this.hasAttribute(attribute) ? true : absent;
@@ -704,7 +731,7 @@ const ASCII_SPACE = ' \t\n\f\r';
 const LONG_MIN = -2147483648;
 const LONG_MAX = 2147483647;
 
-const parseReflectedInteger = (raw) => {
+const parseReflectedInteger = (raw: string): number | null => {
   let i = 0;
   while (i < raw.length && ASCII_SPACE.includes(raw[i])) i++;
   let sign = 1;
@@ -719,7 +746,7 @@ const parseReflectedInteger = (raw) => {
   return value < LONG_MIN || value > LONG_MAX ? null : value;
 };
 
-const absent = entry[2];
+const absent = (entry as NumberReflection)[2];
       define(proto, property, {
         get() {
           const raw = this.getAttribute(attribute);
@@ -763,7 +790,7 @@ const absent = entry[2];
         },
       });
     } else {
-      const [, , missing, invalid, states] = entry;
+      const [, , missing, invalid, states] = entry as EnumReflection;
       define(proto, property, {
         get() {
           const raw = this.getAttribute(attribute);

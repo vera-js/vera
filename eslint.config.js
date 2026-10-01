@@ -16,8 +16,8 @@ export default [
   {
     ignores: [
       '**/dist/**',
-      // Generated from @verajs/ssr's JSDoc at build time — output, like dist, not source.
-      'packages/ssr/types/**',
+      // Built from @verajs/ssr's TypeScript — output, not source.
+      'packages/ssr/dist/**',
       // wireit's build cache holds copies of every output; `**/dist/**` never covered them.
       '**/.wireit/**',
       // A separate repo (vera-js/internal), gitignored here. Not ours to lint.
@@ -153,7 +153,7 @@ export default [
       'bench/**/*.{js,mjs}',
       'tests/**/*.{js,mjs}',
       'packages/*/rollup.config.js',
-      'packages/ssr/**/*.{js,mjs}',
+      'packages/ssr/**/*.{js,mjs,ts}',
       'examples/**/serve.js',
       'examples/**/server*.{js,mjs}',
     ],

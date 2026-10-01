@@ -32,7 +32,7 @@ import test from 'node:test';
  * early on its own `__veraSsrShimmed` guard, so the globals under test are the ones the entry above
  * installed.
  */
-import { LOCATION_PARTS } from '../packages/ssr/src/vera/shim.js';
+import { LOCATION_PARTS } from '../packages/ssr/dist/vera/shim.js';
 
 test('location is an own, writable property the render can mutate in place', () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'location');

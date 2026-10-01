@@ -43,9 +43,9 @@ const ESCAPE = /[&<>"'\r]/g;
  *
  * Precomputed, because building `'&#' + c.charCodeAt(0) + ';'` per character is the slow half.
  */
-const ESCAPED = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;', '\r': '&#13;' };
+const ESCAPED: Readonly<Record<string, string>> = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;', '\r': '&#13;' };
 
-export const escapeHtml = (value) => {
+export const escapeHtml = (value: unknown): string => {
   /**
    * `` `${value}` `` rather than `String(value)`: identical for everything except a **symbol**,
    * which `String` special-cases into its description while every DOM conversion on the client
@@ -79,7 +79,7 @@ export const escapeHtml = (value) => {
  * security rule is a real risk, so `tests/ssr-escaping.test.mjs` asserts the two agree on the
  * payloads that matter rather than trusting they will be edited together.
  */
-export const escapeStyleText = (value) => `${value}`.replace(/<\/(style)/gi, '<\\/$1');
+export const escapeStyleText = (value: unknown): string => `${value}`.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
  * The same neutralization, for whichever RAWTEXT element the value landed in.
@@ -98,9 +98,9 @@ export const escapeStyleText = (value) => `${value}`.replace(/<\/(style)/gi, '<\
  * `<title>` and `<textarea>` are **RCDATA** — references *are* decoded there — so they keep ordinary
  * escaping, which is also what the client produces for them.
  */
-const RAW_TEXT_CLOSERS = { style: /<\/(style)/gi, script: /<\/(script)/gi };
+const RAW_TEXT_CLOSERS: Partial<Record<string, RegExp>> = { style: /<\/(style)/gi, script: /<\/(script)/gi };
 
-export const escapeRawText = (value, tag) => {
+export const escapeRawText = (value: unknown, tag: string): string => {
   const closer = RAW_TEXT_CLOSERS[tag];
   return closer ? `${value}`.replace(closer, '<\\/$1') : escapeHtml(value);
 };
@@ -167,13 +167,14 @@ export const INLINE_HANDLER = /^on./i;
  * `javascript:`, so leaving it encoded gives the same verdict.
  */
 /** A numeric reference's character, as a parser decodes it: NUL, a surrogate or an out-of-range value is U+FFFD. */
-const decodeCodePoint = (code) =>
+const decodeCodePoint = (code: number): string =>
   code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || Number.isNaN(code) ? '\ufffd' : String.fromCodePoint(code);
 
-export const decodeSchemeReferences = (text) =>
-  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(colon|Tab|NewLine));?/g, (whole, decimal, hex, name) =>
+export const decodeSchemeReferences = (text: string): string =>
+  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(colon|Tab|NewLine));?/g, (whole: string, decimal?: string, hex?: string, name?: string) =>
     decimal !== undefined || hex !== undefined
-      ? decodeCodePoint(parseInt(decimal ?? hex, decimal !== undefined ? 10 : 16))
+      ? /** One of the two matched, so `decimal ?? hex` is a string: the `!` restates what the test proved. */
+        decodeCodePoint(parseInt((decimal ?? hex)!, decimal !== undefined ? 10 : 16))
       : name === 'colon' ? ':' : name === 'Tab' ? '\t' : name === 'NewLine' ? '\n' : whole
   );
 
@@ -185,12 +186,12 @@ export const decodeSchemeReferences = (text) =>
  * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. Every
  * scanner here that meets a comment asks this one rule, and the client's scanner holds its twin.
  *
- * @param {string} markup
- * @param {number} open
- * @returns {number} The index past the comment, or `-1`. (JSDoc in this package does not catch a caller reading the
- *   old `[dataEnd, end]` shape — `server-content.test.mjs` pins every comment shape before a script instead.)
+ * @param markup
+ * @param open
+ * @returns The index past the comment, or `-1`. The declared `number` is what makes a caller still reading the old
+ *   `[dataEnd, end]` shape a compile error; `server-content.test.mjs` also pins every comment shape before a script.
  */
-export const commentEnd = (markup, open) => {
+export const commentEnd = (markup: string, open: number): number => {
   const start = open + 4;
   if (markup[start] === '>') return start + 1;
   if (markup[start] === '-' && markup[start + 1] === '>') return start + 2;
@@ -204,9 +205,8 @@ export const commentEnd = (markup, open) => {
 /**
  * Where a comment's TEXT stops, given the end `commentEnd` answered: before `-->`/`--!>`, or at once when abrupt.
  *
- * @param {string} markup
- * @param {number} open
- * @param {number} end
- * @returns {number}
+ * @param markup
+ * @param open
+ * @param end
  */
-export const commentDataEnd = (markup, open, end) => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);
+export const commentDataEnd = (markup: string, open: number, end: number): number => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);

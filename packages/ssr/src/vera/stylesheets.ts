@@ -10,11 +10,11 @@
  * render returns only the CSS of the page it built — a flat list returned every style the process had
  * ever hoisted, request one's CSS in request two's response.
  */
-export const hoistedStyles = new Map();
+export const hoistedStyles = new Map<string, string[]>();
 
 /** The component rendering right now, so a hoist can be attributed to it (renders take turns). */
 let renderingTag = '';
-export const setRenderingTag = (tag) => {
+export const setRenderingTag = (tag: string): string => {
   const previous = renderingTag;
   renderingTag = tag;
   return previous;
@@ -26,10 +26,11 @@ export const setRenderingTag = (tag) => {
  * `<style>` every render has no such guard, and without a per-render rule its sheets accumulated per
  * PROCESS, request thirty shipping twenty-nine requests of other people's CSS.
  */
-const hoistedThisRender = new Set();
-export const beginHoisting = () => hoistedThisRender.clear();
+const hoistedThisRender = new Set<string>();
+export const beginHoisting = (): void => hoistedThisRender.clear();
 
 export class StyleSheetShim {
+  declare cssText: string;
   constructor() {
     this.cssText = '';
   }
@@ -41,15 +42,15 @@ export class StyleSheetShim {
    * refuses a symbol with a `TypeError`, which is what every engine does
    * (`tests/browser/dom-string-coercion.test.js`).
    */
-  replaceSync(cssText) {
+  replaceSync(cssText: unknown): void {
     this.cssText = `${cssText}`;
   }
   /** The async spelling of the same thing; `adoptStyles` uses `replaceSync`, a component may not. */
-  async replace(cssText) {
+  async replace(cssText: unknown): Promise<this> {
     this.replaceSync(cssText);
     return this;
   }
-  insertRule(rule) {
+  insertRule(rule: string): number {
     this.cssText += rule;
     return 0;
   }
@@ -57,49 +58,49 @@ export class StyleSheetShim {
    * There is no rule *list* — this holds the stylesheet as text, which is all the markup needs —
    * so a rule cannot be addressed by index. Deleting one is refused rather than silently ignored.
    */
-  deleteRule() {
+  deleteRule(): never {
     throw new Error('ssr: CSSStyleSheet.deleteRule needs a parsed rule list; this sheet is text');
   }
   /** The pre-standard spellings, which are still what some libraries reach for. */
-  addRule(selector, style) {
+  addRule(selector: string, style?: string): number {
     this.insertRule(`${selector} { ${style ?? ''} }`);
     return -1;
   }
-  removeRule() {
+  removeRule(): void {
     this.deleteRule();
   }
-  get cssRules() {
+  get cssRules(): never[] {
     return [];
   }
-  get rules() {
+  get rules(): never[] {
     return this.cssRules;
   }
-  get ownerRule() {
+  get ownerRule(): null {
     return null;
   }
-  get ownerNode() {
+  get ownerNode(): null {
     return null;
   }
-  get parentStyleSheet() {
+  get parentStyleSheet(): null {
     return null;
   }
-  get href() {
+  get href(): null {
     return null;
   }
-  get title() {
+  get title(): null {
     return null;
   }
-  get media() {
+  get media(): never[] {
     return [];
   }
-  get type() {
+  get type(): string {
     return 'text/css';
   }
   disabled = false;
 }
 
 /** Warned once per tag. */
-const warnedAboutDrift = new Set();
+const warnedAboutDrift = new Set<string>();
 
 /**
  * Records a hoisted sheet against the component mid-render. A tag already established by an earlier
@@ -107,7 +108,7 @@ const warnedAboutDrift = new Set();
  * (a theme, a prop) cannot be hoisted per class, and dropping the variation silently served every later
  * request the first request's styles.
  */
-export const hoist = (cssText) => {
+export const hoist = (cssText: string): void => {
   const sheets = hoistedStyles.get(renderingTag);
   if (sheets && !hoistedThisRender.has(renderingTag)) {
     if (!sheets.includes(cssText) && !warnedAboutDrift.has(renderingTag)) {

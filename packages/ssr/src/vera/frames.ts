@@ -6,8 +6,17 @@
  * another frame.
  */
 
+/**
+ * One queued callback: handed the frame's timestamp, and allowed to return a promise — the asynchronous
+ * drain awaits it. `null` is a slot `cancelAnimationFrame` emptied, kept so every later id still indexes.
+ */
+type Frame = ((time: number) => unknown) | null;
+
+/** Where a frame callback's throw is reported, so the render can fail naming the component. */
+type FrameReport = (error: unknown) => void;
+
 /** Callbacks awaiting a frame that will not arrive on its own. */
-export const frames = [];
+export const frames: Frame[] = [];
 
 /**
  * How many rounds one render drains. The bound is for a component that schedules a frame from inside a
@@ -21,7 +30,7 @@ const FRAME_ROUNDS = 20;
  * abandoning the frame, and here the throw is REPORTED (`report`) so the render fails naming the
  * component, the way a hook error does.
  */
-const run = (frame, report) => {
+const run = (frame: Frame, report?: FrameReport): unknown => {
   try {
     return frame?.(performance.now());
   } catch (error) {
@@ -30,7 +39,7 @@ const run = (frame, report) => {
 };
 
 /** Runs everything waiting on a frame, and everything those schedule, up to the bound. */
-export const flushFrames = (report) => {
+export const flushFrames = (report?: FrameReport): void => {
   for (let round = 0; round < FRAME_ROUNDS && frames.length; round++)
     for (const frame of frames.splice(0)) run(frame, report);
   /** A loop that never settles leaves work queued; it must not reach the next component. */
@@ -44,7 +53,7 @@ export const flushFrames = (report) => {
  * so no unrelated request interleaves). **An empty queue is not the end** while such work is in flight:
  * it takes three consecutive empty turns to conclude that nothing more is coming.
  */
-export const flushFramesAsync = async (report) => {
+export const flushFramesAsync = async (report?: FrameReport): Promise<void> => {
   for (let round = 0, idle = 0; round < FRAME_ROUNDS && idle < 3; round++) {
     await null;
     if (!frames.length) {

@@ -12,18 +12,38 @@
  * return value reflecting `preventDefault` — is reproduced here and covered by the same tests.
  */
 
-/** @param {any} options */
-const capturing = (options) => (typeof options === 'boolean' ? options : Boolean(options?.capture));
+/** A listener as the platform takes one: a function, or an object whose `handleEvent` is called. */
+type ListenerCallback = ((this: unknown, event: Event) => unknown) | { handleEvent?(event: Event): unknown };
+
+/** The options bag's members this registry honors. */
+type ListenerOptionsBag = { capture?: boolean; once?: boolean; signal?: AbortSignal | null };
+
+/** The third argument as the platform takes it: a bare `capture` flag, or the bag. */
+type ListenerOptions = boolean | ListenerOptionsBag | null | undefined;
+
+/** One registration: the callback, the phase it listens in, and whether it removes itself after one call. */
+type Listener = { callback: ListenerCallback; capture: boolean; once: boolean };
+
+/**
+ * A node as dispatch walks it — any of the shim's nodes, described by what this file touches: the
+ * listeners it keeps here, its parent, and on a shadow root the host it is attached to.
+ */
+type EventNode = {
+  _listeners?: Map<string, Listener[]>;
+  readonly _parent?: EventNode | null;
+  readonly _host?: EventNode | null;
+};
+
+const capturing = (options: ListenerOptions): boolean =>
+  typeof options === 'boolean' ? options : Boolean(options?.capture);
 
 /**
  * The path from a node out to its furthest ancestor, crossing a shadow boundary only for an event
  * declared `composed` — which is the rule that keeps a component's internals private.
- *
- * @param {any} node @param {boolean} composed
  */
-export const pathFrom = (node, composed) => {
-  const path = [];
-  for (let current = node; current; ) {
+export const pathFrom = (node: EventNode, composed: boolean): EventNode[] => {
+  const path: EventNode[] = [];
+  for (let current: EventNode | null | undefined = node; current; ) {
     path.push(current);
     if (current._parent) {
       current = current._parent;
@@ -34,22 +54,32 @@ export const pathFrom = (node, composed) => {
   return path;
 };
 
-/** @param {any} node */
-export const addListener = (node, type, callback, options) => {
+export const addListener = (
+  node: EventNode,
+  type: string,
+  callback: ListenerCallback | null | undefined,
+  options?: ListenerOptions
+): void => {
   if (!callback) return;
-  const listeners = (node._listeners ??= new Map());
+  const listeners = (node._listeners ??= new Map<string, Listener[]>());
   const key = `${type}`;
   const entries = listeners.get(key) ?? [];
   const capture = capturing(options);
   /** The platform ignores a duplicate registration of the same callback in the same phase. */
   if (entries.some((entry) => entry.callback === callback && entry.capture === capture)) return;
-  entries.push({ callback, capture, once: Boolean(options?.once) });
+  entries.push({ callback, capture, once: Boolean((options as ListenerOptionsBag | null | undefined)?.once) });
   listeners.set(key, entries);
-  options?.signal?.addEventListener?.('abort', () => removeListener(node, type, callback, options));
+  (options as ListenerOptionsBag | null | undefined)?.signal?.addEventListener?.('abort', () =>
+    removeListener(node, type, callback, options)
+  );
 };
 
-/** @param {any} node */
-export const removeListener = (node, type, callback, options) => {
+export const removeListener = (
+  node: EventNode,
+  type: string,
+  callback: ListenerCallback | null | undefined,
+  options?: ListenerOptions
+): void => {
   const entries = node._listeners?.get(`${type}`);
   if (!entries) return;
   const capture = capturing(options);
@@ -65,11 +95,13 @@ const PHASES = { capture: 1, target: 2, bubble: 3 };
 
 /**
  * Run the listeners registered on one node for one phase.
- *
- * @param {any} node @param {any} event @param {'capture' | 'target' | 'bubble'} phase
- * @param {() => boolean} immediatelyStopped
  */
-const runListeners = (node, event, phase, immediatelyStopped) => {
+const runListeners = (
+  node: EventNode,
+  event: Event,
+  phase: 'capture' | 'target' | 'bubble',
+  immediatelyStopped: () => boolean
+): void => {
   const entries = node._listeners?.get(event.type);
   if (!entries?.length) return;
   Object.defineProperty(event, 'currentTarget', { value: node, configurable: true });
@@ -97,10 +129,11 @@ const runListeners = (node, event, phase, immediatelyStopped) => {
 };
 
 /**
- * @param {any} node @param {any} event
- * @returns {boolean} false when a cancelable event was prevented, as the platform reports
+ * `event` is `unknown` because it is checked here: anything but an `Event` is refused, as every engine refuses it.
+ *
+ * @returns false when a cancelable event was prevented, as the platform reports
  */
-export const dispatch = (node, event) => {
+export const dispatch = (node: EventNode, event: unknown): boolean => {
   /**
    * **An `Event`, not something shaped like one.** This checked `typeof event.type === 'string'`,
    * which `{ type: 'click' }` satisfies — so the server accepted a dispatch every engine refuses

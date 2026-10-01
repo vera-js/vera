@@ -209,7 +209,7 @@ test('an enumerated content attribute whose IDL is a plain DOMString echoes what
  * whole file would fail on the account of the fix rather than on a recurrence of the fault.
  */
 test('no reflection entry answers with a measurement sentinel', () => {
-  const table = readFileSync(new URL('../packages/ssr/src/vera/reflections.js', import.meta.url), 'utf8');
+  const table = readFileSync(new URL('../packages/ssr/src/vera/reflections.ts', import.meta.url), 'utf8');
   const data = table.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.ok(data.includes('ELEMENT_REFLECTIONS'), 'the table body was stripped away with the comments');
   assert.doesNotMatch(

@@ -58,7 +58,7 @@ const PACKAGES = {
  * relevant half of.
  */
 const SOURCE_PACKAGES = {
-  '@verajs/ssr': '../packages/ssr/src/vera/index.js',
+  '@verajs/ssr': '../packages/ssr/dist/vera/index.js',
 };
 
 const root = new URL('..', import.meta.url).pathname;

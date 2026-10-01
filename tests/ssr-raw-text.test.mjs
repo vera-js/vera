@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
-import { renderToString } from '../packages/ssr/src/vera/index.js';
+import { renderToString } from '../packages/ssr/dist/vera/index.js';
 
 const dir = mkdtempSync(join(process.cwd(), 'tests', '.raw-'));
 const component = (body) => {

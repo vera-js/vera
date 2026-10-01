@@ -2,7 +2,7 @@
  * Measures which element-specific IDL properties actually reflect to a content attribute, and what
  * each answers when the attribute is absent — on Chromium, Firefox and WebKit.
  *
- * This is what produced the table in `packages/ssr/src/vera/reflections.js`. Run it when an engine
+ * This is what produced the table in `packages/ssr/src/vera/reflections.ts`. Run it when an engine
  * changes and `tests/browser/element-reflections.test.js` starts failing:
  *
  *     node scripts/measure-element-reflections.mjs > /tmp/reflections.json

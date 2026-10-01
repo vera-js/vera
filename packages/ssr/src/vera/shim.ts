@@ -34,6 +34,21 @@ import {
   NODE_CONSTANTS,
 } from './nodes.js';
 
+/** Any node this DOM builds — what a walk visits and a walker's `root` is. */
+type WalkNode = TextShim | CommentShim | ElementShim | FragmentShim | ShadowRootShim;
+
+/**
+ * A `NodeFilter` as a walker takes it: a function, or an object with `acceptNode`. Its verdict is the
+ * platform's number, and anything that is not `FILTER_ACCEPT` (or `undefined`) rejects.
+ */
+type WalkFilter = ((node: WalkNode) => unknown) | { acceptNode?: (node: WalkNode) => unknown } | null;
+
+/** The global scope, written to by a name `typeof globalThis` does not declare. */
+type GlobalScope = Record<string, unknown>;
+
+/** The flag an install leaves on the global, so a second import installs nothing. */
+type ShimmedGlobal = { __veraSsrShimmed?: boolean };
+
 /** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
 const RESERVED_NAMES = new Set([
   'annotation-xml',
@@ -76,14 +91,13 @@ export {
  * `document` is the answer it expects — not the private object the listeners happen to live on.
  * An own property shadows `Event`'s prototype getter, which is read-only.
  *
- * @param {EventTarget} target
- * @param {() => unknown} self What the event should report as its target, resolved at dispatch
+ * @param self What the event should report as its target, resolved at dispatch
  *   because `document` does not exist yet when this is called.
  */
-const delegateEvents = (target, self) => ({
+const delegateEvents = (target: EventTarget, self: () => unknown) => ({
   addEventListener: target.addEventListener.bind(target),
   removeEventListener: target.removeEventListener.bind(target),
-  dispatchEvent: (event) => {
+  dispatchEvent: (event: Event) => {
     for (const name of ['target', 'currentTarget'])
       Object.defineProperty(event, name, { value: self(), configurable: true });
     return target.dispatchEvent(event);
@@ -105,11 +119,9 @@ const windowEvents = new EventTarget();
  * an iterator only goes forwards and backwards. Both honor `whatToShow` and a filter, and both
  * visit in document order — the root included for an iterator and not for a walker, which is the
  * one behavioral difference between them.
- *
- * @param {any} root @param {number} [whatToShow] @param {any} [filter] @param {boolean} [isWalker]
  */
-const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
-  const accepts = (node) => {
+const makeWalker = (root: WalkNode, whatToShow = 0xffffffff, filter?: WalkFilter, isWalker = true) => {
+  const accepts = (node: WalkNode): boolean => {
     const bit = node.nodeType === 1 ? 1 : node.nodeType === 3 ? 4 : node.nodeType === 8 ? 128 : 0;
     // eslint-disable-next-line no-bitwise -- whatToShow is the platform's own NodeFilter bitmask
     if (!(whatToShow & bit)) return false;
@@ -117,7 +129,7 @@ const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
     return verdict === undefined || verdict === 1;
   };
   /** Document order, depth first — the order both of these are defined to visit in. */
-  const flatten = (node, out = []) => {
+  const flatten = (node: WalkNode, out: WalkNode[] = []): WalkNode[] => {
     /** `childNodes` rather than `_entries`: it is what makes markup held as a string get parsed. */
     for (const child of node.childNodes ?? []) {
       out.push(child);
@@ -126,8 +138,8 @@ const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
     return out;
   };
   const all = () => (isWalker ? flatten(root) : [root, ...flatten(root)]).filter(accepts);
-  let current = isWalker ? root : null;
-  const step = (direction) => {
+  let current: WalkNode | null = isWalker ? root : null;
+  const step = (direction: number): WalkNode | null => {
     const nodes = all();
     const index = current === null ? -1 : nodes.indexOf(current);
     const next = direction > 0 ? nodes[index + 1] : nodes[index - 1];
@@ -142,25 +154,26 @@ const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
     get currentNode() {
       return current;
     },
-    set currentNode(node) {
+    set currentNode(node: WalkNode | null) {
       current = node;
     },
     nextNode: () => step(1),
     previousNode: () => step(-1),
     parentNode: () => {
-      const parent = current?._parent;
+      /** A parent is always one of the concrete containers — `ContainerShim` itself is only their base. */
+      const parent = current?._parent as WalkNode | null | undefined;
       if (!parent || !accepts(parent)) return null;
       current = parent;
       return parent;
     },
     firstChild: () => {
-      const first = (current?.childNodes ?? []).find((entry) => accepts(entry));
+      const first = (current?.childNodes ?? []).find((entry: WalkNode) => accepts(entry));
       if (!first) return null;
       current = first;
       return first;
     },
     lastChild: () => {
-      const kids = (current?.childNodes ?? []).filter((entry) => accepts(entry));
+      const kids = (current?.childNodes ?? []).filter((entry: WalkNode) => accepts(entry));
       if (!kids.length) return null;
       current = kids[kids.length - 1];
       return current;
@@ -181,7 +194,7 @@ const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
 };
 
 const documentRoots = () =>
-  /** @type {Array<any>} */ ([globalThis.document.documentElement, globalThis.document.body]);
+  [globalThis.document.documentElement, globalThis.document.body] as unknown as ElementShim[];
 
 /**
  * Which parts of a URL `location` carries — the one place that knows.
@@ -191,11 +204,13 @@ const documentRoots = () =>
  * from a property the install never wrote. Same single fact, same reasoning as `RAW_TEXT_ELEMENTS`
  * below it — CODE-PRINCIPLES #5.
  */
-export const LOCATION_PARTS = ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'];
+export const LOCATION_PARTS = [
+  'href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin',
+] as const;
 
 export const installShims = () => {
-  if (globalThis.__veraSsrShimmed) return registry;
-  globalThis.__veraSsrShimmed = true;
+  if ((globalThis as ShimmedGlobal).__veraSsrShimmed) return registry;
+  (globalThis as ShimmedGlobal).__veraSsrShimmed = true;
 
   /**
    * Every assignment here is a deliberate lie: a shim is not an `HTMLElement`, and saying so is the
@@ -203,8 +218,8 @@ export const installShims = () => {
    * missed, which is what type-checking this package is for. Anything a component genuinely reaches
    * for is on `ElementShim`; anything else was never going to work server-side anyway.
    */
-  globalThis.HTMLElement = /** @type {any} */ (ElementShim);
-  globalThis.CSSStyleSheet = /** @type {any} */ (StyleSheetShim);
+  globalThis.HTMLElement = ElementShim as unknown as typeof HTMLElement;
+  globalThis.CSSStyleSheet = StyleSheetShim as unknown as typeof CSSStyleSheet;
   /**
    * The DOM interfaces, so `instanceof` answers correctly.
    *
@@ -213,9 +228,9 @@ export const installShims = () => {
    * rather than `false`. These are the real shim classes, so an element made here *is* a `Node`,
    * an `Element` and an `HTMLElement`, exactly as it would be in a browser.
    */
-  globalThis.Node = /** @type {any} */ (ContainerShim);
-  globalThis.Element = /** @type {any} */ (ElementShim);
-  globalThis.ShadowRoot = /** @type {any} */ (ShadowRootShim);
+  globalThis.Node = ContainerShim as unknown as typeof Node;
+  globalThis.Element = ElementShim as unknown as typeof Element;
+  globalThis.ShadowRoot = ShadowRootShim as unknown as typeof ShadowRoot;
   /**
    * `Document` exists so that **feature detection** can read it.
    *
@@ -229,20 +244,20 @@ export const installShims = () => {
    * The document is a literal rather than a class — it has one instance and no subclasses — so it
    * is given this prototype rather than built from it.
    */
-  globalThis.Document = /** @type {any} */ (class Document {});
+  globalThis.Document = (class Document {}) as unknown as typeof Document;
   Object.defineProperty(globalThis.Document.prototype, 'adoptedStyleSheets', { value: [], writable: true });
-  globalThis.DocumentFragment = /** @type {any} */ (FragmentShim);
+  globalThis.DocumentFragment = FragmentShim as unknown as typeof DocumentFragment;
   /** `new Image()` is a spelling of `createElement('img')`, and `Audio` of `createElement('audio')`. */
-  globalThis.Image = /** @type {any} */ (class Image extends ElementShim {
+  globalThis.Image = (class Image extends ElementShim {
     constructor() {
       super('img');
     }
-  });
-  globalThis.Audio = /** @type {any} */ (class Audio extends ElementShim {
+  }) as unknown as typeof Image;
+  globalThis.Audio = (class Audio extends ElementShim {
     constructor() {
       super('audio');
     }
-  });
+  }) as unknown as typeof Audio;
 
   /**
    * The observers, inert.
@@ -254,21 +269,21 @@ export const installShims = () => {
    * entry that wires it unrenderable.
    */
   for (const name of ['IntersectionObserver', 'ResizeObserver', 'MutationObserver', 'PerformanceObserver'])
-    globalThis[name] = /** @type {any} */ (class Observer {
+    (globalThis as unknown as GlobalScope)[name] = class Observer {
       observe() {}
       unobserve() {}
       disconnect() {}
       takeRecords() {
         return [];
       }
-    });
+    };
 
   /**
    * A media query with no viewport to match matches nothing, which is what every server renderer
    * answers and what hydration then corrects. Absent, it was a `TypeError` in `connectedCallback`.
    */
-  globalThis.matchMedia = /** @type {any} */ (
-    (media) => ({
+  globalThis.matchMedia = (
+    (media: string) => ({
       media,
       matches: false,
       addEventListener: () => {},
@@ -278,17 +293,17 @@ export const installShims = () => {
       dispatchEvent: () => true,
       onchange: null,
     })
-  );
+  ) as unknown as typeof matchMedia;
 
   /** No layout means no computed value; a browser gives a detached element nothing useful either. */
-  globalThis.getComputedStyle = /** @type {any} */ (
+  globalThis.getComputedStyle = (
     () => ({
       getPropertyValue: () => '',
       getPropertyPriority: () => '',
       length: 0,
       item: () => '',
     })
-  );
+  ) as unknown as typeof getComputedStyle;
   globalThis.getSelection = () => null;
 
   /**
@@ -296,23 +311,23 @@ export const installShims = () => {
    * `flushFrames` runs out, and work deferred to "when the browser is free" has to land before
    * then or it lands nowhere.
    */
-  globalThis.requestIdleCallback = /** @type {any} */ (
-    (fn) => frames.push(() => fn({ didTimeout: false, timeRemaining: () => 0 }))
-  );
-  globalThis.cancelIdleCallback = /** @type {any} */ ((id) => {
+  globalThis.requestIdleCallback = (
+    (fn: IdleRequestCallback) => frames.push(() => fn({ didTimeout: false, timeRemaining: () => 0 }))
+  ) as typeof requestIdleCallback;
+  globalThis.cancelIdleCallback = ((id: number) => {
     frames[id - 1] = null;
-  });
+  }) as typeof cancelIdleCallback;
   /** Defined so core's `@scope` support check passes — SSR output gets scoped light-DOM CSS. */
-  globalThis.CSSScopeRule = /** @type {any} */ (function CSSScopeRule() {});
+  globalThis.CSSScopeRule = (function CSSScopeRule() {}) as unknown as typeof CSSScopeRule;
 
-  globalThis.customElements = /** @type {any} */ ({
+  globalThis.customElements = ({
     /**
      * Refused on a second definition, exactly as the platform does. The registry used to overwrite
      * silently, so a module defining a tag twice rendered fine on the server and threw
      * `NotSupportedError` in the browser — the server being lenient about an error is the server
      * hiding it.
      */
-    define: (name, Class) => {
+    define: (name: unknown, Class: CustomElementConstructor) => {
       /**
        * **A name the browser will refuse is refused here too**, or the server renders markup the
        * client can never upgrade: `customElements.define('nodash', …)` throws `SyntaxError` in every
@@ -335,9 +350,9 @@ export const installShims = () => {
       }
       registry.set(name, Class);
     },
-    get: (name) => registry.get(name),
+    get: (name: string) => registry.get(name),
     whenDefined: () => Promise.resolve(),
-  });
+  }) as unknown as CustomElementRegistry;
 
   /**
    * The document, with the surface a component reaches for.
@@ -347,7 +362,7 @@ export const installShims = () => {
    * silently is the failure mode this package keeps producing. Queries answer emptily for the same
    * reason the containers do: this holds strings, not a tree.
    */
-  globalThis.document = /** @type {any} */ ({
+  globalThis.document = ({
     title: '',
     body: new ElementShim('body'),
     documentElement: new ElementShim('html'),
@@ -373,9 +388,9 @@ export const installShims = () => {
     get childElementCount() {
       return 1;
     },
-    createElement: (localName) => createElement(localName),
-    createElementNS: (namespace, localName) => createElement(localName, namespace),
-    createTextNode: (text) => new TextShim(text),
+    createElement: (localName: string) => createElement(localName),
+    createElementNS: (namespace: string, localName: string) => createElement(localName, namespace),
+    createTextNode: (text: string) => new TextShim(text),
     createDocumentFragment: () => new FragmentShim(),
     /**
      * **The document's queries search the document.** Each answered nothing whatever it was asked,
@@ -386,15 +401,15 @@ export const installShims = () => {
      * query covers both — the order is `documentElement` first, which is where a real document would
      * have found anything under `<html>` before reaching `<body>`.
      */
-    querySelector: (selector) => {
+    querySelector: (selector: string) => {
       for (const root of documentRoots()) {
         const found = root.querySelector(selector);
         if (found) return found;
       }
       return null;
     },
-    querySelectorAll: (selector) => documentRoots().flatMap((root) => root.querySelectorAll(selector)),
-    getElementById: (id) => {
+    querySelectorAll: (selector: string) => documentRoots().flatMap((root) => root.querySelectorAll(selector)),
+    getElementById: (id: string) => {
       for (const root of documentRoots()) {
         const found = root.getElementById(id);
         if (found) return found;
@@ -402,11 +417,11 @@ export const installShims = () => {
       return null;
     },
     ...NODE_CONSTANTS,
-    getElementsByTagName: (name) => documentRoots().flatMap((root) => root.getElementsByTagName(name)),
-    getElementsByTagNameNS: (namespace, name) =>
+    getElementsByTagName: (name: string) => documentRoots().flatMap((root) => root.getElementsByTagName(name)),
+    getElementsByTagNameNS: (namespace: string | null, name: string) =>
       documentRoots().flatMap((root) => root.getElementsByTagNameNS(namespace, name)),
-    getElementsByClassName: (names) => documentRoots().flatMap((root) => root.getElementsByClassName(names)),
-    getElementsByName: (name) =>
+    getElementsByClassName: (names: string) => documentRoots().flatMap((root) => root.getElementsByClassName(names)),
+    getElementsByName: (name: string) =>
       globalThis.document.querySelectorAll(`[name="${`${name}`.replace(/"/gu, '\\"')}"]`),
     /**
      * **`complete`, because nothing more is coming.** `loading` is the truthful description of a
@@ -460,7 +475,7 @@ export const installShims = () => {
     plugins: [],
     anchors: [],
     hasFocus: () => false,
-    createComment: (text) => new CommentShim(text),
+    createComment: (text: string) => new CommentShim(text),
     getSelection: () => null,
     /**
      * An empty walk over an empty tree, which is the truthful answer for a DOM that holds strings.
@@ -476,8 +491,10 @@ export const installShims = () => {
      * a stub that reported "no more nodes" from the first call, so a component walking its own
      * subtree found it empty and did nothing, on the server only. There is a tree to walk now.
      */
-    createTreeWalker: (root, whatToShow, filter) => makeWalker(root, whatToShow, filter, true),
-    createNodeIterator: (root, whatToShow, filter) => makeWalker(root, whatToShow, filter, false),
+    createTreeWalker: (root: WalkNode, whatToShow?: number, filter?: WalkFilter) =>
+      makeWalker(root, whatToShow, filter, true),
+    createNodeIterator: (root: WalkNode, whatToShow?: number, filter?: WalkFilter) =>
+      makeWalker(root, whatToShow, filter, false),
     elementFromPoint: () => null,
     elementsFromPoint: () => [],
     /**
@@ -486,7 +503,7 @@ export const installShims = () => {
      * flat `false` contradicted that, and `if (!document.contains(el)) return;` is ordinary
      * defensive code that bailed out of a render that was in fact perfectly connected.
      */
-    contains: (node) => node?.isConnected === true,
+    contains: (node: { readonly isConnected?: boolean } | null | undefined) => node?.isConnected === true,
     /**
      * `importNode` CLONES — the spec's "import" is a copy into this document, never the node
      * itself. The identity it used to return was a lie with teeth: a caller mutates the "copy"
@@ -497,8 +514,8 @@ export const installShims = () => {
      * `adoptNode` stays the identity: adopting MOVES a node and nothing here owns another
      * document, so the node itself is the correct answer there.
      */
-    importNode: (node, deep) => node.cloneNode(deep === true),
-    adoptNode: (node) => node,
+    importNode: (node: TextShim | CommentShim | ElementShim, deep?: boolean) => node.cloneNode(deep === true),
+    adoptNode: <T>(node: T) => node,
     get defaultView() {
       return globalThis.window;
     },
@@ -524,17 +541,17 @@ export const installShims = () => {
     get adoptedStyleSheets() {
       return [];
     },
-    set adoptedStyleSheets(sheets) {
+    set adoptedStyleSheets(sheets: readonly { readonly cssText?: string }[]) {
       const added = sheets[sheets.length - 1];
       if (added?.cssText) hoist(added.cssText);
     },
     head: {
-      appendChild: (node) => {
+      appendChild: <T extends { readonly innerHTML?: string } | null | undefined>(node: T) => {
         if (node?.innerHTML) hoist(node.innerHTML);
         return node;
       },
     },
-  });
+  }) as unknown as Document;
   /** Given `Document.prototype` here, where the document it describes finally exists. */
   Object.setPrototypeOf(globalThis.document, globalThis.Document.prototype);
 
@@ -555,7 +572,7 @@ export const installShims = () => {
    * in `renderToString`'s `location` option, which applies it after every await and restores it
    * afterwards; assigning to this global directly is safe only until two requests overlap.
    */
-  globalThis.window = /** @type {any} */ (globalThis);
+  globalThis.window = globalThis as typeof window;
   /**
    * `self` is the other name for the global, and UMD bundles feature-detect on it. `window` is
    * already defined here, so those bundles have taken the browser branch regardless — leaving `self`
@@ -567,7 +584,7 @@ export const installShims = () => {
    * in a worker `self` already *is* the global, which is exactly what this line wanted. Node
    * defines no `self` on the main thread or inside `worker_threads`, so the server still assigns.
    */
-  globalThis.self ??= /** @type {any} */ (globalThis);
+  globalThis.self ??= globalThis as typeof self;
   /**
    * Every part, built from a real `URL`, so the default is as complete as the one `renderToString`'s
    * `location` option installs. It used to carry four properties — `pathname`, `search`, `hash`,
@@ -591,23 +608,23 @@ export const installShims = () => {
    * configurable own property is what a plain assignment already produced.
    */
   Object.defineProperty(globalThis, 'location', {
-    value: /** @type {any} */ (
+    value: (
       (() => {
         const url = new URL(globalThis.location?.href ?? 'http://localhost/');
         return Object.fromEntries(LOCATION_PARTS.map((part) => [part, url[part]]));
       })()
-    ),
+    ) as unknown as Location,
     writable: true,
     configurable: true,
   });
-  globalThis.history = /** @type {any} */ ({
+  globalThis.history = ({
     scrollRestoration: 'auto',
     pushState: () => {},
     replaceState: () => {},
     go: () => {},
     back: () => {},
     forward: () => {},
-  });
+  }) as unknown as History;
   Object.assign(globalThis, delegateEvents(windowEvents, () => globalThis.window));
   /**
    * **A server render is a top-level, unframed, open window — and saying nothing says otherwise.**
@@ -618,15 +635,15 @@ export const installShims = () => {
    * a page it does not control. Every value here is what a browser reports for a page that is not
    * framed, which is exactly the situation a server render is in.
    */
-  globalThis.top = /** @type {any} */ (globalThis);
-  globalThis.parent = /** @type {any} */ (globalThis);
-  globalThis.frames = /** @type {any} */ (globalThis);
+  globalThis.top = globalThis as unknown as Window;
+  globalThis.parent = globalThis as unknown as Window;
+  globalThis.frames = globalThis as unknown as Window;
   globalThis.frameElement = null;
   globalThis.opener = null;
   globalThis.length = 0;
   globalThis.closed = false;
   /** `name` is `Window`'s, not `globalThis`'s, so TypeScript needs telling which one this is. */
-  /** @type {any} */ (globalThis).name ??= '';
+  (globalThis as unknown as Window).name ??= '';
 
   /**
    * Derived from `location` rather than stored, so the two cannot disagree — `renderToString`'s
@@ -652,7 +669,7 @@ export const installShims = () => {
     'alert', 'print', 'blur', 'focus', 'close', 'stop', 'scroll', 'scrollBy', 'scrollTo',
     'moveBy', 'moveTo', 'resizeBy', 'resizeTo', 'captureEvents', 'releaseEvents',
   ])
-    globalThis[name] = () => {};
+    (globalThis as unknown as GlobalScope)[name] = () => {};
   /**
    * **`postMessage` is `??=` and the rest are not, because in a Web Worker it is the only channel
    * back to the page.** Replacing it with a no-op does not throw and does not stop the render — it
@@ -667,10 +684,10 @@ export const installShims = () => {
    * Node defines neither name — on the main thread or inside `worker_threads` — so the server
    * assigns both exactly as before.
    */
-  globalThis.postMessage ??= /** @type {any} */ (() => {});
+  globalThis.postMessage ??= (() => {}) as typeof postMessage;
   globalThis.confirm = () => false;
   globalThis.prompt = () => null;
-  globalThis.find = () => false;
+  (globalThis as unknown as GlobalScope).find = () => false;
   globalThis.open = () => null;
 
   /**
@@ -678,7 +695,7 @@ export const installShims = () => {
    * is the one outcome worse than not having the function — so it goes where every other unhandled
    * failure in this package goes.
    */
-  globalThis.reportError ??= (error) => console.error(error);
+  globalThis.reportError ??= (error: unknown) => console.error(error);
 
   /**
    * The `NodeFilter` constants, because `createTreeWalker` is provided and these are what it takes.
@@ -686,7 +703,7 @@ export const installShims = () => {
    * writing `NodeFilter.SHOW_ELEMENT` is writing ordinary DOM code, and these are facts rather than
    * answers this DOM has to invent.
    */
-  globalThis.NodeFilter = /** @type {any} */ (
+  globalThis.NodeFilter = (
     Object.assign(function NodeFilter() {
       throw new TypeError('Illegal constructor');
     }, {
@@ -707,20 +724,21 @@ export const installShims = () => {
       SHOW_DOCUMENT_FRAGMENT: 1024,
       SHOW_NOTATION: 2048,
     })
-  );
+  ) as unknown as typeof NodeFilter;
   Object.freeze(globalThis.NodeFilter);
   /**
    * Node supplies `Event` and `CustomEvent`; this fills in only where it does not, and matches the
    * shape `EventTarget` dispatches.
    */
-  globalThis.CustomEvent ??= /** @type {any} */ (
+  globalThis.CustomEvent ??= (
     class CustomEvent extends Event {
-      constructor(type, init = {}) {
+      declare detail: unknown;
+      constructor(type: string, init: CustomEventInit<unknown> = {}) {
         super(type, init);
         this.detail = init.detail ?? null;
       }
     }
-  );
+  ) as unknown as typeof CustomEvent;
   /**
    * **The phase constants belong on the prototype, not only on the interface.** Node puts
    * `CAPTURING_PHASE` and friends on `Event` alone; all three engines put them on `Event.prototype`

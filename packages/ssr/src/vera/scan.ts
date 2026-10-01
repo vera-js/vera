@@ -22,7 +22,7 @@ import { commentEnd } from './escaping.js';
  * the tag in half: `<mark-comp title="x > y">` was read as a tag ending after `x `, giving the
  * component an attribute value of `"x` and leaving ` y">` behind as text next to it.
  */
-const tagEnd = (markup, start) => {
+const tagEnd = (markup: string, start: number): number => {
   let quote = '';
   for (let i = start + 1; i < markup.length; i++) {
     const char = markup[i];
@@ -92,9 +92,8 @@ const MAX_DEPTH = 256;
  * render. The alternative considered — collecting segments into an array for a caller to assemble —
  * was 1.85x on the same step and was rejected for it.
  *
- * @param {string} markup @param {number} depth
- * @param {(name: string, attrs: string, depth: number, children?: string) => string} emit renders one
- *   component tag — its open tag and contents; the scanner writes the close tag
+ * @param markup @param depth
+ * @param emit renders one component tag — its open tag and contents; the scanner writes the close tag
  */
 /**
  * Where the element opened at `after` ends, counting nested opens of the same name — `[contentEnd,
@@ -107,15 +106,14 @@ const MAX_DEPTH = 256;
  * The name boundary is checked, which the `<template>` loop did not do: `<templates>` counted as a
  * nested `<template>` and threw the depth off for the rest of the document.
  *
- * @param {string} markup @param {string} name @param {number} after
- * @returns {[number, number] | null}
+ * @param markup @param name @param after
  */
-const matchingEnd = (markup, name, after) => {
+const matchingEnd = (markup: string, name: string, after: number): [contentEnd: number, elementEnd: number] | null => {
   const lower = markup.toLowerCase();
   const openTag = `<${name}`;
   const closeTag = `</${name}`;
   /** A tag name ends where a name character stops — anything else continues the name. */
-  const boundary = (at) => !/[\w-]/.test(lower[at] ?? '');
+  const boundary = (at: number): boolean => !/[\w-]/.test(lower[at] ?? '');
   let depth = 1;
   let at = after;
   while (depth > 0) {
@@ -138,7 +136,11 @@ const matchingEnd = (markup, name, after) => {
   return null;
 };
 
-export const renderComponentTags = (markup, depth, emit) => {
+export const renderComponentTags = (
+  markup: string,
+  depth: number,
+  emit: (name: string, attrs: string, depth: number, children?: string) => string
+): string => {
   if (depth > MAX_DEPTH)
     throw new Error(
       `ssr: component nesting exceeded ${MAX_DEPTH} levels. A component that renders itself ` +
