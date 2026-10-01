@@ -156,7 +156,24 @@ class Light {
   replaceAll() {
     for (const node of this.list) this.place(node);
   }
+  /** A light node's `slot` changed (a binding wrote it): it moves to the slot of its new name, keeping light order. */
+  $place(node: Node) {
+    if (this.list.includes(node)) this.place(node);
+  }
 }
+
+/**
+ * A kept `<slot>`'s `name` changed (a binding wrote it on the detached element): it is re-sorted under its new name,
+ * and every light node is re-decided — both names' assignments can change.
+ */
+const rename = (slot: HTMLSlotElement & { $binding?: Binding; $host?: Element }) => {
+  const binding = slot.$binding;
+  if (binding === undefined) return;
+  const name = slot.getAttribute('name') ?? '';
+  if (name === binding.name) return;
+  binding.name = name;
+  HOSTS.get(slot.$host!)?.replaceAll();
+};
 
 /** The fallback goes to a fragment while anything is assigned (its own parts keep a parent there). */
 const parkFallback = (binding: Binding) => {
@@ -214,11 +231,23 @@ const capture = (host: Element): Light => {
 /** Where a binding's start sits in document order relative to another's — tree order decides the winning slot. */
 const before = (a: Binding, b: Binding) => (a.start.compareDocumentPosition(b.start) & 4) !== 0;
 
-/** The `<slot>` element's own answers, from the live assignment (a detached native slot would answer nothing). */
-const assigned = (binding: Binding, elementsOnly: boolean): Node[] => {
+/**
+ * The `<slot>` element's own answers, from the live assignment (a detached native slot would answer nothing). With
+ * `flatten`, an unassigned slot answers its fallback's SLOTTABLES as the platform does — never a comment, and a
+ * nested slot answers through itself.
+ */
+const assigned = (binding: Binding, elementsOnly: boolean, flatten = false): Node[] => {
   const light = HOSTS.get(binding.slot.$host!)!;
   const out: Node[] = [];
   for (const node of light.list) if ((node as Lit).$in === binding && (!elementsOnly || node.nodeType === 1)) out.push(node);
+  if (out.length > 0 || !flatten) return out;
+  for (let node = binding.start.nextSibling; node !== null && node !== binding.end; node = node.nextSibling) {
+    const nested = (node as Node & { $slot?: Binding }).$slot;
+    if (nested !== undefined) {
+      out.push(...assigned(nested, elementsOnly, true));
+      node = nested.end;
+    } else if (node.nodeType === 1 || (!elementsOnly && node.nodeType === 3)) out.push(node);
+  }
   return out;
 };
 
@@ -239,8 +268,9 @@ const take = (slot: HTMLSlotElement & { $host?: Element; $binding?: Binding }, h
   const binding: Binding = { slot, name: slot.getAttribute('name') ?? '', start, end, parked: null, shown: 0, queued: false };
   slot.$host = host;
   slot.$binding = binding;
-  slot.assignedNodes = () => assigned(binding, false);
-  slot.assignedElements = () => assigned(binding, true) as Element[];
+  slot.assignedNodes = (options?: AssignedNodesOptions) => assigned(binding, false, options?.flatten);
+  slot.assignedElements = (options?: AssignedNodesOptions) => assigned(binding, true, options?.flatten) as Element[];
+  (start as Comment & { $slot?: Binding }).$slot = binding;
   const bindings = light.bindings;
   let at = bindings.length;
   while (at > 0 && before(binding, bindings[at - 1])) at--;
@@ -421,6 +451,11 @@ export const slotDiscovery = [
     shared = registry as unknown as typeof shared;
     shared!.$s = true;
     shared!.$light?.();
+    /** Told by the renderer when a binding writes `slot` on a light node or `name` on a kept slot. */
+    (registry as unknown as { $slotted?: (element: Element, name: string) => void }).$slotted = (element, name) => {
+      if (name === 'slot') (element as Lit).$light?.$place(element);
+      else if (name === 'name' && element.localName === 'slot') rename(element as HTMLSlotElement);
+    };
   },
   { name: '@verajs/renderer/slot-discovery', on: 'element' as const, fn: (el: Element) => (el.localName === 'slot' ? slotBehavior : undefined), priority: 10 },
 ];

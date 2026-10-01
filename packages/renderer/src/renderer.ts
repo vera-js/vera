@@ -921,8 +921,10 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   if (kind >= LIVE) {
     if (kind === SELECT) (pendingSelects ??= []).push(element, value);
     /** A component's getter is its own code: read on the parent's behalf, it must not subscribe the parent's render. */
-    else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value)
+    else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value) {
       (element as unknown as Record<string, unknown>)[name] = value;
+      if (slotsWired) slotted(element, name);
+    }
   } else if (value === committed) return;
   bindings[slot + 1] = value;
   if (kind === ATTR) {
@@ -938,7 +940,11 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
-  } else if (kind === PROPERTY) (element as unknown as Record<string, unknown>)[name] = value;
+    if (slotsWired) slotted(element, name);
+  } else if (kind === PROPERTY) {
+    (element as unknown as Record<string, unknown>)[name] = value;
+    if (slotsWired) slotted(element, name);
+  }
   else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
   else if (kind === EVENT) {
     const listener = node as Slot;
@@ -1120,6 +1126,13 @@ export interface KeyedResult extends TemplateResult {
 type LightParent = Node & { $range(start: Node, end: Node | null): Node[] };
 type Lit = Node & { $light?: LightParent };
 let slotsWired = false;
+/**
+ * A binding wrote `slot` on a light node or `name` on a kept `<slot>`: the assignment can change, so slots is told
+ * (its `$slotted`, on the registry). Called only while slots is wired; any other name returns at once.
+ */
+const slotted = (element: Element, name: string) => {
+  if (name === 'slot' || name === 'name') (registry as unknown as { $slotted?: (e: Element, n: string) => void }).$slotted?.(element, name);
+};
 /** The parent a node's structural writes go to: its light parent while slots holds it, else its DOM parent. */
 const parentOf = (node: Node): Node => (slotsWired && (node as Lit).$light) || node.parentNode!;
 /**
