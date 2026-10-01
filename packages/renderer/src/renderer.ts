@@ -777,6 +777,22 @@ const checkForeign = (parent: Node, nodes: Node[]) => {
   }
 };
 
+/**
+ * **The profiler's hook** (`@verajs/renderer/profiler`, a development-only entry): told of each same-shape update, each
+ * first template, each REBUILD (the template identity changed, so the subtree is torn down) and each `renderInto`
+ * frame. Every call site is `if (__DEV__ && profileHook !== null)`, so production carries neither the hook nor a call.
+ */
+type ProfileHook = (kind: number, subject: unknown, shape: TemplateStringsArray | null) => void;
+const PROFILE_UPDATE = 0;
+const PROFILE_CREATE = 1;
+const PROFILE_REBUILD = 2;
+const PROFILE_FRAME_START = 3;
+const PROFILE_FRAME_END = 4;
+let profileHook: ProfileHook | null = null;
+const setProfileHook = (hook: ProfileHook | null) => {
+  profileHook = hook;
+};
+
 /** How many times a part's child applier changed identity — development only; `@__PURE__` keeps it out of production. */
 const applierSwaps = /* @__PURE__ */ new WeakMap<object, number>();
 
@@ -1024,6 +1040,12 @@ const SCRATCH = doc.createDocumentFragment();
  * tree-shakes them away; the hydrate bundle inlines this module and reaches them.
  */
 export {
+  setProfileHook,
+  PROFILE_UPDATE,
+  PROFILE_CREATE,
+  PROFILE_REBUILD,
+  PROFILE_FRAME_START,
+  PROFILE_FRAME_END,
   getTemplate,
   resolved,
   Instance,
@@ -1195,9 +1217,11 @@ class ChildPart {
       const result = held ?? (value as TemplateResult);
       /** The hottest line of a list update: same strings, commit the values and nothing else. */
       if (this._mode === TEMPLATE && this._instance!._strings === result.strings) {
+        if (__DEV__ && profileHook !== null) profileHook(PROFILE_UPDATE, this, result.strings);
         update(this._instance!, result.values);
         return;
       }
+      if (__DEV__ && profileHook !== null) profileHook(this._mode === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, result.strings);
       let instance: Instance | undefined;
       if (held !== undefined) {
         const parked = (this._held ??= new Map());
@@ -1631,9 +1655,11 @@ export const expectContainer = (container: unknown) => {
  */
 export const renderInto = (result: unknown, container: Node) => {
   if (__DEV__) expectContainer(container);
+  if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) rootParts.set(container, (part = markered(container, null)));
   commitAs(container, part, result);
+  if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_END, container, null);
 };
 
 /**

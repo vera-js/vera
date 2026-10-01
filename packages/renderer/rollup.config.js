@@ -79,6 +79,5 @@ export default [
    * `'template'` insert and the `$`-named instance hook, and claimants reach it through `'element'`.
    */
   defaultRollupConfig(`${pkg.filename}-elements`, [], /^_[a-z]/, { input: 'src/elements.ts' }),
-  /** LEAN REBUILD FLOOR: the profiler returns with its piece (10). */
-  // ...(isProduction ? [] : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),
+  ...(isProduction ? [] : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),
 ];

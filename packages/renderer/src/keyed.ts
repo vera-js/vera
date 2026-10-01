@@ -32,11 +32,12 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
     newEnd--;
   }
   /**
-   * A repeated key, said where it is nearly free: past the end scans, so a same-order update (nothing left between
-   * them) never pays for it. It behaves correctly in the common case and arbitrarily in the rest — the shape of bug
-   * that survives a test suite. Development only; the keys are gathered only here.
+   * A repeated key, said where it can have arisen: only when the new list has items between the end scans (inserted
+   * or moved) — a same-order update and a pure removal cannot create one, and never pay for the check. It behaves
+   * correctly in the common case and arbitrarily in the rest — the shape of bug that survives a test suite.
+   * Development only; the keys are gathered only here.
    */
-  if (__DEV__ && !(start > newEnd && start > oldEnd)) {
+  if (__DEV__ && start <= newEnd) {
     const seen = new Set<unknown>();
     for (let i = 0; i < count; i++) {
       const k = key(i);

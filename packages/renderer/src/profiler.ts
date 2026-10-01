@@ -34,7 +34,7 @@
  * report is otherwise indistinguishable from an app with nothing to optimize.
  */
 import {
-  _setProfileHook,
+  setProfileHook as _setProfileHook,
   PROFILE_UPDATE,
   PROFILE_CREATE,
   PROFILE_REBUILD,
@@ -137,14 +137,15 @@ const hook = (kind: number, subject: unknown, shape: TemplateStringsArray | null
 
   rebuilds++;
   const part = subject as ChildPart;
-  const from = part._shape;
+  /** The template the part held until now — the rebuild is reported before it is torn down. */
+  const from = part._instance?._strings ?? null;
   if (from === null || shape === null) return;
   const key = idOf(from) + '>' + idOf(shape);
   let record = churn.get(key);
   if (record === undefined) {
     churn.set(
       key,
-      (record = { from: describe(from), to: describe(shape), count: 0, where: label(part._start) })
+      (record = { from: describe(from), to: describe(shape), count: 0, where: label(part._start ?? part._owner) })
     );
   }
   record.count++;
