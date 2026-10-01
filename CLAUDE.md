@@ -125,6 +125,15 @@ code, so they are not re-litigated.
   idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
   no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
   perfectly by an entry that never ran at all.
+- **A browser-test failure can arrive as a TIMEOUT, and a mutation can test the wrong tree.** Two traps,
+  both measured 2026-10-01. (1) chai builds a failure message by inspecting the values, and inspecting a
+  CROSS-REALM DOM object (an iframe's `ShadowRoot`) never finishes — so a failing `expect(node).to.equal(null)`
+  reads as "Browser tests did not finish within 120000ms … 0 passed, 0 failed", which looks like a broken
+  harness rather than a red row. Assert booleans (`expect(node === null).to.equal(true)`) whenever the value
+  comes from another document. (2) A worktree whose `node_modules` is symlinked to the main tree resolves
+  `@verajs/*` to the MAIN tree's packages, so a mutation made in the worktree "passes" while the test runs the
+  untouched code. Check `readlink -f node_modules/@verajs/<pkg>` before trusting a worktree mutation — the
+  mutation must turn something red, or it measured nothing.
 - **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
   to be an insert point no package registers and no doc mentions; the pattern had matched inside
   **`setupTarget('mount')`** and there is no such insert point. `!live` appeared to be a public
