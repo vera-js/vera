@@ -135,3 +135,17 @@ export const SCRIPT_URL_ITEM = /(?:^|;)[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*
  * keeps a twin, held to this one by `tests/inline-handlers.test.mjs`.
  */
 export const INLINE_HANDLER = /^on./i;
+
+/**
+ * **The properties that replace an element's whole content** — a binding to one owns the element's children, so it
+ * cannot share the element with content of its own (markup, or a child binding the write would strand: a later commit
+ * into it then throws on a missing parent). Development refuses the pair in the template scanner and in `spread` alike.
+ */
+export const CONTENT_PROPERTY = /^(?:textContent|innerHTML|innerText|outerHTML)$/;
+export const contentClash = (tag: string, name: string): never => {
+  throw new Error(
+    `renderer: <${tag}> binds \`.${name}\`, which replaces the element's content, and also has content of its own — ` +
+      `markup or a child binding, which the write would strand. Bind one or the other: the property alone ` +
+      `(\`<${tag} .${name}=\${…}></${tag}>\`), or the content alone.`
+  );
+};
