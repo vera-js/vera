@@ -1043,6 +1043,13 @@ Greppable, obviously yours, reviewable as the security decision it is. Sanitize 
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
+**An attribute name cannot be an expression.** `<p data-${key}="1">` (or `<b ${name}="x">`, or
+`<p ${key}-x>`) throws in development when the template is first used — `@verajs/ssr` refuses it in every
+build — because the parser reads a name before any value exists. (Production pays nothing for the check:
+a template is fixed source, so its first development render finds it.) A name known only at runtime is a spread —
+`${spread({ [`data-${key}`]: '1' })}` — which refuses what a runtime name must not become (an inline handler,
+`srcdoc`, a `javascript:` URL); in development the error shows that rewrite for your template.
+
 **Security: a bound URL cannot be a `javascript:` URL, and a bound `srcdoc` is refused.** A value
 bound where a browser *navigates* — `href`, `src`, `action`, `formaction`, `xlink:href` or `data`,
 as the attribute or as its property — is refused when it parses as a `javascript:` URL, and the

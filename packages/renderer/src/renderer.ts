@@ -61,6 +61,32 @@ const COMMENT2_END = />/g;
 /** `>`, or whitespace then an attribute name (with `=` and the start of its value), or the string's end. */
 const TAG_END = />|[ \t\n\f\r](?:([^\s"'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
 const DOUBLE_QUOTE_END = /"/g;
+
+/**
+ * **An expression inside an attribute NAME is refused in development** (`<p data-${k}="1">`, `<b ${name}="x">`,
+ * `<p ${k}-x>`): the parser sees the marker before the value exists, so no position can hold it, and the server
+ * refuses the same template in every build. Development only, by Brian's call (2026-09-30): a template is fixed
+ * source, so its first render in development finds it, and production pays nothing (the check cost 101 B). A name known only at runtime is a one-key spread, which applies the
+ * refusals a runtime name needs (handlers, `srcdoc`, URL values); development shows the rewrite. A hole is in a name
+ * when, inside a tag and outside a value, a name character touches it on either side — never a ref (whitespace or
+ * `>`/`/>` around it) and never the TAG name (`<${tag}>`, the tag entry's).
+ */
+/** A name character ends the static, after a space or quote since the tag's `<` — so never a TAG-name hole (`<my-${x}`). */
+const NAME_BEFORE = /[\s"'][^\s<>]*[^\s"'>=/<]$/;
+const NAME_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
+const nameHole = (before: string, after: string): never => {
+  const prefix = /[^\s"'>=/]*$/.exec(before)![0];
+  const suffix = /^[^\s"'>=/]*/.exec(after)![0];
+  const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\s>]*))/.exec(after.slice(suffix.length));
+  /** The value as spread takes it: a closed static is that string, an open one (or none written) is a binding. */
+  const given =
+    value === null ? "''" : value[2] === '"' ? JSON.stringify(value[1]) : value[4] === "'" ? JSON.stringify(value[3]) : value[5] ? JSON.stringify(value[5]) : '…';
+  throw new Error(
+    `renderer: an attribute name cannot be an expression — \`${prefix}\${…}${suffix}\` is read by the parser before any ` +
+      `value exists. A name known only at runtime is a spread: \`\${spread({ [\`${prefix}\${…}${suffix}\`]: ${given} })}\` ` +
+      `(from @verajs/renderer/spread).`
+  );
+};
 const SINGLE_QUOTE_END = /'/g;
 /**
  * Elements whose content the parser reads as TEXT, so a comment marker cannot live there: the scan
@@ -207,10 +233,17 @@ class Template {
         markup += `${s.slice(0, nameEnd - name.length)}${i}${MARKER}${s.slice(nameEnd)}${MARKER}`;
         /** An unquoted value followed by `/>` would absorb the slash. */
         if (regex === TAG_END && strings[i + 1].startsWith('/>')) markup += ' ';
-      } else if (nameEnd === -2) markup += `${s} ${i}${MARKER}`;
+      } else if (nameEnd === -2) {
+        if (__DEV__ && NAME_AFTER.test(strings[i + 1])) nameHole(s, strings[i + 1]);
+        markup += `${s} ${i}${MARKER}`;
+      }
       else if (continues || regex !== TAG_END) markup += s + MARKER; // another value of the attribute a previous binding opened
-      /** A tag-name or attribute-name position (`<${x}>`, `<b data-${x}="1">`): no marker — the value is consumed and ignored. */
-      else markup += s;
+      /** A tag-name position (`<${x}>`): no marker — the value is consumed and ignored (the tag entry renders it). */
+      else {
+        /** Nothing before it at all (`${ref}${n}="x"`): only what follows can say it is a name. */
+        if (__DEV__ && (NAME_BEFORE.test(s) || (s === '' && NAME_AFTER.test(strings[i + 1])))) nameHole(s, strings[i + 1]);
+        markup += s;
+      }
       open = regex === TAG_END && (nameEnd >= 0 || continues);
     }
     markup += strings[count];

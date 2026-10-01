@@ -426,10 +426,11 @@ export const renderInto = (result: unknown, container: Node) => {
       rootParts.set(container, part);
       return;
     } catch (error) {
+      /** Whatever ended the adoption, its bounds go with it — a rethrown error leaves no half-adopted root behind. */
+      start.remove();
+      end.remove();
       if (error !== MISMATCH) throw error;
     }
-    start.remove();
-    end.remove();
     /**
      * **Falling back says so**, scoped to this one container: the page is correct either way, but the server's work
      * on it was just thrown away, and nothing on screen would say so. The reason names the first place the two

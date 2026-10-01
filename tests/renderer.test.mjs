@@ -182,11 +182,12 @@ test('svg renders in the SVG namespace', () => {
   assert.equal(c.getAttribute('r'), '5');
 });
 
-test('an expression in tag-name or attribute-name position consumes its value and leaks nothing onto the page', () => {
+/** An attribute-NAME expression is refused outright now (`attribute-name-holes.test.mjs`); a TAG-name one is the tag entry's. */
+test('an expression in tag-name position consumes its value and leaks nothing onto the page', () => {
   const [warn, error] = [console.warn, console.error];
   console.warn = console.error = () => {};
   try {
-    renderInto(html`<b data-${'x'}="1">a</b><${'i'}>b<p>${'c'}</p>`, el);
+    renderInto(html`<b>a</b><${'i'}>b<p>${'c'}</p>`, el);
   } finally {
     [console.warn, console.error] = [warn, error];
   }

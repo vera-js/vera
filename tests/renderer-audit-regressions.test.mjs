@@ -216,50 +216,47 @@ test('a template with no ref renders and clears normally', async () => {
  *
  * Found by a sweep putting expressions in every unusual template position.
  */
-test('an expression in attribute-name position is reported', { skip: isProduction && 'the guard is __DEV__' }, () => {
-  const said = [];
-  const original = console.error;
-  console.error = (...args) => said.push(args.join(' '));
-  const complaints = (make) => {
-    said.length = 0;
-    renderInto(make(), dom.window.document.createElement('div'));
-    return said.filter((line) => /attribute-name position/.test(line));
+test('an expression in attribute-name position is refused in development, as the server refuses it', { skip: isProduction && 'a development check (production pays nothing for it)' }, () => {
+  const refused = (make) => {
+    try {
+      renderInto(make(), dom.window.document.createElement('div'));
+      return false;
+    } catch (error) {
+      return /an attribute name cannot be an expression/.test(error.message);
+    }
   };
+  assert.ok(refused(() => html`<b ${'title'}="x">y</b>`), 'a whole name');
+  assert.ok(refused(() => html`<b data-${'x'}="1">y</b>`), 'a name prefix');
+  assert.ok(refused(() => html`<b a${'x'}b="1">y</b>`), 'a marker inside a name');
+
+  /**
+   * The controls matter more than the cases: an element ref is the *legitimate* reading of an expression in this
+   * position, and a refusal that fired on every `ref` would break every app that uses one.
+   */
+  assert.ok(!refused(() => html`<b ${(e) => e}>y</b>`), 'a bare element ref');
+  assert.ok(!refused(() => html`<b ${(e) => e} class="c">y</b>`), 'a ref before an attribute');
+  assert.ok(!refused(() => html`<input ${(e) => e} />`), 'a ref in a self-closing element');
+
+  /**
+   * **An empty `after` is not a name**: it is empty in exactly one situation — two expressions with nothing between
+   * them — and there both are element refs and the markup comes out clean. Refusing on it would fire on every
+   * `<b ${refA}${refB}>`.
+   */
+  assert.ok(!refused(() => html`<b ${(e) => e}${(e) => e}>y</b>`), 'two adjacent refs');
+  const twice = dom.window.document.createElement('div');
+  renderInto(html`<b ${(e) => e}${(e) => e}>y</b>`, twice);
+  assert.equal(twice.innerHTML.replace(/<!---->/g, ''), '<b>y</b>', 'and neither leaves anything in the markup');
+
+  /** The last marker still decides: put an `=` after the pair and it is the same mistake again. */
+  assert.ok(refused(() => html`<b ${(e) => e}${'title'}="x">y</b>`), 'adjacent, then a name');
+});
+
+test('development shows the spread that does what a name expression meant', { skip: isProduction && 'a development check' }, () => {
+  let message = '';
   try {
-    assert.equal(complaints(() => html`<b ${'title'}="x">y</b>`).length, 1, 'a whole name');
-    assert.equal(complaints(() => html`<b data-${'x'}="1">y</b>`).length, 1, 'a name prefix');
-    assert.equal(complaints(() => html`<b a${'x'}b="1">y</b>`).length, 1, 'a marker inside a name');
-
-    const named = complaints(() => html`<b ${'title'}="x">y</b>`)[0];
-    assert.match(named, /^\[vera\]/, 'carries the framework prefix');
-    assert.match(named, /spread/, 'and names the entry that does support runtime names');
-
-    /**
-     * The controls matter more than the cases: an element ref is the *legitimate* reading of an
-     * expression in this position, and a diagnostic that fired on every `ref` would be unusable.
-     */
-    assert.deepEqual(complaints(() => html`<b ${(e) => e}>y</b>`), [], 'a bare element ref');
-    assert.deepEqual(complaints(() => html`<b ${(e) => e} class="c">y</b>`), [], 'a ref before an attribute');
-    assert.deepEqual(complaints(() => html`<input ${(e) => e} />`), [], 'a ref in a self-closing element');
-
-    /**
-     * **The `after !== ''` clause has its own control, because it is the one that looks like an
-     * oversight.** The rule is that a ref is followed by whitespace, `>` or `/`; an empty string is
-     * none of those, and is excluded anyway.
-     *
-     * It is empty in exactly one situation — two expressions with nothing between them — and there
-     * that reading is right: both are element refs, and the markup comes out clean. Reporting on an
-     * empty `after` would fire on every `<b ${refA}${refB}>`, so the exclusion is load-bearing rather
-     * than forgotten.
-     */
-    assert.deepEqual(complaints(() => html`<b ${(e) => e}${(e) => e}>y</b>`), [], 'two adjacent refs');
-    const twice = dom.window.document.createElement('div');
-    renderInto(html`<b ${(e) => e}${(e) => e}>y</b>`, twice);
-    assert.equal(twice.innerHTML.replace(/<!---->/g, ''), '<b>y</b>', 'and neither leaves anything in the markup');
-
-    /** The last marker still decides: put an `=` after the pair and it is the same mistake again. */
-    assert.equal(complaints(() => html`<b ${(e) => e}${'title'}="x">y</b>`).length, 1, 'adjacent, then a name');
-  } finally {
-    console.error = original;
+    renderInto(html`<b data-${'x'}="1">y</b>`, dom.window.document.createElement('div'));
+  } catch (error) {
+    message = error.message;
   }
+  assert.match(message, /spread\(\{ \[`data-\$\{…\}`\]: "1" \}\)/, message);
 });

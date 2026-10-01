@@ -103,6 +103,28 @@ const openTagName = (out) => {
  */
 const SIGIL_TAIL = /(?:^|\s)([.?@&!])([^\s"'>=/]+)?\s*=\s*(["']?)$/;
 
+/**
+ * **An expression inside an attribute NAME is refused** — the twin of the client's rule (`nameHole` in the renderer),
+ * so the two halves refuse the same templates: inside a tag and outside a value, a hole a name character touches on
+ * either side (`<p data-${k}="1">`, `<b ${name}="x">`, `<p ${k}-x>`, `<p a${k}b>`) — never a ref, never the TAG name.
+ * Refused at plan time, from statics only: no value ever reaches the message.
+ */
+const NAME_CHAR_BEFORE = /[^\s"'>=/]$/;
+const NAME_CHAR_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
+const TAG_NAME_HOLE = /<\/?[^\s>]*$/;
+const nameHole = (before, after) => {
+  const prefix = (/[^\s"'>=/]*$/.exec(before) ?? [''])[0];
+  const suffix = (/^[^\s"'>=/]*/.exec(after) ?? [''])[0];
+  const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\s>]*))/.exec(after.slice(suffix.length));
+  const given =
+    value === null ? "''" : value[2] === '"' ? JSON.stringify(value[1]) : value[4] === "'" ? JSON.stringify(value[3]) : value[5] ? JSON.stringify(value[5]) : '…';
+  throw new Error(
+    `ssr: an attribute name cannot be an expression — \`${prefix}\${…}${suffix}\` is read by the parser before any ` +
+      `value exists. A name known only at runtime is a spread: \`\${spread({ [\`${prefix}\${…}${suffix}\`]: ${given} })}\` ` +
+      `(from @verajs/renderer/spread).`
+  );
+};
+
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
 const EVENT_TAIL = /on[A-Z][\w:-]*\s*=\s*(["']?)$/;
 
@@ -226,7 +248,7 @@ const closesTag = (text, inTag) => {
 const RAWTEXT = new Set(['style', 'script']);
 
 const scanTag = (text, state) => {
-  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert } = state;
+  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment } = state;
   /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
   let opened = false;
   let attrRaw = state.attrRaw;
@@ -254,6 +276,18 @@ const scanTag = (text, state) => {
       }
       continue;
     }
+    /**
+     * Inside a comment nothing is markup until its `-->` — the client's scanner reads it the same way, and a binding
+     * here is dropped on both sides (see `compile`). Not knowing it, this scanner took `<!--` for a TAG, so a binding
+     * in a comment looked like an element position.
+     */
+    if (comment) {
+      if (character === '-' && text.startsWith('-->', i)) {
+        i += 2;
+        comment = false;
+      }
+      continue;
+    }
     if (inValue) {
       /** An unquoted value ends at whitespace or the tag's own `>`. */
       if (quote ? character === quote : /[\s>]/.test(character)) {
@@ -264,7 +298,10 @@ const scanTag = (text, state) => {
       continue;
     }
     if (!inTag) {
-      if (character === '<') {
+      if (character === '<' && text.startsWith('<!--', i)) {
+        i += 3;
+        comment = true;
+      } else if (character === '<') {
         inTag = true;
         /** Collected as it is scanned, so a tag split across two statics keeps its name. */
         tagName = '';
@@ -311,7 +348,7 @@ const scanTag = (text, state) => {
       else naming = false;
     }
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, attrRaw, opened, attrStart, valueStart };
+  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, attrRaw, opened, attrStart, valueStart };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -373,7 +410,7 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, attrRaw: '' };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, attrRaw: '' };
   /** Per binding: whether a component property's name is a URL sink. */
   const urls = [];
   /**
@@ -553,13 +590,16 @@ const compile = (strings) => {
     }
     record(part);
     parts.push(part);
-    kinds.push(inert ? DROPPED : TEXT);
+    /** A binding inside a comment is dropped, as the client drops it — never written into the comment. */
+    kinds.push(inert || tagState.comment ? DROPPED : TEXT);
     names.push('');
     strip.push(false);
     owners.push(owner);
     raws.push(tagState.rawTag);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
+    if (elementPosition && !TAG_NAME_HOLE.test(part) && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
+      nameHole(part, strings[i + 1]);
     elementPositions.push(elementPosition);
     elements.push(elementOrdinal);
     /** A spread's keys are unknown until it runs, so its tag can no longer be settled here. */
@@ -674,23 +714,6 @@ export const serializeTemplate = (template) => {
          * `[object` and `object]`. A value in this position never has markup; only a spread does.
          */
         else if (elementPositions[i]) {
-          /**
-           * **A dynamic attribute *name* is refused rather than dropped.**
-           *
-           * `<b ${name}="x">` puts the slot at an element position with an `=` immediately after it,
-           * which is the one shape here that is not a ref. Dropping the value emitted `<b="x">` —
-           * not an attribute, not a tag, markup no browser would produce from that template. The
-           * client is no better off: it hands the template to the platform's parser and a marker is
-           * not a name. Since both halves are broken, saying so is more use than serving either
-           * one's version of broken.
-           */
-          if (/^=/.test(parts[i + 1] ?? ''))
-            throw new Error(
-              `ssr: an attribute name cannot be an expression — \`<b \${name}="x">\` is malformed ` +
-                `markup in the browser too, because the parser sees the marker before the value ` +
-                `exists. Use \`@verajs/renderer/spread\`, which is built for names that are not known ` +
-                `until runtime and which this serializer understands.`
-            );
           /**
            * The space that introduced the binding goes with it, exactly as a dropped sigil binding's
            * does. Leaving it served `<p >r</p>` where the client renders `<p>r</p>` — harmless to a

@@ -186,10 +186,11 @@ unsanitized. Everything else is checked:
   opt-in because most calls name a constant, and a check that is always trivially satisfied stops
   being read.
 - **`styles` comes back escaped for a `<style>` element**, since that is where a page shell puts it.
-- **A dynamic attribute *name* is refused.** `<b ${name}="x">` is malformed on both sides — the
-  client's parser does not treat a marker as a name — so rather than write markup no browser would
-  produce, it throws and names `@verajs/renderer/spread`, which exists for names known only at
-  runtime and which this serializer understands.
+- **A dynamic attribute *name* is refused** — by the server in every build, and by the client renderer in
+  development. `<b ${name}="x">`, `<p data-${k}="1">`, `<p ${k}-x>`: the parser reads a name before any
+  value exists, so no position can hold it. Both throw at the template's first use, and the message shows
+  the `@verajs/renderer/spread` rewrite — `${spread({ [`data-${k}`]: '1' })}` — which applies the refusals
+  a runtime name needs.
 
 ## Styles
 
