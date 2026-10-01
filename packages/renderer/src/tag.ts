@@ -1,4 +1,3 @@
-import { RESERVED_ELEMENT_NAMES } from '@verajs/shared-utils';
 import { spread } from './spread.js';
 
 /**
@@ -295,8 +294,12 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
     return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   const empty = VOID_TAGS.test(text);
-  /** A custom element's props map by the compiler's component rule — never by the HTML-control guesses. */
-  const custom = text.includes('-') && !RESERVED_ELEMENT_NAMES.has(text.toLowerCase());
+  /**
+   * A custom element's props map by the compiler's component rule — never by the HTML-control guesses. A dash name is
+   * enough here: the compiler also excludes eight reserved SVG/MathML names (`font-face`, `annotation-xml`…), which
+   * cost 77 B to carry and which a tag essentially never names (Brian, 2026-10-01, on vera-5a's recommendation).
+   */
+  const custom = text.includes('-');
   self[STATIC] = text;
   return self;
 };
