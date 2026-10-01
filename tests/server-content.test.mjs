@@ -81,6 +81,7 @@ test('a declarative shadow root in trusted innerHTML is neutralized; the compone
   /** The component's OWN shadow root is legitimate declarative shadow DOM and keeps `shadowrootmode`. */
   assert.equal(served.page.match(/<template shadowrootmode=/g)?.length, 1, 'exactly the component\u2019s own');
   /** The trusted markup's template is renamed, so a parser cannot attach a shadow root from it. */
+  /** The exact form `tests/browser/innerhtml-shadow-root.test.js` proves inert in every engine. */
   assert.match(served.page, /<template data-vera-shadowrootmode="open"><span id="shadow">/);
 });
 
