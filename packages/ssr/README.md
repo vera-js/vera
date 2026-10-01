@@ -199,6 +199,11 @@ unsanitized. Everything else is checked:
   `@verajs/renderer/tag` — a runtime tag name is a tag value from that entry. The server refuses in production too, so a production server render of such a
   template throws even though the client's production build would not — render it once in development
   and it never gets that far.
+- **A template ending inside a tag is refused** (`<b title="${x}` with no `>`), and so is **a template rendered
+  inside a text-only element** (`<textarea>`, `<title>`, …): both on the server in every build, the first also by
+  the client renderer in development. The client's parser drops an unfinished tag whole, so nothing can match it,
+  and a template's markup inside a text-only element is the one way a value could close that element. Strings,
+  numbers and arrays of them render in a `<textarea>` as always.
 
 ## Styles
 
@@ -321,6 +326,12 @@ dependency involved.
   browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
   That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
   page. Put the stylesheet outside the foreign element.
+- **An ordinary element a template leaves open nests differently.** The client parses each template on its own
+  and closes what it left open at its end; the server concatenates. Whatever changes how the rest of the page
+  PARSES is closed at the template's end on the server too — a comment, `<style>`/`<script>`, `<textarea>` and the
+  other text-only elements, `<svg>`, `<math>`, `<noscript>`, `<template>` — so a child can never reach its
+  parent's markup. A plain `<b>` or `<div>` left open is not closed, so the parent's next markup nests inside it
+  on the server and beside it on the client. Close every element inside the template that opens it.
 - **Beyond that, three things cannot survive a server round trip, and are the only three**: that carriage return
   inside `<style>`/`<script>`, and two characters. **NUL** is dropped in text and becomes U+FFFD in an
   attribute or RAWTEXT, and no spelling round-trips, so it is left alone rather than silently

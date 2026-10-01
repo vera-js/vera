@@ -179,7 +179,7 @@ test('a carriage return cannot survive inside style or script, and the README sa
     'the SSR README must document that a CR cannot round-trip inside style or script'
   );
   assert.ok(
-    readme.includes('Three things cannot survive a server round trip'),
+    readme.includes('three things cannot survive a server round trip'),
     'and must count it among the things that cannot round-trip'
   );
 });

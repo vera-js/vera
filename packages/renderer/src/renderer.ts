@@ -268,7 +268,8 @@ class Template {
     let rawEnd: RegExp | undefined;
     /** The previous binding opened an UNQUOTED value, so a string that matches nothing continues it (`a=${x}${y}`). */
     let open: boolean = false;
-    for (let i = 0; i < count; i++) {
+    /** Development also scans the LAST static, so a template that ends inside a tag is refused (below); production does not. */
+    for (let i = 0; __DEV__ ? i <= count : i < count; i++) {
       const s = strings[i];
       if (__DEV__ && i > 0) tags![i] = tags![i - 1];
       /** Where this string's bound attribute name ends (≥ 0), -1 for none, -2 for an element position. */
@@ -309,6 +310,16 @@ class Template {
           regex = TAG_END;
           rawEnd = undefined;
         }
+      }
+      /**
+       * A template that ends INSIDE a tag (`<b title="${x}`) renders nothing of it: the parser drops an unfinished tag
+       * whole. Refused, as the server refuses it in every build — there, left open, the tag swallowed the markup after
+       * the template into its attributes.
+       */
+      if (__DEV__ && i === count) {
+        if (regex !== TEXT_END && regex !== rawEnd && regex !== COMMENT_END && regex !== COMMENT2_END)
+          throw new Error('renderer: a template cannot end inside a tag — the parser drops an unfinished tag. Close the tag inside the template.');
+        break;
       }
       if (regex === TEXT_END) {
         markup += `${s}<?${MARKER}${i}>`;

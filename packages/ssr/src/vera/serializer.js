@@ -272,9 +272,13 @@ const RAWTEXT = new Set(['style', 'script']);
  * recognized inside, so every value in it is escaped — which is safe under both parses.
  */
 const TEXT_ONLY = new Set(['textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes', 'plaintext']);
+/** The elements that change how everything after them parses until they close — tracked so a template's end closes them. */
+const STATEFUL = new Set(['svg', 'math', 'noscript', 'template']);
 
 const scanTag = (text, state) => {
   let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag, foreign } = state;
+  /** The parser-state elements THIS template has open, innermost last — what its end must close (see `compile`). Mutated. */
+  const { opens } = state;
   /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
   let opened = false;
   let attrRaw = state.attrRaw;
@@ -366,7 +370,17 @@ const scanTag = (text, state) => {
        * How deep inside nested `<template>` content this is. That content is inert markup the client never walks,
        * so a binding there is ignored on both sides — see `compile`.
        */
-      if (tagName === 'template') inert += closing ? -1 : text[i - 1] === '/' ? 0 : 1;
+      /**
+       * A `/` before the `>` closes only a FOREIGN element: on an HTML one the parser ignores it, so `<template/>` and
+       * `<noscript/>` open exactly as `<template>` and `<noscript>` do. Counting them as closed had the server writing
+       * raw text into what the browser parses as `<noscript>` content.
+       */
+      const selfClosed = text[i - 1] === '/' && (tagName === 'svg' || tagName === 'math');
+      if (STATEFUL.has(tagName) && !selfClosed) {
+        if (!closing) opens.push(tagName);
+        else if (opens.lastIndexOf(tagName) !== -1) opens.length = opens.lastIndexOf(tagName);
+      }
+      if (tagName === 'template') inert += closing ? -1 : 1;
       /**
        * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
        * `<textarea>` and the rest are SVG/MathML elements whose content is MARKUP — read as raw text there, a hole
@@ -378,7 +392,7 @@ const scanTag = (text, state) => {
        * escaped as neither can misread (see `TEXT_ONLY`). The depth a hole sits at is recorded for the template
        * rendered there, which starts from it (see `serializeTemplate`).
        */
-      else if (tagName === 'svg' || tagName === 'math' || tagName === 'noscript') foreign = Math.max(0, foreign + (closing ? -1 : text[i - 1] === '/' ? 0 : 1));
+      else if (tagName === 'svg' || tagName === 'math' || tagName === 'noscript') foreign = Math.max(0, foreign + (closing ? -1 : selfClosed ? 0 : 1));
       /** A self-closing tag has no content to be raw, and a closing tag opens nothing. */
       else if (foreign === 0 && !closing && text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
       else if (foreign === 0 && !closing && text[i - 1] !== '/' && TEXT_ONLY.has(tagName)) textTag = tagName;
@@ -412,7 +426,7 @@ const scanTag = (text, state) => {
       else naming = false;
     }
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag, foreign, attrRaw, opened, attrStart, valueStart };
+  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, opened, attrStart, valueStart };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -451,6 +465,8 @@ const compile = (strings, depth) => {
   const raws = [];
   /** Per child binding (sparse): the foreign-content depth it sits at, which a template rendered there starts from. */
   const depths = [];
+  /** Per child binding (sparse): whether it sits in a text-only element, where a template is refused (see `serializeValue`). */
+  const texts = [];
   /**
    * Whether each slot is an **element position** — inside a tag but not inside an attribute value.
    *
@@ -476,7 +492,7 @@ const compile = (strings, depth) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, textTag: '', foreign: depth, attrRaw: '' };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, textTag: '', foreign: depth, opens: [], attrRaw: '' };
   /** Per binding: whether a component property's name is a URL sink. */
   const urls = [];
   /**
@@ -657,6 +673,7 @@ const compile = (strings, depth) => {
     record(part);
     parts.push(part);
     if (tagState.foreign) depths[kinds.length] = tagState.foreign;
+    if (tagState.textTag) texts[kinds.length] = true;
     /** A binding inside a comment is dropped, as the client drops it — never written into the comment. */
     kinds.push(inert || tagState.comment ? DROPPED : TEXT);
     names.push('');
@@ -704,7 +721,25 @@ const compile = (strings, depth) => {
     parts[i + 1] = next.slice(closed && group.quote ? end + 1 : end);
   }
 
-  const plan = { parts, kinds, names, strip, owners, raws, depths, elementPositions, elements, groups, leads, decodedLeads, urls };
+  /**
+   * **A template ends where it began.** The client parses every template on its own, so whatever one leaves open — a
+   * comment, a `<style>`, a `<textarea>`, an `<svg>` — the parser closes at its end. The server concatenates, and
+   * left open, that state swallowed the PARENT's markup: `${html`<svg>`}<style>${x}</style>` wrote `x` raw inside what
+   * the browser parses as SVG, and `${html`<!--`}` let a `-->` in a later raw value end the comment. So the end closes
+   * what this template opened, innermost first — the client's own end-of-input rule, read off the statics once. A
+   * template that ends INSIDE a tag is refused, in every build: the client's parser drops an unfinished tag whole,
+   * which no closer can reproduce, and left open it swallowed the parent's next markup into its attributes. A bare `<`
+   * that never started a tag name, as in `a < b`, is text. The client refuses the same templates in development.
+   */
+  const end = scanTag(strings[strings.length - 1], tagState);
+  if (end.inValue || (end.inTag && end.tagName))
+    throw new Error('ssr: a template cannot end inside a tag — the client drops an unfinished tag. Close the tag inside the template.');
+  const closers =
+    (end.comment ? '-->' : end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '') +
+    end.opens.reduceRight((closing, name) => closing + `</${name}>`, '');
+  if (closers) parts[parts.length - 1] += closers;
+
+  const plan = { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls };
   if (depth === 0) plans.set(strings, plan);
   else {
     let byDepth = foreignPlans.get(strings);
@@ -729,7 +764,7 @@ const compile = (strings, depth) => {
 export const serializeTemplate = (template, depth = 0) => {
   const { strings, values } = template;
   if (template['_$litType$'] > 1 && depth === 0) depth = 1;
-  const { parts, kinds, names, strip, owners, raws, depths, elementPositions, elements, groups, leads, decodedLeads, urls } =
+  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls } =
     (depth === 0 ? plans.get(strings) : foreignPlans.get(strings)?.get(depth)) ?? compile(strings, depth);
   /** The attribute being built: its escaped value so far, and the value the client would join (for the URL check). */
   let attribute = '';
@@ -832,7 +867,7 @@ export const serializeTemplate = (template, depth = 0) => {
          * they keep ordinary escaping, which is what the client produces for them too.
          */
         else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
-        else out += serializeValue(value, false, depths[i] ?? 0);
+        else out += serializeValue(value, false, depths[i] ?? 0, texts[i] === true);
         break;
       case ATTRIBUTE: {
         const group = groups[i];
@@ -1271,7 +1306,7 @@ const foldSpread = (out, entries, deliverProp) => {
  * Exported so the renderer can flatten a non-template return the same way a slot does — see
  * `index.js`. Everything about what renders and how it escapes lives here and only here.
  */
-export const serializeValue = (value, raw = false, depth = 0) => {
+export const serializeValue = (value, raw = false, depth = 0, text = false) => {
   /**
    * Only `null` and `undefined` are empty, exactly as on the client — `false` and `0` render.
    * `false` used to serialize as empty here, which made `${cond && 'x'}` emit nothing on the server
@@ -1294,11 +1329,19 @@ export const serializeValue = (value, raw = false, depth = 0) => {
    * different page before and after hydration.
    */
   if (raw) return `${value}`;
-  if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, false, depth)).join('');
+  if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, false, depth, text)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
     /** Template-shaped (core's html, by shape) recurses. `keyed()` mutates one, so it arrives here. */
-    if (value.strings) return serializeTemplate(value, depth);
+    /**
+     * Inside `<textarea>`, `<title>` and the other text-only elements a template is refused: their content is text to
+     * the browser, where the client's elements are never shown, and a template's markup there is the one way a value
+     * can CLOSE the element — `${html`</textarea>`}` — and turn the statics after it into unchecked markup.
+     */
+    if (value.strings) {
+      if (text) throw new Error('ssr: a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text. Render a string there.');
+      return serializeTemplate(value, depth);
+    }
     /**
      * `hold(result)` is `{ $h: result }` — a client-renderer construct that keeps the DOM of a
      * toggled-away subtree alive so form values and scroll positions survive the round trip. There
@@ -1309,7 +1352,7 @@ export const serializeValue = (value, raw = false, depth = 0) => {
      * page. `keyed()` works because it mutates the template and hands the same object back; `hold`
      * wraps one, and nothing unwrapped it.
      */
-    if (value.$h) return serializeValue(value.$h, raw, depth);
+    if (value.$h) return serializeValue(value.$h, raw, depth, text);
     /**
      * A spread (`@verajs/renderer/spread`) at element position. It hands back resolved bindings and this
      * decides what reaches markup: attributes and truthy booleans do, form properties do because
@@ -1324,7 +1367,7 @@ export const serializeValue = (value, raw = false, depth = 0) => {
      * it or hydration is discarded.
      */
     if (typeof value[Symbol.iterator] === 'function') {
-      return [...value].map((entry) => serializeValue(entry, false, depth)).join('');
+      return [...value].map((entry) => serializeValue(entry, false, depth, text)).join('');
     }
 
     /**
