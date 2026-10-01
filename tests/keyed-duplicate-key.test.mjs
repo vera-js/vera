@@ -34,7 +34,7 @@ test('a repeated key whose first copy matches the common prefix is still said', 
   assert.ok(said.some((line) => /^\[vera\] keyed: the key K is used by more than one item/.test(line)), said.join('\n'));
 });
 
-test('a same-order update and a pure removal never pay for the check, and never warn', { skip: isProduction && 'a development check' }, () => {
+test('a same-order update and a pure removal never warn', { skip: isProduction && 'a development check' }, () => {
   const host = document.createElement('div');
   const said = [];
   const { warn } = console;
