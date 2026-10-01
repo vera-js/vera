@@ -179,18 +179,22 @@ export const decodeSchemeReferences = (text) =>
 
 /**
  * Where a comment opened at `open` (the index of its `<!--`) ends, as the HTML tokenizer reads it: at `-->`, at
- * `--!>`, or ABRUPTLY at `<!-->` and `<!--->`. Answers `[dataEnd, end]` — where its text stops and where the markup
- * resumes — or `null` when it runs to the end of the input.
+ * `--!>`, or ABRUPTLY at `<!-->` and `<!--->`. Answers the index just past it, or `-1` when it runs to the end of the
+ * input — one number, never an allocation, since the component scan asks it for every comment of every render.
  *
  * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. Every
  * scanner here that meets a comment asks this one rule, and the client's scanner holds its twin.
  */
 export const commentEnd = (markup, open) => {
   const start = open + 4;
-  if (markup[start] === '>') return [start, start + 1];
-  if (markup.startsWith('->', start)) return [start, start + 2];
-  COMMENT_CLOSE.lastIndex = start;
-  const match = COMMENT_CLOSE.exec(markup);
-  return match === null ? null : [match.index, match.index + match[0].length];
+  if (markup[start] === '>') return start + 1;
+  if (markup[start] === '-' && markup[start + 1] === '>') return start + 2;
+  /** `indexOf` for the `--`, then the one or two characters after it: a regex here cost the component scan about 1%. */
+  for (let at = markup.indexOf('--', start); at !== -1; at = markup.indexOf('--', at + 1)) {
+    if (markup[at + 2] === '>') return at + 3;
+    if (markup[at + 2] === '!' && markup[at + 3] === '>') return at + 4;
+  }
+  return -1;
 };
-const COMMENT_CLOSE = /--!?>/g;
+/** Where a comment's TEXT stops, given the end `commentEnd` answered: before `-->`/`--!>`, or at once when abrupt. */
+export const commentDataEnd = (markup, open, end) => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);

@@ -165,7 +165,8 @@ export const renderComponentTags = (markup, depth, emit) => {
      * comment at worst.
      */
     if (markup.startsWith('<!--', open)) {
-      const stop = commentEnd(markup, open)?.[1] ?? markup.length;
+      const end = commentEnd(markup, open);
+      const stop = end === -1 ? markup.length : end;
       out += markup.slice(open, stop);
       at = stop;
       continue;

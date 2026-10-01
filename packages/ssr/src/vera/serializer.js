@@ -770,7 +770,16 @@ const compile = (strings, depth) => {
   const closers = closersOf(end);
   if (closers) parts[parts.length - 1] += closers;
 
-  const plan = { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls };
+  /**
+   * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
+   * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
+   */
+  const plan = {
+    parts, kinds, names, strip, owners, raws,
+    depths: Array.from(kinds, (_, i) => depths[i] ?? 0),
+    texts: Array.from(kinds, (_, i) => texts[i] === true),
+    elementPositions, elements, groups, leads, decodedLeads, urls,
+  };
   if (depth === 0) plans.set(strings, plan);
   else {
     let byDepth = foreignPlans.get(strings);
@@ -905,7 +914,7 @@ export const serializeTemplate = (template, depth = 0) => {
          * they keep ordinary escaping, which is what the client produces for them too.
          */
         else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
-        else out += serializeValue(value, false, depths[i] ?? 0, texts[i] === true);
+        else out += serializeValue(value, false, depths[i], texts[i]);
         break;
       case ATTRIBUTE: {
         const group = groups[i];
@@ -950,7 +959,7 @@ export const serializeTemplate = (template, depth = 0) => {
         if (value) out += ` ${names[i]}=""`;
         break;
       case CONTENT:
-        pendingText = serverContent(value, owners[i], names[i], depths[i] ?? 0);
+        pendingText = serverContent(value, owners[i], names[i], depths[i]);
         pendingStrip = owners[i];
         break;
       case FORM_PROP:
@@ -1463,7 +1472,15 @@ export const serializeValue = (value, raw = false, depth = 0, text = false) => {
    * different page before and after hydration.
    */
   if (raw) return `${value}`;
-  if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, false, depth, text)).join('');
+  /**
+   * Loops, never `map` with an arrow: an arrow capturing `depth`/`text` makes V8 heap-allocate a context on EVERY call of
+   * this function, whichever branch runs — measured at about 5% of a server render.
+   */
+  if (Array.isArray(value)) {
+    let out = '';
+    for (let i = 0; i < value.length; i++) out += serializeValue(value[i], false, depth, text);
+    return out;
+  }
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
     /** Template-shaped (core's html, by shape) recurses. `keyed()` mutates one, so it arrives here. */
@@ -1501,7 +1518,9 @@ export const serializeValue = (value, raw = false, depth = 0, text = false) => {
      * it or hydration is discarded.
      */
     if (typeof value[Symbol.iterator] === 'function') {
-      return [...value].map((entry) => serializeValue(entry, false, depth, text)).join('');
+      let out = '';
+      for (const entry of value) out += serializeValue(entry, false, depth, text);
+      return out;
     }
 
     /**

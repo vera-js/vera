@@ -21,7 +21,7 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd } from './escaping.js';
+import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd } from './escaping.js';
 
 /** The entity spellings this package emits, plus the handful every document uses. */
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -180,12 +180,12 @@ export const parseFragment = (markup, create) => {
     /** A comment or a doctype is content this DOM has no node for; keep the bytes and move on. */
     if (markup.startsWith('<!--', next)) {
       const end = commentEnd(markup, next);
-      if (end === null) return null;
+      if (end === -1) return null;
       flushText();
-      const node = create.comment(markup.slice(next + 4, end[0]));
-      node._source = markup.slice(next, end[1]);
+      const node = create.comment(markup.slice(next + 4, commentDataEnd(markup, next, end)));
+      node._source = markup.slice(next, end);
       open().children.push(node);
-      index = end[1];
+      index = end;
       continue;
     }
     if (markup.startsWith('<!', next)) {
