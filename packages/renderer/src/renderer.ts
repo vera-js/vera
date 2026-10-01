@@ -1123,7 +1123,13 @@ export interface KeyedResult extends TemplateResult {
  * the DOM, because its nodes sit in different slots and its markers rest in the host's holding fragment. Read only
  * while slots is wired (`slotsWired`), so an app without it pays one boolean per structural write.
  */
-type LightParent = Node & { $range(start: Node, end: Node | null): Node[] };
+type LightParent = Node & {
+  $range(start: Node, end: Node | null): Node[];
+  /** Takes a range out (boundaries too when `inclusive`) and hands its nodes back, in light order. */
+  $drop(start: Node, end: Node | null, inclusive: boolean): Node[];
+  /** Moves a range, boundaries included, before `ref`. */
+  $move(start: Node, end: Node, ref: Node | null): void;
+};
 type Lit = Node & { $light?: LightParent };
 let slotsWired = false;
 /**
@@ -1203,9 +1209,7 @@ class ChildPart {
     if (owner !== null) owner.textContent = '';
     else if (slotsWired && (start as Lit).$light !== undefined) {
       /** A light part: its nodes sit in different slots, so they are removed through the light parent, in its order. */
-      const parent = (start as Lit).$light!;
-      const nodes = parent.$range(start, end);
-      for (let i = 0; i < nodes.length; i++) parent.removeChild(nodes[i]);
+      (start as Lit).$light!.$drop(start, end, false);
     } else if (start.previousSibling === null && end!.nextSibling === null) {
       const parent = start.parentNode!;
       parent.textContent = '';
@@ -1282,11 +1286,8 @@ class ChildPart {
           if (slotsWired && this._start !== null && (this._start as Lit).$light !== undefined) {
             /** A light part's nodes leave its light parent first, then return to the fragment that parks them. */
             const parent = (this._start as Lit).$light!;
-            const nodes = root.nodeType === 11 ? parent.$range(this._start, this._end) : [root];
-            for (let i = 0; i < nodes.length; i++) {
-              parent.removeChild(nodes[i]);
-              if (root.nodeType === 11) root.appendChild(nodes[i]);
-            }
+            if (root.nodeType === 11) for (const node of parent.$drop(this._start, this._end, false)) root.appendChild(node);
+            else parent.removeChild(root);
           } else if (root.nodeType === 11) {
             let node = this._owner !== null ? this._owner.firstChild : this._start!.nextSibling;
             while (node !== this._end) {
@@ -1417,8 +1418,7 @@ class ChildPart {
     }
     if (slotsWired && isLight(parent)) {
       /** A light item moves through its light parent, boundary to boundary, in light order. */
-      const nodes = [item._start!, ...parent.$range(item._start!, item._end), item._end!];
-      for (let i = 0; i < nodes.length; i++) parent.insertBefore(nodes[i], ref);
+      parent.$move(item._start!, item._end!, ref);
       return;
     }
     let node: Node | null = item._start!;
@@ -1644,11 +1644,8 @@ const markered = (parent: Node, ref: Node | null) => {
 
 /** Removes a light list item through its light parent — boundary to boundary for a part, its root for an instance. */
 const lightRemove = (item: Item) => {
-  if (item instanceof ChildPart) {
-    const parent = (item._start as Lit).$light!;
-    const nodes = [item._start!, ...parent.$range(item._start!, item._end), item._end!];
-    for (let i = 0; i < nodes.length; i++) parent.removeChild(nodes[i]);
-  } else parentOf(item._root).removeChild(item._root);
+  if (item instanceof ChildPart) (item._start as Lit).$light!.$drop(item._start!, item._end, true);
+  else parentOf(item._root).removeChild(item._root);
 };
 
 /**

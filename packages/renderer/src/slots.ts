@@ -78,6 +78,18 @@ class Light {
     const to = end === null ? list.length : list.indexOf(end);
     return list.slice(from, to < 0 ? list.length : to);
   }
+  $drop(start: Node, end: Node | null, inclusive: boolean): Node[] {
+    const nodes = this.$range(start, end);
+    if (inclusive) {
+      nodes.unshift(start);
+      if (end !== null) nodes.push(end);
+    }
+    for (const node of nodes) this.removeChild(node);
+    return nodes;
+  }
+  $move(start: Node, end: Node, ref: Node | null) {
+    for (const node of [start, ...this.$range(start, end), end]) this.insertBefore(node, ref);
+  }
   insertBefore<T extends Node>(node: T, ref: Node | null): T {
     if (node.nodeType === 11) {
       for (const child of [...node.childNodes]) this.insertBefore(child, ref);
