@@ -61,24 +61,36 @@ const BOUNDARY_OVERLAY: PropertyDescriptorMap = {
 const OVERLAY: PropertyDescriptorMap = {
   nextSibling: { configurable: true, get(this: Lit) { const light = live(this); if (light === undefined) return physicalNext(this); const list = light.valid(); return list[list.indexOf(this) + 1] ?? null; } },
   previousSibling: { configurable: true, get(this: Lit) { const light = live(this); if (light === undefined) return physicalPrevious(this); const list = light.valid(); return list[list.indexOf(this) - 1] ?? null; } },
-  remove: { configurable: true, writable: true, value(this: Lit) { this.$light!.removeChild(this); } },
+  remove: { configurable: true, writable: true, value(this: Lit) { const light = live(this); if (light === undefined) return (this.nodeType === 1 ? Element : CharacterData).prototype.remove.call(this as unknown as Element & CharacterData); light.$replace(this); light.removeChild(this); } },
   replaceWith: {
     configurable: true,
     writable: true,
     value(this: Lit, ...nodes: (Node | string)[]) {
       const light = this.$light!;
+      light.$replace(this);
       for (const node of nodes) light.insertBefore(typeof node === 'string' ? this.ownerDocument!.createTextNode(node) : node, this);
       light.removeChild(this);
     },
   },
 };
-/** A light ELEMENT also re-sorts itself, synchronously, when its `slot` changes — however it is written. */
-const ELEMENT_OVERLAY: PropertyDescriptorMap = {
-  setAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string, value: string) { Element.prototype.setAttribute.call(this, name, value); if (name === 'slot') this.$light?.$place(this); } },
-  removeAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string) { Element.prototype.removeAttribute.call(this, name); if (name === 'slot') this.$light?.$place(this); } },
-  toggleAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string, force?: boolean) { const on = Element.prototype.toggleAttribute.call(this, name, force); if (name === 'slot') this.$light?.$place(this); return on; } },
-  slot: { configurable: true, get(this: Element) { return this.getAttribute('slot') ?? ''; }, set(this: Element, value: string) { this.setAttribute('slot', `${value}`); } },
+/**
+ * **An attribute whose writes re-sort, however written** — the three attribute methods and the IDL accessor, for one
+ * attribute: a light element's `slot`, a kept `<slot>`'s `name`. `Element.prototype` is read inside each method, never
+ * at module scope: this module is imported on a server too, where it may not exist yet.
+ */
+const reacting = (attribute: string, react: (element: Element) => void): PropertyDescriptorMap => {
+  const after = (element: Element, name: string) => {
+    if (name === attribute) react(element);
+  };
+  return {
+    setAttribute: { configurable: true, writable: true, value(this: Element, name: string, value: string) { Element.prototype.setAttribute.call(this, name, value); after(this, name); } },
+    removeAttribute: { configurable: true, writable: true, value(this: Element, name: string) { Element.prototype.removeAttribute.call(this, name); after(this, name); } },
+    toggleAttribute: { configurable: true, writable: true, value(this: Element, name: string, force?: boolean) { const on = Element.prototype.toggleAttribute.call(this, name, force); after(this, name); return on; } },
+    [attribute]: { configurable: true, get(this: Element) { return this.getAttribute(attribute) ?? ''; }, set(this: Element, value: string) { this.setAttribute(attribute, `${value}`); } },
+  };
 };
+/** A light ELEMENT re-sorts itself, synchronously, when its `slot` changes. */
+const ELEMENT_OVERLAY = reacting('slot', (element) => (element as Lit).$light?.$place(element));
 const OVERLAID = [...Object.keys(OVERLAY), ...Object.keys(ELEMENT_OVERLAY), ...Object.keys(BOUNDARY_OVERLAY)];
 const own = (node: Node) => {
   Object.defineProperties(node, OVERLAY);
@@ -168,6 +180,20 @@ class Light {
   valid(): Node[] {
     for (const node of [...this.list]) if (!this.holds(node as Lit)) this.forget(node);
     return this.list;
+  }
+  /**
+   * **The replacement idiom, seen at the removal.** Native code put nodes immediately before a light node and is now
+   * removing it — the renderer's shape change does exactly this (`markered(element.parentNode, element)`, then
+   * `element.remove()`, with a slotted element answering its PHYSICAL parent). While anything is assigned a slot's
+   * region holds only light nodes, and holding only ever holds them, so a node there this parent did not place is
+   * foreign by definition: it takes the leaving node's logical place, so what is later written through it is distributed.
+   */
+  $replace(node: Node) {
+    const binding = (node as Lit).$in;
+    const stop = binding === undefined ? null : binding.start;
+    const foreign: Node[] = [];
+    for (let at = physicalPrevious(node); at !== null && at !== stop && (at as Lit).$light === undefined; at = physicalPrevious(at)) foreign.unshift(at);
+    for (const adopted of foreign) this.insertBefore(adopted, node);
   }
   /** The nodes strictly between two boundaries, in light order. */
   $range(start: Node, end: Node | null): Node[] {
@@ -398,10 +424,7 @@ const fallbackFirst = (binding: Binding): ChildNode | null => {
   return node === binding.end ? null : node;
 };
 const SLOT_OVERLAY: PropertyDescriptorMap = {
-  setAttribute: { configurable: true, writable: true, value(this: Kept, name: string, value: string) { Element.prototype.setAttribute.call(this, name, value); if (name === 'name') rename(this); } },
-  removeAttribute: { configurable: true, writable: true, value(this: Kept, name: string) { Element.prototype.removeAttribute.call(this, name); if (name === 'name') rename(this); } },
-  toggleAttribute: { configurable: true, writable: true, value(this: Kept, name: string, force?: boolean) { const on = Element.prototype.toggleAttribute.call(this, name, force); if (name === 'name') rename(this); return on; } },
-  name: { configurable: true, get(this: Kept) { return this.getAttribute('name') ?? ''; }, set(this: Kept, value: string) { this.setAttribute('name', `${value}`); } },
+  ...reacting('name', (slot) => rename(slot as HTMLSlotElement)),
   firstChild: { configurable: true, get(this: Kept) { return fallbackFirst(this.$binding); } },
   insertBefore: {
     configurable: true,

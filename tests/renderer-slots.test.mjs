@@ -1237,3 +1237,51 @@ test('a text child that becomes a list distributes its items', () => {
   assert.deepEqual(slotted(upHost, 'h').map((node) => node.textContent), ['H']);
   page.remove();
 });
+
+/**
+ * vera-5a's element twin of the text-upgrade find: a keyed row in a named slot whose value changes SHAPE is replaced
+ * by markers the renderer inserts next to it through its PHYSICAL parent, then removes it. The markers must take its
+ * logical place, or the string written between them — and the template after — lands undistributed.
+ */
+test('a keyed row in a named slot that changes shape and back stays distributed, through a reorder', () => {
+  if (!customElements.get('shape-host'))
+    customElements.define('shape-host', class extends HTMLElement { connectedCallback() { init(this); renderInto(html`<header><slot name="a"></slot></header><main><slot></slot></main>`, this); } });
+  const page = host();
+  /** A different TEMPLATE is a shape change (keyed rows are always templates): the instance is replaced by markers. */
+  const row = (id, flipped) => keyed(id, flipped ? html`<span>text-${id}</span>` : html`<b slot="a">${id}</b>`);
+  const draw = (rows) => html`<shape-host>${rows}</shape-host>`;
+  const upHost = () => page.querySelector('shape-host');
+  renderInto(draw([row(1), row(2), row(3)]), page);
+  assert.equal(upHost().querySelector('header').textContent, '123', 'CONTROL: all three in the named slot');
+  renderInto(draw([row(1), row(2, true), row(3)]), page);
+  assert.equal(upHost().querySelector('header').textContent, '13', 'the row that changed shape left the named slot');
+  assert.equal(upHost().querySelector('main').textContent, 'text-2', 'and its new element went to the default slot');
+  renderInto(draw([row(3), row(2, true), row(1)]), page);
+  assert.equal(upHost().querySelector('header').textContent, '31', 'a reorder keeps both slots in light order');
+  assert.equal(upHost().querySelector('main').textContent, 'text-2');
+  renderInto(draw([row(3), row(2), row(1)]), page);
+  assert.equal(upHost().querySelector('header').textContent, '321', 'and back to a template, it rejoins in order');
+  assert.equal(upHost().querySelector('main').textContent, '', 'leaving the default slot empty');
+  page.remove();
+});
+
+/** vera-5a: a node the renderer moves OUT natively (hold parks it) and back IN natively must be light again. */
+test('a held light child, hidden then shown, is distributed again — through a reorder', () => {
+  if (!customElements.get('hold-host'))
+    customElements.define('hold-host', class extends HTMLElement { connectedCallback() { init(this); renderInto(html`<header><slot name="a"></slot></header><main><slot></slot></main>`, this); } });
+  const page = host();
+  const a = html`<b slot="a">A</b>`;
+  const draw = (show, flip) => html`<hold-host>${flip ? html`<i>I</i>` : null}${show ? hold(a) : null}${flip ? null : html`<i>I</i>`}</hold-host>`;
+  const h = () => page.querySelector('hold-host');
+  renderInto(draw(true, false), page);
+  assert.equal(h().querySelector('header').textContent, 'A', 'CONTROL: distributed');
+  renderInto(draw(false, false), page);
+  assert.equal(h().querySelector('header').textContent, '', 'hidden');
+  renderInto(draw(true, false), page);
+  assert.equal(h().querySelector('header').textContent, 'A', 'shown again: back in its slot');
+  assert.deepEqual(slotted(h(), 'a').map((n) => n.textContent), ['A'], 'and the slot API agrees');
+  renderInto(draw(true, true), page);
+  assert.equal(h().querySelector('header').textContent, 'A', 'through a reorder of its siblings');
+  assert.equal(h().querySelector('main').textContent, 'I');
+  page.remove();
+});
