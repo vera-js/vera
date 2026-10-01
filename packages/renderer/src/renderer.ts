@@ -16,7 +16,17 @@
  * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { adoptProperty, call, INLINE_HANDLER, isSelection, read, reportUncaught, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import {
+  adoptProperty,
+  call,
+  INLINE_HANDLER,
+  isSelection,
+  read,
+  reportUncaught,
+  SCRIPT_URL,
+  SCRIPT_URL_ITEM,
+  URL_SINK,
+} from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
@@ -302,14 +312,18 @@ class Template {
         present[i] = kind === ATTR && el.hasAttribute(real);
         /**
          * A custom element's `src` or `data` PROPERTY is its own business — often an object (`.data=${rows}`) —
-         * so only a string is checked there, and nothing else is converted; everywhere else the value is converted once.
+         * so only a string is checked there (1), and nothing else is converted; everywhere else the value is converted
+         * once (2) — and an animation's value (`to`, `values`…) is checked item by item (3).
          */
+        const sink = URL_SINK.exec(real);
         urls[i] =
-          kind === REFUSED || kind === BOOLEAN || kind === EVENT || !URL_ATTRIBUTE.test(real)
+          kind === REFUSED || kind === BOOLEAN || kind === EVENT || sink === null
             ? 0
             : kind !== ATTR && el.localName.includes('-')
-              ? 2
-              : 1;
+              ? 1
+              : sink[1]
+                ? 2
+                : 3;
       }
       /** A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. */
       if (RAW_TEXT.test(el.localName) && el.textContent!.includes(MARKER)) {
@@ -617,8 +631,8 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
    * passed the check as `https:` and was written as `javascript:`.
    */
   const url = template._urls[i];
-  if (url === 1 && value != null && typeof value !== 'string') value = `${value}`;
-  if (url !== 0 && typeof value === 'string' && SCRIPT_URL.test(value)) {
+  if (url > 1 && value != null && typeof value !== 'string') value = `${value}`;
+  if (url !== 0 && typeof value === 'string' && (url === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(value)) {
     if (__DEV__ && value !== committed)
       console.warn(
         `[vera] renderer: \`${name}\` was given a javascript: URL — refused, and the attribute removed. A bound ` +

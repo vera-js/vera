@@ -1046,8 +1046,11 @@ children nothing else binds — the renderer owns the content of elements it ren
 **Security: a bound URL cannot be a `javascript:` URL, and a bound `srcdoc` is refused.** A value
 bound where a browser *navigates* — `href`, `src`, `action`, `formaction`, `xlink:href` or `data`,
 as the attribute or as its property — is refused when it parses as a `javascript:` URL, and the
-attribute is removed. It is read the way the URL Standard reads a scheme, so `" jAvA\tscript:"` is
-caught as surely as `javascript:`, and it is judged on the whole JOINED value, so `href="java${x}"` is
+attribute is removed. The same holds for an SVG animation's `to`, `from`, `by` and `values` (every item
+of a `values` list), on any element and whatever `attributeName` says: `<animate>`/`<set>` write their
+value onto the attribute they animate, `href` included, and Chromium, Firefox and WebKit all run a
+`javascript:` URL set on a link that way when it is clicked. It is read the way the URL Standard reads
+a scheme, so `" jAvA\tscript:"` is caught as surely as `javascript:`, and it is judged on the whole JOINED value, so `href="java${x}"` is
 caught too; the statics you write are yours and are never refused on their own. A value that is not a
 string is converted ONCE and the string checked is the string written, so an object whose `toString`
 changes its answer cannot pass as one URL and land as another. A custom element's property of the same

@@ -643,7 +643,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   `@verajs/ssr` alike; the attribute holding it is dropped. Bindings on the `<template>` element itself work.
 - A bound `javascript:` URL is REFUSED where a browser navigates (`href`, `src`, `action`,
   `formaction`, `xlink:href`, `data` — attribute or property), judged on the joined value as the URL
-  parser reads it; the attribute is removed. A non-string is converted ONCE (the string checked is the
+  parser reads it; the attribute is removed. So is one in an SVG animation's `to`/`from`/`by`/`values`
+  (any item of a `values` list), on any element: `<set attributeName="href" to=${url}>` writes its value
+  onto the link, and every engine runs a `javascript:` one on click. A non-string is converted ONCE (the string checked is the
   string written); a custom element's same-named property (`.data=${rows}`) gets objects untouched and
   only a string is checked. A bound `srcdoc` attribute is refused too — use
   `.srcdoc=${trusted}`. `@verajs/ssr` refuses the same values, so server and client agree.

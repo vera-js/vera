@@ -1,5 +1,6 @@
 /**
- * **Bound values that would run as code: `javascript:` URLs and `srcdoc`.** Refused by the client
+ * **Bound values that would run as code: `javascript:` URLs (an SVG animation's values among them) and `srcdoc`.**
+ * Refused by the client
  * (`@verajs/renderer`) and by the server (`@verajs/ssr`) under ONE rule — a server that served what the
  * client refuses would ship a working exploit to every reader who never hydrates, and a hydration
  * mismatch to everyone else.
@@ -49,6 +50,17 @@ const POSITIONS = [
   { name: 'spaced =, quoted', sel: 'a', attr: 'href', strings: ['<a href = "', '">x</a>'], values: (v) => [v] },
   { name: 'single-quoted', sel: 'a', attr: 'href', strings: ["<a href='", "'>x</a>"], values: (v) => [v] },
   { name: 'unquoted, split across two bindings', sel: 'a', attr: 'href', strings: ['<a href=', '', '>x</a>'], values: (v) => [v.slice(0, 5), v.slice(5)] },
+  /**
+   * **An SVG animation's values.** `<animate>`/`<set>` write `to`/`from`/`values` onto the attribute they animate —
+   * `href` included — and clicking the link then runs it, in Chromium, Firefox and WebKit (measured 2026-09-30). Every
+   * element × attribute; `by` is refused too, since no legitimate value starts with `javascript:`.
+   */
+  ...['animate', 'set'].flatMap((el) =>
+    ['to', 'from', 'by', 'values'].map((attr) => ({
+      name: `<${el} ${attr}>`, sel: el, attr,
+      strings: [`<svg><a href="#x"><${el} attributeName="href" ${attr}=`, `></${el}></a></svg>`], values: (v) => [v],
+    }))
+  ),
 ];
 
 const cases = [];
@@ -56,6 +68,14 @@ for (const position of POSITIONS)
   for (const [kind, list] of [['hostile', HOSTILE], ['benign', BENIGN]])
     for (const payload of list)
       cases.push({ label: `${position.name} · ${kind} · ${JSON.stringify(payload)}`, kind, position, payload });
+/**
+ * The rule is the attribute's NAME, not its spelling: capitals are refused on both sides. Hostile only — on an SVG
+ * element the client still writes a capitalized bound name as written (`TO`, `HREF`) where the parser and the
+ * server lowercase it, a separate divergence tracked on its own.
+ */
+for (const payload of HOSTILE)
+  cases.push({ label: `<SET TO> in capitals · ${JSON.stringify(payload)}`, kind: 'hostile', payload,
+    position: { sel: 'set', attr: 'to', strings: ['<SVG><A href="#x"><SET attributeName="href" TO=', '></SET></A></SVG>'], values: (v) => [v] } });
 /** The author's static prefix joined to a bound remainder — judged whole, as the browser receives it. */
 for (const payload of HOSTILE)
   cases.push({
@@ -89,6 +109,32 @@ cases.push(
   { label: 'a static suffix completing the scheme (unquoted)', kind: 'hostile', payload: 'javascript:alert(1)',
     position: { sel: 'a', attr: 'href', strings: ['<a href=', ':alert(1)>x</a>'], values: () => ['javascript'] } }
 );
+/**
+ * **`values` is a `;`-separated list, and every item is applied in turn**: the payload as the SECOND item is as
+ * hostile as the first. A `;` in an `href` is a path character — `/p;javascript:x` is a working link, never refused.
+ */
+for (const payload of HOSTILE)
+  for (const el of ['animate', 'set'])
+    cases.push({ label: `<${el} values> with the payload as the second item · ${JSON.stringify(payload)}`, kind: 'hostile', payload: `#a;${payload}`,
+      position: { sel: el, attr: 'values', strings: [`<svg><a href="#x"><${el} attributeName="href" values=`, `></${el}></a></svg>`], values: (v) => [v] } });
+cases.push(
+  { label: 'a static first item joined to a bound second', kind: 'hostile', payload: '#a;javascript:alert(1)',
+    position: { sel: 'animate', attr: 'values', strings: ['<svg><a href="#x"><animate attributeName="href" values="#a;', '"></animate></a></svg>'], values: () => ['javascript:alert(1)'] } },
+  { label: 'a values list of plain items stays', kind: 'benign', payload: '#a;#b;https://example.com',
+    position: { sel: 'animate', attr: 'values', strings: ['<svg><a href="#x"><animate attributeName="href" values=', '></animate></a></svg>'], values: (v) => [v] } },
+  { label: 'an href with ;javascript: inside its path stays — a link, never a script', kind: 'benign', payload: '/p;javascript:x',
+    position: { sel: 'a', attr: 'href', strings: ['<a href=', '>x</a>'], values: (v) => [v] } }
+);
+/** A spread's `to` on `<set>` — the key a runtime bag delivers, judged like the written attribute, on both sides. */
+for (const [kind, list] of [['hostile', HOSTILE], ['benign', BENIGN]])
+  for (const payload of list)
+    cases.push({ label: `spread { to } on <set> · ${kind} · ${JSON.stringify(payload)}`, kind, payload, spreadKey: 'to',
+      position: { sel: 'set', attr: 'to', strings: ['<svg><a href="#x"><set attributeName="href" ', '></set></a></svg>'], values: (v) => [v] } });
+/** …and a spread's `values` list with the payload second: the bag is judged item by item too. */
+for (const payload of HOSTILE)
+  for (const el of ['animate', 'set'])
+    cases.push({ label: `spread { values } on <${el}>, payload second · ${JSON.stringify(payload)}`, kind: 'hostile', payload: `#a;${payload}`, spreadKey: 'values',
+      position: { sel: el, attr: 'values', strings: [`<svg><a href="#x"><${el} attributeName="href" `, `></${el}></a></svg>`], values: (v) => [v] } });
 /**
  * The same payloads through `spread` — the twin of the template rule — as an attribute key and as a
  * property key. The client applies the bag; the server serializes its `_$attrs$` half.
@@ -275,4 +321,30 @@ test('a custom element receives an object at a URL-named property untouched; a j
   } finally {
     console.warn = silence;
   }
+});
+
+/**
+ * **Through an `svg` template too** — content built in the SVG namespace from the start, not parsed inside an inline
+ * `<svg>`: the rule is the attribute's name, so the build path cannot matter. Client and server.
+ */
+test('an animation value bound through an svg`` template is refused, client and server', () => {
+  const S = (strings, values) => ({ _$litType$: 2, strings: Object.freeze(Object.assign([...strings], { raw: [...strings] })), values });
+  const strings = ['<a href="#x"><set attributeName="href" to=', '></set></a>'];
+  const svgHost = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  console.warn = () => {};
+  try {
+    renderInto(S(strings, ['javascript:alert(1)']), svgHost);
+  } finally {
+    console.warn = silence;
+  }
+  const set = svgHost.querySelector('set');
+  assert.equal(set?.namespaceURI, 'http://www.w3.org/2000/svg', 'CONTROL: built in the SVG namespace');
+  assert.equal(set.getAttribute('to'), null);
+  const script = `
+import { serializeTemplate } from '@verajs/ssr';
+process.stdout.write(serializeTemplate({ _$litType$: 2, strings: Object.freeze(Object.assign(${JSON.stringify(strings)}, { raw: ${JSON.stringify(strings)} })), values: ['javascript:alert(1)'] }));
+`;
+  const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+  assert.match(out, /<set attributeName="href"/, 'CONTROL: the server rendered the element');
+  assert.doesNotMatch(out, /javascript/i);
 });

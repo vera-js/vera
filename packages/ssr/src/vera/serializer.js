@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, SCRIPT_URL, URL_ATTRIBUTE, decodeSchemeReferences } from './escaping.js';
+import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeSchemeReferences } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 
@@ -442,7 +442,7 @@ const compile = (strings) => {
          * answered in the case below.
          */
         kinds.push(COMPONENT_PROP);
-        urls[kinds.length - 1] = URL_ATTRIBUTE.test(sigilName);
+        urls[kinds.length - 1] = URL_SINK.test(sigilName);
       } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
         kinds.push(FORM_PROP);
       } else {
@@ -506,6 +506,8 @@ const compile = (strings) => {
         const before = part.slice(0, tagState.attrStart - shift);
         const prefix = part.slice(tagState.valueStart - shift);
         const lower = tagState.attrName;
+        /** Whether the name is a URL sink, and which kind (captured: from the start; not: item by item). */
+        const sink = URL_SINK.exec(lower);
         record(before);
         parts.push(before);
         group = {
@@ -517,10 +519,11 @@ const compile = (strings) => {
           first: kinds.length,
           last: kinds.length,
           /**
-           * Never served: inert content, a bound `srcdoc` (it renders its value as a document) and a bound inline
-           * handler (`onclick=${…}` runs its value as code). A URL sink refuses `javascript:` — as the client does.
+           * Never served (1): inert content, a bound `srcdoc` (it renders its value as a document) and a bound inline
+           * handler (`onclick=${…}` runs its value as code). A URL sink refuses `javascript:` (2), and an animation's
+           * value refuses it in any `;`-separated item (3) — as the client does. Above 1: the joined value is checked.
            */
-          refuse: inert || lower === 'srcdoc' || INLINE_HANDLER.test(lower) ? 2 : URL_ATTRIBUTE.test(lower) ? 1 : 0,
+          refuse: inert || lower === 'srcdoc' || INLINE_HANDLER.test(lower) ? 1 : sink === null ? 0 : sink[1] ? 2 : 3,
           /** An earlier write of this name in the tag: the client's `setAttribute` replaces it, so it is removed. */
           strip: dynamicTag || written.has(lower),
           /** The WHOLE value is this one binding — the only shape where a nullish value removes the attribute. */
@@ -726,16 +729,21 @@ export const serializeTemplate = (template) => {
           }
           attribute += leads[i] + escapeHtml(text);
           /** Only a URL sink needs the value the client would join. */
-          if (group.refuse === 1) joined += decodedLeads[i] + text;
+          if (group.refuse > 1) joined += decodedLeads[i] + text;
           if (group.last !== i) break;
           attribute += group.suffix;
-          if (group.refuse === 1) joined += group.decodedSuffix;
+          if (group.refuse > 1) joined += group.decodedSuffix;
         }
         /**
          * ONE decision for every shape, written whole or not at all: a sole nullish value removes the attribute,
          * and a bound srcdoc or a `javascript:` URL is refused — as the client decides each of them.
          */
-        if ((group.sole && value == null) || group.refuse === 2 || (group.refuse === 1 && SCRIPT_URL.test(joined))) break;
+        if (
+          (group.sole && value == null) ||
+          group.refuse === 1 ||
+          (group.refuse > 1 && (group.refuse === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(joined))
+        )
+          break;
         if (group.strip) out = removeAttribute(out, group.name);
         out += attribute + '"';
         break;
@@ -853,6 +861,7 @@ const SELECT_MARK = 'data-vm-select';
  * What a `<select>` binding asks for: the value's string, or the index as the platform converts it — `selectedIndex`
  * is a WebIDL `long`, and `| 0` is exactly its conversion (ToInt32: `'1'` is 1, `null` and `NaN` are 0, 1.7 is 1).
  */
+// eslint-disable-next-line no-bitwise -- ToInt32, exactly the WebIDL `long` conversion described above
 const selection = (name, value) => (name === 'value' ? `${value}` : value | 0);
 const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
 const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;

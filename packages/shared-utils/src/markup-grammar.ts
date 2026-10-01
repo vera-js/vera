@@ -95,14 +95,37 @@ export const RESERVED_ELEMENT_NAMES = new Set([
 export const SCRIPT_URL = /^[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
 
 /**
- * The attributes (and their reflecting properties) whose value a browser NAVIGATES to or loads as a
- * document — where a `javascript:` URL executes: links and areas (`href`, SVG's `xlink:href`), forms
- * (`action`, `formaction`), frames (`src`), and `<object data>`. `src` is matched on every element —
- * refusing one on an `<img>` costs nothing, since an image never runs it. Resource-only attributes
- * (`poster`, `srcset`) are fetched, never run, so they are not listed. Case-insensitive, because
- * property spellings (`formAction`) and attribute spellings meet here.
+ * **Every bound name whose value is checked for a `javascript:` URL — and how.** One test answers both.
+ *
+ * Captured, checked from the start: the attributes (and their reflecting properties) whose value a browser
+ * NAVIGATES to or loads as a document — links and areas (`href`, SVG's `xlink:href`), forms (`action`,
+ * `formaction`), frames (`src`), and `<object data>`. `src` is matched on every element — refusing one on an `<img>`
+ * costs nothing, since an image never runs it. Resource-only attributes (`poster`, `srcset`) are fetched, never run,
+ * so they are not listed.
+ *
+ * Not captured, checked ITEM BY ITEM (`SCRIPT_URL_ITEM`): an SVG animation's values — `to`, `from`, `by`, `values`.
+ * `<animate attributeName="href" to="javascript:…">` (or `<set>`, or `values`) writes its value onto the link it
+ * animates, and clicking the link then RUNS it: measured 2026-09-30 in Chromium, Firefox and WebKit, through `href`
+ * and `xlink:href` alike. Refused on EVERY element and whatever `attributeName` says, because `attributeName` can
+ * itself be bound or spread, a server spread has no element to ask, and no legitimate value of any attribute by these
+ * names starts with `javascript:` (a component's `to`, a router link's, is a URL too). **Only these names are checked
+ * item by item**: an unanchored test scans the whole value for `;`, which on a bound `src` holding a data URI costs
+ * ~0.45 ms per MB per update in Chromium and Firefox (measured 2026-09-30), where the anchored `SCRIPT_URL` stops at
+ * the first character.
+ *
+ * Case-insensitive, because property spellings (`formAction`) and attribute spellings meet here. `@verajs/ssr` keeps
+ * a twin, held to this one by `tests/url-sinks.test.mjs`.
  */
-export const URL_ATTRIBUTE = /^(?:href|src|action|formaction|xlink:href|data)$/i;
+export const URL_SINK = /^(?:(href|src|action|formaction|xlink:href|data)|to|from|by|values)$/i;
+
+/**
+ * `SCRIPT_URL` at the start of the value OR of any `;`-separated item of it — an animation's `values` list
+ * (`"#a;javascript:…"`) applies every item in turn. Only for an animation's values (`URL_SINK`'s uncaptured names): a `;` inside an `href` is a path
+ * character, and `/p;javascript:x` is a working link, never a script. Written out rather than derived from
+ * `SCRIPT_URL`: the repeated text costs less gzipped than the code that would build it.
+ */
+// eslint-disable-next-line no-control-regex
+export const SCRIPT_URL_ITEM = /(?:^|;)[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
 
 /**
  * **An inline event-handler attribute** — `on` and a letter, any case (`onclick`, `onLoad`, `onbeforeinput`): its

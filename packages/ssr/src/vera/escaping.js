@@ -146,8 +146,15 @@ export const VOID_ELEMENTS = new Set([
 // eslint-disable-next-line no-control-regex
 export const SCRIPT_URL = /^[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
 
-/** The attributes a browser navigates to or loads as a document — the twin of `URL_ATTRIBUTE` there. */
-export const URL_ATTRIBUTE = /^(?:href|src|action|formaction|xlink:href|data)$/i;
+/**
+ * The names whose bound value is checked for `javascript:` — captured: checked from the start (where a browser
+ * navigates); not captured: an SVG animation's values, checked item by item. The twin of `URL_SINK` there.
+ */
+export const URL_SINK = /^(?:(href|src|action|formaction|xlink:href|data)|to|from|by|values)$/i;
+
+/** `SCRIPT_URL` at the start of any `;`-separated item — an animation's `values` list — the twin of `SCRIPT_URL_ITEM` there. */
+// eslint-disable-next-line no-control-regex
+export const SCRIPT_URL_ITEM = /(?:^|;)[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
 
 /** A bound inline event-handler attribute runs its value as code — the twin of `INLINE_HANDLER` there. */
 export const INLINE_HANDLER = /^on./i;

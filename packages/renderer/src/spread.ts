@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, INLINE_HANDLER, isSelection, read, SCRIPT_URL, URL_ATTRIBUTE } from '@verajs/shared-utils';
+import { adoptProperty, call, INLINE_HANDLER, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
@@ -79,22 +79,25 @@ const resolve = (key: string): [number, string | number] => {
 };
 
 /**
- * How a key names a URL a browser navigates to — the renderer's rule, by the same numbers: 0 not one; 1 converted
- * ONCE, and that string checked and written (so a `toString` that answers differently each time cannot pass the
- * check as one URL and be written as another); 2 a custom element's property — often an object
- * (`.data=${rows}`), so only a string is checked and nothing is converted. A refused key needs no case: its
- * name is a refusal code, which no URL attribute name matches.
+ * How a key names a URL a browser navigates to — the renderer's rule, by the same numbers: 0 not one; 1 a custom
+ * element's property — often an object (`.data=${rows}`), so only a string is checked and nothing is converted; 2
+ * converted ONCE, and that string checked and written (so a `toString` that answers differently each time cannot pass
+ * the check as one URL and be written as another); 3 an animation's value (`to`, `values`…), converted once and
+ * checked item by item. A refused key needs no case: its name is a refusal code, which no URL
+ * attribute name matches.
  */
-const urlRule = (kind: number, name: string, custom: boolean) =>
-  kind === BOOLEAN || kind === EVENT || kind === REF || !URL_ATTRIBUTE.test(name) ? 0 : kind !== ATTR && custom ? 2 : 1;
+const urlRule = (kind: number, name: string, custom: boolean) => {
+  const sink = URL_SINK.exec(name);
+  return kind === BOOLEAN || kind === EVENT || kind === REF || sink === null ? 0 : kind !== ATTR && custom ? 1 : sink[1] ? 2 : 3;
+};
 
 /** What `checked` answers for a `javascript:` URL where the rule looks. */
 const REFUSE = {};
 
 /** `value` as it is checked AND written under `rule` — converted once, or left as it is — or `REFUSE`. */
 const checked = (rule: number, value: unknown) => {
-  if (rule === 1 && value != null && typeof value !== 'string') value = `${value}`;
-  return rule !== 0 && typeof value === 'string' && SCRIPT_URL.test(value) ? REFUSE : value;
+  if (rule > 1 && value != null && typeof value !== 'string') value = `${value}`;
+  return rule !== 0 && typeof value === 'string' && (rule === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(value) ? REFUSE : value;
 };
 
 const UNSET = {};
