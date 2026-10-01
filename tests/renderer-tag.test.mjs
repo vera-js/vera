@@ -140,6 +140,31 @@ test('a tag called as a function is refused in every build, never a wrong elemen
   assert.doesNotThrow(() => tag(Object.assign(['h1'], { raw: ['h1'] })), 'a hand-built template is still accepted');
 });
 
+/**
+ * **A void tag renders ONE element.** The component wrote an end tag and a child hole after every name, so
+ * `` tag`br` `` rendered `<br></br>` — two `<br>`s by the parser's rule — and `` tag`input` ``'s child anchor landed
+ * as a stray sibling after the input.
+ */
+test('a void tag renders one element, with no end tag and no stray child', () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (const name of ['br', 'input', 'img', 'hr']) {
+      const T = tag(Object.assign([name], { raw: [name] }));
+      const container = into();
+      renderInto(T({ title: 't' }), container);
+      assert.equal(container.querySelectorAll(name).length, 1, `<${name}>: exactly one`);
+      assert.equal(read(container), `<${name} title="t">`, `<${name}>: nothing after it`);
+    }
+  } finally {
+    console.warn = warn;
+  }
+  const H = tag`h1`;
+  const container = into();
+  renderInto(H({ children: ['x'] }), container);
+  assert.equal(read(container), '<h1>x</h1>', 'CONTROL: a non-void tag keeps its content and end tag');
+});
+
 test('a JSX tag with no props renders bare', () => {
   const container = into();
   renderInto(html`<section>${HEADING[1]()}</section>`, container);

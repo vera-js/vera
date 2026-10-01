@@ -28,6 +28,9 @@ import { spread } from './spread.js';
 /** The brand a tag carries. `_$…$` is exempt from this package's `/^_[a-z]/` property mangling. */
 const STATIC = '_$static$';
 
+/** The 14 void elements — the renderer's development tag-shape pass reads the same list. */
+const VOID_TAGS = /^(?:area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr|param)$/i;
+
 type Tag = ((props?: Record<string, unknown>) => unknown) & { [STATIC]: string };
 
 /**
@@ -251,8 +254,10 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
     /** No prototype, and `__proto__` is no prop: a bag key by that name would otherwise reach `spread` as one. */
     const mapped = { __proto__: null } as unknown as Record<string, unknown>;
     for (const name in props) if (name !== '__proto__') mapped[jsxName(name)] = props[name];
-    return html`<${self} ${spread(mapped)}>${children}</${self}>`;
+    /** A void element has no content and no end tag: `</br>` is read as a SECOND `<br>`, and a child anchor strays. */
+    return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
+  const empty = VOID_TAGS.test(text);
   self[STATIC] = text;
   return self;
 };
