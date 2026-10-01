@@ -1140,6 +1140,8 @@ export {
   TEMPLATE,
   LIST,
   NODE,
+  PROPERTY,
+  LIVE,
 };
 export type { Template };
 

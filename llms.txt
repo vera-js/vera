@@ -1642,7 +1642,8 @@ Say so rather than inventing an API:
   The friction is the feature. That line is greppable, obviously yours, and reviewable as the
   security decision it is. Sanitize before it — `DOMPurify.sanitize(dirty)` — unless the markup is
   genuinely your own. Note the renderer owns the element's children, so put the sink on an element
-  whose content nothing else binds. `html([markup])` is not a way around it: only a tagged template
+  whose content nothing else binds. `@verajs/ssr` serves it (scripts inert, no declarative shadow root, as the
+  assignment behaves) and hydration adopts it. `html([markup])` is not a way around it: only a tagged template
   literal's strings (an array owning `raw`) make a template, so a hand-built array — like
   template-shaped data from `JSON.parse` — renders as text (`[object Object]`), on client and server.
 - **SSR is real and dependency-free**: `@verajs/ssr` renders components to declarative shadow

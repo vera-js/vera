@@ -1,4 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
+import { commentEnd } from './escaping.js';
 import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeSchemeReferences } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
@@ -136,6 +137,10 @@ const DROPPED = 3;
 const ATTRIBUTE = 4;
 /** `.prop` on a component tag: delivered to the instance the scan will render, never markup. */
 const COMPONENT_PROP = 5;
+/** `.innerHTML`/`.textContent` on a plain element: content written after the open tag, the one sanctioned trusted-markup door. */
+const CONTENT = 6;
+/** The two content properties the server renders; `innerText`/`outerHTML`/`outerText` stay client-only (README). */
+const CONTENT_PROPS = new Set(['innerHTML', 'textContent']);
 
 /** What `compile` answers for data shaped like a template: no plan, so `serializeTemplate` renders it as text. */
 const FORGED = {};
@@ -586,6 +591,15 @@ const compile = (strings, depth) => {
          */
         kinds.push(COMPONENT_PROP);
         urls[kinds.length - 1] = URL_SINK.test(sigilName);
+      } else if (kind === '.' && CONTENT_PROPS.has(sigilName)) {
+        /**
+         * `.innerHTML`/`.textContent` on a plain element is the trusted-markup door (`@verajs/renderer`'s property
+         * binding): the value is the element's content, written after the open tag. Its foreign depth is the host's
+         * INSIDE — the tag's depth, plus one when the host is itself `<svg>`/`<math>` — so a `<style>` in it is read
+         * the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above.
+         */
+        kinds.push(CONTENT);
+        depths[kinds.length - 1] = tagState.foreign + (owner === 'svg' || owner === 'math' ? 1 : 0);
       } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
         kinds.push(FORM_PROP);
       } else {
@@ -753,9 +767,7 @@ const compile = (strings, depth) => {
   const end = scanTag(strings[strings.length - 1], tagState);
   if (end.inValue || (end.inTag && end.tagName))
     throw new Error('ssr: a template cannot end inside a tag — the client drops an unfinished tag. Close the tag inside the template.');
-  const closers =
-    (end.comment ? '-->' : end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '') +
-    end.opens.reduceRight((closing, name) => closing + `</${name}>`, '');
+  const closers = closersOf(end);
   if (closers) parts[parts.length - 1] += closers;
 
   const plan = { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls };
@@ -811,6 +823,8 @@ export const serializeTemplate = (template, depth = 0) => {
    * does on the client.
    */
   let pendingText = null;
+  /** The close tag `insertContent` strips to when flushing `pendingText` — the host whose content it is (`textarea` for a form value). */
+  let pendingStrip = 'textarea';
   /**
    * What each `<select>`'s `.value` or `.selectedIndex` asks for, resolved into `<option selected>` after the loop —
    * the options are usually a nested template, so nothing can be decided until the string is whole.
@@ -821,7 +835,7 @@ export const serializeTemplate = (template, depth = 0) => {
     const part = parts[i];
     if (pendingText === null) out += part;
     else {
-      out += insertContent(part, pendingText);
+      out += insertContent(part, pendingText, pendingStrip);
       pendingText = null;
     }
     const value = values[i];
@@ -935,6 +949,10 @@ export const serializeTemplate = (template, depth = 0) => {
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value) out += ` ${names[i]}=""`;
         break;
+      case CONTENT:
+        pendingText = serverContent(value, owners[i], names[i], depths[i] ?? 0);
+        pendingStrip = owners[i];
+        break;
       case FORM_PROP:
         if (!FORM_ELEMENTS.has(owners[i])) break;
         /**
@@ -1012,7 +1030,7 @@ export const serializeTemplate = (template, depth = 0) => {
     }
   }
   const tail = parts[kinds.length];
-  const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText);
+  const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText, pendingStrip);
   return selectValues.length ? resolveSelects(finished, selectValues) : finished;
 };
 
@@ -1123,11 +1141,103 @@ const resolveSelects = (markup, wanted) => {
   return markup;
 };
 
-const insertContent = (staticText, text) => {
+/** The end-of-input closers a scan state owes: its open comment or raw-text or text-only element, then its open svg/math/noscript/template, innermost first. Shared by `compile` and `fortify`. */
+const closersOf = (end) =>
+  (end.comment ? '-->' : end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '') +
+  end.opens.reduceRight((closing, name) => closing + `</${name}>`, '');
+/** A scan state at foreign depth `depth` and nothing else open — its own `opens`, since `scanTag` mutates it. */
+const freshScan = (depth) => ({ inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, textTag: '', foreign: depth, opens: [], attrRaw: '' });
+
+/** The type that makes a classic script inert; written FIRST, so the parser's first-duplicate-wins rule defeats any author `type`. */
+const INERT_TYPE = ' type="text/x-vera-inert"';
+/** Where an open tag ends, skipping a `>` inside a quoted attribute value. */
+const tagRest = (markup, lt) => {
+  let q = '';
+  for (let j = lt + 1; j < markup.length; j++) {
+    const c = markup[j];
+    if (q) { if (c === q) q = ''; }
+    else if (c === '"' || c === "'") q = c;
+    else if (c === '>') return j + 1;
+  }
+  return markup.length;
+};
+/** Elements whose content a parser reads as raw text, so a `<script` written inside one is text and must not be rewritten. */
+const RAW_HOSTS = new Set(['style', 'script', 'textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes', 'noscript', 'plaintext']);
+/**
+ * Make trusted `innerHTML` markup behave as an `innerHTML` ASSIGNMENT, not as parsed page markup — the two differ in
+ * exactly two ways, both of which a served page would otherwise run. A `<script>` executes when the browser parses
+ * it from the response but never when assigned through `innerHTML`; a `<template shadowrootmode>` attaches a shadow
+ * root when parsed but not when assigned. Both are neutralized at the GROUND positions a parser acts on — never
+ * inside a comment, an attribute value or a raw-text element, which `innerHTML` does not act on either — so the
+ * served page matches the client's assignment, and hydration (which re-assigns) agrees. Over-neutralizing (a
+ * `<script` the parser would not have run) only makes an already-inert thing inert, so the scan errs that way.
+ */
+const neutralize = (markup) => {
+  let out = '';
+  let i = 0;
+  let raw = '';
+  while (i < markup.length) {
+    if (raw) {
+      const at = markup.toLowerCase().indexOf('</' + raw, i);
+      if (at === -1) return out + markup.slice(i);
+      out += markup.slice(i, at);
+      i = at;
+      raw = '';
+      continue;
+    }
+    const lt = markup.indexOf('<', i);
+    if (lt === -1) return out + markup.slice(i);
+    out += markup.slice(i, lt);
+    if (markup.startsWith('<!--', lt)) {
+      const end = commentEnd(markup, lt);
+      const stop = end === null ? markup.length : end[1];
+      out += markup.slice(lt, stop);
+      i = stop;
+      continue;
+    }
+    const open = /^<(\/?)([a-zA-Z][^\s/>]*)/.exec(markup.slice(lt));
+    if (open === null) {
+      out += '<';
+      i = lt + 1;
+      continue;
+    }
+    const to = tagRest(markup, lt);
+    let tag = markup.slice(lt, to);
+    const name = open[2].toLowerCase();
+    if (open[1] === '') {
+      if (name === 'script') tag = tag.slice(0, 1 + name.length) + INERT_TYPE + tag.slice(1 + name.length);
+      else if (name === 'template') tag = tag.replace(/(\s)shadowroot(mode)?(?=[\s=/>])/gi, '$1data-vera-shadowroot$2');
+      if (RAW_HOSTS.has(name) && !/\/>\s*$/.test(tag)) raw = name;
+    }
+    out += tag;
+    i = to;
+  }
+  return out;
+};
+/** Trusted innerHTML, inert and self-contained: scripts and shadow roots neutralized, and whatever it leaves open closed so it cannot reach the host's parent. */
+const fortify = (markup, depth) => {
+  const safe = neutralize(markup);
+  return safe + closersOf(scanTag(safe, freshScan(depth)));
+};
+/**
+ * The content a `.innerHTML`/`.textContent` binding writes after the host's open tag. `innerHTML` is
+ * `[LegacyNullToEmptyString]` (so `null` is `''` but `undefined` is `"undefined"`); `textContent` is nullable (both
+ * are `''`) — measured against a browser, not guessed. The host decides escaping: a RAWTEXT host (`<style>`,
+ * `<script>`) neutralizes its own close tag and is otherwise raw; a text-only or foreign host, and any
+ * `textContent`, is escaped text; only `innerHTML` on an ordinary HTML host is live markup, made inert first.
+ */
+const serverContent = (value, owner, property, depth) => {
+  const text = value === null || (value === undefined && property === 'textContent') ? '' : `${value}`;
+  if (RAWTEXT.has(owner)) return escapeRawText(text, owner);
+  if (property === 'textContent' || TEXT_ONLY.has(owner) || owner === 'noscript' || depth > 0) return escapeHtml(text);
+  return fortify(text, depth);
+};
+
+const insertContent = (staticText, text, strip) => {
   const close = staticText.indexOf('>');
   if (close === -1) return staticText;
   const rest = staticText.slice(close + 1);
-  const end = rest.toLowerCase().indexOf('</textarea');
+  const end = rest.toLowerCase().indexOf('</' + strip);
   return staticText.slice(0, close + 1) + text + (end === -1 ? rest : rest.slice(end));
 };
 

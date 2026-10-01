@@ -1041,7 +1041,9 @@ renderInto(html`<div .innerHTML=${trustedMarkup}></div>`, host);
 
 Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
-children nothing else binds — the renderer owns the content of elements it renders into.
+children nothing else binds — the renderer owns the content of elements it renders into. `@verajs/ssr`
+serializes it into the served page and hydration adopts it, behaving as the assignment does: a `<script>` in it
+never runs and a `<template shadowrootmode>` never attaches, on either side.
 
 **Only a tagged template is a template.** A value renders as markup only when its strings came from a tagged
 template literal — an array owning `raw`, which nothing from `JSON.parse` can be. Data shaped like a template (an

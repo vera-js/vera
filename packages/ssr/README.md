@@ -165,6 +165,16 @@ unsanitized. Everything else is checked:
 - **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
   whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
   every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
+- **`.innerHTML` and `.textContent` render on the server**, so trusted markup bound the sanctioned way
+  (`<div .innerHTML=${markup}>`) is in the served page rather than filled in after hydration. It is made to behave
+  as an `innerHTML` assignment, not as parsed page markup: a `<script>` in it is served with an inert `type` (an
+  assignment never runs one), and a `<template shadowrootmode>` cannot attach a shadow root (an assignment never
+  does). Whatever the markup leaves open is closed before the element's own end tag, so it cannot reach the
+  markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
+  `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, and for any `.textContent`, it is
+  escaped text. A `<script .textContent=${code}>` host is the one code-execution door this opens, and it is the
+  author's: it runs on the served page as it runs on the client. `.innerText`, `.outerHTML` and `.outerText` stay
+  client-only — the server serves the element's template content.
 - **Data shaped like a template is text.** A value renders as markup only when its strings came from a tagged
   template literal; a `{"strings": [...]}` from `JSON.parse` — or a real template sent through JSON, or a
   hand-built `html([markup])` — is served as `[object Object]`, as the client renders it, and never throws.
@@ -329,6 +339,13 @@ dependency involved.
   browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
   That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
   page. Put the stylesheet outside the foreign element.
+- **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
+  the value with the element as its context; the served page is parsed with every real ancestor around it, so a
+  few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),
+  an `<a>` inside an `<a>`, table parts outside a table. Hydration re-assigns the value, so the client's DOM is
+  right once the script runs; an inline handler in the markup (`onload`, `onerror`) therefore fires twice on an SSR
+  page, once from the served HTML and once from the assignment. Inside `<svg>`/`<math>` the server writes the
+  value as escaped text, the safe side of the same misreading, until hydration assigns it.
 - **An ordinary element a template leaves open nests differently.** The client parses each template on its own
   and closes what it left open at its end; the server concatenates. Whatever changes how the rest of the page
   PARSES is closed at the template's end on the server too — a comment, `<style>`/`<script>`, `<textarea>` and the
