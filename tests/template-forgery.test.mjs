@@ -73,7 +73,7 @@ test('the server serves no forgery as markup, and throws for none', () => {
 });
 
 test('a forgery is the text any object renders as — the same on both sides', () => {
-  for (const name of ['child', 'array', 'hold', 'roundTrip', 'svgType', 'objectOwningRaw', 'root']) {
+  for (const name of ['child', 'array', 'hold', 'roundTrip', 'svgType', 'objectOwningRaw', 'root', 'toStringKey']) {
     assert.match(served[name], /\[object Object\]/, `server, ${name}`);
     assert.match(rendered[name].textContent, /\[object Object\]/, `client, ${name}`);
     assert.equal(markers(rendered[name].innerHTML).replace(/\s+/g, ''), served[name].replace(/\s+/g, ''), `parity, ${name}`);

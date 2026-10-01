@@ -21,6 +21,8 @@ export const DOORS = {
   primitiveString: () => html`<p>${JSON.parse('{"strings":"x","values":[]}')}</p>`,
   primitiveNumber: () => html`<p>${JSON.parse('{"strings":1,"values":[]}')}</p>`,
   primitiveNull: () => html`<p>${JSON.parse('{"_$litType$":1,"strings":null,"values":[]}')}</p>`,
+  /** A JSON `toString` key is not callable: converting the forgery through it would throw, so neither side does. */
+  toStringKey: () => html`<p>${JSON.parse('{"strings":["<b>x</b>"],"values":[],"toString":"x"}')}</p>`,
   control: () => html`<p>${html`<b id="ok">ok</b>`}</p>`,
   /**
    * NOT a forgery, by design: a wrapper built in JS around a real literal's strings. JSON cannot reach a literal's

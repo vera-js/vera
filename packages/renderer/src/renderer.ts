@@ -61,8 +61,14 @@ const comment = () => doc.createComment('');
  * binding with it and never shifts a later value onto another element (a security property —
  * `tests/dropped-element-bindings.test.mjs`).
  */
-const TEXT_END = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
-const COMMENT_END = /-->/g;
+/** `<!-->` and `<!--->` are not opened at all: they close themselves (the tokenizer's abrupt close), so they stay text. */
+const TEXT_END = /<(?:(!--(?!-?>)|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
+/**
+ * A comment ends at `-->` or `--!>` — read as a comment past either, a value after one was dropped while the browser
+ * rendered it. The abrupt `<!-->`/`<!--->` never open one (`TEXT_END`'s lookahead; a lookBEHIND would not even parse
+ * in an older Safari).
+ */
+const COMMENT_END = /--!?>/g;
 const COMMENT2_END = />/g;
 /** `>`, or whitespace then an attribute name (with `=` and the start of its value), or the string's end. */
 const TAG_END = />|[ \t\n\f\r](?:([^\s"'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
@@ -154,7 +160,7 @@ const UPGRADED = {};
  * and a template with no expressions is never scanned — and it only READS: a development-only counter once changed
  * the SCAN, so development and production parsed one template differently.
  */
-const SHAPE = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 const tagShape = (strings: TemplateStringsArray, type: number): string[] | undefined => {
   const markup = strings.join('');
   let foreign = type === 1 ? 0 : 1;

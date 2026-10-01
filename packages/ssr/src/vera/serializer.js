@@ -139,6 +139,7 @@ const COMPONENT_PROP = 5;
 
 /** What `compile` answers for data shaped like a template: no plan, so `serializeTemplate` renders it as text. */
 const FORGED = {};
+const FORGED_TEXT = `${{}}`;
 /** A tagged template literal's strings: an array owning `raw`, which nothing from `JSON.parse` can be (see `compile`). */
 const isLiteral = (strings) => Array.isArray(strings) && Object.hasOwn(strings, 'raw');
 /** strings identity -> { parts, kinds, names } — computed once per call site, ever. */
@@ -337,8 +338,9 @@ const scanTag = (text, state) => {
       continue;
     }
     if (comment) {
-      if (character === '-' && text.startsWith('-->', i)) {
-        i += 2;
+      /** `--!>` closes a comment as `-->` does. */
+      if (character === '-' && (text.startsWith('-->', i) || text.startsWith('--!>', i))) {
+        i += text[i + 2] === '!' ? 3 : 2;
         comment = false;
       }
       continue;
@@ -359,7 +361,10 @@ const scanTag = (text, state) => {
     if (!inTag) {
       if (character === '<' && text.startsWith('<!--', i)) {
         i += 3;
-        comment = true;
+        /** `<!-->` and `<!--->` end the comment they open — the tokenizer's abrupt close (see `commentEnd`). */
+        if (text[i + 1] === '>') i += 1;
+        else if (text.startsWith('->', i + 1)) i += 2;
+        else comment = true;
       } else if (character === '<') {
         inTag = true;
         /** Collected as it is scanned, so a tag split across two statics keeps its name. */
@@ -780,8 +785,11 @@ export const serializeTemplate = (template, depth = 0) => {
   if (template['_$litType$'] > 1 && depth === 0) depth = 1;
   const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls } =
     (depth === 0 ? plans.get(strings) : foreignPlans.get(strings)?.get(depth)) ?? compile(strings, depth) ?? FORGED;
-  /** Not a template — data shaped like one (see `compile`): the text any other object renders as, as on the client. */
-  if (parts === undefined) return escapeHtml(`${template}`);
+  /**
+   * Not a template — data shaped like one (see `compile`): the text a plain object renders as, the client's very
+   * constant. Never the forgery's own conversion: JSON can supply a `"toString"` key, and converting through it throws.
+   */
+  if (parts === undefined) return FORGED_TEXT;
   /** The attribute being built: its escaped value so far, and the value the client would join (for the URL check). */
   let attribute = '';
   let joined = '';
