@@ -38,7 +38,7 @@ const clientSays = (row) => {
 };
 
 test('the server refuses exactly the tag-name rows, in every build', () => {
-  const wrong = ROWS.filter((row, i) => REFUSAL.test(server[i]) !== row.refused).map((row, i) => `${row.label}: ${server[ROWS.indexOf(row)]}`);
+  const wrong = ROWS.filter((row, i) => REFUSAL.test(server[i]) !== row.refused).map((row) => `${row.label}: ${server[ROWS.indexOf(row)]}`);
   assert.deepEqual(wrong, []);
 });
 
