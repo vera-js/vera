@@ -1,3 +1,4 @@
+import { RESERVED_ELEMENT_NAMES } from '@verajs/shared-utils';
 import { spread } from './spread.js';
 
 /**
@@ -143,6 +144,24 @@ for (const name of BOOLEAN_ATTRIBUTES) NAMES[name] = `?${name}`;
 
 export const jsxName = (key: string): string => NAMES[key] ?? key;
 
+/**
+ * **On a CUSTOM element a bare prop is a PROP** — exactly the rule `@verajs/jsx` compiles `<my-el foo={x}>` by: React's
+ * renames first (`className` → `class`, `htmlFor` → `for`), `ref` its binding, a sigil or `on…` passed through, and any
+ * other name that could be a JS property becomes `.name` — the HTML-control guesses (`?disabled`, `.value`) never reach
+ * a component, whose `disabled` is its own prop. A name that cannot be a property (`data-x`, `aria-label`) and the two
+ * names the DOM itself renamed (`class`, `for`) stay attributes.
+ */
+const componentName = (key: string): string =>
+  key === 'className'
+    ? 'class'
+    : key === 'htmlFor'
+      ? 'for'
+      : key === 'ref'
+        ? '&ref'
+        : /^[.?@&!]|^on[A-Z]/.test(key) || !/^[A-Za-z_$][\w$]*$/.test(key) || key === 'class' || key === 'for'
+          ? key
+          : `.${key}`;
+
 
 /**
  * Declares a tag name.
@@ -253,11 +272,19 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
       );
     /** No prototype, and `__proto__` is no prop: a bag key by that name would otherwise reach `spread` as one. */
     const mapped = { __proto__: null } as unknown as Record<string, unknown>;
-    for (const name in props) if (name !== '__proto__') mapped[jsxName(name)] = props[name];
+    for (const name in props)
+      if (name !== '__proto__') {
+        /** The compiler refuses an object `style` at build time; written into the attribute it reads "[object Object]". */
+        if (__DEV__ && name === 'style' && props[name] !== null && typeof props[name] === 'object')
+          throw new TypeError('tag: `style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.');
+        mapped[(custom ? componentName : jsxName)(name)] = props[name];
+      }
     /** A void element has no content and no end tag: `</br>` is read as a SECOND `<br>`, and a child anchor strays. */
     return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   const empty = VOID_TAGS.test(text);
+  /** A custom element's props map by the compiler's component rule — never by the HTML-control guesses. */
+  const custom = text.includes('-') && !RESERVED_ELEMENT_NAMES.has(text.toLowerCase());
   self[STATIC] = text;
   return self;
 };

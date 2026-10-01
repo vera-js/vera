@@ -9,7 +9,7 @@
  *
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -163,6 +163,36 @@ test('a void tag renders one element, with no end tag and no stray child', () =>
   const container = into();
   renderInto(H({ children: ['x'] }), container);
   assert.equal(read(container), '<h1>x</h1>', 'CONTROL: a non-void tag keeps its content and end tag');
+});
+
+/**
+ * **A custom-element tag maps props the way compiled JSX does** — `<my-el foo={x}>` compiles to `.foo`, `disabled={d}`
+ * to `.disabled` (the component's own prop, not the HTML boolean), while `data-*`/`aria-*` and `class`/`for` stay
+ * attributes. The tag mapped them by the HTML-control rules, so `foo` became an attribute and `disabled` a `?boolean`.
+ */
+test('a custom-element tag maps props as compiled JSX does', () => {
+  const T = tag`my-tag-el`;
+  const container = into();
+  const fn = () => {};
+  renderInto(T({ foo: { deep: 1 }, disabled: false, className: 'c', htmlFor: 'f', 'data-x': 'd', 'aria-label': 'a', onPick: fn }), container);
+  const el = container.querySelector('my-tag-el');
+  assert.deepEqual(el.foo, { deep: 1 }, 'an identifier prop arrives as a PROPERTY, by identity');
+  assert.equal(el.disabled, false, '`disabled` is its own prop');
+  assert.equal(el.hasAttribute('disabled'), false);
+  assert.equal(el.getAttribute('class'), 'c');
+  assert.equal(el.getAttribute('for'), 'f');
+  assert.equal(el.getAttribute('data-x'), 'd');
+  assert.equal(el.getAttribute('aria-label'), 'a');
+  assert.equal(el.hasAttribute('foo'), false, 'no attribute for a prop');
+  const H = tag`button`;
+  const plain = into();
+  renderInto(H({ disabled: false }), plain);
+  assert.equal(plain.querySelector('button').hasAttribute('disabled'), false, 'CONTROL: a built-in keeps the boolean rule');
+});
+
+test('an object style is refused in development, as the compiler refuses it', { skip: isProduction && 'a development check' }, () => {
+  const H = tag`p`;
+  assert.throws(() => H({ style: { color: 'red' } }), /`style` expects a STRING/);
 });
 
 test('a JSX tag with no props renders bare', () => {
