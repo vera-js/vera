@@ -129,6 +129,17 @@ test('props named like Object.prototype members arrive, and __proto__ is still r
   assert.equal({}.polluted, undefined, 'nor any shared one');
 });
 
+/**
+ * **`tag('h1')` is refused in every build.** Called as a function rather than a tagged template, production read the
+ * string's first character as the first static and named an `<h>` — a wrong element that development, which always
+ * threw, never showed.
+ */
+test('a tag called as a function is refused in every build, never a wrong element', () => {
+  assert.throws(() => tag('h1'), /tag: expected a template literal/);
+  assert.throws(() => tag(['h1']), /tag: expected a template literal/, 'an array without .raw is no template either');
+  assert.doesNotThrow(() => tag(Object.assign(['h1'], { raw: ['h1'] })), 'a hand-built template is still accepted');
+});
+
 test('a JSX tag with no props renders bare', () => {
   const container = into();
   renderInto(html`<section>${HEADING[1]()}</section>`, container);

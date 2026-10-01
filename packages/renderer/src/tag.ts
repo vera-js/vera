@@ -155,10 +155,16 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
    * likelier mistake of the two and failed with `Cannot read properties of undefined (reading '0')`,
    * which says nothing about either.
    */
-  if (__DEV__ && (!strings || !Array.isArray((strings as unknown as { raw?: unknown[] }).raw)))
+  /**
+   * In EVERY build: in production `tag('h1')` read the STRING's first character as the template's first static and
+   * named an `<h>`, silently — a wrong element only production renders. The explanation is development's.
+   */
+  if (!(strings as { raw?: unknown } | null)?.raw)
     throw new TypeError(
-      `tag: expected a template literal and received ${String(strings)}. ` +
-        "It is a tagged template — write tag`h1`, not tag('h1')."
+      __DEV__
+        ? `tag: expected a template literal and received ${String(strings)}. ` +
+            "It is a tagged template — write tag`h1`, not tag('h1')."
+        : 'tag: expected a template literal'
     );
   let text = strings[0];
   for (let i = 0; i < values.length; i++) {
