@@ -19,6 +19,8 @@
 import {
   adoptProperty,
   call,
+  CONTENT_PROPERTY,
+  contentClash,
   INLINE_HANDLER,
   isSelection,
   read,
@@ -62,6 +64,7 @@ const COMMENT2_END = />/g;
 /** `>`, or whitespace then an attribute name (with `=` and the start of its value), or the string's end. */
 const TAG_END = />|[ \t\n\f\r](?:([^\s"'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
 const DOUBLE_QUOTE_END = /"/g;
+
 
 /**
  * **An expression inside an attribute NAME is refused in development** (`<p data-${k}="1">`, `<b ${name}="x">`,
@@ -423,6 +426,13 @@ class Template {
             );
         } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
         else if (kind === LIVE && el.localName.includes('-')) kind = LIVE_CUSTOM;
+        /**
+         * A property that REPLACES an element's content (`.textContent`, `.innerHTML`…) on an element that also has
+         * content of its own — markup, or a child binding whose anchor is in it: the write strands the binding, and a
+         * later commit into it throws on a missing parent. Cannot work as written, so development throws.
+         */
+        if (__DEV__ && kind !== ATTR && kind !== EVENT && kind !== BOOLEAN && CONTENT_PROPERTY.test(real) && el.firstChild !== null)
+          contentClash(el.localName, real);
         kinds[i] = kind;
         names[i] = real;
         statics[i] = value.length === 2 && value[0] === '' && value[1] === '' ? null : value;

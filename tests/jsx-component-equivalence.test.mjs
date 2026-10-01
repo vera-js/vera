@@ -87,8 +87,13 @@ test('every prop means the same thing on <H …> as on <h1 …>', async () => {
     const left = dom.window.document.createElement('div');
     const right = dom.window.document.createElement('div');
     dom.window.document.body.append(left, right);
-    render(`<h1 ${prop}>x</h1>`, left);
-    render(`<H ${prop}>x</H>`, right);
+    /**
+     * Content-replacing props are written WITHOUT children: `dangerouslySetInnerHTML` beside content is refused in
+     * development (the content would be overwritten), as React refuses "one of children or dangerouslySetInnerHTML".
+     */
+    const empty = prop.startsWith('dangerouslySetInnerHTML');
+    render(empty ? `<h1 ${prop}></h1>` : `<h1 ${prop}>x</h1>`, left);
+    render(empty ? `<H ${prop} />` : `<H ${prop}>x</H>`, right);
     await frame();
 
     const element = (host) => {
