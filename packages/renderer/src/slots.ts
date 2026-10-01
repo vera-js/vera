@@ -35,10 +35,21 @@ type Lit = Node & { $light?: Light; $in?: Binding };
  * a node outside one is entirely native again. Members not listed here (`parentElement`, `closest`, `contains`…) still
  * answer the PHYSICAL tree.
  */
+/**
+ * **Self-healing**: a node is a light child only while it sits WHERE its light parent put it — its slot, or holding.
+ * Native code can move it without asking (the renderer's own removals pass a node to a native `insertBefore` on a
+ * scratch fragment); found anywhere else, it leaves the light list and answers natively, as a light child moved out of
+ * its host stops being slotted under shadow DOM. Every overlaid read asks first, so no native move goes unseen.
+ */
+const live = (node: Lit): Light | undefined => {
+  const light = node.$light;
+  if (light !== undefined && !light.holds(node)) light.forget(node);
+  return node.$light;
+};
 const OVERLAY: PropertyDescriptorMap = {
-  parentNode: { configurable: true, get(this: Lit) { return this.$light ?? null; } },
-  nextSibling: { configurable: true, get(this: Lit) { const list = this.$light!.list; return list[list.indexOf(this) + 1] ?? null; } },
-  previousSibling: { configurable: true, get(this: Lit) { const list = this.$light!.list; return list[list.indexOf(this) - 1] ?? null; } },
+  parentNode: { configurable: true, get(this: Lit) { const light = live(this); return light === undefined ? physicalParent(this) : light; } },
+  nextSibling: { configurable: true, get(this: Lit) { const light = live(this); if (light === undefined) return physicalNext(this); const list = light.valid(); return list[list.indexOf(this) + 1] ?? null; } },
+  previousSibling: { configurable: true, get(this: Lit) { const light = live(this); if (light === undefined) return physicalPrevious(this); const list = light.valid(); return list[list.indexOf(this) - 1] ?? null; } },
   remove: { configurable: true, writable: true, value(this: Lit) { this.$light!.removeChild(this); } },
   replaceWith: {
     configurable: true,
@@ -66,8 +77,13 @@ const disown = (node: Node) => {
   for (const key of OVERLAID) delete (node as unknown as Record<string, unknown>)[key];
 };
 /** This module's own walks are PHYSICAL: through the platform's getter, past any overlay. */
-let nextGetter: ((this: Node) => ChildNode | null) | undefined;
-const physicalNext = (node: Node): ChildNode | null => (nextGetter ??= Object.getOwnPropertyDescriptor(Node.prototype, 'nextSibling')!.get!).call(node);
+const native = <T>(name: string) => {
+  let getter: ((this: Node) => T) | undefined;
+  return (node: Node): T => (getter ??= Object.getOwnPropertyDescriptor(Node.prototype, name)!.get! as (this: Node) => T).call(node);
+};
+const physicalNext = native<ChildNode | null>('nextSibling');
+const physicalPrevious = native<ChildNode | null>('previousSibling');
+const physicalParent = native<ParentNode | null>('parentNode');
 
 /** One `<slot>` in a host's output: its anchors, the kept element, its parked fallback and what it shows. */
 type Binding = {
@@ -116,22 +132,34 @@ class Light {
   }
   /** The logical children, as a parent answers them — the renderer reads these on the parent it is handed. */
   get firstChild() {
-    return this.list[0] ?? null;
+    return this.valid()[0] ?? null;
   }
   get lastChild() {
-    return this.list[this.list.length - 1] ?? null;
+    const list = this.valid();
+    return list[list.length - 1] ?? null;
   }
   get childNodes() {
-    return this.list;
+    return this.valid();
   }
   /** The renderer's clear-everything fast path: every LOGICAL child leaves, never the physical parent's other content. */
   set textContent(text: string) {
     for (const node of [...this.list]) this.removeChild(node);
     if (text) this.insertBefore(this.host.ownerDocument.createTextNode(text), null);
   }
+  /** Whether a light node is still where this parent put it — its slot's region, or holding (see `live`). */
+  holds(node: Lit): boolean {
+    const where = physicalParent(node);
+    const binding = node.$in;
+    return binding === undefined ? where === this.holding : where === binding.end.parentNode;
+  }
+  /** The light list, with any node native code moved away dropped first. */
+  valid(): Node[] {
+    for (const node of [...this.list]) if (!this.holds(node as Lit)) this.forget(node);
+    return this.list;
+  }
   /** The nodes strictly between two boundaries, in light order. */
   $range(start: Node, end: Node | null): Node[] {
-    const list = this.list;
+    const list = this.valid();
     const from = list.indexOf(start) + 1;
     const to = end === null ? list.length : list.indexOf(end);
     return list.slice(from, to < 0 ? list.length : to);
@@ -156,7 +184,7 @@ class Light {
     /** As native `insertBefore` detaches from the old parent: out of whichever light list held it first. */
     const was = (node as Lit).$light;
     if (was !== undefined) was.forget(node);
-    const list = this.list;
+    const list = this.valid();
     const at = ref === null ? -1 : list.indexOf(ref);
     if (at < 0) list.push(node);
     else list.splice(at, 0, node);
@@ -227,11 +255,11 @@ class Light {
   }
   /** Re-decides every light node — when a slot arrives or leaves, its name's assignment changes. */
   replaceAll() {
-    for (const node of this.list) this.place(node);
+    for (const node of [...this.valid()]) this.place(node);
   }
   /** A light node's `slot` changed (a binding wrote it): it moves to the slot of its new name, keeping light order. */
   $place(node: Node) {
-    if (this.list.includes(node)) this.place(node);
+    if (this.valid().includes(node)) this.place(node);
   }
 }
 
@@ -333,7 +361,7 @@ const before = (a: Binding, b: Binding) => {
 const assigned = (binding: Binding, elementsOnly: boolean, flatten = false): Node[] => {
   const light = HOSTS.get(binding.slot.$host!)!;
   const out: Node[] = [];
-  for (const node of light.list) if ((node as Lit).$in === binding && (!elementsOnly || node.nodeType === 1)) out.push(node);
+  for (const node of light.valid()) if ((node as Lit).$in === binding && (!elementsOnly || node.nodeType === 1)) out.push(node);
   if (out.length > 0 || !flatten) return out;
   for (let node = physicalNext(binding.start); node !== null && node !== binding.end; node = physicalNext(node)) {
     const nested = (node as Node & { $slot?: Binding }).$slot;
@@ -426,7 +454,7 @@ const leave = (binding: Binding) => {
   const bindings = light.bindings;
   const at = bindings.indexOf(binding);
   if (at >= 0) bindings.splice(at, 1);
-  for (const node of light.list)
+  for (const node of light.valid())
     if ((node as Lit).$in === binding) {
       (node as Lit).$in = undefined;
       light.holding.appendChild(node);
