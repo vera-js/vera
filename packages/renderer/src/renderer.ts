@@ -808,7 +808,7 @@ export interface KeyedResult extends TemplateResult {
 /**
  * A child position that holds anything but plain text: a template, a list, a node, or nothing — or
  * text it took over from an upgraded binding. It owns the range between two comment markers
- * (`_end === null`: to the end of its parent — the root part) — or, for a SOLE position, its element's whole
+ * — the root part's too, so content before and after a render stays — or, for a SOLE position, its element's whole
  * content (`_owner`, no markers at all).
  *
  * **The ownership invariant — whoever writes an element's content owns it, and owns its verification.** Two cases:
@@ -874,11 +874,11 @@ class ChildPart {
     const end = this._end;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
     if (owner !== null) owner.textContent = '';
-    else if (start.previousSibling === null && (end === null || end.nextSibling === null)) {
+    else if (start.previousSibling === null && end!.nextSibling === null) {
       const parent = start.parentNode!;
       parent.textContent = '';
       parent.appendChild(start);
-      if (end !== null) parent.appendChild(end);
+      parent.appendChild(end!);
     } else {
       const parent = start.parentNode!;
       let node = start.nextSibling;
@@ -1335,16 +1335,13 @@ const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
  * Writes a template result into a container — the renderer's imperative draw: no reactivity, no
- * lifecycle. The first call appends a marker and anchors a root part there; later calls reuse it and
- * commit only the values. Content already in the container stays. lit-html's argument order.
+ * lifecycle. The first call appends two markers and anchors a root part between them; later calls reuse it
+ * and commit only the values. Content already in the container stays, and so does content other code adds
+ * after it — the render owns its range, never the container. lit-html's argument order.
  */
 export const renderInto = (result: unknown, container: Node) => {
   let part = rootParts.get(container);
-  if (part === undefined) {
-    const marker = comment();
-    container.appendChild(marker);
-    rootParts.set(container, (part = new ChildPart(marker, null)));
-  }
+  if (part === undefined) rootParts.set(container, (part = markered(container, null)));
   commitAs(container, part, result);
 };
 

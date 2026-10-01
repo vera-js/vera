@@ -54,10 +54,11 @@ import { html } from '@verajs/core';
 renderInto(html`<p>${count}</p>`, document.querySelector('#app'));
 ```
 
-It **owns its own range and nothing else**: the first call anchors a root part at a marker it
-appends, later calls with the same container reuse that part and walk only the value slots, and
-whatever was already in the container stays. It is not reactive — call it again to update, or use a
-component and let a store do it.
+It **owns its own range and nothing else**: the first call anchors a root part between two markers
+it appends, later calls with the same container reuse that part and walk only the value slots, and
+content before and after that range stays — whatever was already in the container, and whatever other
+code (a script, a browser extension) appends to it later, survives every re-render, a template swap
+included. It is not reactive — call it again to update, or use a component and let a store do it.
 
 It was named `render` until 0.2.0, which collided with core's `render` — a different function, with
 a different arity, that declares a *reactive* template and commits a component's setup. Both are

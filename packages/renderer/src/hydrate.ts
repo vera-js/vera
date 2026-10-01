@@ -411,7 +411,12 @@ export const renderInto = (result: unknown, container: Node) => {
     while (isSheet(first)) first = first!.nextSibling;
     const start = comment();
     container.insertBefore(start, first);
-    const part = new ChildPart(start, null);
+    /**
+     * Bounded like any root, and bounded BEFORE adoption: an insert at the root during the walk (a list growing past
+     * what the server rendered, a client-only node) uses the end as its reference, so it must already be in place.
+     */
+    const end = container.appendChild(comment());
+    const part = new ChildPart(start, end);
     try {
       adoptAs(container, () => {
         const cursor: Cursor = { parent: container, node: first, offset: 0 };
@@ -424,6 +429,7 @@ export const renderInto = (result: unknown, container: Node) => {
       if (error !== MISMATCH) throw error;
     }
     start.remove();
+    end.remove();
     /**
      * **Falling back says so**, scoped to this one container: the page is correct either way, but the server's work
      * on it was just thrown away, and nothing on screen would say so. The reason names the first place the two
