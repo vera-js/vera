@@ -28,6 +28,9 @@ import { spread } from './spread.js';
 /** The brand a tag carries. `_$…$` is exempt from this package's `/^_[a-z]/` property mangling. */
 const STATIC = '_$static$';
 
+/** The 14 void elements — the renderer's development tag-shape pass reads the same list. */
+const VOID_TAGS = /^(?:area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr|param)$/i;
+
 type Tag = ((props?: Record<string, unknown>) => unknown) & { [STATIC]: string };
 
 /**
@@ -52,25 +55,18 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
   let key = '';
   for (let i = 0; i < values.length; i++) {
     const value = values[i] as Tag | undefined;
-    if (value && value[STATIC] !== undefined) key += `${i}:${value[STATIC]};`;
-    /**
-     * A non-tag in **tag position** — `<${name}>` with a string. The refusal is the whole security
-     * property of this entry, and it lived only in `tag` itself, which guards interpolation into a
-     * tag literal. Reaching the position through `html` instead produced no error and no element:
-     * the base scanner reads the expression as an element ref on a tag with no name, and the page
-     * gets escaped punctuation where the markup should be.
-     *
-     * The static before a value is what identifies the position, so this is the one place that can
-     * see it. `__DEV__`-only; production carries neither the check nor the text.
-     */
-    else if (__DEV__ && (strings[i].endsWith('<') || strings[i].endsWith('</'))) {
-      throw new Error(
-        `tag: a ${value === null ? 'null' : typeof value} cannot become markup. ` +
-          `Only a tag may be interpolated into tag position:\n\n` +
-          `  const heading = tag\`h\${level}\`;   // built from other tags\n` +
-          `  html\`<\${heading}>…</\${heading}>\`\n\n` +
-          `That is what keeps the set of tags an app can produce fixed by its source.`
-      );
+    if (value && value[STATIC] !== undefined) {
+      /**
+       * A tag belongs in TAG position only. Spliced anywhere else it became text, an attribute value, or an attribute
+       * NAME (`<p ${T}=${v}>`) — a route around the renderer's refusal of a name expression. Development only: the
+       * name text is fixed by source either way, so this is consistency, not safety.
+       */
+      if (__DEV__ && !(strings[i].endsWith('<') || strings[i].endsWith('</')))
+        throw new Error(
+          `tag: a tag (\`${value[STATIC]}\`) may only stand in tag position — \`<\${T}>…</\${T}>\`. Spliced anywhere ` +
+            `else it would become text or part of an attribute, which a tag never means.`
+        );
+      key += `${i}:${value[STATIC]};`;
     }
   }
   if (key === '') return { ['_$litType$']: 1, strings, values };
@@ -140,6 +136,24 @@ for (const name of BOOLEAN_ATTRIBUTES) NAMES[name] = `?${name}`;
 
 export const jsxName = (key: string): string => NAMES[key] ?? key;
 
+/**
+ * **On a CUSTOM element a bare prop is a PROP** — exactly the rule `@verajs/jsx` compiles `<my-el foo={x}>` by: React's
+ * renames first (`className` → `class`, `htmlFor` → `for`), `ref` its binding, a sigil or `on…` passed through, and any
+ * other name that could be a JS property becomes `.name` — the HTML-control guesses (`?disabled`, `.value`) never reach
+ * a component, whose `disabled` is its own prop. A name that cannot be a property (`data-x`, `aria-label`) and the two
+ * names the DOM itself renamed (`class`, `for`) stay attributes.
+ */
+const componentName = (key: string): string =>
+  key === 'className'
+    ? 'class'
+    : key === 'htmlFor'
+      ? 'for'
+      : key === 'ref'
+        ? '&ref'
+        : /^[.?@&!]|^on[A-Z]/.test(key) || !/^[A-Za-z_$][\w$]*$/.test(key) || key === 'class' || key === 'for'
+          ? key
+          : `.${key}`;
+
 
 /**
  * Declares a tag name.
@@ -155,10 +169,16 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
    * likelier mistake of the two and failed with `Cannot read properties of undefined (reading '0')`,
    * which says nothing about either.
    */
-  if (__DEV__ && (!strings || !Array.isArray((strings as unknown as { raw?: unknown[] }).raw)))
+  /**
+   * In EVERY build: in production `tag('h1')` read the STRING's first character as the template's first static and
+   * named an `<h>`, silently — a wrong element only production renders. The explanation is development's.
+   */
+  if (!(strings as { raw?: unknown } | null)?.raw)
     throw new TypeError(
-      `tag: expected a template literal and received ${String(strings)}. ` +
-        "It is a tagged template — write tag`h1`, not tag('h1')."
+      __DEV__
+        ? `tag: expected a template literal and received ${String(strings)}. ` +
+            "It is a tagged template — write tag`h1`, not tag('h1')."
+        : 'tag: expected a template literal'
     );
   let text = strings[0];
   for (let i = 0; i < values.length; i++) {
@@ -244,9 +264,28 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
       );
     /** No prototype, and `__proto__` is no prop: a bag key by that name would otherwise reach `spread` as one. */
     const mapped = { __proto__: null } as unknown as Record<string, unknown>;
-    for (const name in props) if (name !== '__proto__') mapped[jsxName(name)] = props[name];
-    return html`<${self} ${spread(mapped)}>${children}</${self}>`;
+    for (const name in props)
+      if (name !== '__proto__') {
+        /** The compiler refuses an object `style` at build time; written into the attribute it reads "[object Object]". */
+        if (__DEV__ && name === 'style' && props[name] !== null && typeof props[name] === 'object')
+          throw new TypeError('tag: `style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.');
+        mapped[(custom ? componentName : jsxName)(name)] = props[name];
+      }
+    /**
+     * A void element has no content and no end tag: `</br>` is read as a SECOND `<br>`, and a child anchor strays. So
+     * children given to one would vanish silently — development says so (an empty list is no content).
+     */
+    if (__DEV__ && empty && children != null && !(Array.isArray(children) && children.length === 0))
+      throw new Error(`tag: <${text}> is a void element — it takes no children, and these would be dropped.`);
+    return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
+  const empty = VOID_TAGS.test(text);
+  /**
+   * A custom element's props map by the compiler's component rule — never by the HTML-control guesses. A dash name is
+   * enough here: the compiler also excludes eight reserved SVG/MathML names (`font-face`, `annotation-xml`…), which
+   * cost 77 B to carry and which a tag essentially never names (Brian, 2026-10-01, on vera-5a's recommendation).
+   */
+  const custom = text.includes('-');
   self[STATIC] = text;
   return self;
 };

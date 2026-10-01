@@ -141,11 +141,42 @@ export const INLINE_HANDLER = /^on./i;
  * cannot share the element with content of its own (markup, or a child binding the write would strand: a later commit
  * into it then throws on a missing parent). Development refuses the pair in the template scanner and in `spread` alike.
  */
-export const CONTENT_PROPERTY = /^(?:textContent|innerHTML|innerText|outerHTML)$/;
+export const CONTENT_PROPERTY = /^(?:textContent|innerHTML|innerText|outerHTML|outerText)$/;
+/**
+ * Whether an element has content of its own that a content-replacing write would strand or lose: a child that is not
+ * whitespace-only text (formatting whitespace loses nothing), or — `$content`, set in development by the renderer — a
+ * child binding that owns the element whole and leaves no node behind until it commits. The element-specific `.text`
+ * setters (`<a>`, `<option>`, `<title>`, `<script>`) are deliberately not in the list: a custom element's own `text`
+ * prop is common, and would be refused for nothing.
+ */
+export const ownsContent = (element: Element): boolean => {
+  if ((element as Element & { $content?: boolean }).$content === true) return true;
+  for (let node = element.firstChild; node !== null; node = node.nextSibling)
+    /**
+     * An EMPTY text node is a child binding's anchor, not formatting: formatting whitespace is never empty. And
+     * formatting is HTML's whitespace, `[ \t\n\f\r]` — not JS's `trim()`, which would let an `&nbsp;` be overwritten.
+     */
+    if (node.nodeType !== 3 || (node as Text).data === '' || /[^ \t\n\f\r]/.test((node as Text).data)) return true;
+  return false;
+};
 export const contentClash = (tag: string, name: string): never => {
   throw new Error(
     `renderer: <${tag}> binds \`.${name}\`, which replaces the element's content, and also has content of its own — ` +
       `markup or a child binding, which the write would strand. Bind one or the other: the property alone ` +
       `(\`<${tag} .${name}=\${…}></${tag}>\`), or the content alone.`
+  );
+};
+
+/**
+ * **An expression in TAG-name position** (`<${x}>`, `</${x}>`, `<my-${x}>`) without `@verajs/renderer/tag`: no
+ * element can be made from it — the parser reads a tag name before any value exists. Refused by the client in
+ * development and by the server in every build, with one message. The tag entry splices a tag VALUE into the
+ * statics before the renderer sees it, so only a non-tag ever reaches here.
+ */
+export const TAG_NAME_HOLE = /<\/?[^\s>]*$/;
+export const tagHole = (side: string): never => {
+  throw new Error(
+    `${side}: an expression in tag position (\`<\${…}>\`) cannot be a tag name — a tag name must be a tag value: ` +
+      `\`tag\`h1\`\` from @verajs/renderer/tag, with that entry's \`html\`.`
   );
 };

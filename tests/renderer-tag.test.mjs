@@ -9,7 +9,7 @@
  *
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -127,6 +127,92 @@ test('props named like Object.prototype members arrive, and __proto__ is still r
   assert.equal(h1.hasAttribute('__proto__'), false, '__proto__ is not written');
   assert.equal(Object.getPrototypeOf(h1), dom.window.HTMLHeadingElement.prototype, 'and no prototype changed');
   assert.equal({}.polluted, undefined, 'nor any shared one');
+});
+
+/**
+ * **`tag('h1')` is refused in every build.** Called as a function rather than a tagged template, production read the
+ * string's first character as the first static and named an `<h>` — a wrong element that development, which always
+ * threw, never showed.
+ */
+test('a tag called as a function is refused in every build, never a wrong element', () => {
+  assert.throws(() => tag('h1'), /tag: expected a template literal/);
+  assert.throws(() => tag(['h1']), /tag: expected a template literal/, 'an array without .raw is no template either');
+  assert.doesNotThrow(() => tag(Object.assign(['h1'], { raw: ['h1'] })), 'a hand-built template is still accepted');
+});
+
+/**
+ * **A void tag renders ONE element.** The component wrote an end tag and a child hole after every name, so
+ * `` tag`br` `` rendered `<br></br>` — two `<br>`s by the parser's rule — and `` tag`input` ``'s child anchor landed
+ * as a stray sibling after the input.
+ */
+test('a void tag renders one element, with no end tag and no stray child', () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (const name of ['br', 'input', 'img', 'hr']) {
+      const T = tag(Object.assign([name], { raw: [name] }));
+      const container = into();
+      renderInto(T({ title: 't' }), container);
+      assert.equal(container.querySelectorAll(name).length, 1, `<${name}>: exactly one`);
+      assert.equal(read(container), `<${name} title="t">`, `<${name}>: nothing after it`);
+    }
+  } finally {
+    console.warn = warn;
+  }
+  const H = tag`h1`;
+  const container = into();
+  renderInto(H({ children: ['x'] }), container);
+  assert.equal(read(container), '<h1>x</h1>', 'CONTROL: a non-void tag keeps its content and end tag');
+});
+
+/**
+ * **A custom-element tag maps props the way compiled JSX does** — `<my-el foo={x}>` compiles to `.foo`, `disabled={d}`
+ * to `.disabled` (the component's own prop, not the HTML boolean), while `data-*`/`aria-*` and `class`/`for` stay
+ * attributes. The tag mapped them by the HTML-control rules, so `foo` became an attribute and `disabled` a `?boolean`.
+ */
+test('a custom-element tag maps props as compiled JSX does', () => {
+  const T = tag`my-tag-el`;
+  const container = into();
+  const fn = () => {};
+  renderInto(T({ foo: { deep: 1 }, disabled: false, className: 'c', htmlFor: 'f', 'data-x': 'd', 'aria-label': 'a', onPick: fn }), container);
+  const el = container.querySelector('my-tag-el');
+  assert.deepEqual(el.foo, { deep: 1 }, 'an identifier prop arrives as a PROPERTY, by identity');
+  assert.equal(el.disabled, false, '`disabled` is its own prop');
+  assert.equal(el.hasAttribute('disabled'), false);
+  assert.equal(el.getAttribute('class'), 'c');
+  assert.equal(el.getAttribute('for'), 'f');
+  assert.equal(el.getAttribute('data-x'), 'd');
+  assert.equal(el.getAttribute('aria-label'), 'a');
+  assert.equal(el.hasAttribute('foo'), false, 'no attribute for a prop');
+  const H = tag`button`;
+  const plain = into();
+  renderInto(H({ disabled: false }), plain);
+  assert.equal(plain.querySelector('button').hasAttribute('disabled'), false, 'CONTROL: a built-in keeps the boolean rule');
+});
+
+test('an object style is refused in development, as the compiler refuses it', { skip: isProduction && 'a development check' }, () => {
+  const H = tag`p`;
+  assert.throws(() => H({ style: { color: 'red' } }), /`style` expects a STRING/);
+});
+
+/**
+ * **A tag stands in tag position only.** It was spliced wherever it appeared — as text, an attribute value, or an
+ * attribute NAME (`<p ${T}=${v}>`), which went around the renderer's refusal of a name expression.
+ */
+test('a tag outside tag position is refused in development', { skip: isProduction && 'a development check' }, () => {
+  const T = tag`title`;
+  assert.throws(() => html`<p ${T}=${'v'}>x</p>`, /may only stand in tag position/, 'an attribute name');
+  assert.throws(() => html`<p>${T}</p>`, /may only stand in tag position/, 'text');
+  assert.throws(() => html`<p class=${T}>x</p>`, /may only stand in tag position/, 'an attribute value');
+  const H = tag`h2`;
+  assert.doesNotThrow(() => html`<${H} class="t">x</${H}>`, 'CONTROL: tag position, open and close');
+});
+
+test('a void tag given children is refused in development — they would vanish', { skip: isProduction && 'a development check' }, () => {
+  const BR = tag`br`;
+  assert.throws(() => BR({ children: ['lost'] }), /void element — it takes no children/);
+  assert.doesNotThrow(() => BR({ children: [] }), 'an empty list is no content');
+  assert.doesNotThrow(() => BR({}), 'nor is none');
 });
 
 test('a JSX tag with no props renders bare', () => {

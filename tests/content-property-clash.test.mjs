@@ -29,6 +29,25 @@ test('a spread content key beside content is refused in development — the tag-
   assert.throws(() => renderInto(html`<my-el ${spread({ '.textContent': 'V' })}>${'kid'}</my-el>`, into()), CLASH);
 });
 
+test('a spread content key on an element whose only content is a binding is refused too — it leaves no node until it commits', { skip: isProduction && 'a development check' }, () => {
+  assert.throws(() => renderInto(html`<div ${spread({ '.textContent': 'a' })}>${'k'}</div>`, into()), CLASH);
+});
+
+test('outerText replaces the element itself: refused beside content', { skip: isProduction && 'a development check' }, () => {
+  assert.throws(() => renderInto(html`<my-el .outerText=${'a'}>${'k'}</my-el>`, into()), /binds `\.outerText`/);
+});
+
+test('an &nbsp; is content, not formatting — HTML whitespace is [ \\t\\n\\f\\r] only', { skip: isProduction && 'a development check' }, () => {
+  assert.throws(() => renderInto(html`<p .innerHTML=${'<b>x</b>'}>&nbsp;</p>`, into()), CLASH);
+});
+
+test('formatting whitespace is not content — the property strands nothing', () => {
+  const host = into();
+  renderInto(html`<div .innerHTML=${'<b>x</b>'}>
+  </div>`, host);
+  assert.equal(host.querySelector('div b')?.textContent, 'x');
+});
+
 test('the property alone, or the content alone, renders', () => {
   const a = into();
   renderInto(html`<div .textContent=${'only'}></div>`, a);

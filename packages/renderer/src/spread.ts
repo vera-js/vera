@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
+import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
@@ -131,7 +131,7 @@ class Binding {
     this._read = custom ? untracked : null;
     this._url = urlRule(kind, name as string, custom);
     /** A content-replacing property beside content of the element's own: development refuses it, as a template does. */
-    if (__DEV__ && (kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(name as string) && element.firstChild !== null)
+    if (__DEV__ && (kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(name as string) && ownsContent(element))
       contentClash(element.localName, name as string);
     if (kind === REFUSED) {
       if (__DEV__)
