@@ -246,9 +246,11 @@ const closesTag = (text, inTag) => {
  * this set.
  */
 const RAWTEXT = new Set(['style', 'script']);
+/** The client's other raw-text elements: their content is never markup, but it keeps ordinary escaping. */
+const TEXT_ONLY = new Set(['textarea', 'title', 'iframe', 'noscript']);
 
 const scanTag = (text, state) => {
-  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment } = state;
+  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag } = state;
   /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
   let opened = false;
   let attrRaw = state.attrRaw;
@@ -281,6 +283,27 @@ const scanTag = (text, state) => {
      * here is dropped on both sides (see `compile`). Not knowing it, this scanner took `<!--` for a TAG, so a binding
      * in a comment looked like an element position.
      */
+    /**
+     * Inside `<textarea>`, `<title>`, `<iframe>` or `<noscript>` nothing is markup either — the client's scanner reads
+     * their content as raw text (its `RAW_TEXT_TAGS`), so a hole there is text, never a tag or an attribute. Escaping
+     * is unchanged: these keep ordinary escaping, unlike `<style>`/`<script>` (`RAWTEXT`).
+     */
+    if (textTag) {
+      const close = '</' + textTag;
+      if (
+        character === '<' &&
+        text.slice(i, i + close.length).toLowerCase() === close &&
+        (i + close.length >= text.length || /[\s/>]/.test(text[i + close.length]))
+      ) {
+        i += close.length - 1;
+        textTag = '';
+        inTag = true;
+        tagName = '';
+        naming = false;
+        closing = true;
+      }
+      continue;
+    }
     if (comment) {
       if (character === '-' && text.startsWith('-->', i)) {
         i += 2;
@@ -318,6 +341,7 @@ const scanTag = (text, state) => {
       if (tagName === 'template') inert += closing ? -1 : text[i - 1] === '/' ? 0 : 1;
       /** A self-closing tag has no content to be raw, and a closing tag opens nothing. */
       else if (!closing && text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
+      else if (!closing && text[i - 1] !== '/' && TEXT_ONLY.has(tagName)) textTag = tagName;
       tagName = '';
       naming = false;
       closing = false;
@@ -348,7 +372,7 @@ const scanTag = (text, state) => {
       else naming = false;
     }
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, attrRaw, opened, attrStart, valueStart };
+  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag, attrRaw, opened, attrStart, valueStart };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -410,7 +434,7 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, attrRaw: '' };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, textTag: '', attrRaw: '' };
   /** Per binding: whether a component property's name is a URL sink. */
   const urls = [];
   /**
@@ -598,6 +622,12 @@ const compile = (strings) => {
     raws.push(tagState.rawTag);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
+    /** A TAG-name hole: refused in every build — the twin of the client's development refusal, one message. */
+    if (elementPosition && TAG_NAME_HOLE.test(part))
+      throw new Error(
+        'ssr: an expression in tag position (`<${…}>`) cannot be a tag name — a tag name must be a tag value: ' +
+          '`tag`h1`` from @verajs/renderer/tag, with that entry\'s `html`.'
+      );
     if (elementPosition && !TAG_NAME_HOLE.test(part) && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
       nameHole(part, strings[i + 1]);
     elementPositions.push(elementPosition);

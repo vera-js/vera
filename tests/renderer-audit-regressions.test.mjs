@@ -23,9 +23,11 @@ const { html, tag } = await load('renderer/tag');
  * with no name and the surrounding markup renders as escaped text.
  */
 test('a string in tag position is refused, not silently mangled', { skip: isProduction && 'the guard is __DEV__' }, () => {
-  assert.throws(() => html`<${'script'}>x</${'script'}>`, /cannot become markup/);
-  assert.throws(() => html`<${'div'}></${'div'}>`, /Only a tag may be interpolated/);
-  assert.throws(() => html`<${null}></${null}>`, /null cannot become markup/);
+  /** Refused by the renderer, which alone knows a true tag position — through the tag entry's `html` as through core's. */
+  const at = () => document.body.appendChild(document.createElement('div'));
+  assert.throws(() => renderInto(html`<${'script'}>x</${'script'}>`, at()), /cannot be a tag name/);
+  assert.throws(() => renderInto(html`<${'div'}></${'div'}>`, at()), /tag`h1`` from @verajs\/renderer\/tag/);
+  assert.throws(() => renderInto(html`<${null}></${null}>`, at()), /cannot be a tag name/);
 });
 
 test('a tag in tag position still works, and updates in place', () => {
@@ -51,26 +53,15 @@ test('a non-tag value outside tag position is unaffected', () => {
 });
 
 /**
- * The base renderer cannot refuse it — `<${x}>` is a legal element-ref position as far as the
- * scanner is concerned — but it can say what the author almost certainly meant.
+ * The base renderer refuses an expression in tag position in development — no element can be made from it — and names
+ * the entry that supports runtime tag names (Brian, 2026-10-01: refuse, as the attribute-name hole is refused).
  */
 test('the base renderer names the tag entry for an expression in tag position', { skip: isProduction && 'the guard is __DEV__' }, async () => {
   const core = await load('core');
-  const errors = [];
-  const nativeError = console.error;
-  console.error = (...args) => errors.push(String(args[0]));
-  try {
-    /** The scan happens when the renderer first builds the template, not when `html` is called. */
-    const host = document.createElement('div');
-    document.body.append(host);
-    renderInto(core.html`<${'div'}>x</${'div'}>`, host);
-  } finally {
-    console.error = nativeError;
-  }
-  assert.ok(
-    errors.some((m) => m.includes('@verajs/renderer/tag')),
-    'it must name the entry that does support runtime tag names'
-  );
+  const host = document.createElement('div');
+  document.body.append(host);
+  /** The scan happens when the renderer first builds the template, not when `html` is called. */
+  assert.throws(() => renderInto(core.html`<${'div'}>x</${'div'}>`, host), /@verajs\/renderer\/tag/);
 });
 
 /* ── the un-hoisted child applier ────────────────────────────────────────────────────────────── */

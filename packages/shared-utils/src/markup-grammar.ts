@@ -166,3 +166,17 @@ export const contentClash = (tag: string, name: string): never => {
       `(\`<${tag} .${name}=\${…}></${tag}>\`), or the content alone.`
   );
 };
+
+/**
+ * **An expression in TAG-name position** (`<${x}>`, `</${x}>`, `<my-${x}>`) without `@verajs/renderer/tag`: no
+ * element can be made from it — the parser reads a tag name before any value exists. Refused by the client in
+ * development and by the server in every build, with one message. The tag entry splices a tag VALUE into the
+ * statics before the renderer sees it, so only a non-tag ever reaches here.
+ */
+export const TAG_NAME_HOLE = /<\/?[^\s>]*$/;
+export const tagHole = (side: string): never => {
+  throw new Error(
+    `${side}: an expression in tag position (\`<\${…}>\`) cannot be a tag name — a tag name must be a tag value: ` +
+      `\`tag\`h1\`\` from @verajs/renderer/tag, with that entry's \`html\`.`
+  );
+};

@@ -22,6 +22,8 @@ import {
   CONTENT_PROPERTY,
   contentClash,
   ownsContent,
+  TAG_NAME_HOLE,
+  tagHole,
   INLINE_HANDLER,
   isSelection,
   read,
@@ -327,8 +329,12 @@ class Template {
         markup += `${s} ${i}${MARKER}`;
       }
       else if (continues || regex !== TAG_END) markup += s + MARKER; // another value of the attribute a previous binding opened
-      /** A tag-name position (`<${x}>`): no marker — the value is consumed and ignored (the tag entry renders it). */
+      /**
+       * A tag-name position (`<${x}>`, `</${x}>`, `<my-${x}>` — no whitespace since the `<`): refused in development.
+       * Production keeps no marker, consumes the value and stays aligned.
+       */
       else {
+        if (__DEV__ && TAG_NAME_HOLE.test(s)) tagHole('renderer');
         /** Nothing before it at all (`${ref}${n}="x"`): only what follows can say it is a name. */
         if (__DEV__ && (NAME_BEFORE.test(s) || (s === '' && NAME_AFTER.test(strings[i + 1])))) nameHole(s, strings[i + 1]);
         markup += s;

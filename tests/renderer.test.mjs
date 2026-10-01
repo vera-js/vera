@@ -4,7 +4,7 @@
  * Tests the BUILT artifacts — development AND production (see `./dist.mjs`) — so a build defect
  * fails here too. Run with `npm test` (node --test + jsdom).
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -182,8 +182,11 @@ test('svg renders in the SVG namespace', () => {
   assert.equal(c.getAttribute('r'), '5');
 });
 
-/** An attribute-NAME expression is refused outright now (`attribute-name-holes.test.mjs`); a TAG-name one is the tag entry's. */
-test('an expression in tag-name position consumes its value and leaks nothing onto the page', () => {
+/**
+ * A TAG-name expression is refused in development (`tag-name-holes.test.mjs`); production keeps no marker, consumes
+ * the value and stays aligned — pinned here so production's behavior is a test, not only a byte comparison.
+ */
+test('in production an expression in tag-name position consumes its value and leaks nothing onto the page', { skip: !isProduction && 'development refuses it' }, () => {
   const [warn, error] = [console.warn, console.error];
   console.warn = console.error = () => {};
   try {
