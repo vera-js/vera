@@ -47,10 +47,13 @@ const live = (node: Lit): Light | undefined => {
   return node.$light;
 };
 /**
- * A part's BOUNDARY (a comment, never slotted, invisible) answers its light parent as `parentNode` — that is the
- * parent the renderer writes the part's content through. A slotted element or text keeps its PHYSICAL `parentNode`:
- * it sits where it renders (`header > h2` matches it), so `parentNode`, `parentElement` and `closest()` agree for user
- * code; the renderer reaching it from there removes it natively, which `live` sees.
+ * A part's BOUNDARY (a comment, never slotted, invisible) and a light TEXT node answer their light parent as
+ * `parentNode` — the parent the renderer writes through: a text child a binding wrote becomes a markered part when its
+ * value stops being text (`markered(text.parentNode, text)`), and its new boundaries must join the light list, or
+ * every later write through them lands physically, undistributed (the recording contract run found it). A slotted
+ * ELEMENT keeps its physical `parentNode`: it sits where it renders (`header > h2` matches it), so `parentNode`,
+ * `parentElement` and `closest()` agree for user code; the renderer reaching it from there only removes it, natively,
+ * which `live` sees.
  */
 const BOUNDARY_OVERLAY: PropertyDescriptorMap = {
   parentNode: { configurable: true, get(this: Lit) { const light = live(this); return light === undefined ? physicalParent(this) : light; } },
@@ -80,7 +83,7 @@ const OVERLAID = [...Object.keys(OVERLAY), ...Object.keys(ELEMENT_OVERLAY), ...O
 const own = (node: Node) => {
   Object.defineProperties(node, OVERLAY);
   if (node.nodeType === 1) Object.defineProperties(node, ELEMENT_OVERLAY);
-  else if (node.nodeType === 8) Object.defineProperties(node, BOUNDARY_OVERLAY);
+  else Object.defineProperties(node, BOUNDARY_OVERLAY);
 };
 const disown = (node: Node) => {
   for (const key of OVERLAID) delete (node as unknown as Record<string, unknown>)[key];

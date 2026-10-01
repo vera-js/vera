@@ -1216,3 +1216,24 @@ test('a slot revealed inside a fallback distributes, as the platform does', asyn
     'and it is a live binding, not a one-off insertion');
   lightHost.remove();
 });
+
+/**
+ * A text child a parent's binding wrote becomes a MARKERED part when its value stops being text — and the new
+ * boundaries must join the light list. Found by the recording contract run: with the text node answering its physical
+ * parent, the boundaries landed inside a slot region untracked, and every later write through them was undistributed
+ * (`<b slot="h">` in the default slot, `slotted()` empty).
+ */
+test('a text child that becomes a list distributes its items', () => {
+  if (!customElements.get('up-host'))
+    customElements.define('up-host', class extends HTMLElement { connectedCallback() { init(this); renderInto(html`<header><slot name="h"></slot></header><main><slot></slot></main>`, this); } });
+  const page = host();
+  const draw = (value) => html`<up-host>${value}</up-host>`;
+  renderInto(draw('plain text'), page);
+  const upHost = page.querySelector('up-host');
+  assert.deepEqual(slotted(upHost).map((node) => node.textContent), ['plain text'], 'CONTROL: the text was distributed');
+  renderInto(draw([html`<b slot="h">H</b>`, html`<i>D</i>`]), page);
+  assert.equal(upHost.querySelector('header').textContent, 'H');
+  assert.equal(upHost.querySelector('main').textContent, 'D');
+  assert.deepEqual(slotted(upHost, 'h').map((node) => node.textContent), ['H']);
+  page.remove();
+});
