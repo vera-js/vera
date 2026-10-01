@@ -151,7 +151,12 @@ escaped as it is written; `<style>` and `<script>` content is written raw with i
 neutralized (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer), because a
 browser does not decode a character reference inside either: escaping there protects nothing and
 corrupts the content (`.a > .b` used to serve as `.a &#62; .b`, a selector matching nothing).
-`<title>` and `<textarea>` decode references, so they keep ordinary escaping.
+`<title>` and `<textarea>` decode references, so they keep ordinary escaping. **Raw is decided by where
+the browser will parse the element, not by its name**: inside `<svg>` or `<math>` a `<style>` is an SVG or
+MathML element whose content is markup, and `<noscript>` is markup to a browser with scripting off — so
+inside any of them every value is escaped, and so is every value in a template rendered into one (an
+`svg`/`mathml` template included, wherever it renders). Inside `<xmp>`, `<noembed>`, `<noframes>` and
+`<plaintext>`, which the browser reads as text whole, nothing is raw either.
 
 **Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** Both are
 written through untouched — that is what they are for — so neither may carry anything from a request
@@ -309,7 +314,14 @@ dependency involved.
   not decoded, so there is no spelling of a CR that survives there. CR and LF are interchangeable
   whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
   strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
-- **Three things cannot survive a server round trip, and are the only three**: that carriage return
+- **A `<style>` or `<script>` the server cannot place in HTML is served escaped.** Raw text is recognized
+  only outside `<svg>`, `<math>` and `<noscript>`, and the scanner does not track the ways a browser
+  re-enters HTML inside them — an integration point (`<svg><foreignObject><style>`), or a tag like `<p>`
+  that breaks out of foreign content — nor an `svg` template rendered outside any `<svg>`. There the
+  browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
+  That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
+  page. Put the stylesheet outside the foreign element.
+- **Beyond that, three things cannot survive a server round trip, and are the only three**: that carriage return
   inside `<style>`/`<script>`, and two characters. **NUL** is dropped in text and becomes U+FFFD in an
   attribute or RAWTEXT, and no spelling round-trips, so it is left alone rather than silently
   rewritten. **A lone surrogate** is not encodable in UTF-8, so the *transport* replaces it. Both are

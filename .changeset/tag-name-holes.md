@@ -11,6 +11,6 @@ template in every build and the client in development, both naming the tag entry
 value. Only markup counts: a `<` inside a comment, a raw-text element or a quoted attribute value never makes a tag
 position.
 
-The server's scanner now treats `<textarea>`, `<title>`, `<iframe>` and `<noscript>` content as text, as the client
-always has (escaping unchanged), so `<textarea><b title=${v}>` serializes the value as text instead of quoting it as
-an attribute.
+The server's scanner now treats `<textarea>`, `<title>` and `<iframe>` content as text, as the client always has
+(escaping unchanged), so `<textarea><b title=${v}>` serializes the value as text instead of quoting it as an
+attribute.
