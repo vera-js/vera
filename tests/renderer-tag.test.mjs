@@ -208,6 +208,13 @@ test('a tag outside tag position is refused in development', { skip: isProductio
   assert.doesNotThrow(() => html`<${H} class="t">x</${H}>`, 'CONTROL: tag position, open and close');
 });
 
+test('a void tag given children is refused in development — they would vanish', { skip: isProduction && 'a development check' }, () => {
+  const BR = tag`br`;
+  assert.throws(() => BR({ children: ['lost'] }), /void element — it takes no children/);
+  assert.doesNotThrow(() => BR({ children: [] }), 'an empty list is no content');
+  assert.doesNotThrow(() => BR({}), 'nor is none');
+});
+
 test('a JSX tag with no props renders bare', () => {
   const container = into();
   renderInto(html`<section>${HEADING[1]()}</section>`, container);

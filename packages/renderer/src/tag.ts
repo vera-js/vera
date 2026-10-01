@@ -290,7 +290,12 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
           throw new TypeError('tag: `style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.');
         mapped[(custom ? componentName : jsxName)(name)] = props[name];
       }
-    /** A void element has no content and no end tag: `</br>` is read as a SECOND `<br>`, and a child anchor strays. */
+    /**
+     * A void element has no content and no end tag: `</br>` is read as a SECOND `<br>`, and a child anchor strays. So
+     * children given to one would vanish silently — development says so (an empty list is no content).
+     */
+    if (__DEV__ && empty && children != null && !(Array.isArray(children) && children.length === 0))
+      throw new Error(`tag: <${text}> is a void element — it takes no children, and these would be dropped.`);
     return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   const empty = VOID_TAGS.test(text);
