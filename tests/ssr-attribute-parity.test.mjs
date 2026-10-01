@@ -44,14 +44,16 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 const { renderInto } = await load('renderer');
 
 /**
- * Every element as `name{sorted attributes}`, then the text — attribute ORDER is not a difference. A
+ * Every element as `parent>name{sorted attributes}`, then the text — attribute ORDER is not a difference, but
+ * NESTING is: an element left open by a mis-served tag makes its next sibling its child, which a flat list of
+ * names would not show (it did not, for `<circle r=${r}/>`). A
  * `<template>`'s content is a separate fragment `querySelectorAll` never enters, so it is walked explicitly:
  * that is where a client marker would leak and where the server would render bindings the client ignores.
  */
 const shapeOf = (root) =>
   [...root.querySelectorAll('*')]
     .map((el) =>
-      `${el.localName}${JSON.stringify([...el.attributes].map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)))}` +
+      `${el.parentNode === root ? '' : el.parentNode.localName + '>'}${el.localName}${JSON.stringify([...el.attributes].map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)))}` +
       (el.localName === 'template' ? `{${shapeOf(el.content)}}` : '')
     )
     .join(' ') + ` | ${JSON.stringify(root.textContent)}`;

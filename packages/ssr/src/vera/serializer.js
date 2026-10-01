@@ -570,7 +570,12 @@ const compile = (strings) => {
     const group = groups[i];
     if (group === undefined || group.last !== i) continue;
     const next = parts[i + 1];
-    let end = group.quote ? next.indexOf(group.quote) : next.search(/[\s>]/);
+    /**
+     * An unquoted value ends at whitespace or `>` — and at a `/>` RIGHT after its last hole, which is the tag's
+     * self-close, not value text: the client's scanner keeps the slash out of the value the same way (`<circle
+     * r=${r}/>`). Taken as text, it served `r="5/"` and left the element open, nesting the next one inside it.
+     */
+    let end = group.quote ? next.indexOf(group.quote) : next.startsWith('/>') ? 0 : next.search(/[\s>]/);
     /** A template that ends inside the value: the rest is the suffix, as the client's parser reads it. */
     const closed = end !== -1;
     if (!closed) end = next.length;

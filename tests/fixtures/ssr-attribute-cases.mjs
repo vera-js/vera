@@ -24,6 +24,15 @@ export const SHAPES = {
   /** An entity in a STATIC is decoded by the browser in any quoting — it must stay an entity. */
   'double-quoted, static entity': ['<p title="&amp;', '">t</p>'],
   'two bound attributes': ['<p title=', ' lang=', '>t</p>'],
+  /**
+   * **An unquoted value followed by `/>`**: the slash is the tag's self-close, never part of the value — the client's
+   * scanner says so, and a server that took it as value text served `r="5/"` and left the element OPEN, so the next
+   * element parsed as its CHILD. The commonest SVG there is (`<circle r=${r}/>`, `<path d=${d}/>`), and an HTML void.
+   */
+  'unquoted, then /> (svg)': ['<svg><circle r=', '/><rect id="after"/></svg>'],
+  'unquoted, then space /> (svg)': ['<svg><circle r=', ' /><rect id="after"/></svg>'],
+  'unquoted, static prefix, then /> (svg)': ['<svg><path d=M', '/><rect id="after"/></svg>'],
+  'unquoted, then /> on an html void': ['<input value=', '/><b>after</b>'],
 };
 
 /** The coercion edges: sole nullish drops the attribute, joined nullish is `''`, `false` is the text "false". */
