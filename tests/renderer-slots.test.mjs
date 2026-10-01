@@ -47,6 +47,13 @@ class SlotHost extends HTMLElement {
   }
 }
 customElements.define('slot-host', SlotHost);
+/** A plain element, for the NATIVE side of a comparison: it gets a real shadow root, so it must never be a light host. */
+const plain = (innerHTML = '') => {
+  const element = doc.createElement('div');
+  element.innerHTML = innerHTML;
+  doc.body.append(element);
+  return element;
+};
 const host = (innerHTML = '') => {
   const element = doc.createElement('slot-host');
   element.innerHTML = innerHTML;
@@ -270,10 +277,11 @@ test('three-level slot chains survive a branch-away round trip, displaced or ren
  */
 test('assignedSlot is null in light mode; the forward reads carry the fact', async () => {
   const element = host('<u slot="h">X</u>');
-  const node = element.querySelector('u');
   let handle = null;
   renderInto(html`<div><slot name="h" &ref=${(s) => { handle = s; }}></slot></div>`, element);
   await settle();
+  /** Queried after the render: captured at `init`, it waits in holding until its slot mounts. */
+  const node = element.querySelector('u');
   assert.equal(node.assignedSlot, null, 'the platform accessor answers for real shadow trees only');
   assert.equal(handle.assignedNodes()[0], node, 'the slot handle answers forward');
   assert.deepEqual(slotted(element, 'h'), [node], 'and slotted() answers from outside');
@@ -470,7 +478,7 @@ test('AUDIT — a HELD (unassigned) node re-slots too, exactly as native reassig
  * an element (`nodeType !== 1`), so a shadow root keeps its literal `<slot>`.
  */
 test('a SHADOW root is left entirely to native slotting', () => {
-  const shadowHost = host('<b slot="header">MINE</b>');
+  const shadowHost = plain('<b slot="header">MINE</b>');
   const root = shadowHost.attachShadow({ mode: 'open' });
   renderInto(card(), root);
   const native = root.querySelector('slot[name="header"]');
@@ -1161,7 +1169,7 @@ for (const [label, markup, expected] of [
   ['neither', '', 'inner-fb'],
 ])
   test(`a slot inside a slot's fallback: ${label} — matches the platform`, async () => {
-    const shadowHost = host(markup);
+    const shadowHost = plain(markup);
     shadowHost.attachShadow({ mode: 'open' }).innerHTML = NESTED_FALLBACK;
     const native = nativeShows(shadowHost);
 

@@ -604,6 +604,11 @@ export const slotDiscovery = [
     on: 'init' as const,
     fn: (element: Element) => {
       const name = element.localName;
+      /**
+       * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
+       * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
+       */
+      if ((element as unknown as Record<string, unknown>)['_root'] != null || element.shadowRoot !== null) return;
       if (name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name) && !HOSTS.has(element)) capture(element);
     },
     priority: 10,
