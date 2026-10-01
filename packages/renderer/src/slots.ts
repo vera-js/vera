@@ -274,6 +274,8 @@ const take = (slot: HTMLSlotElement & { $host?: Element; $binding?: Binding }, h
   slot.assignedNodes = (options?: AssignedNodesOptions) => assigned(binding, false, options?.flatten);
   slot.assignedElements = (options?: AssignedNodesOptions) => assigned(binding, true, options?.flatten) as Element[];
   (start as Comment & { $slot?: Binding }).$slot = binding;
+  /** A spread writing `name` on this kept slot reaches it here — spread is its own bundle and cannot import slots. */
+  (slot as HTMLSlotElement & { $rename?: () => void }).$rename = () => rename(slot);
   const bindings = light.bindings;
   let at = bindings.length;
   while (at > 0 && before(binding, bindings[at - 1])) at--;
@@ -321,7 +323,13 @@ export const slotted = (host: Element, name = ''): Node[] => {
     const binding = light.active(name);
     return binding === undefined ? [] : assigned(binding, false);
   }
-  const slot = [...(host.shadowRoot?.querySelectorAll('slot') ?? [])].find((s) => (s.getAttribute('name') ?? '') === name);
+  /**
+   * `_root` first: a CLOSED root is null through `shadowRoot`, and core keeps the root it attached under that unmangled
+   * name in both modes (`@verajs/styles` reads it the same way). Quoted, so this bundle's mangling leaves it alone.
+   * Names are compared, never put in a selector — a quote in one would throw.
+   */
+  const root = (host as unknown as Record<string, ShadowRoot | null | undefined>)['_root'] ?? host.shadowRoot;
+  const slot = [...(root?.querySelectorAll('slot') ?? [])].find((s) => (s.getAttribute('name') ?? '') === name);
   return slot === undefined ? [] : slot.assignedNodes();
 };
 
