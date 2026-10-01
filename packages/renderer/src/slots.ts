@@ -26,6 +26,49 @@ const slotNameOf = (node: Node): string | null =>
 
 type Lit = Node & { $light?: Light; $in?: Binding };
 
+/**
+ * **The logical view, on the nodes this module owns — and only those.** The renderer writes a host's light children
+ * through ordinary DOM members (`parentNode`, `nextSibling`, `insertBefore`, `remove()`…) with no idea slots exist; a
+ * light node answers those members from its LIGHT parent, so the renderer's writes land in the light list and are
+ * distributed. One shared descriptor set for every node — each accessor reads the node's `$light` link, so nothing
+ * per node is a closure holding its host — installed when a node joins a light list and deleted when it leaves, so
+ * a node outside one is entirely native again. Members not listed here (`parentElement`, `closest`, `contains`…) still
+ * answer the PHYSICAL tree.
+ */
+const OVERLAY: PropertyDescriptorMap = {
+  parentNode: { configurable: true, get(this: Lit) { return this.$light ?? null; } },
+  nextSibling: { configurable: true, get(this: Lit) { const list = this.$light!.list; return list[list.indexOf(this) + 1] ?? null; } },
+  previousSibling: { configurable: true, get(this: Lit) { const list = this.$light!.list; return list[list.indexOf(this) - 1] ?? null; } },
+  remove: { configurable: true, writable: true, value(this: Lit) { this.$light!.removeChild(this); } },
+  replaceWith: {
+    configurable: true,
+    writable: true,
+    value(this: Lit, ...nodes: (Node | string)[]) {
+      const light = this.$light!;
+      for (const node of nodes) light.insertBefore(typeof node === 'string' ? this.ownerDocument!.createTextNode(node) : node, this);
+      light.removeChild(this);
+    },
+  },
+};
+/** A light ELEMENT also re-sorts itself, synchronously, when its `slot` changes — however it is written. */
+const ELEMENT_OVERLAY: PropertyDescriptorMap = {
+  setAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string, value: string) { Element.prototype.setAttribute.call(this, name, value); if (name === 'slot') this.$light?.$place(this); } },
+  removeAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string) { Element.prototype.removeAttribute.call(this, name); if (name === 'slot') this.$light?.$place(this); } },
+  toggleAttribute: { configurable: true, writable: true, value(this: Element & Lit, name: string, force?: boolean) { const on = Element.prototype.toggleAttribute.call(this, name, force); if (name === 'slot') this.$light?.$place(this); return on; } },
+  slot: { configurable: true, get(this: Element) { return this.getAttribute('slot') ?? ''; }, set(this: Element, value: string) { this.setAttribute('slot', `${value}`); } },
+};
+const OVERLAID = [...Object.keys(OVERLAY), ...Object.keys(ELEMENT_OVERLAY)];
+const own = (node: Node) => {
+  Object.defineProperties(node, OVERLAY);
+  if (node.nodeType === 1) Object.defineProperties(node, ELEMENT_OVERLAY);
+};
+const disown = (node: Node) => {
+  for (const key of OVERLAID) delete (node as unknown as Record<string, unknown>)[key];
+};
+/** This module's own walks are PHYSICAL: through the platform's getter, past any overlay. */
+let nextGetter: ((this: Node) => ChildNode | null) | undefined;
+const physicalNext = (node: Node): ChildNode | null => (nextGetter ??= Object.getOwnPropertyDescriptor(Node.prototype, 'nextSibling')!.get!).call(node);
+
 /** One `<slot>` in a host's output: its anchors, the kept element, its parked fallback and what it shows. */
 type Binding = {
   slot: HTMLSlotElement;
@@ -71,6 +114,21 @@ class Light {
   cloneNode(deep?: boolean) {
     return this.host.cloneNode(deep);
   }
+  /** The logical children, as a parent answers them — the renderer reads these on the parent it is handed. */
+  get firstChild() {
+    return this.list[0] ?? null;
+  }
+  get lastChild() {
+    return this.list[this.list.length - 1] ?? null;
+  }
+  get childNodes() {
+    return this.list;
+  }
+  /** The renderer's clear-everything fast path: every LOGICAL child leaves, never the physical parent's other content. */
+  set textContent(text: string) {
+    for (const node of [...this.list]) this.removeChild(node);
+    if (text) this.insertBefore(this.host.ownerDocument.createTextNode(text), null);
+  }
   /** The nodes strictly between two boundaries, in light order. */
   $range(start: Node, end: Node | null): Node[] {
     const list = this.list;
@@ -103,6 +161,7 @@ class Light {
     if (at < 0) list.push(node);
     else list.splice(at, 0, node);
     (node as Lit).$light = this;
+    own(node);
     this.place(node);
     return node;
   }
@@ -120,6 +179,7 @@ class Light {
     const at = list.indexOf(node);
     if (at >= 0) list.splice(at, 1);
     (node as Lit).$light = undefined;
+    disown(node);
     const binding = (node as Lit).$in;
     if (binding !== undefined) {
       (node as Lit).$in = undefined;
@@ -194,8 +254,8 @@ const parkFallback = (binding: Binding) => {
   const parked = binding.start.ownerDocument!.createDocumentFragment() as DocumentFragment & { $owner?: Binding };
   /** Whose fallback this is — a slot nested in it keeps its tree-order place through its owner (see `before`). */
   parked.$owner = binding;
-  for (let node = binding.start.nextSibling; node !== null && node !== binding.end; ) {
-    const next: ChildNode | null = node.nextSibling;
+  for (let node = physicalNext(binding.start); node !== null && node !== binding.end; ) {
+    const next = physicalNext(node);
     if ((node as Lit).$in !== binding) parked.appendChild(node);
     node = next;
   }
@@ -218,8 +278,6 @@ const changed = (binding: Binding) => {
 };
 
 const HOSTS = new WeakMap<Element, Light>();
-/** The registry's off-chain seam: the root range of a container (the output/light line), and the "wired" call. */
-let shared: { $s?: boolean; $light?: () => void; $r?: (container: Node) => [Node, Node] | undefined } | null = null;
 
 /**
  * **Capture** — a host's light children, once, at its first slot: every child OUTSIDE its root render's range (the
@@ -230,15 +288,11 @@ const capture = (host: Element): Light => {
   let light = HOSTS.get(host);
   if (light !== undefined) return light;
   HOSTS.set(host, (light = new Light(host)));
-  const range = shared?.$r?.(host);
-  let inside = false;
+  /** At `init`, before the host's first render: everything it holds is the page's. */
   for (const child of [...host.childNodes]) {
-    if (range !== undefined && child === range[0]) inside = true;
-    else if (range !== undefined && child === range[1]) inside = false;
-    else if (!inside) {
-      light.list.push(child);
-      (child as Lit).$light = light;
-    }
+    light.list.push(child);
+    (child as Lit).$light = light;
+    own(child);
   }
   /** Out of the host's own children at once — to its slot, or invisibly to holding until one arrives. */
   for (const node of light.list) light.place(node);
@@ -281,7 +335,7 @@ const assigned = (binding: Binding, elementsOnly: boolean, flatten = false): Nod
   const out: Node[] = [];
   for (const node of light.list) if ((node as Lit).$in === binding && (!elementsOnly || node.nodeType === 1)) out.push(node);
   if (out.length > 0 || !flatten) return out;
-  for (let node = binding.start.nextSibling; node !== null && node !== binding.end; node = node.nextSibling) {
+  for (let node = physicalNext(binding.start); node !== null && node !== binding.end; node = physicalNext(node)) {
     const nested = (node as Node & { $slot?: Binding }).$slot;
     if (nested !== undefined) {
       out.push(...assigned(nested, elementsOnly, true));
@@ -292,11 +346,57 @@ const assigned = (binding: Binding, elementsOnly: boolean, flatten = false): Nod
 };
 
 /**
+ * **The kept `<slot>` element's overlay.** It is detached, so what the renderer writes to it must reach the slot's
+ * place: a `name` change re-sorts it, however written; and a fallback the renderer owns WHOLE (a SOLE binding,
+ * `<slot>${fallback}</slot>`, writes through the element itself) lands between the slot's anchors — or in the parked
+ * fragment while something is assigned.
+ */
+type Kept = HTMLSlotElement & { $binding: Binding };
+const fallbackFirst = (binding: Binding): ChildNode | null => {
+  if (binding.parked !== null) return binding.parked.firstChild;
+  const node = physicalNext(binding.start);
+  return node === binding.end ? null : node;
+};
+const SLOT_OVERLAY: PropertyDescriptorMap = {
+  setAttribute: { configurable: true, writable: true, value(this: Kept, name: string, value: string) { Element.prototype.setAttribute.call(this, name, value); if (name === 'name') rename(this); } },
+  removeAttribute: { configurable: true, writable: true, value(this: Kept, name: string) { Element.prototype.removeAttribute.call(this, name); if (name === 'name') rename(this); } },
+  toggleAttribute: { configurable: true, writable: true, value(this: Kept, name: string, force?: boolean) { const on = Element.prototype.toggleAttribute.call(this, name, force); if (name === 'name') rename(this); return on; } },
+  name: { configurable: true, get(this: Kept) { return this.getAttribute('name') ?? ''; }, set(this: Kept, value: string) { this.setAttribute('name', `${value}`); } },
+  firstChild: { configurable: true, get(this: Kept) { return fallbackFirst(this.$binding); } },
+  insertBefore: {
+    configurable: true,
+    writable: true,
+    value(this: Kept, node: Node, ref: Node | null) {
+      const binding = this.$binding;
+      if (binding.parked !== null) return binding.parked.insertBefore(node, ref);
+      return binding.end.parentNode!.insertBefore(node, ref ?? binding.end);
+    },
+  },
+  appendChild: { configurable: true, writable: true, value(this: Kept, node: Node) { return (this as unknown as { insertBefore: (n: Node, r: Node | null) => Node }).insertBefore(node, null); } },
+  removeChild: { configurable: true, writable: true, value(this: Kept, node: ChildNode) { node.remove(); return node; } },
+  textContent: {
+    configurable: true,
+    get(this: Kept) { let text = ''; for (let node = fallbackFirst(this.$binding); node !== null && node !== this.$binding.end; node = physicalNext(node)) text += node.textContent; return text; },
+    set(this: Kept, text: string) {
+      const binding = this.$binding;
+      for (let node = fallbackFirst(binding); node !== null && node !== binding.end; ) {
+        const next = physicalNext(node);
+        node.remove();
+        node = next;
+      }
+      if (text) (this as unknown as { insertBefore: (n: Node, r: Node | null) => Node }).insertBefore(this.ownerDocument.createTextNode(text), null);
+    },
+  },
+};
+
+/**
  * **A `<slot>` mounts** (its template's instance has rendered, in place): it becomes a pair of anchors around its
  * fallback, the element is kept detached with the assignment API, and the host's light nodes are re-decided.
  */
 const take = (slot: HTMLSlotElement & { $host?: Element; $binding?: Binding }, host: Element): Binding => {
-  const light = capture(host);
+  /** A host `init` never saw has no captured children: what it holds now is its own render, never light content. */
+  let light = HOSTS.get(host);
+  if (light === undefined) HOSTS.set(host, (light = new Light(host)));
   const doc = slot.ownerDocument;
   const start = doc.createComment('');
   const end = doc.createComment('');
@@ -311,6 +411,7 @@ const take = (slot: HTMLSlotElement & { $host?: Element; $binding?: Binding }, h
   slot.assignedNodes = (options?: AssignedNodesOptions) => assigned(binding, false, options?.flatten);
   slot.assignedElements = (options?: AssignedNodesOptions) => assigned(binding, true, options?.flatten) as Element[];
   (start as Comment & { $slot?: Binding }).$slot = binding;
+  Object.defineProperties(slot, SLOT_OVERLAY);
   const bindings = light.bindings;
   let at = bindings.length;
   while (at > 0 && before(binding, bindings[at - 1])) at--;
@@ -493,24 +594,19 @@ const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => n
 /** Discovery: `<slot>` elements claimed in templates, through `elements`. */
 export const slotDiscovery = [
   elements,
-  (registry: Map<string, unknown[]>) => {
-    shared = registry as unknown as typeof shared;
-    shared!.$s = true;
-    shared!.$light?.();
-    /**
-     * Told by the renderer at a container's FIRST render: a CUSTOM element (the compiler's rule — a dash, and not one
-     * of the reserved SVG/MathML names) is a slot host, so its existing children are light content, captured now even
-     * if its `<slot>` arrives later. A plain container (`#app`) keeps what it had — the render owns only its range.
-     */
-    (registry as unknown as { $first?: (container: Node) => void }).$first = (container) => {
-      const name = (container as Element).localName;
-      if (container.nodeType === 1 && name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name)) capture(container as Element);
-    };
-    /** Told by the renderer when a binding writes `slot` on a light node or `name` on a kept slot. */
-    (registry as unknown as { $slotted?: (element: Element, name: string) => void }).$slotted = (element, name) => {
-      if (name === 'slot') (element as Lit).$light?.$place(element);
-      else if (name === 'name' && element.localName === 'slot') rename(element as HTMLSlotElement);
-    };
+  /**
+   * **Capture at `init`** — core's insert point, before the component's first render, when everything a CUSTOM element
+   * (a dash, not a reserved SVG/MathML name) holds is the page's: its light content, captured even if its `<slot>`
+   * arrives later. Once per host: a reconnect finds it captured and its render untouched.
+   */
+  {
+    name: '@verajs/renderer/slots-capture',
+    on: 'init' as const,
+    fn: (element: Element) => {
+      const name = element.localName;
+      if (name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name) && !HOSTS.has(element)) capture(element);
+    },
+    priority: 10,
   },
   { name: '@verajs/renderer/slot-discovery', on: 'element' as const, fn: (el: Element) => (el.localName === 'slot' ? slotBehavior : undefined), priority: 10 },
 ];

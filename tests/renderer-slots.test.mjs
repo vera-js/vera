@@ -36,8 +36,19 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
  *  Every renderInto-driven test commits synchronously and never needs this. */
 const nextFrame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
+/**
+ * A slot host is a CUSTOM element (ruling 4: a plain container keeps what it had) that calls `init` — where its
+ * children are captured, before its first render. Children are set before it connects, as a parser or a parent
+ * template delivers them.
+ */
+class SlotHost extends HTMLElement {
+  connectedCallback() {
+    init(this);
+  }
+}
+customElements.define('slot-host', SlotHost);
 const host = (innerHTML = '') => {
-  const element = doc.createElement('div');
+  const element = doc.createElement('slot-host');
   element.innerHTML = innerHTML;
   doc.body.append(element);
   return element;
