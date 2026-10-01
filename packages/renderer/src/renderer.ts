@@ -598,14 +598,14 @@ class Template {
     if (__DEV__ && registry !== null) (registry as unknown as { $b?: boolean }).$b = true;
     const hooks = registry?.get('template') as TemplateHook[] | undefined;
     /**
-     * Marked whenever a hook exists, not only when one set a resolver or an instance hook here: a variant parsed in
-     * another namespace carries only its namespace (`_$ns$`), and its instances must still set the create scope, or a
-     * position at its top level cannot be resolved.
+     * **Marked by what the hooks LEFT, never by their existing**: a resolver (`_$at$`), an instance hook (`_$inst$`), or a
+     * variant's namespace (`_$ns$` — its instances must set the create scope, or a position at their top level cannot
+     * be resolved). The fields are the truth, so the mark cannot disagree with them, and the public `'template'` insert
+     * keeps its contract (a hook returns nothing). Marking whenever a hook merely existed put every template of an app
+     * wiring `elements` — every slots app — on the marked instance path, claimed or not.
      */
-    if (hooks !== undefined && hooks.length > 0) {
-      for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope, root);
-      this._x = true;
-    }
+    if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope, root);
+    this._x = !!(this._$at$ || this._$inst$ || this._$ns$);
   }
 }
 
