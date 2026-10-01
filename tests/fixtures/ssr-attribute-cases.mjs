@@ -83,6 +83,17 @@ export const EXPLICIT = [
   { label: 'nested template, twice nested', strings: ['<template><template><p title=', '>', '</p></template></template>'], values: ['x', 'y'] },
   { label: 'a binding ON the template element is reached', strings: ['<div><template id=', '><p>t</p></template></div>'], values: ['k'] },
   { label: 'a binding AFTER a nested template closes is reached', strings: ['<div><template><p>t</p></template><p title=', '>', '</p></div>'], values: ['k', 'text'] },
+  /**
+   * **A sigil is the first character of a name, and the name is ANY name character** — the client's scanner's rule.
+   * The server took only a letter after the sigil, so these were served as attributes WITH the sigil (`._private="v"`;
+   * `@_tap` printed the handler's SOURCE into the page; `.__proto__`, which both sides refuse, became an attribute) —
+   * and it read a sigil character INSIDE a name as a sigil (`data-x.y` lost its `.y`).
+   */
+  ...[['._private', 'v'], ['.$x', 'v'], ['.9x', 'v'], ['?_flag', true], ['!_live', 'v'], ['@_tap', function secretHandler() { return 42; }], ['.__proto__', { polluted: true }], ['!__proto__', { polluted: true }]].map(
+    ([name, value]) => ({ label: `sigil name ${name}`, strings: [`<p ${name}=`, '>t</p>'], values: [value] })
+  ),
+  { label: 'a sigil character inside a name is part of it: data-x.y', strings: ['<p data-x.y=', '>t</p>'], values: ['v'] },
+  { label: 'a sigil character inside a name, quoted: data-x.y', strings: ['<p data-x.y="', '">t</p>'], values: ['v'] },
   /** The template ends inside a value: nothing may be dropped or duplicated compared with the client. */
   { label: 'unterminated value at the end of the template', strings: ['<p title="', ''], values: ['x'] },
 ];

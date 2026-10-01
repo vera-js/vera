@@ -95,8 +95,13 @@ const openTagName = (out) => {
  * `?=`, `@=` or `!=` has no meaning either, and dropping such a binding is a better answer than
  * writing it into the tag with its value stringified beside it.
  */
-/** Space is allowed around `=`, as the platform's tokenizer allows it and the client's scanner reads it. */
-const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)?\s*=\s*(["']?)$/;
+/**
+ * Space is allowed around `=`, as the platform's tokenizer allows it and the client's scanner reads it. The sigil is
+ * the FIRST character of an attribute name — after whitespace — and the name after it is any attribute-name
+ * character, as the client's scanner reads it (`[^\s"'>=/]`): a name starting with `_`, `$` or a digit is still a
+ * sigil binding (`._private`, `@_tap`), and a `.`/`?`/`@`/`!` INSIDE a name is part of it (`data-x.y` is an attribute).
+ */
+const SIGIL_TAIL = /(?:^|\s)([.?@&!])([^\s"'>=/]+)?\s*=\s*(["']?)$/;
 
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
 const EVENT_TAIL = /on[A-Z][\w:-]*\s*=\s*(["']?)$/;
