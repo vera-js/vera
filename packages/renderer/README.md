@@ -1041,12 +1041,25 @@ renderInto(html`<div .innerHTML=${trustedMarkup}></div>`, host);
 
 Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
-children nothing else binds — the renderer owns the content of elements it renders into.
+children nothing else binds — the renderer owns the content of elements it renders into. `@verajs/ssr`
+serializes it into the served page and hydration adopts it, behaving as the assignment does: a `<script>` in it
+never runs and a `<template shadowrootmode>` never attaches, on either side.
+
+**Only a tagged template is a template.** A value renders as markup only when its strings came from a tagged
+template literal — an array owning `raw`, which nothing from `JSON.parse` can be. Data shaped like a template (an
+API field an attacker turned into `{"strings": [...]}`, a real template sent through JSON, or a hand-built
+`html([markup])`) renders as the text any object does, `[object Object]`, here and in `@verajs/ssr` alike, with a
+development warning. Never a throw: the value is attacker-controlled, and a throw would hand over the subtree. The
+check runs where a template is first built, so a cached template pays nothing. (An ordinary object interpolated
+as a child renders as `String(object)`, as before; one that cannot convert — a parsed `"toString"` key — throws,
+as it does in React. Render a field, not a raw API object.)
 
 **Development tells you; production pays nothing.** Misuse the renderer can see in a template's own source, or in an
 obviously wrong call, is caught in development: a template that cannot work as written throws there (a name
 expression, below; a value in TAG position, `<${x}>`, which needs a tag value from `@verajs/renderer/tag`;
-`renderInto` without a container; `keyed` without a template), and a mistake that still renders
+`renderInto` without a container; `keyed` without a template; a template ending inside a tag; a binding beside or
+inside an element in an SVG/MathML `<title>` or `<style>`, which this renderer reads as text, or inside the obsolete
+`<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>`, which the parser does), and a mistake that still renders
 but not as meant is a `[vera]` warning, said once (a self-closed `<div />`, a boolean child, a value that cannot
 listen, `@clik`, a binding on an element the parser drops, content in the wrong namespace, a repeated key). None of
 it exists in the production build — those bundles are byte-for-byte what they would be without it.

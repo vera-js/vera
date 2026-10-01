@@ -61,8 +61,14 @@ const comment = () => doc.createComment('');
  * binding with it and never shifts a later value onto another element (a security property —
  * `tests/dropped-element-bindings.test.mjs`).
  */
-const TEXT_END = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
-const COMMENT_END = /-->/g;
+/** `<!-->` and `<!--->` are not opened at all: they close themselves (the tokenizer's abrupt close), so they stay text. */
+const TEXT_END = /<(?:(!--(?!-?>)|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
+/**
+ * A comment ends at `-->` or `--!>` — read as a comment past either, a value after one was dropped while the browser
+ * rendered it. The abrupt `<!-->`/`<!--->` never open one (`TEXT_END`'s lookahead; a lookBEHIND would not even parse
+ * in an older Safari).
+ */
+const COMMENT_END = /--!?>/g;
 const COMMENT2_END = />/g;
 /** `>`, or whitespace then an attribute name (with `=` and the start of its value), or the string's end. */
 const TAG_END = />|[ \t\n\f\r](?:([^\s"'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
@@ -154,9 +160,15 @@ const UPGRADED = {};
  * and a template with no expressions is never scanned — and it only READS: a development-only counter once changed
  * the SCAN, so development and production parsed one template differently.
  */
-const SHAPE = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+/** The obsolete elements a parser reads as text whole, which the scanner does not list (production pays nothing for them). */
+const OBSOLETE_RAW = /^(?:xmp|noembed|noframes|plaintext)$/i;
 const tagShape = (strings: TemplateStringsArray, type: number): string[] | undefined => {
   const markup = strings.join('');
+  /** Where each binding sits in `markup`, so a refusal can ask whether one falls inside an element's content. */
+  const holes: number[] = [];
+  for (let i = 0, at = 0; i < strings.length - 1; i++) holes.push((at += strings[i].length));
+  const bound = (from: number, to: number) => holes.some((at) => at >= from && at <= to);
   let foreign = type === 1 ? 0 : 1;
   let found: string[] | undefined;
   SHAPE.lastIndex = 0;
@@ -170,9 +182,27 @@ const tagShape = (strings: TemplateStringsArray, type: number): string[] | undef
       else if (!selfClosed) foreign++;
       continue;
     }
-    if (!closing && RAW_TEXT_TAGS.test(tag)) {
+    if (!closing && (RAW_TEXT_TAGS.test(tag) || OBSOLETE_RAW.test(tag))) {
       const end = markup.toLowerCase().indexOf(`</${tag}`, SHAPE.lastIndex);
-      SHAPE.lastIndex = end === -1 ? markup.length : end;
+      const stop = end === -1 ? markup.length : end;
+      /**
+       * Two shapes that silently lose a binding, refused. Inside `<svg>`/`<math>` a `<title>` or `<style>` is a
+       * foreign element whose content the browser reads as MARKUP, while the renderer reads it as raw text and
+       * rebuilds that text around its bindings — destroying any element inside it. And the obsolete raw-text
+       * elements are text to the parser whole, which the scanner does not know, so a binding there never renders.
+       */
+      if (foreign > 0 && RAW_TEXT_TAGS.test(tag) && bound(SHAPE.lastIndex, stop) && /<[a-zA-Z]/.test(markup.slice(SHAPE.lastIndex, stop)))
+        throw new Error(
+          `renderer: a binding inside <${tag}> in SVG or MathML cannot sit beside an element there — the renderer reads ` +
+            `<${tag}> as text and rebuilds it around its bindings, which destroys the elements in it. Bind text ` +
+            `directly in the <${tag}> (no elements), or move the element out of it.`
+        );
+      if (foreign === 0 && OBSOLETE_RAW.test(tag) && bound(SHAPE.lastIndex, stop))
+        throw new Error(
+          `renderer: a binding inside <${tag}> is never rendered — the parser reads its content as text whole, and ` +
+            `<${tag}> is obsolete. Use <pre> for preformatted text.`
+        );
+      SHAPE.lastIndex = stop;
     }
     if (foreign > 0) continue;
     if (selfClosed && !VOID_TAGS.test(tag))
@@ -268,7 +298,8 @@ class Template {
     let rawEnd: RegExp | undefined;
     /** The previous binding opened an UNQUOTED value, so a string that matches nothing continues it (`a=${x}${y}`). */
     let open: boolean = false;
-    for (let i = 0; i < count; i++) {
+    /** Development also scans the LAST static, so a template that ends inside a tag is refused (below); production does not. */
+    for (let i = 0; __DEV__ ? i <= count : i < count; i++) {
       const s = strings[i];
       if (__DEV__ && i > 0) tags![i] = tags![i - 1];
       /** Where this string's bound attribute name ends (≥ 0), -1 for none, -2 for an element position. */
@@ -309,6 +340,16 @@ class Template {
           regex = TAG_END;
           rawEnd = undefined;
         }
+      }
+      /**
+       * A template that ends INSIDE a tag (`<b title="${x}`) renders nothing of it: the parser drops an unfinished tag
+       * whole. Refused, as the server refuses it in every build — there, left open, the tag swallowed the markup after
+       * the template into its attributes.
+       */
+      if (__DEV__ && i === count) {
+        if (regex !== TEXT_END && regex !== rawEnd && regex !== COMMENT_END && regex !== COMMENT2_END)
+          throw new Error('renderer: a template cannot end inside a tag — the parser drops an unfinished tag. Close the tag inside the template.');
+        break;
       }
       if (regex === TEXT_END) {
         markup += `${s}<?${MARKER}${i}>`;
@@ -585,9 +626,30 @@ const readScope = () => scope;
 const resolved = (template: Template, parent: Node) => (template._$at$ !== undefined ? template._$at$(parent) : template);
 
 const templateCache = new WeakMap<TemplateStringsArray, Template>();
+/**
+ * **Only a tagged template literal is a template.** Detection is by shape (`strings`), so a value from `JSON.parse` —
+ * a request body, an API field an attacker can turn into an object — that looked like a template was rendered as
+ * MARKUP. A literal's strings array owns `raw`, which JSON cannot give an array (and an object owning one is not an
+ * array): the check Lit makes. It runs here, on the cache's miss, which a forged array always is, so a cached
+ * template pays nothing. A forgery is the text any object renders as, `[object Object]` — one shared template, never
+ * cached under the forger's own `strings` (a WeakMap throws on a primitive key) — and never a throw: the value is
+ * attacker-controlled, and a throw would hand over the subtree.
+ */
+let forged: Template | undefined;
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
-  if (template === undefined) templateCache.set(result.strings, (template = new Template(result)));
+  if (template === undefined) {
+    const strings = result.strings;
+    if (!(Array.isArray(strings) && Object.hasOwn(strings, 'raw'))) {
+      if (__DEV__)
+        console.warn(
+          '[vera] renderer: a value shaped like a template was not made by html`` — rendered as text. A template from ' +
+            'data (JSON, or html([markup])) is never markup; for trusted markup, bind it: <div .innerHTML=${markup}>.'
+        );
+      return (forged ??= new Template({ strings: [`${{}}`] } as unknown as TemplateResult));
+    }
+    templateCache.set(strings, (template = new Template(result)));
+  }
   return template;
 };
 
@@ -1009,7 +1071,8 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      * A value with `_$apply$` applies itself NOW, mid-commit, keyed by this binding — spread delivers
      * properties through it, and they must arrive before the element is inserted and upgraded.
      */
-    if ((value as { _$apply$?: unknown })._$apply$) {
+    /** A FUNCTION, not merely present: parsed JSON can carry the key, never a function — data stays data. */
+    if (typeof (value as { _$apply$?: unknown })._$apply$ === 'function') {
       /** On a `<select>` it may set the selection (a spread's `.value`), so it waits for the options too — see `flush`. */
       if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, __HYDRATING__ ? [value, element, node, adopting] : [value, element, node]);
       /** Adopting, it is told so (the hydrate entry only): a form control's value the user typed must stand. */
@@ -1123,6 +1186,8 @@ export {
   TEMPLATE,
   LIST,
   NODE,
+  PROPERTY,
+  LIVE,
 };
 export type { Template };
 

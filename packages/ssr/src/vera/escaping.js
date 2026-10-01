@@ -176,3 +176,21 @@ export const decodeSchemeReferences = (text) =>
       ? decodeCodePoint(parseInt(decimal ?? hex, decimal !== undefined ? 10 : 16))
       : name === 'colon' ? ':' : name === 'Tab' ? '\t' : name === 'NewLine' ? '\n' : whole
   );
+
+/**
+ * Where a comment opened at `open` (the index of its `<!--`) ends, as the HTML tokenizer reads it: at `-->`, at
+ * `--!>`, or ABRUPTLY at `<!-->` and `<!--->`. Answers `[dataEnd, end]` — where its text stops and where the markup
+ * resumes — or `null` when it runs to the end of the input.
+ *
+ * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. Every
+ * scanner here that meets a comment asks this one rule, and the client's scanner holds its twin.
+ */
+export const commentEnd = (markup, open) => {
+  const start = open + 4;
+  if (markup[start] === '>') return [start, start + 1];
+  if (markup.startsWith('->', start)) return [start, start + 2];
+  COMMENT_CLOSE.lastIndex = start;
+  const match = COMMENT_CLOSE.exec(markup);
+  return match === null ? null : [match.index, match.index + match[0].length];
+};
+const COMMENT_CLOSE = /--!?>/g;

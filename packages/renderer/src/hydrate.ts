@@ -45,7 +45,10 @@ import {
   TEXT,
   UNSET,
   UPGRADED,
+  PROPERTY,
+  LIVE,
 } from './renderer.js';
+import { CONTENT_PROPERTY } from '@verajs/shared-utils';
 import type { Item, KeyedResult, Template } from './renderer.js';
 import type { TemplateResult } from './types.js';
 
@@ -216,11 +219,14 @@ const walk = (canonical: Node | null, cursor: Cursor, into: Adoption) => {
  */
 const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: number[] | undefined) => {
   let sole = -1;
+  /** A content property (`.innerHTML`, `.textContent`…) writes this element's children itself — see below. */
+  let content = false;
   if (owned !== undefined)
     for (const i of owned) {
       const kind = into.template._kinds[i];
       if (kind === SOLE) sole = i;
       else {
+        if ((kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(into.template._names[i])) content = true;
         into.bindings[i * 2] = kind >= EVENT && kind <= ADOPT ? new Slot(live) : live;
         into.bindings[i * 2 + 1] = UNSET;
         commitAdopting(into.template, into.bindings, i, kind, into.values);
@@ -232,10 +238,13 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
    * Content the template does not describe that is not the template's to describe: a `<textarea>`'s server content is
    * its default value (a `.value` binding serializes into it), and a custom element's children — when the template
    * writes none — are that component's OWN render, which it adopts itself. The same rule as SOLE ownership: a
-   * component's children belong to the component.
+   * component's children belong to the component. A content property's element is the same case: the binding
+   * committed above has just written its children — the client's own assignment, replacing what the server served —
+   * so they are that binding's, never the template's. Walking them read every non-empty `.innerHTML` as a mismatch
+   * and threw the whole container away.
    */ else if (
     canonical.firstChild === null &&
-    (live.localName === 'textarea' || live.localName.includes('-') || live.hasAttribute('is'))
+    (content || live.localName === 'textarea' || live.localName.includes('-') || live.hasAttribute('is'))
   )
     return;
   else walk(canonical.firstChild, inner, into);

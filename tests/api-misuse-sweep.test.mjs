@@ -87,16 +87,24 @@ test('navigate(undefined) names the mistake rather than rejecting with an intern
 });
 
 /**
- * The narrowing that matters: a hand-built strings array is **not** refused. `ssr-scale.test.mjs`
- * builds a hundred nested components that way and it works — the guard exists for the silent case,
- * a string, not for every shape that is not a literal.
+ * A hand-built strings array is **data, not markup**: it owns no `raw`, exactly like a template-shaped object from
+ * `JSON.parse`, so the renderer cannot tell the two apart and renders both as text — `html([markup])` was an
+ * `unsafeHTML` nothing at the call site declared (`template-forgery.test.mjs`). Not a throw: the same check meets
+ * attacker data. Trusted markup is a property binding, `.innerHTML=${markup}`.
  */
-test('a hand-built strings array is still accepted', () => {
+test('a hand-built strings array renders as text, never markup', () => {
   const result = core.html(['<p>hi</p>']);
   assert.equal(result.strings[0], '<p>hi</p>');
   const host = dom.window.document.createElement('div');
-  renderInto(result, host);
-  assert.match(host.innerHTML, /<p>hi<\/p>/);
+  const { warn } = console;
+  console.warn = () => {};
+  try {
+    renderInto(result, host);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(host.querySelector('p'), null);
+  assert.match(host.textContent, /\[object Object\]/);
 });
 
 test('and every guarded call still works when called correctly', () => {
@@ -110,9 +118,8 @@ test('and every guarded call still works when called correctly', () => {
 
 /**
  * The inverse, and the half that is easy to skip: **a guard that refuses something legitimate is
- * itself a defect.** The first version of the template-literal check tested for `raw`, which also
- * refused a hand-built `html([markup])` that `ssr-scale.test.mjs` depends on — caught by the full
- * suite rather than by this file, which is the wrong way round.
+ * itself a defect.** (A hand-built `html([markup])` was once listed here as legitimate; it is the
+ * `unsafeHTML` door the forged-template check closes — see the test above.)
  *
  * So every shape the guards must let through is listed here explicitly, including the awkward ones:
  * a ShadowRoot and a DocumentFragment are containers, a `hold()` result is a legal thing to key, and

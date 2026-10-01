@@ -151,7 +151,12 @@ escaped as it is written; `<style>` and `<script>` content is written raw with i
 neutralized (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer), because a
 browser does not decode a character reference inside either: escaping there protects nothing and
 corrupts the content (`.a > .b` used to serve as `.a &#62; .b`, a selector matching nothing).
-`<title>` and `<textarea>` decode references, so they keep ordinary escaping.
+`<title>` and `<textarea>` decode references, so they keep ordinary escaping. **Raw is decided by where
+the browser will parse the element, not by its name**: inside `<svg>` or `<math>` a `<style>` is an SVG or
+MathML element whose content is markup, and `<noscript>` is markup to a browser with scripting off — so
+inside any of them every value is escaped, and so is every value in a template rendered into one (an
+`svg`/`mathml` template included, wherever it renders). Inside `<xmp>`, `<noembed>`, `<noframes>` and
+`<plaintext>`, which the browser reads as text whole, nothing is raw either.
 
 **Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** Both are
 written through untouched — that is what they are for — so neither may carry anything from a request
@@ -160,6 +165,19 @@ unsanitized. Everything else is checked:
 - **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
   whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
   every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
+- **`.innerHTML` and `.textContent` render on the server**, so trusted markup bound the sanctioned way
+  (`<div .innerHTML=${markup}>`) is in the served page rather than filled in after hydration. It is made to behave
+  as an `innerHTML` assignment, not as parsed page markup: a `<script>` in it is served with an inert `type` (an
+  assignment never runs one), and a `<template shadowrootmode>` cannot attach a shadow root (an assignment never
+  does). Whatever the markup leaves open is closed before the element's own end tag, so it cannot reach the
+  markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
+  `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, and for any `.textContent`, it is
+  escaped text. A `<script .textContent=${code}>` host is the one code-execution door this opens, and it is the
+  author's: it runs on the served page as it runs on the client. `.innerText`, `.outerHTML` and `.outerText` stay
+  client-only — the server serves the element's template content.
+- **Data shaped like a template is text.** A value renders as markup only when its strings came from a tagged
+  template literal; a `{"strings": [...]}` from `JSON.parse` — or a real template sent through JSON, or a
+  hand-built `html([markup])` — is served as `[object Object]`, as the client renders it, and never throws.
 - **A `__proto__` key in `props` is skipped**, so handing the option a parsed request body cannot
   replace the component's prototype.
 - **Every bound attribute value is served double-quoted, whatever quoting the template used.** A value
@@ -194,6 +212,11 @@ unsanitized. Everything else is checked:
   `@verajs/renderer/tag` — a runtime tag name is a tag value from that entry. The server refuses in production too, so a production server render of such a
   template throws even though the client's production build would not — render it once in development
   and it never gets that far.
+- **A template ending inside a tag is refused** (`<b title="${x}` with no `>`), and so is **a template rendered
+  inside a text-only element** (`<textarea>`, `<title>`, …): both on the server in every build, the first also by
+  the client renderer in development. The client's parser drops an unfinished tag whole, so nothing can match it,
+  and a template's markup inside a text-only element is the one way a value could close that element. Strings,
+  numbers and arrays of them render in a `<textarea>` as always.
 
 ## Styles
 
@@ -309,7 +332,27 @@ dependency involved.
   not decoded, so there is no spelling of a CR that survives there. CR and LF are interchangeable
   whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
   strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
-- **Three things cannot survive a server round trip, and are the only three**: that carriage return
+- **A `<style>` or `<script>` the server cannot place in HTML is served escaped.** Raw text is recognized
+  only outside `<svg>`, `<math>` and `<noscript>`, and the scanner does not track the ways a browser
+  re-enters HTML inside them — an integration point (`<svg><foreignObject><style>`), or a tag like `<p>`
+  that breaks out of foreign content — nor an `svg` template rendered outside any `<svg>`. There the
+  browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
+  That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
+  page. Put the stylesheet outside the foreign element.
+- **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
+  the value with the element as its context; the served page is parsed with every real ancestor around it, so a
+  few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),
+  an `<a>` inside an `<a>`, table parts outside a table. Hydration re-assigns the value, so the client's DOM is
+  right once the script runs; an inline handler in the markup (`onload`, `onerror`) therefore fires twice on an SSR
+  page, once from the served HTML and once from the assignment. Inside `<svg>`/`<math>` the server writes the
+  value as escaped text, the safe side of the same misreading, until hydration assigns it.
+- **An ordinary element a template leaves open nests differently.** The client parses each template on its own
+  and closes what it left open at its end; the server concatenates. Whatever changes how the rest of the page
+  PARSES is closed at the template's end on the server too — a comment, `<style>`/`<script>`, `<textarea>` and the
+  other text-only elements, `<svg>`, `<math>`, `<noscript>`, `<template>` — so a child can never reach its
+  parent's markup. A plain `<b>` or `<div>` left open is not closed, so the parent's next markup nests inside it
+  on the server and beside it on the client. Close every element inside the template that opens it.
+- **Beyond that, three things cannot survive a server round trip, and are the only three**: that carriage return
   inside `<style>`/`<script>`, and two characters. **NUL** is dropped in text and becomes U+FFFD in an
   attribute or RAWTEXT, and no spelling round-trips, so it is left alone rather than silently
   rewritten. **A lone surrogate** is not encodable in UTF-8, so the *transport* replaces it. Both are

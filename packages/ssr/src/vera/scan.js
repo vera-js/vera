@@ -12,6 +12,7 @@
 import { RAW_TEXT_ELEMENTS as RAW_TEXT, registry } from './shim.js';
 /** The attribute-name charset, from the parser that owns it — see `ATTRIBUTE` below. */
 import { ATTRIBUTE_NAME } from './parse.js';
+import { commentEnd } from './escaping.js';
 
 /**
  * The index just past the `>` that closes the tag starting at `start`, respecting quoted attribute
@@ -164,8 +165,7 @@ export const renderComponentTags = (markup, depth, emit) => {
      * comment at worst.
      */
     if (markup.startsWith('<!--', open)) {
-      const close = markup.indexOf('-->', open + 4);
-      const stop = close === -1 ? markup.length : close + 3;
+      const stop = commentEnd(markup, open)?.[1] ?? markup.length;
       out += markup.slice(open, stop);
       at = stop;
       continue;

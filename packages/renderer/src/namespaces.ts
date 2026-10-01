@@ -91,7 +91,7 @@ export const namespaces = {
      * The template's first ELEMENT's tag — past leading text, comments and expressions (`<!--c--><svg>`, `label <svg>`,
      * `${x}<svg>`), `x` when it has none — which is what a MathML parent's answer depends on.
      */
-    const tag = /<([a-zA-Z][^\s/>]*)/.exec(result.strings.join('').replace(/<!--[\s\S]*?-->/g, ''))?.[1] ?? 'x';
+    const tag = /<([a-zA-Z][^\s/>]*)/.exec(result.strings.join('').replace(/<!--(?:-?>|[\s\S]*?--!?>)/g, ''))?.[1] ?? 'x';
     /** Its SVG and MathML builds, made the first time one is needed — the renderer's own constructor, so every
      *  construction-time decision (every refusal) is made again there, never copied. */
     let svg: Template | undefined;

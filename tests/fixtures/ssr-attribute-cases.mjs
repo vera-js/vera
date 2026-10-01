@@ -94,8 +94,7 @@ export const EXPLICIT = [
   ),
   { label: 'a sigil character inside a name is part of it: data-x.y', strings: ['<p data-x.y=', '>t</p>'], values: ['v'] },
   { label: 'a sigil character inside a name, quoted: data-x.y', strings: ['<p data-x.y="', '">t</p>'], values: ['v'] },
-  /** The template ends inside a value: nothing may be dropped or duplicated compared with the client. */
-  { label: 'unterminated value at the end of the template', strings: ['<p title="', ''], values: ['x'] },
+  /** A template ending inside a value is refused on both sides now — `ssr-template-boundaries.test.mjs`. */
 ];
 
 export const CASES = [

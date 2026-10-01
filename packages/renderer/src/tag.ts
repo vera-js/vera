@@ -86,6 +86,11 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
       }
     }
     spliced.push(run);
+    /**
+     * A spliced array is a template's strings, so it carries `raw` as a tagged literal's does: that own property is
+     * how a renderer tells a template from data shaped like one (parsed JSON cannot give an array a `raw`).
+     */
+    (spliced as string[] & { raw?: string[] }).raw = spliced;
     byTags.set(key, spliced);
   }
 
