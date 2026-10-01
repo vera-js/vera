@@ -20,9 +20,3 @@ declare const __HYDRATING__: boolean;
  * compares it with the slots module's.
  */
 declare const __VERSION__: string;
-
-/**
- * True only in `@verajs/renderer`'s slots-capable entries (the light renderer and hydrate). Light-DOM slots' seams sit
- * behind it, so the base renderer — what every app without slots loads — carries none of them.
- */
-declare const __SLOTS__: boolean;
