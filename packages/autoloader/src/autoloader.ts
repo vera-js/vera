@@ -1,4 +1,5 @@
 import type { AutoloaderInstance, AutoloaderOptions } from './types.js';
+import { thrownMessage } from '@verajs/shared-utils';
 
 /**
  * Inits an autoloader with the provided root directory, component directory and autoloader options.
@@ -133,6 +134,13 @@ export const autoloader = (
    * @param element The element being discovered, when there is one — only it can carry `data-autoload-dir`
    * @return The absolute URL this autoloader would fetch
    */
+  /**
+   * The URLs this loader refused, by the refusal it threw — read back in `load` to report each once. The refusal still
+   * carries `href` for a caller of `url()`; `load` reads this map instead, because whatever reaches its `catch` may be
+   * the caller's own throw, and reading a property off `null` (or a Proxy that throws) crashed the error path, where
+   * `WeakMap#get` answers `undefined` for anything.
+   */
+  const refused = new WeakMap<object, string>();
   const url = (tag: string, element?: Element) => {
     /**
      * Trailing slashes come off, and an empty or root-only directory becomes `.` — the entry file's
@@ -172,6 +180,7 @@ export const autoloader = (
           `${url.origin}${url.pathname} would be fetched instead. Use \`resolve\` to add a query.`
       );
       (refusal as Error & { href: string }).href = href;
+      refused.set(refusal, href);
       throw refusal;
     }
     /**
@@ -192,6 +201,7 @@ export const autoloader = (
     if (!resolve && /%2f|%5c/i.test(dir)) {
       const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — encoded path separator in "${dir}"`);
       (refusal as Error & { href: string }).href = href;
+      refused.set(refusal, href);
       throw refusal;
     }
     /**
@@ -219,6 +229,7 @@ export const autoloader = (
        */
       const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
       (refusal as Error & { href: string }).href = href;
+      refused.set(refusal, href);
       throw refusal;
     }
     return href;
@@ -240,11 +251,14 @@ export const autoloader = (
        * Deduped on the refused URL, so it is reported once rather than on every scan — and so
        * pointing `data-autoload-dir` at a valid directory afterwards is a different URL and tries.
        */
-      const href = (error as Error & { href?: string }).href;
-      if (href !== undefined) {
-        if (attempted.has(href)) return;
-        attempted.add(href);
+      const href = refused.get(error as object);
+      if (href === undefined) {
+        /** Not a refusal of ours: the caller's `resolve` threw, and it can throw any value at all. */
+        console.error(`[vera] autoloader: <${tag}>: ${thrownMessage(error)}`);
+        return;
       }
+      if (attempted.has(href)) return;
+      attempted.add(href);
       console.error((error as Error).message);
       return;
     }

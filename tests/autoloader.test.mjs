@@ -252,6 +252,36 @@ clearHosts();
   }
 }
 
+// 9b. a `resolve` that throws a value that is not an Error is reported, never crashes the error path
+//
+// The caught value is the caller's, and reading `.href`/`.message` off `null`, or off a Proxy whose traps throw, replaced
+// the failure with a TypeError from inside the autoloader.
+{
+  const trap = () => {
+    throw new Error('trap');
+  };
+  for (const [label, thrown, shown] of [
+    ['null', null, 'null'],
+    ['a trapping Proxy', new Proxy({}, { get: trap, getPrototypeOf: trap }), '[unprintable value thrown]'],
+  ]) {
+    errs.length = 0;
+    const tag = `throw${label.replace(/\W+/g, '')}-widget`.toLowerCase();
+    const app = host(`<${tag}></${tag}>`);
+    let crashed = null;
+    try {
+      autoloader(rootDir, 'components', {
+        resolve: () => {
+          throw thrown;
+        },
+      })(app);
+      await tick();
+    } catch (error) {
+      crashed = error;
+    }
+    check(`resolve throwing ${label}: reported by name, nothing escapes`, crashed === null && errs.join(' ').includes(`[vera] autoloader: <${tag}>: ${shown}`), errs.join(' '));
+  }
+}
+
 clearHosts();
 
 // 10. one tag reached through two directories imports ONE module

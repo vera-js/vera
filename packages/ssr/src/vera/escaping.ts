@@ -232,6 +232,10 @@ export const commentDataEnd = (markup: string, open: number, end: number): numbe
  * real failure was replaced by an unrelated TypeError from inside the framework. So anything that cannot be read
  * becomes a fixed phrase; `Object.prototype.toString` is no fallback, since it reads `Symbol.toStringTag` through a
  * Proxy's trap too.
+ *
+ * **A deliberate duplicate of `thrownMessage` in `packages/shared-utils/src/utils.ts` — fix both copies.** This package
+ * is compiled per file with no bundling, so it cannot import that private, unpublished package at run time;
+ * `tests/thrown-message-copies.test.mjs` runs one table of thrown values against both, so they cannot drift.
  */
 export const thrownMessage = (error: unknown): string => {
   try {
@@ -239,6 +243,6 @@ export const thrownMessage = (error: unknown): string => {
     const message = (error as { message?: unknown } | null)?.message;
     return typeof message === 'string' ? message : String(error);
   } catch {
-    return '[a value that cannot be printed was thrown]';
+    return '[unprintable value thrown]';
   }
 };

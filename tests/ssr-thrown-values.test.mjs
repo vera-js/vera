@@ -45,10 +45,10 @@ test('thrownMessage describes every thrown value, and cannot itself throw', asyn
     [Symbol('s'), 'Symbol(s)'],
     [new Error('m'), 'm'],
     [{ message: 'shaped' }, 'shaped'],
-    [Object.create(null), '[a value that cannot be printed was thrown]'],
-    [{ toString: trap }, '[a value that cannot be printed was thrown]'],
-    [{ get message() { return trap(); } }, '[a value that cannot be printed was thrown]'],
-    [new Proxy({}, { get: trap, getPrototypeOf: trap }), '[a value that cannot be printed was thrown]'],
+    [Object.create(null), '[unprintable value thrown]'],
+    [{ toString: trap }, '[unprintable value thrown]'],
+    [{ get message() { return trap(); } }, '[unprintable value thrown]'],
+    [new Proxy({}, { get: trap, getPrototypeOf: trap }), '[unprintable value thrown]'],
   ];
   for (const [value, expected] of rows) assert.equal(thrownMessage(value), expected);
 });
