@@ -199,3 +199,17 @@ test('a third-party element keeps every field of its own through connect, move, 
   assert.equal(called, 0, 'core called entries of a _cleanups that is not its own');
   assert.equal(connects, 4, 'every connection ran its own connectedCallback — a _moved of its own skipped none');
 });
+
+/**
+ * **The author's `connectedCallback` result comes back through the wrapper.** A server render awaits the promise an
+ * `async connectedCallback` returns; design 6's first wrapper dropped it, and every SSR wait on one ended at once
+ * (`ssr-render-timeout` read 0.24 ms against a 120 ms budget).
+ */
+test('the wrapped connectedCallback returns what the author\'s returned', () => {
+  const token = Promise.resolve('mine');
+  customElements.define('ka-returns', class extends dom.window.HTMLElement {
+    connectedCallback() { init(this); return token; }
+  });
+  const el = doc.createElement('ka-returns');
+  assert.equal(el.connectedCallback(), token);
+});

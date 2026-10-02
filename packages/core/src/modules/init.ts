@@ -61,7 +61,7 @@ type Moving = ComponentElement & { _moved?: boolean; _doc?: Document };
 if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {
-    const proto = Class.prototype as Moving & { connectedCallback?: () => void };
+    const proto = Class.prototype as Moving & { connectedCallback?: () => unknown };
     const own = proto.disconnectedCallback;
     const connected = proto.connectedCallback;
     const teardown = (element: Moving) => {
@@ -100,7 +100,8 @@ if (typeof customElements !== 'undefined') {
         if (this.ownerDocument === this._doc) return;
         teardown(this);
       }
-      connected?.call(this);
+      /** Its result is returned: a server render awaits the promise an `async connectedCallback` gives. */
+      return connected?.call(this);
     };
     return nativeDefine(name, Class, options);
   };

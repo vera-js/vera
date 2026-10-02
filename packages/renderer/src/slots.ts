@@ -187,7 +187,7 @@ const place = (light: Light) => {
     if (unit.a !== unit.z)
       for (let node = unit.a.nextSibling; node !== null && node !== unit.z; node = node.nextSibling) {
         const real = REAL.get(node);
-        /** The renderer moves a run's nodes between this host's slots (beside a neighbour it follows); only leaving them all is a theft. */
+        /** The renderer moves a run's nodes between this host's slots (beside a neighbor it follows); only leaving them all is a theft. */
         if (real !== undefined && !inLight(real, light)) {
           PLACED.delete(real);
           unstand(real);
@@ -408,8 +408,8 @@ const settleIn = (light: Light, node: Node) => {
 /**
  * **What the renderer wrote, read back into the runs.** A run's node in a slot is still the renderer's: an insert
  * before it (a new row), markers around it (a text becoming a template), its move or removal all happen where the
- * node now is. Each lands in the run at the place its neighbour's stand-in holds, so the run stays the renderer's
- * whole range; what has no such neighbour is the user's own edit.
+ * node now is. Each lands in the run at the place its neighbor's stand-in holds, so the run stays the renderer's
+ * whole range; what has no such neighbor is the user's own edit.
  */
 const replay = (light: Light, record: MutationRecord) => {
   const holding = light.holding;

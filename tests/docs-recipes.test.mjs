@@ -245,7 +245,7 @@ const EXPECTED_RECIPES = {
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
   'packages/store/README.md': 1,
-  'packages/renderer/README.md': 8,
+  'packages/renderer/README.md': 7, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02)
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
   /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */

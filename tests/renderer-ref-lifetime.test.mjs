@@ -97,11 +97,14 @@ test('which is what keeps a move from blanking it', async () => {
   await settle();
   const first = renders;
 
-  /** A move is a disconnect and a connect. The ref must stay usable across it. */
+  /**
+   * A one-operation move. It used to be a disconnect and a connect — teardown, setup, a second render; since core's
+   * keep-alive (2026-10-02) a component is kept across it and nothing re-runs. Either way the ref must stay usable.
+   */
   b.appendChild(element);
   assert.equal(box.value?.localName, 'i', 'the ref went null part-way through a move');
   await settle();
-  assert.ok(renders > first, 'reconnecting renders again');
+  assert.equal(renders, first, 'a move keeps the component: no second setup, no second render');
   assert.equal(box.value?.localName, 'i');
 
   /** And the component is still live afterwards. */
