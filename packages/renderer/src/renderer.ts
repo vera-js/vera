@@ -1825,8 +1825,9 @@ export const renderer = {
     /**
      * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
      * bundled module cannot import them, and production mangles their names): only values the renderer already holds,
-     * so it pulls no code in. `$v` is its protocol number; on a mismatch hydration declines and the page renders fresh.
+     * so it pulls no code in. Its fields are UPPERCASE single characters, so none reads like a part's own `$` fields.
+     * `$V` is its protocol number; on a mismatch hydration declines and the page renders fresh, with a warning.
      */
-    (given as { $H?: unknown }).$H = { $v: 1, $g: getTemplate, $C: ChildPart, $I: Instance, $c: commit, $s: commitAs, $h: hookUp, $r: resolved, $p: rootParts, $t: toText, $n: needRemovalWork };
+    (given as { $H?: unknown }).$H = { $V: 1, $G: getTemplate, $C: ChildPart, $I: Instance, $M: commit, $A: commitAs, $U: hookUp, $Q: resolved, $O: rootParts, $T: toText };
   },
 };
