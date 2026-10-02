@@ -71,10 +71,11 @@ if (typeof customElements !== 'undefined') {
       element._removed = true;
     };
     /**
-     * **Only a COMPONENT is touched** — an element `init` ran on (`_cleanups`, a name the build never mangles). The
-     * wrapper sees every class defined after core loads, a third party's included, and the fields it keeps are mangled
-     * to single letters in production, where a minified library keeps fields of its own: anything else gets exactly
-     * its own callbacks, and nothing is read from it or written to it.
+     * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never
+     * mangled — a brand no other library has). The wrapper sees every class defined after core loads, a third party's
+     * included: the fields it keeps are mangled to single letters in production, where a minified library keeps fields
+     * of its own, and its unmangled ones (`_cleanups`) are ordinary names another base class may own — so neither can be
+     * the test. Anything else gets exactly its own callbacks; nothing is read from it, written to it, or called.
      *
      * **Still connected at its disconnect, a component is being MOVED** — `append`/`insertBefore` of a connected node,
      * in one operation: the platform runs the callbacks after the operation, so the node already sits in its new place
@@ -82,7 +83,7 @@ if (typeof customElements !== 'undefined') {
      * real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup.
      */
     proto.disconnectedCallback = function (this: Moving) {
-      if (this._cleanups === undefined) return own?.call(this);
+      if (this._$adopt$ === undefined) return own?.call(this);
       this._moved = this.isConnected;
       if (!this._moved) teardown(this);
     };
@@ -91,7 +92,7 @@ if (typeof customElements !== 'undefined') {
      * The document is the one `init` ran in — inserting into another document adopts the node first.
      */
     proto.connectedCallback = function (this: Moving) {
-      if (this._cleanups !== undefined && this._moved) {
+      if (this._$adopt$ !== undefined && this._moved) {
         this._moved = false;
         if (this.ownerDocument === this._doc) return;
         teardown(this);

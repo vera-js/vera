@@ -171,16 +171,31 @@ test('a custom element that never called init keeps the platform\'s callbacks on
  */
 test('a third-party element keeps every field of its own through connect, move, remove and reconnect', async () => {
   const LETTERS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$'];
+  /**
+   * And the UNMANGLED names core keeps (vera-5a): `_cleanups` is an ordinary name another base class may own, so it
+   * cannot be how core recognizes its own — entries here must never be called, and a truthy `_moved` of its own must
+   * never skip its connectedCallback.
+   */
+  let called = 0;
+  let connects = 0;
   customElements.define('ka-foreign', class extends dom.window.HTMLElement {
-    constructor() { super(); for (const k of LETTERS) this[k] = `mine-${k}`; }
+    constructor() {
+      super();
+      for (const k of LETTERS) this[k] = `mine-${k}`;
+      this._cleanups = [() => called++];
+      this._gen = 'mine'; this._moved = true; this._doc = 'mine'; this._removed = 'mine'; this._hooks = 'mine';
+    }
+    connectedCallback() { connects++; }
   });
   const el = doc.createElement('ka-foreign');
   const snapshot = () => Object.fromEntries(Object.keys(el).map((k) => [k, el[k]]));
   const before = snapshot();
-  assert.equal(Object.keys(before).length, LETTERS.length, 'CONTROL: the fields were set');
+  assert.equal(Object.keys(before).length, LETTERS.length + 6, 'CONTROL: the fields were set');
   const a = box(); const b = box();
   a.append(el); b.insertBefore(el, null); el.remove(); a.append(el);
   doc.querySelector('iframe').contentDocument.body.append(el); el.remove();
   await tick();
   assert.deepEqual(snapshot(), before, 'core wrote to an element that is not its own');
+  assert.equal(called, 0, 'core called entries of a _cleanups that is not its own');
+  assert.equal(connects, 4, 'every connection ran its own connectedCallback — a _moved of its own skipped none');
 });
