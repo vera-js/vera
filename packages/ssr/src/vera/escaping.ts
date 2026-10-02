@@ -166,9 +166,22 @@ export const INLINE_HANDLER = /^on./i;
  * `&NewLine;`); every other named reference decodes to a character that cannot be part of
  * `javascript:`, so leaving it encoded gives the same verdict.
  */
-/** A numeric reference's character, as a parser decodes it: NUL, a surrogate or an out-of-range value is U+FFFD. */
-const decodeCodePoint = (code: number): string =>
-  code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || Number.isNaN(code) ? '\ufffd' : String.fromCodePoint(code);
+/**
+ * The C1 numbers a parser reads as Windows-1252: `&#128;` is `€`, not U+0080. The HTML standard's table, by
+ * offset from 0x80; the five holes (0x81, 0x8D, 0x8F, 0x90, 0x9D) keep their own code point.
+ */
+const C1 = [0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021, 0x2c6, 0x2030, 0x160, 0x2039, 0x152, 0x8d, 0x17d, 0x8f, 0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x2dc, 0x2122, 0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178];
+/**
+ * **A numeric reference's character, exactly as a parser decodes it** — the one decoder every reader here uses: NUL, a
+ * surrogate or an out-of-range value is U+FFFD, and 0x80–0x9F map through `C1`. `String.fromCodePoint` THROWS past
+ * U+10FFFF, so the copies that called it directly took a whole render down on `&#1114112;` in markup.
+ */
+export const decodeCodePoint = (code: number): string =>
+  code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || Number.isNaN(code)
+    ? '\ufffd'
+    : code >= 0x80 && code <= 0x9f
+      ? String.fromCharCode(C1[code - 0x80])
+      : String.fromCodePoint(code);
 
 export const decodeSchemeReferences = (text: string): string =>
   text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(colon|Tab|NewLine));?/g, (whole: string, decimal?: string, hex?: string, name?: string) =>

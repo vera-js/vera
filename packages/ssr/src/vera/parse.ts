@@ -21,7 +21,7 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd } from './escaping.js';
+import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 
 /** The entity spellings this package emits, plus the handful every document uses. */
@@ -39,9 +39,9 @@ export const decode = (text: string): string =>
   text.includes('&')
     ? text.replace(ENTITY, (match: string, decimal?: string, hex?: string, name?: string) =>
         decimal
-          ? String.fromCodePoint(Number(decimal))
+          ? decodeCodePoint(Number(decimal))
           : hex
-            ? String.fromCodePoint(parseInt(hex, 16))
+            ? decodeCodePoint(parseInt(hex, 16))
             : /** Neither number matched, so the name did. */ (NAMED[name!] ?? match)
       )
     : text;

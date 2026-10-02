@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeSchemeReferences } from './escaping.js';
+import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
@@ -931,7 +931,7 @@ const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quo
 const decodeRefs = (text: string): string =>
   text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/g, (whole: string, dec?: string, hex?: string, name?: string) =>
     /** Neither number matched, so the name did. */
-    dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : NAMED[name!] ?? whole
+    dec ? decodeCodePoint(+dec) : hex ? decodeCodePoint(parseInt(hex, 16)) : NAMED[name!] ?? whole
   );
 
 /**
