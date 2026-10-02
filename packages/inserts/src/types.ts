@@ -90,28 +90,25 @@ export type InitInsert = (element: HTMLElement) => void;
 export type ValueInsert = (part: object, value: unknown) => boolean | void;
 
 /**
- * Takes over one `<slot>` in a LIGHT-DOM render — `@verajs/renderer/slots`. The renderer hands it
- * the cloned `<slot>` element, the root being rendered into, and the slot's name; returning null or
- * undefined declines, which is what happens for a shadow root (the platform slots there) and under
- * the SSR shim (the server distributes through its own pass instead).
+ * **The server half of light-DOM slots** — `@verajs/renderer/slots` registers it, `@verajs/ssr` reads
+ * `_$server$` off the function and calls it with a host and its light children, once the host's render
+ * is final. On the client the slots module claims each `<slot>` through `'element'` instead, so the
+ * function itself is never called there and declines (`null`). A hand-off between those two packages,
+ * one module distributing on both sides; not a point to register a strategy on.
  *
- * Declared here for the same reason `ValueInsert` is: without it `wire([renderer, slots])` does not
- * typecheck for a consumer, because a descriptor's `on` is `keyof InsertFunctionMap` and `'slot'`
- * was not one of them. The insert existed at runtime and only at runtime — every recipe that wired
- * it ran as JavaScript, so nothing noticed.
+ * Declared here rather than structurally for the same reason `ValueInsert` is: without it
+ * `wire([renderer, slots])` does not typecheck for a consumer, because a descriptor's `on` is
+ * `keyof InsertFunctionMap` and `'slot'` was not one of them.
  */
-export type SlotInsert = (
-  slot: Element,
-  root: Node,
-  name: string
-) => { _$park$?: () => void } | null | undefined;
+export type SlotInsert = (() => null) & { _$server$?: (host: Element, source: Node[]) => void };
 
 /**
  * **Claims elements in templates** — `@verajs/renderer/elements`. Asked about each element of a
  * template ONCE, as the template is first used, with the template's own inert element: its tag and
  * static attributes are real, bindings are not applied yet. Returns a shared behavior for an element it
- * wants, `undefined` for the rest. Every instance of the template then runs `mount` after its first
- * update and `unmount` at teardown with what `mount` returned.
+ * wants, `undefined` for the rest. Every instance of the template then runs `create` as it is created,
+ * before its first update writes anything into the element, `mount` after that update and `unmount`
+ * at teardown with what `mount` returned.
  *
  * Declared here, structurally, for the same reason `SlotInsert` is — so `wire([renderer, elements,
  * claim])` typechecks without the renderer importing this package. The renderer's `ElementBehavior`
@@ -119,6 +116,7 @@ export type SlotInsert = (
  */
 export type ElementInsert = (element: Element) =>
   | {
+      create?(element: Element, adopted: boolean): void;
       mount?(element: Element, context: { root: Node | null; adopted: boolean }): unknown;
       unmount?(kept: unknown, element: Element): void;
     }

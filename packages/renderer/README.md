@@ -411,6 +411,11 @@ What a claimant can rely on:
 - **It is asked about the TEMPLATE's element, once.** The element is inert: its tag and its
   **static** attributes are real, bindings are not applied yet — `autofocus=${x}` cannot be claimed on
   `x`. Claim the attribute's presence and decide in `mount`. SVG and MathML elements are asked too.
+- **`create(element, adopted)` runs as each instance is created** — before its first update writes
+  anything, and before the instance is connected anywhere — so the element holds exactly the static
+  children the template wrote, each binding position still the empty text it parsed as. It is the one
+  moment those can be told apart; `@verajs/renderer/slots` records a host's static children there.
+  Nothing is kept from it, and it is optional.
 - **`mount(element, { root, adopted })` runs once the render that created the instance has
   finished** — in the same end-of-render pass as refs, in document order, so a claim that MOVES an
   element does so after refs above it saw it in place (measure in `mount`, not in a ref) — so the whole tree is in place and connected if its container is — a nested instance is
@@ -419,7 +424,7 @@ What a claimant can rely on:
 - **`unmount(kept, element)` runs once, at teardown** — a template swapped out, a keyed row dropped, a
   list shrunk, a container cleared — and only when `mount` returned something. **`hold()` is not
   teardown**: a parked instance keeps its mount and is not mounted again when it returns.
-- **Several claimants may claim one element**; each gets its own `mount`/`unmount`, in wire order.
+- **Several claimants may claim one element**; each gets its own `create`/`mount`/`unmount`, in wire order.
 - **No updates.** A behavior that must react to values is a binding or an applier (`_$apply$`), not a
   claim — which is what keeps claims off the hot path. A throwing `mount` propagates, as a throwing
   `&ref` does.
@@ -536,9 +541,11 @@ console.log(slotted(card, 'header').length); //           1
 > DIFFERENT renderer — lit-html — where there is no seam to find.) The assignment follows
 the platform's own rules — elements to the slot their `slot` attribute names, text to the default
 slot, fallback shown only while a slot is unassigned and restored when it empties, direct children
-only. Live: appending, removing, or re-slotting children redistributes automatically, with one documented
-divergence — see **Late children** below. Re-renders leave slotted nodes in place, identity intact, so focus and input values
-survive; SSR emits already-distributed markup, stating the light tree on each host, and hydration
+only. **Every node goes to the slot its own `slot` names** — including the nodes a binding in the
+page's template writes, so ``${items.map((i) => html`<li slot=${i.where}>…</li>`)}`` distributes
+exactly as the same markup written out by hand, and keeps doing so as the list changes. Live:
+appending, removing, or re-slotting children redistributes automatically. Re-renders leave slotted
+nodes in place, identity intact, so focus and input values survive; SSR emits already-distributed markup, stating the light tree on each host, and hydration
 adopts it in place, nested components included. A component host carrying no statement was made on
 the client, and gets a client first render rather than an adoption. **The server distributes with
 this same module**, so the statement is a format internal to `@verajs/renderer`: render and hydrate
@@ -573,18 +580,17 @@ it work would mean writing framework attributes into the user's own markup.
 
 **A node added AFTER the first render joins its slot with full native semantics** — bare text and
 attribute-less elements included, in document order, exactly as a shadow root would assign them.
-The renderer stamps everything it emits at a light host's top level with a hidden, non-enumerable
-property, so an unstamped node there is knowably the user's; `slot=""`/`slot="name"` still route,
-they are simply no longer required.
+A light host's own render occupies one range of its children, bracketed by the renderer's own
+comments, so a node added outside that range is knowably the user's: added before it, it joins
+ahead of everything the host was given; after it, behind. `slot=""`/`slot="name"` still route, they
+are simply not required. Inside a slot, use `before()`/`after()` on what is already there (see
+below) and the new node joins at that place in light order.
 
-This used to be the feature's one documented divergence, and the rule existed because a light
-host's children after the first render are also the component's own rendered output, with nothing
-in the DOM to tell them apart. Ownership is written down now rather than inferred from position,
-so the ambiguity — and the rule — are gone. Two things remain worth knowing: whitespace appended
-to a light host suppresses the default fallback, which is parity (a shadow root does the same), and
-re-slotting a node (`slot="a"` → `"b"`) rejoins in light-tree order rather than arrival order.
-Every position you can reach orders exactly as the platform does — what light has fewer of is
-positions you can name, since a distributed child is no longer a direct child of the host.
+Two things are worth knowing: whitespace appended to a light host suppresses the default fallback,
+which is parity (a shadow root does the same), and re-slotting a node (`slot="a"` → `"b"`) rejoins
+in light-tree order rather than arrival order. Every position you can reach orders exactly as the
+platform does — what light has fewer of is positions you can name, since a distributed child is no
+longer a direct child of the host.
 
 **Cloning a RENDERED light component does not work, and cannot.** `cloneNode(true)` copies a
 light host's children — which after a render are the component's own output with the user's slotted
@@ -593,15 +599,29 @@ rendered tree ends up nested inside its own default slot. A shadow component clo
 opposite reason: `cloneNode` does not copy a shadow root, so the clone re-renders and its light
 children are still just its light children.
 
-Nothing can detect this — the ambiguity is the same one behind the late-children rule above, and
-the original user content was consumed at the first render, so there is nothing to recover. **To
-duplicate a component, clone the SOURCE markup and let the copy render itself**, rather than cloning
-a live instance. This matters most to anything that duplicates components as an operation: an editor
+Nothing can detect this — after a render the user's content and the component's output are the
+same kind of node in the same tree, and the original user content was consumed at the first render,
+so there is nothing to recover. **To duplicate a component, clone the SOURCE markup and let the copy
+render itself**, rather than cloning a live instance. This matters most to anything that duplicates components as an operation: an editor
 canvas, a repeater, a drag-to-copy.
 
 **`slotted(host, name?)`** is the component-internal accessor — what the user assigned to a slot,
 answered identically in shadow mode (native assignment) and light mode (the capture map). Omit
 `name` for the default slot. Component authors reach for this; app users do not.
+
+### Where the `<slot>` element is
+
+**A slot with content steps out of the page, and its content stands in its place. A slot with
+nothing assigned stays in the page, showing its fallback.** So the rendered tree reads the way the
+composed tree of a shadow root reads: where a slot has content, that content is a child of the
+slot's parent; where it has none, the fallback is the `<slot>` element's own children, and the
+HTML standard's UA stylesheet gives every `<slot>` `display: contents`, so the element itself adds no
+box. The switch happens each time a slot gains its first node or loses its last one.
+
+Two things follow. `querySelector('slot')` finds exactly the slots currently showing their
+fallback, and none that have content — so reach a slot through `&ref` or `event.target`, never by
+selector. And a structural selector written against your template (`:first-child`, `> h2`) sees the
+slotted content where a filled slot stood, which is where a reader sees it.
 
 ### The `<slot>` element is still the component's handle on the slot
 
@@ -624,11 +644,11 @@ render(() => html`<header>
   platform accessor tied to real shadow assignment, and overriding it on YOUR nodes is an intrusion
   this module refuses. The forward reads carry the same fact: `slot.assignedNodes().includes(node)`
   through a `&ref`, or `slotted(host, name)` from outside.
-- **Bind `slotchange` directly — it does not bubble to the host.** In a shadow root one listener on
-  the root hears every slot by bubbling; here the slot handles are deliberately out of the document,
-  so there is no tree for the event to climb and `host.addEventListener('slotchange', …)` hears
-  silence. Use `@slotchange` on each slot, which also hands you the right `event.target`. (The same
-  boundary as `querySelector('slot')`: fewer places to listen, not fewer events.)
+- **Bind `slotchange` directly — do not count on it reaching the host.** In a shadow root one listener
+  on the root hears every slot by bubbling. Here a slot with content is out of the document, so the
+  event fired as it fills has no tree to climb, while the one fired as it empties — the slot is back
+  in the page by then — does climb: a host-level listener hears some changes and not others. Use
+  `@slotchange` on each slot, which hears all of them and hands you the right `event.target`.
 - **`assignedNodes(options)` / `assignedElements(options)`** answer from the live assignment,
   through `event.target` or a `&ref`. With nothing assigned, `{ flatten: true }` gives the fallback
   actually on screen — slottables only, so a comment you wrote into fallback content is not in it,
@@ -640,107 +660,26 @@ render(() => html`<header>
   root the same line works, because there nothing moves. `before()`/`after()` route through the
   node's own current parent, so they are correct in both modes, and the content lands in the order
   you asked for. This is the sharpest difference between the two modes and the easiest to hit.
-- **A displaced node is *disconnected* here; native slotting never disconnects it.** Shadow
-  distribution is virtual — a slottable no slot names stays in the light tree, connected, merely
-  unrendered. Light slots park it physically, so a custom element inside displaced content runs its
-  `disconnectedCallback` (and a Vera component's effect cleanups) on the way out, and
-  `connectedCallback` again when its slot returns — with its element identity, stores and typed-in
-  state intact, and reactivity re-established by the re-init. Component authors already handle this
-  pair for any `appendChild` move; the difference is only *when* it happens: a component that
-  pauses a video on disconnect pauses while displaced here and keeps playing in a shadow root.
-  The slot element is deliberately not in your DOM (see below), so it is unreachable by selector and
-  reports `isConnected === false`. It is a live API object, not a position in the tree.
+- **A slotted component is MOVED into its slot, and a Vera component is not torn down by it.** Each
+  slotted node goes from where it is to where it is shown in ONE DOM operation, which core treats as a
+  move: a component that called `init()` keeps its effects, state and setup through it — nothing runs
+  twice, as nothing runs twice under native slotting, where nothing moves at all. A custom element
+  that is not a Vera component gets the platform's callbacks for a move: `disconnectedCallback` and
+  then `connectedCallback`.
+- **A node no slot takes is parked out of the page — *disconnected* here, where native slotting
+  leaves it connected and merely unrendered.** A light host has no second tree to hide it in, so a
+  custom element inside it runs its `disconnectedCallback` (and a Vera component its effect
+  cleanups) on the way out, and `connectedCallback` again when a slot for it appears — with its
+  element identity, stores and typed-in state intact, and reactivity re-established by the re-init.
+  The difference is only *when* it happens: a component that pauses a video on disconnect pauses
+  while unassigned here and keeps playing in a shadow root.
 - **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
   re-routes if it changes between renders.
 
-### Keeping the `<slot>` in the tree — a strategy you can own
-
-Every boundary above has one cause: the shipped strategy removes the `<slot>` element so your
-markup stays exactly what you wrote. The seam it registers through is public, single-registrant,
-and takes whole strategies — so if you would rather have the *shadow tree's own structure* (the
-slot element present, selectable, `:first-child`-countable, made layout-invisible by the same
-`display: contents` the UA stylesheet gives real slots), you can wire a strategy that keeps it.
-This one is complete enough to run — and it runs, in CI, as written:
-
-<!-- recipe -->
-```js
-import { init, render, wire, html } from '@verajs/core';
-import { renderer } from '@verajs/renderer';
-import { slotDiscovery } from '@verajs/renderer/slots';
-
-/** Distribution that KEEPS the <slot>: content moves INSIDE it, fallback shows when it is empty. */
-const slotsInTree = {
-  name: 'my-app/slots-in-tree',
-  on: 'slot',
-  priority: 50,
-  fn(slot, root, name) {
-    if (root.nodeType !== 1) return null; // a shadow root keeps native slotting
-    const host = root;
-    const fallback = [...slot.childNodes];
-    const isMine = (n) =>
-      n.nodeType === 1 ? (n.getAttribute('slot') ?? '') === name
-        : name === '' && n.nodeType === 3 && n.data.trim() !== '';
-    let shown = -1;
-    const fill = () => {
-      for (const n of [...host.childNodes]) if (isMine(n)) slot.append(n);
-      const assigned = [...slot.childNodes].filter((n) => !fallback.includes(n));
-      for (const n of fallback) (assigned.length ? n.remove() : slot.append(n));
-      observer.takeRecords(); // our own moves are not the user's
-      if (assigned.length !== shown) {
-        shown = assigned.length;
-        slot.dispatchEvent(new Event('slotchange', { bubbles: true })); // real ancestors — it CLIMBS
-      }
-    };
-    const observer = new MutationObserver(fill);
-    fill();
-    observer.observe(host, { childList: true, subtree: true });
-    return { _$park$: () => { observer.disconnect(); for (const n of [...slot.childNodes]) if (!fallback.includes(n)) host.append(n); } };
-  },
-};
-
-wire([renderer, slotDiscovery, slotsInTree]); // discovery finds the <slot>s and hands them over
-document.head.insertAdjacentHTML('beforeend', '<style>slot{display:contents}</style>');
-
-customElements.define('tree-card', class extends HTMLElement {
-  connectedCallback() {
-    init(this);
-    render(() => html`<article><slot name="header">Untitled</slot></article>`);
-  }
-});
-
-const card = document.createElement('tree-card');
-card.innerHTML = '<h2 slot="header">Hello</h2>';
-document.body.append(card);
-await new Promise((resolve) => requestAnimationFrame(resolve));
-
-/** Every documented boundary of the shipped strategy, working: */
-let heard = 0;
-card.addEventListener('slotchange', () => heard++); // a HOST-level listener — bubbling exists here
-if (!card.querySelector('slot')) throw new Error('querySelector finds the slot');
-if (card.querySelector('h2').parentElement.localName !== 'slot') throw new Error('reverse lookup');
-card.querySelector('h2').remove();
-await new Promise((resolve) => setTimeout(resolve, 0));
-if (card.querySelector('article').textContent !== 'Untitled') throw new Error('fallback returns');
-if (heard !== 1) throw new Error('slotchange bubbled to the host');
-```
-
-The trade is the one the platform itself makes: this is the shadow tree's structure, so the
-`<slot>` now appears in your host's serialized markup (as it appears in a `shadowRoot`'s), your
-component CSS can select it — and structural selectors written against the template see it as the
-child it is, because selectors follow the tree, not layout. Wire it *instead of* `slots` — beside
-`slotDiscovery`, which is what finds each `<slot>` and hands it to whichever strategy is wired — the
-seam is single-registrant, and wiring both says so in development, by name.
-
-What this recipe deliberately does not do is the audited module's territory: light-tree ordering
-under re-slots and prepends, duplicate-name handover, nested slots in fallbacks, dynamic
-`name=${…}`, SSR and hydration. It is a starting point you own, not a drop-in peer — the measured
-design for a full sibling lives with the maintainers.
-
-**The one thing a light-DOM slot cannot carry is presentation** — `class`, `style`, `id` and other
-plain attributes. A light host has no second tree, so the slot element is not rendered and there is
-nothing for them to apply to, while in a shadow root they do apply. Put them on a real element
-around the slot. Development builds say so, naming the attribute, rather than leaving it to be
-found.
+**A `<slot>` carries presentation only while it shows its fallback** — `class`, `style`, `id` and
+other plain attributes. Once it has content it steps out of the page and its attributes go with it,
+while in a shadow root they keep applying. Put them on a real element around the slot. Development
+builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is

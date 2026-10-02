@@ -14,9 +14,11 @@ that meant giving up `<slot>` entirely.
 ## Why it is credible
 
 `<slot>` is meaningless outside a shadow root, so this is real distribution: at each `<slot>`
-position the component's own children are moved into place, and the `<slot>` element itself never
-reaches the light DOM. There is no wrapper element and no shipped stylesheet, so nothing shifts
-`:nth-child` or direct-child selectors in the user's own markup.
+position the component's own children are moved into place. A slot with content steps out of the
+page and its content stands where it stood; a slot with nothing assigned stays, showing its
+fallback — the same tree a reader sees composed from a shadow root. There is no wrapper element and
+no shipped stylesheet, so nothing shifts `:nth-child` or direct-child selectors in the user's own
+markup.
 
 The semantics are not approximated. **Native shadow DOM is the oracle**, in a differential test that
 puts the same generated markup through a real shadow root and through light distribution and
@@ -46,6 +48,18 @@ Every scenario there matches native on Chromium, Firefox and WebKit. The file ke
 divergences, empty today: an entry asserts that it still diverges, so a shape cannot quietly regress
 into it, nor be fixed without the list changing.
 
+Content a binding writes is distributed node by node, exactly as the same markup written by hand —
+a keyed list whose rows name different slots, rows reordered, inserted, removed, re-slotted or
+changing shape — against an oracle computed from the data alone, never read back from the DOM:
+
+```sh
+node --test tests/slots-replay-storm-fuzz.test.mjs      # every write an outer template makes, replayed
+```
+
+A slotted component is moved into place in ONE DOM operation, which core treats as a move: a Vera
+component is not torn down and set up again by being slotted, just as it is not under native
+slotting, where nothing moves at all (`tests/core-keep-alive.test.mjs`).
+
 It is live. Appending, removing or re-slotting a child redistributes, `slotchange` fires on the
 slot element with the same sequence and the same `assignedNodes()` the platform produces, and
 `assignedNodes()`/`assignedElements()` answer through `event.target` or an `&ref` exactly as they do
@@ -63,8 +77,8 @@ That file asks the three questions directly. Does the SERVER produce what the CL
 the server's markup ADOPT into that, without discarding it? And is a SHADOW component — one not
 using the feature at all — completely untouched by the module being wired?
 
-Server output carries no wrapper elements: each `<slot>` is unwrapped to its assigned nodes or
-its fallback, in place. Distribution loses two facts hydration needs (which nodes are the user's,
+Server output carries no wrapper elements: a `<slot>` with content is replaced by it, in place, and
+one with nothing assigned is kept with its fallback — as the client keeps it. Distribution loses two facts hydration needs (which nodes are the user's,
 since a component's own elements can carry `slot` too, and their order across slots), so the server
 **states the light tree** rather than leaving the client to infer it. Every parent a slot filled
 carries `data-vm-slotted="offset,count"`, and the host carries `data-vm-light`: for each light child
@@ -90,10 +104,11 @@ npm run test:browser:all                                # includes hydration fro
 ## Cost
 
 <!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
-module carries everything slots needs — finding each `<slot>`, marking the render's own output, the
-takeover itself — and the renderer carries only generic hooks it plugs into (an instance hook on
-the template, an insert hook, the capture and relocation calls). An app that never wires slots pays
-a comparison or a property read at those points and nothing else.
+module carries everything slots needs — finding each `<slot>` and each host, capturing the host's
+children, replaying what templates later write among them, the distribution itself — and the
+renderer carries only generic hooks it plugs into (an instance hook on the template, an element's
+`create`, an end-of-render call, one relocation check). An app that never wires slots pays a
+comparison or a property read at those points and nothing else.
 
 ## The honest caveats
 
@@ -120,6 +135,12 @@ a comparison or a property read at those points and nothing else.
   Ordinary bindings are unaffected — `<tbody>${rows}</tbody>` works, because the renderer's own
   anchor is a comment and table parsing permits comments where it rejects elements. So a table
   component takes its rows as data rather than as slotted content.
+- **A node no slot takes is parked out of the page** — disconnected, where native slotting leaves it
+  connected and merely unrendered. A light host has no second tree to hide it in, so a custom element
+  in unassigned content runs its `disconnectedCallback` (and a Vera component its effect cleanups),
+  and is set up again when a slot for it appears, identity and stores intact.
+- **A `<slot>` carries `class`/`style`/`id` only while it shows its fallback**; once it has content it
+  steps out of the page and its attributes go with it. Put presentation on an element around it.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light

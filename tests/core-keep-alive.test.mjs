@@ -144,3 +144,19 @@ test('slots moves every slotted component in ONE operation: two named slots + un
   assert.equal(count('cleanup u1'), 1, 'the unassigned one IS disconnected (parked in holding) — the one real disconnect');
   assert.equal(page.querySelector('footer ka-kid')?.id, 'b1', 'CONTROL: b1 is in the second slot');
 });
+
+/**
+ * **Only a component is kept.** Core's wrapper sees every class defined after it loads, Vera's or not; an element that
+ * never called `init` is someone else's, and it gets the platform's callbacks on a move — both of them — untouched.
+ */
+test('a custom element that never called init keeps the platform\'s callbacks on a move', async () => {
+  const seen = [];
+  customElements.define('ka-plain', class extends dom.window.HTMLElement {
+    connectedCallback() { seen.push('cc'); }
+    disconnectedCallback() { seen.push('dc'); }
+  });
+  const a = box(); const b = box();
+  const el = doc.createElement('ka-plain'); a.append(el);
+  b.insertBefore(el, null);
+  assert.deepEqual(seen, ['cc', 'dc', 'cc'], 'a move runs both, as the platform does');
+});

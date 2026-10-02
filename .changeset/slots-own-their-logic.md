@@ -24,11 +24,7 @@ contract now crosses a bundle boundary, and those apps carry it.
 - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
   later, whose `wire` accepts the nested array `slots` now is. An older core wires nothing from it,
   silently.
-- A **custom** `'slot'` strategy now wires `slotDiscovery` beside itself —
-  `wire([renderer, slotDiscovery, myStrategy])` — since discovery is no longer the renderer's.
-  Without it, development names the missing wiring.
-- `slots` is now an array (`[slotDiscovery, strategy]`); code that read `slots.fn` or `slots.on`
-  reads the second entry.
+- `slots` is now an array; code that read `slots.fn` or `slots.on` no longer finds them.
 - Development warns when the slots module and the renderer come from different versions of the
   package: they are one contract across a bundle boundary. An older slots module beside this
   renderer is treated as unwired in both builds — its fallback shows and nothing is lost.

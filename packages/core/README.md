@@ -290,12 +290,22 @@ no error, no render, an effect that simply does not happen — so in development
 finishes `connectedCallback` without reaching either call warns and names both.
 
 **Set up on every connection, not once.** `connectedCallback` runs again each time the element is put
-back in the page — moved to another container, re-inserted by a keyed list, taken into a portal or
-a popped-out window. Call `init()` and register the hooks there every time, and keep state on the
+back in the page after leaving it — removed and re-appended later, or taken into a popped-out window.
+Call `init()` and register the hooks there every time, and keep state on the
 element (`this.state ??= createStore(…)`) or in a store, so it survives the trip. Each `init()` starts
 a fresh generation of hooks, so re-attached components show current state and have live effects. Guarding setup with `if (this.started) return` — the habit the platform's
 own guidance on repeated `connectedCallback` suggests — leaves effects torn down as soon as they run
 after a re-attach, and what it shows stays as it was.
+
+**A move is not a removal.** A component moved in ONE operation — `append` or `insertBefore` of an
+element that is already in the page, which is how a keyed list reorders, how light-DOM slots place a
+slotted component, and how most drag-and-drop libraries move — keeps everything: neither its own
+`disconnectedCallback` nor its `connectedCallback` runs, its effects stay live, and nothing is set up
+twice. Core tells a move from a removal the way the platform lets it: a moved element is still
+connected when its `disconnectedCallback` runs. Taking the element out first (`remove()` then
+`append()`, or a hop through a `DocumentFragment`) is a removal followed by a connection, and gets
+both. This applies to components — elements that have called `init()`; any other custom element
+gets the platform's callbacks untouched.
 
 **Setup is one synchronous block, which matters for `async connectedCallback()`.** Only one component
 is being set up at a time, so a second component's `init()` takes the slot from the first — and an

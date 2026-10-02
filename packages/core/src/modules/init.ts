@@ -43,19 +43,17 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
  * runs first, while subscriptions are still live; an element that never called `init()` pays one
  * undefined-property read. Guarded for environments with no custom elements (a server importing core).
  *
- * **A move is not a removal** (same-tick keep-alive). Taking an element out and putting it back in the
- * same task — light-DOM slots placing a slotted component, a keyed reorder, a drag-and-drop library —
- * used to run its whole teardown and then its whole setup again: a component that fetched in its setup
- * fetched twice. A disconnect now parks the element and schedules ONE microtask for everything parked;
- * an element that reconnects before it, in the same document, was moved — neither its
- * `disconnectedCallback` nor its `connectedCallback` runs, and it keeps its state, as `moveBefore()`
- * defines a move. Reconnected in ANOTHER document (a pop-out window), it is torn down and set up
- * again: its listeners and frame clock belong to the old window. Whatever is still disconnected at the
- * microtask is torn down then, in disconnect order — today's order, one microtask later.
+ * **A move is not a removal.** Moving a connected element in ONE operation — `append`/`insertBefore`
+ * from one place in the page to another: light-DOM slots placing a slotted component, a keyed reorder,
+ * a drag-and-drop library — used to run its whole teardown and then its whole setup again: a component
+ * that fetched in its setup fetched twice. Now neither its `disconnectedCallback` nor its
+ * `connectedCallback` runs and it keeps its state, as `moveBefore()` defines a move. A real removal
+ * (to nowhere, or into a fragment) is torn down synchronously, exactly as before, and so is a move into
+ * ANOTHER document (a pop-out window) once it connects there: its listeners and frame clock belong to
+ * the old window.
  *
- * `_removed` is set after the sweep, so a cleanup registered from then on — an effect that removed its
- * own element and has not returned yet — runs at once instead of into a set nothing drains again; one
- * registered between the disconnect and the microtask runs in the sweep, exactly once.
+ * `_removed` is set after the teardown, so a cleanup registered from then on — an effect that removed
+ * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
 type Moving = ComponentElement & { _moved?: boolean; _doc?: Document };
 if (typeof customElements !== 'undefined') {
@@ -76,8 +74,12 @@ if (typeof customElements !== 'undefined') {
      * (measured in Chrome, Firefox and Safari). Nothing is torn down, and the reconnect that follows sets nothing up.
      */
     proto.disconnectedCallback = function (this: Moving) {
-      /** A real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup. */
-      this._moved = this.isConnected;
+      /**
+       * A real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup. Only a
+       * COMPONENT (`init` ran: `_gen`) is kept — any other custom element defined after core keeps the platform's
+       * callbacks on a move, which run both.
+       */
+      this._moved = this.isConnected && this._gen !== undefined;
       if (!this._moved) teardown(this);
     };
     /**

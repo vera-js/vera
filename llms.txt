@@ -441,22 +441,23 @@ child of the host, and the platform refuses the insert with `NotFoundError` — 
 works on a shadow host, because nothing moves there. Use `child.before(node)` / `child.after(node)`,
 which route through the node's current parent and are correct in both modes.
 
-The `<slot>` ELEMENT is also still the component's handle on the slot, and means what it means in a
+Where the `<slot>` element is: **a slot with content steps out of the page and its content stands
+in its place; a slot with nothing assigned stays in the page, showing its fallback** (the UA
+stylesheet gives every `<slot>` `display: contents`). So `querySelector('slot')` finds exactly the
+slots showing fallback — reach a slot through `&ref` or `event.target`, never by selector.
+
+The `<slot>` ELEMENT is still the component's handle on the slot, and means what it means in a
 shadow root: **`@slotchange`** fires on first assignment and on every change (verified against real
 shadow DOM, event for event — including for a slot whose rendering is currently displaced, since
-assignment is independent of rendering). ⚠️ Bind it DIRECTLY (`@slotchange` on the slot): the
-handles are out of the document, so the event cannot bubble and a host-level listener hears
-silence. `node.assignedSlot` likewise answers `null` — the reverse lookup belongs to real shadow
-trees; read forward through the slot handle or `slotted(host, name)`. Every one of these
-boundaries has one cause — the shipped strategy removes the `<slot>` element — and the renderer
-README carries a runnable ~50-line strategy that KEEPS it instead (`display: contents`, bubbling
-`slotchange`, selectable slot), wired through the same public `'slot'` seam in place of `slots` — beside `slotDiscovery` from `@verajs/renderer/slots`, which finds each `<slot>` for whichever strategy is wired; **`assignedNodes()`/`assignedElements()`** answer from the live
-assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the SLOTTABLES of
-the fallback currently on screen (a comment in fallback content is not one; a nested slot flattens
-through to what it is showing); and **`name` may be a binding** — `<slot name=${section}>` routes by
-the name it actually has and re-routes when it changes. Reach the element through `&ref` or
-`event.target` only: it is deliberately not in the document, so `querySelector('slot')` finds
-nothing and `isConnected` is `false`.
+assignment is independent of rendering). ⚠️ Bind it DIRECTLY (`@slotchange` on the slot): a slot
+with content is out of the document, so the event fired as it fills cannot bubble, while the one
+fired as it empties can — a host-level listener hears some changes and not others.
+`node.assignedSlot` answers `null` — the reverse lookup belongs to real shadow trees; read forward
+through the slot handle or `slotted(host, name)`. **`assignedNodes()`/`assignedElements()`** answer
+from the live assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the
+SLOTTABLES of the fallback currently on screen (a comment in fallback content is not one; a nested
+slot flattens through to what it is showing); and **`name` may be a binding** —
+`<slot name=${section}>` routes by the name it actually has and re-routes when it changes.
 
 ```js
 html`<slot name=${section} @slotchange=${(e) => wire(e.target.assignedElements())}>Nothing yet</slot>`
@@ -467,24 +468,33 @@ The differences worth knowing, all deliberate:
 - After distribution a slotted node's `parentNode` is inside the component's rendered tree rather
   than the host. That is what light DOM *is*, and it is exactly why the user's own CSS and Tailwind
   classes reach slotted content here when they cannot through a shadow boundary.
-- **A `<slot>` cannot carry presentation here** — `class`, `style`, `id`. A light host has no second
-  tree, so the slot element is not rendered and there is nothing for them to apply to; in a shadow
-  root they do apply. Put them on a real element around the slot. Development builds warn, naming
-  the attribute.
+- **Every node goes to the slot its own `slot` names**, including what a binding in the page's
+  template writes — ``${items.map((i) => html`<li slot=${i.where}>…</li>`)}`` distributes exactly as
+  the same markup written by hand, and keeps doing so as the list changes.
+- **A slotted component is MOVED into its slot in ONE DOM operation, and a Vera component is not torn
+  down by it**: core treats a one-operation move of a component (an element that called `init()`)
+  as a move — no `disconnectedCallback`, no second `connectedCallback`, effects and state kept. The
+  same holds for a keyed reorder. A node NO slot takes is parked out of the page, which is a real
+  disconnect (native slotting leaves it connected and unrendered); it is set up again when a slot
+  for it appears, identity and stores intact.
+- **A `<slot>` carries presentation only while it shows its fallback** — `class`, `style`, `id`.
+  Once it has content it steps out of the page and its attributes go with it; in a shadow root they
+  keep applying. Put them on a real element around the slot. Development builds warn, naming the
+  attribute.
 - A node added AFTER the first render joins its slot with full native semantics — bare text and
-  attribute-less elements included, in document order. The renderer stamps everything it emits at
-  a light host's top level with a hidden non-enumerable property, so an unstamped node there is
-  knowably yours; `slot=""`/`slot="name"` still route, they are simply no longer required. Two
-  notes: whitespace you append suppresses the default fallback, exactly as it does in a shadow
-  root; and re-slotting a node (`slot="a"` → `"b"`) rejoins in LIGHT-TREE order, not arrival
-  order — an item toggled into a "pinned" slot holds its place. What light has fewer of is
-  POSITIONS you can name (a distributed child is no longer a direct child — see the insertBefore
-  warning above), never worse ordering of the ones you can.
+  attribute-less elements included, in document order. A light host's own render is one range of
+  its children, bracketed by the renderer's comments, so a node added outside it is knowably
+  yours; `slot=""`/`slot="name"` still route, they are simply not required. Two notes: whitespace
+  you append suppresses the default fallback, exactly as it does in a shadow root; and re-slotting
+  a node (`slot="a"` → `"b"`) rejoins in LIGHT-TREE order, not arrival order — an item toggled into
+  a "pinned" slot holds its place. What light has fewer of is POSITIONS you can name (a distributed
+  child is no longer a direct child — see the insertBefore warning above), never worse ordering of
+  the ones you can.
 - `slotchange` only ever fires for a slot that HAS an assignment — here and in a shadow root alike.
   A component that must wire itself even when given nothing should do that once from a `useEffect`
   as well.
 
-Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
+Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into, and the module is
 <!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe to import (it imports nothing and touches no DOM until something renders).
@@ -493,7 +503,7 @@ and input values survive. Node-safe to import (it imports nothing and touches no
 
 Attach behavior to elements in templates without a directive system. A claimant is an `'element'`
 insert, asked about each element of a template ONCE (static tag and attributes only — bindings are
-not applied yet), returning a shared `{ mount?, unmount? }` or `undefined`:
+not applied yet), returning a shared `{ create?, mount?, unmount? }` or `undefined`:
 
 ```js
 import { elements } from '@verajs/renderer/elements';
@@ -501,6 +511,8 @@ const autofocus = { mount: (element) => element.focus() };
 wire([renderer, elements, { on: 'element', fn: (el) => (el.hasAttribute('autofocus') ? autofocus : undefined), priority: 50 }]);
 ```
 
+`create(element, adopted)` runs as each instance is created, before its first update (the element
+holds only the template's static children; a binding position is still empty text);
 `mount(element, { root, adopted })` runs once the render that created the instance has FINISHED (the
 tree in place, connected if its container is); `unmount(kept, element)` runs at teardown with what
 `mount` returned, only if it returned something. `hold()` is not teardown. Several claimants may claim
