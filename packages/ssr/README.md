@@ -111,10 +111,10 @@ place — **exactly where the browser creates an element the definition upgrades
 every template goes through. It respects quoted attribute values (a `>` is legal inside one), leaves comments,
 raw text (`<script>`, `<style>`, `<textarea>`, `<title>`…) and `<template>` content alone, and renders nothing
 inside `<svg>` or `<math>`, where a dashed tag is a foreign element no definition upgrades — except inside an
-HTML integration point (`<svg><foreignObject>`, `<math><mtext>`…), whose content is HTML. A tag's name is the
-whole name the tokenizer reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written.
-A tag that breaks out of foreign content (`<svg><p><my-comp>`) is not modeled yet: the component after it is
-not rendered on the server, and renders on the client.
+HTML integration point (`<svg><foreignObject>`, `<math><mtext>`…), or after a tag that breaks out of foreign
+content (`<svg><p><my-comp>`), both of which the browser reads as HTML. A tag's name is the whole name the tokenizer
+reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written. After `<font color>` inside
+`<svg>` (a breakout this scan does not track) a component is not rendered on the server, and renders on the client.
 
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
   registered class — field initializers run, `instanceof` answers — and appending it renders **that
@@ -164,7 +164,8 @@ inside any of them every value is escaped, and so is every value in a template r
 `svg`/`mathml` template included, wherever it renders) — except inside an HTML integration point, which the
 browser reads as HTML: SVG `<foreignObject>`, `<desc>` and `<title>`, MathML `<mi>`, `<mo>`, `<mn>`, `<ms>` and
 `<mtext>`, and an `<annotation-xml>` whose `encoding` is HTML, each only in its own namespace and only when not
-self-closed (`<math><mi><mglyph>` is MathML again). Inside `<xmp>`, `<noembed>`, `<noframes>` and
+self-closed (`<math><mi><mglyph>` is MathML again) — and after a tag that ENDS foreign content, which the browser
+reads as HTML again (`<svg><p>`, `<math><b>`, `</p>`; the standard's breakout list). Inside `<xmp>`, `<noembed>`, `<noframes>` and
 `<plaintext>`, which the browser reads as text whole, nothing is raw either. **And a tag is read where the
 browser's tokenizer reads one**: a tag's name is the whole run up to whitespace, `/` or `>` (`<script.x>` is an
 unknown element, never a `<script>`), a `<` before anything but a letter is text, `<!x>` and `<?x>` are comments,
@@ -346,10 +347,11 @@ dependency involved.
   whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
   strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
 - **A `<style>` or `<script>` the server cannot place in HTML is served escaped.** Raw text is recognized
-  outside `<svg>`, `<math>` and `<noscript>`, and inside their HTML integration points (`<svg><foreignObject>`,
-  `<math><mi>`…), but the scanner does not track the other ways a browser re-enters HTML: a tag like `<p>` that
-  breaks out of foreign content, an end tag the parser ignores, an `svg` template rendered outside any `<svg>`, and
-  a template rendered INTO a foreign position by its parent — it knows the depth it starts at, not whether that is
+  outside `<svg>`, `<math>` and `<noscript>`, inside their HTML integration points (`<svg><foreignObject>`,
+  `<math><mi>`…) and after a breakout tag (`<svg><p>`), but the scanner does not track the remaining ways a browser
+  re-enters HTML: `<font>` with a `color`, `face` or `size` attribute (it breaks out; here it never does), an end tag
+  the parser ignores, an `svg` template rendered outside any `<svg>`, and a template rendered INTO a foreign position
+  by its parent — it knows the depth it starts at, not whether that is
   SVG or MathML, so it recognizes no integration point (`html`<svg>${svg`<foreignObject><style>…`}</svg>``). There
   the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it. That is
   the safe direction of a misreading on purpose: the other one writes a value's markup into the page. Put the

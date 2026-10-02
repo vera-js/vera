@@ -50,11 +50,11 @@ export type SsrRenderResult = {
  */
 /**
  * An element that changes how what follows it parses, as the scan opened it: its name (what closes it, and what a
- * template's end writes to close it), the foreign depth BEFORE it (restored when it closes), and the namespace its
+ * template's end writes to close it), the foreign and `<template>` depths BEFORE it (restored when it closes), and the namespace its
  * content is read in — `html`, `svg`, `math`, or `''` when unknown (a template that starts at a foreign depth its
  * parent gave it cannot know which namespace that is, so it recognizes no integration point: the safe side).
  */
-export type Open = { readonly name: string; readonly foreign: number; readonly space: string };
+export type Open = { readonly name: string; readonly foreign: number; readonly inert: number; readonly space: string };
 export type Phase = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 /** Where the scan stands at the end of a static — carried into the next one, and what a template's end must close. */
 export type ScanState = {

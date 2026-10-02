@@ -37,6 +37,8 @@ const TOKENS = [
   '<foreignObject>', '<desc>', '<mi>', '<mtext>', '<mglyph>', '</mi>', '</foreignObject>', '<annotation-xml encoding=text/html>', '<annotation-xml>',
   /** End tags that may close nothing the scan opened — a stray one must leave the depth alone. */
   '</svg>', '</math>', '</noscript>', '<style>',
+  /** Breakout tags, which end foreign content — and `font`, which here never does. */
+  '<p>', '<b>', '</p>', '</br>', '<div>', '<TABLE>', '<font color=x>', '<pre-x>',
 ];
 const CONTEXTS = [['', ''], ['<svg>', '</svg>'], ['<math>', '</math>'], ['<style>', '</style>'], ['<textarea>', '</textarea>'], ['<!--', '-->'], ['<template>', '</template>'], ['<p>', '</p>'],
   ['<svg><foreignObject>', '</foreignObject></svg>'], ['<math><mi>', '</mi></math>'], ['<math><svg>', '</svg></math>']];

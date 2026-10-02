@@ -6,7 +6,7 @@
  * and the component scanner (`scan.ts` — where a registered component tag is live). They each ran their own copy
  * once, and every copy drifted from the tokenizer differently; one scanner cannot disagree with itself.
  */
-import type { ScanResult, ScanStart, ScanState, ScannedTag } from './types.js';
+import type { Open, ScanResult, ScanStart, ScanState, ScannedTag } from './types.js';
 
 /**
  * Where a static leaves us: inside a tag, and if so, inside an attribute **value**.
@@ -61,6 +61,19 @@ const TEXT_ONLY = new Set(['textarea', 'title', 'iframe', 'xmp', 'noembed', 'nof
 const SVG_POINTS = new Set(['foreignobject', 'desc', 'title']);
 const MATH_TEXT_POINTS = new Set(['mi', 'mo', 'mn', 'ms', 'mtext']);
 const HTML_ENCODINGS = new Set(['text/html', 'application/xhtml+xml']);
+/**
+ * **The breakout tags: start tags that END foreign content** — the parser pops out of `<svg>`/`<math>` to the nearest
+ * HTML element or integration point and reads the tag as HTML (`<svg><p><style>` is an HTML style, its content raw
+ * text). Exactly the standard's list; `font` breaks out only with a `color`, `face` or `size` attribute, which this
+ * scan does not track, so `font` never breaks out here — the safe side. `</p>` and `</br>` are the two end tags that do.
+ */
+/** The elements that change how what follows them parses, when read in HTML — see the fast path in `scanTag`. */
+const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'template', ...RAWTEXT, ...TEXT_ONLY]);
+const BREAKOUT = new Set([
+  'b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4',
+  'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small',
+  'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var',
+]);
 
 
 
@@ -102,6 +115,33 @@ const endsName = (c: string | undefined): boolean => isSpace(c) || c === '/' || 
 /** What `scanTag` reports to `fortify`, as (position, edit) pairs — see `fortify`. */
 const EDIT_INERT = 0;
 const EDIT_SHADOW_ROOT = 1;
+
+/**
+ * The entry an end tag named `name` closes, or `-1`. The search stops at an open `<template>` — inside its content an
+ * end tag closes nothing outside it — and an end tag this scan never opened closes nothing at all. It used to lower
+ * the depth for `</svg>`, `</math>` and `</noscript>`, guessing it closed an element a parent template opened, but the
+ * parser closes only what is actually open: inside `<math>` a `</svg>` is ignored, so `<math></svg><style>${v}` read
+ * the style as HTML raw text while the browser parsed MathML markup, and a value's `<img onerror>` ran. Keeping the
+ * depth only ever over-escapes.
+ */
+const closeTo = (opens: Open[], name: string): number => {
+  let at = opens.length - 1;
+  while (at >= 0 && opens[at].name !== name && opens[at].name !== 'template') at--;
+  return at >= 0 && opens[at].name === name ? at : -1;
+};
+
+/**
+ * Pops `opens` to the element a breakout lands in and answers the foreign depth there, or `-1` — leaving `opens` alone
+ * — when that is not certain (see the breakout in `scanTag`). It runs only at a breakout, so it sits outside the scan.
+ */
+const breakOut = (opens: Open[]): number => {
+  let at = opens.length - 1;
+  while (at >= 0 && (opens[at].space === 'svg' || opens[at].space === 'math')) at--;
+  if (!(at >= 0 ? opens[at].space === 'html' : opens.length > 0 && opens[0].foreign === 0)) return -1;
+  const depth = opens[at + 1].foreign;
+  opens.length = at + 1;
+  return depth;
+};
 
 /**
  * `edits`, when given, collects the positions `fortify` rewrites — a start tag's name end where it is `script`, and
@@ -334,9 +374,36 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     phase = OUTSIDE;
     /** A tag the component scan wants — see `ScannedTag`. A dashed name never changes parse state, so where it is read is where it sits. */
     if (tags !== undefined && inert === 0 && tagName.includes('-')) tags.push({ at: tagAt, end: i + 1, name: tagName, closing, live: !closing && foreign === 0 });
+    /**
+     * **Most tags change nothing about how what follows parses.** In HTML with nothing open, only the elements in
+     * `STRUCTURAL` do, so every other tag — the `<p>`, `<a>` and `<li>` that are nearly all of real markup — skips the
+     * stack, namespace and breakout work below.
+     */
+    if (foreign === 0 && opens.length === 0 && !STRUCTURAL.has(tagName)) {
+      tagName = '';
+      closing = false;
+      selfClosing = false;
+      encoding = '';
+      continue;
+    }
     /** The innermost element this scan opened that changes parsing, and the namespace this tag is read in. */
-    const top = opens.length === 0 ? undefined : opens[opens.length - 1];
-    const space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '';
+    let top = opens.length === 0 ? undefined : opens[opens.length - 1];
+    let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '';
+    /**
+     * **A breakout** — see `BREAKOUT`. The ONE rule here that moves the scan from foreign content toward HTML, the
+     * dangerous direction, so it acts only where its target is certain: inside SVG or MathML content (never at an
+     * integration point, where these tags are HTML already), popping to the nearest element whose content is HTML. It
+     * stops — and changes nothing — at `<noscript>` or anywhere the namespace is unknown, and at the template's own
+     * root unless that root is HTML: a template that inherited its depth cannot know what is outside it.
+     */
+    if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName))) {
+      const depth = breakOut(opens);
+      if (depth !== -1) {
+        foreign = depth;
+        top = opens.length === 0 ? undefined : opens[opens.length - 1];
+        space = 'html';
+      }
+    }
     /** `mglyph`/`malignmark` straight inside a MathML text integration point: read as MathML, not HTML. */
     const reentry = space === 'html' && top !== undefined && MATH_TEXT_POINTS.has(top.name) && (tagName === 'mglyph' || tagName === 'malignmark');
     /**
@@ -348,32 +415,26 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     const selfClosed = selfClosing && (space !== 'html' || reentry || tagName === 'svg' || tagName === 'math');
     if (closing) {
       /** An end tag closes the innermost element of its name this scan opened, and everything opened inside it. */
-      let at = opens.length - 1;
-      while (at >= 0 && opens[at].name !== tagName) at--;
       /**
-       * An end tag this scan never opened changes NOTHING. It used to lower the depth for `</svg>`, `</math>` and
-       * `</noscript>`, guessing it closed an element a parent template opened — but the parser closes only what is
-       * actually open: inside `<math>` a `</svg>` is ignored, so `<math></svg><style>${v}` read the style as HTML raw
-       * text while the browser parsed MathML markup, and a value's `<img onerror>` ran. Keeping the depth only ever
-       * over-escapes.
+       * Inside `<template>` content an end tag closes nothing outside the template (see `closeTo`). Each entry holds the
+       * foreign depth and the template depth from before it opened, and a close restores both — never a count kept
+       * by hand, which a close that also closes a template inside it would leave wrong.
        */
+      const at = closeTo(opens, tagName);
       if (at !== -1) {
         foreign = opens[at].foreign;
+        /** How deep inside nested `<template>` content this is: what it was before the closed element opened. */
+        inert = opens[at].inert;
         opens.length = at;
       }
-      /**
-       * How deep inside nested `<template>` content this is. That content is inert markup the client never walks,
-       * so a binding there is ignored on both sides — see `compile`.
-       */
-      if (tagName === 'template') inert--;
     } else if (!selfClosed) {
       /**
        * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
        * `<textarea>` and the rest are SVG/MathML elements whose content is MARKUP — read as raw text there, a hole
        * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
        * recognized only at depth 0, which an HTML integration point restores for its content (see `SVG_POINTS`).
-       * Deliberately incomplete on the SAFE side: a breakout tag that leaves foreign content unseen (`<svg><p>`) keeps
-       * the depth, and so does an end tag the parser ignores — both only ever read raw text as markup, which
+       * A breakout tag (`<svg><p>`) leaves it (see `BREAKOUT`). Deliberately incomplete on the SAFE side: an end tag
+       * the parser ignores keeps the depth, and so does `<font color>` — both only ever read raw text as markup, which
        * over-escapes, never injects. `<noscript>` counts as foreign: markup to a parser with scripting off and raw text
        * to one with it on, so it is scanned as the first and escaped as neither can misread (see `TEXT_ONLY`), and
        * nothing inside it is an integration point. The depth a hole sits at is recorded for the template rendered
@@ -386,25 +447,26 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
          * (`<math><svg>` is a MathML element named `svg`, so a `foreignObject` in it is MathML too).
          */
         const own = space === 'html' || (tagName === 'svg' && top !== undefined && top.name === 'annotation-xml');
-        opens.push({ name: tagName, foreign, space: own ? tagName : space });
+        opens.push({ name: tagName, foreign, inert, space: own ? tagName : space });
         foreign++;
       } else if (tagName === 'noscript') {
-        opens.push({ name: tagName, foreign, space: '' });
+        opens.push({ name: tagName, foreign, inert, space: '' });
         foreign++;
-      } else if (tagName === 'template') {
-        opens.push({ name: tagName, foreign, space });
+      } else if (tagName === 'template' && space !== 'svg' && space !== 'math') {
+        /** Inert content only for an HTML `<template>`: inside `<svg>`/`<math>` it is a foreign element, its content live markup. */
+        opens.push({ name: tagName, foreign, inert, space });
         inert++;
       } else if (
         (space === 'svg' && SVG_POINTS.has(tagName)) ||
         (space === 'math' && (MATH_TEXT_POINTS.has(tagName) || (tagName === 'annotation-xml' && HTML_ENCODINGS.has(encoding.toLowerCase()))))
       ) {
-        opens.push({ name: tagName, foreign, space: 'html' });
+        opens.push({ name: tagName, foreign, inert, space: 'html' });
         foreign = 0;
       } else if (space === 'math' && tagName === 'annotation-xml') {
         /** Not an integration point, but an `<svg>` straight inside it is SVG — so it is tracked. */
-        opens.push({ name: tagName, foreign, space });
+        opens.push({ name: tagName, foreign, inert, space });
       } else if (reentry) {
-        opens.push({ name: tagName, foreign, space: 'math' });
+        opens.push({ name: tagName, foreign, inert, space: 'math' });
         foreign = 1;
       } else if (foreign === 0 && RAWTEXT.has(tagName)) rawTag = tagName;
       else if (foreign === 0 && TEXT_ONLY.has(tagName)) textTag = tagName;

@@ -307,3 +307,61 @@ test('a stray foreign end tag does not leave foreign content', () => {
   const nested = serializeTemplate(template(['<math>', '</math>'], child));
   assert.ok(!injected(nested), `a child at an inherited depth: ${nested}`);
 });
+
+/**
+ * **A breakout tag ends foreign content** — `<svg><p>` leaves SVG, so a `<style>` after it is an HTML style whose
+ * content is raw text. This is the one rule that moves the scan from foreign toward HTML, the dangerous direction, so
+ * each row is checked by both oracles: no injection, and raw exactly where the browser builds an HTML `<style>`. It
+ * must never fire at an integration point, through `<noscript>`, or from a depth a parent gave, and `font` never
+ * breaks out (it does in a browser only with `color`/`face`/`size`, which this scan does not track: escaped, safe).
+ */
+test('a breakout tag leaves foreign content exactly where the parser does', () => {
+  const RAW = [
+    '<svg><p>', '<math><b>', '<svg><g><div>', '<svg></p>', '<svg></br>', '<svg><br/>', '<svg><TABLE>', '<math><mi><mglyph><b>',
+    '<svg><foreignObject><div><svg><p>', '<math><annotation-xml><b>', '<svg><mi><b>', '<math><svg><g><span>',
+    /** Breaks out to the `<desc>` point, so the `</math>` after it is an HTML end tag the parser ignores. */
+    '<svg><desc><svg><math><p></math>',
+  ];
+  const ESCAPED = ['<svg><font>', '<svg><g><x-y>', '<svg><pre-x>', '<noscript><svg><p>'];
+  for (const [lead, raw] of [...RAW.map((l) => [l, true]), ...ESCAPED.map((l) => [l, false])]) {
+    const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
+    assert.ok(!injected(served), `${lead}: ${served}`);
+    assert.equal(styleParent(served) === 'html', raw, `the oracle agrees about ${lead}`);
+    assert.equal(served.includes(PAYLOAD), raw, `${lead}: ${served}`);
+  }
+  /** The safe side, on purpose: the browser breaks out here and the server does not, so it over-escapes — never injects. */
+  const font = serializeTemplate(template(['<svg><font color=red><style>', '</style>'], PAYLOAD));
+  assert.ok(!injected(font) && !font.includes(PAYLOAD), font);
+  /** A template that starts at its parent's foreign depth cannot know where a breakout lands: it stays foreign. */
+  const nested = serializeTemplate(template(['<svg>', '</svg>'], template(['<p><style>', '</style>'], PAYLOAD)));
+  assert.ok(!injected(nested) && !nested.includes(PAYLOAD), nested);
+});
+
+/** `<svg><template>` is an SVG element, its content live markup — only an HTML `<template>`'s content is inert. */
+test('a binding inside an SVG <template> is live; inside an HTML one it is dropped', () => {
+  assert.equal(serializeTemplate(template(['<svg><template><text>', '</text></template></svg>'], 'v')), '<svg><template><text>v</text></template></svg>');
+  assert.equal(serializeTemplate(template(['<template><b>', '</b></template>'], 'v')), '<template><b></b></template>');
+  /** Inside template content an end tag closes nothing outside it: the `</svg>` is ignored, so the `<p>` is still inert. */
+  const inside = serializeTemplate(template(['<svg><foreignObject><template></svg><p>', '</p>'], 'v'));
+  assert.ok(!inside.includes('<p>v</p>'), inside);
+  /**
+   * The oracle for each: where the browser puts the value in the TEMPLATE's own markup (the statics joined around it) —
+   * live in an SVG `<template>`, inert in an HTML one — is where the served page shows it, or the server drops it.
+   */
+  const where = (markup) => {
+    const walk = (node, inert) => {
+      for (const child of node.childNodes ?? []) {
+        if (child.nodeName === '#text' && child.value.includes('zqv')) return inert ? 'inert' : 'live';
+        const found = walk(child, inert) ?? (child.content ? walk(child.content, true) : undefined);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    return walk(parse(`<!doctype html><body>${markup}`), false) ?? 'absent';
+  };
+  for (const statics of [['<svg><template><text>', '</text></template></svg>'], ['<template><b>', '</b></template>'], ['<svg><foreignObject><template></svg><p>', '</p>']]) {
+    const browser = where(statics.join('zqv'));
+    const server = where(serializeTemplate(template(statics, 'zqv')));
+    assert.ok(server === browser || (browser === 'inert' && server === 'absent'), `${statics.join('${…}')}: browser ${browser}, server ${server}`);
+  }
+});

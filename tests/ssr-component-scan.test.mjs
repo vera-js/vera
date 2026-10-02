@@ -8,8 +8,8 @@
  *
  * The oracle, on the SERVED page: every `<scan-kid>` the browser creates in HTML (outside inert `<template>`
  * content) carries the shadow root the server rendered, and every rendered shadow root sits on one. The one
- * exemption is a component with an SVG/MathML ancestor — the server does not model a breakout tag (`<svg><p>`) or an
- * end tag the parser ignores, so there it can only under-render: a hydration mismatch, never markup in the wrong place.
+ * exemption is a component with an SVG/MathML ancestor — the server does not model an end tag the parser ignores, or
+ * `<font color>`'s breakout, so there it can only under-render: a hydration mismatch, never markup in the wrong place.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -75,12 +75,13 @@ test('an unregistered name that starts like a registered one is left exactly as 
 
 const SEEDS = extendSeeds([3, 17, 404, 8086]);
 const CASES_PER_SEED = 250;
-/** No breakout tag (`<b>`, `<p>`… inside foreign content leave it): the server does not model them yet, and under-renders after one. */
+/** Breakout tags are in (`<p>`, `<b>`, `</p>`…); `<font color>` is not — it breaks out in a browser and, on purpose, not here. */
 const TOKENS = [
   '<scan-kid>', '</scan-kid>', '<scan-kid/>', '<SCAN-KID>', '<scan-kid.y>', '<', '</', '<!', '<?', '<!--', '-->', '>', '/>', '"', "'", '=', ' ', '\v',
   'a', 'x', '<a>', '<svg>', '</svg>', '<math>', '</math>', '<foreignObject>', '</foreignObject>', '<foreignObject/>', '<mi>', '<mtext>',
   '<mglyph>', '<desc>', '<style>', '</style>', '<textarea>', '</textarea>', '</textareax>', '<title>', '<template>', '</template>',
   '<script>', '</script>', '</scripts>', '<noscript>', ' x="', "<a x'", ' a=<scan-kid>',
+  '<p>', '<b>', '</p>', '<div>', "<b x'",
 ];
 const lcg = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x80000000);
 
