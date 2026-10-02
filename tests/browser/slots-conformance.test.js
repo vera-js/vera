@@ -91,6 +91,17 @@ const view = (side) => {
       for (const assigned of node.assignedNodes({ flatten: true })) walk(assigned);
       return;
     }
+    /**
+     * The light side's composed reading (option 4, 2026-10-02): a `<slot>` still in the page is one with nothing assigned,
+     * showing its fallback — `display: contents`, so it composes as its children, as a shadow slot composes as its
+     * flattened assignment; and `<vm-unassigned hidden>` holds what no slot took — present, connected, unrendered, as a
+     * native unassigned light child is, so it is not in the composed tree.
+     */
+    if (node.localName === 'slot') {
+      for (const child of node.childNodes) walk(child);
+      return;
+    }
+    if (node.localName === 'vm-unassigned') return;
     flush();
     const tag = node.localName.replace(/-(native|light)$/, '');
     const attrs = [...node.attributes].map((a) => ` ${a.name}="${a.value}"`).sort().join('');
@@ -125,7 +136,7 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
   const sides = ['native', 'light'].map((mode) => {
     const side = { mode, ids: new Map(), count: 0, hosts: [], targets: [], parts: [] };
     for (let i = 0; i < hosts; i++) {
-      const host = document.createElement('div');
+      const host = document.createElement('x-conf-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
       side.hosts.push(host);
       side.targets.push(mode === 'native' ? host.attachShadow({ mode: 'open' }) : host);
     }

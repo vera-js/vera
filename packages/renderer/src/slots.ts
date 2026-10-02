@@ -86,15 +86,32 @@ const unstand = (node: Node) => {
   stand.remove();
 };
 
+/**
+ * **Where a light node physically is.** A `<slot>` can itself be a light child of another host — slot FORWARDING — and
+ * while it has content it is out of the page, its content standing in its place between its two comments: that range is
+ * where the node is, and moving the node moves the range.
+ */
+const firstOf = (node: Node): Node => (node as Kept).$rec?.rs ?? node;
+const lastOf = (node: Node): Node => (node as Kept).$rec?.re ?? node;
+/** A light node moved before `ref` in `parent` — the whole range of a forwarded slot that is out of the page. */
+const move = (parent: Node, node: Node, ref: Node | null) => {
+  const last = lastOf(node);
+  for (let at: Node | null = firstOf(node); at !== null; ) {
+    const next: Node | null = at === last ? null : at.nextSibling;
+    parent.insertBefore(at, ref);
+    at = next;
+  }
+};
+
 /** A light node back to holding: a run's node to its place in the run (where its stand-in is), any other to the end. */
 const toHolding = (light: Light, node: Node) => {
   const stand = STAND.get(node);
   if (stand !== undefined) {
-    park(light).insertBefore(node, stand);
+    move(park(light), node, stand);
     unstand(node);
     PLACED.delete(node);
   } else {
-    park(light).insertBefore(node, light.holding.lastChild);
+    move(park(light), node, light.holding.lastChild);
     PLACED.set(node, null);
   }
 };
@@ -170,9 +187,10 @@ const inLight = (node: Node, light: Light): boolean => {
 /** Whether a light node is still where this module put it — false once something else took it (the user's adoption stands). */
 const isWhere = (node: Node, light: Light): boolean => {
   const rec = PLACED.get(node);
-  const parent = node.parentNode;
+  const parent = firstOf(node).parentNode;
   if (rec === undefined) return parent === light.holding;
-  return rec === null ? parent === light.holding : parent !== null && parent === rec.re?.parentNode;
+  /** `PLACED` is shared by every host: a node another host has placed is not this one's, wherever it sits. */
+  return rec === null ? parent === light.holding : rec.light === light && parent !== null && parent === rec.re?.parentNode;
 };
 
 /**
@@ -219,8 +237,8 @@ const place = (light: Light) => {
    */
   if (ending) light.fresh = false;
   const host = light.host;
-  const home = (node: Node) => node.parentNode === holding || (fresh && node.parentNode === host);
-  light.units = light.units.filter((unit) => (unit.a === unit.z ? isWhere(unit.a, light) || (fresh && unit.a.parentNode === host) : home(unit.a) && home(unit.z)));
+  const home = (node: Node) => firstOf(node).parentNode === holding || (fresh && firstOf(node).parentNode === host);
+  light.units = light.units.filter((unit) => (unit.a === unit.z ? isWhere(unit.a, light) || (fresh && firstOf(unit.a).parentNode === host) : home(unit.a) && home(unit.z)));
   for (const unit of light.units)
     if (unit.a !== unit.z)
       for (let node = unit.a.nextSibling; node !== null && node !== unit.z; node = node.nextSibling) {
@@ -268,22 +286,23 @@ const place = (light: Light) => {
       /** Only what is out of place moves: a move disconnects and reconnects a component, re-running its lifecycle. */
       let previous: Node = rec.rs!;
       for (const node of mine) {
-        if (node.parentNode === parent && node.previousSibling === previous) {
-          previous = node;
+        const first = firstOf(node);
+        if (first.parentNode === parent && first.previousSibling === previous) {
+          previous = lastOf(node);
           continue;
         }
         /** A run's node, still at its place in holding: a stand-in takes the place before it leaves. */
         if (!statics.has(node) && home(node) && !STAND.has(node)) {
           const stand = node.ownerDocument!.createComment('');
-          node.parentNode!.insertBefore(stand, node);
+          first.parentNode!.insertBefore(stand, first);
           STAND.set(node, stand);
           REAL.set(stand, node);
         }
-        parent.insertBefore(node, previous.nextSibling);
+        move(parent, node, previous.nextSibling);
         /** Marked as moved by slots: the renderer follows it here when it inserts beside it (see `into`). */
         (node as Node & { _$slotted$?: boolean })._$slotted$ = true;
         PLACED.set(node, rec);
-        previous = node;
+        previous = lastOf(node);
       }
     }
     if (mine.length !== rec.shown.length || mine.some((node, i) => node !== rec.shown[i])) {
@@ -348,8 +367,16 @@ const note = (records: MutationRecord[]) => {
       }
     /** A host's own children: an addition outside its render's range is a new light child. */
     const light = HOSTS.get(record.target as Element);
-    if (light !== undefined && record.type === 'childList')
+    if (light !== undefined && record.type === 'childList') {
+      /**
+       * Until its first render ends, a run still sits IN the host — so what the renderer takes from it there (a node a slot
+       * already took, through its stand-in) is read back as it is in holding. Missed, the stand-in went and its node stayed
+       * in the slot: a commit during the host's own render left the old content beside the new. Only the REMOVED half: an
+       * addition here is the render's own or a new light child (`adopt`), never a run's node moving.
+       */
+      if (light.fresh) unrun(light, record);
       for (const node of record.addedNodes) adopt(light, node);
+    }
   }
 };
 const handle = (records: MutationRecord[]) => {
@@ -441,7 +468,12 @@ const settleIn = (light: Light, node: Node) => {
  * node now is. Each lands in the run at the place its neighbor's stand-in holds, so the run stays the renderer's
  * whole range; what has no such neighbor is the user's own edit.
  */
-const replay = (light: Light, record: MutationRecord) => {
+/**
+ * **What the renderer took away from a run, read back** — the removed half of `replay`: a stand-in it removed takes its
+ * node with it (cleared with its run) or into the fragment `hold` parked it in; a run's node it removed from a slot drops
+ * its place. Called on its own for a host's own records while its first render runs, when a run still sits in the host.
+ */
+const unrun = (light: Light, record: MutationRecord) => {
   const holding = light.holding;
   for (const node of record.removedNodes) {
     const real = REAL.get(node);
@@ -463,6 +495,11 @@ const replay = (light: Light, record: MutationRecord) => {
       unstand(node);
     }
   }
+};
+
+const replay = (light: Light, record: MutationRecord) => {
+  const holding = light.holding;
+  unrun(light, record);
   for (const node of record.addedNodes) {
     if (node.parentNode !== record.target) continue;
     if (record.target === holding) {
@@ -493,7 +530,7 @@ const replay = (light: Light, record: MutationRecord) => {
 const release = (light: Light) => {
   for (const unit of light.units) {
     if (unit.a === unit.z) {
-      light.host.appendChild(unit.a);
+      move(light.host, unit.a, null);
       continue;
     }
     for (let node = unit.a.nextSibling; node !== null && node !== unit.z; ) {

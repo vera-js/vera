@@ -44,7 +44,7 @@ const pair = async () => {
   const shadow = document.createElement('mo-shadow');
   document.body.appendChild(shadow);
 
-  const light = document.createElement('div');
+  const light = document.createElement('mo-light'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
   document.body.appendChild(light);
   const handles = {};
   renderInto(

@@ -21,7 +21,7 @@ const draw = (label) => html`<article><header><slot name="head">none</slot></hea
   <main><slot>empty</slot></main><footer>${label}</footer></article>`;
 
 const mount = (markup) => {
-  const host = document.createElement('div');
+  const host = document.createElement('x-state-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
   host.innerHTML = markup;
   document.body.appendChild(host);
   renderInto(draw('one'), host);
@@ -100,7 +100,7 @@ it('places slotted content in the flattened order, as native shadow slotting doe
   const order = {};
 
   for (const mode of ['shadow', 'light']) {
-    const host = document.createElement('div');
+    const host = document.createElement('x-state-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
     host.innerHTML = markup;
     document.body.appendChild(host);
     if (mode === 'shadow') {
@@ -141,7 +141,7 @@ it('places slotted content in the flattened order, as native shadow slotting doe
 it('renders a fallback-nested slot exactly when the platform does', async () => {
   const reading = {};
   for (const mode of ['shadow', 'light']) {
-    const element = document.createElement('div');
+    const element = document.createElement('x-state-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
     element.innerHTML = '<i slot="a">A</i><i slot="b">B</i>';
     document.body.appendChild(element);
     /** Held BEFORE rendering: in light mode an unassigned node is captured out of the host, so

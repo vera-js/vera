@@ -30,7 +30,7 @@ it('distributes, and stays LIVE, for a host in another document', async () => {
   const otherDoc = frame.contentDocument;
   expect(otherDoc.defaultView).to.not.equal(window, 'CONTROL: this really is a second realm');
 
-  const host = otherDoc.createElement('div');
+  const host = otherDoc.createElement('x-realm-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
   host.innerHTML = '<b slot="h">ONE</b>text';
   otherDoc.body.appendChild(host);
   renderInto(card(), host);
@@ -69,7 +69,7 @@ it('dispatches slotchange in the host window\'s own realm', async () => {
   expect(otherWin).to.not.equal(window, 'CONTROL: a second realm');
 
   const seen = [];
-  const host = otherDoc.createElement('div');
+  const host = otherDoc.createElement('x-realm-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
   host.innerHTML = '<b slot="h">ONE</b>';
   otherDoc.body.appendChild(host);
   renderInto(
@@ -87,7 +87,7 @@ it('dispatches slotchange in the host window\'s own realm', async () => {
 
 it('slotchange and assignedNodes track live changes in a real engine', async () => {
   const seen = [];
-  const host = document.createElement('div');
+  const host = document.createElement('x-realm-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
   host.innerHTML = '<b slot="h">ONE</b>';
   document.body.appendChild(host);
   let held = null;

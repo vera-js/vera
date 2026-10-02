@@ -1308,3 +1308,49 @@ test('the unassigned container stays display:none against an author !important r
   assert.equal(doc.defaultView.getComputedStyle(box).display, 'none', 'the author rule did not win');
   sheet.remove(); h.remove();
 });
+
+/**
+ * **Three defects only real engines showed, pinned here too** (found 2026-10-02, the first three-engine run of option 4;
+ * each probe failed on the build before its fix).
+ */
+test('a user node moved to another host and back is shown by the host it is in (PLACED is shared by hosts)', async () => {
+  const draw = () => html`<div><slot name="s">empty</slot></div>`;
+  const [h0, h1] = [host('<b slot="s">moving</b>'), host()];
+  const b = h0.querySelector('b');
+  renderInto(draw(), h0); renderInto(draw(), h1); await settle();
+  h1.appendChild(b); await settle();
+  assert.equal(shown(h1), 'moving', 'CONTROL: the second host shows it');
+  h0.appendChild(b); await settle();
+  assert.equal(shown(h0), 'moving', 'back in the first host, and shown there');
+  assert.equal(shown(h1), 'empty', 'the second host shows its fallback again');
+  h0.remove(); h1.remove();
+});
+
+test('a slot forwarded into a nested component keeps its place beside the content after it', async () => {
+  if (!customElements.get('fw-panel')) customElements.define('fw-panel', class extends HTMLElement { connectedCallback() { init(this); render(() => html`<section><slot>inner fb</slot></section>`); } });
+  const draw = (n) => html`<fw-panel><slot name="f">outer fb</slot>${n}</fw-panel>`;
+  const h = host('<h3 slot="f">forwarded</h3>');
+  const h3 = h.querySelector('h3');
+  renderInto(draw(1), h); await settle();
+  assert.equal(shown(h.querySelector('section')), 'forwarded1', 'CONTROL');
+  h3.remove(); await settle();
+  assert.equal(shown(h.querySelector('section')), 'outer fb1', 'the fallback stands where the forwarded content stood');
+  h.appendChild(h3); await settle();
+  renderInto(draw(2), h); await settle();
+  assert.equal(shown(h.querySelector('section')), 'forwarded2');
+  h.remove();
+});
+
+test('a commit into a run during the host\'s own first render replaces what a slot already took', async () => {
+  let fire = null;
+  if (!customElements.get('fw-fire')) customElements.define('fw-fire', class extends HTMLElement { connectedCallback() { init(this); render(() => html`<span &ref=${() => { const f = fire; fire = null; f?.(); }}></span><main><slot>HFB</slot></main>`); } });
+  const parts = [];
+  function later(part, previous) { if (previous) return previous; part._$commit$(html`<i>loading</i>`); parts.push(part); return {}; }
+  const h = host();
+  fire = () => parts[0]._$commit$(html`<div><slot>late fb</slot></div>`);
+  renderInto(html`<fw-fire>${{ _$child$: later }}</fw-fire>`, h); await settle();
+  assert.equal(parts.length, 1, 'CONTROL: the applier ran');
+  assert.equal(h.querySelector('main i'), null, 'the replaced placeholder is gone, not left beside the new content');
+  assert.equal(shown(h.querySelector('main')), 'late fb');
+  h.remove();
+});
