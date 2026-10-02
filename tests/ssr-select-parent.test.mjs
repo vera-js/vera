@@ -70,3 +70,27 @@ test('combinators stop at the first parent that is not an element, exactly as th
   assert.equal(expected['shadow root: p > b'], 1);
   assert.deepEqual(answers(shimDocument), expected);
 });
+
+/**
+ * **`:scope` from a shadow root or a fragment matches no element** — what all three engines answer
+ * (`tests/browser/scope-non-element.test.js`; the platform decides it, so jsdom is not the oracle). The shim answered
+ * 1 and 2 for a shadow root, because its `>` walk climbed onto the root and tested `:scope` there.
+ */
+test(':scope from a shadow root or a fragment matches nothing, as every engine answers', () => {
+  const doc = shimDocument;
+  const fill = (node) => {
+    node.appendChild(doc.createElement('b'));
+    const p = doc.createElement('p');
+    p.appendChild(doc.createElement('b'));
+    node.appendChild(p);
+    return node;
+  };
+  const host = doc.createElement('div');
+  doc.body.appendChild(host);
+  const element = fill(doc.createElement('div'));
+  /** The control: from an element, `:scope` is that element. */
+  assert.equal(element.querySelectorAll(':scope > b').length, 1);
+  assert.equal(element.querySelectorAll(':scope b').length, 2);
+  for (const [label, node] of [['shadow root', fill(host.attachShadow({ mode: 'open' }))], ['fragment', fill(doc.createDocumentFragment())]])
+    for (const selector of [':scope > b', ':scope b', ':scope']) assert.equal(node.querySelectorAll(selector).length, 0, `${label}: ${selector}`);
+});
