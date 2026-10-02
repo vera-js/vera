@@ -1370,3 +1370,62 @@ test('a first render that throws, a user edit, then a render that completes: dis
   assert.equal(shown(h.querySelector('main')), 't1L');
   h.remove();
 });
+
+/**
+ * **A forwarded slot that is OUT of the page moves as its range** (vera-5a's M2: an identity `firstOf` survived every
+ * other jsdom suite). The outer slot is filled, so its element is out and its content stands between its comments in
+ * the inner host's light; content then arrives AHEAD of it in the inner host, so the inner host must move the
+ * forwarded unit — the whole range, or the content order breaks.
+ */
+test('a filled forwarded slot moves as its range when content arrives ahead of it', async () => {
+  if (!customElements.get('fw-panel')) customElements.define('fw-panel', class extends HTMLElement { connectedCallback() { init(this); render(() => html`<section><slot>inner fb</slot></section>`); } });
+  const draw = (pre, n) => html`<fw-panel>${pre}<slot name="f">outer fb</slot>${n}</fw-panel>`;
+  const h = host('<h3 slot="f">forwarded</h3>');
+  renderInto(draw(null, 1), h); await settle();
+  assert.equal(shown(h.querySelector('section')), 'forwarded1', 'CONTROL: forwarded, the slot out of the page');
+  assert.equal(h.querySelector('slot[name="f"]'), null, 'CONTROL: the forwarded slot is filled, so out');
+  renderInto(draw('P', 1), h); await settle();
+  assert.equal(shown(h.querySelector('section')), 'Pforwarded1', 'what arrived ahead stands ahead of the forwarded content');
+  renderInto(draw(null, 2), h); await settle();
+  assert.equal(shown(h.querySelector('section')), 'forwarded2');
+  h.remove();
+});
+
+/**
+ * **A render end distributes only the hosts that need it** (vera-5a's M6: without clearing `fresh`, every render end
+ * redistributed every host ever captured — ≈190× slower at 300 hosts, and no other test noticed). Structural, not timed:
+ * count how often a slot's `name` is read (every distribution reads each of its host's slots) while ONE host
+ * re-renders, and require that it does not grow with how many OTHER hosts exist.
+ */
+test('re-rendering one host does not redistribute every other host', async () => {
+  const others = Array.from({ length: 100 }, () => host('<b slot="a">x</b>'));
+  const drawOther = () => html`<header><slot name="a">FA</slot></header>`;
+  for (const other of others) renderInto(drawOther(), other);
+  await settle();
+  const one = host('<i slot="a">1</i>');
+  const draw = (n) => html`<header><slot name="a">FA</slot></header><p>${n}</p>`;
+  renderInto(draw(0), one); await settle();
+  const proto = dom.window.Element.prototype;
+  const original = proto.getAttribute;
+  let reads = 0;
+  proto.getAttribute = function (name) {
+    if (name === 'name' && this.localName === 'slot') reads++;
+    return original.call(this, name);
+  };
+  try {
+    /** Each render has distribution work for ONE host: a new light child for its slot. */
+    for (let n = 1; n <= 20; n++) {
+      const child = doc.createElement('i');
+      child.setAttribute('slot', 'a');
+      one.append(child);
+      renderInto(draw(n), one);
+    }
+    await settle();
+  } finally {
+    proto.getAttribute = original;
+  }
+  assert.ok(reads > 0, 'CONTROL: a distribution read slot names at all');
+  assert.ok(reads < others.length, `${reads} slot-name reads over 20 renders of one host — it grows with the ${others.length} other hosts`);
+  assert.equal(slotted(one, 'a').length, 21, 'CONTROL: every appended child was distributed');
+  for (const h of [...others, one]) h.remove();
+});
