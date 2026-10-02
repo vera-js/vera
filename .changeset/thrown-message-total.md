@@ -1,9 +1,8 @@
 ---
 '@verajs/autoloader': patch
-'@verajs/motion': patch
 ---
 
-A `resolve` option or a motion function that throws a value which is not an Error is reported, instead of crashing the report
+A `resolve` option that throws a value which is not an Error is reported, instead of crashing the report
 
 The autoloader's and directive loader's `resolve` option, and a motion tick or vocabulary function, are the author's
 code, and JavaScript lets code throw anything. The error report read `.message` or called `String()` on what was
