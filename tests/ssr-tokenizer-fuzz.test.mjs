@@ -35,6 +35,8 @@ const TOKENS = [
   ' onA=', ' xonA=', ' data-onB=', 'onA',
   /** Integration points and their traps: the namespace each counts in, `/>`, `mglyph`, and `annotation-xml`'s encoding. */
   '<foreignObject>', '<desc>', '<mi>', '<mtext>', '<mglyph>', '</mi>', '</foreignObject>', '<annotation-xml encoding=text/html>', '<annotation-xml>',
+  /** End tags that may close nothing the scan opened — a stray one must leave the depth alone. */
+  '</svg>', '</math>', '</noscript>', '<style>',
 ];
 const CONTEXTS = [['', ''], ['<svg>', '</svg>'], ['<math>', '</math>'], ['<style>', '</style>'], ['<textarea>', '</textarea>'], ['<!--', '-->'], ['<template>', '</template>'], ['<p>', '</p>'],
   ['<svg><foreignObject>', '</foreignObject></svg>'], ['<math><mi>', '</mi></math>'], ['<math><svg>', '</svg></math>']];

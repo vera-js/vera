@@ -289,3 +289,21 @@ test('a dropped comment binding cannot fuse its neighbors, and an unquoted value
   const tail = serializeTemplate(template(['<x title=', '\vb="c>kept</x>'], 'v'));
   assert.equal(page(tail).find((el) => el.tagName === 'x')?.attrs[0].value, 'v\vb="c', JSON.stringify(tail));
 });
+
+/**
+ * **An end tag the scan never opened changes nothing.** It used to lower the foreign depth for `</svg>`, `</math>` and
+ * `</noscript>`, guessing it closed something a parent opened — but the parser closes only what is open, and inside
+ * `<math>` a `</svg>` is ignored. So the next `<style>` was read as HTML raw text while the browser parsed MathML
+ * markup, and an untrusted value's `<img onerror>` ran.
+ */
+test('a stray foreign end tag does not leave foreign content', () => {
+  for (const [lead, close] of [['<math></svg>', '</math>'], ['<svg></math>', '</svg>'], ['<math></noscript>', '</math>']]) {
+    const served = serializeTemplate(template([`${lead}<style>`, `</style>${close}`], PAYLOAD));
+    assert.ok(!injected(served), served);
+  }
+  /** The control: the same style straight inside <math> was always escaped. */
+  assert.ok(!injected(serializeTemplate(template(['<math><style>', '</style></math>'], PAYLOAD))));
+  const child = template(['</svg><style>', '</style>'], PAYLOAD);
+  const nested = serializeTemplate(template(['<math>', '</math>'], child));
+  assert.ok(!injected(nested), `a child at an inherited depth: ${nested}`);
+});

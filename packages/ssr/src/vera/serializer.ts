@@ -619,10 +619,17 @@ const scanTag = (text: string, state: ScanState, edits?: number[]): ScanResult =
       /** An end tag closes the innermost element of its name this scan opened, and everything opened inside it. */
       let at = opens.length - 1;
       while (at >= 0 && opens[at].name !== tagName) at--;
+      /**
+       * An end tag this scan never opened changes NOTHING. It used to lower the depth for `</svg>`, `</math>` and
+       * `</noscript>`, guessing it closed an element a parent template opened — but the parser closes only what is
+       * actually open: inside `<math>` a `</svg>` is ignored, so `<math></svg><style>${v}` read the style as HTML raw
+       * text while the browser parsed MathML markup, and a value's `<img onerror>` ran. Keeping the depth only ever
+       * over-escapes.
+       */
       if (at !== -1) {
         foreign = opens[at].foreign;
         opens.length = at;
-      } else if (tagName === 'svg' || tagName === 'math' || tagName === 'noscript') foreign = Math.max(0, foreign - 1);
+      }
       /**
        * How deep inside nested `<template>` content this is. That content is inert markup the client never walks,
        * so a binding there is ignored on both sides — see `compile`.
