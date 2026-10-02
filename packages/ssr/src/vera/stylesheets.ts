@@ -27,7 +27,11 @@ export const setRenderingTag = (tag: string): string => {
  * PROCESS, request thirty shipping twenty-nine requests of other people's CSS.
  */
 const hoistedThisRender = new Set<string>();
-export const beginHoisting = (): void => hoistedThisRender.clear();
+export const beginHoisting = (): void => {
+  hoistedThisRender.clear();
+  /** Each render is its own page, and a page starts with no adopted sheets — which also bounds the list. */
+  documentSheets.length = 0;
+};
 
 export class StyleSheetShim {
   declare cssText: string;
@@ -126,4 +130,39 @@ export const hoist = (cssText: string): void => {
   const list = sheets ?? [];
   if (!list.includes(cssText)) list.push(cssText);
   hoistedStyles.set(renderingTag, list);
+};
+
+/**
+ * **`document.adoptedStyleSheets`: a live list, and every sheet that joins it is hoisted.** It was an empty array
+ * on every read, and its setter hoisted only the LAST sheet assigned — right for `@verajs/styles`, which appends one
+ * at a time, and wrong for `document.adoptedStyleSheets = [a, b]`, which served `b` and dropped `a`. Now a write —
+ * assignment, or an indexed write such as `push`, which the platform allows on its observable array — hoists each sheet
+ * not already in the list, attributed to the component rendering, and a read answers what was adopted this render.
+ * Checked as the platform checks: a value that is not a sequence, or an entry that is not a `CSSStyleSheet`, is a
+ * `TypeError`, before anything changes.
+ */
+const documentSheets: StyleSheetShim[] = [];
+const checkSheet = (sheet: unknown): StyleSheetShim => {
+  if (!(sheet instanceof StyleSheetShim))
+    throw new TypeError(`Failed to set the 'adoptedStyleSheets' property: the provided value is not of type 'CSSStyleSheet'.`);
+  return sheet;
+};
+const adopt = (sheet: StyleSheetShim): void => {
+  if (!documentSheets.includes(sheet) && sheet.cssText) hoist(sheet.cssText);
+};
+/** What a read of `document.adoptedStyleSheets` answers: the list itself, with indexed writes checked and hoisted. */
+export const documentAdoptedSheets = new Proxy(documentSheets, {
+  set(target, key, value: unknown) {
+    if (typeof key === 'string' && /^\d+$/.test(key)) adopt(checkSheet(value));
+    return Reflect.set(target, key, value);
+  },
+});
+/** What an assignment to `document.adoptedStyleSheets` does. */
+export const setDocumentAdoptedSheets = (sheets: unknown): void => {
+  if (!Array.isArray(sheets))
+    throw new TypeError(`Failed to set the 'adoptedStyleSheets' property: the provided value cannot be converted to a sequence.`);
+  const checked = sheets.map(checkSheet);
+  for (const sheet of checked) adopt(sheet);
+  documentSheets.length = 0;
+  documentSheets.push(...checked);
 };

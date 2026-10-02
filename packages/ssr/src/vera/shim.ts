@@ -18,7 +18,7 @@
  * if this does not lie. `tests/ssr-dom-surface.test.mjs` enforces both halves.
  */
 import { escapeHtml, escapeStyleText, escapeRawText, RAW_TEXT_ELEMENTS } from './escaping.js';
-import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting } from './stylesheets.js';
+import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting, documentAdoptedSheets, setDocumentAdoptedSheets } from './stylesheets.js';
 import { cancelFrame, flushFrames, flushFramesAsync, requestFrame } from './frames.js';
 import { registry } from './registry.js';
 import {
@@ -535,13 +535,12 @@ export const installShims = () => {
      * `keydown` it fires itself — behaved one way in a browser and not at all here.
      */
     ...delegateEvents(new EventTarget(), () => globalThis.document),
-    /** Light-DOM styles hoist here — `adoptStyles`' constructed-sheet path. */
+    /** Light-DOM styles hoist here — `adoptStyles`' constructed-sheet path. See `documentAdoptedSheets`. */
     get adoptedStyleSheets() {
-      return [];
+      return documentAdoptedSheets;
     },
-    set adoptedStyleSheets(sheets: readonly { readonly cssText?: string }[]) {
-      const added = sheets[sheets.length - 1];
-      if (added?.cssText) hoist(added.cssText);
+    set adoptedStyleSheets(sheets: unknown) {
+      setDocumentAdoptedSheets(sheets);
     },
     head: {
       appendChild: <T extends { readonly innerHTML?: string } | null | undefined>(node: T) => {

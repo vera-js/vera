@@ -68,7 +68,11 @@ and a request does not: the call awaits `import()`, which yields on a module's f
 whichever request assigned last wins for every render after it. Measured with three concurrent
 first-time imports, two of three rendered another request's path. The option is applied inside the
 render's turn and restored in a `finally`. `title` is returned rather than left on the global for the
-same reason, and the document's own title is restored afterwards.
+same reason, and the document's own title is restored afterwards. **Two `renderToStringAsync` calls that
+overlap also share the frame queue and the document's adopted stylesheets**, both process-wide: one request's
+drain can run the other's frame callbacks, and a sheet one adopts is in the other's
+`document.adoptedStyleSheets` until the next render starts. Neither reaches markup the other request builds,
+but code that counts frames or reads the document's sheets should not depend on its request being alone.
 
 ## What runs, and when
 
