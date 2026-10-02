@@ -163,20 +163,21 @@ const distribute = (light: Light) => {
 const place = (light: Light) => {
   light.dirty = false;
   const holding = light.holding;
-  /** Captured and not yet distributed: out of the host now, in light order — once (a top-level slot's content lives there). */
-  if (light.fresh) for (const unit of light.units)
-    if (unit.a.parentNode === light.host)
-      if (unit.a === unit.z) holding.insertBefore(unit.a, holding.lastChild);
-      else {
-        const run: Node[] = [];
-        for (let node: Node | null = unit.a; node !== null; node = node.nextSibling) {
-          run.push(node);
-          if (node === unit.z) break;
-        }
-        for (const node of run) holding.insertBefore(node, holding.lastChild);
-      }
-  light.fresh = false;
-  light.units = light.units.filter((unit) => (unit.a === unit.z ? isWhere(unit.a, light) : unit.a.parentNode === holding && unit.z.parentNode === holding));
+  /**
+   * **Captured and not yet distributed: placed straight from the host.** A node a slot takes moves host → slot in ONE
+   * operation, which the platform — and core — see as a move, not a removal (`isConnected` stays true through it): a
+   * slotted component is not torn down and set up again. Only what no slot takes, and a run's own markers, go to holding.
+   */
+  const fresh = light.fresh;
+  /**
+   * Parked only when the render ENDS (`ending`): its slots have all mounted by then, so a node no slot took really has
+   * none. Parked earlier — at the first slot's mount — a node for a later slot would hop host → holding → slot, two
+   * operations, and be torn down and set up again on the way.
+   */
+  if (ending) light.fresh = false;
+  const host = light.host;
+  const home = (node: Node) => node.parentNode === holding || (fresh && node.parentNode === host);
+  light.units = light.units.filter((unit) => (unit.a === unit.z ? isWhere(unit.a, light) || (fresh && unit.a.parentNode === host) : home(unit.a) && home(unit.z)));
   for (const unit of light.units)
     if (unit.a !== unit.z)
       for (let node = unit.a.nextSibling; node !== null && node !== unit.z; node = node.nextSibling) {
@@ -229,9 +230,9 @@ const place = (light: Light) => {
           continue;
         }
         /** A run's node, still at its place in holding: a stand-in takes the place before it leaves. */
-        if (!statics.has(node) && node.parentNode === holding && !STAND.has(node)) {
+        if (!statics.has(node) && home(node) && !STAND.has(node)) {
           const stand = node.ownerDocument!.createComment('');
-          holding.insertBefore(stand, node);
+          node.parentNode!.insertBefore(stand, node);
           STAND.set(node, stand);
           REAL.set(stand, node);
         }
@@ -257,17 +258,30 @@ const place = (light: Light) => {
       holding.insertBefore(node, stand);
       unstand(node);
       PLACED.delete(node);
-    } else if (rec !== undefined && rec !== null) {
+    } else if ((rec !== undefined && rec !== null) || (ending && statics.has(node) && node.parentNode === host)) {
       holding.insertBefore(node, holding.lastChild);
       PLACED.set(node, null);
     }
   }
+  /** A run captured in the host goes to holding now — its markers, stand-ins and unassigned nodes; its slotted nodes left in one move each. */
+  if (fresh && ending)
+    for (const unit of light.units)
+      if (unit.a !== unit.z && unit.a.parentNode === host) {
+        const run: Node[] = [];
+        for (let node: Node | null = unit.a; node !== null; node = node.nextSibling) {
+          run.push(node);
+          if (node === unit.z) break;
+        }
+        for (const node of run) holding.insertBefore(node, holding.lastChild);
+      }
   for (const { rec } of live) if (!wanted.has(rec)) unregion(rec);
 };
 
 /* ── the observer: what the page's templates (and the user) do afterwards ─────────────────────── */
 
 let observers: [MutationObserver, MutationObserver] | null = null;
+/** A render is ending (the renderer's `_$done$`): captured children no slot took are parked now, not before. */
+let ending = false;
 /** Records of this module's own moves, taken and dropped once it is done — they are not news. */
 const settle = () => {
   if (observers !== null) {
@@ -312,7 +326,7 @@ const lights = new Set<Light>();
 const flush = () => {
   if (busy) return;
   if (observers !== null) note([...observers[0].takeRecords(), ...observers[1].takeRecords()]);
-  for (const light of lights) if (light.dirty) distribute(light);
+  for (const light of lights) if (light.dirty || (ending && light.fresh)) distribute(light);
   settle();
 };
 const watch = (node: Node, light: Light) => {
@@ -800,7 +814,12 @@ export const slotDiscovery = [
         const name = (container as Element).localName;
         if (name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name)) capture(container as Element, start);
       }
-      flush();
+      ending = true;
+      try {
+        flush();
+      } finally {
+        ending = false;
+      }
     };
   },
 ];

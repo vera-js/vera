@@ -57,41 +57,38 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
  * own element and has not returned yet — runs at once instead of into a set nothing drains again; one
  * registered between the disconnect and the microtask runs in the sweep, exactly once.
  */
-type Parting = ComponentElement & { _down(): void; _doc?: Document };
-const parting = new Set<Parting>();
-/** Tears down everything still parted. The server's render end calls it too: there, nothing waits for a microtask. */
-export const flushParting = () => {
-  for (const element of parting) {
-    parting.delete(element);
-    element._down();
-  }
-};
+type Moving = ComponentElement & { _moved?: boolean; _doc?: Document };
 if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {
-    const proto = Class.prototype as Parting & { connectedCallback?: () => void };
+    const proto = Class.prototype as Moving & { connectedCallback?: () => void };
     const own = proto.disconnectedCallback;
     const connected = proto.connectedCallback;
-    /** The real teardown — the author's own first, while subscriptions are still live — kept with the class it wraps. */
-    proto._down = function (this: Parting) {
-      own?.call(this);
-      this._cleanups?.forEach((cleanup) => runCleanup(cleanup, this));
-      this._cleanups?.clear();
-      this._removed = true;
-    };
-    proto.disconnectedCallback = function (this: Parting) {
-      if (parting.size === 0) queueMicrotask(flushParting);
-      parting.add(this);
+    const teardown = (element: Moving) => {
+      own?.call(element);
+      element._cleanups?.forEach((cleanup) => runCleanup(cleanup, element));
+      element._cleanups?.clear();
+      element._removed = true;
     };
     /**
-     * Back before the microtask, in the document it last CONNECTED in, it was moved. That document is recorded at
-     * connect: inserting into another document adopts the node first, so by its `disconnectedCallback` its
-     * `ownerDocument` is already the new one.
+     * **Still connected at its disconnect, it is being MOVED** — `append`/`insertBefore` of a connected node, in one
+     * operation: the platform runs the callbacks after the operation, so the node already sits in its new place
+     * (measured in Chrome, Firefox and Safari). Nothing is torn down, and the reconnect that follows sets nothing up.
      */
-    proto.connectedCallback = function (this: Parting) {
-      if (parting.delete(this)) {
+    proto.disconnectedCallback = function (this: Moving) {
+      /** A real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup. */
+      this._moved = this.isConnected;
+      if (!this._moved) teardown(this);
+    };
+    /**
+     * A move into ANOTHER document (a pop-out window) is not kept: its listeners and frame clock belong to the old one.
+     * The document is the one it CONNECTED in, recorded then — inserting into another document adopts the node first.
+     */
+    proto.connectedCallback = function (this: Moving) {
+      if (this._moved) {
+        this._moved = false;
         if (this.ownerDocument === this._doc) return;
-        this._down();
+        teardown(this);
       }
       this._doc = this.ownerDocument;
       connected?.call(this);
