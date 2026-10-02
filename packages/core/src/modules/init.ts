@@ -24,6 +24,8 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   /** A fresh connection: cleanups registered from here are owed a later removal again. */
   element._cleanups = new Set();
   element._removed = false;
+  /** The document it was set up in: a move into another one is a teardown and a fresh setup (see the wrapper below). */
+  (element as Moving)._doc = element.ownerDocument;
   if (shadowProps && !element.shadowRoot && !element._root) element._root = element.attachShadow(shadowProps);
   adoptProps(element);
   /**
@@ -43,7 +45,7 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
  * runs first, while subscriptions are still live; an element that never called `init()` pays one
  * undefined-property read. Guarded for environments with no custom elements (a server importing core).
  *
- * **A move is not a removal.** Moving a connected element in ONE operation — `append`/`insertBefore`
+ * **A move is not a removal.** Moving a connected component in ONE operation — `append`/`insertBefore`
  * from one place in the page to another: light-DOM slots placing a slotted component, a keyed reorder,
  * a drag-and-drop library — used to run its whole teardown and then its whole setup again: a component
  * that fetched in its setup fetched twice. Now neither its `disconnectedCallback` nor its
@@ -64,35 +66,36 @@ if (typeof customElements !== 'undefined') {
     const connected = proto.connectedCallback;
     const teardown = (element: Moving) => {
       own?.call(element);
-      element._cleanups?.forEach((cleanup) => runCleanup(cleanup, element));
-      element._cleanups?.clear();
+      element._cleanups!.forEach((cleanup) => runCleanup(cleanup, element));
+      element._cleanups!.clear();
       element._removed = true;
     };
     /**
-     * **Still connected at its disconnect, it is being MOVED** — `append`/`insertBefore` of a connected node, in one
-     * operation: the platform runs the callbacks after the operation, so the node already sits in its new place
-     * (measured in Chrome, Firefox and Safari). Nothing is torn down, and the reconnect that follows sets nothing up.
+     * **Only a COMPONENT is touched** — an element `init` ran on (`_cleanups`, a name the build never mangles). The
+     * wrapper sees every class defined after core loads, a third party's included, and the fields it keeps are mangled
+     * to single letters in production, where a minified library keeps fields of its own: anything else gets exactly
+     * its own callbacks, and nothing is read from it or written to it.
+     *
+     * **Still connected at its disconnect, a component is being MOVED** — `append`/`insertBefore` of a connected node,
+     * in one operation: the platform runs the callbacks after the operation, so the node already sits in its new place
+     * (measured in Chrome, Firefox and Safari). Nothing is torn down, and the reconnect that follows sets nothing up. A
+     * real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup.
      */
     proto.disconnectedCallback = function (this: Moving) {
-      /**
-       * A real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup. Only a
-       * COMPONENT (`init` ran: `_gen`) is kept — any other custom element defined after core keeps the platform's
-       * callbacks on a move, which run both.
-       */
-      this._moved = this.isConnected && this._gen !== undefined;
+      if (this._cleanups === undefined) return own?.call(this);
+      this._moved = this.isConnected;
       if (!this._moved) teardown(this);
     };
     /**
      * A move into ANOTHER document (a pop-out window) is not kept: its listeners and frame clock belong to the old one.
-     * The document is the one it CONNECTED in, recorded then — inserting into another document adopts the node first.
+     * The document is the one `init` ran in — inserting into another document adopts the node first.
      */
     proto.connectedCallback = function (this: Moving) {
-      if (this._moved) {
+      if (this._cleanups !== undefined && this._moved) {
         this._moved = false;
         if (this.ownerDocument === this._doc) return;
         teardown(this);
       }
-      this._doc = this.ownerDocument;
       connected?.call(this);
     };
     return nativeDefine(name, Class, options);

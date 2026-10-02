@@ -160,3 +160,27 @@ test('a custom element that never called init keeps the platform\'s callbacks on
   b.insertBefore(el, null);
   assert.deepEqual(seen, ['cc', 'dc', 'cc'], 'a move runs both, as the platform does');
 });
+
+/**
+ * **Nothing is written to someone else's element** (vera-5a, 2026-10-02). Core's wrapper sees every class defined after
+ * it loads, and the fields it keeps are mangled to single letters in PRODUCTION — where a minified library keeps fields
+ * of its own. Published 0.3.1 set `this.t = true` on every custom element that disconnected. Every one-letter name
+ * holds a value of the element's own, and the instance's own properties must be exactly as they were after a whole
+ * lifecycle: connect, move, remove, reconnect, move into another document. Meaningful in both builds; the collision
+ * itself exists only under `npm run test:prod`.
+ */
+test('a third-party element keeps every field of its own through connect, move, remove and reconnect', async () => {
+  const LETTERS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$'];
+  customElements.define('ka-foreign', class extends dom.window.HTMLElement {
+    constructor() { super(); for (const k of LETTERS) this[k] = `mine-${k}`; }
+  });
+  const el = doc.createElement('ka-foreign');
+  const snapshot = () => Object.fromEntries(Object.keys(el).map((k) => [k, el[k]]));
+  const before = snapshot();
+  assert.equal(Object.keys(before).length, LETTERS.length, 'CONTROL: the fields were set');
+  const a = box(); const b = box();
+  a.append(el); b.insertBefore(el, null); el.remove(); a.append(el);
+  doc.querySelector('iframe').contentDocument.body.append(el); el.remove();
+  await tick();
+  assert.deepEqual(snapshot(), before, 'core wrote to an element that is not its own');
+});

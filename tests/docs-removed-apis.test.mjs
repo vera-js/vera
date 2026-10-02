@@ -58,6 +58,10 @@ const REMOVED = {
    *  write data-vd-* and --vera-*, the machine writes data-vm-* and --vm-*. */
   'data-vd-a': 'data-vm-motion — machine markers are data-vm-*',
   'data-vera-sheet': 'data-vm-sheet="motion"',
+  /** Light-slots option 4 (2026-10-02): the client claims each <slot> through 'element', so the public
+   *  single-registrant 'slot' STRATEGY contract is retired — 'slot' remains only as the server hand-off.
+   *  `_$park$` was the one name only a strategy wrote. */
+  _$park$: 'nothing — custom slot strategies are retired; wire([renderer, slots])',
   'data-vera-slotted': 'data-vm-slotted',
   /** The same audit's author-facing renames. */
   'data-vd-region': 'data-vd-list',

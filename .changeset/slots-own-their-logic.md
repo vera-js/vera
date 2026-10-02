@@ -6,13 +6,12 @@
 
 Light-DOM slots live in `@verajs/renderer/slots` — an app without them no longer ships their code
 
-**`@verajs/renderer` — breaking for custom slot strategies only.** Finding a template's `<slot>`s,
+**`@verajs/renderer` — breaking for custom slot strategies, which are retired.** Finding a template's `<slot>`s,
 mounting them after the first update, parking them at teardown and marking the render's own output
 in a light host all moved out of the renderer into `@verajs/renderer/slots`. The renderer keeps
 generic points they plug into: an **instance hook** a `'template'` hook may set on a template
 (`{ $c, $m, $q }` — called for every instance before its first update, once its render has finished, and at teardown,
-with nothing on the hot path for templates that have none), and an optional `$o` insert hook on
-the slot strategy. Slotted creation measures level with the renderer before this change on Chromium, Firefox
+with nothing on the hot path for templates that have none). Slotted creation measures level with the renderer before this change on Chromium, Firefox
 and WebKit.
 
 **What it weighs, against 0.2.2, gzipped.** The renderer is 4 893 B (0.2.2: 4 679), now carrying the
