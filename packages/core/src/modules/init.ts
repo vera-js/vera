@@ -90,6 +90,9 @@ if (typeof customElements !== 'undefined') {
     /**
      * A move into ANOTHER document (a pop-out window) is not kept: its listeners and frame clock belong to the old one.
      * The document is the one `init` ran in — inserting into another document adopts the node first.
+     *
+     * On a FIRST connect `_$adopt$` is still undefined here — the author's `connectedCallback`, below, is what runs `init`
+     * — and that is correct: a first connect has nothing to keep. Do not move `init` earlier to "fix" it.
      */
     proto.connectedCallback = function (this: Moving) {
       if (this._$adopt$ !== undefined && this._moved) {
