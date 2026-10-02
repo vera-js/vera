@@ -33,7 +33,29 @@ type Rec = { slot: Kept; light: Light; rs: Comment | null; re: Comment | null; s
 type Kept = HTMLSlotElement & { $rec?: Rec };
 
 /** A host's light children, by unit, in the order the page wrote them, and its slots. */
-type Light = { host: Element; units: Unit[]; holding: DocumentFragment; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean };
+type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean };
+
+/**
+ * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<vm-unassigned hidden>`, the host's first
+ * child, rather than out of the page: a component in it keeps running, and assigning or unassigning it is a one-op
+ * connected move, which core keeps alive. The container is in the host exactly while it holds a light node — runs'
+ * markers and stand-ins are comments, which need no connection — so a host with nothing unassigned has no extra child,
+ * and the server, which knows only nodes, emits the same element in the same place. `vm-` is the machine's namespace.
+ */
+const UNASSIGNED = 'vm-unassigned';
+/** Into the page before a light node moves in, so the move is connected → connected. */
+const park = (light: Light) => {
+  if (light.holding.parentNode !== light.host) light.host.insertBefore(light.holding, light.host.firstChild);
+  return light.holding;
+};
+/**
+ * At the end of every pass: in the page exactly while it holds a light node — out once only comments remain, and IN if
+ * the renderer wrote a new node straight into a run waiting here while it was out (that node's first connection).
+ */
+const unpark = (light: Light) => {
+  for (let node = light.holding.firstChild; node !== null; node = node.nextSibling) if (node.nodeType !== 8) return void park(light);
+  light.holding.remove();
+};
 
 const HOSTS = new WeakMap<Element, Light>();
 /** The static children an outer template gave a host, recorded when its instance was created (see `hostBehavior`). */
@@ -68,11 +90,11 @@ const unstand = (node: Node) => {
 const toHolding = (light: Light, node: Node) => {
   const stand = STAND.get(node);
   if (stand !== undefined) {
-    light.holding.insertBefore(node, stand);
+    park(light).insertBefore(node, stand);
     unstand(node);
     PLACED.delete(node);
   } else {
-    light.holding.insertBefore(node, light.holding.lastChild);
+    park(light).insertBefore(node, light.holding.lastChild);
     PLACED.set(node, null);
   }
 };
@@ -284,9 +306,10 @@ const place = (light: Light) => {
           run.push(node);
           if (node === unit.z) break;
         }
-        for (const node of run) holding.insertBefore(node, holding.lastChild);
+        for (const node of run) (node.nodeType === 8 ? holding : park(light)).insertBefore(node, holding.lastChild);
       }
   for (const { rec } of live) if (!wanted.has(rec)) unregion(rec);
+  unpark(light);
 };
 
 /* ── the observer: what the page's templates (and the user) do afterwards ─────────────────────── */
@@ -358,7 +381,7 @@ const watch = (node: Node, light: Light) => {
  * light children not yet distributed sit before it); comments are never slottable, so none is adopted.
  */
 const adopt = (light: Light, node: Node) => {
-  if (node.nodeType === 8 || node.parentNode !== light.host) return;
+  if (node.nodeType === 8 || node.parentNode !== light.host || node === light.holding) return;
   const ours = new Set<Node>();
   for (const unit of light.units) ours.add(unit.a).add(unit.z);
   if (ours.has(node)) return;
@@ -373,7 +396,7 @@ const adopt = (light: Light, node: Node) => {
     return;
   /** Before the render's range is ahead of everything distributed away; after it, behind. Read before it moves. */
   const ahead = first !== null && follows(node, first);
-  light.holding.insertBefore(node, light.holding.lastChild);
+  park(light).insertBefore(node, light.holding.lastChild);
   PLACED.set(node, null);
   if (ahead) {
     const at = lead.get(light) ?? 0;
@@ -461,7 +484,8 @@ const replay = (light: Light, record: MutationRecord) => {
     }
     const place = ahead ?? behind!.nextSibling;
     /** A run's node moved within the page: its place in the run moves. New to the run: it joins it, at that place. */
-    holding.insertBefore(STAND.get(node) ?? node, place);
+    const stand = STAND.get(node);
+    (stand === undefined ? park(light) : holding).insertBefore(stand ?? node, place);
   }
 };
 
@@ -478,6 +502,7 @@ const release = (light: Light) => {
       node = next;
     }
   }
+  light.holding.remove();
   HOSTS.delete(light.host);
   lights.delete(light);
 };
@@ -487,7 +512,8 @@ const release = (light: Light) => {
 /** A host's light record, new: its holding (bracketed by two comments, so `lastChild` is always an anchor), watched. */
 const lightFor = (host: Element, late: boolean): Light => {
   const doc = host.ownerDocument;
-  const holding = doc.createDocumentFragment();
+  const holding = doc.createElement(UNASSIGNED);
+  holding.setAttribute('hidden', '');
   holding.append(doc.createComment(''), doc.createComment(''));
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late };
   HOSTS.set(host, light);
@@ -655,14 +681,6 @@ export const slotted = (host: Element, name = ''): Node[] => {
 };
 
 const SLOTTED_ATTR = 'data-vm-slotted';
-/**
- * Unassigned slot content is PRESERVED, not dropped — native leaves an unassigned light child in
- * the DOM (present, unrendered), and a light host has no second tree to hide it in, so the server
- * parks it in an inert `<template>` (exactly what the element is for: parsed, never rendered).
- * Hydration drains it back into holding, so content for a slot that only appears in another state
- * survives the round trip instead of vanishing from the HTML forever.
- */
-const UNASSIGNED_MARK = 'data-vm-unassigned';
 const LIGHT_ATTR = 'data-vm-light';
 /**
  * **The server states the light tree, so the client never reconstructs it.** Distribution moves a
@@ -726,18 +744,22 @@ const serverDistribute = (host: Element, source: Node[]) => {
     const behind = last.nextSibling;
     if (behind !== null && behind.nodeType === 3 && last.nodeType === 3) last.parentNode!.insertBefore(doc.createComment(''), behind);
   }
-  /** Whatever no slot claimed goes into the inert carrier, in light-tree order — the last range. */
+  /**
+   * **Whatever no slot claimed is PRESERVED, in the client's own container** — `<vm-unassigned hidden>`, the host's first
+   * child, in light-tree order, exactly where the client keeps it: present and connected, unrendered, as native leaves an
+   * unassigned light child. It is the last range of the statement.
+   */
   let carrier: Element | null = null;
   for (const node of light)
     if (!rangeOf.has(node)) {
       if (carrier === null) {
-        carrier = doc.createElement('template');
-        carrier.setAttribute(UNASSIGNED_MARK, '');
+        carrier = doc.createElement(UNASSIGNED);
+        carrier.setAttribute('hidden', '');
       }
       carrier.appendChild(node);
       rangeOf.set(node, ranges.length);
     }
-  if (carrier !== null) host.appendChild(carrier);
+  if (carrier !== null) host.insertBefore(carrier, host.firstChild);
   /** Positions last — see above. */
   const marks = new Map<Element, string[]>();
   for (const { parent, first, count } of ranges) {

@@ -159,9 +159,10 @@ naming audit of 2026-09-10:
   (`data-autoload`, `data-autoload-dir`, `data-autoload-ignore`).
 - **The machine writes `data-vm-*` and `--vm-*`, and an author never does.** Markers
   (`data-vm-motion`, `data-vm-native`, `data-vm-armed`, `data-vm-on`, `data-vm-slotted`,
-  `data-vm-light`, `data-vm-unassigned`, `data-vm-select`, and the value-discriminated `data-vm-sheet="motion"` /
+  `data-vm-light`, `data-vm-select`, and the value-discriminated `data-vm-sheet="motion"` /
   `data-vm-sheet="styles"`), plumbing variables (`--vm-p`, `--vm-s`, `--vm-so`, `--vm-r0`,
-  `--vm-r1`), and generated keyframes names (`vm-<hash>`). The test: if a name appears in an
+  `--vm-r1`), generated keyframes names (`vm-<hash>`), and one element, light slots'
+  `<vm-unassigned hidden>`. The test: if a name appears in an
   author's code, it is not `vm`. Keeping machine names out of the scanned `data-vd-*` prefix is
   load-bearing — a marker inside it files an `unknown-directive` refusal on every page
   (`data-vd-a` did exactly that until this audit).

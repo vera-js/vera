@@ -83,9 +83,9 @@ since a component's own elements can carry `slot` too, and their order across sl
 **states the light tree** rather than leaving the client to infer it. Every parent a slot filled
 carries `data-vm-slotted="offset,count"`, and the host carries `data-vm-light`: for each light child
 in light order, which of those ranges it went into. Two more things are present only when the markup
-needs them: one inert `<template data-vm-unassigned>` holding children no slot claimed, so content
-meant for a slot that only appears in another state survives the round trip instead of vanishing
-from the HTML; and a `<!---->` separator where two text runs would otherwise merge in the parser.
+needs them: the host's `<vm-unassigned hidden>` holding children no slot claimed — the same element,
+in the same place, the client keeps them in — so content meant for a slot that only appears in
+another state survives the round trip instead of vanishing from the HTML; and a `<!---->` separator where two text runs would otherwise merge in the parser.
 All of it is consumed on adoption. Adoption is in place, so node identity survives and with it
 focus, input values and scroll position — asserted in a real browser, on three engines.
 
@@ -135,10 +135,11 @@ comparison or a property read at those points and nothing else.
   Ordinary bindings are unaffected — `<tbody>${rows}</tbody>` works, because the renderer's own
   anchor is a comment and table parsing permits comments where it rejects elements. So a table
   component takes its rows as data rather than as slotted content.
-- **A node no slot takes is parked out of the page** — disconnected, where native slotting leaves it
-  connected and merely unrendered. A light host has no second tree to hide it in, so a custom element
-  in unassigned content runs its `disconnectedCallback` (and a Vera component its effect cleanups),
-  and is set up again when a slot for it appears, identity and stores intact.
+- **A node no slot takes waits in an extra host child** — `<vm-unassigned hidden>`, the host's first
+  child, present only while it holds something. That is how it stays connected and unrendered, as
+  native leaves it (a component in it keeps running; assigning it later is a move it is kept
+  through), and the price is a child your host's structural selectors can see: `:scope > *`,
+  `:nth-child()`, `:empty`, `host.children`.
 - **A `<slot>` carries `class`/`style`/`id` only while it shows its fallback**; once it has content it
   steps out of the page and its attributes go with it. Put presentation on an element around it.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the

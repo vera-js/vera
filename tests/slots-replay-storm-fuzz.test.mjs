@@ -33,6 +33,13 @@ const { hold } = await load('renderer');
 wire([renderer, slots]);
 const doc = dom.window.document;
 
+/**
+ * The text a reader SEES: `textContent` minus `[hidden]` subtrees. Unassigned content waits connected in the host's
+ * hidden container (as native keeps it in the light tree), so `textContent` — the tree's text — includes it, exactly as
+ * a shadow host's would; what is rendered does not.
+ */
+const shown = (node) => node.nodeType === 3 ? node.data : node.nodeType === 1 && node.hasAttribute('hidden') ? '' : [...node.childNodes].map(shown).join('');
+
 customElements.define('fz-host', class extends dom.window.HTMLElement {
   connectedCallback() {
     init(this);
@@ -134,19 +141,19 @@ test('an outer template\'s keyed reorders, inserts, removals, re-slots and shape
       const host = page.querySelector('fz-host');
       const innerHost = page.querySelector('fz-host.inner');
       const iw = innerExpected(state);
-      for (const name of ['a', '', 'b']) { const ig = slotted(innerHost, name).map((n) => n.textContent); if (JSON.stringify(ig) !== JSON.stringify(iw[name])) { divergences.push({ seed: s, step, inner: true, name, want: iw[name], got: ig, script: script.slice(-6).join(',') }); break; } }
+      for (const name of ['a', '', 'b']) { const ig = slotted(innerHost, name).map(shown); if (JSON.stringify(ig) !== JSON.stringify(iw[name])) { divergences.push({ seed: s, step, inner: true, name, want: iw[name], got: ig, script: script.slice(-6).join(',') }); break; } }
       if (divergences.length && divergences[divergences.length - 1].step === step && divergences[divergences.length - 1].seed === s) break;
       const want = expected(state);
       const got = {
-        a: slotted(host, 'a').map((n) => n.textContent),
-        '': slotted(host, '').map((n) => n.textContent),
-        b: slotted(host, 'b').map((n) => n.textContent),
+        a: slotted(host, 'a').map(shown),
+        '': slotted(host, '').map(shown),
+        b: slotted(host, 'b').map(shown),
       };
       /** And what is ON SCREEN: each section shows its slot's content, or the fallback when it has none. */
       const screen = {
-        a: [...host.children].find((c) => c.localName === 'header').textContent,
-        '': [...host.children].find((c) => c.localName === 'main').textContent,
-        b: [...host.children].find((c) => c.localName === 'footer').textContent,
+        a: shown([...host.children].find((c) => c.localName === 'header')),
+        '': shown([...host.children].find((c) => c.localName === 'main')),
+        b: shown([...host.children].find((c) => c.localName === 'footer')),
       };
       const fallback = { a: 'FA', '': 'FD', b: 'FB' };
       if (want.a.length > 0 && want.b.length > 0) filled++;

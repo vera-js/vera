@@ -68,7 +68,7 @@ test('a plain move re-enters cleanly — the control that isolates blame', async
   a.remove(); b.remove();
 });
 
-test('the park roundtrip: cleanup out, re-init back, state kept, reactivity live', async () => {
+test('the park roundtrip: unassigned and back, connected throughout — state kept, reactivity live', async () => {
   /** A slot host is a custom element that calls `init` (ruling 4); its child is in place before it connects. */
   if (!customElements.get('park-host')) customElements.define('park-host', class extends HTMLElement { connectedCallback() { init(this); } });
   const host = doc.createElement('park-host');
@@ -86,9 +86,11 @@ test('the park roundtrip: cleanup out, re-init back, state kept, reactivity live
   assert.equal(item.isConnected, true);
   assert.equal(live(), 1, 'one live effect while assigned');
 
+  /** Unassigned content waits CONNECTED, in the host's hidden container (Brian, 2026-10-02) — as native leaves it. */
   renderInto(drawAway(), host); await frame();
-  assert.equal(item.isConnected, false, 'parked content is disconnected — the documented divergence');
-  assert.equal(live(), 0, 'and its effect was cleaned up, not stranded');
+  assert.equal(item.isConnected, true, 'unassigned content stays connected, as under native slots');
+  assert.equal(item.parentNode.localName, 'vm-unassigned', 'in the hidden container');
+  assert.equal(live(), 1, 'and its effect keeps running — nothing was torn down');
 
   renderInto(drawSlot(), host); await frame();
   assert.equal(item.isConnected, true, 'restored');

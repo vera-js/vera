@@ -666,13 +666,16 @@ render(() => html`<header>
   twice, as nothing runs twice under native slotting, where nothing moves at all. A custom element
   that is not a Vera component gets the platform's callbacks for a move: `disconnectedCallback` and
   then `connectedCallback`.
-- **A node no slot takes is parked out of the page — *disconnected* here, where native slotting
-  leaves it connected and merely unrendered.** A light host has no second tree to hide it in, so a
-  custom element inside it runs its `disconnectedCallback` (and a Vera component its effect
-  cleanups) on the way out, and `connectedCallback` again when a slot for it appears — with its
-  element identity, stores and typed-in state intact, and reactivity re-established by the re-init.
-  The difference is only *when* it happens: a component that pauses a video on disconnect pauses
-  while unassigned here and keeps playing in a shadow root.
+- **A node no slot takes stays connected, and is not rendered — as under native slots.** A light
+  host has no second tree to hide it in, so it waits in a hidden container the host is given for
+  the purpose, `<vm-unassigned hidden>`, its FIRST child: a component in it keeps running (its
+  effects stay live), it is still in the host's tree for `querySelector`, as a native unassigned
+  light child is, and when a
+  slot for it appears it moves there in one operation and is kept. The container is there only
+  while it holds something, so a host whose content is all assigned has no extra child. When it is
+  there, it is a child of your host like any other: `host.children`, `:scope > *`, `:nth-child()`
+  and `:empty` see it — write `:scope > :not(vm-unassigned)` where that matters. It carries only
+  `hidden`; a stylesheet that overrides `[hidden]` will show it.
 - **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
   re-routes if it changes between renders.
 
