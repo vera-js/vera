@@ -223,3 +223,11 @@ export const commentEnd = (markup: string, open: number): number => {
  * @param end
  */
 export const commentDataEnd = (markup: string, open: number, end: number): number => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);
+
+/**
+ * What a thrown value says, whatever was thrown. JavaScript can throw anything — `null`, `undefined`, a string — and a
+ * message built from `(error as Error).message` crashed on the first two, so a setter that threw `null` surfaced as
+ * "Cannot read properties of null" naming nothing the caller did.
+ */
+export const thrownMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : typeof (error as { message?: unknown } | null)?.message === 'string' ? (error as { message: string }).message : String(error);

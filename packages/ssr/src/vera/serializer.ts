@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences } from './escaping.js';
+import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
@@ -230,8 +230,9 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
       return;
     }
     throw new TypeError(
-      `ssr: <${tag}> refused the bound property \`.${name}\` — ${String((error as Error).message)}. ` +
-        `Its setter threw; the binding's value is the argument it was given.`
+      `ssr: <${tag}> refused the bound property \`.${name}\` — ${thrownMessage(error)}. ` +
+        `Its setter threw; the binding's value is the argument it was given.`,
+      { cause: error }
     );
   }
 };

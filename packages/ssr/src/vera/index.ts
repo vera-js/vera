@@ -35,6 +35,7 @@ import { decode as decodeEntities } from './parse.js';
 import { ATTRIBUTE, renderComponentTags } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import type { ElementShim } from './nodes.js';
+import { thrownMessage } from './escaping.js';
 import type { SsrRenderOptions, SsrRenderResult, SsrTemplate } from './types.js';
 
 /**
@@ -223,8 +224,9 @@ const prepareInstance = (
         (element as unknown as Record<string, unknown>)[name] = value;
       } catch (error) {
         throw new TypeError(
-          `ssr: <${tag}> refused a value from \`props\` — ${String((error as Error).message)}. A read-only property ` +
-            `cannot be set; pass it as an attribute, or give the class a setter.`
+          `ssr: <${tag}> refused a value from \`props\` — ${thrownMessage(error)}. A read-only property ` +
+            `cannot be set; pass it as an attribute, or give the class a setter.`,
+          { cause: error }
         );
       }
     }
@@ -416,6 +418,8 @@ const renderModule = async (
   options: SsrRenderOptions = {},
   isAsync: boolean
 ): Promise<SsrRenderResult> => {
+  /** From JavaScript, `options` can be anything; `null` used to surface as an unnamed destructuring error. */
+  if (!isRecord(options)) throw new TypeError('ssr: `options` must be an object, or left out');
   const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false, timeout } = options;
   const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic, timeout };
   /**
