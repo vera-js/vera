@@ -922,16 +922,13 @@ test('slotchange reaches a direct listener even while the slot is displaced — 
 });
 
 /**
- * **The slot element is an API object, not a position — now a published claim, so pinned.**
- *
- * The README and `llms.txt` tell a shadow user migrating here to reach the slot through `&ref` or
- * `event.target`, and say plainly that `querySelector('slot')` will not find it. That sentence was
- * written because a probe hit it: the obvious first move after switching modes returns null, and
- * silence about it makes the whole slot API look absent. A light host has no second tree, so a
- * rendered `<slot>` would be a real element in the user's own DOM — shifting `:nth-child`, matching
- * their selectors — which is why it stays out and why this is a contract rather than an oversight.
+ * **A FILLED slot element is out of the page — a published claim, so pinned.** Since option 4 (2026-10-02) a `<slot>`
+ * with content steps out and its content stands in its place, so `querySelector('slot')` finds only slots showing their
+ * fallback; the README and `llms.txt` tell a migrating shadow user to reach a slot through `&ref` or `event.target`.
+ * This slot is filled, so no selector reaches it and it reports itself disconnected — while still answering as the
+ * live API object its bindings attached to.
  */
-test('the slot element is unreachable by selector and reports itself disconnected', async () => {
+test('a FILLED slot element is unreachable by selector and reports itself disconnected', async () => {
   const element = host('<b slot="h">ONE</b>');
   let held = null;
   renderInto(html`<header><slot name="h" &ref=${(node) => { held = node; }}>fb</slot></header>`, element);

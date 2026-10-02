@@ -119,6 +119,12 @@ const server = (tag, template, children, shadow = false) => {
 const hosts = new Map();
 
 let index = 0;
+/**
+ * CONTROL: shapes in which the server parked content and the retained-content check below RAN. It ran for none from
+ * connected parking until its pattern caught up (it looked for the retired `<template>` carrier): a rename of the
+ * container must turn this red, never silence it.
+ */
+let parkedShapes = 0;
 for (const [label, [template, children]] of Object.entries(SHAPES))
   test(`server and client agree: ${label}`, async () => {
     const tag = `parity-${index++}`;
@@ -145,6 +151,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
      */
     const parkedText = parked(fromServer);
     if (parkedText !== '') {
+      parkedShapes++;
       /**
        * The names come from the CHILDREN the test supplied: `slotted()` answers for unassigned content by name, as it
        * waits in the host's hidden container.
@@ -258,3 +265,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
       'and no light-slots marker belongs on a component the platform slots');
     host.remove();
   });
+
+test('CONTROL: the retained-content check ran for every shape that parks content', () => {
+  assert.ok(parkedShapes >= 2, `only ${parkedShapes} shape(s) had parked content checked — the carrier pattern matched nothing`);
+});

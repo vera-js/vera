@@ -42,6 +42,30 @@ customElements.define('fz-host', class extends dom.window.HTMLElement {
   }
 });
 
+/**
+ * **A commit into a run DURING the host's own first render** (vera-5a, 2026-10-02 — the path `unrun()` exists for).
+ * `fz-fire` fires from a ref in its own first render and commits the FINAL rows into the run an applier first filled
+ * with the PRE rows — by then the slots module has already distributed the pre rows, leaving stand-ins in the run. The
+ * oracle is the final rows, by slot name, never read back from the DOM.
+ */
+let fireFinal = null;
+let firePart = null;
+function applyFire(part, previous) {
+  if (previous) return previous;
+  part._$commit$(this.pre.map(rowValue));
+  firePart = part;
+  return {};
+}
+const FIRE = () => html`<span &ref=${() => { const rows = fireFinal; fireFinal = null; if (rows !== null) firePart._$commit$(rows.map(rowValue)); }}></span><header><slot name="a">FA</slot></header><main><slot>FD</slot></main><footer><slot name="b">FB</slot></footer>`;
+customElements.define('fz-fire', class extends dom.window.HTMLElement {
+  connectedCallback() {
+    init(this);
+    renderInto(FIRE(), this);
+  }
+});
+/** In a LIST: a key is honored only there — a lone keyed value updates the same element, and its render is no longer a first. */
+const fireValue = (fire) => (fire === null ? null : [keyed(fire.gen, html`<fz-fire class="fire">${{ _$child$: applyFire, pre: fire.pre }}</fz-fire>`)]);
+
 const SEEDS = extendSeeds([31337, 271828, 141421, 173205, 223606, 161803]);
 let seed = 0;
 const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
@@ -76,7 +100,7 @@ const heldValue = (h) => hold(h === 'x' ? HX() : h === 'y' ? HY() : null);
 const heldNodes = (h) => (h === 'x' ? [['a', 'HX']] : h === 'y' ? [['b', 'HY'], ['', 'HY2']] : []);
 const composed = (exp) => ['a', '', 'b'].map((n) => (exp[n].length ? exp[n].join('') : { a: 'FA', '': 'FD', b: 'FB' }[n])).join('');
 /** One draw for every step: one template literal, so updates are updates, never rebuilds. */
-const draw = (state) => html`<fz-host>${leadValue(state.lead)}${heldValue(state.held)}<em slot="b">E</em>${state.rows.map(rowValue)}<fz-host slot="a" class="inner">${state.inner.map(rowValue)}</fz-host>${leadValue(state.tail)}</fz-host>`;
+const draw = (state) => html`<fz-host>${leadValue(state.lead)}${heldValue(state.held)}<em slot="b">E</em>${state.rows.map(rowValue)}<fz-host slot="a" class="inner">${state.inner.map(rowValue)}</fz-host>${leadValue(state.tail)}</fz-host>${fireValue(state.fire)}`;
 
 /** The oracle: each slot's content, from the data — light order, filtered by slot name. */
 const innerExpected = (state) => {
@@ -93,8 +117,15 @@ const expected = (state) => {
   return out;
 };
 
+const rowsOf = (next, prefix) => Array.from({ length: Math.floor(random() * 5) }, () => ({ id: `${prefix}${next()}`, slot: pick(NAMES), slot2: pick(NAMES), shape: pick(SHAPES) }));
 const mutate = (state, next) => {
-  const op = pick(['insert', 'insert', 'remove', 'move', 'reslot', 'reshape', 'reverse', 'lead', 'tail', 'held', 'inner', 'inner', 'innermove']);
+  const op = pick(['insert', 'insert', 'remove', 'move', 'reslot', 'reshape', 'reverse', 'lead', 'tail', 'held', 'inner', 'inner', 'innermove', 'fire']);
+  if (op === 'fire') {
+    /** A NEW fz-fire (a new key), so its render is a first render; the commit lands during it. */
+    state.fire = { gen: `g${next()}`, pre: rowsOf(next, 'p'), final: rowsOf(next, 'f') };
+    fireFinal = state.fire.final;
+    return op;
+  }
   if (op === 'held') { state.held = pick([null, 'x', 'y']); return op; }
   if (op === 'inner') { if (random() < 0.6 || !state.inner.length) state.inner.splice(Math.floor(random() * (state.inner.length + 1)), 0, { id: `n${next()}`, slot: pick(NAMES), slot2: pick(NAMES), shape: pick(SHAPES) }); else state.inner.splice(Math.floor(random() * state.inner.length), 1); return op; }
   if (op === 'innermove') { if (state.inner.length) { const [r] = state.inner.splice(Math.floor(random() * state.inner.length), 1); state.inner.splice(Math.floor(random() * (state.inner.length + 1)), 0, r); } return op; }
@@ -120,19 +151,39 @@ test('an outer template\'s keyed reorders, inserts, removals, re-slots and shape
   const divergences = [];
   let steps = 0;
   let filled = 0;
+  /** CONTROL: first renders whose own commit REPLACED pre rows with final ones — or the new op measured nothing. */
+  let fired = 0;
   for (const s of SEEDS) {
     seed = s;
     let counter = 0;
     const next = () => counter++;
     const page = doc.createElement('div');
     doc.body.append(page);
-    const state = { lead: null, tail: null, held: null, rows: [], inner: [] };
+    const state = { lead: null, tail: null, held: null, rows: [], inner: [], fire: null };
     const script = [];
     for (let step = 0; step < 80; step++) {
       script.push(mutate(state, next));
       /** Rows as they are now, copied — the template reads them during the render. */
       renderInto(draw({ ...state, rows: state.rows.map((row) => ({ ...row })), inner: state.inner.map((row) => ({ ...row })) }), page);
       steps++;
+      if (state.fire !== null) {
+        const fireHost = page.querySelector('fz-fire');
+        const nodes = state.fire.final.flatMap(rowNodes);
+        let diverged = false;
+        for (const name of ['a', '', 'b']) {
+          const want = nodes.filter(([slot]) => slot === name).map(([, text]) => text);
+          const got = slotted(fireHost, name).map(shown);
+          const section = shown([...fireHost.children].find((c) => c.localName === { a: 'header', '': 'main', b: 'footer' }[name]));
+          const screen = want.length > 0 ? want.join('') : { a: 'FA', '': 'FD', b: 'FB' }[name];
+          if (JSON.stringify(got) !== JSON.stringify(want) || section !== screen) {
+            divergences.push({ seed: s, step, fire: true, name, want, got, screen: section, pre: state.fire.pre, final: state.fire.final, script: script.slice(-6).join(',') });
+            diverged = true;
+            break;
+          }
+        }
+        if (diverged) break;
+        if (script[script.length - 1] === 'fire' && state.fire.final.length > 0 && state.fire.pre.length > 0) fired++;
+      }
       const host = page.querySelector('fz-host');
       const innerHost = page.querySelector('fz-host.inner');
       const iw = innerExpected(state);
@@ -163,8 +214,9 @@ test('an outer template\'s keyed reorders, inserts, removals, re-slots and shape
     }
     page.remove();
   }
-  console.log(`replay storm: ${SEEDS.length} seeds, ${steps} renders, ${filled} with both named slots filled`);
-  assert.ok(filled > steps / 4, `CONTROL: only ${filled} of ${steps} renders filled both named slots — the run compared fallbacks`);
+  console.log(`replay storm: ${SEEDS.length} seeds, ${steps} renders, ${filled} with both named slots filled, ${fired} mid-first-render commits`);
   for (const d of divergences) console.log('DIVERGE', JSON.stringify(d));
+  assert.ok(filled > steps / 4, `CONTROL: only ${filled} of ${steps} renders filled both named slots — the run compared fallbacks`);
+  assert.ok(fired >= SEEDS.length, `CONTROL: only ${fired} mid-first-render commits replaced content — the fire op measured nothing`);
   assert.deepEqual(divergences, [], `${divergences.length} seed(s) diverged from the data`);
 });

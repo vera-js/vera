@@ -380,8 +380,16 @@ const note = (records: MutationRecord[]) => {
       /**
        * Until its first render ends, a run still sits IN the host — so what the renderer takes from it there (a node a slot
        * already took, through its stand-in) is read back as it is in holding. Missed, the stand-in went and its node stayed
-       * in the slot: a commit during the host's own render left the old content beside the new. Only the REMOVED half: an
-       * addition here is the render's own or a new light child (`adopt`), never a run's node moving.
+       * in the slot: a commit during the host's own render left the old content beside the new.
+       *
+       * **Why the REMOVED half is the whole of it** — the invariant: while the run is physically in the host, every node the
+       * renderer ADDS here lands exactly where the run is, between its own markers, so it is already in place and
+       * `lightOf` reads it there (nothing to move; replaying it as a run neighbor would move the render's own markers);
+       * every change inside a slot's region — a row added beside a node a slot took (`into` follows `_$slotted$` there),
+       * or removed from it — is recorded on that region's parent, which is watched, and replayed in full (into the run
+       * where it is — the host, while fresh: see `replay`). What a host
+       * record alone can carry is a REMOVED stand-in: the one change that leaves state behind (its node, still in a slot).
+       * Additions here are otherwise the render's own or a new light child (`adopt`).
        */
       if (light.fresh) unrun(light, record);
       for (const node of record.addedNodes) adopt(light, node);
@@ -521,16 +529,23 @@ const replay = (light: Light, record: MutationRecord) => {
     if (PLACED.get(node) !== undefined && !STAND.has(node)) continue;
     const next = record.nextSibling;
     const previous = record.previousSibling;
-    const ahead = next === null ? undefined : (STAND.get(next) ?? (next.parentNode === holding ? next : undefined));
-    const behind = previous === null ? undefined : (STAND.get(previous) ?? (previous.parentNode === holding ? previous : undefined));
+    /** Where the runs are: holding — and, until the host's first render ends, the host, where a fresh run still sits. */
+    const inRun = (node: Node) => node.parentNode === holding || (light.fresh && node.parentNode === light.host);
+    const ahead = next === null ? undefined : (STAND.get(next) ?? (inRun(next) ? next : undefined));
+    const behind = previous === null ? undefined : (STAND.get(previous) ?? (inRun(previous) ? previous : undefined));
     if (ahead === undefined && behind === undefined) {
       settleIn(light, node);
       continue;
     }
     const place = ahead ?? behind!.nextSibling;
-    /** A run's node moved within the page: its place in the run moves. New to the run: it joins it, at that place. */
+    /**
+     * A run's node moved within the page: its place in the run moves. New to the run: it joins it, at that place — in
+     * whatever holds the run: holding, or (until its host's first render ends) the HOST itself, where a fresh run still
+     * sits. Inserted into holding regardless, a node new to a fresh run threw there and was left in the slot unrecorded.
+     */
     const stand = STAND.get(node);
-    (stand === undefined ? park(light) : holding).insertBefore(stand ?? node, place);
+    const run = place === null ? holding : place.parentNode!;
+    (run === holding && stand === undefined ? park(light) : run).insertBefore(stand ?? node, place);
   }
 };
 
