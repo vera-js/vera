@@ -268,11 +268,12 @@ test('a hand-edit between two parts\' content lands between their groups, as nat
     const host = page.querySelector(tag);
     const U = D.createTextNode('U');
     if (host.shadowRoot) host.insertBefore(U, host.querySelector('strong'));
-    else {
-      /** The user's gesture: insert before b's marker run — the nodes still standing in the host. */
-      const comments = [...host.childNodes].filter((n) => n.nodeType === 8);
-      host.insertBefore(U, comments[2] ?? null);
-    }
+    /**
+     * The light gesture is the one the README teaches for both modes — `before()`, through the node's CURRENT parent —
+     * because a light host's distributed children are no longer its direct children (option 4 keeps no part markers
+     * in the host to insert against: a binding's run stays in holding).
+     */
+    else host.querySelector('strong').before(U);
     await frame();
     await frame();
     const out = shown(host);
@@ -281,7 +282,7 @@ test('a hand-edit between two parts\' content lands between their groups, as nat
   };
   const want = await run('t-shadow');
   assert.equal(want, '<em>A</em>U<strong>B</strong>', 'CONTROL: native puts U between the groups');
-  assert.equal(await run('t-light'), want, 'and so do we — placed against the marker skeleton');
+  assert.equal(await run('t-light'), want, 'and so do we — placed beside the node it was put before');
 });
 
 /**

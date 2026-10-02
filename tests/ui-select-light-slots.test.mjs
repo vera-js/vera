@@ -40,9 +40,10 @@ test('light + user-slotted trigger: captured, distributed, wired — zero compon
   el.options = OPTS;
   await frame();
 
-  // no shadow root (light mode), no literal <slot> in the light DOM
+  // no shadow root (light mode); a slot with content steps out of the page, one with none stays, showing its
+  // fallback (Brian, 2026-10-02) — the trigger slot, which the user filled, is gone
   assert.equal(el.shadowRoot, null, 'light mode');
-  assert.equal(el.querySelector('slot'), null, 'slots were distributed, no <slot> element left');
+  assert.equal(el.querySelector('slot[name="trigger"]'), null, 'the filled slot stepped out; its content stands in its place');
 
   // the user's own button was distributed into the trigger position AND wired by the component
   const wired = el.querySelector('.my-page-trigger');

@@ -202,6 +202,9 @@ const place = (light: Light) => {
     if (!winner.has(name)) winner.set(name, rec);
   }
   const nodes = lightOf(light);
+  /** A static child moves as itself; only a node of a binding's RUN leaves a stand-in at its place. */
+  const statics = new Set<Node>();
+  for (const unit of light.units) if (unit.a === unit.z) statics.add(unit.a);
   const wanted = new Map<Rec, Node[]>();
   const taken = new Set<Node>();
   for (const node of nodes) {
@@ -226,7 +229,7 @@ const place = (light: Light) => {
           continue;
         }
         /** A run's node, still at its place in holding: a stand-in takes the place before it leaves. */
-        if (node.parentNode === holding && !STAND.has(node) && PLACED.get(node) === undefined) {
+        if (!statics.has(node) && node.parentNode === holding && !STAND.has(node)) {
           const stand = node.ownerDocument!.createComment('');
           holding.insertBefore(stand, node);
           STAND.set(node, stand);
