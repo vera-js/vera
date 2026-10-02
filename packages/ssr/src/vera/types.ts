@@ -32,6 +32,11 @@ export type SsrRenderOptions = {
   readonly base?: string | URL;
   readonly static?: boolean;
   readonly location?: string | URL;
+  /**
+   * How long `renderToStringAsync` waits on promises a component starts before serving what it has (ms; 2000). `0`
+   * waits for nothing — it is not "no limit", which cannot be asked for.
+   */
+  readonly timeout?: number;
 };
 
 /**

@@ -19,7 +19,7 @@
  */
 import { escapeHtml, escapeStyleText, escapeRawText, RAW_TEXT_ELEMENTS } from './escaping.js';
 import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting, documentAdoptedSheets, setDocumentAdoptedSheets } from './stylesheets.js';
-import { cancelFrame, flushFrames, flushFramesAsync, requestFrame } from './frames.js';
+import { beginBudget, bounded, cancelFrame, endBudget, flushFrames, flushFramesAsync, requestFrame } from './frames.js';
 import { registry } from './registry.js';
 import {
   TextShim,
@@ -75,6 +75,9 @@ export {
   setRenderingTag,
   flushFrames,
   flushFramesAsync,
+  beginBudget,
+  bounded,
+  endBudget,
   registry,
   pendingInstances,
   INSTANCE_ATTRIBUTE,

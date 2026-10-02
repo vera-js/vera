@@ -59,6 +59,7 @@ already awaits. A render that throws does not stop the queue.
 | `seen` | a `Set` carried across renders, so a page of islands ships each component's styles once |
 | `base` | a directory the module URL must resolve inside. Pass it whenever **any part of the URL came from a request** |
 | `static` | `true` for a page that will not be interactive: reactivity is skipped, about 3x faster, identical markup |
+| `timeout` | how long `renderToStringAsync` waits on promises a component starts, in milliseconds (default 2000), before serving what it has and warning — see below. **`0` waits for nothing** (it is not "no limit", which this option cannot express): every such promise is abandoned at once |
 
 A wrong type is refused with a `TypeError` naming the option (`children: 5` used to surface as
 `markup.includes is not a function`).
@@ -68,11 +69,19 @@ and a request does not: the call awaits `import()`, which yields on a module's f
 whichever request assigned last wins for every render after it. Measured with three concurrent
 first-time imports, two of three rendered another request's path. The option is applied inside the
 render's turn and restored in a `finally`. `title` is returned rather than left on the global for the
-same reason, and the document's own title is restored afterwards. **Two `renderToStringAsync` calls that
-overlap also share the frame queue and the document's adopted stylesheets**, both process-wide: one request's
-drain can run the other's frame callbacks, and a sheet one adopts is in the other's
-`document.adoptedStyleSheets` until the next render starts. Neither reaches markup the other request builds,
-but code that counts frames or reads the document's sheets should not depend on its request being alone.
+same reason, and the document's own title is restored afterwards. **Renders take turns**, process-wide: two
+calls made together run one after the other, so no render ever sees another's frames, adopted stylesheets or
+globals (measured: two `renderToStringAsync` calls started at once finish at 154 ms and 255 ms, the second's
+budget starting at its turn).
+
+**No render waits unboundedly on a component's promise.** `renderToStringAsync` awaits what a component starts
+— an `async connectedCallback`, a promise a frame callback returns — for at most `timeout` milliseconds (2000 by
+default) from the start of its turn. One that never settles, such as a wait on a child the server never defines,
+used to hold the request open forever, and because renders take turns, every request after it as well. When the
+budget runs out the render serves what it has and warns, in every build, naming the component: the page served is
+not the one its code describes, so raise `timeout` if the wait is real or find the promise that never settles.
+There is deliberately no way to wait without limit: `timeout: 0` means wait for nothing, and the largest value is
+2147483647 ms.
 
 ## What runs, and when
 

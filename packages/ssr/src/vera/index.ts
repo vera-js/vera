@@ -23,6 +23,9 @@ import {
   beginHoisting,
   flushFrames,
   flushFramesAsync,
+  beginBudget,
+  bounded,
+  endBudget,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
   LOCATION_PARTS,
@@ -323,7 +326,7 @@ const renderInstanceAsync = async (
   children: string | undefined
 ): Promise<Assembled> => {
   const previousTag = prepareInstance(element, tag, props, children);
-  await element.connectedCallback?.();
+  await bounded(element.connectedCallback?.());
   await flushFramesAsync(failed(tag));
   const pieces = finishInstance(element, tag, previousTag);
   return assemble(pieces, await scanAsync(pieces.shadow, depth), await scanAsync(pieces.light, depth));
@@ -360,6 +363,12 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; message
   { name: 'base', valid: (v) => v === undefined || isUrl(v), message: '`base` must be a URL or a path string' },
   { name: 'location', valid: (v) => v === undefined || isUrl(v), message: '`location` must be a URL or a path string' },
   { name: 'static', valid: (v) => typeof v === 'boolean', message: '`static` must be true or false' },
+  /** Node turns a `setTimeout` past 2^31 − 1 ms into 1 ms, so that is the largest budget that means what it says. */
+  {
+    name: 'timeout',
+    valid: (v) => v === undefined || (typeof v === 'number' && v >= 0 && v <= 2 ** 31 - 1),
+    message: '`timeout` must be a number of milliseconds, from 0 to 2147483647',
+  },
 ];
 
 /**
@@ -381,6 +390,9 @@ const attributeMarkup = (attributes: string | Record<string, unknown>): string =
           return ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
         })
         .join('');
+
+/** The `timeout` an asynchronous render gets when none is given (see `beginBudget` in `frames.ts`). */
+const DEFAULT_TIMEOUT = 2000;
 
 /** `href -> entry tag`, so a module rendered again is not re-imported and re-searched. */
 const entryTags = new Map<string, string>();
@@ -404,8 +416,8 @@ const renderModule = async (
   options: SsrRenderOptions = {},
   isAsync: boolean
 ): Promise<SsrRenderResult> => {
-  const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false } = options;
-  const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic };
+  const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false, timeout } = options;
+  const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic, timeout };
   /**
    * Indexed, and objects rather than tuples: this runs once per render inside an async function, where V8
    * did not remove a `for…of`'s per-step result objects, nor array destructuring's iterator — tuples cost
@@ -467,6 +479,7 @@ const renderModule = async (
   beginHoisting();
   pendingInstances.clear();
   staticRender = isStatic;
+  if (isAsync) beginBudget(timeout ?? DEFAULT_TIMEOUT);
   try {
     const element = buildInstance(tag, attrString);
     const { open, inner } = isAsync
@@ -474,6 +487,13 @@ const renderModule = async (
       : renderInstance(element, tag, 0, props, children);
     return finishPage(`${open}${inner}</${tag}>`, tag, seen);
   } finally {
+    /** Said in every build: a render that ran out of time served a different page than the one its code describes. */
+    if (isAsync && endBudget())
+      console.warn(
+        `[vera] ssr: <${tag}> was served after its ${timeout ?? DEFAULT_TIMEOUT} ms \`timeout\` with a promise it started still ` +
+          `pending (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered ` +
+          `by then. Raise \`timeout\` if the wait is real, or find the promise that never settles.`
+      );
     staticRender = false;
     globalThis.document.title = title;
     saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
@@ -525,6 +545,7 @@ const finishPage = (rendered: string, tag: string, seen: Set<string> | undefined
  * @param options.static This page will not be interactive: stores skip reactivity (~3x), and a
  * write during the render throws
  * @param options.location This request's URL, applied for the render and restored after
+ * @param options.timeout How long `renderToStringAsync` waits on what a component starts, in milliseconds (2000)
  */
 export const renderToString = (url: string | URL, options?: SsrRenderOptions): Promise<SsrRenderResult> =>
   takeTurn(() => renderModule(url, options, false));
