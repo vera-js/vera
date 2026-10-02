@@ -134,7 +134,25 @@ const isWhere = (node: Node, light: Light): boolean => {
  * is forgotten first; then each name's first slot in tree order wins, its nodes go between its comments (a run's node
  * leaving a stand-in at its place), a slot left with nothing shows its fallback, and the rest wait in holding.
  */
+/**
+ * A distribution in progress can render (a slotted component moved is reconnected, and renders): the render's end asks
+ * for another, which waits for this one to finish and then runs.
+ */
+let busy = false;
 const distribute = (light: Light) => {
+  if (busy) {
+    light.dirty = true;
+    return;
+  }
+  busy = true;
+  try {
+    do place(light);
+    while (light.dirty);
+  } finally {
+    busy = false;
+  }
+};
+const place = (light: Light) => {
   light.dirty = false;
   const holding = light.holding;
   /** Captured and not yet distributed: out of the host now, in light order — once (a top-level slot's content lives there). */
@@ -191,7 +209,13 @@ const distribute = (light: Light) => {
     if (mine.length > 0) {
       region(rec);
       const parent = rec.re!.parentNode!;
+      /** Only what is out of place moves: a move disconnects and reconnects a component, re-running its lifecycle. */
+      let previous: Node = rec.rs!;
       for (const node of mine) {
+        if (node.parentNode === parent && node.previousSibling === previous) {
+          previous = node;
+          continue;
+        }
         /** A run's node, still at its place in holding: a stand-in takes the place before it leaves. */
         if (node.parentNode === holding && !STAND.has(node) && PLACED.get(node) === undefined) {
           const stand = node.ownerDocument!.createComment('');
@@ -199,9 +223,9 @@ const distribute = (light: Light) => {
           STAND.set(node, stand);
           REAL.set(stand, node);
         }
-        parent.insertBefore(node, rec.re);
-        if (PLACED.get(node) !== undefined || !STAND.has(node)) PLACED.set(node, rec);
-        else PLACED.set(node, rec);
+        parent.insertBefore(node, previous.nextSibling);
+        PLACED.set(node, rec);
+        previous = node;
       }
     }
     if (mine.length !== rec.shown.length || mine.some((node, i) => node !== rec.shown[i])) {
@@ -272,6 +296,7 @@ const handle = (records: MutationRecord[]) => {
 const lights = new Set<Light>();
 /** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
 const flush = () => {
+  if (busy) return;
   if (observers !== null) note([...observers[0].takeRecords(), ...observers[1].takeRecords()]);
   for (const light of lights) if (light.dirty) distribute(light);
   settle();
