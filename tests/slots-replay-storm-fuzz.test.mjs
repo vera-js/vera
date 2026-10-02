@@ -1,4 +1,11 @@
 /**
+ * **Read a host's own sections as its CHILDREN, never with `querySelector(':scope > …')`.** jsdom resolves `:scope`
+ * wrongly when the same tag nests in itself — an `fz-host` inside an `fz-host` — and answers the INNER host's
+ * `footer`: every seed of this harness once "diverged" (data right, screen = fallback) on a page that was correct.
+ * Extended by vera-5a (2026-10-02) with `hold()` around a slotted binding, a spread-driven `slot=` row shape, and a
+ * nested slot host receiving its own keyed rows, checked against its own oracle.
+ */
+/**
  * **What an OUTER template does to a light host's children, against an oracle computed from the data.** The page's
  * template writes the host's light children through bindings — keyed rows reordered, inserted, removed, re-slotted,
  * changing shape between an element, a two-element fragment aimed at two different slots, and a bare text node —
@@ -21,6 +28,8 @@ const { html, wire, init } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { slots, slotted } = await load('renderer/slots');
 const { keyed } = await load('renderer/keyed');
+const { spread } = await load('renderer/spread');
+const { hold } = await load('renderer');
 wire([renderer, slots]);
 const doc = dom.window.document;
 
@@ -36,39 +45,57 @@ let seed = 0;
 const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 const NAMES = ['a', 'b', '', 'zz'];
-const SHAPES = ['el', 'frag', 'text'];
+const SHAPES = ['el', 'frag', 'text', 'spread'];
 
 /** One row's template and the light nodes it contributes, in order, as `[slotName, text]`. */
 const ROW_EL = (id, slot) => html`<i slot=${slot}>${id}</i>`;
 const ROW_FRAG = (id, slot, slot2) => html`<b slot=${slot}>${id}</b><u slot=${slot2}>${id}u</u>`;
 /** A row that is bare text: a template holding only a text binding (keyed rows are always templates). */
 const ROW_TEXT = (id) => html`${`t${id}`}`;
+const ROW_SPREAD = (id, slot) => html`<i ${spread({ slot })}>${id}s</i>`;
 const rowValue = (row) =>
   row.shape === 'el' ? keyed(row.id, ROW_EL(row.id, row.slot))
   : row.shape === 'frag' ? keyed(row.id, ROW_FRAG(row.id, row.slot, row.slot2))
+  : row.shape === 'spread' ? keyed(row.id, ROW_SPREAD(row.id, row.slot))
   : keyed(row.id, ROW_TEXT(row.id));
 const rowNodes = (row) =>
   row.shape === 'el' ? [[row.slot, row.id]]
   : row.shape === 'frag' ? [[row.slot, row.id], [row.slot2, `${row.id}u`]]
+  : row.shape === 'spread' ? [[row.slot, `${row.id}s`]]
   : [['', `t${row.id}`]];
 
 const LEADS = [null, 'L', 'S'];
 const leadValue = (lead) => (lead === null ? null : lead === 'L' ? 'L' : html`<s slot="a">S</s>`);
 const leadNodes = (lead) => (lead === null ? [] : lead === 'L' ? [['', 'L']] : [['a', 'S']]);
 
+const HX = () => html`<i slot="a">HX</i>`;
+const HY = () => html`<b slot="b">HY</b><u>HY2</u>`;
+const heldValue = (h) => hold(h === 'x' ? HX() : h === 'y' ? HY() : null);
+const heldNodes = (h) => (h === 'x' ? [['a', 'HX']] : h === 'y' ? [['b', 'HY'], ['', 'HY2']] : []);
+const composed = (exp) => ['a', '', 'b'].map((n) => (exp[n].length ? exp[n].join('') : { a: 'FA', '': 'FD', b: 'FB' }[n])).join('');
 /** One draw for every step: one template literal, so updates are updates, never rebuilds. */
-const draw = (state) => html`<fz-host>${leadValue(state.lead)}<em slot="b">E</em>${state.rows.map(rowValue)}${leadValue(state.tail)}</fz-host>`;
+const draw = (state) => html`<fz-host>${leadValue(state.lead)}${heldValue(state.held)}<em slot="b">E</em>${state.rows.map(rowValue)}<fz-host slot="a" class="inner">${state.inner.map(rowValue)}</fz-host>${leadValue(state.tail)}</fz-host>`;
 
 /** The oracle: each slot's content, from the data — light order, filtered by slot name. */
+const innerExpected = (state) => {
+  const nodes = state.inner.flatMap(rowNodes);
+  const out = {};
+  for (const name of ['a', '', 'b']) out[name] = nodes.filter(([slot]) => slot === name).map(([, text]) => text);
+  return out;
+};
 const expected = (state) => {
-  const nodes = [...leadNodes(state.lead), ['b', 'E'], ...state.rows.flatMap(rowNodes), ...leadNodes(state.tail)];
+  const inner = innerExpected(state);
+  const nodes = [...leadNodes(state.lead), ...heldNodes(state.held), ['b', 'E'], ...state.rows.flatMap(rowNodes), ['a', composed(inner)], ...leadNodes(state.tail)];
   const out = {};
   for (const name of ['a', '', 'b']) out[name] = nodes.filter(([slot]) => slot === name).map(([, text]) => text);
   return out;
 };
 
 const mutate = (state, next) => {
-  const op = pick(['insert', 'insert', 'remove', 'move', 'reslot', 'reshape', 'reverse', 'lead', 'tail']);
+  const op = pick(['insert', 'insert', 'remove', 'move', 'reslot', 'reshape', 'reverse', 'lead', 'tail', 'held', 'inner', 'inner', 'innermove']);
+  if (op === 'held') { state.held = pick([null, 'x', 'y']); return op; }
+  if (op === 'inner') { if (random() < 0.6 || !state.inner.length) state.inner.splice(Math.floor(random() * (state.inner.length + 1)), 0, { id: `n${next()}`, slot: pick(NAMES), slot2: pick(NAMES), shape: pick(SHAPES) }); else state.inner.splice(Math.floor(random() * state.inner.length), 1); return op; }
+  if (op === 'innermove') { if (state.inner.length) { const [r] = state.inner.splice(Math.floor(random() * state.inner.length), 1); state.inner.splice(Math.floor(random() * (state.inner.length + 1)), 0, r); } return op; }
   const rows = state.rows;
   if (op === 'insert' || rows.length === 0)
     rows.splice(Math.floor(random() * (rows.length + 1)), 0, { id: `r${next()}`, slot: pick(NAMES), slot2: pick(NAMES), shape: pick(SHAPES) });
@@ -97,14 +124,18 @@ test('an outer template\'s keyed reorders, inserts, removals, re-slots and shape
     const next = () => counter++;
     const page = doc.createElement('div');
     doc.body.append(page);
-    const state = { lead: null, tail: null, rows: [] };
+    const state = { lead: null, tail: null, held: null, rows: [], inner: [] };
     const script = [];
     for (let step = 0; step < 80; step++) {
       script.push(mutate(state, next));
       /** Rows as they are now, copied — the template reads them during the render. */
-      renderInto(draw({ ...state, rows: state.rows.map((row) => ({ ...row })) }), page);
+      renderInto(draw({ ...state, rows: state.rows.map((row) => ({ ...row })), inner: state.inner.map((row) => ({ ...row })) }), page);
       steps++;
       const host = page.querySelector('fz-host');
+      const innerHost = page.querySelector('fz-host.inner');
+      const iw = innerExpected(state);
+      for (const name of ['a', '', 'b']) { const ig = slotted(innerHost, name).map((n) => n.textContent); if (JSON.stringify(ig) !== JSON.stringify(iw[name])) { divergences.push({ seed: s, step, inner: true, name, want: iw[name], got: ig, script: script.slice(-6).join(',') }); break; } }
+      if (divergences.length && divergences[divergences.length - 1].step === step && divergences[divergences.length - 1].seed === s) break;
       const want = expected(state);
       const got = {
         a: slotted(host, 'a').map((n) => n.textContent),
@@ -113,9 +144,9 @@ test('an outer template\'s keyed reorders, inserts, removals, re-slots and shape
       };
       /** And what is ON SCREEN: each section shows its slot's content, or the fallback when it has none. */
       const screen = {
-        a: host.querySelector('header').textContent,
-        '': host.querySelector('main').textContent,
-        b: host.querySelector('footer').textContent,
+        a: [...host.children].find((c) => c.localName === 'header').textContent,
+        '': [...host.children].find((c) => c.localName === 'main').textContent,
+        b: [...host.children].find((c) => c.localName === 'footer').textContent,
       };
       const fallback = { a: 'FA', '': 'FD', b: 'FB' };
       if (want.a.length > 0 && want.b.length > 0) filled++;
