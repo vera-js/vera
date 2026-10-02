@@ -64,9 +64,10 @@ export default [
   /** Additive for the same reason, and it inlines `spread` because it builds on that protocol. */
   defaultRollupConfig(`${pkg.filename}-tag`, [], /^_[a-z]/, { input: 'src/tag.ts' }),
   /**
-   * Additive: it inlines `elements` (it claims each `<slot>` through it) and imports nothing else;
-   * the renderer reaches IT through the wired 'slot' insert and the sigiled members on it (`_$park$`,
-   * the `_$b$`/`_$e$` render bracket, `_$span$`) — mangle-exempt by the same `$` rule as the others.
+   * Additive: it inlines `elements` (it claims each `<slot>` and each dashed host through it) and imports
+   * nothing else; the renderer reaches IT through `_$done$` on the registry (a render ended) and the
+   * `_$slotted$` mark on a node it moved, and `@verajs/ssr` through `_$server$` on its 'slot' insert —
+   * mangle-exempt by the same `$` rule as the others.
    */
   defaultRollupConfig(`${pkg.filename}-slots`, [], /^_[a-z]/, { input: 'src/slots.ts' }),
   /**

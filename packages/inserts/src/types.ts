@@ -92,7 +92,7 @@ export type ValueInsert = (part: object, value: unknown) => boolean | void;
 /**
  * **The server half of light-DOM slots** — `@verajs/renderer/slots` registers it, `@verajs/ssr` reads
  * `_$server$` off the function and calls it with a host and its light children, once the host's render
- * is final. On the client the slots module claims each `<slot>` through `'element'` instead, so the
+ * is final (`@verajs/ssr` declares that member, in the types of its own DOM). On the client the slots module claims each `<slot>` through `'element'` instead, so the
  * function itself is never called there and declines (`null`). A hand-off between those two packages,
  * one module distributing on both sides; not a point to register a strategy on.
  *
@@ -100,7 +100,7 @@ export type ValueInsert = (part: object, value: unknown) => boolean | void;
  * `wire([renderer, slots])` does not typecheck for a consumer, because a descriptor's `on` is
  * `keyof InsertFunctionMap` and `'slot'` was not one of them.
  */
-export type SlotInsert = (() => null) & { _$server$?: (host: Element, source: Node[]) => void };
+export type SlotInsert = () => null;
 
 /**
  * **Claims elements in templates** — `@verajs/renderer/elements`. Asked about each element of a

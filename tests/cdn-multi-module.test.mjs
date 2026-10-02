@@ -102,8 +102,8 @@ test('and the router navigates and renders a route on the same page', async () =
 
 /**
  * **`@verajs/renderer/slots` across a real bundle boundary.** It is the module with the most to
- * lose here: the renderer reaches it through FIVE sigil-named members — `_$capture$`, `_$park$`,
- * `_$rescue$`, `_$adopt$`, `_$server$` — and sigils exist precisely because production mangles
+ * lose here: the renderer and the server reach it through sigil-named members — `_$done$` on the
+ * registry, `_$slotted$` on a node it moved, `_$server$` on its 'slot' insert — and sigils exist precisely because production mangles
  * property names, so a bundle boundary is the only place a broken one shows. Everything else about
  * this module is exercised against its own bundle; this is the one place it is exercised against
  * somebody else's.

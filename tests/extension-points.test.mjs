@@ -209,6 +209,8 @@ test('and a real profiling session still reports normally', { skip: isProduction
  * asserted here as the wider truth the doc's narrower claim sits inside.
  */
 test("the 'value' chain never sees primitives — the fast path is the security line", () => {
+  /** The renderer as a MODULE: its `connect` is what hands it the registry the 'value' chain lives in. */
+  core.wire([renderer]);
   const seen = [];
   core.wire({ on: 'value', fn: (part, value) => { seen.push(typeof value); return true; }, priority: 40 });
   const host = dom.window.document.createElement('div');
