@@ -46,7 +46,16 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire } = await load('core');
+const { wire, init } = await load('core');
+/**
+ * A light slot host is a CUSTOM element that calls `init` — Brian's ruling 4 (2026-10-01: "custom elements only"); a
+ * plain container keeps what it had. These hosts were plain `<div>`s, written before that ruling.
+ */
+customElements.define('fz-light', class extends dom.window.HTMLElement {
+  connectedCallback() {
+    init(this);
+  }
+});
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
@@ -151,7 +160,7 @@ test('every read stays in step with native shadow slotting across mutation seque
       const shadowNodes = makeUser(shadowHost, specs);
       shadowHost.attachShadow({ mode: 'open' }).innerHTML = markup;
 
-      const lightHost = doc.createElement('div');
+      const lightHost = doc.createElement('fz-light');
       doc.body.append(lightHost);
       const lightNodes = makeUser(lightHost, specs);
       renderInto(template, lightHost);

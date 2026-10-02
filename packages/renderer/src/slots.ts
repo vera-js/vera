@@ -535,7 +535,8 @@ const hostBehavior = {
 const assigned = (rec: Rec, elementsOnly: boolean, flatten = false): Node[] => {
   flush();
   const out = rec.shown.filter((node) => !elementsOnly || node.nodeType === 1);
-  if (out.length > 0 || !flatten) return out;
+  /** The fallback is read only when NOTHING is assigned — assigned text with no element still answers [] for elements. */
+  if (rec.shown.length > 0 || !flatten) return out;
   for (const node of rec.slot.childNodes) {
     const nested = (node as Kept).$rec;
     if (nested !== undefined) out.push(...assigned(nested, elementsOnly, true));

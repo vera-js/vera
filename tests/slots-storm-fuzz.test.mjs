@@ -28,7 +28,16 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
   'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'requestAnimationFrame',
   'cancelAnimationFrame', 'MutationObserver']) globalThis[k] = dom.window[k];
 
-const { html, wire } = await load('core');
+const { html, wire, init } = await load('core');
+/**
+ * A light slot host is a CUSTOM element that calls `init` — Brian's ruling 4 (2026-10-01: "custom elements only"); a
+ * plain container keeps what it had. These hosts were plain `<div>`s, written before that ruling.
+ */
+customElements.define('fz-light', class extends dom.window.HTMLElement {
+  connectedCallback() {
+    init(this);
+  }
+});
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
@@ -47,7 +56,7 @@ test('same-frame storms end where native slotting ends', async () => {
   for (const start of SEEDS) {
     seed = start;
     for (let run = 0; run < 30; run++) {
-      const light = doc.createElement('div');
+      const light = doc.createElement('fz-light');
       doc.body.append(light);
       const refs = [];
       const strings = Object.assign(['<div><slot name="o" &ref=', '>F</slot></div>'], { raw: ['<div><slot name="o" &ref=', '>F</slot></div>'] });
