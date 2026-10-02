@@ -141,11 +141,19 @@ code, so they are not re-litigated.
   its self time 9.0 → 12.3 ms), and `depths[i] ?? 0` on an array filled only where needed walks the prototype chain on
   each hole. Use plain loops inside hot functions, and build per-binding arrays dense. The third, measured the same day:
   moving the SSR tag scanner into its own module and marking the constants its per-character loop reads `export const`
-  (`isSpace`, the phase numbers, the raw-text sets) cost compile 4.2% and a 50 KB `.innerHTML` value 11%, every round,
-  with the scan's code unchanged — an exported binding is a live binding, which V8 reaches less directly than a
-  module-local one. Keep what a hot loop reads module-local and export a separate alias (`export const
+  (`isSpace`, the phase numbers, the raw-text sets) cost a 50 KB `.innerHTML` scan about 3.5% at steady state, and
+  slowed its tier-up, with the scan's code unchanged — an exported binding is a live binding, which V8 reaches less
+  directly than a module-local one. Keep what a hot loop reads module-local and export a separate alias (`export const
   RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
   every hot-path change gets a cold-process or race measurement before it lands.
+- **A timing window after a fixed warm-up measures WHEN V8 tiers up, not how fast the code is.** A race that warmed 20
+  calls and then timed 200 reported the breakout change 28% SLOWER on a 50 KB `.innerHTML` scan (2026-10-01); a
+  per-batch curve showed the truth — the new build was twice as fast over its first 20 calls, sat in a middle tier
+  for calls 20–80 where the old one had already reached its top tier, and was faster for good after that. The window
+  had landed exactly on the gap. The same harness had put the exported-constants cost above at 11% against the 3.5% it
+  is at steady state, and it sent a bisect chasing a cause that did not exist. Report TWO numbers per fresh process —
+  the total of the first N calls from cold (what a server's first requests pay) and a steady-state time after a long
+  warm-up (what throughput pays) — and print a per-batch curve whenever they disagree.
 - **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
   to be an insert point no package registers and no doc mentions; the pattern had matched inside
   **`setupTarget('mount')`** and there is no such insert point. `!live` appeared to be a public
