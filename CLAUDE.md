@@ -134,11 +134,17 @@ code, so they are not re-litigated.
   `@verajs/*` to the MAIN tree's packages, so a mutation made in the worktree "passes" while the test runs the
   untouched code. Check `readlink -f node_modules/@verajs/<pkg>` before trusting a worktree mutation — the
   mutation must turn something red, or it measured nothing.
-- **In a hot function, an arrow that captures a parameter taxes EVERY call, and a sparse array taxes every read.**
+- **In a hot function, an arrow that captures a parameter taxes EVERY call, a sparse array taxes every read, and so
+  does an EXPORTED module variable.**
   Measured 2026-10-01 on the SSR serializer, which lost 4.7% in a day to both: `value.map((e) => serializeValue(e,
   false, depth))` makes V8 heap-allocate a context on every `serializeValue` call, whichever branch runs (CPU profile:
   its self time 9.0 → 12.3 ms), and `depths[i] ?? 0` on an array filled only where needed walks the prototype chain on
-  each hole. Use plain loops inside hot functions, and build per-binding arrays dense. Neither shows in a code read, so
+  each hole. Use plain loops inside hot functions, and build per-binding arrays dense. The third, measured the same day:
+  moving the SSR tag scanner into its own module and marking the constants its per-character loop reads `export const`
+  (`isSpace`, the phase numbers, the raw-text sets) cost compile 4.2% and a 50 KB `.innerHTML` value 11%, every round,
+  with the scan's code unchanged — an exported binding is a live binding, which V8 reaches less directly than a
+  module-local one. Keep what a hot loop reads module-local and export a separate alias (`export const
+  RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
   every hot-path change gets a cold-process or race measurement before it lands.
 - **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
   to be an insert point no package registers and no doc mentions; the pattern had matched inside
