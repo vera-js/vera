@@ -220,3 +220,18 @@ test('a hole inside a tag name is refused, whatever the tokenizer counts as part
   for (const lead of ['<', '</', '<a\v', '<a.b'])
     assert.throws(() => serializeTemplate(template([`${lead}`, '>x'], 'b')), /cannot be a tag name/, JSON.stringify(lead));
 });
+
+/**
+ * **An event binding is an attribute whose name STARTS `on` + an upper-case letter, as the client reads it.** The tail
+ * pattern this replaced was unanchored, so `<b data-onClick=${v}>` matched in the middle of the name and was served as
+ * `<b data->` — half an attribute, the value gone.
+ */
+test('only a name that starts `on` + upper case is an event binding', () => {
+  const one = (head, tail = '>x</b>') => serializeTemplate(template([head, tail], 'v'));
+  assert.equal(one('<b data-onClick='), '<b data-onClick="v">x</b>');
+  assert.equal(one('<b aria-onX='), '<b aria-onX="v">x</b>');
+  assert.equal(one('<b xonY="', '">x</b>'), '<b xonY="v">x</b>');
+  /** The event binding is the client's: dropped. A lower-case `onclick` is an inline handler, refused (see the URL suites). */
+  assert.equal(one('<b onClick='), '<b>x</b>');
+  assert.equal(one('<b onclick='), '<b>x</b>');
+});

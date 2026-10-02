@@ -31,6 +31,8 @@ const TOKENS = [
   '<', '</', '<!', '<?', '<!--', '-->', '--!>', '>', '/>', '/', '=', '"', "'", ' ', ' ', ' ', '\n', '\v',
   'a', 'b', 'x', '1', '-', '.', ':', 'p', 'b ', 'a=', 'x="', "x='", 'a=x', 'svg', 'math', 'style', 'script',
   'textarea', 'title', 'template', 'noscript', 'xmp', 'style.x', 'script:x', 'foreignObject', '?a=', '.a=',
+  /** Names an event binding must be told apart from: `on` + upper case at the start only (`onA=`), and inside one. */
+  ' onA=', ' xonA=', ' data-onB=', 'onA',
 ];
 const CONTEXTS = [['', ''], ['<svg>', '</svg>'], ['<math>', '</math>'], ['<style>', '</style>'], ['<textarea>', '</textarea>'], ['<!--', '-->'], ['<template>', '</template>'], ['<p>', '</p>']];
 
