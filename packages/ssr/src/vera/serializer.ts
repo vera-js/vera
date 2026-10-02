@@ -60,50 +60,14 @@ const BOOLEAN_FORM_PROPERTIES = new Set(['checked', 'selected']);
  */
 const FORM_ELEMENTS = new Set(['input', 'textarea', 'select', 'option']);
 
-/** The name of the tag currently being built, read back out of the markup so far. */
-const openTagName = (out: string): string => {
-  const start = out.lastIndexOf('<');
-  return start === -1 ? '' : (/^<([a-z][\w-]*)/.exec(out.slice(start))?.[1] ?? '');
-};
 
+/** The first character of a sigil binding's name — see `compile`. */
+const SIGILS = new Set(['.', '?', '@', '&', '!']);
 /**
- * A sigil binding, however the author quoted it — `"`, `'`, or not at all.
- *
- * Only the double-quoted and unquoted forms were recognized, and the client supports all three
- * because it hands the markup to the platform's parser. So `<input .value='${v}' />` set a property
- * in the browser and emitted a literal attribute named `.value` on the server; `?hidden='${true}'`
- * hid the element on one side and printed `?hidden='true'` on the other. Visible difference on a
- * static page, guaranteed mismatch on a hydrated one.
+ * Where a sigil or event binding's name is cut from the static before it: at the one whitespace character before the
+ * name, which the binding takes with it so a dropped binding leaves no residue (`compile` then trims one more space).
  */
-/**
- * `!name` is here alongside `.name` because a **live** property is still a property: the sigil only
- * changes *when the client re-writes it*, and a server has nothing to re-write against. It is
- * serialized exactly as `.name` is, so the first paint is right and the client takes over.
- *
- * A sigil the server does not know is not inert — it falls through to the plain-attribute path and
- * emits `! checked="true"`, which is an attribute named `!` and a second one beside it. That is why
- * every sigil has to be added here in the same pass it is added to the renderer.
- */
-/**
- * A sigil binding's tail, as it appears at the end of the static before the value.
- *
- * The name is **optional after `&`**, and only after `&`: `&=${ref}` is a legal element ref with no
- * name at all — the renderer's scanner back-reads the name `&`, and `AttrPart` maps that to a ref.
- * The client therefore drops it and renders nothing, while this pattern did not match it and left
- * `&=` in the tag with the value stringified after it: `<p &=[object Object]>`, which is malformed
- * markup that also prints the object.
- *
- * The name is optional for all five rather than only `&`, which costs nothing: a nameless `.=`,
- * `?=`, `@=` or `!=` has no meaning either, and dropping such a binding is a better answer than
- * writing it into the tag with its value stringified beside it.
- */
-/**
- * Space is allowed around `=`, as the platform's tokenizer allows it and the client's scanner reads it. The sigil is
- * the FIRST character of an attribute name — after whitespace — and the name after it is any attribute-name
- * character, as the client's scanner reads it (`[^\s"'>=/]`): a name starting with `_`, `$` or a digit is still a
- * sigil binding (`._private`, `@_tap`), and a `.`/`?`/`@`/`!` INSIDE a name is part of it (`data-x.y` is an attribute).
- */
-const SIGIL_TAIL = /(?:^|\s)([.?@&!])([^\s"'>=/]+)?\s*=\s*(["']?)$/;
+const nameCut = (text: string, nameAt: number): number => (nameAt > 0 && isSpace(text[nameAt - 1]) ? nameAt - 1 : nameAt);
 
 /**
  * **An expression inside an attribute NAME is refused** — the twin of the client's rule (`nameHole` in the renderer),
@@ -113,7 +77,6 @@ const SIGIL_TAIL = /(?:^|\s)([.?@&!])([^\s"'>=/]+)?\s*=\s*(["']?)$/;
  */
 const NAME_CHAR_BEFORE = /[^\s"'>=/]$/;
 const NAME_CHAR_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
-const TAG_NAME_HOLE = /<\/?[^\s>]*$/;
 const nameHole = (before: string, after: string): never => {
   const prefix = (/[^\s"'>=/]*$/.exec(before) ?? [''])[0];
   const suffix = (/^[^\s"'>=/]*/.exec(after) ?? [''])[0];
@@ -127,8 +90,6 @@ const nameHole = (before: string, after: string): never => {
   );
 };
 
-/** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
-const EVENT_TAIL = /on[A-Z][\w:-]*\s*=\s*(["']?)$/;
 
 /** Slot kinds: text, boolean, form-prop, dropped binding, plain attribute. */
 const TEXT = 0;
@@ -274,26 +235,6 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
   }
 };
 
-/**
- * Whether the text so far leaves us inside an open tag — the question every sigil test below
- * silently assumed the answer to.
- *
- * Without it a slot was classified by what the static happened to *end* with, wherever it sat.
- * `html\`<p>total=${n}</p>\`` is text, but ends in `total=`, so it was written as an unquoted
- * attribute and the server produced `<p>total="5"</p>` against the client's `<p>total=5</p>` — a
- * visible difference on a static page and a discarded hydration on a live one. The client never had
- * the bug because it hands the markup to the platform's parser, which knows where it is.
- *
- * A raw `<` in text (`a < b`) reads as an open tag here, as it does to a lenient HTML parser in
- * some positions; escape it, as HTML has always asked.
- */
-const closesTag = (text: string, inTag: boolean): boolean => {
-  const open = text.lastIndexOf('<');
-  const close = text.lastIndexOf('>');
-  if (open > close) return true;
-  if (close > open) return false;
-  return inTag;
-};
 
 /**
  * Where a static leaves us: inside a tag, and if so, inside an attribute **value**.
@@ -396,6 +337,7 @@ interface ScanStart extends ScanState {
   readonly opened?: undefined;
   readonly attrStart?: undefined;
   readonly valueStart?: undefined;
+  readonly nameAt?: undefined;
   readonly tagAt?: undefined;
 }
 
@@ -404,6 +346,8 @@ interface ScanResult extends ScanState {
   readonly opened: boolean;
   readonly attrStart: number;
   readonly valueStart: number;
+  /** Where, in THIS text, the name of the attribute whose value opened here starts — `0` when it began earlier. */
+  readonly nameAt: number;
   /** Where, in THIS text, the tag still open at its end began — `-1` when it began in an earlier one, or none is. */
   readonly tagAt: number;
 }
@@ -425,6 +369,7 @@ const scanTag = (text: string, state: ScanState, edits?: number[]): ScanResult =
   let opened = false;
   let attrStart = 0;
   let valueStart = 0;
+  let nameAt = 0;
   /** Where the attribute name being read began in THIS text — `-1` when it began in an earlier one. */
   let nameFrom = -1;
   let tagAt = -1;
@@ -625,7 +570,8 @@ const scanTag = (text: string, state: ScanState, edits?: number[]): ScanResult =
       /** The value states are `inValue`/`quote`; every way out of them names the phase that follows. */
       phase = BEFORE_ATTRIBUTE_NAME;
       opened = true;
-      attrStart = nameFrom === -1 ? 0 : nameFrom;
+      nameAt = nameFrom === -1 ? 0 : nameFrom;
+      attrStart = nameAt;
       while (attrStart > 0 && isSpace(text[attrStart - 1])) attrStart--;
       valueStart = quote ? next + 1 : next;
       i = quote ? next : next - 1;
@@ -669,7 +615,7 @@ const scanTag = (text: string, state: ScanState, edits?: number[]): ScanResult =
   }
   /** A name still being read at the end carries on into the next text (a hole there is refused — see `nameHole`). */
   if (phase === ATTRIBUTE_NAME) attrRaw = nameFrom === -1 ? attrRaw + text : text.slice(nameFrom);
-  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, opened, attrStart, valueStart, tagAt };
+  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, opened, attrStart, valueStart, nameAt, tagAt };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -743,7 +689,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
   /** The quote character a binding opened with, to be stripped off the front of the next static. */
   let openQuote = '';
-  let inTag = false;
+  let wasInTag = false;
   /** Carried across statics — see `scanTag`. */
   let tagState: ScanStart | ScanResult = freshScan(depth);
   /** Per binding: whether a component property's name is a URL sink. */
@@ -759,8 +705,6 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
     if (openQuote && part.startsWith(openQuote)) part = part.slice(1);
-    const wasInTag = inTag;
-    inTag = closesTag(part, inTag);
     /**
      * Scanned from the **author's** static, not the trimmed one.
      *
@@ -771,18 +715,35 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     tagState = scanTag(strings[i], tagState);
     /**
-     * Inside a nested `<template>`'s content: inert markup the client never walks, so it never reaches this
+     * **Every question about where this hole sits is answered by that scan** — whether it is inside a tag, which tag,
+     * whether a new one opened, and whether the hole is a sigil binding. They used to be answered beside it, by tests
+     * on the static's tail (its last `<` against its last `>`, a sigil pattern, a tag-name pattern), which knew nothing
+     * of comments, raw text or the tokenizer's names: `<!-- <div .innerHTML=${v}> -->` honored the binding INSIDE the
+     * comment, so a `-->` in `v` ended it, and `<textarea><b .innerHTML=${v}>` broke out of the textarea the same way.
+     */
+    const inTag = tagState.inTag;
+    /** `<template>`'s content: inert markup the client never walks, so it never reaches this
      * binding — it neither renders the value nor keeps the attribute holding it. Nor does this.
      */
     const inert = tagState.inert > 0;
-    /** A new tag starts wherever the text opens one; what the previous tag held is irrelevant. */
-    const opensTag = part.lastIndexOf('<') > part.lastIndexOf('>');
+    /** A new tag starts wherever this text opens one that is still open at its end; what the previous tag held is irrelevant. */
+    const opensTag = inTag && tagState.tagAt !== -1;
     if (opensTag || (!inTag && wasInTag)) {
       written = new Set<string>();
       dynamicTag = false;
-      owner = openTagName(part);
       if (opensTag) elementOrdinal++;
     }
+    wasInTag = inTag;
+    /** The tag a binding belongs to, by the name the tokenizer reads — the element's `localName` on the client. */
+    owner = inTag && !tagState.closing ? tagState.tagName : '';
+    /**
+     * Whether this hole is an attribute's WHOLE value as it opens — `name=${…}`, quoted or not, with space around `=`
+     * as the tokenizer allows. Only then can it be a sigil or event binding: a hole later in a value (`title="a
+     * .x=${…}"`) is part of that value.
+     */
+    const whole = inTag && tagState.inValue && tagState.opened && tagState.valueStart === strings[i].length;
+    /** Offsets are in the author's static; `part` may have lost a leading quote to the binding before it. */
+    const shift = strings[i].length - part.length;
     /**
      * Names in the statics are recorded from the text that is actually **emitted**, which is the
      * part with this binding's own name already trimmed off. Scanning the raw part instead counts
@@ -793,16 +754,27 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       if (inTag) for (const [, found] of staticText.matchAll(STATIC_ATTRIBUTE)) written.add(found.toLowerCase());
     };
 
-    const sigil = inTag && SIGIL_TAIL.exec(part);
-    if (sigil) {
+    /**
+     * **A sigil binding** — `.prop`, `?bool`, `@event`, `&ref`, `!live` — is an attribute whose name starts with the
+     * sigil and whose whole value is this hole, however it is quoted. The name after the sigil is any name character,
+     * as the client's scanner reads it: `._private` and `@_tap` are sigil bindings, and a sigil INSIDE a name is part
+     * of it (`data-x.y` is an attribute). A sigil the server does not know is not inert — it would fall through to the
+     * attribute path and emit an attribute named `!` — so every sigil is added here in the same pass it is added to
+     * the renderer.
+     */
+    if (whole && SIGILS.has(tagState.attrRaw[0])) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
-      const before = part.slice(0, sigil.index).replace(/ $/, '');
+      const before = part.slice(0, nameCut(strings[i], tagState.nameAt) - shift).replace(/ $/, '');
       record(before);
       parts.push(before);
-      openQuote = sigil[3];
-      const kind = sigil[1];
-      /** Absent after a bare `&=`, which is an element ref with no name. */
-      const sigilName = sigil[2] ?? '';
+      openQuote = tagState.quote;
+      const kind = tagState.attrRaw[0];
+      /**
+       * Absent after a bare `&=`, which is an element ref with no name — legal: the renderer back-reads the name `&`
+       * and maps it to a ref, so the client renders nothing, and so does this. A nameless `.=`, `?=`, `@=` or `!=` has
+       * no meaning either, and is dropped the same way.
+       */
+      const sigilName = tagState.attrRaw.slice(1);
       if (inert) {
         kinds.push(DROPPED);
       } else if (kind === '?') {
@@ -830,6 +802,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         kinds.push(CONTENT);
         depths[kinds.length - 1] = tagState.foreign + (owner === 'svg' || owner === 'math' ? 1 : 0);
       } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
+        /**
+         * `!name` is a **live** property, and still a property: the sigil only changes when the client re-writes it,
+         * and a server has nothing to re-write against — so it serializes exactly as `.name` does, and the first
+         * paint is right before the client takes over.
+         */
         kinds.push(FORM_PROP);
       } else {
         kinds.push(DROPPED);
@@ -846,13 +823,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
     openQuote = '';
 
-    const event = inTag && EVENT_TAIL.exec(part);
-    if (event) {
-      /** A client concern, dropped like `@` — and it may be quoted, so remember which. */
-      const before = part.slice(0, event.index).replace(/ $/, '');
+    /** `onClick=${fn}` — the React-shaped event binding, named as the client names it: a client concern, dropped like `@`. */
+    if (whole && /^on[A-Z]/.test(tagState.attrRaw)) {
+      const before = part.slice(0, tagState.nameAt - shift).replace(/ $/, '');
       record(before);
       parts.push(before);
-      openQuote = event[1];
+      openQuote = tagState.quote;
       kinds.push(DROPPED);
       names.push('');
       strip.push(false);
@@ -887,8 +863,6 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         leads[kinds.length] = forDoubleQuotes(part, group.quote);
         decodedLeads[kinds.length] = decodeSchemeReferences(part);
       } else {
-        /** Offsets are in the author's static; `part` may have lost a leading quote to the binding before it. */
-        const shift = strings[i].length - part.length;
         const before = part.slice(0, tagState.attrStart - shift);
         const prefix = part.slice(tagState.valueStart - shift);
         const lower = tagState.attrName;
@@ -944,13 +918,17 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     raws.push(tagState.rawTag);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
-    /** A TAG-name hole: refused in every build — the twin of the client's development refusal, one message. */
-    if (elementPosition && TAG_NAME_HOLE.test(part))
+    /**
+     * A TAG-name hole — right after `<` or `</`, or inside a tag name: refused in every build, the twin of the client's
+     * development refusal, one message.
+     */
+    const tagNameHole = tagState.phase === TAG_OPEN || tagState.phase === END_TAG_OPEN || tagState.phase === TAG_NAME;
+    if (tagNameHole)
       throw new Error(
         'ssr: an expression in tag position (`<${…}>`) cannot be a tag name — a tag name must be a tag value: ' +
           '`tag`h1`` from @verajs/renderer/tag, with that entry\'s `html`.'
       );
-    if (elementPosition && !TAG_NAME_HOLE.test(part) && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
+    if (elementPosition && !tagNameHole && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
       nameHole(part, strings[i + 1]);
     elementPositions.push(elementPosition);
     elements.push(elementOrdinal);
@@ -1097,6 +1075,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
           const componentTag = owners[i].includes('-') && registry.has(owners[i]) ? owners[i] : '';
           const folded = foldSpread(
             out,
+            owners[i],
             (value as Spread)._$attrs$(),
             componentTag === ''
               ? undefined
@@ -1567,6 +1546,8 @@ type Folded = { readonly out: string; readonly text: string | null; readonly sel
 
 const foldSpread = (
   out: string,
+  /** The tag the spread sits in, as the template's scan named it (see `compile`). */
+  owner: string,
   entries: readonly SpreadEntry[],
   deliverProp: ((name: string, value: unknown) => void) | undefined
 ): Folded => {
@@ -1578,7 +1559,6 @@ const foldSpread = (
   /** A `<select>`'s value is not an attribute either; the caller marks the tag — see `SELECT_MARK`. */
   let select: string | number | null = null;
 
-  const owner = openTagName(out);
   const isFormElement = FORM_ELEMENTS.has(owner);
   for (const [kind, name, value] of entries) {
     /**

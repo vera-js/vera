@@ -342,7 +342,9 @@ dependency involved.
   that breaks out of foreign content — nor an `svg` template rendered outside any `<svg>`. There the
   browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
   That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
-  page. Put the stylesheet outside the foreign element.
+  page. Put the stylesheet outside the foreign element. The same misreading reaches trusted `.innerHTML` markup:
+  `<math><mi><style>` is an integration point too, so a `<script` written as text inside that stylesheet is served
+  with the inert `type` added to it, a change to the CSS text that hydration replaces.
 - **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
   the value with the element as its context; the served page is parsed with every real ancestor around it, so a
   few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),

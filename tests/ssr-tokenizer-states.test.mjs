@@ -12,7 +12,7 @@
  * - the `.innerHTML` scan read a quote inside an attribute name as opening a value, so `<b x"><script>` served a
  *   live script, and skipped `<style>` content inside `<svg>`/`<math>`, where it is markup.
  *
- * They are one scanner now, modelled on the tokenizer's own states. The fuzz half of this pin — random statics,
+ * They are one scanner now, modeled on the tokenizer's own states. The fuzz half of this pin — random statics,
  * every hole classified against parse5 — is `ssr-tokenizer-fuzz.test.mjs`.
  */
 import { test } from 'node:test';
@@ -183,4 +183,40 @@ test('a raw-text element ends only at its own end tag', () => {
   assert.equal(served, '<script>a</scripts>b</script>');
   const style = serializeTemplate(template(['<style>a</style\v>', '</style>'], '.a>.b{}'));
   assert.equal(style, '<style>a</style\v>.a>.b{}</style>');
+});
+
+/**
+ * **A binding is classified by the same scan, so one inside a comment or text-only element is not a binding.** The
+ * sigil, event and tag questions were answered by tests on the static's tail, which knew nothing of comments or raw
+ * text: `<!-- <div .innerHTML=${v}> -->` honored the binding INSIDE the comment, so a `-->` in `v` ended it and the rest
+ * was live; `<textarea><b .innerHTML=${v}>` broke out of the textarea the same way. The client drops all of these.
+ */
+test('a sigil or event binding inside a comment or a text-only element is no binding', () => {
+  const breakout = '--></textarea></title></style></xmp><img id=pwn src=x>';
+  for (const [open, close] of [['<!-- ', ' -->'], ['<textarea>', '</textarea>'], ['<title>', '</title>'], ['<style>', '</style>'], ['<xmp>', '</xmp>']])
+    for (const binding of ['<div .innerHTML=', '<input .value=', '<b ?hidden=', '<b onClick=']) {
+      const served = serializeTemplate(template([`${open}${binding}`, `>${close}`], breakout));
+      assert.ok(!injected(served), served);
+      assert.ok(served.startsWith(`${open}${binding}`), `the static is kept as text: ${served}`);
+    }
+});
+
+test('a `<` the tokenizer reads as text opens no tag, so a sigil after it is text', () => {
+  const served = serializeTemplate(template(['<p><1 .x=', '</p>'], 'v'));
+  assert.equal(served, '<p><1 .x=v</p>');
+});
+
+test('a sigil or event name INSIDE an attribute value is part of that value', () => {
+  assert.equal(serializeTemplate(template(['<b title="a .x=', '">t</b>'], 'v')), '<b title="a .x=v">t</b>');
+  assert.equal(serializeTemplate(template(['<b title="a onClick=', '">t</b>'], 'v')), '<b title="a onClick=v">t</b>');
+});
+
+/** The tag a binding belongs to is the name the tokenizer reads — the element's `localName` — whatever its case. */
+test('a form property on an upper-case tag is mirrored as on a lower-case one', () => {
+  assert.equal(serializeTemplate(template(['<INPUT .value=', '>'], 'v')), serializeTemplate(template(['<input .value=', '>'], 'v')).replace('<input', '<INPUT'));
+});
+
+test('a hole inside a tag name is refused, whatever the tokenizer counts as part of the name', () => {
+  for (const lead of ['<', '</', '<a\v', '<a.b'])
+    assert.throws(() => serializeTemplate(template([`${lead}`, '>x'], 'b')), /cannot be a tag name/, JSON.stringify(lead));
 });
