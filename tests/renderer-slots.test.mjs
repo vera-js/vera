@@ -1351,3 +1351,22 @@ test('a commit into a run during the host\'s own first render replaces what a sl
   assert.equal(shown(h.querySelector('main')), 'late fb');
   h.remove();
 });
+
+/** A first render that throws leaves the host fresh until one completes — and the next completed render is exact. */
+test('a first render that throws, a user edit, then a render that completes: distribution is exact', async () => {
+  const boomer = { _$child$: () => { throw new Error('boom'); } };
+  const draw = (boom) => html`<header><slot name="a">FA</slot></header><main><slot>FD</slot></main>${boom ? boomer : null}`;
+  const h = host('<b slot="a">A1</b>t1');
+  assert.throws(() => renderInto(draw(true), h), /boom/, 'CONTROL: the first render really threw');
+  await settle();
+  const late = doc.createElement('i');
+  late.textContent = 'L';
+  h.append(late);
+  await settle();
+  renderInto(draw(false), h);
+  await settle();
+  assert.deepEqual(slotted(h, 'a').map((n) => n.textContent), ['A1']);
+  assert.deepEqual(slotted(h, '').map((n) => n.textContent), ['t1', 'L']);
+  assert.equal(shown(h.querySelector('main')), 't1L');
+  h.remove();
+});

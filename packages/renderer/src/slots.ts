@@ -235,6 +235,13 @@ const place = (light: Light) => {
    * none. Parked earlier — at the first slot's mount — a node for a later slot would hop host → holding → slot, two
    * operations, and be torn down and set up again on the way.
    */
+  /**
+   * **What clears `fresh`: only a render that ENDS** (`_$done$`, after the commit). A first render that THROWS out of
+   * `renderInto` skips it, and the host stays fresh — its captured children still where the page put them, its runs
+   * still in the host — until a render completes. That is consistent, not stale: a failed commit mounts no slot (mounts
+   * run at a render's end), so no region exists for `inRun` to misread, and a user's edit meanwhile is an ordinary
+   * host record (`adopt`). Pinned in `tests/renderer-slots.test.mjs`.
+   */
   if (ending) light.fresh = false;
   const host = light.host;
   const home = (node: Node) => firstOf(node).parentNode === holding || (fresh && firstOf(node).parentNode === host);
