@@ -235,3 +235,57 @@ test('only a name that starts `on` + upper case is an event binding', () => {
   assert.equal(one('<b onClick='), '<b>x</b>');
   assert.equal(one('<b onclick='), '<b>x</b>');
 });
+
+/**
+ * **An HTML integration point reads its content as HTML** — SVG `foreignObject`/`desc`/`title`, MathML
+ * `mi`/`mo`/`mn`/`ms`/`mtext`, and an `annotation-xml` with an HTML `encoding` — so a `<style>` there is raw text, as
+ * the browser parses it, where it used to be escaped. Every trap is on the dangerous side, where reading MathML or SVG
+ * as HTML would write a hole raw into markup: a self-closed point, `mglyph`/`malignmark` (foreign again inside a text
+ * point), the wrong namespace (`<math><foreignObject>`, `<svg><mi>`, and `<math><svg>`, a MathML element named svg),
+ * `annotation-xml` without the encoding, an `<svg>` inside `annotation-xml`, and `<noscript>`. parse5 decides each.
+ */
+const styleParent = (served) => {
+  const style = page(served).find((el) => el.tagName === 'style');
+  return style === undefined ? 'none' : style.namespaceURI.endsWith('xhtml') ? 'html' : 'foreign';
+};
+test('an HTML integration point reads its <style> as raw text; every foreign look-alike escapes it', () => {
+  const RAW = [
+    '<svg><foreignObject>', '<svg><foreignobject>', '<svg><FOREIGNOBJECT>', '<svg><desc>', '<svg><title>', '<svg><g><foreignObject>',
+    '<math><mi>', '<math><mo>', '<math><mtext>', '<math><annotation-xml encoding="text/html">',
+    '<math><annotation-xml encoding="TEXT/HTML">', '<math><annotation-xml encoding=application/xhtml+xml>',
+    '<math><mi><svg><foreignObject>', '<math><annotation-xml><svg><foreignObject><b>',
+  ];
+  const ESCAPED = [
+    '<svg>', '<svg><foreignObject/>', '<math><mi><mglyph>', '<math><mi><malignmark>', '<math><foreignObject>', '<svg><mi>',
+    '<math><annotation-xml>', '<math><annotation-xml encoding="text/htmlx">', '<math><annotation-xml encoding="text/html"><svg>',
+    '<math><svg><foreignObject>', '<noscript><svg><foreignObject>',
+  ];
+  for (const [lead, raw] of [...RAW.map((l) => [l, true]), ...ESCAPED.map((l) => [l, false])]) {
+    const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
+    assert.ok(!injected(served), `${lead}: ${served}`);
+    /** Raw only where the browser builds an HTML `<style>`; elsewhere it is MathML/SVG, or (`<noscript>`, scripting on) text. */
+    assert.equal(styleParent(served) === 'html', raw, `the oracle agrees about ${lead}`);
+    assert.equal(served.includes(PAYLOAD), raw, `${lead}: ${served}`);
+  }
+});
+
+test('a template ending inside an integration point closes it; one starting at an inherited foreign depth recognizes none', () => {
+  assert.equal(serializeTemplate(template(['<svg><foreignObject><p>', '</p>'], 'x')), '<svg><foreignObject><p>x</p></foreignobject></svg>');
+  const child = template(['<foreignObject><style>', '</style></foreignObject>'], PAYLOAD);
+  const served = serializeTemplate(template(['<svg>', '</svg>'], child));
+  assert.ok(!injected(served), served);
+  assert.ok(served.includes('&#60;img'), `escaped: the child cannot know its namespace — ${served}`);
+});
+
+/** Two seams the fuzz found: what is left where a binding was must not change how its neighbors tokenize. */
+test('a dropped comment binding cannot fuse its neighbors, and an unquoted value runs to the tokenizer’s whitespace', () => {
+  /** `<!` + `--!>` would be `<!--!>`, a comment OPENING, which swallowed everything after it. */
+  const bogus = serializeTemplate(template(['<!', '--!><p>', '</p>'], 'x', 'shown'));
+  assert.ok(page(bogus).some((el) => el.tagName === 'p'), bogus);
+  /** `-` + `->` would be `-->`, ending the comment early and showing its tail as text. */
+  const early = serializeTemplate(template(['<!-- a -', '-> b --><p>', '</p>'], 'x', 'y'));
+  assert.ok(!parse(`<!doctype html><body>${early}`).childNodes[1].childNodes[1].childNodes.some((n) => n.nodeName === '#text' && n.value.includes('b')), early);
+  /** `\v` is value text: cutting the unquoted value there left `\vb="c` to open a quote that never closed — the element lost. */
+  const tail = serializeTemplate(template(['<x title=', '\vb="c>kept</x>'], 'v'));
+  assert.equal(page(tail).find((el) => el.tagName === 'x')?.attrs[0].value, 'v\vb="c', JSON.stringify(tail));
+});

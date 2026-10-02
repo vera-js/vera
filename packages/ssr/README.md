@@ -155,7 +155,10 @@ corrupts the content (`.a > .b` used to serve as `.a &#62; .b`, a selector match
 the browser will parse the element, not by its name**: inside `<svg>` or `<math>` a `<style>` is an SVG or
 MathML element whose content is markup, and `<noscript>` is markup to a browser with scripting off — so
 inside any of them every value is escaped, and so is every value in a template rendered into one (an
-`svg`/`mathml` template included, wherever it renders). Inside `<xmp>`, `<noembed>`, `<noframes>` and
+`svg`/`mathml` template included, wherever it renders) — except inside an HTML integration point, which the
+browser reads as HTML: SVG `<foreignObject>`, `<desc>` and `<title>`, MathML `<mi>`, `<mo>`, `<mn>`, `<ms>` and
+`<mtext>`, and an `<annotation-xml>` whose `encoding` is HTML, each only in its own namespace and only when not
+self-closed (`<math><mi><mglyph>` is MathML again). Inside `<xmp>`, `<noembed>`, `<noframes>` and
 `<plaintext>`, which the browser reads as text whole, nothing is raw either. **And a tag is read where the
 browser's tokenizer reads one**: a tag's name is the whole run up to whitespace, `/` or `>` (`<script.x>` is an
 unknown element, never a `<script>`), a `<` before anything but a letter is text, `<!x>` and `<?x>` are comments,
@@ -337,14 +340,14 @@ dependency involved.
   whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
   strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
 - **A `<style>` or `<script>` the server cannot place in HTML is served escaped.** Raw text is recognized
-  only outside `<svg>`, `<math>` and `<noscript>`, and the scanner does not track the ways a browser
-  re-enters HTML inside them — an integration point (`<svg><foreignObject><style>`), or a tag like `<p>`
-  that breaks out of foreign content — nor an `svg` template rendered outside any `<svg>`. There the
-  browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
-  That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
-  page. Put the stylesheet outside the foreign element. The same misreading reaches trusted `.innerHTML` markup:
-  `<math><mi><style>` is an integration point too, so a `<script` written as text inside that stylesheet is served
-  with the inert `type` added to it, a change to the CSS text that hydration replaces.
+  outside `<svg>`, `<math>` and `<noscript>`, and inside their HTML integration points (`<svg><foreignObject>`,
+  `<math><mi>`…), but the scanner does not track the other ways a browser re-enters HTML: a tag like `<p>` that
+  breaks out of foreign content, an end tag the parser ignores, an `svg` template rendered outside any `<svg>`, and
+  a template rendered INTO a foreign position by its parent — it knows the depth it starts at, not whether that is
+  SVG or MathML, so it recognizes no integration point (`html`<svg>${svg`<foreignObject><style>…`}</svg>``). There
+  the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it. That is
+  the safe direction of a misreading on purpose: the other one writes a value's markup into the page. Put the
+  stylesheet in the template that opens the foreign element, or outside it.
 - **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
   the value with the element as its context; the served page is parsed with every real ancestor around it, so a
   few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),

@@ -3,7 +3,7 @@
  * list proves the shapes someone thought of; this proves the state machine. Each case is a template built from the
  * tokenizer's own alphabet (`<`, `</`, `<!`, `<?`, `<!--`, `-->`, names that start like raw-text elements, `=`, quotes,
  * `/`, `>`, whitespace including `\v`) inside a random context (HTML, `<svg>`, `<math>`, `<style>`, `<textarea>`, a
- * comment, a `<template>`), with one or two holes, and two questions are asked of it:
+ * comment, a `<template>`, and the integration points `foreignObject`/`mi` beside the look-alike `<math><svg>`), with one or two holes, and two questions are asked of it:
  *
  * 1. **Injection.** With a payload in every hole that tries every way out — `-->`, every raw-text end tag, both quotes,
  *    a space, `>` — the served page, parsed as a browser parses it, holds no element and no attribute the payload made.
@@ -33,8 +33,11 @@ const TOKENS = [
   'textarea', 'title', 'template', 'noscript', 'xmp', 'style.x', 'script:x', 'foreignObject', '?a=', '.a=',
   /** Names an event binding must be told apart from: `on` + upper case at the start only (`onA=`), and inside one. */
   ' onA=', ' xonA=', ' data-onB=', 'onA',
+  /** Integration points and their traps: the namespace each counts in, `/>`, `mglyph`, and `annotation-xml`'s encoding. */
+  '<foreignObject>', '<desc>', '<mi>', '<mtext>', '<mglyph>', '</mi>', '</foreignObject>', '<annotation-xml encoding=text/html>', '<annotation-xml>',
 ];
-const CONTEXTS = [['', ''], ['<svg>', '</svg>'], ['<math>', '</math>'], ['<style>', '</style>'], ['<textarea>', '</textarea>'], ['<!--', '-->'], ['<template>', '</template>'], ['<p>', '</p>']];
+const CONTEXTS = [['', ''], ['<svg>', '</svg>'], ['<math>', '</math>'], ['<style>', '</style>'], ['<textarea>', '</textarea>'], ['<!--', '-->'], ['<template>', '</template>'], ['<p>', '</p>'],
+  ['<svg><foreignObject>', '</foreignObject></svg>'], ['<math><mi>', '</mi></math>'], ['<math><svg>', '</svg></math>']];
 
 const lcg = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x80000000);
 
@@ -69,10 +72,10 @@ const locate = (root, sentinel) => {
   return walk(root, false) ?? 'absent';
 };
 
-/** Where the server may leave a value out although the browser shows it: its deliberate drops. */
+/** Where the server may leave a value out although the browser shows it: its deliberate drops — sigils, and `on*` (an event binding or a refused inline handler). */
 const mayDrop = (browser) =>
   browser === 'absent' || browser.startsWith('inert:') || browser === 'comment' || browser === 'attr-name' || browser === 'tag-name' ||
-  /^value:[^:]*:[.?@&!]/.test(browser);
+  /^value:[^:]*:([.?@&!]|on)/.test(browser);
 
 test('random statics: no hole lets a value make markup, and every placed value sits where the browser puts it', () => {
   let placed = 0;
