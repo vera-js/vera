@@ -121,6 +121,14 @@ const changed = (rec: Rec) => {
   });
 };
 
+/** Whether a node is in this host's holding or one of its slots' regions. */
+const inLight = (node: Node, light: Light): boolean => {
+  const parent = node.parentNode;
+  if (parent === null) return false;
+  if (parent === light.holding) return true;
+  for (const rec of light.recs) if (rec.re !== null && rec.re.parentNode === parent) return true;
+  return false;
+};
 /** Whether a light node is still where this module put it — false once something else took it (the user's adoption stands). */
 const isWhere = (node: Node, light: Light): boolean => {
   const rec = PLACED.get(node);
@@ -173,7 +181,8 @@ const place = (light: Light) => {
     if (unit.a !== unit.z)
       for (let node = unit.a.nextSibling; node !== null && node !== unit.z; node = node.nextSibling) {
         const real = REAL.get(node);
-        if (real !== undefined && !isWhere(real, light)) {
+        /** The renderer moves a run's nodes between this host's slots (beside a neighbour it follows); only leaving them all is a theft. */
+        if (real !== undefined && !inLight(real, light)) {
           PLACED.delete(real);
           unstand(real);
         }
@@ -385,10 +394,15 @@ const replay = (light: Light, record: MutationRecord) => {
   for (const node of record.removedNodes) {
     const real = REAL.get(node);
     if (real !== undefined) {
-      /** A stand-in the renderer took: cleared with its run (its node goes too), or parked by `hold` (it joins it). */
-      if (node.parentNode === holding) continue;
-      if (node.parentNode === null) real.parentNode?.removeChild(real);
-      else node.parentNode.insertBefore(real, node);
+      /**
+       * A stand-in the renderer took: cleared with its run (its node goes too), or parked by `hold` in a fragment (its
+       * node joins it). One the renderer MOVED — beside a node of the run that sits in a slot — is still the run's; its
+       * addition, below, puts it back at its new place.
+       */
+      const parent = node.parentNode;
+      if (parent === holding || (parent !== null && parent.nodeType !== 11)) continue;
+      if (parent === null) real.parentNode?.removeChild(real);
+      else parent.insertBefore(real, node);
       PLACED.delete(real);
       unstand(real);
     } else if (STAND.has(node) && node.parentNode === null) {
