@@ -14,7 +14,7 @@ import { parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
-import { StyleSheetShim } from './stylesheets.js';
+import { StyleSheetShim, toSheetSequence } from './stylesheets.js';
 import { registry } from './registry.js';
 
 /** A retained child: an element, a text node or a comment — the nodes a container keeps by reference. */
@@ -1351,16 +1351,8 @@ export class ShadowRootShim extends ContainerShim {
    * this wrong — was accepted here and threw in the browser, after the server had already rendered.
    */
   set adoptedStyleSheets(sheets: unknown) {
-    if (!Array.isArray(sheets))
-      throw new TypeError(
-        `Failed to set the 'adoptedStyleSheets' property: the provided value cannot be converted to a sequence.`
-      );
-    for (const sheet of sheets)
-      if (!(sheet instanceof StyleSheetShim))
-        throw new TypeError(
-          `Failed to set the 'adoptedStyleSheets' property: the provided value is not of type 'CSSStyleSheet'.`
-        );
-    this._adopted = sheets;
+    /** Any iterable of sheets, as the platform takes — see `toSheetSequence`; kept as an array of its own. */
+    this._adopted = toSheetSequence(sheets);
   }
   get adoptedStyleSheets(): StyleSheetShim[] {
     return this._adopted ?? [];

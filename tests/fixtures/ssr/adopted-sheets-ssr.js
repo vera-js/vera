@@ -20,6 +20,31 @@ class AdoptedSheetsPage extends HTMLElement {
         seen.errors.push(error.constructor.name);
       }
     seen.kept = document.adoptedStyleSheets.length;
+    /** A sheet adopted empty, then filled: its CSS is served. */
+    const late = new CSSStyleSheet();
+    document.adoptedStyleSheets.push(late);
+    late.replaceSync('.late { color: purple }');
+    /** What the platform takes as a sequence, on the document and on a shadow root alike. */
+    const outcome = (target, value) => {
+      try {
+        target.adoptedStyleSheets = value;
+        return 'accepted';
+      } catch (error) {
+        return error.constructor.name;
+      }
+    };
+    const root = document.createElement('div').attachShadow({ mode: 'open' });
+    seen.sequences = [document, root].map((target) => [
+      outcome(target, new Set([sheet('.s {}')])),
+      outcome(target, (function* () {
+        yield sheet('.g {}');
+      })()),
+      outcome(target, { length: 1, 0: sheet('.l {}') }),
+      outcome(target, sheet('.lone {}')),
+      outcome(target, '.str {}'),
+    ]);
+    seen.fromSet = root.adoptedStyleSheets.length;
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets.filter((each) => each !== late), late];
     render(() => html`<p>sheets</p>`);
   }
 }

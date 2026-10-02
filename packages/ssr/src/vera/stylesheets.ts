@@ -48,6 +48,7 @@ export class StyleSheetShim {
    */
   replaceSync(cssText: unknown): void {
     this.cssText = `${cssText}`;
+    refill(this);
   }
   /** The async spelling of the same thing; `adoptStyles` uses `replaceSync`, a component may not. */
   async replace(cssText: unknown): Promise<this> {
@@ -56,6 +57,7 @@ export class StyleSheetShim {
   }
   insertRule(rule: string): number {
     this.cssText += rule;
+    refill(this);
     return 0;
   }
   /**
@@ -142,6 +144,14 @@ export const hoist = (cssText: string): void => {
  * `TypeError`, before anything changes.
  */
 const documentSheets: StyleSheetShim[] = [];
+/**
+ * **A sheet already adopted whose text changes is served with its new text** — construct, adopt, then fill is legal,
+ * and its CSS was silently dropped (a flash of unstyled content at hydration). The new text is hoisted after the old,
+ * so a rule it changed wins the cascade exactly as the browser applies it.
+ */
+const refill = (sheet: StyleSheetShim): void => {
+  if (sheet.cssText && documentSheets.includes(sheet)) hoist(sheet.cssText);
+};
 const checkSheet = (sheet: unknown): StyleSheetShim => {
   if (!(sheet instanceof StyleSheetShim))
     throw new TypeError(`Failed to set the 'adoptedStyleSheets' property: the provided value is not of type 'CSSStyleSheet'.`);
@@ -157,11 +167,20 @@ export const documentAdoptedSheets = new Proxy(documentSheets, {
     return Reflect.set(target, key, value);
   },
 });
+/**
+ * **What `adoptedStyleSheets` accepts, on the document and a shadow root alike: any iterable OBJECT of
+ * `CSSStyleSheet`s** — WebIDL's sequence conversion, which every engine applies
+ * (`tests/browser/adopted-sheets-sequence.test.js`): an array, a `Set` and a generator are accepted; an array-like,
+ * a lone sheet, a string and a non-sheet entry are a `TypeError`. Accepting only an array refused working client code.
+ */
+export const toSheetSequence = (sheets: unknown): StyleSheetShim[] => {
+  if (sheets === null || (typeof sheets !== 'object' && typeof sheets !== 'function') || typeof (sheets as Iterable<unknown>)[Symbol.iterator] !== 'function')
+    throw new TypeError(`Failed to set the 'adoptedStyleSheets' property: the provided value cannot be converted to a sequence.`);
+  return [...(sheets as Iterable<unknown>)].map(checkSheet);
+};
 /** What an assignment to `document.adoptedStyleSheets` does. */
 export const setDocumentAdoptedSheets = (sheets: unknown): void => {
-  if (!Array.isArray(sheets))
-    throw new TypeError(`Failed to set the 'adoptedStyleSheets' property: the provided value cannot be converted to a sequence.`);
-  const checked = sheets.map(checkSheet);
+  const checked = toSheetSequence(sheets);
   for (const sheet of checked) adopt(sheet);
   documentSheets.length = 0;
   documentSheets.push(...checked);

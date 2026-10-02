@@ -22,3 +22,19 @@ test('the list reads back, rejects what the platform rejects before changing, an
   assert.deepEqual(globalThis.__adopted.errors, ['TypeError', 'TypeError', 'TypeError']);
   assert.equal(globalThis.__adopted.kept, 3, 'a refused assignment changes nothing');
 });
+
+/**
+ * **What counts as a sequence is the platform's answer**, recorded on all three engines in
+ * `tests/browser/adopted-sheets-sequence.test.js`: an array, a `Set` and a generator are accepted; an array-like, a
+ * lone sheet and a string are a `TypeError`. The shim took only an array, which refused working client code.
+ */
+test('the document and a shadow root take any iterable of sheets, and refuse what every engine refuses', async () => {
+  await renderToString(PAGE, {});
+  const row = ['accepted', 'accepted', 'TypeError', 'TypeError', 'TypeError'];
+  assert.deepEqual(globalThis.__adopted.sequences, [row, row]);
+});
+
+test('a sheet adopted empty and filled afterwards is served', async () => {
+  const { styles } = await renderToString(PAGE, {});
+  assert.ok(styles.includes('.late { color: purple }'), styles);
+});
