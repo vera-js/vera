@@ -1411,7 +1411,7 @@ class ChildPart {
       if (template._x) template = resolved(template, parent);
       if (template._root.nodeType === 1) {
         const instance = instantiate(template, value, passDoc);
-        parent.insertBefore(instance._root, ref);
+        into(parent, ref).insertBefore(instance._root, ref);
         if (__DEV__) checkForeign(parent, [instance._root]);
         instance.$k = value.key;
         return instance;
@@ -1450,15 +1450,16 @@ class ChildPart {
 
   /** Moves an item before `ref`. */
   $m(item: Item, ref: Node | null, parent: Node = this._owner ?? this._start!.parentNode!) {
+    const at = into(parent, ref);
     if (!(item instanceof ChildPart)) {
-      parent.insertBefore(item._root, ref);
+      at.insertBefore(item._root, ref);
       return;
     }
     let node: Node | null = item._start!;
     const stop = item._end!.nextSibling;
     while (node !== stop) {
       const next: Node | null = node!.nextSibling;
-      parent.insertBefore(node!, ref);
+      at.insertBefore(node!, ref);
       node = next;
     }
   }
@@ -1661,12 +1662,21 @@ let passDoc: Document = doc;
 export const hold = <T>(result: T): T | { $h: TemplateResult } =>
   result != null && typeof result === 'object' && isTemplateResult(result) ? { $h: result as TemplateResult } : result;
 
+/**
+ * **Where an insert before `ref` goes: `ref`'s own parent.** The renderer passes the parent it expects, and `ref`
+ * is normally its child; but a node it placed can have been moved since — light-DOM slots moves a host's light
+ * children into the slots they belong to, and other code may move what it was given — and `insertBefore` throws
+ * when `ref` is not a child of the node it is called on. Without a `ref`, it is the parent given.
+ */
+const into = (parent: Node, ref: Node | null): Node => ref?.parentNode ?? parent;
+
 /** A fresh part whose two markers sit before `ref` in `parent`. */
 const markered = (parent: Node, ref: Node | null) => {
   const end = comment();
   const part = new ChildPart(comment(), end);
-  parent.insertBefore(part._start!, ref);
-  parent.insertBefore(end, ref);
+  const at = into(parent, ref);
+  at.insertBefore(part._start!, ref);
+  at.insertBefore(end, ref);
   return part;
 };
 
@@ -1757,6 +1767,11 @@ export const renderInto = (result: unknown, container: Node) => {
   let part = rootParts.get(container);
   if (part === undefined) rootParts.set(container, (part = markered(container, null)));
   commitAs(container, part, result);
+  /**
+   * **A render has finished** — said to whatever asked (light-DOM slots, which re-distributes what this render did to
+   * a host's light children before anything reads them). Off-chain and sigiled, like `$t`: not an extension point.
+   */
+  (registry as { _$done$?: () => void } | null)?._$done$?.();
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_END, container, null);
 };
 

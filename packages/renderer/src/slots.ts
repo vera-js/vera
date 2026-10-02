@@ -22,54 +22,46 @@ const slotNameOf = (node: Node): string | null =>
   node.nodeType === 3 ? '' : node.nodeType === 1 ? ((node as Element).getAttribute('slot') ?? '') : null;
 
 /**
- * One light unit: a static child (`a === z`), or a binding's run between this module's own two comments. `at` is
- * the slot it was last placed in, or `null` for holding.
+ * A light unit: a static child the page wrote (`a === z`), which moves as itself; or a RUN one of its template's
+ * bindings writes, between this module's own two comments, which never leaves holding — the renderer walks it there,
+ * contiguous, and each node of it a slot takes leaves a STAND-IN comment at its place. Every light node goes to the
+ * slot its own `slot` names, exactly as the platform assigns.
  */
-type Unit = { a: Node; z: Node; at: Rec | null };
+type Unit = { a: Node; z: Node };
 /** One `<slot>` of a light host: while it has content, `rs`/`re` stand in its place and the element is out. */
 type Rec = { slot: Kept; light: Light; rs: Comment | null; re: Comment | null; shown: Node[]; queued: boolean };
 type Kept = HTMLSlotElement & { $rec?: Rec };
 
 /** A host's light children, by unit, in the order the page wrote them, and its slots. */
-type Light = { host: Element; units: Unit[]; holding: DocumentFragment; recs: Rec[]; dirty: boolean };
+type Light = { host: Element; units: Unit[]; holding: DocumentFragment; recs: Rec[]; dirty: boolean; fresh: boolean };
 
 const HOSTS = new WeakMap<Element, Light>();
 /** The static children an outer template gave a host, recorded when its instance was created (see `hostBehavior`). */
 const STATICS = new WeakMap<Element, Set<Node>>();
 /** Which light a node that might change belongs to — a holding fragment, or a parent a region lives in. */
 const WATCHED = new WeakMap<Node, Set<Light>>();
+/** A run's node in a slot, and the comment holding its place in the run — both ways. */
+const STAND = new WeakMap<Node, Comment>();
+const REAL = new WeakMap<Node, Node>();
+/** The slot a light node was placed in (`null`: holding). */
+const PLACED = new WeakMap<Node, Rec | null>();
 
-const nodesOf = (unit: Unit): Node[] => {
+/** The host's light children in the order the page wrote them — a run read through its stand-ins. */
+const lightOf = (light: Light): Node[] => {
   const out: Node[] = [];
-  for (let node: Node | null = unit.a; node !== null; node = node.nextSibling) {
-    out.push(node);
-    if (node === unit.z) break;
+  for (const unit of light.units) {
+    if (unit.a === unit.z) out.push(unit.a);
+    else for (let node = unit.a.nextSibling; node !== null && node !== unit.z; node = node.nextSibling) out.push(REAL.get(node) ?? node);
   }
   return out;
 };
-/** A unit's slottables: its top-level text and elements, never a comment (a marker, or this module's own). */
-const slottablesOf = (unit: Unit): Node[] => nodesOf(unit).filter((node) => slotNameOf(node) !== null);
-/**
- * Which slot a unit goes to: its first slottable's. A static child is one node, so this is native; a binding's run
- * goes whole, by its first slottable — a run whose elements name different slots is said in development.
- */
-const nameOfUnit = (unit: Unit): string | null => {
-  const nodes = slottablesOf(unit);
-  if (nodes.length === 0) return null;
-  const name = slotNameOf(nodes[0]);
-  if (__DEV__ && nodes.some((node) => node.nodeType === 1 && slotNameOf(node) !== name))
-    console.warn(
-      `[vera] slots: <${(unit.a.parentNode as Element | null)?.localName ?? 'host'}> — one binding rendered elements for ` +
-        `different slots; it is distributed whole, to slot "${name}". Give each slot its own binding.`
-    );
-  return name;
-};
-
-/** Where a unit physically is now — false once something other than this module moved it away (the user took it). */
-const isWhere = (unit: Unit, light: Light): boolean => {
-  const parent = unit.a.parentNode;
-  if (parent === null || unit.z.parentNode !== parent) return false;
-  return unit.at === null ? parent === light.holding : parent === unit.at.re?.parentNode;
+/** A stand-in is dropped: its node is no longer in a slot (back at its place, or gone). */
+const unstand = (node: Node) => {
+  const stand = STAND.get(node);
+  if (stand === undefined) return;
+  STAND.delete(node);
+  REAL.delete(stand);
+  stand.remove();
 };
 
 /* ── tree order, through slots that are out of the page ────────────────────────────────────────── */
@@ -129,14 +121,45 @@ const changed = (rec: Rec) => {
   });
 };
 
+/** Whether a light node is still where this module put it — false once something else took it (the user's adoption stands). */
+const isWhere = (node: Node, light: Light): boolean => {
+  const rec = PLACED.get(node);
+  const parent = node.parentNode;
+  if (rec === undefined) return parent === light.holding;
+  return rec === null ? parent === light.holding : parent !== null && parent === rec.re?.parentNode;
+};
+
 /**
- * **Every unit to its slot, in light order** — the whole decision, recomputed. A unit something else took away is
- * forgotten first (the user's adoption stands); then each name's first slot in tree order wins, its units go
- * between its comments, a slot left with no slottable content shows its fallback, and the rest wait in holding.
+ * **Every light node to its slot, in light order** — the whole decision, recomputed. A node something else took away
+ * is forgotten first; then each name's first slot in tree order wins, its nodes go between its comments (a run's node
+ * leaving a stand-in at its place), a slot left with nothing shows its fallback, and the rest wait in holding.
  */
 const distribute = (light: Light) => {
   light.dirty = false;
-  light.units = light.units.filter((unit) => isWhere(unit, light));
+  const holding = light.holding;
+  /** Captured and not yet distributed: out of the host now, in light order — once (a top-level slot's content lives there). */
+  if (light.fresh) for (const unit of light.units)
+    if (unit.a.parentNode === light.host)
+      if (unit.a === unit.z) holding.insertBefore(unit.a, holding.lastChild);
+      else {
+        const run: Node[] = [];
+        for (let node: Node | null = unit.a; node !== null; node = node.nextSibling) {
+          run.push(node);
+          if (node === unit.z) break;
+        }
+        for (const node of run) holding.insertBefore(node, holding.lastChild);
+      }
+  light.fresh = false;
+  light.units = light.units.filter((unit) => (unit.a === unit.z ? isWhere(unit.a, light) : unit.a.parentNode === holding && unit.z.parentNode === holding));
+  for (const unit of light.units)
+    if (unit.a !== unit.z)
+      for (let node = unit.a.nextSibling; node !== null && node !== unit.z; node = node.nextSibling) {
+        const real = REAL.get(node);
+        if (real !== undefined && !isWhere(real, light)) {
+          PLACED.delete(real);
+          unstand(real);
+        }
+      }
   const live: { rec: Rec; at: Node[] }[] = [];
   /** A slot parked away (by `hold`) takes part in nothing — and what it shows waits with it, untouched. */
   const parked = new Set<Rec>();
@@ -151,35 +174,56 @@ const distribute = (light: Light) => {
     const name = rec.slot.getAttribute('name') ?? '';
     if (!winner.has(name)) winner.set(name, rec);
   }
-  const wanted = new Map<Rec, Unit[]>();
-  for (const unit of light.units) {
-    const name = nameOfUnit(unit);
+  const nodes = lightOf(light);
+  const wanted = new Map<Rec, Node[]>();
+  const taken = new Set<Node>();
+  for (const node of nodes) {
+    const name = slotNameOf(node);
     const rec = name === null ? undefined : winner.get(name);
-    let list = rec === undefined ? undefined : wanted.get(rec);
-    if (rec !== undefined && list === undefined) wanted.set(rec, (list = []));
-    list?.push(unit);
+    if (rec === undefined) continue;
+    let list = wanted.get(rec);
+    if (list === undefined) wanted.set(rec, (list = []));
+    list.push(node);
+    taken.add(node);
   }
   for (const { rec } of live) {
-    const units = wanted.get(rec) ?? [];
-    if (units.length > 0) {
+    const mine = wanted.get(rec) ?? [];
+    if (mine.length > 0) {
       region(rec);
       const parent = rec.re!.parentNode!;
-      for (const unit of units) {
-        for (const node of nodesOf(unit)) parent.insertBefore(node, rec.re);
-        unit.at = rec;
+      for (const node of mine) {
+        /** A run's node, still at its place in holding: a stand-in takes the place before it leaves. */
+        if (node.parentNode === holding && !STAND.has(node) && PLACED.get(node) === undefined) {
+          const stand = node.ownerDocument!.createComment('');
+          holding.insertBefore(stand, node);
+          STAND.set(node, stand);
+          REAL.set(stand, node);
+        }
+        parent.insertBefore(node, rec.re);
+        if (PLACED.get(node) !== undefined || !STAND.has(node)) PLACED.set(node, rec);
+        else PLACED.set(node, rec);
       }
     }
-    const shown = units.flatMap(slottablesOf);
-    if (shown.length !== rec.shown.length || shown.some((node, i) => node !== rec.shown[i])) {
-      rec.shown = shown;
+    if (mine.length !== rec.shown.length || mine.some((node, i) => node !== rec.shown[i])) {
+      rec.shown = mine;
       changed(rec);
     }
   }
-  for (const unit of light.units)
-    if (unit.at !== null && !parked.has(unit.at) && !wanted.get(unit.at)?.includes(unit)) {
-      for (const node of nodesOf(unit)) light.holding.insertBefore(node, light.holding.lastChild);
-      unit.at = null;
+  for (const node of nodes) {
+    if (taken.has(node)) continue;
+    const rec = PLACED.get(node);
+    if (rec !== undefined && rec !== null && parked.has(rec)) continue;
+    const stand = STAND.get(node);
+    if (stand !== undefined) {
+      /** A run's node, back to its place in the run. */
+      holding.insertBefore(node, stand);
+      unstand(node);
+      PLACED.delete(node);
+    } else if (rec !== undefined && rec !== null) {
+      holding.insertBefore(node, holding.lastChild);
+      PLACED.set(node, null);
     }
+  }
   for (const { rec } of live) if (!wanted.has(rec)) unregion(rec);
 };
 
@@ -193,7 +237,10 @@ const settle = () => {
     observers[1].takeRecords();
   }
 };
+/** How many nodes this batch has put ahead of everything, per host — so a batch's front insertions keep their order. */
+let lead = new WeakMap<Light, number>();
 const note = (records: MutationRecord[]) => {
+  lead = new WeakMap();
   for (const record of records) {
     let target: Node | null = record.target;
     /** An attribute record names the element; its light is found through the parent it sits in. */
@@ -210,7 +257,7 @@ const note = (records: MutationRecord[]) => {
     if (lights !== undefined)
       for (const light of lights) {
         light.dirty = true;
-        if (record.type === 'childList' && target !== light.holding) for (const node of record.addedNodes) settleIn(light, node);
+        if (record.type === 'childList') replay(light, record);
       }
     /** A host's own children: an addition outside its render's range is a new light child. */
     const light = HOSTS.get(record.target as Element);
@@ -262,14 +309,27 @@ const adopt = (light: Light, node: Node) => {
   /** Before the render's range is ahead of everything distributed away; after it, behind. Read before it moves. */
   const ahead = first !== null && (node.compareDocumentPosition(first) & 4) !== 0;
   light.holding.insertBefore(node, light.holding.lastChild);
-  if (ahead) light.units.unshift({ a: node, z: node, at: null });
-  else light.units.push({ a: node, z: node, at: null });
+  PLACED.set(node, null);
+  if (ahead) {
+    const at = lead.get(light) ?? 0;
+    light.units.splice(at, 0, { a: node, z: node });
+    lead.set(light, at + 1);
+  } else light.units.push({ a: node, z: node });
   light.dirty = true;
 };
 
+/** Which unit a light node is in — its own, or (a run's node in a slot) the run its stand-in sits in. */
+const unitIndexOf = (light: Light, node: Node): number => {
+  const stand = STAND.get(node);
+  if (stand === undefined) return light.units.findIndex((unit) => unit.a === node);
+  return light.units.findIndex(
+    (unit) => unit.a !== unit.z && (unit.a.compareDocumentPosition(stand) & 4) !== 0 && (stand.compareDocumentPosition(unit.z) & 4) !== 0
+  );
+};
+
 /**
- * A node the USER put inside a slot's region — `slotted.before(node)`, `after()`: a light unit, at that place in light
- * order. What the renderer writes inside a unit (between its two comments) is that unit's, never a new one.
+ * A node the USER put inside a slot's region — `slotted.before(node)`, `after()`: a light unit of its own, at that
+ * place in light order.
  */
 const settleIn = (light: Light, node: Node) => {
   const parent = node.parentNode;
@@ -277,28 +337,77 @@ const settleIn = (light: Light, node: Node) => {
   for (const rec of light.recs) {
     if (rec.re === null || rec.re.parentNode !== parent) continue;
     if ((rec.rs!.compareDocumentPosition(node) & 4) === 0 || (node.compareDocumentPosition(rec.re) & 4) === 0) continue;
-    let next: Unit | undefined;
-    for (const unit of light.units) {
-      if (unit.at !== rec) continue;
-      if (unit.a === node) return;
-      const after = (unit.a.compareDocumentPosition(node) & 4) !== 0;
-      if (after && (node.compareDocumentPosition(unit.z) & 4) !== 0) return;
-      if (!after && next === undefined) next = unit;
-    }
-    const added: Unit = { a: node, z: node, at: rec };
-    const at = next === undefined ? -1 : light.units.indexOf(next);
-    if (at < 0) {
-      const last = light.units.findLastIndex((unit) => unit.at === rec);
-      light.units.splice(last + 1, 0, added);
-    } else light.units.splice(at, 0, added);
+    let at = -1;
+    for (let next = node.nextSibling; next !== null && next !== rec.re && at < 0; next = next.nextSibling) at = unitIndexOf(light, next);
+    if (at < 0) light.units.push({ a: node, z: node });
+    else light.units.splice(at, 0, { a: node, z: node });
+    PLACED.set(node, rec);
     light.dirty = true;
     return;
   }
 };
 
+/**
+ * **What the renderer wrote, read back into the runs.** A run's node in a slot is still the renderer's: an insert
+ * before it (a new row), markers around it (a text becoming a template), its move or removal all happen where the
+ * node now is. Each lands in the run at the place its neighbour's stand-in holds, so the run stays the renderer's
+ * whole range; what has no such neighbour is the user's own edit.
+ */
+const replay = (light: Light, record: MutationRecord) => {
+  const holding = light.holding;
+  for (const node of record.removedNodes) {
+    const real = REAL.get(node);
+    if (real !== undefined) {
+      /** A stand-in the renderer took: cleared with its run (its node goes too), or parked by `hold` (it joins it). */
+      if (node.parentNode === holding) continue;
+      if (node.parentNode === null) real.parentNode?.removeChild(real);
+      else node.parentNode.insertBefore(real, node);
+      PLACED.delete(real);
+      unstand(real);
+    } else if (STAND.has(node) && node.parentNode === null) {
+      /** A run's node the renderer removed from its slot (a row deleted): its place goes too. */
+      PLACED.delete(node);
+      unstand(node);
+    }
+  }
+  for (const node of record.addedNodes) {
+    if (node.parentNode !== record.target) continue;
+    if (record.target === holding) {
+      /** Back in holding (the renderer moved it before a marker there): its own place now, not its stand-in's. */
+      if (STAND.has(node)) {
+        PLACED.delete(node);
+        unstand(node);
+      }
+      continue;
+    }
+    if (PLACED.get(node) !== undefined && !STAND.has(node)) continue;
+    const next = record.nextSibling;
+    const previous = record.previousSibling;
+    const ahead = next === null ? undefined : (STAND.get(next) ?? (next.parentNode === holding ? next : undefined));
+    const behind = previous === null ? undefined : (STAND.get(previous) ?? (previous.parentNode === holding ? previous : undefined));
+    if (ahead === undefined && behind === undefined) {
+      settleIn(light, node);
+      continue;
+    }
+    const place = ahead ?? behind!.nextSibling;
+    /** A run's node moved within the page: its place in the run moves. New to the run: it joins it, at that place. */
+    holding.insertBefore(STAND.get(node) ?? node, place);
+  }
+};
+
 /** A captured host that turned out to have a shadow root: its children go back, in light order, for the platform. */
 const release = (light: Light) => {
-  for (const unit of light.units) for (const node of nodesOf(unit)) if (node.nodeType !== 8 || (node !== unit.a && node !== unit.z)) light.host.appendChild(node);
+  for (const unit of light.units) {
+    if (unit.a === unit.z) {
+      light.host.appendChild(unit.a);
+      continue;
+    }
+    for (let node = unit.a.nextSibling; node !== null && node !== unit.z; ) {
+      const next = node.nextSibling;
+      light.host.appendChild(REAL.get(node) ?? node);
+      node = next;
+    }
+  }
   HOSTS.delete(light.host);
   lights.delete(light);
 };
@@ -316,30 +425,33 @@ const capture = (host: Element): Light => {
   const doc = host.ownerDocument;
   const holding = doc.createDocumentFragment();
   holding.append(doc.createComment(''), doc.createComment(''));
-  light = { host, units: [], holding, recs: [], dirty: false };
+  light = { host, units: [], holding, recs: [], dirty: false, fresh: false };
   HOSTS.set(host, light);
   lights.add(light);
   const statics = STATICS.get(host);
   let run: Node[] | null = null;
-  /** Out of the host at once — invisibly to holding, until a slot of its name takes it. */
+  /**
+   * Recorded, not moved: the children stay where the page put them — in the host, as they would under a shadow root —
+   * until the host's first render finishes, which distributes them (the ones no slot takes, invisibly to holding).
+   */
   const close = () => {
     if (run === null) return;
     const a = doc.createComment('');
     const z = doc.createComment('');
-    holding.insertBefore(a, holding.lastChild);
-    for (const node of run) holding.insertBefore(node, holding.lastChild);
-    holding.insertBefore(z, holding.lastChild);
-    light!.units.push({ a, z, at: null });
+    host.insertBefore(a, run[0]);
+    host.insertBefore(z, run[run.length - 1].nextSibling);
+    light!.units.push({ a, z });
     run = null;
   };
   for (const child of [...host.childNodes]) {
     if (statics === undefined || statics.has(child)) {
       close();
-      holding.insertBefore(child, holding.lastChild);
-      light.units.push({ a: child, z: child, at: null });
+      light.units.push({ a: child, z: child });
     } else (run ??= []).push(child);
   }
   close();
+  light.dirty = true;
+  light.fresh = true;
   watch(holding, light);
   observers![0].observe(host, { childList: true });
   return light;
@@ -354,7 +466,21 @@ const hostBehavior = {
   create: (element: Element, adopted: boolean) => {
     if (adopted) return;
     const statics = new Set<Node>();
-    for (const child of element.childNodes) if (!(child.nodeType === 3 && (child as Text).data === '')) statics.add(child);
+    let hole = false;
+    for (const child of [...element.childNodes]) {
+      const placeholder = child.nodeType === 3 && (child as Text).data === '';
+      /**
+       * Two bindings written back to back (`${a}${b}`) have nothing static between them, so their runs would join into
+       * one unit: a comment of this module's goes between them — every binding is its own unit.
+       */
+      if (placeholder && hole) {
+        const between = element.ownerDocument.createComment('');
+        element.insertBefore(between, child);
+        statics.add(between);
+      }
+      if (!placeholder) statics.add(child);
+      hole = placeholder;
+    }
     STATICS.set(element, statics);
   },
 };
@@ -407,7 +533,7 @@ const slotBehavior = {
       const doc = (root as Element).ownerDocument;
       const holding = doc.createDocumentFragment();
       holding.append(doc.createComment(''), doc.createComment(''));
-      light = { host: root as Element, units: [], holding, recs: [], dirty: false };
+      light = { host: root as Element, units: [], holding, recs: [], dirty: false, fresh: false };
       HOSTS.set(root as Element, light);
       lights.add(light);
       watch(holding, light);
@@ -430,11 +556,18 @@ const slotBehavior = {
     flush();
     const light = rec.light;
     light.recs.splice(light.recs.indexOf(rec), 1);
-    for (const unit of light.units)
-      if (unit.at === rec) {
-        for (const node of nodesOf(unit)) light.holding.insertBefore(node, light.holding.lastChild);
-        unit.at = null;
+    for (const node of lightOf(light)) {
+      if (PLACED.get(node) !== rec) continue;
+      const stand = STAND.get(node);
+      if (stand !== undefined) {
+        light.holding.insertBefore(node, stand);
+        unstand(node);
+        PLACED.delete(node);
+      } else {
+        light.holding.insertBefore(node, light.holding.lastChild);
+        PLACED.set(node, null);
       }
+    }
     unregion(rec);
     distribute(light);
     settle();
@@ -448,7 +581,7 @@ export const slotted = (host: Element, name = ''): Node[] => {
     flush();
     for (const rec of light.recs) if ((rec.slot.getAttribute('name') ?? '') === name && rec.shown.length > 0) return [...rec.shown];
     /** Unassigned, a node still belongs to the host: it waits in holding for a slot of its name. */
-    return light.units.filter((unit) => unit.at === null && nameOfUnit(unit) === name).flatMap(slottablesOf);
+    return lightOf(light).filter((node) => slotNameOf(node) === name);
   }
   /**
    * `_root` first: a CLOSED root is null through `shadowRoot`, and core keeps the root it attached under that unmangled
@@ -600,8 +733,13 @@ export const slotDiscovery = [
       el.localName === 'slot' ? slotBehavior : el.localName.includes('-') && !RESERVED_ELEMENT_NAMES.has(el.localName) ? hostBehavior : undefined,
     priority: 10,
   },
-  /** After every component render: what its template did to a light host's units is distributed before anything reads it. */
-  { name: '@verajs/renderer/slots-flush', on: 'render' as const, fn: () => flush(), priority: 60 },
+  /**
+   * **After every render** — the renderer says when one finishes (`_$done$`, off-chain like `$t`), and what it did to a
+   * light host's children is distributed before anything reads them.
+   */
+  (registry: Map<string, unknown[]>) => {
+    (registry as unknown as { _$done$?: () => void })._$done$ = flush;
+  },
 ];
 
 /** `wire([renderer, slots])`. */
