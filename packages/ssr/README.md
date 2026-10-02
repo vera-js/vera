@@ -102,6 +102,10 @@ changes nothing — and it takes no time and prints no warning. Skipping only th
 (`if (!globalThis.__veraSsrShimmed) await …`) serves the state *after* it, which the browser then replaces with its own
 starting state: a visible flash. A stand-in class defined on the server does the same.
 
+**`globalThis.__veraSsrShimmed` is the supported way to tell the server render from a browser**, here and for guarding
+client wiring: `@verajs/ssr` sets it to `true` when it is imported, before any component runs, and nothing sets it in a
+browser. `typeof window` cannot tell them apart, because the server provides a `window`.
+
 ## What runs, and when
 
 **The lifecycle runs the way it does in a browser.** The class is constructed through the registry,
