@@ -223,6 +223,30 @@ const tagShape = (strings: TemplateStringsArray, type: number): string[] | undef
  * Said at the template's FIRST instance, not at construction: `namespaces` constructs an HTML build of a template it
  * then only ever instantiates in SVG, and that build's shape is not a mistake anyone wrote.
  */
+/**
+ * **A `<slot>` rendered into LIGHT DOM that nothing will distribute** — slots not wired, or wired after this template
+ * was built. Said once per host tag and case; a shadow root is never warned about, the platform slots there.
+ */
+const warnedSlotless = /* @__PURE__ */ new Set<string>();
+const saySlotless = () => {
+  const host = renderRoot;
+  if (host === null || host.nodeType !== 1) return;
+  const tag = (host as Element).localName;
+  const late = (registry as { _$done$?: unknown } | null)?._$done$ !== undefined;
+  if (warnedSlotless.has(tag + late)) return;
+  warnedSlotless.add(tag + late);
+  if (late)
+    console.warn(
+      `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM from a template built before @verajs/renderer/slots ` +
+        `was wired — slots was wired after this template first rendered, so it stays slotless. Wire it BEFORE anything ` +
+        `renders: wire([renderer, slots]).`
+    );
+  else
+    console.warn(
+      `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but @verajs/renderer/slots is not wired, so ` +
+        `nothing is distributed. Wire it BEFORE anything renders: wire([renderer, slots]).`
+    );
+};
 export const sayShape = (template: Template) => {
   const shape = template._shape;
   if (shape !== undefined) {
@@ -267,6 +291,8 @@ class Template {
    * `instantiate`; hydration needs no mark, because the server's output carries the content or its empty anchor.
    */
   declare _owned?: number[];
+  /** Development only: the template holds a `<slot>` and was built while light-DOM slots was not wired (`saySlotless`). */
+  declare _slotless?: boolean;
 
   constructor(result: TemplateResult) {
     const strings = result.strings;
@@ -606,6 +632,9 @@ class Template {
      */
     if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope, root);
     this._x = !!(this._$at$ || this._$inst$ || this._$ns$);
+    /** Light-DOM slots claims a `<slot>` as the template is built — so a template built before it is wired never will. */
+    if (__DEV__ && (root as ParentNode).querySelector?.('slot') && (registry as { _$done$?: unknown } | null)?._$done$ === undefined)
+      this._slotless = true;
   }
 }
 
@@ -729,6 +758,7 @@ class Instance {
  */
 const instantiate = (template: Template, result: TemplateResult, owner: Document): Instance => {
   if (__DEV__) sayShape(template);
+  if (__DEV__ && template._slotless) saySlotless();
   const source = template._root;
   const root = template._plain && owner === doc ? source.cloneNode(true) : owner.importNode(source, true);
   const kinds = template._kinds;
@@ -1769,9 +1799,10 @@ export const renderInto = (result: unknown, container: Node) => {
   commitAs(container, part, result);
   /**
    * **A render has finished** — said to whatever asked (light-DOM slots, which re-distributes what this render did to
-   * a host's light children before anything reads them). Off-chain and sigiled, like `$t`: not an extension point.
+   * a host's light children before anything reads them, and at a container's first render takes what was there before
+   * the render's own range — `start` — as its light children). Off-chain and sigiled, like `$t`: not an extension point.
    */
-  (registry as { _$done$?: () => void } | null)?._$done$?.();
+  (registry as { _$done$?: (container: Node, start: Node) => void } | null)?._$done$?.(container, part._start!);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_END, container, null);
 };
 

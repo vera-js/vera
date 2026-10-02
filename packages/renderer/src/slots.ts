@@ -33,7 +33,7 @@ type Rec = { slot: Kept; light: Light; rs: Comment | null; re: Comment | null; s
 type Kept = HTMLSlotElement & { $rec?: Rec };
 
 /** A host's light children, by unit, in the order the page wrote them, and its slots. */
-type Light = { host: Element; units: Unit[]; holding: DocumentFragment; recs: Rec[]; dirty: boolean; fresh: boolean };
+type Light = { host: Element; units: Unit[]; holding: DocumentFragment; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean };
 
 const HOSTS = new WeakMap<Element, Light>();
 /** The static children an outer template gave a host, recorded when its instance was created (see `hostBehavior`). */
@@ -463,15 +463,20 @@ const release = (light: Light) => {
  * is a unit; each run between statics (what the page's template bound there) is one unit, wrapped in this module's
  * two comments so its extent survives whatever the renderer writes inside it.
  */
-const capture = (host: Element): Light => {
+const capture = (host: Element, before: Node | null = null): Light => {
   let light = HOSTS.get(host);
-  if (light !== undefined) return light;
+  /** A slot of a custom element `init` never saw mounted first: its light content arrives now, at the render's end. */
+  if (light !== undefined && !light.late) return light;
   const doc = host.ownerDocument;
-  const holding = doc.createDocumentFragment();
-  holding.append(doc.createComment(''), doc.createComment(''));
-  light = { host, units: [], holding, recs: [], dirty: false, fresh: false };
-  HOSTS.set(host, light);
-  lights.add(light);
+  if (light === undefined) {
+    const holding = doc.createDocumentFragment();
+    holding.append(doc.createComment(''), doc.createComment(''));
+    light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late: false };
+    HOSTS.set(host, light);
+    lights.add(light);
+  }
+  light.late = false;
+  const holding = light.holding;
   const statics = STATICS.get(host);
   let run: Node[] | null = null;
   /**
@@ -488,6 +493,8 @@ const capture = (host: Element): Light => {
     run = null;
   };
   for (const child of [...host.childNodes]) {
+    /** At a first render's end, only what precedes the render's own range is light content. */
+    if (child === before) break;
     if (statics === undefined || statics.has(child)) {
       close();
       light.units.push({ a: child, z: child });
@@ -578,7 +585,8 @@ const slotBehavior = {
       const doc = (root as Element).ownerDocument;
       const holding = doc.createDocumentFragment();
       holding.append(doc.createComment(''), doc.createComment(''));
-      light = { host: root as Element, units: [], holding, recs: [], dirty: false, fresh: false };
+      const name = (root as Element).localName;
+      light = { host: root as Element, units: [], holding, recs: [], dirty: false, fresh: false, late: name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name) };
       HOSTS.set(root as Element, light);
       lights.add(light);
       watch(holding, light);
@@ -783,7 +791,17 @@ export const slotDiscovery = [
    * light host's children is distributed before anything reads them.
    */
   (registry: Map<string, unknown[]>) => {
-    (registry as unknown as { _$done$?: () => void })._$done$ = flush;
+    (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
+      /**
+       * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
+       * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
+       */
+      if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? true) && (container as Element).shadowRoot === null) {
+        const name = (container as Element).localName;
+        if (name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name)) capture(container as Element, start);
+      }
+      flush();
+    };
   },
 ];
 
