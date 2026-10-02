@@ -1260,8 +1260,14 @@ class ChildPart {
       parent.appendChild(start);
       parent.appendChild(end!);
     } else {
-      between(start, end, SCRATCH);
-      SCRATCH.textContent = '';
+      const parent = start.parentNode!;
+      let node = start.nextSibling;
+      /** `node !== null` is a backstop: a detached boundary leaves nodes behind rather than throwing mid-render. */
+      while (node !== null && node !== end) {
+        const next = node.nextSibling;
+        parent.removeChild(node);
+        node = next;
+      }
     }
     this._mode = EMPTY;
     this._text = null;
@@ -1322,8 +1328,12 @@ class ChildPart {
           const root = current._root;
           /** A fragment root takes its nodes back; an element root IS the range. */
           if (root.nodeType === 11) {
-            if (this._owner !== null) while (this._owner.firstChild !== null) root.appendChild(this._owner.firstChild);
-            else between(this._start!, this._end, root);
+            let node = this._owner !== null ? this._owner.firstChild : this._start!.nextSibling;
+            while (node !== this._end) {
+              const next = node!.nextSibling;
+              root.appendChild(node!);
+              node = next;
+            }
           } else (root as ChildNode).remove();
           parked.set(current._strings, current);
           this._mode = EMPTY;
@@ -1658,23 +1668,6 @@ const markered = (parent: Node, ref: Node | null) => {
   parent.insertBefore(part._start!, ref);
   parent.insertBefore(end, ref);
   return part;
-};
-
-/**
- * **Every node strictly between two markers, moved into `into`** (a clear moves them to `SCRATCH` and empties it). The one walk over a binding's range, so
- * a range whose nodes are not all between its markers has one place to say so: light-DOM slots, which may send one
- * binding's output to several `<slot>`s, marks such a range's start (`_$s$`, sigiled so both bundles read it) and
- * walks the range itself. Unmarked — every range in an app without slots — it is the plain loop it replaced.
- */
-const between = (start: Node, end: Node | null, into: Node) => {
-  const split = (start as { _$s$?: (end: Node | null, into: Node) => void })._$s$;
-  if (split !== undefined) return split(end, into);
-  /** `node !== null` is a backstop: a detached boundary leaves nodes behind rather than throwing mid-render. */
-  for (let node = start.nextSibling; node !== null && node !== end; ) {
-    const next: Node | null = node.nextSibling;
-    into.appendChild(node);
-    node = next;
-  }
 };
 
 /**

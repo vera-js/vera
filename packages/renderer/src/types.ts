@@ -108,6 +108,11 @@ export type InstanceHook = {
  */
 export type ElementBehavior = {
   /**
+   * Once per instance, at its creation: before its first update (the clone is inert — a binding position is still its
+   * empty placeholder) and before it is connected. `adopted` is true when hydration adopted the server's element.
+   */
+  create?(element: Element, adopted: boolean): void;
+  /**
    * Once per instance, after its first update — bindings committed, the element possibly not yet
    * connected (a host rendered off-page, a row in its batching fragment). `root` is the render root
    * the instance was committed into, `null` outside any render; `adopted` is true when hydration

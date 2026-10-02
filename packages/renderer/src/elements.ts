@@ -53,6 +53,8 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
     for (let k = 0; k < positions.length; k++) {
       for (; at < positions[k]; at++) node = nextIn(node!, instance);
       found.push(node!, behaviors[k]);
+      /** At creation — before the first update, and before the instance is connected anywhere. */
+      behaviors[k].create?.(node!, adopted);
     }
     return { f: found, r: root, a: adopted, k: undefined, d: false } as State;
   },
