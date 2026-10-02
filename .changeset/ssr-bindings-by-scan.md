@@ -12,5 +12,5 @@ binding, or a tag-name hole by testing the static's tail with patterns that knew
 binding. The client drops all of these. The server now reads every one of those answers off the same scan that reads
 the tags, as the tokenizer reads them. A form property on an upper-case tag (`<INPUT .value=…>`) is mirrored as it is
 on `<input>`, a hole inside a tag name is refused whatever the tag name contains, and an attribute named
-`data-onClick` is an attribute, as it is on the client. Compiling a template is about 14% faster, and so is a page
-of spreads (8%).
+`data-onClick` is an attribute, as it is on the client. Compiling a template and folding spreads got faster (see
+the SSR performance entry).

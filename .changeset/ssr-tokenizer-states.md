@@ -18,5 +18,4 @@ only the tokenizer's whitespace separates; `<style/>` opens raw text as `<style>
 a separate scanner, and it served both live in `<b x"><script>` (it read the quote as opening a value) and in
 `<svg><style><script>` (it skipped the SVG `<style>`'s content as raw text). It now uses the same scan, so the two
 cannot disagree. An unfinished tag at the end of such a value is dropped, as an `innerHTML` assignment drops it,
-instead of swallowing the page after it. Compiling a template and serving a large `.innerHTML` value both got
-faster (about 38% and 4.8×).
+instead of swallowing the page after it. Both scans got faster (see the SSR performance entry).

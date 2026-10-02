@@ -11,5 +11,5 @@ where the browser never upgrades a foreign element; inside a `<textarea>` or `<s
 live component after a stray quote (`<b x"><my-comp>`). It stopped a tag name at a `.`, so `<my-comp.x>` rendered
 `my-comp` and the tag was rewritten as `<my-comp .x="">`. The component scan now reads the same tag scanner as
 templates, so comments, raw text, `<template>` content, quoted values and foreign content are its answers too, and
-a component inside `<svg><foreignObject>` or `<math><mtext>` is rendered. Pages render faster for it: about 12% on a
-page of 100 nested components and 26% on a long article.
+a component inside `<svg><foreignObject>` or `<math><mtext>` is rendered. Pages render faster for it (see the SSR
+performance entry).
