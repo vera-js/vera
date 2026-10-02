@@ -26,3 +26,29 @@ test('options that are not an object are refused by name, in both entry points',
   for (const render of [renderToString, renderToStringAsync])
     for (const options of [null, 'x', 5, []]) await assert.rejects(render(MODULE, options), /`options` must be an object, or left out/, String(options));
 });
+
+/**
+ * **The formatter itself never throws** (vera-5a's audit of the first version): a thrown value is the component's, and
+ * one with no prototype, a throwing `toString` or `message` getter, or a Proxy whose traps throw crashed the error path,
+ * replacing the real failure with an unrelated TypeError from inside the framework.
+ */
+test('thrownMessage describes every thrown value, and cannot itself throw', async () => {
+  const { thrownMessage } = await import('../packages/ssr/dist/vera/escaping.js');
+  const trap = () => {
+    throw new Error('trap');
+  };
+  const rows = [
+    [null, 'null'],
+    [undefined, 'undefined'],
+    ['plain', 'plain'],
+    [42, '42'],
+    [Symbol('s'), 'Symbol(s)'],
+    [new Error('m'), 'm'],
+    [{ message: 'shaped' }, 'shaped'],
+    [Object.create(null), '[a value that cannot be printed was thrown]'],
+    [{ toString: trap }, '[a value that cannot be printed was thrown]'],
+    [{ get message() { return trap(); } }, '[a value that cannot be printed was thrown]'],
+    [new Proxy({}, { get: trap, getPrototypeOf: trap }), '[a value that cannot be printed was thrown]'],
+  ];
+  for (const [value, expected] of rows) assert.equal(thrownMessage(value), expected);
+});

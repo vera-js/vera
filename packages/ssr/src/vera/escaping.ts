@@ -225,9 +225,20 @@ export const commentEnd = (markup: string, open: number): number => {
 export const commentDataEnd = (markup: string, open: number, end: number): number => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);
 
 /**
- * What a thrown value says, whatever was thrown. JavaScript can throw anything — `null`, `undefined`, a string — and a
- * message built from `(error as Error).message` crashed on the first two, so a setter that threw `null` surfaced as
- * "Cannot read properties of null" naming nothing the caller did.
+ * **What a thrown value says, whatever was thrown — and it never throws itself.** JavaScript can throw anything, and
+ * the value comes from component code: `null`, `undefined`, an object with no prototype (`String()` finds no
+ * `toString`), one whose `toString` or `message` getter throws, a Proxy whose every trap throws. A message built from
+ * `(error as Error).message` crashed on the first two, and a careless formatter crashes on the rest — either way the
+ * real failure was replaced by an unrelated TypeError from inside the framework. So anything that cannot be read
+ * becomes a fixed phrase; `Object.prototype.toString` is no fallback, since it reads `Symbol.toStringTag` through a
+ * Proxy's trap too.
  */
-export const thrownMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : typeof (error as { message?: unknown } | null)?.message === 'string' ? (error as { message: string }).message : String(error);
+export const thrownMessage = (error: unknown): string => {
+  try {
+    if (error instanceof Error) return String(error.message);
+    const message = (error as { message?: unknown } | null)?.message;
+    return typeof message === 'string' ? message : String(error);
+  } catch {
+    return '[a value that cannot be printed was thrown]';
+  }
+};
