@@ -156,7 +156,10 @@ the browser will parse the element, not by its name**: inside `<svg>` or `<math>
 MathML element whose content is markup, and `<noscript>` is markup to a browser with scripting off — so
 inside any of them every value is escaped, and so is every value in a template rendered into one (an
 `svg`/`mathml` template included, wherever it renders). Inside `<xmp>`, `<noembed>`, `<noframes>` and
-`<plaintext>`, which the browser reads as text whole, nothing is raw either.
+`<plaintext>`, which the browser reads as text whole, nothing is raw either. **And a tag is read where the
+browser's tokenizer reads one**: a tag's name is the whole run up to whitespace, `/` or `>` (`<script.x>` is an
+unknown element, never a `<script>`), a `<` before anything but a letter is text, `<!x>` and `<?x>` are comments,
+and a quote or `=` inside a name is part of the name.
 
 **Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** Both are
 written through untouched — that is what they are for — so neither may carry anything from a request
@@ -169,8 +172,9 @@ unsanitized. Everything else is checked:
   (`<div .innerHTML=${markup}>`) is in the served page rather than filled in after hydration. It is made to behave
   as an `innerHTML` assignment, not as parsed page markup: a `<script>` in it is served with an inert `type` (an
   assignment never runs one), and a `<template shadowrootmode>` cannot attach a shadow root (an assignment never
-  does). Whatever the markup leaves open is closed before the element's own end tag, so it cannot reach the
-  markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
+  does) — wherever the tokenizer reads a start tag, which the server finds with the same scanner it reads every
+  template with. Whatever the markup leaves open is closed before the element's own end tag, and an unfinished tag
+  at its end is dropped, as an assignment drops it, so it cannot reach the markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
   `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, and for any `.textContent`, it is
   escaped text. A `<script .textContent=${code}>` host is the one code-execution door this opens, and it is the
   author's: it runs on the served page as it runs on the client. `.innerText`, `.outerHTML` and `.outerText` stay

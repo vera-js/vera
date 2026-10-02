@@ -1,5 +1,4 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { commentEnd } from './escaping.js';
 import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeSchemeReferences } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
@@ -341,19 +340,50 @@ const TEXT_ONLY = new Set(['textarea', 'title', 'iframe', 'xmp', 'noembed', 'nof
 /** The elements that change how everything after them parses until they close — tracked so a template's end closes them. */
 const STATEFUL = new Set(['svg', 'math', 'noscript', 'template']);
 
+/**
+ * **Where a tag scan stands: the HTML tokenizer's own states**, from a `<` to its tag's `>`, so this scanner reads a
+ * tag exactly where the browser does. It used to approximate them — a name stopped at the first character outside
+ * `[a-zA-Z0-9-]`, any `<` opened a tag, any `=` opened a value, a quote anywhere opened one — and every difference
+ * was a place where the two disagreed about what is markup. `<script.x>` read as a `<script>` (the browser reads an
+ * unknown element named `script.x`), so a hole inside it was written raw and a value's `<img onerror>` ran; `<b x">`
+ * read the quote as opening a value (the tokenizer reads it as part of the name `x"`), so the `.innerHTML` scan that
+ * shared none of this missed the live `<script>` after it. Each state below is the tokenizer's, under its name in the
+ * HTML standard; the value states are `inValue`/`quote`.
+ */
+const OUTSIDE = 0;
+const TAG_OPEN = 1;
+const END_TAG_OPEN = 2;
+const TAG_NAME = 3;
+const BEFORE_ATTRIBUTE_NAME = 4;
+const ATTRIBUTE_NAME = 5;
+const AFTER_ATTRIBUTE_NAME = 6;
+const AFTER_ATTRIBUTE_VALUE = 7;
+const SELF_CLOSING = 8;
+type Phase = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+/** The tokenizer's whitespace — never `\s`, which also takes `\v` and U+00A0, both NAME characters to a tokenizer. */
+const isSpace = (c: string | undefined): boolean => c === ' ' || c === '\n' || c === '\t' || c === '\f' || c === '\r';
+const isAlpha = (c: string | undefined): boolean => c !== undefined && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+/** The tokenizer lowercases ASCII only; `toLowerCase` also folds the Kelvin sign into `k`. */
+const lowerAscii = (c: string): string => (c >= 'A' && c <= 'Z' ? String.fromCharCode(c.charCodeAt(0) + 32) : c);
+/** What may follow `</name` for it to END a raw-text or text-only element: the tokenizer's "appropriate end tag". */
+const endsName = (c: string | undefined): boolean => isSpace(c) || c === '/' || c === '>';
+
 /** Where the scan stands at the end of a static — carried into the next one, and what a template's end must close. */
 type ScanState = {
   readonly inTag: boolean;
+  /** Which tokenizer state the tag being read is in — `OUTSIDE` when there is none (see the phases above). */
+  readonly phase: Phase;
   readonly inValue: boolean;
   readonly quote: string;
   readonly rawTag: string;
   readonly tagName: string;
-  readonly naming: boolean;
   readonly attrName: string;
   readonly serial: number;
   readonly closing: boolean;
   readonly inert: number;
-  readonly comment: boolean;
+  /** The open comment's closer — `-->` for a comment, `>` for a bogus one (`<!x`, `<?x`, `</ x`) — or `''`. */
+  readonly comment: string;
   readonly textTag: string;
   readonly foreign: number;
   /** Mutated by `scanTag`, so every fresh state owns its own. */
@@ -366,6 +396,7 @@ interface ScanStart extends ScanState {
   readonly opened?: undefined;
   readonly attrStart?: undefined;
   readonly valueStart?: undefined;
+  readonly tagAt?: undefined;
 }
 
 /** What `scanTag` answers: the state carried on, and where in THIS text the last attribute to open here starts. */
@@ -373,164 +404,272 @@ interface ScanResult extends ScanState {
   readonly opened: boolean;
   readonly attrStart: number;
   readonly valueStart: number;
+  /** Where, in THIS text, the tag still open at its end began — `-1` when it began in an earlier one, or none is. */
+  readonly tagAt: number;
 }
 
-const scanTag = (text: string, state: ScanState): ScanResult => {
-  let { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag, foreign } = state;
+/** What `scanTag` reports to `fortify`, as (position, edit) pairs — see `fortify`. */
+const EDIT_INERT = 0;
+const EDIT_SHADOW_ROOT = 1;
+
+/**
+ * `edits`, when given, collects the positions `fortify` rewrites — a start tag's name end where it is `script`, and
+ * a `<template>` start tag's `shadowroot`/`shadowrootmode` attribute names. They are reported from THIS scan, so the
+ * `.innerHTML` scan and the template scan cannot disagree about what is a tag: they are one scan.
+ */
+const scanTag = (text: string, state: ScanState, edits?: number[]): ScanResult => {
+  let { phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, attrRaw } = state;
   /** The parser-state elements THIS template has open, innermost last — what its end must close (see `compile`). Mutated. */
   const { opens } = state;
   /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
   let opened = false;
-  let attrRaw = state.attrRaw;
   let attrStart = 0;
   let valueStart = 0;
-  for (let i = 0; i < text.length; i++) {
+  /** Where the attribute name being read began in THIS text — `-1` when it began in an earlier one. */
+  let nameFrom = -1;
+  let tagAt = -1;
+  let selfClosing = false;
+  const length = text.length;
+  for (let i = 0; i < length; i++) {
+    /**
+     * Inside `<style>`/`<script>` (`rawTag`) or a text-only element (`textTag`) nothing is markup until that
+     * element's own end tag — `</name` followed by whitespace, `/` or `>`, so `</scripts` ends nothing — and a hole
+     * here is raw text or escaped text, which the render pass has to know about. The end tag is then read as any end
+     * tag is, attributes and all. At the very end of a text, `</name` counts as an end: a hole right after it is
+     * refused as a tag-name hole (see `compile`), never written into the raw text, where a value of `>` would end it.
+     */
+    if (rawTag !== '' || textTag !== '') {
+      const name = rawTag || textTag;
+      const at = text.indexOf('</', i);
+      if (at === -1) break;
+      const after = at + 2 + name.length;
+      if (text.slice(at + 2, after).toLowerCase() !== name || (after < length && !endsName(text[after]))) {
+        i = at + 1;
+        continue;
+      }
+      rawTag = '';
+      textTag = '';
+      phase = TAG_NAME;
+      tagName = name;
+      closing = true;
+      tagAt = at;
+      i = after - 1;
+      continue;
+    }
+    /**
+     * Inside a comment nothing is markup until its closer — the client's scanner reads it the same way, and a binding
+     * here is dropped on both sides (see `compile`). A comment ends at `-->` or `--!>`; a BOGUS comment — `<!` not
+     * followed by `--`, `<?`, or `</` not followed by a letter — at the first `>`, quotes or not.
+     */
+    if (comment !== '') {
+      if (comment === '>') {
+        const at = text.indexOf('>', i);
+        if (at === -1) break;
+        i = at;
+        comment = '';
+        continue;
+      }
+      const at = text.indexOf('--', i);
+      if (at === -1) break;
+      if (text.startsWith('-->', at)) {
+        i = at + 2;
+        comment = '';
+      } else if (text.startsWith('--!>', at)) {
+        i = at + 3;
+        comment = '';
+      } else i = at;
+      continue;
+    }
     const character = text[i];
-    /**
-     * Inside `<style>` or `<script>` nothing is markup until that element's own end tag, so the
-     * attribute machinery below must not run — and a binding here is **raw text**, which the render
-     * pass has to know about.
-     */
-    if (rawTag) {
-      const close = '</' + rawTag;
-      if (
-        character === '<' &&
-        text.slice(i, i + close.length).toLowerCase() === close &&
-        (i + close.length >= text.length || /[\s/>]/.test(text[i + close.length]))
-      ) {
-        i += close.length - 1;
-        rawTag = '';
-        inTag = true;
-        tagName = '';
-        naming = false;
-      }
-      continue;
-    }
-    /**
-     * Inside a comment nothing is markup until its `-->` — the client's scanner reads it the same way, and a binding
-     * here is dropped on both sides (see `compile`). Not knowing it, this scanner took `<!--` for a TAG, so a binding
-     * in a comment looked like an element position.
-     */
-    /**
-     * Inside `<textarea>`, `<title>`, `<iframe>` or `<noscript>` nothing is markup either — the client's scanner reads
-     * their content as raw text (its `RAW_TEXT_TAGS`), so a hole there is text, never a tag or an attribute. Escaping
-     * is unchanged: these keep ordinary escaping, unlike `<style>`/`<script>` (`RAWTEXT`).
-     */
-    if (textTag) {
-      const close = '</' + textTag;
-      if (
-        character === '<' &&
-        text.slice(i, i + close.length).toLowerCase() === close &&
-        (i + close.length >= text.length || /[\s/>]/.test(text[i + close.length]))
-      ) {
-        i += close.length - 1;
-        textTag = '';
-        inTag = true;
-        tagName = '';
-        naming = false;
-        closing = true;
-      }
-      continue;
-    }
-    if (comment) {
-      /** `--!>` closes a comment as `-->` does. */
-      if (character === '-' && (text.startsWith('-->', i) || text.startsWith('--!>', i))) {
-        i += text[i + 2] === '!' ? 3 : 2;
-        comment = false;
-      }
-      continue;
-    }
+    /** Whether this character's state hands over to an attribute value, and whether it ends the tag. */
+    let value = false;
+    let emit = false;
     if (inValue) {
-      /** An unquoted value ends at whitespace or the tag's own `>`. */
-      if (!(quote ? character === quote : /[\s>]/.test(character))) continue;
-      const quoted = quote !== '';
-      inValue = false;
-      quote = '';
-      /**
-       * An unquoted value ended by the tag's own `>` falls through, so the tag CLOSES like any other: it used to set
-       * `inTag = false` here and skip the close handling, so `<style media=x>`, `<template a=b>` and `<svg width=10>`
-       * were never recognized as raw text, inert content or foreign content.
-       */
-      if (quoted || character !== '>') continue;
-    }
-    if (!inTag) {
-      if (character === '<' && text.startsWith('<!--', i)) {
-        i += 3;
-        /** `<!-->` and `<!--->` end the comment they open — the tokenizer's abrupt close (see `commentEnd`). */
-        if (text[i + 1] === '>') i += 1;
-        else if (text.startsWith('->', i + 1)) i += 2;
-        else comment = true;
-      } else if (character === '<') {
-        inTag = true;
-        /** Collected as it is scanned, so a tag split across two statics keeps its name. */
-        tagName = '';
-        naming = true;
+      if (quote !== '') {
+        const at = text.indexOf(quote, i);
+        if (at === -1) break;
+        i = at;
+        inValue = false;
+        quote = '';
+        phase = AFTER_ATTRIBUTE_VALUE;
+        continue;
       }
+      /** An unquoted value ends at whitespace or the tag's own `>`; a quote or `=` inside it is value text. */
+      if (character === '>') {
+        inValue = false;
+        emit = true;
+      } else if (isSpace(character)) {
+        inValue = false;
+        phase = BEFORE_ATTRIBUTE_NAME;
+        continue;
+      } else if (character === '/' && i === 0 && text[1] === '>') {
+        /**
+         * A `/>` RIGHT after a hole that ended an unquoted value is the tag's self-close, not value text — `compile`
+         * keeps the slash out of the value, as the client's scanner does (`<circle r=${r}/>`), so the markup served is
+         * a self-closing tag and is scanned as one.
+         */
+        inValue = false;
+        phase = SELF_CLOSING;
+        continue;
+      } else continue;
+    } else if (phase === OUTSIDE) {
+      const at = text.indexOf('<', i);
+      if (at === -1) break;
+      i = at;
+      tagAt = at;
+      phase = TAG_OPEN;
       continue;
-    }
-    if (character === '>') {
-      inTag = false;
-      /**
-       * How deep inside nested `<template>` content this is. That content is inert markup the client never walks,
-       * so a binding there is ignored on both sides — see `compile`.
-       */
-      /**
-       * A `/` before the `>` closes only a FOREIGN element: on an HTML one the parser ignores it, so `<template/>` and
-       * `<noscript/>` open exactly as `<template>` and `<noscript>` do. Counting them as closed had the server writing
-       * raw text into what the browser parses as `<noscript>` content.
-       */
-      const selfClosed = text[i - 1] === '/' && (tagName === 'svg' || tagName === 'math');
-      if (STATEFUL.has(tagName) && !selfClosed) {
-        if (!closing) opens.push(tagName);
-        else if (opens.lastIndexOf(tagName) !== -1) opens.length = opens.lastIndexOf(tagName);
+    } else if (phase === TAG_OPEN) {
+      if (character === '!') {
+        if (text.startsWith('--', i + 1)) {
+          i += 2;
+          /** `<!-->` and `<!--->` end the comment they open — the tokenizer's abrupt close. */
+          if (text[i + 1] === '>') i += 1;
+          else if (text.startsWith('->', i + 1)) i += 2;
+          else comment = '-->';
+        } else comment = '>';
+        phase = OUTSIDE;
+        continue;
       }
-      if (tagName === 'template') inert += closing ? -1 : 1;
-      /**
-       * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
-       * `<textarea>` and the rest are SVG/MathML elements whose content is MARKUP — read as raw text there, a hole
-       * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
-       * recognized only at depth 0. Deliberately incomplete on the SAFE side: an integration point (`foreignObject`,
-       * `mtext`…) is not re-entered as HTML, and a breakout tag that leaves foreign content unseen keeps the depth —
-       * both only ever read raw text as markup, which over-escapes, never injects. `<noscript>` counts the same way:
-       * markup to a parser with scripting off and raw text to one with it on, so it is scanned as the first and
-       * escaped as neither can misread (see `TEXT_ONLY`). The depth a hole sits at is recorded for the template
-       * rendered there, which starts from it (see `serializeTemplate`).
-       */
-      else if (tagName === 'svg' || tagName === 'math' || tagName === 'noscript') foreign = Math.max(0, foreign + (closing ? -1 : selfClosed ? 0 : 1));
-      /** A self-closing tag has no content to be raw, and a closing tag opens nothing. */
-      else if (foreign === 0 && !closing && text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
-      else if (foreign === 0 && !closing && text[i - 1] !== '/' && TEXT_ONLY.has(tagName)) textTag = tagName;
-      tagName = '';
-      naming = false;
-      closing = false;
-    } else if (character === '=') {
-      naming = false;
+      if (character === '/') {
+        phase = END_TAG_OPEN;
+        continue;
+      }
+      if (isAlpha(character)) {
+        phase = TAG_NAME;
+        tagName = lowerAscii(character);
+        closing = false;
+        continue;
+      }
+      /** `<?` opens a bogus comment; a `<` before anything else is TEXT — `a < b`, `<1`. */
+      if (character === '?') comment = '>';
+      else i--;
+      phase = OUTSIDE;
+      continue;
+    } else if (phase === END_TAG_OPEN) {
+      if (isAlpha(character)) {
+        phase = TAG_NAME;
+        tagName = lowerAscii(character);
+        closing = true;
+        continue;
+      }
+      /** `</>` is nothing at all; `</` before anything else opens a bogus comment that holds that character. */
+      if (character !== '>') {
+        comment = '>';
+        i--;
+      }
+      phase = OUTSIDE;
+      continue;
+    } else if (phase === TAG_NAME) {
+      /** A tag name runs to whitespace, `/` or `>` — every other character is part of it, `.` `:` `=` and quotes too. */
+      if (isSpace(character)) phase = BEFORE_ATTRIBUTE_NAME;
+      else if (character === '/') phase = SELF_CLOSING;
+      else if (character === '>') emit = true;
+      else {
+        tagName += lowerAscii(character);
+        continue;
+      }
+      /** The name is whole: a `<script>` start tag gets the inert type right after it, first among its attributes. */
+      if (edits !== undefined && !closing && tagName === 'script') edits.push(i, EDIT_INERT);
+      if (!emit) continue;
+    } else if (phase === BEFORE_ATTRIBUTE_NAME || phase === AFTER_ATTRIBUTE_NAME || phase === AFTER_ATTRIBUTE_VALUE) {
+      if (isSpace(character)) {
+        phase = BEFORE_ATTRIBUTE_NAME;
+        continue;
+      }
+      if (character === '/') {
+        phase = SELF_CLOSING;
+        continue;
+      }
+      if (character === '>') emit = true;
+      /** `=` after a name opens its value; anywhere else — `<b =x>` — it is the first character of a NAME. */
+      else if (character === '=' && phase === AFTER_ATTRIBUTE_NAME) value = true;
+      else {
+        phase = ATTRIBUTE_NAME;
+        nameFrom = i;
+        continue;
+      }
+    } else if (phase === ATTRIBUTE_NAME) {
+      /** A name runs to whitespace, `/`, `>` or `=` — a quote or `<` inside it is part of the name (`<b x">`). */
+      if (!(isSpace(character) || character === '/' || character === '>' || character === '=')) continue;
+      attrRaw = nameFrom === -1 ? attrRaw + text.slice(0, i) : text.slice(nameFrom, i);
+      if (edits !== undefined && !closing && tagName === 'template' && nameFrom !== -1) {
+        const lower = attrRaw.toLowerCase();
+        if (lower === 'shadowrootmode' || lower === 'shadowroot') edits.push(nameFrom, EDIT_SHADOW_ROOT);
+      }
+      if (character === '=') value = true;
+      else if (character === '>') emit = true;
+      else {
+        phase = character === '/' ? SELF_CLOSING : AFTER_ATTRIBUTE_NAME;
+        continue;
+      }
+    } else {
+      /** `SELF_CLOSING`: only a `>` makes the tag self-closing; anything else starts an attribute name. */
+      if (character === '>') {
+        emit = true;
+        selfClosing = true;
+      } else {
+        phase = BEFORE_ATTRIBUTE_NAME;
+        i--;
+        continue;
+      }
+    }
+    if (value) {
       /** Which attribute this value belongs to, and a serial per value — the URL-sink check needs both. */
-      let end = i;
-      while (end > 0 && /\s/.test(text[end - 1])) end--;
-      let start = end;
-      while (start > 0 && !/[\s"'<>/=]/.test(text[start - 1])) start--;
-      attrRaw = text.slice(start, end);
       attrName = attrRaw.toLowerCase();
       serial++;
       let next = i + 1;
-      while (next < text.length && /\s/.test(text[next])) next++;
+      while (next < length && isSpace(text[next])) next++;
       quote = text[next] === '"' || text[next] === "'" ? text[next] : '';
       inValue = true;
+      /** The value states are `inValue`/`quote`; every way out of them names the phase that follows. */
+      phase = BEFORE_ATTRIBUTE_NAME;
       opened = true;
-      attrStart = start;
-      while (attrStart > 0 && /\s/.test(text[attrStart - 1])) attrStart--;
+      attrStart = nameFrom === -1 ? 0 : nameFrom;
+      while (attrStart > 0 && isSpace(text[attrStart - 1])) attrStart--;
       valueStart = quote ? next + 1 : next;
       i = quote ? next : next - 1;
-    } else if (naming) {
-      /** The name runs until the first character that cannot be in one; `/` means a closing tag. */
-      if (/[a-zA-Z0-9-]/.test(character)) tagName += character.toLowerCase();
-      /** A closing tag keeps its name, so `</template>` can be counted. */
-      else if (character === '/' && tagName === '') closing = true;
-      else naming = false;
+      continue;
     }
+    /** `emit`: the tag is whole. */
+    phase = OUTSIDE;
+    /**
+     * A `/` before the `>` closes only a FOREIGN element: on an HTML one the parser ignores it, so `<template/>`,
+     * `<noscript/>` and `<style/>` open exactly as `<template>`, `<noscript>` and `<style>` do. Counting them as closed
+     * had the server writing raw text into what the browser parses as `<noscript>` content.
+     */
+    const selfClosed = selfClosing && (tagName === 'svg' || tagName === 'math');
+    if (STATEFUL.has(tagName) && !selfClosed) {
+      if (!closing) opens.push(tagName);
+      else if (opens.lastIndexOf(tagName) !== -1) opens.length = opens.lastIndexOf(tagName);
+    }
+    /**
+     * How deep inside nested `<template>` content this is. That content is inert markup the client never walks,
+     * so a binding there is ignored on both sides — see `compile`.
+     */
+    if (tagName === 'template') inert += closing ? -1 : 1;
+    /**
+     * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
+     * `<textarea>` and the rest are SVG/MathML elements whose content is MARKUP — read as raw text there, a hole
+     * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
+     * recognized only at depth 0. Deliberately incomplete on the SAFE side: an integration point (`foreignObject`,
+     * `mtext`…) is not re-entered as HTML, and a breakout tag that leaves foreign content unseen keeps the depth —
+     * both only ever read raw text as markup, which over-escapes, never injects. `<noscript>` counts the same way:
+     * markup to a parser with scripting off and raw text to one with it on, so it is scanned as the first and
+     * escaped as neither can misread (see `TEXT_ONLY`). The depth a hole sits at is recorded for the template
+     * rendered there, which starts from it (see `serializeTemplate`).
+     */
+    else if (tagName === 'svg' || tagName === 'math' || tagName === 'noscript') foreign = Math.max(0, foreign + (closing ? -1 : selfClosed ? 0 : 1));
+    /** A closing tag opens nothing. */
+    else if (foreign === 0 && !closing && RAWTEXT.has(tagName)) rawTag = tagName;
+    else if (foreign === 0 && !closing && TEXT_ONLY.has(tagName)) textTag = tagName;
+    tagName = '';
+    closing = false;
+    selfClosing = false;
   }
-  return { inTag, inValue, quote, rawTag, tagName, naming, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, opened, attrStart, valueStart };
+  /** A name still being read at the end carries on into the next text (a hole there is refused — see `nameHole`). */
+  if (phase === ATTRIBUTE_NAME) attrRaw = nameFrom === -1 ? attrRaw + text : text.slice(nameFrom);
+  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, opened, attrStart, valueStart, tagAt };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -606,7 +745,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState: ScanStart | ScanResult = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, textTag: '', foreign: depth, opens: [], attrRaw: '' };
+  let tagState: ScanStart | ScanResult = freshScan(depth);
   /** Per binding: whether a component property's name is a URL sink. */
   const urls: Array<boolean | undefined> = [];
   /**
@@ -1251,81 +1390,53 @@ const resolveSelects = (markup: string, wanted: ReadonlyArray<string | number>):
 
 /** The end-of-input closers a scan state owes: its open comment or raw-text or text-only element, then its open svg/math/noscript/template, innermost first. Shared by `compile` and `fortify`. */
 const closersOf = (end: ScanState): string =>
-  (end.comment ? '-->' : end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '') +
+  (end.comment || (end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '')) +
   end.opens.reduceRight((closing, name) => closing + `</${name}>`, '');
 /** A scan state at foreign depth `depth` and nothing else open — its own `opens`, since `scanTag` mutates it. */
-const freshScan = (depth: number): ScanStart => ({ inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false, attrName: '', serial: 0, closing: false, inert: 0, comment: false, textTag: '', foreign: depth, opens: [], attrRaw: '' });
+const freshScan = (depth: number): ScanStart => ({ inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens: [], attrRaw: '' });
 
 /** The type that makes a classic script inert; written FIRST, so the parser's first-duplicate-wins rule defeats any author `type`. */
 const INERT_TYPE = ' type="text/x-vera-inert"';
-/** Where an open tag ends, skipping a `>` inside a quoted attribute value. */
-const tagRest = (markup: string, lt: number): number => {
-  let q = '';
-  for (let j = lt + 1; j < markup.length; j++) {
-    const c = markup[j];
-    if (q) { if (c === q) q = ''; }
-    else if (c === '"' || c === "'") q = c;
-    else if (c === '>') return j + 1;
-  }
-  return markup.length;
-};
-/** Elements whose content a parser reads as raw text, so a `<script` written inside one is text and must not be rewritten. */
-const RAW_HOSTS = new Set(['style', 'script', 'textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes', 'noscript', 'plaintext']);
 /**
- * Make trusted `innerHTML` markup behave as an `innerHTML` ASSIGNMENT, not as parsed page markup — the two differ in
- * exactly two ways, both of which a served page would otherwise run. A `<script>` executes when the browser parses
- * it from the response but never when assigned through `innerHTML`; a `<template shadowrootmode>` attaches a shadow
- * root when parsed but not when assigned. Both are neutralized at the GROUND positions a parser acts on — never
- * inside a comment, an attribute value or a raw-text element, which `innerHTML` does not act on either — so the
- * served page matches the client's assignment, and hydration (which re-assigns) agrees. Over-neutralizing (a
- * `<script` the parser would not have run) only makes an already-inert thing inert, so the scan errs that way.
+ * **Trusted `innerHTML` markup, made to behave as an `innerHTML` ASSIGNMENT rather than as parsed page markup** —
+ * inert, and self-contained. The two parses differ in exactly two ways a served page would otherwise run: a
+ * `<script>` executes when the browser parses it from the response but never when assigned through `innerHTML`, and a
+ * `<template shadowrootmode>` attaches a shadow root when parsed but not when assigned. Both are neutralized wherever
+ * the tokenizer reads a start tag — never inside a comment, an attribute value or raw text, which `innerHTML` does not
+ * act on either — so the served page matches the client's assignment, and hydration (which re-assigns) agrees.
+ *
+ * **The tags come from `scanTag`, the scan every template gets.** This used to run its own mini-tokenizer, and the two
+ * drifted: it read a quote inside an attribute NAME as opening a value, so `<b x"><script>` served live, and it
+ * skipped `<style>` content inside `<svg>`, where it is markup, so `<svg><style><script>` served live. Reading a tag
+ * where the browser does not is only ever safe in one direction — over-neutralizing a `<script` that was text makes
+ * an inert thing inert — and `scanTag` errs that way wherever it is deliberately incomplete (see its foreign depth).
+ *
+ * Whatever the markup leaves open is closed, so it cannot reach the host's parent: its comment, raw-text element and
+ * svg/math/noscript/template (`closersOf`). An UNFINISHED tag is dropped, as an assignment's parser drops it at the
+ * end of input — served, it swallowed the page's next markup into its attributes. A `<` or `</` that never started a
+ * tag is text, written escaped, so the host's own end tag cannot become the rest of it.
  */
-const neutralize = (markup: string): string => {
-  let out = '';
-  let i = 0;
-  let raw = '';
-  while (i < markup.length) {
-    if (raw) {
-      const at = markup.toLowerCase().indexOf('</' + raw, i);
-      if (at === -1) return out + markup.slice(i);
-      out += markup.slice(i, at);
-      i = at;
-      raw = '';
-      continue;
-    }
-    const lt = markup.indexOf('<', i);
-    if (lt === -1) return out + markup.slice(i);
-    out += markup.slice(i, lt);
-    if (markup.startsWith('<!--', lt)) {
-      const end = commentEnd(markup, lt);
-      const stop = end === -1 ? markup.length : end;
-      out += markup.slice(lt, stop);
-      i = stop;
-      continue;
-    }
-    const open = /^<(\/?)([a-zA-Z][^\s/>]*)/.exec(markup.slice(lt));
-    if (open === null) {
-      out += '<';
-      i = lt + 1;
-      continue;
-    }
-    const to = tagRest(markup, lt);
-    let tag = markup.slice(lt, to);
-    const name = open[2].toLowerCase();
-    if (open[1] === '') {
-      if (name === 'script') tag = tag.slice(0, 1 + name.length) + INERT_TYPE + tag.slice(1 + name.length);
-      else if (name === 'template') tag = tag.replace(/(\s)shadowroot(mode)?(?=[\s=/>])/gi, '$1data-vera-shadowroot$2');
-      if (RAW_HOSTS.has(name) && !/\/>\s*$/.test(tag)) raw = name;
-    }
-    out += tag;
-    i = to;
-  }
-  return out;
-};
-/** Trusted innerHTML, inert and self-contained: scripts and shadow roots neutralized, and whatever it leaves open closed so it cannot reach the host's parent. */
 const fortify = (markup: string, depth: number): string => {
-  const safe = neutralize(markup);
-  return safe + closersOf(scanTag(safe, freshScan(depth)));
+  const edits: number[] = [];
+  const end = scanTag(markup, freshScan(depth), edits);
+  let stop = markup.length;
+  let tail = '';
+  if (end.phase === TAG_OPEN || end.phase === END_TAG_OPEN) {
+    stop = end.tagAt;
+    tail = '&lt;' + markup.slice(stop + 1);
+  } else if (end.inTag) {
+    stop = end.tagAt;
+    /** An unfinished END tag of the raw-text element it was ending leaves that element open — so it is closed. */
+    if (end.closing && end.foreign === 0 && (RAWTEXT.has(end.tagName) || TEXT_ONLY.has(end.tagName))) tail = `</${end.tagName}>`;
+  }
+  let out = '';
+  let from = 0;
+  for (let i = 0; i < edits.length && edits[i] < stop; i += 2) {
+    const at = edits[i];
+    out += markup.slice(from, at) + (edits[i + 1] === EDIT_INERT ? INERT_TYPE : 'data-vera-');
+    from = at;
+  }
+  return out + markup.slice(from, stop) + tail + closersOf(end);
 };
 /**
  * The content a `.innerHTML`/`.textContent` binding writes after the host's open tag. `innerHTML` is
