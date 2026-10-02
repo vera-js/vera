@@ -164,6 +164,11 @@ const place = (light: Light) => {
   light.dirty = false;
   const holding = light.holding;
   /**
+   * **THE INVARIANT: a slotted node moves in ONE DOM operation, connected → connected.** Core tells a move from a removal
+   * by `isConnected` at `disconnectedCallback` (the platform runs it after the operation), so one `insertBefore` from
+   * where the node is to where it goes keeps a slotted component alive; a hop through holding (a fragment) is a real
+   * disconnect, and the component is torn down and set up again. `tests/core-keep-alive.test.mjs` pins it.
+   *
    * **Captured and not yet distributed: placed straight from the host.** A node a slot takes moves host → slot in ONE
    * operation, which the platform — and core — see as a move, not a removal (`isConnected` stays true through it): a
    * slotted component is not torn down and set up again. Only what no slot takes, and a run's own markers, go to holding.
@@ -769,7 +774,12 @@ const serverDistribute = (host: Element, source: Node[]) => {
 
 
 /** The server half: `@verajs/ssr` reads it off the `'slot'` chain. */
-const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => null, priority: 50, _$server$: serverDistribute };
+/**
+ * The server half, carried ON THE FUNCTION: the registry keeps an insert's `fn`, not its descriptor, so `@verajs/ssr`
+ * reads `chain('slot')[0]._$server$` off the function. On the descriptor it never reached the server, and every
+ * light-slot component rendered undistributed.
+ */
+const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: Object.assign(() => null, { _$server$: serverDistribute }), priority: 50 };
 
 /** Discovery: `<slot>` elements and dashed hosts claimed in templates, through `elements`. */
 export const slotDiscovery = [

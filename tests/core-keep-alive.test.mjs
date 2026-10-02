@@ -128,3 +128,19 @@ test('a throwing author disconnectedCallback still propagates on removal, as bef
   dom.window.removeEventListener('error', listen);
   assert.ok(errors.some((m) => m.includes('author dc threw')), `reported: ${JSON.stringify(errors)}`);
 });
+
+test('slots moves every slotted component in ONE operation: two named slots + unassigned content (vera-5a)', async () => {
+  log.length = 0;
+  customElements.define('ka-two', class extends dom.window.HTMLElement {
+    connectedCallback() { init(this); renderInto(html`<header><slot name="a"></slot></header><footer><slot name="b"></slot></footer>`, this); }
+  });
+  const page = box();
+  renderInto(html`<ka-two><ka-kid id="a1" slot="a"></ka-kid><ka-kid id="b1" slot="b"></ka-kid><ka-kid id="u1" slot="nowhere"></ka-kid><ka-kid id="a2" slot="a"></ka-kid></ka-two>`, page);
+  await frame(); await tick();
+  for (const id of ['a1', 'a2', 'b1']) {
+    assert.equal(count(`setup ${id}`), 1, `${id}: set up once — it moved host → slot in one operation`);
+    assert.equal(count(`cleanup ${id}`), 0, `${id}: never torn down`);
+  }
+  assert.equal(count('cleanup u1'), 1, 'the unassigned one IS disconnected (parked in holding) — the one real disconnect');
+  assert.equal(page.querySelector('footer ka-kid')?.id, 'b1', 'CONTROL: b1 is in the second slot');
+});
