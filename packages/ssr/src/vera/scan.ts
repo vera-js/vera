@@ -9,30 +9,12 @@
  * The per-component renderer is a parameter — both chains pass their own — so this file imports
  * nothing of the pipeline.
  */
-import { RAW_TEXT_ELEMENTS as RAW_TEXT, registry } from './shim.js';
+import { registry } from './shim.js';
 /** The attribute-name charset, from the parser that owns it — see `ATTRIBUTE` below. */
 import { ATTRIBUTE_NAME } from './parse.js';
-import { commentEnd } from './escaping.js';
+import { freshScan, scanTag } from './tokenizer.js';
+import type { ScannedTag } from './types.js';
 
-/**
- * The index just past the `>` that closes the tag starting at `start`, respecting quoted attribute
- * values.
- *
- * `>` is legal unescaped inside an attribute value, and a regex that stops at the first one cuts
- * the tag in half: `<mark-comp title="x > y">` was read as a tag ending after `x `, giving the
- * component an attribute value of `"x` and leaving ` y">` behind as text next to it.
- */
-const tagEnd = (markup: string, start: number): number => {
-  let quote = '';
-  for (let i = start + 1; i < markup.length; i++) {
-    const char = markup[i];
-    if (quote) {
-      if (char === quote) quote = '';
-    } else if (char === '"' || char === "'") quote = char;
-    else if (char === '>') return i + 1;
-  }
-  return markup.length;
-};
 
 /**
  * `name`, `name="v"`, `name='v'` and `name=v` — every form an author may have written.
@@ -45,7 +27,7 @@ const tagEnd = (markup: string, start: number): number => {
  * which is narrower than what a start tag may carry: `data-a.b="v"` split at the dot into
  * `data-a=""` and `b="v"`, so a nested component was rebuilt with attributes its author never
  * wrote and read `null` for the one they did — server-side only, silently (arc-2 run 2). The same
- * single-fact-two-copies shape as `RAW_TEXT_ELEMENTS` above, and the same fix.
+ * single-fact-two-copies shape this file's own tag walk had with the tokenizer, and the same fix.
  */
 export const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?`, 'g');
 
@@ -95,46 +77,6 @@ const MAX_DEPTH = 256;
  * @param markup @param depth
  * @param emit renders one component tag — its open tag and contents; the scanner writes the close tag
  */
-/**
- * Where the element opened at `after` ends, counting nested opens of the same name — `[contentEnd,
- * elementEnd]`, or `null` when nothing closes it.
- *
- * Two callers, and they were one hand-rolled loop and one absence. `<template>` skips its content
- * whole; a COMPONENT tag needs the same span for the opposite reason — that span is its children,
- * and it has to be handed them rather than letting them trail it in the stream.
- *
- * The name boundary is checked, which the `<template>` loop did not do: `<templates>` counted as a
- * nested `<template>` and threw the depth off for the rest of the document.
- *
- * @param markup @param name @param after
- */
-const matchingEnd = (markup: string, name: string, after: number): [contentEnd: number, elementEnd: number] | null => {
-  const lower = markup.toLowerCase();
-  const openTag = `<${name}`;
-  const closeTag = `</${name}`;
-  /** A tag name ends where a name character stops — anything else continues the name. */
-  const boundary = (at: number): boolean => !/[\w-]/.test(lower[at] ?? '');
-  let depth = 1;
-  let at = after;
-  while (depth > 0) {
-    let nextOpen = lower.indexOf(openTag, at);
-    while (nextOpen !== -1 && !boundary(nextOpen + openTag.length))
-      nextOpen = lower.indexOf(openTag, nextOpen + openTag.length);
-    let nextClose = lower.indexOf(closeTag, at);
-    while (nextClose !== -1 && !boundary(nextClose + closeTag.length))
-      nextClose = lower.indexOf(closeTag, nextClose + closeTag.length);
-    if (nextClose === -1) return null;
-    if (nextOpen !== -1 && nextOpen < nextClose) {
-      at = nextOpen + openTag.length;
-      depth++;
-    } else {
-      at = markup.indexOf('>', nextClose) + 1 || markup.length;
-      depth--;
-      if (depth === 0) return [nextClose, at];
-    }
-  }
-  return null;
-};
 
 export const renderComponentTags = (
   markup: string,
@@ -151,102 +93,62 @@ export const renderComponentTags = (
   /** No dash, no custom element — cheaper to ask than to walk the string and find nothing. */
   if (!markup.includes('-')) return markup;
 
+  /**
+   * **The tags come from the server's one tag scanner** (`tokenizer.ts`), so this reads markup where the browser
+   * does. It used to walk the markup with its own copy — a quote-aware tag end, a name pattern, a comment skip, a
+   * `<template>` skip and a raw-text skip — and each part drifted: `<b x"><x-kid>` read the quote as opening a value
+   * and missed the live component; `<x-kid.y>` stopped the name at the dot, rendered `x-kid` and rewrote the tag as
+   * `<x-kid .y="">`; `</textareax>` and `</scripts>` ended raw text, so a component was rendered into a textarea's
+   * value and a script's source; and `<svg><x-kid>` was rendered, where the browser never upgrades a foreign element.
+   * Comments, raw text, `<template>` content, quoted values, foreign content and its integration points
+   * (`<svg><foreignObject><x-kid>` IS live) are now the scanner's answers, the same ones every template gets.
+   */
+  const tags: ScannedTag[] = [];
+  scanTag(markup, freshScan(0), undefined, tags);
   let out = '';
   let at = 0;
-  while (at < markup.length) {
-    const open = markup.indexOf('<', at);
-    if (open === -1) {
-      out += markup.slice(at);
-      break;
-    }
-    out += markup.slice(at, open);
-
+  for (let k = 0; k < tags.length; k++) {
+    const tag = tags[k];
+    if (!tag.live || !registry.has(tag.name)) continue;
+    const { name } = tag;
+    const tagText = markup.slice(tag.at, tag.end);
+    /** Rewritten, not kept — the component may have changed its own attributes. */
+    const attrs = tagText.slice(1 + name.length, -1);
+    out += markup.slice(at, tag.at);
     /**
-     * A comment is text. Markup inside one used to be rendered — a `<!-- <some-comp> -->` produced
-     * a whole shadow template inside the comment, which is wasted work at best and breaks the
-     * comment at worst.
-     */
-    if (markup.startsWith('<!--', open)) {
-      const end = commentEnd(markup, open);
-      const stop = end === -1 ? markup.length : end;
-      out += markup.slice(open, stop);
-      at = stop;
-      continue;
-    }
-
-    const end = tagEnd(markup, open);
-    const tagText = markup.slice(open, end);
-    /**
-     * **Folded, because a tag name in markup is case-insensitive and every decision below is not.**
-     * This required a lower-case first letter, so `<PROBE-KID>` matched nothing at all and the tag
-     * fell through as inert text — and with it every guard keyed on the name. A component inside an
-     * upper-case `<SCRIPT>` or `<TEXTAREA>` was rendered into its source rather than left as text,
-     * and `<TEMPLATE>` lost its skip, so components inside a template were rendered on the server
-     * that the client's parser would never upgrade.
-     */
-    const name = /^<([a-zA-Z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1]?.toLowerCase();
-
-    /**
-     * A `<template>` is a blueprint, not live DOM: the parser builds its content into a fragment
-     * and never upgrades custom elements inside it. Rendering one there produced markup the client
-     * would never produce, inside content whose whole purpose is to be stamped out later.
+     * **A nested component is handed its children**, exactly as `renderToString` hands them to
+     * the top-level one. They used to trail it in the stream instead: the scanner emitted the
+     * component's rendered markup and then walked its children as ordinary markup after it.
      *
-     * Skipped depth-aware, because templates nest — the raw-text elements below cannot, so a
-     * search for their closing tag is enough for them and would mis-nest here.
+     * For a shadow component that happens to serialize the same way, which is why it went
+     * unnoticed. For a LIGHT component with slots it is wrong — the component never sees the
+     * content it is supposed to distribute, so every slot renders its fallback and the user's
+     * markup sits after the template. The CLIENT distributes it correctly, which made this a
+     * server/client divergence: a visibly wrong first paint, and a hydration mismatch after it.
+     * It also means a nested component can now read its own children in `connectedCallback`,
+     * which on the client it always could.
+     *
+     * Its children end at the matching end tag of its name, counting nested elements of the same name — read from
+     * the same scan, so a `</x-kid>` inside a comment, a `<template>` or an attribute value is not one. Malformed
+     * markup keeps the old path exactly — an unclosed or self-closing tag hands over nothing and lets the stream carry
+     * on, so nothing the fuzz suites feed it changes shape.
      */
-    if (name === 'template') {
-      const at2 = matchingEnd(markup, 'template', end)?.[1] ?? markup.length;
-      out += markup.slice(open, at2);
-      at = at2;
-      continue;
+    let close = -1;
+    if (!tagText.endsWith('/>'))
+      for (let open = 1, j = k + 1; j < tags.length; j++)
+        if (tags[j].name === name && (tags[j].closing ? --open : ++open) === 0) {
+          close = j;
+          break;
+        }
+    out += emit(name, attrs, depth + 1, close === -1 ? undefined : markup.slice(tag.end, tags[close].at));
+    if (close === -1) at = tag.end;
+    else {
+      /** The close tag is consumed with the children, so it is written back here — normalized, like the open tag the component just rewrote. */
+      out += `</${name}>`;
+      at = tags[close].end;
+      k = close;
     }
-
-    /**
-     * `<textarea>`, `<script>`, `<style>`, `<title>`: their content is text. A component named
-     * inside one was rendered into it, so the markup showed up as the textarea's value or the
-     * script's source.
-     */
-    if (name && RAW_TEXT.has(name)) {
-      const closeTag = markup.toLowerCase().indexOf(`</${name}`, end);
-      const stop = closeTag === -1 ? markup.length : closeTag;
-      out += tagText + markup.slice(end, stop);
-      at = stop;
-      continue;
-    }
-
-    if (name && registry.has(name)) {
-      /** Rewritten, not kept — the component may have changed its own attributes. */
-      const attrs = tagText.slice(1 + name.length, -1);
-      /**
-       * **A nested component is handed its children**, exactly as `renderToString` hands them to
-       * the top-level one. They used to trail it in the stream instead: the scanner emitted the
-       * component's rendered markup and then walked its children as ordinary markup after it.
-       *
-       * For a shadow component that happens to serialize the same way, which is why it went
-       * unnoticed. For a LIGHT component with slots it is wrong — the component never sees the
-       * content it is supposed to distribute, so every slot renders its fallback and the user's
-       * markup sits after the template. The CLIENT distributes it correctly, which made this a
-       * server/client divergence: a visibly wrong first paint, and a hydration mismatch after it.
-       * It also means a nested component can now read its own children in `connectedCallback`,
-       * which on the client it always could.
-       *
-       * Malformed markup keeps the old path exactly — an unclosed or self-closing tag hands over
-       * nothing and lets the stream carry on, so nothing the fuzz suites feed it changes shape.
-       */
-      const span = tagText.endsWith('/>') ? null : matchingEnd(markup, name, end);
-      const children = span === null ? undefined : markup.slice(end, span[0]);
-      out += emit(name, attrs, depth + 1, children);
-      if (span !== null) {
-        /** The close tag is consumed with the children, so it is written back here — normalized,
-         *  like the open tag the component just rewrote. */
-        out += `</${name}>`;
-        at = span[1];
-        continue;
-      }
-    } else {
-      out += tagText;
-    }
-    at = end;
   }
+  out += markup.slice(at);
   return out;
 };

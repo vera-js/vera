@@ -107,8 +107,14 @@ renders.
 ## Nested components
 
 After a component renders, its markup is scanned for tags the registry knows, and each is rendered in
-place. The scan is state-aware, not a regex: it respects quoted attribute values (a `>` is legal inside
-one) and leaves comments, `<script>`, `<style>`, `<textarea>` and `<title>` alone — those are text.
+place — **exactly where the browser creates an element the definition upgrades**, read by the same tag scanner
+every template goes through. It respects quoted attribute values (a `>` is legal inside one), leaves comments,
+raw text (`<script>`, `<style>`, `<textarea>`, `<title>`…) and `<template>` content alone, and renders nothing
+inside `<svg>` or `<math>`, where a dashed tag is a foreign element no definition upgrades — except inside an
+HTML integration point (`<svg><foreignObject>`, `<math><mtext>`…), whose content is HTML. A tag's name is the
+whole name the tokenizer reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written.
+A tag that breaks out of foreign content (`<svg><p><my-comp>`) is not modeled yet: the component after it is
+not rendered on the server, and renders on the client.
 
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
   registered class — field initializers run, `instanceof` answers — and appending it renders **that
