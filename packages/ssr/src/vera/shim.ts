@@ -60,6 +60,18 @@ const RESERVED_NAMES = new Set([
   'font-face-name',
   'missing-glyph',
 ]);
+/** A name `define` accepts — the spec's rule, shared with `whenDefined` so the two refuse exactly the same names. */
+const validName = (name: unknown): name is string =>
+  typeof name === 'string' && /^[a-z][^A-Z]*-[^A-Z]*$/.test(name) && !RESERVED_NAMES.has(name);
+/**
+ * The promises `whenDefined` handed out for names not yet defined, settled by their `define`. Cleared at each render's
+ * start: a wait from a finished render has nothing left to resume, and names that come from DATA (tags found in user
+ * content) would otherwise grow it for the life of the process.
+ */
+const pendingDefinitions = new Map<string, { promise: Promise<CustomElementConstructor>; resolve: (Class: CustomElementConstructor) => void }>();
+/** What `index.ts` needs of it: the names still awaited — named when a render runs out of time — and the per-render reset. */
+export const pendingDefinitionNames = (): string[] => [...pendingDefinitions.keys()];
+export const resetPendingDefinitions = (): void => pendingDefinitions.clear();
 
 /**
  * Re-exported so a consumer of the server environment has one import, not seven. The homes above are
@@ -338,7 +350,7 @@ export const installShims = () => {
        * The rule is the spec's: starts with a lowercase ASCII letter, contains a hyphen, contains no
        * uppercase, and is not one of the eight names SVG and MathML already use.
        */
-      if (typeof name !== 'string' || !/^[a-z][^A-Z]*-[^A-Z]*$/.test(name) || RESERVED_NAMES.has(name))
+      if (!validName(name))
         throw new DOMException(
           `Failed to execute 'define' on 'CustomElementRegistry': "${String(name)}" is not a valid custom element name`,
           'SyntaxError'
@@ -350,9 +362,37 @@ export const installShims = () => {
         );
       }
       registry.set(name, Class);
+      const waiting = pendingDefinitions.get(name);
+      if (waiting !== undefined) {
+        pendingDefinitions.delete(name);
+        waiting.resolve(Class);
+      }
     },
     get: (name: string) => registry.get(name),
-    whenDefined: () => Promise.resolve(),
+    /**
+     * **The platform's promise**: resolved WITH the constructor, at once for a defined name, at its `define` for a
+     * later one — one promise per name until then — and rejected with `SyntaxError` for a name `define` would refuse.
+     * It resolved immediately with `undefined` for any name, so code awaiting a definition ran before it existed and
+     * got no class, and a client-only component's wait, which never settles in a browser, settled on the server.
+     */
+    whenDefined: (name: unknown) => {
+      if (!validName(name))
+        return Promise.reject(
+          new DOMException(
+            `Failed to execute 'whenDefined' on 'CustomElementRegistry': "${String(name)}" is not a valid custom element name`,
+            'SyntaxError'
+          )
+        );
+      const defined = registry.get(name);
+      if (defined !== undefined) return Promise.resolve(defined);
+      let waiting = pendingDefinitions.get(name);
+      if (waiting === undefined) {
+        let resolve!: (Class: CustomElementConstructor) => void;
+        const promise = new Promise<CustomElementConstructor>((done) => (resolve = done));
+        pendingDefinitions.set(name, (waiting = { promise, resolve }));
+      }
+      return waiting.promise;
+    },
   }) as unknown as CustomElementRegistry;
 
   /**

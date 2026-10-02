@@ -26,6 +26,8 @@ import {
   beginBudget,
   bounded,
   endBudget,
+  pendingDefinitionNames,
+  resetPendingDefinitions,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
   LOCATION_PARTS,
@@ -477,6 +479,7 @@ const renderModule = async (
   renderedTags.clear();
   failures.length = 0;
   beginHoisting();
+  resetPendingDefinitions();
   pendingInstances.clear();
   staticRender = isStatic;
   if (isAsync) beginBudget(timeout ?? DEFAULT_TIMEOUT);
@@ -487,13 +490,23 @@ const renderModule = async (
       : renderInstance(element, tag, 0, props, children);
     return finishPage(`${open}${inner}</${tag}>`, tag, seen);
   } finally {
-    /** Said in every build: a render that ran out of time served a different page than the one its code describes. */
-    if (isAsync && endBudget())
+    /**
+     * Said in every build: a render that ran out of time served a different page than the one its code describes. The
+     * commonest cause gets named — a `whenDefined` wait for a tag the server never defines (lazily loaded, client-only
+     * or unregistered here), which never settles in a browser either until the tag is defined there.
+     */
+    if (isAsync && endBudget()) {
+      const waits = pendingDefinitionNames();
       console.warn(
         `[vera] ssr: <${tag}> was served after its ${timeout ?? DEFAULT_TIMEOUT} ms \`timeout\` with a promise it started still ` +
           `pending (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered ` +
-          `by then. Raise \`timeout\` if the wait is real, or find the promise that never settles.`
+          `by then.` +
+          (waits.length
+            ? ` Still waiting on customElements.whenDefined for ${waits.map((name) => `<${name}>`).join(', ')}, which the server never defined.`
+            : '') +
+          ` Raise \`timeout\` if the wait is real, or find the promise that never settles.`
       );
+    }
     staticRender = false;
     globalThis.document.title = title;
     saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
