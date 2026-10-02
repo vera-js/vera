@@ -333,16 +333,25 @@ const place = (light: Light) => {
 
 /* ── the observer: what the page's templates (and the user) do afterwards ─────────────────────── */
 
-let observers: [MutationObserver, MutationObserver] | null = null;
+/**
+ * **One observer pair, from THIS module's own realm** — which cannot close while its code runs — observing hosts in any
+ * document (a MutationObserver watches nodes of another document: measured on Chromium, Firefox and WebKit). The pair
+ * used to come from the FIRST host's window, and went deaf with it: a first light host in an iframe or a popped-out
+ * window, closed later, left every host after it unobserved on Chromium and WebKit (`tests/browser/slots-realm.test.js`).
+ * The host's window is the fallback only where this realm has no observer at all.
+ */
+type Pair = [MutationObserver, MutationObserver];
+let pair: Pair | null = null;
+const observersOf = (host: Element): Pair => {
+  const Observer = globalThis.MutationObserver ?? (host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
+  return (pair ??= [new Observer(handle), new Observer(handle)]);
+};
+/** Every pending record. */
+const pending = (): MutationRecord[] => (pair === null ? [] : [...pair[0].takeRecords(), ...pair[1].takeRecords()]);
 /** A render is ending (the renderer's `_$done$`): captured children no slot took are parked now, not before. */
 let ending = false;
 /** Records of this module's own moves, taken and dropped once it is done — they are not news. */
-const settle = () => {
-  if (observers !== null) {
-    observers[0].takeRecords();
-    observers[1].takeRecords();
-  }
-};
+const settle = () => void pending();
 /** How many nodes this batch has put ahead of everything, per host — so a batch's front insertions keep their order. */
 let lead = new WeakMap<Light, number>();
 const note = (records: MutationRecord[]) => {
@@ -387,7 +396,7 @@ const lights = new Set<Light>();
 /** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
 const flush = () => {
   if (busy) return;
-  if (observers !== null) note([...observers[0].takeRecords(), ...observers[1].takeRecords()]);
+  note(pending());
   for (const light of lights) if (light.dirty || (ending && light.fresh)) distribute(light);
   settle();
 };
@@ -396,10 +405,9 @@ const watch = (node: Node, light: Light) => {
   if (set === undefined) WATCHED.set(node, (set = new Set()));
   if (set.has(light)) return;
   set.add(light);
-  const view = (light.host.ownerDocument.defaultView ?? globalThis) as typeof globalThis;
-  observers ??= [new view.MutationObserver(handle), new view.MutationObserver(handle)];
-  observers[0].observe(node, { childList: true });
-  observers[1].observe(node, { attributes: true, attributeFilter: ['slot'], subtree: true });
+  const [children, attributes] = observersOf(light.host);
+  children.observe(node, { childList: true });
+  attributes.observe(node, { attributes: true, attributeFilter: ['slot'], subtree: true });
 };
 
 /**
@@ -562,7 +570,7 @@ const lightFor = (host: Element, late: boolean): Light => {
   HOSTS.set(host, light);
   lights.add(light);
   watch(holding, light);
-  observers![0].observe(host, { childList: true });
+  observersOf(host)[0].observe(host, { childList: true });
   return light;
 };
 
@@ -687,7 +695,7 @@ const slotBehavior = {
     kept.assignedElements = (options?: AssignedNodesOptions) => assigned(rec, true, options?.flatten) as Element[];
     light.recs.push(rec);
     watch(kept, light);
-    observers![1].observe(kept, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
+    observersOf(light.host)[1].observe(kept, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
     distribute(light);
     settle();
     return rec;

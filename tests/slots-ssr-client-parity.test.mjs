@@ -49,26 +49,25 @@ const SHAPES = {
 /**
  * Three things differ legitimately and are normalized away — nothing else is.
  *
- * The server's `data-vm-slotted` markers are the hydration handoff and the hydrator strips them.
- * The client's anchors are comments it never serializes. And the unassigned CARRIER is the server's
- * serialization of state the client holds in memory: a server render has no holding fragment, so
- * content no slot claimed has to persist in the HTML for hydration to recover it, and it goes in an
- * inert `<template>` which no browser renders.
- *
- * That last one is only fair to normalize if the retained content itself is compared, which
- * `retained()` below does — otherwise this would be hiding exactly the kind of difference the file
- * exists to find.
+ * The server's `data-vm-slotted` markers are the hydration handoff and the hydrator strips them. The client's anchors are
+ * comments it never serializes. And the client's unassigned container carries an inline `display: none !important`
+ * beside `hidden` — written through CSSOM, so an author stylesheet cannot make unassigned content render — which the
+ * server deliberately does not emit (a strict CSP blocks a `style=` attribute in served markup; hydration sets it on
+ * adoption). Everything else about `<vm-unassigned hidden>` — that it exists, where, and what it holds — is compared:
+ * since connected parking (2026-10-02) both sides emit the same element in the same place.
  */
-const CARRIER = /<template data-vm-unassigned="?"?>([\s\S]*?)<\/template>/g;
+/** The container's inline style, however a serializer writes it (jsdom drops the `!important` it holds) — and nowhere else. */
+const CLIENT_HIDING = /(<vm-unassigned hidden(?:="")?) style="[^"]*"/g;
 const normalize = (markup) =>
   markup
-    .replace(CARRIER, '')
+    .replace(CLIENT_HIDING, '$1')
     .replace(/ data-vm-slotted="[^"]*"/g, '')
     .replace(/<!---->/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-/** What the SERVER parked, as text — to be matched against what the CLIENT is holding. */
+/** What the server parked: the content of its `<vm-unassigned hidden>`. */
+const CARRIER = /<vm-unassigned hidden="?"?>([\s\S]*?)<\/vm-unassigned>/g;
 const parked = (markup) =>
   [...markup.matchAll(CARRIER)].map(([, inner]) => inner).join('').replace(/\s+/g, ' ').trim();
 
@@ -147,9 +146,8 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     const parkedText = parked(fromServer);
     if (parkedText !== '') {
       /**
-       * The names come from the CHILDREN the test supplied, not from the host: unclaimed content
-       * is held in a detached fragment, so it is precisely the nodes this assertion is about that
-       * a query on the host can never find.
+       * The names come from the CHILDREN the test supplied: `slotted()` answers for unassigned content by name, as it
+       * waits in the host's hidden container.
        */
       const held = [...new Set([...children.matchAll(/slot="([^"]*)"/g)].map(([, name]) => name))]
         .concat([''])
