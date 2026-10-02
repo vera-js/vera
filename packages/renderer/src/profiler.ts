@@ -138,14 +138,14 @@ const hook = (kind: number, subject: unknown, shape: TemplateStringsArray | null
   rebuilds++;
   const part = subject as ChildPart;
   /** The template the part held until now — the rebuild is reported before it is torn down. */
-  const from = part._instance?._strings ?? null;
+  const from = part.$n?._strings ?? null;
   if (from === null || shape === null) return;
   const key = idOf(from) + '>' + idOf(shape);
   let record = churn.get(key);
   if (record === undefined) {
     churn.set(
       key,
-      (record = { from: describe(from), to: describe(shape), count: 0, where: label(part._start ?? part._owner) })
+      (record = { from: describe(from), to: describe(shape), count: 0, where: label(part.$s ?? part.$w) })
     );
   }
   record.count++;

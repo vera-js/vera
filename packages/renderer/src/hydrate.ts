@@ -88,11 +88,11 @@ const planOf = (template: Template) => {
   let plan = plans.get(template);
   if (plan === undefined) {
     plans.set(template, (plan = new Map()));
-    const kinds = template._kinds;
+    const kinds = template.$K;
     for (let i = 0; i < kinds.length; i++) {
       if (kinds[i] === IGNORED) continue;
-      let node = template._root;
-      for (const step of template._paths[i]) {
+      let node = template.$R;
+      for (const step of template.$P[i]) {
         node = node.firstChild!;
         for (let hops = step; hops > 0; hops--) node = node.nextSibling!;
       }
@@ -223,10 +223,10 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
   let content = false;
   if (owned !== undefined)
     for (const i of owned) {
-      const kind = into.template._kinds[i];
+      const kind = into.template.$K[i];
       if (kind === SOLE) sole = i;
       else {
-        if ((kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(into.template._names[i])) content = true;
+        if ((kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(into.template.$N[i])) content = true;
         into.bindings[i * 2] = kind >= EVENT && kind <= ADOPT ? new Slot(live) : live;
         into.bindings[i * 2 + 1] = UNSET;
         commitAdopting(into.template, into.bindings, i, kind, into.values);
@@ -263,9 +263,9 @@ const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
     return;
   }
   const part = new ChildPart(comment(), comment());
-  insertHere(cursor, part._start!);
+  insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
-  if (part._end!.parentNode === null) insertHere(cursor, part._end!);
+  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
   into.bindings[i * 2] = part;
   into.bindings[i * 2 + 1] = UPGRADED;
 };
@@ -279,7 +279,7 @@ const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
     return;
   }
   const part = new ChildPart(null, null);
-  part._owner = live;
+  part.$w = live;
   adoptValue(part, value, inner);
   into.bindings[i * 2] = part;
   into.bindings[i * 2 + 1] = UPGRADED;
@@ -289,20 +289,20 @@ const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
 const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
   let template = getTemplate(result);
   /** Adoption is in place: an extension resolving the template (namespaces) is asked with the LIVE parent. */
-  if (template._x) template = resolved(template, cursor.parent);
+  if (template.$X) template = resolved(template, cursor.parent);
   if (__DEV__) sayShape(template);
   const into: Adoption = {
     template,
-    bindings: new Array(template._kinds.length * 2 + (template._x ? 1 : 0)),
+    bindings: new Array(template.$K.length * 2 + (template.$X ? 1 : 0)),
     values: result.values,
     plan: planOf(template),
   };
-  const root = template._root;
+  const root = template.$R;
   if (root.nodeType === 1) {
     const adopted = claimElement(cursor, (root as Element).localName);
     const instance = new Instance(template, result.strings, adopted, into.bindings);
     /** Its instance hook meets it before its bindings commit, as a client instance does — told it was adopted. */
-    if (template._x) hookUp(instance, adopted, true);
+    if (template.$X) hookUp(instance, adopted, true);
     adoptElement(root as Element, adopted, into, into.plan.get(root));
     return instance;
   }
@@ -316,21 +316,21 @@ const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
 };
 
 /**
- * Adopts `value` into `part` — the same decisions, in the same order, as `ChildPart._set`, so a position adopts as
+ * Adopts `value` into `part` — the same decisions, in the same order, as `ChildPart.$p`, so a position adopts as
  * exactly what a client render would have made of it.
  */
 const adoptValue = (part: ChildPart, value: unknown, cursor: Cursor) => {
   if (value == null) return;
   if (typeof value !== 'object') {
-    part._text = claimText(cursor, toText(value));
-    part._value = value;
-    part._mode = TEXT;
+    part.$l = claimText(cursor, toText(value));
+    part.$v = value;
+    part.$o = TEXT;
     return;
   }
   const held = (value as { $h?: TemplateResult }).$h;
   if (held !== undefined || isTemplateResult(value)) {
-    part._instance = adoptInstance(held ?? (value as TemplateResult), cursor);
-    part._mode = TEMPLATE;
+    part.$n = adoptInstance(held ?? (value as TemplateResult), cursor);
+    part.$o = TEMPLATE;
     return;
   }
   /**
@@ -340,35 +340,35 @@ const adoptValue = (part: ChildPart, value: unknown, cursor: Cursor) => {
    * — it adopts that content, or replaces it (which is what one that ignores the flag does). Elsewhere what the server
    * wrote for it cannot be delimited, so it is not claimed — anything left there is a mismatch at the next static.
    */
-  if (part._end !== null && part._end.parentNode === null) insertHere(cursor, part._end);
+  if (part.$e !== null && part.$e.parentNode === null) insertHere(cursor, part.$e);
   const handlers = registry?.get('value') as ((part: object, value: unknown) => boolean | void)[] | undefined;
   if (handlers !== undefined) for (let i = 0; i < handlers.length; i++) if (handlers[i](part, value)) return;
   if (Array.isArray(value) || (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined)) {
     const list = Array.isArray(value) ? value : [...(value as Iterable<unknown>)];
     const items: Item[] = [];
     for (let i = 0; i < list.length; i++) items.push(adoptItem(list[i], cursor));
-    part._items = items;
-    part._mode = LIST;
+    part.$i = items;
+    part.$o = LIST;
     return;
   }
   const applyChild = (value as { _$child$?: (part: ChildPart, previous: unknown, adopting: boolean) => unknown })._$child$;
   if (applyChild !== undefined) {
-    if (part._owner !== null && cursor.node !== null) {
-      part._mode = NODE;
+    if (part.$w !== null && cursor.node !== null) {
+      part.$o = NODE;
       cursor.node = null;
       cursor.offset = 0;
     }
-    part._applier = applyChild;
-    part._root = renderRoot;
+    part.$a = applyChild;
+    part.$R = renderRoot;
     if ((applyChild as { _$detach$?: unknown })._$detach$ !== undefined) needRemovalWork();
-    part._applierState = applyChild.call(value, part, undefined, true);
+    part.$z = applyChild.call(value, part, undefined, true);
     return;
   }
   /** A node the server could not have rendered: put in where it belongs, and adoption goes on around it. */
   if ((value as Node).nodeType !== undefined) {
     insertHere(cursor, value as Node);
-    part._value = value;
-    part._mode = NODE;
+    part.$v = value;
+    part.$o = NODE;
     return;
   }
   adoptValue(part, String(value), cursor);
@@ -377,7 +377,7 @@ const adoptValue = (part: ChildPart, value: unknown, cursor: Cursor) => {
 /** The root the template at this position will build — after an extension resolves it, as `$c` asks. */
 const rootOf = (result: TemplateResult, cursor: Cursor) => {
   const template = getTemplate(result);
-  return (template._x ? resolved(template, cursor.parent) : template)._root;
+  return (template.$X ? resolved(template, cursor.parent) : template).$R;
 };
 
 /** Adopts one list item — the same shapes `ChildPart.$c` builds. */
@@ -388,9 +388,9 @@ const adoptItem = (value: unknown, cursor: Cursor): Item => {
     return instance;
   }
   const part = new ChildPart(comment(), comment());
-  insertHere(cursor, part._start!);
+  insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
-  if (part._end!.parentNode === null) insertHere(cursor, part._end!);
+  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
   part.$k = (value as TemplateResult | null)?.key;
   return part;
 };

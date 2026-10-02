@@ -257,15 +257,15 @@ export const sayShape = (template: Template) => {
 
 class Template {
   /** What an instance clones: the single root element, or the whole content fragment. */
-  _root: Node;
+  $R: Node;
   /** No element in it can be custom — see `instantiate`. */
   _plain = true;
-  _kinds: number[];
-  _names: string[];
+  $K: number[];
+  $N: string[];
   /** The statics around a bound attribute's values; `null` for one full-value expression. */
   _statics: (string[] | null)[];
-  /** Child-index hops from `_root` to each binding's node. */
-  _paths: number[][] = [];
+  /** Child-index hops from `$R` to each binding's node. */
+  $P: number[][] = [];
   /** The template statically writes the attribute too, so a first nullish commit must still remove it. */
   _present: boolean[];
   /**
@@ -277,7 +277,7 @@ class Template {
    * **An extension marked this template** (`'template'` insert): namespaces' resolver, an instance hook. False for
    * every template of an app that wires none — ONE read per instance created, never a per-row cost otherwise.
    */
-  _x = false;
+  $X = false;
   /** Namespaces' resolver: which template to build at a position, given its parent. */
   declare _$at$?: (parent: Node) => Template;
   /** The namespace this template was parsed in, for a resolver asked about a detached fragment. */
@@ -297,8 +297,8 @@ class Template {
   constructor(result: TemplateResult) {
     const strings = result.strings;
     const count = strings.length - 1;
-    const kinds = (this._kinds = new Array(count).fill(IGNORED));
-    const names = (this._names = new Array(count).fill(''));
+    const kinds = (this.$K = new Array(count).fill(IGNORED));
+    const names = (this.$N = new Array(count).fill(''));
     const statics = (this._statics = new Array(count).fill(null));
     const present = (this._present = new Array(count).fill(false));
     const urls = (this._urls = new Array(count).fill(0));
@@ -548,7 +548,7 @@ class Template {
      * a raw-text element, whose content is never markup. Then each binding's path from the root.
      */
     const first = content.firstChild;
-    const root = (this._root = first !== null && first.nodeType === 1 && first.nextSibling === null ? first : content);
+    const root = (this.$R = first !== null && first.nodeType === 1 && first.nextSibling === null ? first : content);
     for (let i = 0; i < count; i++) {
       let at = nodes[i];
       if (at === null) {
@@ -605,7 +605,7 @@ class Template {
         for (let sibling = at.previousSibling; sibling !== null; sibling = sibling.previousSibling) index++;
         path.unshift(index);
       }
-      this._paths.push(path);
+      this.$P.push(path);
     }
     /**
      * Development: an element position (a spread) on an element whose whole content is a SOLE binding — the content is
@@ -631,7 +631,7 @@ class Template {
      * wiring `elements` — every slots app — on the marked instance path, claimed or not.
      */
     if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope, root);
-    this._x = !!(this._$at$ || this._$inst$ || this._$ns$);
+    this.$X = !!(this._$at$ || this._$inst$ || this._$ns$);
     /** Light-DOM slots claims a `<slot>` as the template is built — so a template built before it is wired never will. */
     if (__DEV__ && (root as ParentNode).querySelector?.('slot') && (registry as { _$done$?: unknown } | null)?._$done$ === undefined)
       this._slotless = true;
@@ -733,12 +733,12 @@ class Instance {
   /** The strings this instance was built from — the same-shape identity. */
   _strings: TemplateStringsArray;
   /** The cloned root: the element for a single-root template, else the (soon emptied) fragment. */
-  _root: Node;
+  $R: Node;
   _bindings: unknown[];
   constructor(template: Template, strings: TemplateStringsArray, root: Node, bindings: unknown[]) {
     this._template = template;
     this._strings = strings;
-    this._root = root;
+    this.$R = root;
     this._bindings = bindings;
   }
 }
@@ -759,11 +759,11 @@ class Instance {
 const instantiate = (template: Template, result: TemplateResult, owner: Document): Instance => {
   if (__DEV__) sayShape(template);
   if (__DEV__ && template._slotless) saySlotless();
-  const source = template._root;
+  const source = template.$R;
   const root = template._plain && owner === doc ? source.cloneNode(true) : owner.importNode(source, true);
-  const kinds = template._kinds;
-  const paths = template._paths;
-  const marked = template._x;
+  const kinds = template.$K;
+  const paths = template.$P;
+  const marked = template.$X;
   /** A marked template's instance keeps its hook's state in ONE slot after its bindings — the hook's own object. */
   const bindings = new Array(kinds.length * 2 + (marked ? 1 : 0));
   for (let i = 0; i < kinds.length; i++) {
@@ -802,7 +802,7 @@ export const hookUp = (instance: Instance, root: Node, adopted: boolean) => {
   /** The hook's own state — what to mount, and later what to unmount — or nothing to take part. */
   const state = hook.$c(root, renderRoot, adopted);
   if (state === undefined) return;
-  instance._bindings[instance._template._kinds.length * 2] = state;
+  instance._bindings[instance._template.$K.length * 2] = state;
   /** Mounted by the ref flush: a record whose second half is not a slot number is a mount. */
   (pendingRefs ??= []).push(hook, state);
   notifyOnRemoval = true;
@@ -814,7 +814,7 @@ export const hookUp = (instance: Instance, root: Node, adopted: boolean) => {
  */
 const update = (instance: Instance, values: unknown[]) => {
   const template = instance._template;
-  const kinds = template._kinds;
+  const kinds = template.$K;
   const statics = template._statics;
   const bindings = instance._bindings;
   for (let i = 0; i < kinds.length; i++) {
@@ -927,30 +927,30 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   const node = bindings[slot];
   if (kind <= SOLE) {
     const value = values[i];
-    if (committed === UPGRADED) (node as ChildPart)._set(value);
+    if (committed === UPGRADED) (node as ChildPart).$p(value);
     else if (value == null || typeof value === 'object') {
       /** A template, list, node or nothing: the position becomes a full part, anchored where its text was. */
       let part: ChildPart;
       if (kind === SOLE) {
         /** Its plain element's whole content is this binding's: the element is the range, and no comment is added. */
         part = new ChildPart(null, null);
-        if (committed === UNSET) part._owner = node as Element;
+        if (committed === UNSET) part.$w = node as Element;
         else {
-          part._owner = (node as Text).parentNode;
-          part._mode = TEXT;
-          part._text = node as Text;
-          part._value = committed;
+          part.$w = (node as Text).parentNode;
+          part.$o = TEXT;
+          part.$l = node as Text;
+          part.$v = committed;
         }
       } else {
         part = markered((node as Text).parentNode!, node as Text);
-        (node as Text).parentNode!.insertBefore(node as Text, part._end);
-        part._mode = TEXT;
-        part._text = node as Text;
-        part._value = committed;
+        (node as Text).parentNode!.insertBefore(node as Text, part.$e);
+        part.$o = TEXT;
+        part.$l = node as Text;
+        part.$v = committed;
       }
       bindings[slot] = part;
       bindings[slot + 1] = UPGRADED;
-      part._set(value);
+      part.$p(value);
     } else if (value !== committed) {
       if (__DEV__ && typeof value === 'boolean') warnBooleanChild(value);
       if (committed === UNSET) {
@@ -981,7 +981,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     value = parts[0];
     for (let p = 1; p < parts.length; p++) value += toText(values[i + p - 1]) + parts[p];
   }
-  const name = template._names[i];
+  const name = template.$N[i];
   const element = (kind >= EVENT && kind <= ADOPT ? (node as Slot)._element : node) as Element;
   /**
    * A `javascript:` URL bound where a browser navigates is code arriving as data: refused, and the
@@ -1114,10 +1114,10 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
  * became a part passes the news down. Reached only when `notifyOnRemoval` is set.
  */
 const teardown = (instance: Instance) => {
-  const kinds = instance._template._kinds;
+  const kinds = instance._template.$K;
   const bindings = instance._bindings;
   /** An instance hook is told, with its state: it unmounts what it mounted, and one not yet mounted never mounts. */
-  if (instance._template._x) {
+  if (instance._template.$X) {
     const at = kinds.length * 2;
     const state = bindings[at];
     if (state !== undefined) {
@@ -1217,7 +1217,7 @@ export interface KeyedResult extends TemplateResult {
  * A child position that holds anything but plain text: a template, a list, a node, or nothing — or
  * text it took over from an upgraded binding. It owns the range between two comment markers
  * — the root part's too, so content before and after a render stays — or, for a SOLE position, its element's whole
- * content (`_owner`, no markers at all).
+ * content (`$w`, no markers at all).
  *
  * **The ownership invariant — whoever writes an element's content owns it, and owns its verification.** Two cases:
  * a PLAIN element whose whole content is one binding belongs to that binding (the part is its range, and hydration
@@ -1226,34 +1226,34 @@ export interface KeyedResult extends TemplateResult {
  * inherit both.
  */
 class ChildPart {
-  _start: Comment | null;
-  _end: Node | null;
+  $s: Comment | null;
+  $e: Node | null;
   /** The element this part owns entirely (a SOLE position), or `null` for a part between markers. */
-  _owner: Node | null = null;
-  _mode = EMPTY;
-  _value: unknown = undefined;
-  _text: Text | null = null;
-  _instance: Instance | null = null;
-  _items: Item[] | null = null;
+  $w: Node | null = null;
+  $o = EMPTY;
+  $v: unknown = undefined;
+  $l: Text | null = null;
+  $n: Instance | null = null;
+  $i: Item[] | null = null;
   /** The key a keyed list reads when this part is one of its items. */
   $k: unknown = undefined;
   /** Instances `hold()` parked here, by template identity — they outlive interim content. */
   _held: Map<TemplateStringsArray, Instance> | null = null;
   /** Whatever the last `_$child$` applier returned here (its continuity), and which applier that was. */
-  _applierState: unknown = undefined;
-  _applier: unknown = undefined;
+  $z: unknown = undefined;
+  $a: unknown = undefined;
   /** The container whose render attached the applier — a later `_$commit$` runs as a render of it. */
-  declare _root?: Node | null;
+  declare $R?: Node | null;
 
   constructor(start: Comment | null, end: Node | null) {
-    this._start = start;
-    this._end = end;
+    this.$s = start;
+    this.$e = end;
   }
 
   _insert(node: Node) {
     const placed = __DEV__ ? landing(node) : undefined;
-    (this._owner ?? this._start!.parentNode!).insertBefore(node, this._end);
-    if (__DEV__) checkForeign(this._owner ?? this._start!.parentNode!, placed!);
+    (this.$w ?? this.$s!.parentNode!).insertBefore(node, this.$e);
+    if (__DEV__) checkForeign(this.$w ?? this.$s!.parentNode!, placed!);
   }
 
   /**
@@ -1261,9 +1261,9 @@ class ChildPart {
    * parked and can still come back. Reached only when `notifyOnRemoval` is set.
    */
   _detach() {
-    if (this._applier !== undefined) (this._applier as Applier)._$detach$?.(this._applierState);
-    if (this._instance !== null) teardown(this._instance);
-    const items = this._items;
+    if (this.$a !== undefined) (this.$a as Applier)._$detach$?.(this.$z);
+    if (this.$n !== null) teardown(this.$n);
+    const items = this.$i;
     if (items !== null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
   }
 
@@ -1279,9 +1279,9 @@ class ChildPart {
 
   _clear() {
     if (notifyOnRemoval) this._detach();
-    const owner = this._owner;
-    const start = this._start!;
-    const end = this._end;
+    const owner = this.$w;
+    const start = this.$s!;
+    const end = this.$e;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
     if (owner !== null) owner.textContent = '';
     else if (start.previousSibling === null && end!.nextSibling === null) {
@@ -1299,12 +1299,12 @@ class ChildPart {
         node = next;
       }
     }
-    this._mode = EMPTY;
-    this._text = null;
-    this._instance = null;
-    this._items = null;
-    this._applierState = undefined;
-    this._applier = undefined;
+    this.$o = EMPTY;
+    this.$l = null;
+    this.$n = null;
+    this.$i = null;
+    this.$z = undefined;
+    this.$a = undefined;
   }
 
   /**
@@ -1313,30 +1313,30 @@ class ChildPart {
    * applier resolving later) runs as a render of that container, while it still contains the part.
    */
   _$commit$(value: unknown) {
-    const applierState = this._applierState;
-    const applier = this._applier;
-    if (renderRoot !== this._root || renderRoot === null)
-      commitAs(this._root != null && this._root.contains(this._owner ?? this._start) ? this._root : null, this, value, this._root ?? null);
-    else this._set(value);
-    this._applierState = applierState;
-    this._applier = applier;
+    const applierState = this.$z;
+    const applier = this.$a;
+    if (renderRoot !== this.$R || renderRoot === null)
+      commitAs(this.$R != null && this.$R.contains(this.$w ?? this.$s) ? this.$R : null, this, value, this.$R ?? null);
+    else this.$p(value);
+    this.$z = applierState;
+    this.$a = applier;
   }
 
-  _set(value: unknown) {
+  $p(value: unknown) {
     if (value == null) {
-      if (this._mode !== EMPTY) this._clear();
+      if (this.$o !== EMPTY) this._clear();
       return;
     }
     if (typeof value !== 'object') {
-      if (__DEV__ && typeof value === 'boolean' && (this._mode !== TEXT || this._value !== value)) warnBooleanChild(value);
-      if (this._mode === TEXT) {
-        if (this._value !== value) this._text!.data = value as string;
+      if (__DEV__ && typeof value === 'boolean' && (this.$o !== TEXT || this.$v !== value)) warnBooleanChild(value);
+      if (this.$o === TEXT) {
+        if (this.$v !== value) this.$l!.data = value as string;
       } else {
-        if (this._mode !== EMPTY) this._clear();
-        this._insert((this._text = doc.createTextNode(value as string)));
-        this._mode = TEXT;
+        if (this.$o !== EMPTY) this._clear();
+        this._insert((this.$l = doc.createTextNode(value as string)));
+        this.$o = TEXT;
       }
-      this._value = value;
+      this.$v = value;
       return;
     }
     /** `hold()` wraps a template as `{ $h }`: the one it replaces is parked by template identity, not destroyed. */
@@ -1344,47 +1344,47 @@ class ChildPart {
     if (held !== undefined || isTemplateResult(value)) {
       const result = held ?? (value as TemplateResult);
       /** The hottest line of a list update: same strings, commit the values and nothing else. */
-      if (this._mode === TEMPLATE && this._instance!._strings === result.strings) {
+      if (this.$o === TEMPLATE && this.$n!._strings === result.strings) {
         if (__DEV__ && profileHook !== null) profileHook(PROFILE_UPDATE, this, result.strings);
-        update(this._instance!, result.values);
+        update(this.$n!, result.values);
         return;
       }
-      if (__DEV__ && profileHook !== null) profileHook(this._mode === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, result.strings);
+      if (__DEV__ && profileHook !== null) profileHook(this.$o === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, result.strings);
       let instance: Instance | undefined;
       if (held !== undefined) {
         const parked = (this._held ??= new Map());
-        if (this._mode === TEMPLATE) {
-          const current = this._instance!;
-          const root = current._root;
+        if (this.$o === TEMPLATE) {
+          const current = this.$n!;
+          const root = current.$R;
           /** A fragment root takes its nodes back; an element root IS the range. */
           if (root.nodeType === 11) {
-            let node = this._owner !== null ? this._owner.firstChild : this._start!.nextSibling;
-            while (node !== this._end) {
+            let node = this.$w !== null ? this.$w.firstChild : this.$s!.nextSibling;
+            while (node !== this.$e) {
               const next = node!.nextSibling;
               root.appendChild(node!);
               node = next;
             }
           } else (root as ChildNode).remove();
           parked.set(current._strings, current);
-          this._mode = EMPTY;
+          this.$o = EMPTY;
         }
         /** The map holds exactly what is PARKED: an instance coming back leaves it, so a later clear cannot strand it there. */
         instance = parked.get(result.strings);
         if (instance !== undefined) parked.delete(result.strings);
       }
-      if (this._mode !== EMPTY) this._clear();
+      if (this.$o !== EMPTY) this._clear();
       if (instance === undefined) {
         let template = getTemplate(result);
-        if (template._x) template = resolved(template, this._owner ?? this._start!.parentNode!);
+        if (template.$X) template = resolved(template, this.$w ?? this.$s!.parentNode!);
         instance = instantiate(template, result, passDoc);
-        this._insert(instance._root);
+        this._insert(instance.$R);
       } else {
         /** Inserted first, then updated, as every update is: its nodes are live when its values commit. */
-        this._insert(instance._root);
+        this._insert(instance.$R);
         update(instance, result.values);
       }
-      this._instance = instance;
-      this._mode = TEMPLATE;
+      this.$n = instance;
+      this.$o = TEMPLATE;
       return;
     }
     /** A value kind a module handles (`'value'` insert) — how a kind becomes a package, not a branch here. */
@@ -1400,12 +1400,12 @@ class ChildPart {
      */
     const applyChild = (value as { _$child$?: Applier })._$child$;
     if (applyChild !== undefined) {
-      const previous = this._applier === applyChild ? this._applierState : undefined;
+      const previous = this.$a === applyChild ? this.$z : undefined;
       /**
        * An applier written as an object-literal method is a new function every call, so `previous` is always
        * undefined and it restarts every render. Said on the third swap at one part — once or twice is a real change.
        */
-      if (__DEV__ && this._applier !== undefined && this._applier !== applyChild) {
+      if (__DEV__ && this.$a !== undefined && this.$a !== applyChild) {
         const swaps = (applierSwaps.get(this) ?? 0) + 1;
         applierSwaps.set(this, swaps);
         if (swaps === 3)
@@ -1416,39 +1416,39 @@ class ChildPart {
               `  const thing = (x) => ({ _$child$: applyThing, x });  // state on the object\n`
           );
       }
-      this._applier = applyChild;
-      this._root = renderRoot;
+      this.$a = applyChild;
+      this.$R = renderRoot;
       if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
-      this._applierState = applyChild.call(value, this, previous);
+      this.$z = applyChild.call(value, this, previous);
       return;
     }
     if ((value as Node).nodeType !== undefined) {
-      if (this._mode !== NODE || this._value !== value) {
-        if (this._mode !== EMPTY) this._clear();
+      if (this.$o !== NODE || this.$v !== value) {
+        if (this.$o !== EMPTY) this._clear();
         this._insert(value as Node);
-        this._value = value;
-        this._mode = NODE;
+        this.$v = value;
+        this.$o = NODE;
       }
       return;
     }
-    this._set(String(value));
+    this.$p(String(value));
   }
 
   /** Creates one list item before `ref`. */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
     if (value !== null && typeof value === 'object' && isTemplateResult(value)) {
       let template = getTemplate(value);
-      if (template._x) template = resolved(template, parent);
-      if (template._root.nodeType === 1) {
+      if (template.$X) template = resolved(template, parent);
+      if (template.$R.nodeType === 1) {
         const instance = instantiate(template, value, passDoc);
-        into(parent, ref).insertBefore(instance._root, ref);
-        if (__DEV__) checkForeign(parent, [instance._root]);
+        into(parent, ref).insertBefore(instance.$R, ref);
+        if (__DEV__) checkForeign(parent, [instance.$R]);
         instance.$k = value.key;
         return instance;
       }
     }
     const part = markered(parent, ref);
-    part._set(value);
+    part.$p(value);
     part.$k = (value as TemplateResult | null)?.key;
     return part;
   }
@@ -1456,37 +1456,37 @@ class ChildPart {
   /** Commits `value` into an item; returns the item now standing there (an instance whose shape changed becomes a part). */
   $u(item: Item, value: unknown): Item {
     if (item instanceof ChildPart) {
-      item._set(value);
+      item.$p(value);
       return item;
     }
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._strings) {
       update(item, (value as TemplateResult).values);
       return item;
     }
-    const element = item._root as Element;
+    const element = item.$R as Element;
     const part = markered(element.parentNode!, element);
     /** The row's shape changed: the instance is gone for good, so what it holds is told. */
     if (notifyOnRemoval) teardown(item);
     element.remove();
     part.$k = item.$k;
-    part._set(value);
+    part.$p(value);
     return part;
   }
 
   /** The item's first node — its move handle and the insertion reference before it. */
   $f(item: Item): Node {
-    return item instanceof ChildPart ? item._start! : item._root;
+    return item instanceof ChildPart ? item.$s! : item.$R;
   }
 
   /** Moves an item before `ref`. */
-  $m(item: Item, ref: Node | null, parent: Node = this._owner ?? this._start!.parentNode!) {
+  $m(item: Item, ref: Node | null, parent: Node = this.$w ?? this.$s!.parentNode!) {
     const at = into(parent, ref);
     if (!(item instanceof ChildPart)) {
-      at.insertBefore(item._root, ref);
+      at.insertBefore(item.$R, ref);
       return;
     }
-    let node: Node | null = item._start!;
-    const stop = item._end!.nextSibling;
+    let node: Node | null = item.$s!;
+    const stop = item.$e!.nextSibling;
     while (node !== stop) {
       const next: Node | null = node!.nextSibling;
       at.insertBefore(node!, ref);
@@ -1509,24 +1509,24 @@ class ChildPart {
      * so a list can change between the two without being rebuilt.
      */
     const strategy = count ? (values[0] as KeyedResult | null)?.$r : undefined;
-    if (this._mode !== LIST) {
-      if (this._mode !== EMPTY) this._clear();
-      this._items = [];
-      this._mode = LIST;
+    if (this.$o !== LIST) {
+      if (this.$o !== EMPTY) this._clear();
+      this.$i = [];
+      this.$o = LIST;
     }
-    const items = this._items!;
+    const items = this.$i!;
     if (count === 0) {
       if (items.length) {
         this._clear();
-        this._items = [];
-        this._mode = LIST;
+        this.$i = [];
+        this.$o = LIST;
       }
       return;
     }
-    const parent = this._owner ?? this._start!.parentNode!;
-    const end = this._end;
+    const parent = this.$w ?? this.$s!.parentNode!;
+    const end = this.$e;
     if (strategy !== undefined) {
-      this._items = strategy(this, values, items, parent, end);
+      this.$i = strategy(this, values, items, parent, end);
       return;
     }
     /** Index mode: update in place, grow at the end, shrink from the end. Rows go straight into the parent. */
@@ -1705,7 +1705,7 @@ const markered = (parent: Node, ref: Node | null) => {
   const end = comment();
   const part = new ChildPart(comment(), end);
   const at = into(parent, ref);
-  at.insertBefore(part._start!, ref);
+  at.insertBefore(part.$s!, ref);
   at.insertBefore(end, ref);
   return part;
 };
@@ -1732,7 +1732,7 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   /** A document's own `ownerDocument` is null — so a document container is its own. */
   if (home !== null) passDoc = home.ownerDocument ?? (home as Document);
   try {
-    part._set(value);
+    part.$p(value);
   } finally {
     flush(selectsMark, refsMark);
     renderRoot = outer;
@@ -1802,7 +1802,7 @@ export const renderInto = (result: unknown, container: Node) => {
    * a host's light children before anything reads them, and at a container's first render takes what was there before
    * the render's own range — `start` — as its light children). Off-chain and sigiled, like `$t`: not an extension point.
    */
-  (registry as { _$done$?: (container: Node, start: Node) => void } | null)?._$done$?.(container, part._start!);
+  (registry as { _$done$?: (container: Node, start: Node) => void } | null)?._$done$?.(container, part.$s!);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_END, container, null);
 };
 
@@ -1822,5 +1822,11 @@ export const renderer = {
   connect: (given: { get(name: never): unknown }) => {
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
+    /**
+     * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
+     * bundled module cannot import them, and production mangles their names): only values the renderer already holds,
+     * so it pulls no code in. `$v` is its protocol number; on a mismatch hydration declines and the page renders fresh.
+     */
+    (given as { $H?: unknown }).$H = { $v: 1, $g: getTemplate, $C: ChildPart, $I: Instance, $c: commit, $s: commitAs, $h: hookUp, $r: resolved, $p: rootParts, $t: toText, $n: needRemovalWork };
   },
 };
