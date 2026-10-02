@@ -224,6 +224,8 @@ const place = (light: Light) => {
           REAL.set(stand, node);
         }
         parent.insertBefore(node, previous.nextSibling);
+        /** Marked as moved by slots: the renderer follows it here when it inserts beside it (see `into`). */
+        (node as Node & { _$slotted$?: boolean })._$slotted$ = true;
         PLACED.set(node, rec);
         previous = node;
       }

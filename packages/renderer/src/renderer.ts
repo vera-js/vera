@@ -1663,12 +1663,12 @@ export const hold = <T>(result: T): T | { $h: TemplateResult } =>
   result != null && typeof result === 'object' && isTemplateResult(result) ? { $h: result as TemplateResult } : result;
 
 /**
- * **Where an insert before `ref` goes: `ref`'s own parent.** The renderer passes the parent it expects, and `ref`
- * is normally its child; but a node it placed can have been moved since — light-DOM slots moves a host's light
- * children into the slots they belong to, and other code may move what it was given — and `insertBefore` throws
- * when `ref` is not a child of the node it is called on. Without a `ref`, it is the parent given.
+ * **Where an insert before `ref` goes** — the parent given, unless light-DOM slots moved `ref` (it marks what it moves,
+ * `_$slotted$`, sigiled so both bundles read it): then `ref`'s own, which is where the light child now lives. A node
+ * anything ELSE moved is not followed — the insert throws as it always has, rather than land in a stranger's container.
  */
-const into = (parent: Node, ref: Node | null): Node => ref?.parentNode ?? parent;
+const into = (parent: Node, ref: Node | null): Node =>
+  ref !== null && (ref as { _$slotted$?: boolean })._$slotted$ ? ref.parentNode! : parent;
 
 /** A fresh part whose two markers sit before `ref` in `parent`. */
 const markered = (parent: Node, ref: Node | null) => {
