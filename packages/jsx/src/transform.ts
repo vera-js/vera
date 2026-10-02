@@ -1,4 +1,4 @@
-import { RESERVED_ELEMENT_NAMES, VOID_ELEMENTS } from '@verajs/shared-utils';
+import { isCustomElementName, VOID_ELEMENTS } from '@verajs/shared-utils';
 import { atExpressionPosition, createParseState, findRoots, isBlankExpression, mark } from './parser.js';
 import type { ImportSite, JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
@@ -84,11 +84,9 @@ const isComponentName = (tag: string): boolean => tag.includes('.') || !/^[a-z]/
 
 /**
  * A dash makes a tag a custom element — except the eight names SVG and MathML already own, which the
- * spec reserves. `<annotation-xml>` read as a custom element had its `encoding` compiled to a
- * property, where the parser cannot see it.
+ * spec reserves (`isCustomElementName`, shared). `<annotation-xml>` read as a custom element had its
+ * `encoding` compiled to a property, where the parser cannot see it.
  */
-const isCustomElementName = (tag: string): boolean =>
-  tag.includes('-') && !RESERVED_ELEMENT_NAMES.has(tag.toLowerCase());
 
 /** Platform idiom, named in the principles: an error class STAYS a class. */
 class JsxError extends Error {

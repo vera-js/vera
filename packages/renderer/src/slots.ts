@@ -14,7 +14,7 @@
  * fallback. What the page's template later does inside a unit is seen by a `MutationObserver` and re-distributed —
  * synchronously after every component render (core's `'render'` insert), and at the latest by the next microtask.
  */
-import { RESERVED_ELEMENT_NAMES } from '@verajs/shared-utils';
+import { isCustomElementName } from '@verajs/shared-utils';
 import { elements } from './elements.js';
 
 /** A slot's assignment name: an element's `slot` attribute, `''` for text; a comment is never slottable. */
@@ -64,6 +64,19 @@ const unstand = (node: Node) => {
   stand.remove();
 };
 
+/** A light node back to holding: a run's node to its place in the run (where its stand-in is), any other to the end. */
+const toHolding = (light: Light, node: Node) => {
+  const stand = STAND.get(node);
+  if (stand !== undefined) {
+    light.holding.insertBefore(node, stand);
+    unstand(node);
+    PLACED.delete(node);
+  } else {
+    light.holding.insertBefore(node, light.holding.lastChild);
+    PLACED.set(node, null);
+  }
+};
+
 /* ── tree order, through slots that are out of the page ────────────────────────────────────────── */
 
 /**
@@ -84,9 +97,12 @@ const chain = (rec: Rec): Node[] | null => {
     node = outer.rs;
   }
 };
+/** Whether `b` comes after `a` in tree order — the platform's `DOCUMENT_POSITION_FOLLOWING` bit. */
+// eslint-disable-next-line no-bitwise -- compareDocumentPosition answers in the platform's own bitmask
+const follows = (a: Node, b: Node) => (a.compareDocumentPosition(b) & 4) !== 0;
 const before = (x: Node[], y: Node[]) => {
   for (let i = 0; i < x.length && i < y.length; i++)
-    if (x[i] !== y[i]) return (x[i].compareDocumentPosition(y[i]) & 4) !== 0;
+    if (x[i] !== y[i]) return follows(x[i], y[i]);
   return x.length < y.length;
 };
 
@@ -257,16 +273,7 @@ const place = (light: Light) => {
     if (taken.has(node)) continue;
     const rec = PLACED.get(node);
     if (rec !== undefined && rec !== null && parked.has(rec)) continue;
-    const stand = STAND.get(node);
-    if (stand !== undefined) {
-      /** A run's node, back to its place in the run. */
-      holding.insertBefore(node, stand);
-      unstand(node);
-      PLACED.delete(node);
-    } else if ((rec !== undefined && rec !== null) || (ending && statics.has(node) && node.parentNode === host)) {
-      holding.insertBefore(node, holding.lastChild);
-      PLACED.set(node, null);
-    }
+    if (STAND.has(node) || (rec !== undefined && rec !== null) || (ending && statics.has(node) && node.parentNode === host)) toHolding(light, node);
   }
   /** A run captured in the host goes to holding now — its markers, stand-ins and unassigned nodes; its slotted nodes left in one move each. */
   if (fresh && ending)
@@ -362,10 +369,10 @@ const adopt = (light: Light, node: Node) => {
       first ??= child;
       last = child;
     }
-  if (first !== null && first !== last && (first.compareDocumentPosition(node) & 4) !== 0 && (node.compareDocumentPosition(last!) & 4) !== 0)
+  if (first !== null && first !== last && follows(first, node) && follows(node, last!))
     return;
   /** Before the render's range is ahead of everything distributed away; after it, behind. Read before it moves. */
-  const ahead = first !== null && (node.compareDocumentPosition(first) & 4) !== 0;
+  const ahead = first !== null && follows(node, first);
   light.holding.insertBefore(node, light.holding.lastChild);
   PLACED.set(node, null);
   if (ahead) {
@@ -381,7 +388,7 @@ const unitIndexOf = (light: Light, node: Node): number => {
   const stand = STAND.get(node);
   if (stand === undefined) return light.units.findIndex((unit) => unit.a === node);
   return light.units.findIndex(
-    (unit) => unit.a !== unit.z && (unit.a.compareDocumentPosition(stand) & 4) !== 0 && (stand.compareDocumentPosition(unit.z) & 4) !== 0
+    (unit) => unit.a !== unit.z && follows(unit.a, stand) && follows(stand, unit.z)
   );
 };
 
@@ -394,7 +401,7 @@ const settleIn = (light: Light, node: Node) => {
   if (parent === null || node.nodeType === 8) return;
   for (const rec of light.recs) {
     if (rec.re === null || rec.re.parentNode !== parent) continue;
-    if ((rec.rs!.compareDocumentPosition(node) & 4) === 0 || (node.compareDocumentPosition(rec.re) & 4) === 0) continue;
+    if (!follows(rec.rs!, node) || !follows(node, rec.re)) continue;
     let at = -1;
     for (let next = node.nextSibling; next !== null && next !== rec.re && at < 0; next = next.nextSibling) at = unitIndexOf(light, next);
     if (at < 0) light.units.push({ a: node, z: node });
@@ -477,6 +484,19 @@ const release = (light: Light) => {
 
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
 
+/** A host's light record, new: its holding (bracketed by two comments, so `lastChild` is always an anchor), watched. */
+const lightFor = (host: Element, late: boolean): Light => {
+  const doc = host.ownerDocument;
+  const holding = doc.createDocumentFragment();
+  holding.append(doc.createComment(''), doc.createComment(''));
+  const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late };
+  HOSTS.set(host, light);
+  lights.add(light);
+  watch(holding, light);
+  observers![0].observe(host, { childList: true });
+  return light;
+};
+
 /**
  * **Capture**, at `init` — before the host's first render, when everything it holds is the page's. Each static child
  * is a unit; each run between statics (what the page's template bound there) is one unit, wrapped in this module's
@@ -487,15 +507,8 @@ const capture = (host: Element, before: Node | null = null): Light => {
   /** A slot of a custom element `init` never saw mounted first: its light content arrives now, at the render's end. */
   if (light !== undefined && !light.late) return light;
   const doc = host.ownerDocument;
-  if (light === undefined) {
-    const holding = doc.createDocumentFragment();
-    holding.append(doc.createComment(''), doc.createComment(''));
-    light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late: false };
-    HOSTS.set(host, light);
-    lights.add(light);
-  }
+  light ??= lightFor(host, false);
   light.late = false;
-  const holding = light.holding;
   const statics = STATICS.get(host);
   let run: Node[] | null = null;
   /**
@@ -522,8 +535,6 @@ const capture = (host: Element, before: Node | null = null): Light => {
   close();
   light.dirty = true;
   light.fresh = true;
-  watch(holding, light);
-  observers![0].observe(host, { childList: true });
   return light;
 };
 
@@ -599,18 +610,7 @@ const slotBehavior = {
     }
     /** A host `init` never saw has no captured children: what it holds now is its own render, never light content. */
     flush();
-    let light = HOSTS.get(root as Element);
-    if (light === undefined) {
-      const doc = (root as Element).ownerDocument;
-      const holding = doc.createDocumentFragment();
-      holding.append(doc.createComment(''), doc.createComment(''));
-      const name = (root as Element).localName;
-      light = { host: root as Element, units: [], holding, recs: [], dirty: false, fresh: false, late: name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name) };
-      HOSTS.set(root as Element, light);
-      lights.add(light);
-      watch(holding, light);
-      observers![0].observe(root, { childList: true });
-    }
+    const light = HOSTS.get(root as Element) ?? lightFor(root as Element, isCustomElementName((root as Element).localName));
     const kept = slot as Kept;
     const rec: Rec = { slot: kept, light, rs: null, re: null, shown: [], queued: false };
     kept.$rec = rec;
@@ -628,18 +628,7 @@ const slotBehavior = {
     flush();
     const light = rec.light;
     light.recs.splice(light.recs.indexOf(rec), 1);
-    for (const node of lightOf(light)) {
-      if (PLACED.get(node) !== rec) continue;
-      const stand = STAND.get(node);
-      if (stand !== undefined) {
-        light.holding.insertBefore(node, stand);
-        unstand(node);
-        PLACED.delete(node);
-      } else {
-        light.holding.insertBefore(node, light.holding.lastChild);
-        PLACED.set(node, null);
-      }
-    }
+    for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
     unregion(rec);
     distribute(light);
     settle();
@@ -792,13 +781,12 @@ export const slotDiscovery = [
     name: '@verajs/renderer/slots-capture',
     on: 'init' as const,
     fn: (element: Element) => {
-      const name = element.localName;
       /**
        * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
        * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
        */
       if ((element as unknown as Record<string, unknown>)['_root'] != null || element.shadowRoot !== null) return;
-      if (name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name) && !HOSTS.has(element)) capture(element);
+      if (isCustomElementName(element.localName) && !HOSTS.has(element)) capture(element);
     },
     priority: 10,
   },
@@ -806,7 +794,7 @@ export const slotDiscovery = [
     name: '@verajs/renderer/slot-discovery',
     on: 'element' as const,
     fn: (el: Element) =>
-      el.localName === 'slot' ? slotBehavior : el.localName.includes('-') && !RESERVED_ELEMENT_NAMES.has(el.localName) ? hostBehavior : undefined,
+      el.localName === 'slot' ? slotBehavior : isCustomElementName(el.localName) ? hostBehavior : undefined,
     priority: 10,
   },
   /**
@@ -819,10 +807,8 @@ export const slotDiscovery = [
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
        * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
        */
-      if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? true) && (container as Element).shadowRoot === null) {
-        const name = (container as Element).localName;
-        if (name.includes('-') && !RESERVED_ELEMENT_NAMES.has(name)) capture(container as Element, start);
-      }
+      if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? true) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName))
+        capture(container as Element, start);
       ending = true;
       try {
         flush();

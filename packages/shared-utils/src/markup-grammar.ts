@@ -80,6 +80,15 @@ export const RESERVED_ELEMENT_NAMES = new Set([
 ]);
 
 /**
+ * **A custom element, by its name:** a dash, except the eight names SVG and MathML already own (above). One
+ * definition for every package that asks — `@verajs/jsx` compiles such a tag's attributes to properties, and
+ * `@verajs/renderer/slots` captures such a host's children. (The renderer's own property paths ask a narrower
+ * question, the bare dash, on its hot path; a reserved name never carries a property binding.)
+ */
+export const isCustomElementName = (tag: string): boolean =>
+  tag.includes('-') && !RESERVED_ELEMENT_NAMES.has(tag.toLowerCase());
+
+/**
  * A URL whose scheme a browser reads as `javascript:` — navigating to one runs it, so a BOUND value
  * that parses this way is code arriving as data, never a link.
  *
