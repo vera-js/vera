@@ -739,6 +739,26 @@ export class ContainerShim extends EventTarget {
     /** New markup has not been looked at yet, whatever was true of the markup it replaced. */
     this._parsed = false;
   }
+  /**
+   * **Every insertion path places its nodes here, at `at`, replacing `replace` entries** — `appendChild`,
+   * `insertBefore` and `replaceChild` (and everything that routes through them: `before`, `after`, `replaceWith`,
+   * `prepend`, `append`). They each kept their own copy, and only `appendChild`'s knew that a FRAGMENT hands over its
+   * children and is left empty: `insertBefore` and `replaceChild` inserted a fragment as its markup, so the children
+   * never arrived where a browser puts them and the fragment still reported having them. And none of them noticed
+   * markup TEXT arriving after this container had been parsed, so a query never saw it: inserting text resets `_parsed`.
+   * The caller has already detached `node` from any parent.
+   */
+  _place(node: InsertableShim, at: number, replace: number): void {
+    let incoming: EntryShim[];
+    if (node.nodeType === 11) {
+      incoming = (node as FragmentShim)._entries;
+      (node as FragmentShim)._entries = [];
+    } else incoming = isNode(node) ? [node] : [(node as unknown as DuckNode)?.innerHTML ?? ''];
+    for (const entry of incoming)
+      if (isNode(entry)) entry._parent = this;
+      else this._parsed = false;
+    this._entries.splice(at, replace, ...incoming);
+  }
   appendChild<T extends InsertableShim>(node: T): T {
     /**
      * **Not a node is a `TypeError`, as it is in a browser.** `appendChild(null)` was a silent no-op
@@ -772,32 +792,9 @@ export class ContainerShim extends EventTarget {
         `Failed to execute 'appendChild' on 'Node': The new child element contains the parent.`,
         'HierarchyRequestError'
       );
-    /**
-     * A node with no tag of its own — a fragment — contributes its markup exactly as it did before.
-     * Moving a fragment's children into this parent is the platform's behavior and is deliberately
-     * *not* step 1: it changes what `appendChild(fragment)` leaves behind.
-     */
-    /**
-     * **A fragment hands over its children and is left empty**, which is what a browser does and the
-     * whole point of the type. Its markup used to be inlined instead, so the fragment still reported
-     * the children it had supposedly given away.
-     */
-    if (node?.nodeType === 11) {
-      for (const entry of node._entries) {
-        if (isNode(entry)) entry._parent = this;
-        this._entries.push(entry);
-      }
-      node._entries = [];
-      return node;
-    }
-    /** Every shim node was handled above; what is left is a foreign object, kept by its markup. */
-    if (!isNode(node)) {
-      this._entries.push((node as DuckNode)?.innerHTML ?? '');
-      return node;
-    }
-    node._parent?._detach(node);
-    this._entries.push(node);
-    node._parent = this;
+    /** A fragment hands over its children and is left empty — see `_place`, which every insertion path shares. */
+    if (node.nodeType !== 11 && isNode(node)) node._parent?._detach(node);
+    this._place(node, this._entries.length, 0);
     return node;
   }
   /**
@@ -845,14 +842,9 @@ export class ContainerShim extends EventTarget {
       reference = node.nextSibling;
       if (reference === null) return this.appendChild(node);
     }
-    if (!isNode(node)) {
-      this._entries.splice(this._entries.indexOf(reference), 0, node?.innerHTML ?? '');
-      return node;
-    }
-    node._parent?._detach(node);
+    if (node.nodeType !== 11 && isNode(node)) node._parent?._detach(node);
     /** Re-found after the detach: moving a node forwards within one parent shifts the index. */
-    this._entries.splice(this._entries.indexOf(reference), 0, node);
-    node._parent = this;
+    this._place(node, this._entries.indexOf(reference), 0);
     return node;
   }
   /**
@@ -924,14 +916,12 @@ export class ContainerShim extends EventTarget {
      */
     const at = this._entries.indexOf(old);
     /** Only a child kind has a parent to be detached from; a fragment's is always `null`. */
-    node._parent?._detach(node as ChildShim);
+    if (node.nodeType !== 11 && isNode(node)) node._parent?._detach(node);
     /** Re-found after the detach: moving a node forwards within one parent shifts the index. */
     const index = this._entries.indexOf(old);
-    const value = isNode(node) ? node : (node?.innerHTML ?? '');
-    if (index === -1) this._entries.splice(at, 0, value);
-    else this._entries.splice(index, 1, value);
-    if (isNode(node)) node._parent = this;
     if (old !== node) old._parent = null;
+    if (index === -1) this._place(node, at, 0);
+    else this._place(node, index, 1);
     return old;
   }
   /**
@@ -1067,8 +1057,9 @@ export class ContainerShim extends EventTarget {
   get prefix(): null {
     return null;
   }
-  get ownerDocument(): Document {
-    return globalThis.document;
+  /** `null` before the environment exists, as its twin on the other node classes already answers. */
+  get ownerDocument(): Document | null {
+    return globalThis.document ?? null;
   }
   /**
    * **Walks the parent chain**, as the platform does. It compared identity only, so
@@ -1824,9 +1815,11 @@ export class ElementShim extends ContainerShim {
     const present = this._attributes.has(name);
     const wanted = force ?? !present;
     if (wanted === present) return wanted;
+    /** The OLD value, read before the change: it was read after the delete, so a removal reported `null` -> `null`. */
+    const old = this.getAttribute(name);
     if (wanted) this._attributes.set(name, '');
     else this._attributes.delete(name);
-    this._attributeChanged(name, wanted ? null : this.getAttribute(name));
+    this._attributeChanged(name, old);
     return wanted;
   }
 
