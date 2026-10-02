@@ -19,7 +19,7 @@
  */
 import { escapeHtml, escapeStyleText, escapeRawText, RAW_TEXT_ELEMENTS } from './escaping.js';
 import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting } from './stylesheets.js';
-import { frames, flushFrames, flushFramesAsync } from './frames.js';
+import { cancelFrame, flushFrames, flushFramesAsync, requestFrame } from './frames.js';
 import { registry } from './registry.js';
 import {
   TextShim,
@@ -312,11 +312,9 @@ export const installShims = () => {
    * then or it lands nowhere.
    */
   globalThis.requestIdleCallback = (
-    (fn: IdleRequestCallback) => frames.push(() => fn({ didTimeout: false, timeRemaining: () => 0 }))
+    (fn: IdleRequestCallback) => requestFrame(() => fn({ didTimeout: false, timeRemaining: () => 0 }), true)
   ) as typeof requestIdleCallback;
-  globalThis.cancelIdleCallback = ((id: number) => {
-    frames[id - 1] = null;
-  }) as typeof cancelIdleCallback;
+  globalThis.cancelIdleCallback = ((id: number) => cancelFrame(id, true)) as typeof cancelIdleCallback;
   /** Defined so core's `@scope` support check passes — SSR output gets scoped light-DOM CSS. */
   globalThis.CSSScopeRule = (function CSSScopeRule() {}) as unknown as typeof CSSScopeRule;
 
@@ -770,10 +768,8 @@ export const installShims = () => {
       throw new TypeError(
         `Failed to execute 'requestAnimationFrame' on 'Window': parameter 1 is not of type 'Function'.`
       );
-    return frames.push(fn);
+    return requestFrame(fn, false);
   };
-  globalThis.cancelAnimationFrame = (id) => {
-    frames[id - 1] = null;
-  };
+  globalThis.cancelAnimationFrame = (id) => cancelFrame(id, false);
   return registry;
 };
