@@ -183,6 +183,16 @@ const childrenOf = (node: ContainerShim | null | undefined): ElementShim[] =>
     (entry) => typeof entry !== 'string' && (entry as ElementShim).openTag
   ) as ElementShim[];
 const siblingsOf = (element: ElementShim): ElementShim[] => childrenOf(element._parent);
+/**
+ * **The parent a combinator walks to, only when it is an ELEMENT** — `parentElement`, never `parentNode`. A shadow root,
+ * fragment or document above an element is not a candidate for `>` or a descendant combinator: walked onto, it was
+ * tested as one, so `* > i` matched a shadow root's top-level child (the root passed `*`) and `.a b` THREW reading an
+ * element property off the root. The browser's answer, measured against jsdom, is no match.
+ */
+const elementParent = (element: ElementShim): ElementShim | null => {
+  const parent = element._parent as ElementShim | null | undefined;
+  return parent?.openTag ? parent : null;
+};
 
 /** Match one complex selector against one element, walking its steps from right to left. */
 const matchesComplex = (element: ElementShim, steps: Step[], scope: ContainerShim): boolean => {
@@ -196,8 +206,9 @@ const matchesComplex = (element: ElementShim, steps: Step[], scope: ContainerShi
     const passes = (candidate: ElementShim | null | undefined): boolean | null | undefined =>
       candidate && step.tests.every((test) => test(candidate, scope));
     if (combinator === '>') {
-      current = current._parent as ElementShim;
-      if (!passes(current)) return false;
+      const parent = elementParent(current);
+      if (parent === null || !passes(parent)) return false;
+      current = parent;
     } else if (combinator === '+') {
       const siblings = siblingsOf(current);
       current = siblings[siblings.indexOf(current) - 1];
@@ -208,8 +219,8 @@ const matchesComplex = (element: ElementShim, steps: Step[], scope: ContainerShi
       if (!before) return false;
       current = before;
     } else {
-      let above = current._parent as ElementShim | null;
-      while (above && !passes(above)) above = above._parent as ElementShim | null;
+      let above = elementParent(current);
+      while (above && !passes(above)) above = elementParent(above);
       if (!above) return false;
       current = above;
     }
