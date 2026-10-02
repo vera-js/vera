@@ -116,39 +116,107 @@ const windowEvents = new EventTarget();
  * here rather than one nested pair, so every query walks both — `documentElement` first, which is
  * where a real document would find anything under `<html>` before reaching `<body>`.
  */
+/** A filter's verdict as the platform reads it: `whatToShow` first (a node it excludes is SKIPPED), then the filter. */
+const ACCEPT = 1;
+const REJECT = 2;
+const SKIP = 3;
+const verdictOf = (node: WalkNode, whatToShow: number, filter: WalkFilter | undefined): number => {
+  const bit = node.nodeType === 1 ? 1 : node.nodeType === 3 ? 4 : node.nodeType === 8 ? 128 : 0;
+  // eslint-disable-next-line no-bitwise -- whatToShow is the platform's own NodeFilter bitmask
+  if (!(whatToShow & bit)) return SKIP;
+  const verdict = typeof filter === 'function' ? filter(node) : filter?.acceptNode?.(node);
+  return verdict === REJECT || verdict === SKIP ? verdict : ACCEPT;
+};
 /**
- * Shared by `createTreeWalker` and `createNodeIterator`, which differ in surface rather than in what
- * they visit: a tree walker can also be steered with `parentNode`/`firstChild`/`nextSibling`, while
- * an iterator only goes forwards and backwards. Both honor `whatToShow` and a filter, and both
- * visit in document order — the root included for an iterator and not for a walker, which is the
- * one behavioral difference between them.
+ * The links a walk follows, typed once. Every read goes through `linked`, which turns a MISSING member into `null`:
+ * the document object here has no `firstChild` at all, and a walker rooted at it must walk nothing, not throw.
  */
-const makeWalker = (root: WalkNode, whatToShow = 0xffffffff, filter?: WalkFilter, isWalker = true) => {
-  const accepts = (node: WalkNode): boolean => {
-    const bit = node.nodeType === 1 ? 1 : node.nodeType === 3 ? 4 : node.nodeType === 8 ? 128 : 0;
-    // eslint-disable-next-line no-bitwise -- whatToShow is the platform's own NodeFilter bitmask
-    if (!(whatToShow & bit)) return false;
-    const verdict = typeof filter === 'function' ? filter(node) : filter?.acceptNode?.(node);
-    return verdict === undefined || verdict === 1;
-  };
-  /** Document order, depth first — the order both of these are defined to visit in. */
+type Linked = WalkNode & {
+  readonly parentNode: WalkNode | null;
+  readonly firstChild: WalkNode | null;
+  readonly lastChild: WalkNode | null;
+  readonly nextSibling: WalkNode | null;
+  readonly previousSibling: WalkNode | null;
+};
+const linked = (node: WalkNode | null | undefined): Linked | null => (node ?? null) as Linked | null;
+
+/**
+ * `createNodeIterator`: document order, the root included, forwards and backwards. An iterator reads `FILTER_REJECT`
+ * as `FILTER_SKIP` — only a walker prunes — so a flat filtered list is exactly its answer.
+ */
+const makeIterator = (root: WalkNode, whatToShow = 0xffffffff, filter?: WalkFilter) => {
+  /** Document order, depth first. `childNodes` rather than `_entries`: it is what makes markup held as a string get parsed. */
   const flatten = (node: WalkNode, out: WalkNode[] = []): WalkNode[] => {
-    /** `childNodes` rather than `_entries`: it is what makes markup held as a string get parsed. */
     for (const child of node.childNodes ?? []) {
       out.push(child);
       flatten(child, out);
     }
     return out;
   };
-  const all = () => (isWalker ? flatten(root) : [root, ...flatten(root)]).filter(accepts);
-  let current: WalkNode | null = isWalker ? root : null;
+  let current: WalkNode | null = null;
   const step = (direction: number): WalkNode | null => {
-    const nodes = all();
+    const nodes = [root, ...flatten(root)].filter((node) => verdictOf(node, whatToShow, filter) === ACCEPT);
     const index = current === null ? -1 : nodes.indexOf(current);
     const next = direction > 0 ? nodes[index + 1] : nodes[index - 1];
     if (!next) return null;
     current = next;
     return next;
+  };
+  return { root, whatToShow, filter: filter ?? null, nextNode: () => step(1), previousNode: () => step(-1) };
+};
+
+/**
+ * **`createTreeWalker`, by the DOM standard's own algorithms** — "traverse children", "traverse siblings" and the
+ * rest, transcribed rather than approximated. The approximation climbed above `root` in `parentNode`, gave up in
+ * `nextSibling` at the first filtered sibling instead of searching on (into a SKIPPED sibling's children, past a
+ * REJECTED one's), and never pruned a REJECTED subtree in `nextNode`. jsdom implements the same algorithms, and
+ * `tests/ssr-tree-walker.test.mjs` compares the two over generated trees and filters.
+ */
+const makeTreeWalker = (root: WalkNode, whatToShow = 0xffffffff, filter?: WalkFilter) => {
+  let current: WalkNode = root;
+  const judge = (node: WalkNode): number => verdictOf(node, whatToShow, filter);
+  const children = (first: boolean): WalkNode | null => {
+    let node = linked(first ? linked(current)!.firstChild : linked(current)!.lastChild);
+    while (node !== null) {
+      const result = judge(node);
+      if (result === ACCEPT) return (current = node);
+      if (result === SKIP) {
+        const child = linked(first ? node.firstChild : node.lastChild);
+        if (child !== null) {
+          node = child;
+          continue;
+        }
+      }
+      while (node !== null) {
+        const sibling: Linked | null = linked(first ? node.nextSibling : node.previousSibling);
+        if (sibling !== null) {
+          node = sibling;
+          break;
+        }
+        const parent: Linked | null = linked(node.parentNode);
+        if (parent === null || parent === root || parent === current) return null;
+        node = parent;
+      }
+    }
+    return null;
+  };
+  const siblings = (next: boolean): WalkNode | null => {
+    let node = linked(current)!;
+    if (node === root) return null;
+    for (;;) {
+      let sibling = linked(next ? node.nextSibling : node.previousSibling);
+      while (sibling !== null) {
+        node = sibling;
+        const result = judge(node);
+        if (result === ACCEPT) return (current = node);
+        sibling = linked(next ? node.firstChild : node.lastChild);
+        if (result === REJECT || sibling === null) sibling = linked(next ? node.nextSibling : node.previousSibling);
+      }
+      const parent = linked(node.parentNode);
+      if (parent === null || parent === root) return null;
+      node = parent;
+      if (judge(node) === ACCEPT) return null;
+    }
   };
   return {
     root,
@@ -157,41 +225,66 @@ const makeWalker = (root: WalkNode, whatToShow = 0xffffffff, filter?: WalkFilter
     get currentNode() {
       return current;
     },
-    set currentNode(node: WalkNode | null) {
+    set currentNode(node: WalkNode) {
       current = node;
     },
-    nextNode: () => step(1),
-    previousNode: () => step(-1),
-    parentNode: () => {
-      /** A parent is always one of the concrete containers — `ContainerShim` itself is only their base. */
-      const parent = current?._parent as WalkNode | null | undefined;
-      if (!parent || !accepts(parent)) return null;
-      current = parent;
-      return parent;
+    parentNode: (): WalkNode | null => {
+      let node = linked(current);
+      while (node !== null && node !== root) {
+        node = linked(node.parentNode);
+        if (node !== null && judge(node) === ACCEPT) return (current = node);
+      }
+      return null;
     },
-    firstChild: () => {
-      const first = (current?.childNodes ?? []).find((entry: WalkNode) => accepts(entry));
-      if (!first) return null;
-      current = first;
-      return first;
+    firstChild: () => children(true),
+    lastChild: () => children(false),
+    nextSibling: () => siblings(true),
+    previousSibling: () => siblings(false),
+    previousNode: (): WalkNode | null => {
+      let node = linked(current)!;
+      while (node !== root) {
+        let sibling = linked(node.previousSibling);
+        while (sibling !== null) {
+          node = sibling;
+          let result = judge(node);
+          while (result !== REJECT && linked(node.lastChild) !== null) {
+            node = linked(node.lastChild)!;
+            result = judge(node);
+          }
+          if (result === ACCEPT) return (current = node);
+          sibling = linked(node.previousSibling);
+        }
+        const parent = linked(node.parentNode);
+        if (node === root || parent === null) return null;
+        node = parent;
+        if (judge(node) === ACCEPT) return (current = node);
+      }
+      return null;
     },
-    lastChild: () => {
-      const kids = (current?.childNodes ?? []).filter((entry: WalkNode) => accepts(entry));
-      if (!kids.length) return null;
-      current = kids[kids.length - 1];
-      return current;
-    },
-    nextSibling: () => {
-      const sibling = current?.nextSibling;
-      if (!sibling || !accepts(sibling)) return null;
-      current = sibling;
-      return sibling;
-    },
-    previousSibling: () => {
-      const sibling = current?.previousSibling;
-      if (!sibling || !accepts(sibling)) return null;
-      current = sibling;
-      return sibling;
+    nextNode: (): WalkNode | null => {
+      let node = linked(current)!;
+      let result = ACCEPT;
+      for (;;) {
+        while (result !== REJECT && linked(node.firstChild) !== null) {
+          node = linked(node.firstChild)!;
+          result = judge(node);
+          if (result === ACCEPT) return (current = node);
+        }
+        let sibling: Linked | null = null;
+        let temporary: Linked | null = node;
+        while (temporary !== null) {
+          if (temporary === root) return null;
+          sibling = linked(temporary.nextSibling);
+          if (sibling !== null) {
+            node = sibling;
+            break;
+          }
+          temporary = linked(temporary.parentNode);
+        }
+        if (sibling === null) return null;
+        result = judge(node);
+        if (result === ACCEPT) return (current = node);
+      }
     },
   };
 };
@@ -343,6 +436,18 @@ export const installShims = () => {
           `Failed to execute 'define' on 'CustomElementRegistry': "${String(name)}" is not a valid custom element name`,
           'SyntaxError'
         );
+      /**
+       * Refused as the platform refuses: a value that is not a constructor (`TypeError`), and a class already defined
+       * under another name (`NotSupportedError` — one class, one definition). Both were accepted here.
+       */
+      if (typeof Class !== 'function' || !Class.prototype)
+        throw new TypeError(`Failed to execute 'define' on 'CustomElementRegistry': parameter 2 is not a constructor.`);
+      for (const defined of registry.values())
+        if (defined === Class)
+          throw new DOMException(
+            `Failed to execute 'define' on 'CustomElementRegistry': this constructor has already been used with this registry`,
+            'NotSupportedError'
+          );
       if (registry.has(name)) {
         throw new DOMException(
           `Failed to execute 'define' on 'CustomElementRegistry': the name "${name}" has already been used with this registry`,
@@ -422,8 +527,16 @@ export const installShims = () => {
     getElementsByTagNameNS: (namespace: string | null, name: string) =>
       documentRoots().flatMap((root) => root.getElementsByTagNameNS(namespace, name)),
     getElementsByClassName: (names: string) => documentRoots().flatMap((root) => root.getElementsByClassName(names)),
-    getElementsByName: (name: string) =>
-      globalThis.document.querySelectorAll(`[name="${`${name}`.replace(/"/gu, '\\"')}"]`),
+    /**
+     * The elements whose `name` attribute IS `name`, compared directly. It was a selector built from the name with only
+     * `"` escaped, so a `\\` was read as a CSS escape (`a\\b` matched nothing, or the wrong elements).
+     */
+    getElementsByName: (name: string) => {
+      const wanted = `${name}`;
+      return documentRoots()
+        .flatMap((root) => [root, ...root.querySelectorAll('[name]')])
+        .filter((element) => element.getAttribute('name') === wanted);
+    },
     /**
      * **`complete`, because nothing more is coming.** `loading` is the truthful description of a
      * document still being assembled, and it is the wrong answer to give a component: the guard
@@ -492,10 +605,8 @@ export const installShims = () => {
      * a stub that reported "no more nodes" from the first call, so a component walking its own
      * subtree found it empty and did nothing, on the server only. There is a tree to walk now.
      */
-    createTreeWalker: (root: WalkNode, whatToShow?: number, filter?: WalkFilter) =>
-      makeWalker(root, whatToShow, filter, true),
-    createNodeIterator: (root: WalkNode, whatToShow?: number, filter?: WalkFilter) =>
-      makeWalker(root, whatToShow, filter, false),
+    createTreeWalker: (root: WalkNode, whatToShow?: number, filter?: WalkFilter) => makeTreeWalker(root, whatToShow, filter),
+    createNodeIterator: (root: WalkNode, whatToShow?: number, filter?: WalkFilter) => makeIterator(root, whatToShow, filter),
     elementFromPoint: () => null,
     elementsFromPoint: () => [],
     /**
@@ -546,8 +657,12 @@ export const installShims = () => {
       setDocumentAdoptedSheets(sheets);
     },
     head: {
-      appendChild: <T extends { readonly innerHTML?: string } | null | undefined>(node: T) => {
-        if (node?.innerHTML) hoist(node.innerHTML);
+      /**
+       * A `<style>` appended to the head is the page's CSS, hoisted into the render's styles. Nothing else is: this
+       * hoisted ANY node's `innerHTML`, so an appended `<script>` shipped its source inside the stylesheet.
+       */
+      appendChild: <T extends { readonly localName?: string; readonly innerHTML?: string } | null | undefined>(node: T) => {
+        if (node?.localName === 'style' && node.innerHTML) hoist(node.innerHTML);
         return node;
       },
     },
