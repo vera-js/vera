@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { shown } from './rendered-text.mjs';
 import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -33,12 +34,6 @@ const { hold } = await load('renderer');
 wire([renderer, slots]);
 const doc = dom.window.document;
 
-/**
- * The text a reader SEES: `textContent` minus `[hidden]` subtrees. Unassigned content waits connected in the host's
- * hidden container (as native keeps it in the light tree), so `textContent` — the tree's text — includes it, exactly as
- * a shadow host's would; what is rendered does not.
- */
-const shown = (node) => node.nodeType === 3 ? node.data : node.nodeType === 1 && node.hasAttribute('hidden') ? '' : [...node.childNodes].map(shown).join('');
 
 customElements.define('fz-host', class extends dom.window.HTMLElement {
   connectedCallback() {

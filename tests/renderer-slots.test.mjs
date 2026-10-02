@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load, isProduction } from './dist.mjs';
+import { shown } from './rendered-text.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'http://localhost/',
@@ -447,12 +448,6 @@ test('AUDIT — slotted() never builds a selector from the name (a quote threw a
   el.remove();
 });
 
-/**
- * The text a reader SEES: `textContent` minus `[hidden]` subtrees. Unassigned content waits connected in the host's
- * hidden container (as native keeps it in the light tree), so `textContent` — the tree's text — includes it, exactly as
- * a shadow host's would; what is rendered does not.
- */
-const shown = (node) => node.nodeType === 3 ? node.data : node.nodeType === 1 && node.hasAttribute('hidden') ? '' : [...node.childNodes].map(shown).join('');
 
 test('AUDIT — unassigned content is captured, invisible, and shown when its slot arrives', () => {
   const h = host('<p slot="later">waiting</p>');
@@ -1292,4 +1287,24 @@ test('a held light child, hidden then shown, is distributed again — through a 
   assert.equal(h().querySelector('header').textContent, 'A', 'through a reorder of its siblings');
   assert.equal(h().querySelector('main').textContent, 'I');
   page.remove();
+});
+
+/**
+ * **Unassigned content stays hidden when an author stylesheet says otherwise** (vera-5a). `hidden` is only the UA's
+ * `display: none`, which any author `display` rule beats — a reset, a design system's `:where(*)`, a `[hidden]` override;
+ * the container also carries an inline `display: none !important`, written through CSSOM (a strict CSP blocks a
+ * `style=` attribute in served markup, never a CSSOM write), which beats every author rule. jsdom's cascade is partial,
+ * so the browser suite is the proof; this pins that the declaration is there and wins here.
+ */
+test('the unassigned container stays display:none against an author !important rule', () => {
+  const sheet = doc.createElement('style');
+  sheet.textContent = 'vm-unassigned, [hidden] { display: block !important }';
+  doc.head.append(sheet);
+  const h = host('<p slot="nowhere">hidden</p>');
+  renderInto(html`<div>shown</div>`, h);
+  const box = h.querySelector('vm-unassigned');
+  assert.ok(box, 'CONTROL: the container exists');
+  assert.equal(box.style.getPropertyPriority('display'), 'important');
+  assert.equal(doc.defaultView.getComputedStyle(box).display, 'none', 'the author rule did not win');
+  sheet.remove(); h.remove();
 });

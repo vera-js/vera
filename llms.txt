@@ -476,7 +476,7 @@ The differences worth knowing, all deliberate:
   as a move — no `disconnectedCallback`, no second `connectedCallback`, effects and state kept. The
   same holds for a keyed reorder. A node NO slot takes stays CONNECTED and unrendered, as native
   leaves it: it waits in `<vm-unassigned hidden>`, the host's FIRST child, present only while it
-  holds something — so `host.children`, `:scope > *`, `:nth-child()` and `:empty` see one extra child
+  holds something — so `host.children`, `:scope > *`, `:first-child`, `:nth-child()` and `:empty` see one extra child
   then (`:scope > :not(vm-unassigned)` where that matters), and a component in it keeps running and
   is kept when a slot for it appears.
 - **A `<slot>` carries presentation only while it shows its fallback** — `class`, `style`, `id`.

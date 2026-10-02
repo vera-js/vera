@@ -512,8 +512,14 @@ const release = (light: Light) => {
 /** A host's light record, new: its holding (bracketed by two comments, so `lastChild` is always an anchor), watched. */
 const lightFor = (host: Element, late: boolean): Light => {
   const doc = host.ownerDocument;
-  const holding = doc.createElement(UNASSIGNED);
+  const holding = doc.createElement(UNASSIGNED) as HTMLElement;
   holding.setAttribute('hidden', '');
+  /**
+   * `hidden` is only the UA's `display: none`, and any author rule that sets `display` beats it — a reset, a design
+   * system's `:where(*)`, a `[hidden]` override — and unassigned content would RENDER. An inline `!important` beats every
+   * author stylesheet; written through CSSOM, which a strict CSP does not block (served markup carries `hidden` only).
+   */
+  holding.style.setProperty('display', 'none', 'important');
   holding.append(doc.createComment(''), doc.createComment(''));
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late };
   HOSTS.set(host, light);

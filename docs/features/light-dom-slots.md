@@ -139,7 +139,7 @@ comparison or a property read at those points and nothing else.
   child, present only while it holds something. That is how it stays connected and unrendered, as
   native leaves it (a component in it keeps running; assigning it later is a move it is kept
   through), and the price is a child your host's structural selectors can see: `:scope > *`,
-  `:nth-child()`, `:empty`, `host.children`.
+  `:first-child`, `:nth-child()`, `:empty`, `host.children`.
 - **A `<slot>` carries `class`/`style`/`id` only while it shows its fallback**; once it has content it
   steps out of the page and its attributes go with it. Put presentation on an element around it.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
