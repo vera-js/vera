@@ -74,3 +74,34 @@ test('a whenDefined wait for a tag the server never defines ends at the budget, 
   assert.equal(plain.warnings.length, 1);
   assert.doesNotMatch(plain.warnings[0], /whenDefined/);
 });
+
+/**
+ * **The warning names the component still waiting, not only the page**, and prints the fix for a `whenDefined` wait.
+ * A nested waiter used to be reported as its page, which on a large page says nothing about where to look.
+ */
+test('the warning names the nested component whose wait was cut, and the guard that ends it', async () => {
+  const { warnings } = await warned('wait-outer');
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /^\[vera\] ssr: <wait-outer> was served after its 80 ms `timeout` with a promise still pending in <wait-async> \(/);
+  assert.match(warnings[0], /`if \(globalThis\.__veraSsrShimmed\) return;`/);
+  /** A timeout with no whenDefined wait names the component but prints no whenDefined fix. */
+  const plain = await warned('wait-plain');
+  assert.match(plain.warnings[0], /still pending in <wait-plain> \(/);
+  assert.doesNotMatch(plain.warnings[0], /__veraSsrShimmed/);
+});
+
+/**
+ * **The guard the warning prints serves exactly what the timeout served, at once and without a warning** — the
+ * component's state from before the wait, which is what a browser shows first, so hydration changes nothing.
+ */
+test('returning before the wait on the server serves the timeout path\'s markup with no wait and no warning', async () => {
+  const unguarded = await warned('wait-unguarded');
+  const guarded = await warned('wait-guarded');
+  /** The control: the unguarded component really did wait out the budget. */
+  assert.ok(unguarded.ms >= 70, `unguarded: ${unguarded.ms} ms`);
+  assert.equal(unguarded.warnings.length, 1);
+  assert.match(unguarded.html, /<p>loading<\/p>/);
+  assert.deepEqual(guarded.warnings, []);
+  assert.ok(guarded.ms < 50, `guarded: ${guarded.ms} ms`);
+  assert.equal(guarded.html.replaceAll('wait-guarded', 'TAG'), unguarded.html.replaceAll('wait-unguarded', 'TAG'));
+});

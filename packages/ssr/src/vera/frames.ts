@@ -118,27 +118,31 @@ export const endBudget = (): boolean => {
   expired = false;
   return ranOut;
 };
-/** Awaits `value` if it is a promise, for no longer than the budget allows; a rejection still reaches the caller. */
-export const bounded = async (value: unknown): Promise<void> => {
+/**
+ * Awaits `value` if it is a promise, for no longer than the budget allows; a rejection still reaches the caller.
+ * Answers whether THIS wait was the one cut at the deadline — so the warning names the component still waiting, not
+ * only the page — and not for a wait abandoned unexamined after it, which was never shown to be stuck.
+ */
+export const bounded = async (value: unknown): Promise<boolean> => {
   if (value === null || (typeof value !== 'object' && typeof value !== 'function') || typeof (value as PromiseLike<unknown>).then !== 'function')
-    return;
+    return false;
   const promise = Promise.resolve(value);
   if (deadline === Number.POSITIVE_INFINITY) {
     await promise;
-    return;
+    return false;
   }
   if (expired) {
     /** Past the budget nothing more is waited for — and a rejection that arrives later is not an unhandled one. */
     promise.catch(() => {});
-    return;
+    return false;
   }
   expiry ??= new Promise<typeof EXPIRED>((done) => {
     timer = setTimeout(() => done(EXPIRED), Math.max(0, deadline - performance.now()));
   });
-  if ((await Promise.race([promise, expiry])) === EXPIRED) {
-    expired = true;
-    promise.catch(() => {});
-  }
+  if ((await Promise.race([promise, expiry])) !== EXPIRED) return false;
+  expired = true;
+  promise.catch(() => {});
+  return true;
 };
 
 /**
@@ -146,9 +150,11 @@ export const bounded = async (value: unknown): Promise<void> => {
  * a router's first `navigate()`, awaiting guards and a route module — returns a promise the markup
  * depends on, so it is awaited, and the microtask queue runs between rounds (`await null`, not a timer,
  * so no unrelated request interleaves). **An empty queue is not the end** while such work is in flight:
- * it takes three consecutive empty turns to conclude that nothing more is coming.
+ * it takes three consecutive empty turns to conclude that nothing more is coming. Answers whether a wait was cut at
+ * the deadline, as `bounded` does.
  */
-export const flushFramesAsync = async (report?: FrameReport): Promise<void> => {
+export const flushFramesAsync = async (report?: FrameReport): Promise<boolean> => {
+  let cut = false;
   for (let round = 0, empty = 0; round < FRAME_ROUNDS && empty < 3; round++) {
     await null;
     if (!frames.size) {
@@ -163,11 +169,12 @@ export const flushFramesAsync = async (report?: FrameReport): Promise<void> => {
       frames.delete(id);
       if (idle.size !== 0) idle.delete(id);
       try {
-        await bounded(run(fn, report));
+        if (await bounded(run(fn, report))) cut = true;
       } catch (error) {
         report?.(error);
       }
     }
   }
   discard();
+  return cut;
 };

@@ -87,6 +87,9 @@ wire([styles]);
 /** The tags this render touched — only their hoisted styles reach its page. */
 const renderedTags = new Set<string>();
 
+/** The components whose wait the render's `timeout` cut — named by the warning, which otherwise named only the page. */
+const timedOut = new Set<string>();
+
 /**
  * **Every failure during a render, from every channel** — a hook (core's `'error'` insert), a frame
  * callback, a `'settle'` handler. Collected rather than swallowed: on a server there is no next render
@@ -330,8 +333,8 @@ const renderInstanceAsync = async (
   children: string | undefined
 ): Promise<Assembled> => {
   const previousTag = prepareInstance(element, tag, props, children);
-  await bounded(element.connectedCallback?.());
-  await flushFramesAsync(failed(tag));
+  const cut = await bounded(element.connectedCallback?.());
+  if ((await flushFramesAsync(failed(tag))) || cut) timedOut.add(tag);
   const pieces = finishInstance(element, tag, previousTag);
   return assemble(pieces, await scanAsync(pieces.shadow, depth), await scanAsync(pieces.light, depth));
 };
@@ -481,6 +484,7 @@ const renderModule = async (
     for (const part of LOCATION_PARTS) place[part] = next[part];
   }
   renderedTags.clear();
+  timedOut.clear();
   failures.length = 0;
   beginHoisting();
   resetPendingDefinitions();
@@ -495,18 +499,24 @@ const renderModule = async (
     return finishPage(`${open}${inner}</${tag}>`, tag, seen);
   } finally {
     /**
-     * Said in every build: a render that ran out of time served a different page than the one its code describes. The
-     * commonest cause gets named — a `whenDefined` wait for a tag the server never defines (lazily loaded, client-only
-     * or unregistered here), which never settles in a browser either until the tag is defined there.
+     * Said in every build: a render that ran out of time served a different page than the one its code describes. It
+     * names the components still waiting — on a large page the page's own tag says nothing about where to look — and
+     * the commonest cause, a `whenDefined` wait for a tag the server never defines (lazily loaded, client-only or
+     * unregistered here), with its fix: RETURN before that wait on the server. That serves the component's state from
+     * before the wait, which is what a browser shows first, so hydration changes nothing. Skipping only the `await`
+     * serves the state after it instead, which the browser then replaces: measured, a visible flash.
      */
     if (isAsync && endBudget()) {
+      const list = (names: Iterable<string>) => [...names].map((name) => `<${name}>`).join(', ');
       const waits = pendingDefinitionNames();
       console.warn(
-        `[vera] ssr: <${tag}> was served after its ${timeout ?? DEFAULT_TIMEOUT} ms \`timeout\` with a promise it started still ` +
-          `pending (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered ` +
-          `by then.` +
+        `[vera] ssr: <${tag}> was served after its ${timeout ?? DEFAULT_TIMEOUT} ms \`timeout\` with a promise still pending` +
+          (timedOut.size ? ` in ${list(timedOut)}` : '') +
+          ` (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.` +
           (waits.length
-            ? ` Still waiting on customElements.whenDefined for ${waits.map((name) => `<${name}>`).join(', ')}, which the server never defined.`
+            ? ` Still waiting on customElements.whenDefined for ${list(waits)}, which the server never defined. If only the ` +
+              `browser defines it, return before that wait on the server — \`if (globalThis.__veraSsrShimmed) return;\` — ` +
+              `so the server serves what the component shows before the wait, as the browser does first.`
             : '') +
           ` Raise \`timeout\` if the wait is real, or find the promise that never settles.`
       );

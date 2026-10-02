@@ -12,4 +12,6 @@ later one, returns one promise per name until then, and rejects with a `SyntaxEr
 
 A wait for a tag the server never defines (one that is lazily loaded, client-only, or simply not registered on the
 server) therefore no longer resolves on the server either: `renderToStringAsync` ends it at its `timeout` and the
-warning names the tag. Await such a child only in the browser, or define it on the server too.
+warning names the tag and the component waiting on it, with the fix: return before the wait on the server
+(`if (globalThis.__veraSsrShimmed) return;`), which serves the component's state from before the wait, exactly what the
+browser shows first, at once and without a warning.

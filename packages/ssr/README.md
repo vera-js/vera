@@ -83,6 +83,25 @@ not the one its code describes, so raise `timeout` if the wait is real or find t
 There is deliberately no way to wait without limit: `timeout: 0` means wait for nothing, and the largest value is
 2147483647 ms.
 
+**A wait on a child only the browser defines costs the whole `timeout`, on every request** — and since renders take
+turns, every request queued behind it waits too. The warning names the component waiting and the child it waits on.
+Return before that wait on the server:
+
+```js
+async connectedCallback() {
+  init(this, { mode: 'open' });
+  render(() => html`<p>${state.ready ? 'map ready' : 'loading map'}</p><x-map></x-map>`);
+  if (globalThis.__veraSsrShimmed) return;   // the server serves the state before the wait
+  await customElements.whenDefined('x-map');
+  state.ready = true;
+}
+```
+
+That serves the component's state from before the wait, which is exactly what the browser shows first, so hydrating
+changes nothing — and it takes no time and prints no warning. Skipping only the `await`
+(`if (!globalThis.__veraSsrShimmed) await …`) serves the state *after* it, which the browser then replaces with its own
+starting state: a visible flash. A stand-in class defined on the server does the same.
+
 ## What runs, and when
 
 **The lifecycle runs the way it does in a browser.** The class is constructed through the registry,
