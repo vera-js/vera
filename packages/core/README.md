@@ -298,8 +298,8 @@ own guidance on repeated `connectedCallback` suggests — leaves effects torn do
 after a re-attach, and what it shows stays as it was.
 
 **A move is not a removal.** A component moved in ONE operation — `append` or `insertBefore` of an
-element that is already in the page, which is how a keyed list reorders, how light-DOM slots place a
-slotted component, and how most drag-and-drop libraries move — keeps everything: neither its own
+element that is already in the page, which is how a keyed list reorders and how light-DOM slots
+place a slotted component — keeps everything: neither its own
 `disconnectedCallback` nor its `connectedCallback` runs, its effects stay live, and nothing is set up
 twice. Core tells a move from a removal the way the platform lets it: a moved element is still
 connected when its `disconnectedCallback` runs. Taking the element out first (`remove()` then

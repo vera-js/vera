@@ -4,11 +4,11 @@
 
 A component moved by one DOM operation is no longer torn down and set up again — and core no longer touches custom elements that are not its own
 
-**Breaking for code that relied on a move re-running setup.** Moving a component that is already in the page in ONE
-operation — `append` or `insertBefore`, which is how a keyed list reorders, how light-DOM slots place a slotted
-component, and how most drag-and-drop libraries move — used to run its whole teardown and then its whole setup again:
+**Breaking for code that relied on a move re-running setup.** Moving a Vera component (one that ran `init()`) that
+is already in the page in ONE operation — `append` or `insertBefore`, which is how a keyed list reorders and how
+light-DOM slots place a slotted component — used to run its whole teardown and then its whole setup again:
 its effect cleanups, its `disconnectedCallback`, its `connectedCallback`, a second render, and a second fetch if it
-fetched in its setup. A component moved by one DOM operation is no longer re-rendered or set up again: neither
+fetched in its setup. A Vera component moved by one DOM operation is no longer re-rendered or set up again: neither
 callback runs, its effects stay live, and its state is untouched. Core tells a move from a removal the way the platform
 lets it — a moved element is still connected when its `disconnectedCallback` runs. A removal (`remove()`, or a hop
 through a `DocumentFragment`) tears down exactly as before, synchronously, and a move into another document (a
