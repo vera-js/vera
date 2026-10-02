@@ -14,8 +14,113 @@ import { parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
-import { StyleSheetShim } from './stylesheets.js';
+import { StyleSheetShim, toSheetSequence } from './stylesheets.js';
 import { registry } from './registry.js';
+
+/** A retained child: an element, a text node or a comment — the nodes a container keeps by reference. */
+type ChildShim = ElementShim | TextShim | CommentShim;
+
+/** One of a container's children: a retained node, or a chunk of markup held as a string. */
+type EntryShim = string | ChildShim;
+
+/** Any node of this DOM: a container (element, shadow root, fragment), a text node or a comment. */
+type NodeShim = ContainerShim | TextShim | CommentShim;
+
+/** What a `CharacterDataShim` always is: the base is never instantiated on its own. */
+type CharacterShim = TextShim | CommentShim;
+
+/**
+ * What the insertion methods take: a node to retain, or a fragment (or shadow root) whose children move
+ * in. Anything else reaches only the foreign-object fallback, which keeps its `innerHTML`.
+ */
+type InsertableShim = ChildShim | FragmentShim | ShadowRootShim;
+
+/**
+ * A node read by duck typing, the way this file's feature checks read one — `node.openTag` to ask "is
+ * this an element", `node.nodeType` to ask which kind it is. Every member is optional, because
+ * whether it is there is the question being asked.
+ */
+type DuckNode = {
+  readonly nodeType?: number;
+  readonly nodeName?: string;
+  readonly localName?: string;
+  readonly _attributes?: Map<string, string>;
+  readonly openTag?: () => string;
+  readonly innerHTML?: string;
+  readonly _rendered?: boolean;
+};
+
+/** The options a shadow root is opened with. `mode` is checked by `attachShadow`, not by the type. */
+type ShadowInit = {
+  mode?: ShadowRootMode;
+  delegatesFocus?: boolean;
+  clonable?: boolean;
+  serializable?: boolean;
+  slotAssignment?: SlotAssignmentMode;
+};
+
+/** An attribute node as `getAttributeNode` answers and `setAttributeNode` takes one. */
+type AttributeNodeShim = { name: string; value: unknown };
+
+/** What `attachInternals` hands back: inert, because none of what internals carry reaches markup. */
+type InternalsShim = {
+  shadowRoot: ShadowRootShim | null;
+  form: null;
+  labels: ElementShim[];
+  willValidate: boolean;
+  validity: { valid: boolean };
+  validationMessage: string;
+  states: Set<string>;
+  setFormValue: () => void;
+  setValidity: () => void;
+  checkValidity: () => boolean;
+  reportValidity: () => boolean;
+};
+
+/** A component's `attributeChangedCallback`. */
+type AttributeObserver = (name: string, previous: string | null, value: string | null) => void;
+
+/** An enumerated reflection: its known states, its answer when the attribute is missing, and when it is invalid. */
+type EnumeratedReflection = readonly [known: readonly string[], missing: string | null, invalid: string];
+
+/**
+ * A boolean reflection table: `['attribute', default]` where the default differs per property, or a bare
+ * attribute name whose default is `true`.
+ */
+type BooleanTable = Readonly<Record<string, string | readonly [attribute: string, fallback: boolean]>>;
+
+/**
+ * A markup chunk — a string entry — as a node-kind check reads it: `entry?.nodeType` is `undefined`
+ * on a string, so a loop asking every entry for its kind sees it as a node of no kind.
+ */
+type MarkupChunk = { readonly nodeType?: undefined };
+
+/** The `ShadowRootInit` flags that have a declarative attribute. */
+type ShadowFlag = 'delegatesFocus' | 'clonable' | 'serializable';
+
+/** An attribute as `attributes` lists it. */
+type AttributeShim = {
+  name: string;
+  value: string;
+  localName: string;
+  namespaceURI: null;
+  ownerElement: ElementShim;
+};
+
+/** `attributes`: an array of the attributes, carrying `NamedNodeMap`'s own methods. */
+interface NamedNodeMapShim extends Array<AttributeShim> {
+  getNamedItem(name: string): AttributeShim | null;
+  getNamedItemNS(namespace: string | null, name: string): AttributeShim | null;
+  item(index: number): AttributeShim | null;
+  setNamedItem(attribute: AttributeNodeShim): AttributeShim | null;
+  removeNamedItem(name: string): AttributeShim;
+}
+
+/** `childNodes`, `children` and the query results: an array, with `item()` and `namedItem()` on it. */
+interface CollectionShim<T> extends Array<T> {
+  item(index: number): T | null;
+  namedItem(name: string): T | null;
+}
 
 /**
  * The HTML namespace, which is what `createElement` produces and what almost everything here is.
@@ -56,7 +161,7 @@ const UNUSABLE_IN_A_TAG = /[\0-\x20"'<>/=\x7f]/;
  * `slotAssignment` has no declarative form at all; a component that needs it cannot be faithfully
  * server-rendered, and the README says so rather than pretending.
  */
-const SHADOW_ATTRIBUTES = [
+const SHADOW_ATTRIBUTES: ReadonlyArray<readonly [ShadowFlag, string]> = [
   ['delegatesFocus', 'shadowrootdelegatesfocus'],
   ['clonable', 'shadowrootclonable'],
   ['serializable', 'shadowrootserializable'],
@@ -88,34 +193,32 @@ const SHADOW_ATTRIBUTES = [
  * point of keeping it: a mutation made after `appendChild` is still on the node when this runs.
  * The expression is the one `appendChild` used to inline, unchanged, so the bytes are identical.
  */
-export const serializeElement = (element) =>
+export const serializeElement = (element: ElementShim): string =>
   VOID_ELEMENTS.has(element.localName)
     ? element.openTag()
     : element.openTag() + element.innerHTML + (element._sourceCloseTag ?? `</${element.localName}>`);
 
-const serializeEntry = (entry) =>
+const serializeEntry = (entry: EntryShim): string =>
   typeof entry === 'string'
     ? entry
     : typeof entry?.markup === 'function'
       ? entry.markup()
-      : (entry?.innerHTML ?? '');
+      : ((entry as DuckNode)?.innerHTML ?? '');
 
 /**
  * The attribute list, with the `NamedNodeMap` methods on it. A free function taking the element so
  * nothing has to alias `this`, and one cast because the methods are added to an array.
- *
- * @param {any} element
  */
-const namedNodeMap = (element) => {
-  const list = /** @type {any} */ (
-    [...element._attributes].map(([name, value]) => ({
+const namedNodeMap = (element: ElementShim): NamedNodeMapShim => {
+  const list = (
+    [...element._attributes].map(([name, value]): AttributeShim => ({
       name,
       value,
       localName: name,
       namespaceURI: null,
       ownerElement: element,
     }))
-  );
+  ) as NamedNodeMapShim;
   list.getNamedItem = (name) => list.find((entry) => entry.name === `${name}`.toLowerCase()) ?? null;
   list.getNamedItemNS = (_namespace, name) => list.getNamedItem(name);
   list.item = (index) => list[index] ?? null;
@@ -138,7 +241,8 @@ const namedNodeMap = (element) => {
 };
 
 /** A node this DOM keeps by reference, rather than inlining its markup — see `appendChild`. */
-const isNode = (value) => typeof value?.markup === 'function';
+const isNode = (value: unknown): value is ChildShim =>
+  typeof (value as { markup?: unknown } | null | undefined)?.markup === 'function';
 
 /**
  * The slot a node asks for. Text has no attributes, so it can only take the default slot.
@@ -154,10 +258,8 @@ const isNode = (value) => typeof value?.markup === 'function';
  * the rule is copied rather than shared — recorded here, as `@verajs/cms`'s `escapeHtml` records
  * the same choice, so nobody "fixes" it into a dependency and so a change to one is known to need
  * the other. `tests/ssr-slot-assignment-parity.test.mjs` fails if they ever disagree.
- *
- * @param {any} node
  */
-const slotNameOf = (node) =>
+const slotNameOf = (node: ChildShim): string | null =>
   node.nodeType === 3 ? '' : node.nodeType === 1 ? (node.getAttribute('slot') ?? '') : null;
 
 /**
@@ -168,10 +270,8 @@ const slotNameOf = (node) =>
  *
  * `flatten` falls back to the slot's own children when nothing is assigned, which is what makes it
  * the useful form: it answers "what will actually be shown here".
- *
- * @param {any} slot @param {{flatten?: boolean}} [options]
  */
-const assignedTo = (slot, options) => {
+const assignedTo = (slot: ElementShim, options?: { flatten?: boolean }): ChildShim[] => {
   const root = slot.getRootNode();
   const host = root?._host;
   if (!host) return options?.flatten ? nodesOf(slot) : [];
@@ -188,13 +288,16 @@ const assignedTo = (slot, options) => {
  *
  * A plain string becomes a text node, which is what the spec says and what makes
  * `node.after('some text')` do the obvious thing instead of nothing.
- *
- * @param {any} node @param {Array<any>} inserted @param {'before' | 'after' | 'replace'} where
  */
-const insertAround = (node, inserted, where) => {
+const insertAround = (
+  node: ContainerShim | CharacterDataShim,
+  inserted: Array<string | InsertableShim>,
+  where: 'before' | 'after' | 'replace'
+): void => {
   const parent = node._parent;
   if (!parent) return;
-  const reference = where === 'after' ? node.nextSibling : node;
+  /** A node with a parent is always one of the child kinds — shadow roots and fragments never get one. */
+  const reference = where === 'after' ? node.nextSibling : (node as ChildShim);
   for (const one of inserted)
     parent.insertBefore(typeof one === 'string' ? new TextShim(one) : one, reference);
   /**
@@ -205,7 +308,7 @@ const insertAround = (node, inserted, where) => {
    * Same root cause as the `after` case above: this helper treated `node` and `inserted` as disjoint,
    * and every operation here allows them to overlap.
    */
-  if (where === 'replace' && !inserted.includes(node)) parent.removeChild(node);
+  if (where === 'replace' && !inserted.includes(node as ChildShim)) parent.removeChild(node as ChildShim);
 };
 
 /**
@@ -216,18 +319,16 @@ const insertAround = (node, inserted, where) => {
  * A free function rather than a method so neither node has to be `this`: a shadow root and a
  * fragment are containers with no attributes and no `nodeName` of their own, and reaching for those
  * through `this` needs a cast that the lint rules and the type-checker disagree about.
- *
- * @param {any} a @param {any} b
  */
-const equalNodes = (a, b) => {
+const equalNodes = (a: DuckNode, b: DuckNode | null | undefined): boolean => {
   if (a === b) return true;
   if (!b || b.nodeType !== a.nodeType || b.nodeName !== a.nodeName) return false;
   const mine = a._attributes ?? new Map();
   const theirs = b._attributes ?? new Map();
   if (mine.size !== theirs.size) return false;
   for (const [name, value] of mine) if (theirs.get(name) !== value) return false;
-  const ours = nodesOf(a);
-  const others = nodesOf(b);
+  const ours = nodesOf(a as ContainerShim);
+  const others = nodesOf(b as ContainerShim);
   if (ours.length !== others.length) return false;
   return ours.every((child, index) => child.isEqualNode(others[index]));
 };
@@ -240,7 +341,7 @@ const equalNodes = (a, b) => {
  *
  * A chunk of markup this DOM could not parse has no nodes to walk, so it keeps the old treatment.
  */
-const textOf = (container) => {
+const textOf = (container: ContainerShim): string => {
   parseChunks(container);
   let out = '';
   for (const entry of container._entries) {
@@ -271,10 +372,10 @@ const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
  * was there before, plus a warning. That check is also what makes a parser defect cheap: a wrong
  * tree that does not round-trip is thrown away rather than served.
  */
-const parseChunks = (container) => {
+const parseChunks = (container: ContainerShim): void => {
   if (container._parsed) return;
   container._parsed = true;
-  const entries = [];
+  const entries: EntryShim[] = [];
   let gained = false;
   for (const entry of container._entries) {
     if (typeof entry !== 'string') {
@@ -282,9 +383,9 @@ const parseChunks = (container) => {
       continue;
     }
     const parsed = parseFragment(entry, {
-      element: (name) => build(name),
-      text: (data) => new TextShim(data),
-      comment: (data) => new CommentShim(data),
+      element: (name: string) => build(name),
+      text: (data: string) => new TextShim(data),
+      comment: (data: string) => new CommentShim(data),
     });
     let round = '';
     if (parsed) for (const node of parsed) round += serializeEntry(node);
@@ -315,8 +416,7 @@ const parseChunks = (container) => {
  * rather than `undefined`.
  */
 const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
-  /** @this {any[]} @param {number} index */
-  item(index) {
+  item(this: unknown[], index: number) {
     return this[index] ?? null;
   },
   /**
@@ -327,10 +427,8 @@ const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
    * Written the other way round first, from memory, and caught by comparing against a real DOM
    * instead of against the expectation. The two orders are indistinguishable unless one element
    * carries the `name` and a *later* one carries the `id`, which is why the fixture has exactly that.
-   *
-   * @this {any[]} @param {any} name
    */
-  namedItem(name) {
+  namedItem(this: Array<{ getAttribute?: (name: string) => string | null }>, name: string) {
     const wanted = `${name}`;
     return (
       this.find(
@@ -340,16 +438,16 @@ const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
   },
 });
 
-/** @param {any[]} list */
-const asCollection = (list) => {
+const asCollection = <T>(list: T[]): CollectionShim<T> => {
   Object.setPrototypeOf(list, COLLECTION_PROTOTYPE);
-  return list;
+  return list as CollectionShim<T>;
 };
 
 /** **Elements only** — what `children` and every element-wise accessor mean. */
-const elementsOf = (container) => asCollection(nodesOf(container).filter((node) => node.openTag));
+const elementsOf = (container: ContainerShim): CollectionShim<ElementShim> =>
+  asCollection(nodesOf(container).filter((node) => (node as DuckNode).openTag) as ElementShim[]);
 
-const nodesOf = (container) => {
+const nodesOf = (container: ContainerShim): ChildShim[] => {
   parseChunks(container);
   const nodes = container._entries.filter((entry) => typeof entry !== 'string');
   /**
@@ -405,45 +503,53 @@ const nodesOf = (container) => {
  * escaping its data the moment somebody writes to it.
  */
 class CharacterDataShim extends EventTarget {
-  constructor(data) {
+  declare _data: string;
+  /** The bytes a parsed node came from, until something writes to it. */
+  declare _source: string | null;
+  declare _parent: ContainerShim | null;
+  declare isConnected: boolean;
+  constructor(data: unknown) {
     super();
     this._data = `${data}`;
-    this._source = /** @type {string | null} */ (null);
-    this._parent = /** @type {any} */ (null);
+    this._source = null;
+    this._parent = null;
     this.isConnected = true;
   }
-  /**
-   * Registered here rather than on the platform's `EventTarget`; see `events.js`.
-   * @override
-   */
-  addEventListener(type, callback, options) {
+  /** Registered here rather than on the platform's `EventTarget`; see `events.js`. */
+  override addEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void {
     addListener(this, type, callback, options);
   }
-  /** @override */
-  removeEventListener(type, callback, options) {
+  override removeEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: EventListenerOptions | boolean
+  ): void {
     removeListener(this, type, callback, options);
   }
-  /** @override */
-  dispatchEvent(event) {
+  override dispatchEvent(event: Event): boolean {
     return dispatch(this, event);
   }
-  get data() {
+  get data(): string {
     return this._data;
   }
-  set data(value) {
+  set data(value: unknown) {
     this._data = `${value}`;
     this._source = null;
   }
   get nodeValue() {
     return this._data;
   }
-  set nodeValue(value) {
+  set nodeValue(value: unknown) {
     this.data = value;
   }
-  get textContent() {
+  get textContent(): string {
     return this._data;
   }
-  set textContent(value) {
+  set textContent(value: unknown) {
     this.data = value;
   }
   get length() {
@@ -452,10 +558,10 @@ class CharacterDataShim extends EventTarget {
   get parentNode() {
     return this._parent;
   }
-  get parentElement() {
-    return this._parent?.openTag ? this._parent : null;
+  get parentElement(): ElementShim | null {
+    return (this._parent as DuckNode | null)?.openTag ? (this._parent as ElementShim) : null;
   }
-  get childNodes() {
+  get childNodes(): ChildShim[] {
     return [];
   }
   get firstChild() {
@@ -470,75 +576,74 @@ class CharacterDataShim extends EventTarget {
   get ownerDocument() {
     return globalThis.document ?? null;
   }
-  get nextSibling() {
+  get nextSibling(): ChildShim | null {
     return this._siblingAt(1);
   }
-  get previousSibling() {
+  get previousSibling(): ChildShim | null {
     return this._siblingAt(-1);
   }
-  /** @param {number} step @param {(container: any) => Array<any>} view */
-  _siblingAt(step, view = nodesOf) {
+  _siblingAt(step: number, view: (container: ContainerShim) => ChildShim[] = nodesOf): ChildShim | null {
     if (!this._parent) return null;
     const siblings = view(this._parent);
-    const index = siblings.indexOf(this);
+    const index = (siblings as readonly unknown[]).indexOf(this);
     return index === -1 ? null : (siblings[index + step] ?? null);
   }
-  remove() {
+  remove(this: CharacterShim): void {
     this._parent?.removeChild(this);
   }
-  before(...nodes) {
+  before(...nodes: Array<string | InsertableShim>): void {
     insertAround(this, nodes, 'before');
   }
-  after(...nodes) {
+  after(...nodes: Array<string | InsertableShim>): void {
     insertAround(this, nodes, 'after');
   }
-  replaceWith(...nodes) {
+  replaceWith(...nodes: Array<string | InsertableShim>): void {
     insertAround(this, nodes, 'replace');
   }
-  isSameNode(node) {
+  isSameNode(node: unknown): boolean {
     return node === this;
   }
-  isEqualNode(node) {
+  isEqualNode(node: { readonly nodeType?: number; readonly data?: unknown } | null | undefined): boolean {
     /** `nodeType` is the subclass's — this base is never instantiated on its own. */
-    return node?.nodeType === /** @type {any} */ (this).nodeType && node?.data === this._data;
+    return node?.nodeType === (this as DuckNode).nodeType && node?.data === this._data;
   }
-  contains(node) {
+  contains(node: unknown): boolean {
     return node === this;
   }
-  getRootNode() {
+  getRootNode(): CharacterDataShim | ContainerShim {
     if (!this._parent) return this;
     let root = this._parent;
     while (root._parent) root = root._parent;
     return root;
   }
-  appendData(value) {
+  appendData(value: unknown): void {
     this.data = this._data + `${value}`;
   }
-  substringData(offset, count) {
+  substringData(offset: number, count: number): string {
     return this._data.substr(offset, count);
   }
 }
 
 export class TextShim extends CharacterDataShim {
-  get nodeType() {
+  get nodeType(): 3 {
     return 3;
   }
-  get nodeName() {
+  get nodeName(): '#text' {
     return '#text';
   }
-  get wholeText() {
+  get wholeText(): string {
     return this._data;
   }
-  markup() {
+  markup(): string {
     return this._source ?? escapeHtml(this._data);
   }
-  cloneNode() {
+  cloneNode(): TextShim {
     const copy = new TextShim(this._data);
     copy._source = this._source;
     return copy;
   }
   /** Splits at `offset`, leaving this node with the first half and inserting the second after it. */
-  splitText(offset) {
+  splitText(offset: number): TextShim {
     const tail = new TextShim(this._data.slice(offset));
     this.data = this._data.slice(0, offset);
     if (this._parent) this._parent.insertBefore(tail, this.nextSibling);
@@ -547,16 +652,16 @@ export class TextShim extends CharacterDataShim {
 }
 
 export class CommentShim extends CharacterDataShim {
-  get nodeType() {
+  get nodeType(): 8 {
     return 8;
   }
-  get nodeName() {
+  get nodeName(): '#comment' {
     return '#comment';
   }
-  markup() {
+  markup(): string {
     return this._source ?? `<!--${this._data}-->`;
   }
-  cloneNode() {
+  cloneNode(): CommentShim {
     const copy = new CommentShim(this._data);
     copy._source = this._source;
     return copy;
@@ -564,6 +669,16 @@ export class CommentShim extends CharacterDataShim {
 }
 
 export class ContainerShim extends EventTarget {
+  declare _entries: EntryShim[];
+  declare _parent: ContainerShim | null;
+  declare isConnected: boolean;
+  /** Whether the markup chunks have been looked at; see `parseChunks`. */
+  declare _parsed?: boolean;
+  /**
+   * A shadow root's host. Declared on the base because any chain's root is read for it — only
+   * `ShadowRootShim` sets it, and on every other container it is absent.
+   */
+  declare _host?: ElementShim | null;
   constructor() {
     super();
     /**
@@ -577,22 +692,25 @@ export class ContainerShim extends EventTarget {
     /** A server-rendered node is in the document being built, so it is connected. */
     this.isConnected = true;
   }
-  /**
-   * Registered here rather than on the platform's `EventTarget`; see `events.js`.
-   * @override
-   */
-  addEventListener(type, callback, options) {
+  /** Registered here rather than on the platform's `EventTarget`; see `events.js`. */
+  override addEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void {
     addListener(this, type, callback, options);
   }
-  /** @override */
-  removeEventListener(type, callback, options) {
+  override removeEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: EventListenerOptions | boolean
+  ): void {
     removeListener(this, type, callback, options);
   }
-  /** @override */
-  dispatchEvent(event) {
+  override dispatchEvent(event: Event): boolean {
     return dispatch(this, event);
   }
-  get innerHTML() {
+  get innerHTML(): string {
     /**
      * A void element's children exist in the DOM but never in its serialization — the HTML
      * serialization algorithm skips them, so engines answer `""` here even with children attached
@@ -602,12 +720,12 @@ export class ContainerShim extends EventTarget {
      * reading its own `innerHTML` got a different answer server-side. `localName` is undefined on
      * a fragment or shadow root, so the guard cannot fire off an element.
      */
-    if (VOID_ELEMENTS.has(/** @type {{ localName?: string }} */ (this).localName ?? '')) return '';
+    if (VOID_ELEMENTS.has((this as { localName?: string }).localName ?? '')) return '';
     let out = '';
     for (const entry of this._entries) out += serializeEntry(entry);
     return out;
   }
-  set innerHTML(markup) {
+  set innerHTML(markup: unknown) {
     for (const entry of this._entries) if (typeof entry !== 'string') entry._parent = null;
     /**
      * **`[LegacyNullToEmptyString]`** — `innerHTML` stores `''` for `null`, not the word `"null"`.
@@ -621,7 +739,27 @@ export class ContainerShim extends EventTarget {
     /** New markup has not been looked at yet, whatever was true of the markup it replaced. */
     this._parsed = false;
   }
-  appendChild(node) {
+  /**
+   * **Every insertion path places its nodes here, at `at`, replacing `replace` entries** — `appendChild`,
+   * `insertBefore` and `replaceChild` (and everything that routes through them: `before`, `after`, `replaceWith`,
+   * `prepend`, `append`). They each kept their own copy, and only `appendChild`'s knew that a FRAGMENT hands over its
+   * children and is left empty: `insertBefore` and `replaceChild` inserted a fragment as its markup, so the children
+   * never arrived where a browser puts them and the fragment still reported having them. And none of them noticed
+   * markup TEXT arriving after this container had been parsed, so a query never saw it: inserting text resets `_parsed`.
+   * The caller has already detached `node` from any parent.
+   */
+  _place(node: InsertableShim, at: number, replace: number): void {
+    let incoming: EntryShim[];
+    if (node.nodeType === 11) {
+      incoming = (node as FragmentShim)._entries;
+      (node as FragmentShim)._entries = [];
+    } else incoming = isNode(node) ? [node] : [(node as unknown as DuckNode)?.innerHTML ?? ''];
+    for (const entry of incoming)
+      if (isNode(entry)) entry._parent = this;
+      else this._parsed = false;
+    this._entries.splice(at, replace, ...incoming);
+  }
+  appendChild<T extends InsertableShim>(node: T): T {
     /**
      * **Not a node is a `TypeError`, as it is in a browser.** `appendChild(null)` was a silent no-op
      * here and throws in every engine, so `this.appendChild(maybeMissing)` — ordinary code —
@@ -635,13 +773,18 @@ export class ContainerShim extends EventTarget {
      * A registered component that has not rendered is marked, so the scan over this markup renders
      * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
      */
-    if (node?.openTag && registry.has(node.localName) && !node._rendered) markPending(node);
+    if (
+      (node as DuckNode)?.openTag &&
+      registry.has((node as ElementShim).localName) &&
+      !(node as ElementShim)._rendered
+    )
+      markPending(node as ElementShim);
     /**
      * **A node cannot contain itself.** Retaining nodes makes this reachable where inlining markup
      * never could: appending an ancestor into its own descendant would recurse forever the next
      * time anything read `innerHTML`. Every engine throws `HierarchyRequestError`.
      */
-    let contains = node === this;
+    let contains = node === (this as ContainerShim);
     for (let above = this._parent; above && !contains; above = above._parent)
       if (above === node) contains = true;
     if (contains)
@@ -649,31 +792,9 @@ export class ContainerShim extends EventTarget {
         `Failed to execute 'appendChild' on 'Node': The new child element contains the parent.`,
         'HierarchyRequestError'
       );
-    /**
-     * A node with no tag of its own — a fragment — contributes its markup exactly as it did before.
-     * Moving a fragment's children into this parent is the platform's behavior and is deliberately
-     * *not* step 1: it changes what `appendChild(fragment)` leaves behind.
-     */
-    /**
-     * **A fragment hands over its children and is left empty**, which is what a browser does and the
-     * whole point of the type. Its markup used to be inlined instead, so the fragment still reported
-     * the children it had supposedly given away.
-     */
-    if (node?.nodeType === 11) {
-      for (const entry of node._entries) {
-        if (isNode(entry)) entry._parent = this;
-        this._entries.push(entry);
-      }
-      node._entries = [];
-      return node;
-    }
-    if (!isNode(node)) {
-      this._entries.push(node?.innerHTML ?? '');
-      return node;
-    }
-    node._parent?._detach(node);
-    this._entries.push(node);
-    node._parent = this;
+    /** A fragment hands over its children and is left empty — see `_place`, which every insertion path shares. */
+    if (node.nodeType !== 11 && isNode(node)) node._parent?._detach(node);
+    this._place(node, this._entries.length, 0);
     return node;
   }
   /**
@@ -682,7 +803,7 @@ export class ContainerShim extends EventTarget {
    * rather than a silent append — the difference between "put it at the end" and "you asked about
    * a node I do not have" is exactly the kind of thing a server should not paper over.
    */
-  insertBefore(node, reference) {
+  insertBefore<T extends InsertableShim>(node: T, reference: ChildShim | null | undefined): T {
     if (node === null || typeof node !== 'object')
       throw new TypeError(
         `Failed to execute 'insertBefore' on 'Node': parameter 1 is not of type 'Node'.`
@@ -694,7 +815,7 @@ export class ContainerShim extends EventTarget {
           `inserted is not a child of this node.`,
         'NotFoundError'
       );
-    let contains = node === this;
+    let contains = node === (this as ContainerShim);
     for (let above = this._parent; above && !contains; above = above._parent)
       if (above === node) contains = true;
     if (contains)
@@ -721,14 +842,9 @@ export class ContainerShim extends EventTarget {
       reference = node.nextSibling;
       if (reference === null) return this.appendChild(node);
     }
-    if (!isNode(node)) {
-      this._entries.splice(this._entries.indexOf(reference), 0, node?.innerHTML ?? '');
-      return node;
-    }
-    node._parent?._detach(node);
+    if (node.nodeType !== 11 && isNode(node)) node._parent?._detach(node);
     /** Re-found after the detach: moving a node forwards within one parent shifts the index. */
-    this._entries.splice(this._entries.indexOf(reference), 0, node);
-    node._parent = this;
+    this._place(node, this._entries.indexOf(reference), 0);
     return node;
   }
   /**
@@ -742,7 +858,7 @@ export class ContainerShim extends EventTarget {
    * state to preserve on a server, so this is a move; having it means code written for the browser
    * runs here rather than hitting a missing method.
    */
-  moveBefore(node, reference) {
+  moveBefore<T extends InsertableShim>(node: T, reference: ChildShim | null | undefined): T {
     if (node === null || typeof node !== 'object')
       throw new TypeError(`Failed to execute 'moveBefore' on 'Node': parameter 1 is not of type 'Node'.`);
     if (!node._parent)
@@ -758,7 +874,7 @@ export class ContainerShim extends EventTarget {
       );
     return this.insertBefore(node, reference ?? null);
   }
-  replaceChild(node, old) {
+  replaceChild(node: InsertableShim, old: ChildShim): ChildShim {
     if (node === null || typeof node !== 'object')
       throw new TypeError(
         `Failed to execute 'replaceChild' on 'Node': parameter 1 is not of type 'Node'.`
@@ -780,7 +896,7 @@ export class ContainerShim extends EventTarget {
      * Found by fuzzing mutation *sequences* against jsdom — `ssr-tree-operations` covers this method
      * and could not see it, because the case needs a node and its own ancestor in one call.
      */
-    let contains = node === this;
+    let contains = node === (this as ContainerShim);
     for (let above = this._parent; above && !contains; above = above._parent) if (above === node) contains = true;
     if (contains)
       throw new DOMException(
@@ -799,14 +915,13 @@ export class ContainerShim extends EventTarget {
      * every one of these operations allows them to be the same.
      */
     const at = this._entries.indexOf(old);
-    node._parent?._detach(node);
+    /** Only a child kind has a parent to be detached from; a fragment's is always `null`. */
+    if (node.nodeType !== 11 && isNode(node)) node._parent?._detach(node);
     /** Re-found after the detach: moving a node forwards within one parent shifts the index. */
     const index = this._entries.indexOf(old);
-    const value = isNode(node) ? node : (node?.innerHTML ?? '');
-    if (index === -1) this._entries.splice(at, 0, value);
-    else this._entries.splice(index, 1, value);
-    if (isNode(node)) node._parent = this;
     if (old !== node) old._parent = null;
+    if (index === -1) this._place(node, at, 0);
+    else this._place(node, index, 1);
     return old;
   }
   /**
@@ -814,13 +929,13 @@ export class ContainerShim extends EventTarget {
    * root are `DISCONNECTED | IMPLEMENTATION_SPECIFIC` plus a direction the spec leaves to the
    * implementation, so only the disconnected bit is worth comparing across implementations.
    */
-  compareDocumentPosition(other) {
+  compareDocumentPosition(other: NodeShim): number {
     if (other === this) return 0;
     if (this.contains(other)) return 16 + 4;
     if (other.contains?.(this)) return 8 + 2;
-    const chain = (node) => {
-      const out = [];
-      for (let current = node; current; current = current._parent) out.unshift(current);
+    const chain = (node: NodeShim): NodeShim[] => {
+      const out: NodeShim[] = [];
+      for (let current: NodeShim | null = node; current; current = current._parent) out.unshift(current);
       return out;
     };
     const mine = chain(this);
@@ -828,11 +943,12 @@ export class ContainerShim extends EventTarget {
     if (mine[0] !== theirs[0]) return 1 + 32 + 2;
     let depth = 0;
     while (mine[depth] === theirs[depth]) depth++;
-    const siblings = nodesOf(mine[depth - 1]);
-    return siblings.indexOf(mine[depth]) < siblings.indexOf(theirs[depth]) ? 4 : 2;
+    /** The deepest common ancestor holds children, and the two nodes below it are among them. */
+    const siblings = nodesOf(mine[depth - 1] as ContainerShim);
+    return siblings.indexOf(mine[depth] as ChildShim) < siblings.indexOf(theirs[depth] as ChildShim) ? 4 : 2;
   }
   /** Remove a node from this container's entries without touching its own parent pointer. */
-  _detach(node) {
+  _detach(node: ChildShim): void {
     const index = this._entries.indexOf(node);
     if (index !== -1) this._entries.splice(index, 1);
   }
@@ -840,7 +956,7 @@ export class ContainerShim extends EventTarget {
    * **Absent until nodes were retained**, so `host.removeChild(kid)` was a `TypeError` — there was
    * nothing to remove, the child having been flattened into a string at append time.
    */
-  removeChild(node) {
+  removeChild<T extends ChildShim>(node: T): T {
     const index = this._entries.indexOf(node);
     if (index === -1)
       throw new DOMException(
@@ -861,20 +977,20 @@ export class ContainerShim extends EventTarget {
    * *absence* was a `TypeError` that took the whole render down — `this.parentElement && …` is
    * ordinary defensive code and it crashed.
    */
-  get parentNode() {
+  get parentNode(): ContainerShim | null {
     return this._parent;
   }
   /** `null` when the parent is not an element — a shadow root is a parent and not an element. */
-  get parentElement() {
-    return this._parent?.openTag ? this._parent : null;
+  get parentElement(): ElementShim | null {
+    return (this._parent as DuckNode | null)?.openTag ? (this._parent as ElementShim) : null;
   }
-  get firstChild() {
+  get firstChild(): ChildShim | null {
     return nodesOf(this)[0] ?? null;
   }
-  get lastChild() {
+  get lastChild(): ChildShim | null {
     return nodesOf(this).at(-1) ?? null;
   }
-  get lastElementChild() {
+  get lastElementChild(): ElementShim | null {
     return elementsOf(this).at(-1) ?? null;
   }
   /**
@@ -883,23 +999,25 @@ export class ContainerShim extends EventTarget {
    * `element.nextSibling` on the middle of three children reported nothing at all. There are no text
    * nodes in this DOM, so the element-wise and node-wise spellings answer the same list.
    */
-  get nextSibling() {
+  get nextSibling(): ChildShim | null {
     return this._siblingAt(1);
   }
-  get previousSibling() {
+  get previousSibling(): ChildShim | null {
     return this._siblingAt(-1);
   }
-  get nextElementSibling() {
+  get nextElementSibling(): ElementShim | null {
     return this._siblingAt(1, elementsOf);
   }
-  get previousElementSibling() {
+  get previousElementSibling(): ElementShim | null {
     return this._siblingAt(-1, elementsOf);
   }
-  /** @param {number} step @param {(container: any) => Array<any>} view */
-  _siblingAt(step, view = nodesOf) {
+  /** Node-wise by default; handed `elementsOf`, it steps over everything that is not an element. */
+  _siblingAt(step: number): ChildShim | null;
+  _siblingAt(step: number, view: (container: ContainerShim) => ElementShim[]): ElementShim | null;
+  _siblingAt(step: number, view: (container: ContainerShim) => ChildShim[] = nodesOf): ChildShim | null {
     if (!this._parent) return null;
     const siblings = view(this._parent);
-    const index = siblings.indexOf(this);
+    const index = (siblings as readonly unknown[]).indexOf(this);
     return index === -1 ? null : (siblings[index + step] ?? null);
   }
   /**
@@ -907,60 +1025,63 @@ export class ContainerShim extends EventTarget {
    * `slot` name — both of which are here. It answered `null` for every node, so a component asking
    * where its light DOM had landed was told "nowhere".
    */
-  get assignedSlot() {
-    const root = this._parent?._shadowRoot;
+  get assignedSlot(): ElementShim | null {
+    /** Only an element has a `_shadowRoot`, and only an element child is read for its slot. */
+    const root = (this._parent as ElementShim | null)?._shadowRoot;
     if (!root) return null;
-    const name = slotNameOf(this);
+    const name = slotNameOf(this as ContainerShim as ElementShim);
     return (
       root
         .querySelectorAll('slot')
-        .find((slot) => (slot.getAttribute('name') ?? '') === name) ?? null
+        .find((slot: ElementShim) => (slot.getAttribute('name') ?? '') === name) ?? null
     );
   }
-  get offsetParent() {
+  get offsetParent(): null {
     return null;
   }
-  get childElementCount() {
+  get childElementCount(): number {
     return elementsOf(this).length;
   }
-  hasChildNodes() {
+  hasChildNodes(): boolean {
     return nodesOf(this).length > 0;
   }
-  get nodeValue() {
+  get nodeValue(): null {
     return null;
   }
-  get baseURI() {
+  get baseURI(): string {
     return globalThis.location?.href ?? '';
   }
-  get namespaceURI() {
+  get namespaceURI(): string {
     return HTML_NS;
   }
-  get prefix() {
+  get prefix(): null {
     return null;
   }
-  get ownerDocument() {
-    return globalThis.document;
+  /** `null` before the environment exists, as its twin on the other node classes already answers. */
+  get ownerDocument(): Document | null {
+    return globalThis.document ?? null;
   }
   /**
    * **Walks the parent chain**, as the platform does. It compared identity only, so
    * `host.contains(child)` was `false` for a child the host plainly held — ordinary defensive code
    * reading as "this is not mine".
    */
-  contains(node) {
-    for (let current = node; current; current = current._parent) if (current === this) return true;
+  contains(node: NodeShim | null | undefined): boolean {
+    for (let current: NodeShim | null | undefined = node; current; current = current._parent)
+      if (current === this) return true;
     return false;
   }
   /** The `ChildNode` trio, shared with text and comments through `insertAround`. */
-  before(...nodes) {
+  before(...nodes: Array<string | InsertableShim>): void {
     insertAround(this, nodes, 'before');
   }
-  after(...nodes) {
+  after(...nodes: Array<string | InsertableShim>): void {
     insertAround(this, nodes, 'after');
   }
-  replaceWith(...nodes) {
+  replaceWith(...nodes: Array<string | InsertableShim>): void {
     insertAround(this, nodes, 'replace');
   }
-  isSameNode(node) {
+  isSameNode(node: unknown): boolean {
     return node === this;
   }
   /**
@@ -968,7 +1089,7 @@ export class ContainerShim extends EventTarget {
    * same thing, so two elements built identically reported themselves different. The spec compares
    * type, name, attributes as a set, and children pairwise.
    */
-  isEqualNode(node) {
+  isEqualNode(node: DuckNode | null | undefined): boolean {
     return equalNodes(this, node);
   }
   /**
@@ -976,10 +1097,11 @@ export class ContainerShim extends EventTarget {
    * there were no text nodes to merge — appending two of them left two entries a browser would have
    * joined into one, so `childNodes.length` disagreed after the most ordinary DOM building there is.
    */
-  normalize() {
+  normalize(): void {
     parseChunks(this);
-    const merged = [];
-    for (const entry of this._entries) {
+    /** A markup chunk is read for a `nodeType` it does not have, so it is typed as having none. */
+    const merged: Array<ChildShim | MarkupChunk> = [];
+    for (const entry of this._entries as Array<ChildShim | MarkupChunk>) {
       const previous = merged[merged.length - 1];
       if (entry?.nodeType === 3 && entry.data === '') continue;
       if (entry?.nodeType === 3 && previous?.nodeType === 3) {
@@ -989,14 +1111,14 @@ export class ContainerShim extends EventTarget {
       }
       merged.push(entry);
     }
-    this._entries = merged;
+    this._entries = merged as EntryShim[];
     for (const entry of merged) if (isNode(entry) && entry.nodeType === 1) entry.normalize();
   }
   /**
    * The furthest ancestor, which is the shadow root for anything a component rendered into one —
    * unless `composed` is asked for, which keeps going out through the root's host as a browser does.
    */
-  getRootNode(options) {
+  getRootNode(options?: { composed?: boolean }): ContainerShim {
     if (!this._parent) return this;
     let root = this._parent;
     for (;;) {
@@ -1006,13 +1128,13 @@ export class ContainerShim extends EventTarget {
     }
   }
   /** Needs layout, which a string does not have; a browser with no box returns nothing either. */
-  elementFromPoint() {
+  elementFromPoint(): null {
     return null;
   }
-  elementsFromPoint() {
+  elementsFromPoint(): ElementShim[] {
     return [];
   }
-  getSelection() {
+  getSelection(): null {
     return null;
   }
   /** `append` takes several nodes, and strings as text — the modern spelling of `appendChild`. */
@@ -1021,7 +1143,7 @@ export class ContainerShim extends EventTarget {
    * now reads every retained node back into text and writes it as one chunk — flattening the tree
    * this class exists to keep. Pushing the chunk is the same bytes and keeps the nodes.
    */
-  append(...nodes) {
+  append(...nodes: Array<string | InsertableShim>): void {
     for (const node of nodes) {
       if (typeof node === 'string') {
         this._entries.push(escapeHtml(node));
@@ -1030,7 +1152,7 @@ export class ContainerShim extends EventTarget {
       else this.appendChild(node);
     }
   }
-  replaceChildren(...nodes) {
+  replaceChildren(...nodes: Array<string | InsertableShim>): void {
     this.innerHTML = '';
     this.append(...nodes);
   }
@@ -1052,7 +1174,7 @@ export class ContainerShim extends EventTarget {
    * Found by fuzzing sequences of tree mutations against jsdom; the failing sequence ended
    * `prepend(n1, root)` and the loss showed up as a missing text node four operations later.
    */
-  prepend(...nodes) {
+  prepend(...nodes: Array<string | InsertableShim>): void {
     const existing = this._entries;
     this._entries = [];
     try {
@@ -1078,15 +1200,15 @@ export class ContainerShim extends EventTarget {
    * A selector this DOM cannot answer honestly throws rather than answering `null` — see
    * `select.js`.
    */
-  querySelector(selector) {
+  querySelector(selector: string): ElementShim | null {
     parseChunks(this);
     return select.querySelector(this, selector);
   }
-  querySelectorAll(selector) {
+  querySelectorAll(selector: string): CollectionShim<ElementShim> {
     parseChunks(this);
     return asCollection(select.querySelectorAll(this, selector));
   }
-  getElementById(id) {
+  getElementById(id: string): ElementShim | null {
     parseChunks(this);
     return select.querySelector(this, `[id="${`${id}`.replace(/"/gu, '\\"')}"]`);
   }
@@ -1095,13 +1217,13 @@ export class ContainerShim extends EventTarget {
    * and `childNodes` answer the same list — there are no text nodes to separate them, and markup
    * kept as a string is not nodes at all (`nodesOf` says so).
    */
-  get children() {
+  get children(): CollectionShim<ElementShim> {
     return elementsOf(this);
   }
-  get childNodes() {
+  get childNodes(): CollectionShim<ChildShim> {
     return asCollection(nodesOf(this));
   }
-  get firstElementChild() {
+  get firstElementChild(): ElementShim | null {
     return elementsOf(this)[0] ?? null;
   }
 }
@@ -1114,16 +1236,22 @@ export class ContainerShim extends EventTarget {
  * everything.
  */
 export class FragmentShim extends ContainerShim {
-  get nodeType() {
+  get nodeType(): 11 {
     return 11;
   }
-  get nodeName() {
+  get nodeName(): '#document-fragment' {
     return '#document-fragment';
   }
 }
 
 export class ShadowRootShim extends ContainerShim {
-  constructor(init) {
+  declare mode: ShadowRootMode;
+  declare _init: ShadowInit;
+  declare _host: ElementShim | null;
+  /** The text of the `<style>` elements appended here. */
+  declare _styles: string[];
+  declare _adopted?: StyleSheetShim[];
+  constructor(init: ShadowInit) {
     super();
     this.mode = init.mode ?? 'open';
     this._init = init;
@@ -1133,7 +1261,7 @@ export class ShadowRootShim extends ContainerShim {
     this._styles = [];
   }
   /** `shadowrootmode` plus whatever else the root was opened with, as the parser expects them. */
-  templateAttributes() {
+  templateAttributes(): string {
     let out = ` shadowrootmode="${this.mode}"`;
     for (const [option, attribute] of SHADOW_ATTRIBUTES) if (this._init[option]) out += ` ${attribute}=""`;
     return out;
@@ -1144,18 +1272,16 @@ export class ShadowRootShim extends ContainerShim {
    * Every append used to be treated as a stylesheet, on the assumption that only `adoptStyles`
    * would ever reach here. A component appending an element to its own shadow root — ordinary DOM
    * code — therefore had that element silently turned into CSS and its markup lost.
-   *
-   * @override
    */
-  appendChild(node) {
-    if (node?.localName === 'style') {
-      this._styles.push(node.innerHTML);
+  override appendChild<T extends InsertableShim>(node: T): T {
+    if ((node as DuckNode)?.localName === 'style') {
+      this._styles.push((node as ElementShim).innerHTML);
       return node;
     }
     return super.appendChild(node);
   }
   /** A shadow root's `host` is part of the contract `@verajs/router` reads. */
-  get host() {
+  get host(): ElementShim | null {
     return this._host;
   }
   /**
@@ -1165,46 +1291,46 @@ export class ShadowRootShim extends ContainerShim {
    * `attachShadow` reuses a declarative root and ignores the options it is handed. A component
    * that *reads* them back, to decide whether to manage focus itself, saw `undefined`.
    */
-  get delegatesFocus() {
+  get delegatesFocus(): boolean {
     return !!this._init.delegatesFocus;
   }
-  get clonable() {
+  get clonable(): boolean {
     return !!this._init.clonable;
   }
-  get serializable() {
+  get serializable(): boolean {
     return !!this._init.serializable;
   }
-  get slotAssignment() {
+  get slotAssignment(): SlotAssignmentMode {
     return this._init.slotAssignment ?? 'named';
   }
-  get nodeType() {
+  get nodeType(): 11 {
     return 11;
   }
-  get nodeName() {
+  get nodeName(): '#document-fragment' {
     return '#document-fragment';
   }
   /** Nothing is focused on a server, and nothing is in a top layer. */
-  get activeElement() {
+  get activeElement(): null {
     return null;
   }
-  get fullscreenElement() {
+  get fullscreenElement(): null {
     return null;
   }
-  get pointerLockElement() {
+  get pointerLockElement(): null {
     return null;
   }
-  get pictureInPictureElement() {
+  get pictureInPictureElement(): null {
     return null;
   }
   /** `<style>` elements appended here; the constructed ones are `adoptedStyleSheets`. */
-  get styleSheets() {
+  get styleSheets(): StyleSheetShim[] {
     return this._styles.map((cssText) => Object.assign(new StyleSheetShim(), { cssText }));
   }
   /** A shadow root's text is its content's text, and setting it replaces the content. */
-  get textContent() {
+  get textContent(): string {
     return textOf(this);
   }
-  set textContent(value) {
+  set textContent(value: unknown) {
     this.innerHTML = escapeHtml(value);
   }
   /**
@@ -1215,19 +1341,11 @@ export class ShadowRootShim extends ContainerShim {
    * `root.adoptedStyleSheets = sheet` — the single missing `[…]`, and the most likely way to get
    * this wrong — was accepted here and threw in the browser, after the server had already rendered.
    */
-  set adoptedStyleSheets(sheets) {
-    if (!Array.isArray(sheets))
-      throw new TypeError(
-        `Failed to set the 'adoptedStyleSheets' property: the provided value cannot be converted to a sequence.`
-      );
-    for (const sheet of sheets)
-      if (!(sheet instanceof StyleSheetShim))
-        throw new TypeError(
-          `Failed to set the 'adoptedStyleSheets' property: the provided value is not of type 'CSSStyleSheet'.`
-        );
-    this._adopted = sheets;
+  set adoptedStyleSheets(sheets: unknown) {
+    /** Any iterable of sheets, as the platform takes — see `toSheetSequence`; kept as an array of its own. */
+    this._adopted = toSheetSequence(sheets);
   }
-  get adoptedStyleSheets() {
+  get adoptedStyleSheets(): StyleSheetShim[] {
     return this._adopted ?? [];
   }
   /**
@@ -1238,7 +1356,7 @@ export class ShadowRootShim extends ContainerShim {
    * `content: "<some-comp>"` is enough — had that component **rendered inside the stylesheet**.
    * A scan for elements has no business reading a raw-text element.
    */
-  styleTags() {
+  styleTags(): string {
     const sheets = (this._adopted ?? []).map((sheet) => sheet.cssText ?? '');
     /**
      * **Text first, adopted sheets last — because that is the order the browser cascades them in.**
@@ -1273,7 +1391,7 @@ export class ShadowRootShim extends ContainerShim {
  * `booleans` are present/absent (`hidden`), the rest carry their value. `role` and the `aria-*`
  * family are ordinary string reflections; `tabIndex` is a number that still round-trips as text.
  */
-const dashedAria = (name) => `aria-${name.slice(4).toLowerCase()}`;
+const dashedAria = (name: string): string => `aria-${name.slice(4).toLowerCase()}`;
 
 /** Plain strings: the attribute's value, or `''` when it is absent. */
 const REFLECTED = {
@@ -1313,7 +1431,7 @@ const NULLABLE_REFLECTED = new Set(['role']);
  * implement that state yet and clamps it to `'manual'`. Following the majority is the lesser wrong,
  * and it cannot affect markup.
  */
-const ENUMERATED = {
+const ENUMERATED: Readonly<Record<string, EnumeratedReflection>> = {
   popover: [['auto', 'manual', 'hint'], null, 'manual'],
   autocapitalize: [['none', 'off', 'on', 'sentences', 'words', 'characters'], '', 'sentences'],
   enterKeyHint: [['enter', 'done', 'go', 'next', 'previous', 'search', 'send'], '', ''],
@@ -1344,10 +1462,10 @@ const REFLECTED_PRESENCE = { hidden: 'hidden', autofocus: 'autofocus', inert: 'i
  * and `spellcheck` as `true`. One shared rule gave both `true`, so `draggable` was wrong on every
  * element that had not set it, and `spellcheck` was right by accident.
  */
-const REFLECTED_TRUE_FALSE = { draggable: ['draggable', false], spellcheck: ['spellcheck', true] };
+const REFLECTED_TRUE_FALSE: BooleanTable = { draggable: ['draggable', false], spellcheck: ['spellcheck', true] };
 
 /** The one that spells its booleans differently. */
-const REFLECTED_YES_NO = { translate: 'translate' };
+const REFLECTED_YES_NO: BooleanTable = { translate: 'translate' };
 
 /** A number in JavaScript, its digits in the markup. */
 const REFLECTED_NUMBERS = { tabIndex: 'tabindex' };
@@ -1364,7 +1482,12 @@ const REFLECTED_NUMBERS = { tabIndex: 'tabindex' };
  * right and jsdom is loose, which is the usual direction.
  */
 const FOCUSABLE = new Set(['button', 'input', 'select', 'textarea', 'details', 'iframe', 'summary']);
-const CONDITIONALLY_FOCUSABLE = { a: 'href', area: 'href', audio: 'controls', video: 'controls' };
+const CONDITIONALLY_FOCUSABLE: Readonly<Record<string, string>> = {
+  a: 'href',
+  area: 'href',
+  audio: 'controls',
+  video: 'controls',
+};
 
 /**
  * `Node`'s numeric constants, and the measurements a box that was never laid out reports.
@@ -1399,12 +1522,8 @@ const LAYOUT_ZEROS = [
   'scrollWidth', 'scrollHeight', 'scrollLeftMax', 'scrollTopMax',
 ];
 
-/**
- * Installs the generated accessors onto the shim's prototype.
- *
- * @param {typeof ElementShim} Shim
- */
-const defineReflections = (Shim) => {
+/** Installs the generated accessors onto the shim's prototype. */
+const defineReflections = (Shim: typeof ElementShim): void => {
   for (const name of LAYOUT_ZEROS) Object.defineProperty(Shim.prototype, name, { value: 0, writable: true, configurable: true });
   /** Scroll offsets are writable and read back, which is what a scroll-restoring component does. */
   for (const name of ['scrollLeft', 'scrollTop'])
@@ -1421,7 +1540,7 @@ const defineReflections = (Shim) => {
    * about the mapping. The mapping itself is unanimous.
    */
   Object.defineProperty(Shim.prototype, 'isContentEditable', {
-    get() {
+    get(this: { readonly contentEditable: string }) {
       const state = this.contentEditable;
       return state === 'true' || state === 'plaintext-only';
     },
@@ -1429,7 +1548,7 @@ const defineReflections = (Shim) => {
   });
   for (const [property, attribute] of Object.entries(REFLECTED)) {
     Object.defineProperty(Shim.prototype, property, {
-      get() {
+      get(this: ElementShim) {
         /**
          * **`role` and `popover` are nullable and the rest are not.** Both are declared `DOMString?`,
          * so a browser answers `null` when the attribute is absent where `id` and `title` answer
@@ -1438,7 +1557,7 @@ const defineReflections = (Shim) => {
          */
         return this.getAttribute(attribute) ?? (NULLABLE_REFLECTED.has(property) ? null : '');
       },
-      set(value) {
+      set(this: ElementShim, value: unknown) {
         this.setAttribute(attribute, value);
       },
       configurable: true,
@@ -1447,7 +1566,7 @@ const defineReflections = (Shim) => {
   for (const [property, attribute] of Object.entries(ENUMERATED_ATTRIBUTES)) {
     const [known, missing, invalid] = ENUMERATED[property];
     Object.defineProperty(Shim.prototype, property, {
-      get() {
+      get(this: ElementShim) {
         const raw = this.getAttribute(attribute);
         if (raw === null) return missing;
         /** Enumerated attributes are ASCII case-insensitive and the getter answers canonically. */
@@ -1455,7 +1574,7 @@ const defineReflections = (Shim) => {
         return known.includes(state) ? state : invalid;
       },
       /** The setter writes what it is given; only the getter maps to a state. */
-      set(value) {
+      set(this: ElementShim, value: unknown) {
         this.setAttribute(attribute, value);
       },
       configurable: true,
@@ -1468,14 +1587,14 @@ const defineReflections = (Shim) => {
    * same as `'inherit'`, though the attribute *being* empty reads back as `'true'`.
    */
   Object.defineProperty(Shim.prototype, 'contentEditable', {
-    get() {
+    get(this: ElementShim) {
       const raw = this.getAttribute('contenteditable');
       if (raw === null) return 'inherit';
       const state = raw.toLowerCase();
       if (state === '') return 'true';
       return CONTENT_EDITABLE_STATES.includes(state) ? state : 'inherit';
     },
-    set(value) {
+    set(this: ElementShim, value: unknown) {
       const state = `${value}`.toLowerCase();
       if (state === 'inherit') {
         this.removeAttribute('contenteditable');
@@ -1493,10 +1612,10 @@ const defineReflections = (Shim) => {
   });
   for (const [property, attribute] of Object.entries(REFLECTED_PRESENCE)) {
     Object.defineProperty(Shim.prototype, property, {
-      get() {
+      get(this: ElementShim) {
         return this.hasAttribute(attribute);
       },
-      set(value) {
+      set(this: ElementShim, value: unknown) {
         if (value) this.setAttribute(attribute, '');
         else this.removeAttribute(attribute);
       },
@@ -1506,16 +1625,16 @@ const defineReflections = (Shim) => {
   for (const [words, table] of [
     [['true', 'false'], REFLECTED_TRUE_FALSE],
     [['yes', 'no'], REFLECTED_YES_NO],
-  ]) {
+  ] as ReadonlyArray<readonly [words: readonly [string, string], table: BooleanTable]>) {
     for (const [property, entry] of Object.entries(table)) {
       /** `['attribute', default]` where the default differs per property; a bare string means `true`. */
       const [attribute, fallback] = Array.isArray(entry) ? entry : [entry, true];
       Object.defineProperty(Shim.prototype, property, {
-        get() {
+        get(this: ElementShim) {
           const written = this.getAttribute(attribute);
           return written === null ? fallback : written !== words[1];
         },
-        set(value) {
+        set(this: ElementShim, value: unknown) {
           this.setAttribute(attribute, value ? words[0] : words[1]);
         },
         configurable: true,
@@ -1524,13 +1643,13 @@ const defineReflections = (Shim) => {
   }
   for (const [property, attribute] of Object.entries(REFLECTED_NUMBERS)) {
     Object.defineProperty(Shim.prototype, property, {
-      get() {
+      get(this: ElementShim) {
         const written = this.getAttribute(attribute);
         if (written !== null) return Number(written);
         const conditional = CONDITIONALLY_FOCUSABLE[this.localName];
         return FOCUSABLE.has(this.localName) || (conditional && this.hasAttribute(conditional)) ? 0 : -1;
       },
-      set(value) {
+      set(this: ElementShim, value: unknown) {
         this.setAttribute(attribute, Number(value));
       },
       configurable: true,
@@ -1539,10 +1658,10 @@ const defineReflections = (Shim) => {
   for (const property of ARIA_PROPERTIES) {
     const attribute = dashedAria(property);
     Object.defineProperty(Shim.prototype, property, {
-      get() {
+      get(this: ElementShim) {
         return this.getAttribute(attribute);
       },
-      set(value) {
+      set(this: ElementShim, value: unknown) {
         if (value == null) this.removeAttribute(attribute);
         else this.setAttribute(attribute, value);
       },
@@ -1573,17 +1692,23 @@ const ARIA_PROPERTIES = [
  * Read through a cast rather than declared as a field: a field in this base class would be an own
  * property set to `undefined`, which shadows the subclass's method and silently switches observed
  * attributes back off — the very thing this exists to deliver.
- *
- * @param {ElementShim} element
- * @return {((name: string, previous: string | null, value: string | null) => void) | undefined}
  */
-const observerOf = (element) =>
-  /** @type {{ attributeChangedCallback?: (name: string, previous: string | null, value: string | null) => void }} */ (
-    element
-  ).attributeChangedCallback;
+const observerOf = (element: ElementShim): AttributeObserver | undefined =>
+  (element as { attributeChangedCallback?: AttributeObserver }).attributeChangedCallback;
 
 export class ElementShim extends ContainerShim {
-  constructor(localName = '', namespaceURI = HTML_NS) {
+  declare _ns: string;
+  declare localName: string;
+  declare _attributes: Map<string, string>;
+  declare _shadowRoot: ShadowRootShim | null;
+  declare _sourceOpenTag: string | null;
+  declare _sourceCloseTag: string | null;
+  /** The component's `observedAttributes`, read at `upgrade`. */
+  declare _observed?: readonly string[];
+  declare _upgraded?: boolean;
+  /** Set by `renderComponent` once this instance has rendered. */
+  declare _rendered?: boolean;
+  constructor(localName: string = '', namespaceURI: string = HTML_NS) {
     super();
     this._ns = namespaceURI;
     this.localName = localName;
@@ -1596,11 +1721,10 @@ export class ElementShim extends ContainerShim {
      * `createElement`. Declared here so every element has the same shape — and so a type-checker
      * knows about a field the parser is what assigns.
      */
-    this._sourceOpenTag = /** @type {string | null} */ (null);
-    this._sourceCloseTag = /** @type {string | null} */ (null);
+    this._sourceOpenTag = null;
+    this._sourceCloseTag = null;
   }
-  /** @override */
-  get namespaceURI() {
+  override get namespaceURI(): string {
     return this._ns;
   }
   /**
@@ -1613,7 +1737,7 @@ export class ElementShim extends ContainerShim {
    * attribute handed in as `{ 'User-ID': … }` never matched an `observedAttributes` entry, so
    * `attributeChangedCallback` simply did not fire.
    */
-  _name(name) {
+  _name(name: unknown): string {
     /**
      * **Template coercion, not `String()`** — the difference is a symbol, which `String()` answers
      * `'Symbol(s)'` for and which every engine refuses with a `TypeError` (recorded across all
@@ -1630,7 +1754,7 @@ export class ElementShim extends ContainerShim {
    * it still has to be serialized — declarative shadow DOM expresses `closed` perfectly well
    * (`<template shadowrootmode="closed">`) and the client's parser re-creates it just as hidden.
    */
-  get shadowRoot() {
+  get shadowRoot(): ShadowRootShim | null {
     return this._shadowRoot?.mode === 'closed' ? null : this._shadowRoot;
   }
   /**
@@ -1640,7 +1764,7 @@ export class ElementShim extends ContainerShim {
    * `@verajs/core` already guards against calling this twice *because* the browser throws; the shim
    * accepting it meant the server was the one place that guard was not being checked.
    */
-  attachShadow(init = {}) {
+  attachShadow(init: ShadowInit = {}): ShadowRootShim {
     if (init.mode !== 'open' && init.mode !== 'closed')
       throw new TypeError("Failed to execute 'attachShadow' on 'Element': Failed to read the 'mode' property from 'ShadowRootInit': Required member is undefined.");
     if (this._shadowRoot)
@@ -1652,11 +1776,11 @@ export class ElementShim extends ContainerShim {
     this._shadowRoot._host = this;
     return this._shadowRoot;
   }
-  getAttribute(name) {
+  getAttribute(name: string): string | null {
     name = this._name(name);
-    return this._attributes.has(name) ? this._attributes.get(name) : null;
+    return this._attributes.has(name) ? this._attributes.get(name)! : null;
   }
-  setAttribute(name, value) {
+  setAttribute(name: string, value: unknown): void {
     name = this._name(name);
     /**
      * **A name the platform refuses is refused here**, because the alternative is worse than a
@@ -1673,7 +1797,7 @@ export class ElementShim extends ContainerShim {
     this._attributes.set(name, `${value}`);
     this._attributeChanged(name, previous);
   }
-  hasAttribute(name) {
+  hasAttribute(name: string): boolean {
     return this._attributes.has(this._name(name));
   }
   /**
@@ -1681,7 +1805,7 @@ export class ElementShim extends ContainerShim {
    * no write, no callback. This used to reset the value to `''` on `toggleAttribute(name, true)`
    * for an attribute that was already there, which silently erased it.
    */
-  toggleAttribute(name, force) {
+  toggleAttribute(name: string, force?: boolean): boolean {
     name = this._name(name);
     if (name === '' || UNUSABLE_IN_A_NAME.test(name))
       throw new DOMException(
@@ -1691,9 +1815,11 @@ export class ElementShim extends ContainerShim {
     const present = this._attributes.has(name);
     const wanted = force ?? !present;
     if (wanted === present) return wanted;
+    /** The OLD value, read before the change: it was read after the delete, so a removal reported `null` -> `null`. */
+    const old = this.getAttribute(name);
     if (wanted) this._attributes.set(name, '');
     else this._attributes.delete(name);
-    this._attributeChanged(name, wanted ? null : this.getAttribute(name));
+    this._attributeChanged(name, old);
     return wanted;
   }
 
@@ -1706,8 +1832,8 @@ export class ElementShim extends ContainerShim {
    * its *initial* state into the page and then corrected itself on the client — a hydration
    * mismatch on every such component, and a flash of the wrong content for anyone without JS.
    */
-  upgrade() {
-    this._observed = /** @type {{ observedAttributes?: string[] }} */ (this.constructor).observedAttributes;
+  upgrade(): void {
+    this._observed = (this.constructor as { observedAttributes?: string[] }).observedAttributes;
     this._upgraded = true;
     const changed = observerOf(this);
     if (!this._observed || !changed) return;
@@ -1725,7 +1851,7 @@ export class ElementShim extends ContainerShim {
    * an element mid-upgrade has no observers yet, and one that observes nothing never reaches the
    * `includes`.
    */
-  _attributeChanged(name, previous) {
+  _attributeChanged(name: string, previous: string | null): void {
     /**
      * **A written element stops being its source text.** A parsed element serves the bytes it came
      * from so a parse can reproduce the page exactly; the moment an attribute changes, those bytes
@@ -1748,10 +1874,10 @@ export class ElementShim extends ContainerShim {
    * `attributes.getNamedItem('x')` is how a good deal of existing code reads an attribute, and it
    * was simply missing, so that code got a `TypeError` on the server and worked in a browser.
    */
-  get attributes() {
+  get attributes(): NamedNodeMapShim {
     return namedNodeMap(this);
   }
-  getAttributeNames() {
+  getAttributeNames(): string[] {
     return [...this._attributes.keys()];
   }
 
@@ -1760,10 +1886,10 @@ export class ElementShim extends ContainerShim {
    * through to the attribute they are a view of. A plain object would accept the assignment and
    * lose it.
    */
-  get dataset() {
+  get dataset(): ReturnType<typeof datasetView> {
     return datasetView(this);
   }
-  get style() {
+  get style(): ReturnType<typeof styleView> {
     return styleView(this);
   }
   /**
@@ -1774,10 +1900,10 @@ export class ElementShim extends ContainerShim {
    * reflected it — the exact server/client divergence the differential rule exists to catch.
    * `[LegacyNullToEmptyString]` rides the same IDL attribute, so `null` means `''`.
    */
-  set style(value) {
-    /** @type {{ cssText: string }} */ (styleView(this)).cssText = value === null ? '' : `${value}`;
+  set style(value: unknown) {
+    styleView(this).cssText = value === null ? '' : `${value}`;
   }
-  removeAttribute(name) {
+  removeAttribute(name: string): void {
     name = this._name(name);
     if (!this._attributes.has(name)) return;
     const previous = this.getAttribute(name);
@@ -1796,20 +1922,20 @@ export class ElementShim extends ContainerShim {
    *
    * They answer the way a detached, childless element would, because that is what this is.
    */
-  get tagName() {
+  get tagName(): string {
     return this.localName.toUpperCase();
   }
-  get nodeType() {
+  get nodeType(): 1 {
     return 1;
   }
-  get nodeName() {
+  get nodeName(): string {
     return this.tagName;
   }
   /** Walks the real parent chain, which exists now that children are nodes. */
-  closest(selector) {
+  closest(selector: string): ElementShim | null {
     return select.closest(this, selector);
   }
-  matches(selector) {
+  matches(selector: string): boolean {
     return select.matches(this, selector);
   }
   /**
@@ -1817,7 +1943,7 @@ export class ElementShim extends ContainerShim {
    * markup, so there was no parent to ask and nothing to take out. It silently left the element on
    * the page.
    */
-  remove() {
+  remove(): void {
     this._parent?.removeChild(this);
   }
   /**
@@ -1825,11 +1951,11 @@ export class ElementShim extends ContainerShim {
    * markup — which it now can, because the opening tag is written from these attributes rather
    * than copied from the source text.
    */
-  get classList() {
+  get classList(): ReturnType<typeof tokenListView> {
     return tokenListView(this, 'class');
   }
   /** `[PutForwards=value]`, for the same reason as `part`. */
-  set classList(value) {
+  set classList(value: unknown) {
     this.setAttribute('class', value);
   }
 
@@ -1847,10 +1973,10 @@ export class ElementShim extends ContainerShim {
   getBoundingClientRect() {
     return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
   }
-  getClientRects() {
+  getClientRects(): never[] {
     return [];
   }
-  checkVisibility() {
+  checkVisibility(): boolean {
     return false;
   }
   /**
@@ -1861,12 +1987,12 @@ export class ElementShim extends ContainerShim {
    * "already recorded" while the README said nothing about it — the difference is written down now,
    * along with the `item()`/`namedItem()` half of it that was a side effect rather than a decision.)
    */
-  getElementsByTagName(name) {
+  getElementsByTagName(name: string): ElementShim[] {
     parseChunks(this);
     const wanted = `${name}`.toLowerCase();
     return select.descendantsOf(this).filter((element) => wanted === '*' || element.localName === wanted);
   }
-  getElementsByTagNameNS(namespace, name) {
+  getElementsByTagNameNS(namespace: string | null, name: string): ElementShim[] {
     parseChunks(this);
     const wanted = `${name}`.toLowerCase();
     const ns = `${namespace}`;
@@ -1877,7 +2003,7 @@ export class ElementShim extends ContainerShim {
           (wanted === '*' || element.localName === wanted) && (ns === '*' || element.namespaceURI === ns)
       );
   }
-  getElementsByClassName(names) {
+  getElementsByClassName(names: string): ElementShim[] {
     parseChunks(this);
     const wanted = `${names}`.split(/\s+/u).filter(Boolean);
     if (!wanted.length) return [];
@@ -1891,43 +2017,43 @@ export class ElementShim extends ContainerShim {
    * `xml:lang` or `xlink:href` is one attribute with a colon in its name — which is how the
    * serializer already treats it, and how the markup reads it back.
    */
-  getAttributeNS(_namespace, name) {
+  getAttributeNS(_namespace: string | null, name: string): string | null {
     return this.getAttribute(name);
   }
-  setAttributeNS(_namespace, name, value) {
+  setAttributeNS(_namespace: string | null, name: string, value: unknown): void {
     this.setAttribute(name, value);
   }
-  hasAttributeNS(_namespace, name) {
+  hasAttributeNS(_namespace: string | null, name: string): boolean {
     return this.hasAttribute(name);
   }
-  removeAttributeNS(_namespace, name) {
+  removeAttributeNS(_namespace: string | null, name: string): void {
     this.removeAttribute(name);
   }
-  hasAttributes() {
+  hasAttributes(): boolean {
     return this._attributes.size > 0;
   }
-  getAttributeNode(name) {
+  getAttributeNode(name: string): AttributeNodeShim | null {
     return this.hasAttribute(name) ? { name, value: this.getAttribute(name) } : null;
   }
-  getAttributeNodeNS(_namespace, name) {
+  getAttributeNodeNS(_namespace: string | null, name: string): AttributeNodeShim | null {
     return this.getAttributeNode(name);
   }
-  setAttributeNode(node) {
+  setAttributeNode(node: AttributeNodeShim): null {
     this.setAttribute(node.name, node.value);
     return null;
   }
-  setAttributeNodeNS(node) {
+  setAttributeNodeNS(node: AttributeNodeShim): null {
     return this.setAttributeNode(node);
   }
-  removeAttributeNode(node) {
+  removeAttributeNode<T extends AttributeNodeShim>(node: T): T {
     this.removeAttribute(node.name);
     return node;
   }
   /** Aliases the engines still carry. */
-  webkitMatchesSelector() {
+  webkitMatchesSelector(): boolean {
     return false;
   }
-  mozMatchesSelector() {
+  mozMatchesSelector(): boolean {
     return false;
   }
   /**
@@ -1936,15 +2062,15 @@ export class ElementShim extends ContainerShim {
    * `click()` is the exception: it *dispatches an event*, and now that listeners are real, a
    * component that clicks itself to seed its own state gets the same result on both sides.
    */
-  focus() {}
-  blur() {}
-  click() {
+  focus(): void {}
+  blur(): void {}
+  click(): void {
     this.dispatchEvent(new globalThis.Event('click', { bubbles: true, cancelable: true, composed: true }));
   }
-  scrollIntoView() {}
-  scroll() {}
-  scrollTo() {}
-  scrollBy() {}
+  scrollIntoView(): void {}
+  scroll(): void {}
+  scrollTo(): void {}
+  scrollBy(): void {}
 
   /**
    * All four positions. `beforebegin`/`afterend` used to be refused outright on the claim that
@@ -1962,7 +2088,7 @@ export class ElementShim extends ContainerShim {
    * does not would render one page and hydrate into another. `insertAdjacentText` escapes, which is
    * the difference between the two methods and the one to reach for with anything from a request.
    */
-  insertAdjacentHTML(position, markup) {
+  insertAdjacentHTML(position: string, markup: unknown): void {
     const where = `${position}`.toLowerCase();
     if (where === 'afterbegin' || where === 'beforeend') {
       if (where === 'afterbegin') this._entries.unshift(`${markup}`);
@@ -1988,15 +2114,15 @@ export class ElementShim extends ContainerShim {
       parent._parsed = false;
     }
   }
-  insertAdjacentText(position, text) {
+  insertAdjacentText(position: string, text: unknown): void {
     this.insertAdjacentHTML(position, escapeHtml(text));
   }
-  insertAdjacentElement(position, element) {
+  insertAdjacentElement<T extends ElementShim>(position: string, element: T): T {
     this.insertAdjacentHTML(position, serializeElement(element));
     return element;
   }
   /** The element's own markup, which the serializer builds anyway. */
-  get outerHTML() {
+  get outerHTML(): string {
     return serializeElement(this);
   }
   /**
@@ -2008,14 +2134,14 @@ export class ElementShim extends ContainerShim {
    * do — measured, because the obvious guess was a `NoModificationAllowedError` and that is wrong:
    * the spec raises it only when the parent is a *Document*, not when there is no parent at all.
    */
-  set outerHTML(markup) {
+  set outerHTML(markup: unknown) {
     const parent = this._parent;
     if (!parent) return;
     parent._entries.splice(parent._entries.indexOf(this), 1, `${markup}`);
     parent._parsed = false;
     this._parent = null;
   }
-  get innerText() {
+  get innerText(): string {
     return this.textContent;
   }
   /**
@@ -2029,11 +2155,11 @@ export class ElementShim extends ContainerShim {
    * Measured on Chromium, Firefox and WebKit, attached and detached, in
    * `tests/browser/inner-text.test.js`.
    */
-  set innerText(value) {
+  set innerText(value: unknown) {
     this.innerHTML = `${value}`.split(/\r\n|[\r\n]/u).map(escapeHtml).join('<br>');
   }
   /** `part` is a token list over the `part` attribute, exactly as `classList` is over `class`. */
-  get part() {
+  get part(): ReturnType<typeof tokenListView> {
     return tokenListView(this, 'part');
   }
   /**
@@ -2043,7 +2169,7 @@ export class ElementShim extends ContainerShim {
    * refuses what the browser performs, which is the same failure as being too permissive with the
    * direction reversed.
    */
-  set part(value) {
+  set part(value: unknown) {
     this.setAttribute('part', value);
   }
 
@@ -2056,7 +2182,7 @@ export class ElementShim extends ContainerShim {
    * internal state), so this is inert by design rather than by omission: the component runs, and
    * the client's real internals take over on hydration.
    */
-  attachInternals() {
+  attachInternals(): InternalsShim {
     /**
      * **Only a custom element has internals.** Every engine raises `NotSupportedError` for a plain
      * element, because `ElementInternals` is the mechanism by which a *defined* element joins a form
@@ -2087,7 +2213,7 @@ export class ElementShim extends ContainerShim {
       checkValidity: () => true,
       reportValidity: () => true,
     });
-    return internals.get(this);
+    return internals.get(this)!;
   }
 
   /**
@@ -2103,7 +2229,7 @@ export class ElementShim extends ContainerShim {
    * markup string would alias it; entries are an array now, so a deep clone copies them. The source
    * text rides along, so a cloned subtree still reproduces the markup it was parsed from.
    */
-  cloneNode(deep = false) {
+  cloneNode(deep: boolean = false): ElementShim {
     const copy = createElement(this.localName, this._ns);
     for (const [name, value] of this._attributes) copy.setAttribute(name, value);
     copy._sourceOpenTag = this._sourceOpenTag;
@@ -2130,18 +2256,18 @@ export class ElementShim extends ContainerShim {
    * answered yes for a `<div>`. Being present where the platform has nothing is the same kind of
    * divergence as answering wrongly, and it is the one a feature check walks straight into.
    */
-  get assignedNodes() {
+  get assignedNodes(): ((options?: { flatten?: boolean }) => ChildShim[]) | undefined {
     if (this.localName !== 'slot') return undefined;
     return (options) => assignedTo(this, options);
   }
-  get assignedElements() {
+  get assignedElements(): ((options?: { flatten?: boolean }) => ElementShim[]) | undefined {
     if (this.localName !== 'slot') return undefined;
     return (options) => assignedTo(this, options).filter((node) => node.nodeType === 1);
   }
-  markup() {
+  markup(): string {
     return serializeElement(this);
   }
-  openTag() {
+  openTag(): string {
     /**
      * **The bytes it was parsed from**, until something writes to it. That is what lets a parsed
      * tree reproduce its own markup exactly — quoting style, entity spelling, attribute order and
@@ -2162,7 +2288,7 @@ export class ElementShim extends ContainerShim {
    * broken. Only the numeric references the setter emits need undoing; anything else in there came
    * from author markup and is text as written.
    */
-  get textContent() {
+  get textContent(): string {
     return textOf(this);
   }
   /**
@@ -2181,7 +2307,7 @@ export class ElementShim extends ContainerShim {
    * which meant `this.textContent = maybeMissing` put the word on the page server-side and nothing
    * client-side: a hydration mismatch produced by ordinary defensive code.
    */
-  set textContent(value) {
+  set textContent(value: unknown) {
     const text = value == null ? '' : value;
     this.innerHTML = RAW_TEXT_ELEMENTS.has(this.localName) ? String(text) : escapeHtml(text);
   }
@@ -2202,12 +2328,12 @@ export class ElementShim extends ContainerShim {
  * Only HTML elements get one. An SVG element's properties are a different interface again, and
  * guessing at them is what this whole file exists not to do.
  */
-const build = (name, namespaceURI = HTML_NS) => {
+const build = (name: string, namespaceURI: string = HTML_NS): ElementShim => {
   const Element = namespaceURI === HTML_NS ? interfaceFor(name, ElementShim) : ElementShim;
   return new Element(name, namespaceURI);
 };
 
-export const createElement = (localName, namespaceURI = HTML_NS) => {
+export const createElement = (localName: unknown, namespaceURI: string = HTML_NS): ElementShim => {
   const name = namespaceURI === HTML_NS ? `${localName}`.toLowerCase() : `${localName}`;
   /**
    * **A tag name that cannot be written is refused**, as it is in every engine. Accepting one meant
@@ -2222,7 +2348,8 @@ export const createElement = (localName, namespaceURI = HTML_NS) => {
     );
   const Component = registry.get(name);
   if (!Component) return build(name, namespaceURI);
-  const element = new Component();
+  /** Constructed against the installed globals, so a component's `HTMLElement` base is `ElementShim`. */
+  const element = new Component() as unknown as ElementShim;
   element.localName = name;
   element._ns = namespaceURI;
   return element;
@@ -2238,7 +2365,7 @@ export const createElement = (localName, namespaceURI = HTML_NS) => {
  * lost, because an attribute cannot carry it and a fresh instance never saw it. The marker attribute
  * is the handle, and `renderComponent` removes it as it renders.
  */
-export const pendingInstances = new Map();
+export const pendingInstances = new Map<string, ElementShim>();
 
 /**
  * The marker's **name** carries a per-process random token, because the markup it is written into is
@@ -2266,9 +2393,9 @@ let instanceCount = 0;
  * component tag whose property bindings it is delivering — both stamp the node (so `prepareInstance`
  * can unregister it by the attribute) and both rely on the unguessable name above.
  *
- * @param {any} node @returns {string} the instance id, for the caller that writes markup itself
+ * @returns the instance id, for the caller that writes markup itself
  */
-export const markPending = (node) => {
+export const markPending = (node: ElementShim): string => {
   const id = String(++instanceCount);
   node.setAttribute(INSTANCE_ATTRIBUTE, id);
   pendingInstances.set(id, node);
@@ -2276,7 +2403,7 @@ export const markPending = (node) => {
 };
 
 /** One `ElementInternals` per element, as `attachInternals` guarantees. */
-const internals = new WeakMap();
+const internals = new WeakMap<ElementShim, InternalsShim>();
 
 /**
  * Installed once, here, because both are properties of *every* node of their kind rather than of any

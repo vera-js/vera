@@ -1,4 +1,5 @@
 import type { Band, InsertMap, PositionUnit, PropertyDef, Range, RawKeyframe, Refusal, SettingDef, Unit, Wirable, WirableFactory, WirableTree } from './types.js';
+import { thrownMessage } from '@verajs/shared-utils';
 /**
  * The single source of truth for the motion vocabulary.
  *
@@ -452,7 +453,7 @@ export const registerVocabulary = (item: WirableTree): void => {
       try {
         registerVocabulary((one as WirableFactory)());
       } catch (error) {
-        pageProblem('motion-vocabulary-factory-threw', [String(error)]);
+        pageProblem('motion-vocabulary-factory-threw', [thrownMessage(error)]);
       }
       continue;
     }

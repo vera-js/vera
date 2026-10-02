@@ -21,10 +21,11 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd } from './escaping.js';
+import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint } from './escaping.js';
+import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 
 /** The entity spellings this package emits, plus the handful every document uses. */
-const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const ENTITY = /&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z]+));/g;
 
 /**
@@ -34,14 +35,14 @@ const ENTITY = /&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z]+));/g;
  * an invariant no test held. One decoder instead, so a change to what this package escapes cannot
  * silently outrun what it can decode (arc-2 run 3).
  */
-export const decode = (text) =>
+export const decode = (text: string): string =>
   text.includes('&')
-    ? text.replace(ENTITY, (match, decimal, hex, name) =>
+    ? text.replace(ENTITY, (match: string, decimal?: string, hex?: string, name?: string) =>
         decimal
-          ? String.fromCodePoint(Number(decimal))
+          ? decodeCodePoint(Number(decimal))
           : hex
-            ? String.fromCodePoint(parseInt(hex, 16))
-            : (NAMED[name] ?? match)
+            ? decodeCodePoint(parseInt(hex, 16))
+            : /** Neither number matched, so the name did. */ (NAMED[name!] ?? match)
       )
     : text;
 
@@ -50,7 +51,7 @@ export const decode = (text) =>
  * rule that makes `<li>a<li>b` two siblings rather than a nest. This is the part of the spec that
  * well-formed markup actually depends on; everything past it is error recovery.
  */
-const CLOSED_BY = {
+const CLOSED_BY: Partial<Record<string, ReadonlySet<string>>> = {
   li: new Set(['li']),
   dt: new Set(['dt', 'dd']),
   dd: new Set(['dt', 'dd']),
@@ -83,7 +84,7 @@ const CLOSES_P = new Set([
 ]);
 
 /** Nothing is refused outright any more — see `OPAQUE` for what `<template>` does instead. */
-const REFUSED = new Set();
+const REFUSED = new Set<string>();
 
 /**
  * **Foreign content is kept whole.** `svg` and `math` switch the spec into rules this parser does
@@ -136,20 +137,47 @@ const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
 export const ATTRIBUTE_NAME = "[^\\s/>=\"'<]+";
 const ATTRIBUTE = new RegExp(`^(${ATTRIBUTE_NAME})(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]*)))?`);
 
+/** The node factories `parseFragment` builds with; the caller owns node identity, so this file never imports the DOM it builds. */
+type NodeFactories = {
+  readonly element: (name: string) => ElementShim;
+  readonly text: (data: string) => TextShim;
+  readonly comment: (data: string) => CommentShim;
+};
+
+/** The fragment's root: the frame at the bottom of the stack, never closed, built or handed out. */
+type RootFrame = { readonly children: Child[]; readonly localName: '#root' };
+
+/**
+ * An element parsed but not yet built: its real node, and its children until the shape is known to be sound. `markup`
+ * is absent — what tells a frame from the Text and Comment nodes beside it, which carry a `markup()` method (`build`).
+ */
+type ElementFrame = {
+  readonly element: ElementShim;
+  readonly children: Child[];
+  readonly localName: string;
+  closeTag: string;
+  foreign: boolean;
+  readonly markup?: undefined;
+};
+
+/** One parsed child: a frame, a Text or Comment node, or a foreign/`<template>` interior kept as one opaque string. */
+type Child = ElementFrame | TextShim | CommentShim | string;
+
 /**
  * Parse a fragment into entries — elements and raw text.
  *
- * @param {string} markup
- * @param {{element: (name: string) => any, text: (data: string) => any, comment: (data: string) => any}} create
- *   node factories; the caller owns node identity, so this file never imports the DOM it builds
- * @returns {Array<any> | null} entries, or `null` when the markup needs more than this will guess at
+ * @param markup
+ * @param create node factories; the caller owns node identity, so this file never imports the DOM it builds
+ * @returns entries, or `null` when the markup needs more than this will guess at
  */
-export const parseFragment = (markup, create) => {
+export const parseFragment = (
+  markup: string,
+  create: NodeFactories
+): Array<ElementShim | TextShim | CommentShim | string> | null => {
   if (typeof markup !== 'string' || markup === '') return null;
 
-  const root = { children: /** @type {Array<any>} */ ([]), localName: '#root' };
-  /** @type {Array<any>} */
-  const stack = [root];
+  const root: RootFrame = { children: [], localName: '#root' };
+  const stack: Array<RootFrame | ElementFrame> = [root];
   const open = () => stack[stack.length - 1];
   let index = 0;
   let text = '';
@@ -180,12 +208,12 @@ export const parseFragment = (markup, create) => {
     /** A comment or a doctype is content this DOM has no node for; keep the bytes and move on. */
     if (markup.startsWith('<!--', next)) {
       const end = commentEnd(markup, next);
-      if (end === null) return null;
+      if (end === -1) return null;
       flushText();
-      const node = create.comment(markup.slice(next + 4, end[0]));
-      node._source = markup.slice(next, end[1]);
+      const node = create.comment(markup.slice(next + 4, commentDataEnd(markup, next, end)));
+      node._source = markup.slice(next, end);
       open().children.push(node);
-      index = end[1];
+      index = end;
       continue;
     }
     if (markup.startsWith('<!', next)) {
@@ -210,7 +238,8 @@ export const parseFragment = (markup, create) => {
         depth--;
       }
       if (depth === 0) return null;
-      stack[depth].closeTag = markup.slice(next, end + 1);
+      /** `depth` is above 0 here — the root returned just above — so this is an element's frame. */
+      (stack[depth] as ElementFrame).closeTag = markup.slice(next, end + 1);
       stack.length = depth;
       index = end + 1;
       continue;
@@ -228,8 +257,7 @@ export const parseFragment = (markup, create) => {
     if (REFUSED.has(name)) return null;
 
     let cursor = next + 1 + nameMatch[0].length;
-    /** @type {Array<[string, string]>} */
-    const attributes = [];
+    const attributes: Array<[string, string]> = [];
     for (;;) {
       const rest = markup.slice(cursor);
       const space = /^\s+/.exec(rest);
@@ -275,7 +303,7 @@ export const parseFragment = (markup, create) => {
      * a throw is neither. So a rejected name declines the fragment, landing on the same
      * "could not be parsed" path a stray close tag does. Found by the run-26 adversarial probe.
      */
-    let element;
+    let element: ElementShim;
     try {
       element = create.element(name);
     } catch {
@@ -290,7 +318,7 @@ export const parseFragment = (markup, create) => {
      * perfectly ordinary. An element built by `createElement` has no source close tag at all and
      * still gets the canonical one.
      */
-    const node = { element, children: /** @type {Array<any>} */ ([]), localName: name, closeTag: '', foreign: false };
+    const node: ElementFrame = { element, children: [], localName: name, closeTag: '', foreign: false };
     open().children.push(node);
     index = end + 1;
 
@@ -355,7 +383,7 @@ export const parseFragment = (markup, create) => {
   if (stack.length !== 1) return null;
 
   /** Build the real nodes now that the shape is known to be sound. */
-  const build = (node) => {
+  const build = (node: ElementFrame): ElementShim => {
     for (const child of node.children) {
       if (typeof child === 'string' || typeof child.markup === 'function') {
         node.element._entries.push(child);

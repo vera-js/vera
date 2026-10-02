@@ -32,6 +32,17 @@
  * to the other is a decision rather than a surprise.
  */
 
+import type { ContainerShim, ElementShim } from './nodes.js';
+
+/** One test of a compound against a candidate element; `scope` is the node the query started from, for `:scope`. */
+type Test = (element: ElementShim, scope: ContainerShim) => boolean;
+
+/** A parsed compound selector: its tests, and how much of the source it consumed. */
+type Compound = { tests: Test[]; consumed: number };
+
+/** One step of a complex selector: its compound's tests, and the combinator before it (`null` on the first). */
+type Step = { tests: Test[]; combinator: string | null };
+
 /** `[name op "value" i]` — every attribute operator the platform defines. */
 const ATTRIBUTE = /^\[\s*([^\s\]~^$*|=]+)\s*(?:([~^$*|]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\s\]]*))\s*)?(?:([iIsS])\s*)?\]/;
 const NAME = /^[*]|^[a-zA-Z][\w-]*/;
@@ -39,8 +50,7 @@ const CLASS = /^\.([\w-]+)/;
 const ID = /^#([\w-]+)/;
 const NOT = /^:not\(/i;
 
-/** @param {string} selector */
-const refuse = (selector, why) => {
+const refuse: (selector: string, why: string) => never = (selector, why) => {
   throw new Error(
     `ssr: this DOM cannot answer the selector ${JSON.stringify(selector)} — ${why}. It matches on ` +
       `structure and attributes only. Rather than return a wrong answer it says so.`
@@ -51,12 +61,16 @@ const refuse = (selector, why) => {
  * One compound selector — `div.a#b[c=d]:not(.e)` — as a list of tests.
  * Returns the parsed compound and how much of the string it consumed.
  */
-const parseCompound = (source, selector) => {
-  const tests = [];
+const parseCompound = (source: string, selector: string): Compound => {
+  const tests: Test[] = [];
   let rest = source;
   let consumed = 0;
-  /** Every branch below assigns this before it is read; `refuse` throws rather than falling through. */
-  let /** @type {any} */ match;
+  /**
+   * Every branch below assigns this before it is read; `refuse` throws rather than falling through. A branch
+   * that measures its own length assigns `{ 0: text }`, which never carries a regex match's `index` — that is
+   * what lets a regex branch's assignment narrow back to the match.
+   */
+  let match: RegExpExecArray | { readonly 0: string; readonly index?: undefined } | null;
   for (;;) {
     if (rest === '' || /^[\s,>+~)]/.test(rest)) break;
     if ((match = NAME.exec(rest))) {
@@ -126,10 +140,10 @@ const parseCompound = (source, selector) => {
 };
 
 /** A full complex selector — compounds joined by combinators — parsed right to left for matching. */
-const parseComplex = (selector) => {
-  const steps = [];
+const parseComplex = (selector: string): Step[] => {
+  const steps: Step[] = [];
   let rest = selector.trim();
-  let combinator = null;
+  let combinator: string | null = null;
   for (;;) {
     rest = rest.replace(/^\s+/u, '');
     if (rest === '') break;
@@ -150,8 +164,8 @@ const parseComplex = (selector) => {
   return steps;
 };
 
-const cache = new Map();
-const compile = (selector) => {
+const cache = new Map<string, Step[][]>();
+const compile = (selector: string): Step[][] => {
   if (typeof selector !== 'string') selector = `${selector}`;
   let compiled = cache.get(selector);
   if (compiled) return compiled;
@@ -164,12 +178,24 @@ const compile = (selector) => {
 };
 
 /** **Elements only.** A selector matches elements; text and comment nodes are not candidates. */
-const childrenOf = (node) =>
-  (node?._entries ?? []).filter((entry) => typeof entry !== 'string' && entry.openTag);
-const siblingsOf = (element) => childrenOf(element._parent);
+const childrenOf = (node: ContainerShim | null | undefined): ElementShim[] =>
+  (node?._entries ?? []).filter(
+    (entry) => typeof entry !== 'string' && (entry as ElementShim).openTag
+  ) as ElementShim[];
+const siblingsOf = (element: ElementShim): ElementShim[] => childrenOf(element._parent);
+/**
+ * **The parent a combinator walks to, only when it is an ELEMENT** — `parentElement`, never `parentNode`. A shadow root,
+ * fragment or document above an element is not a candidate for `>` or a descendant combinator: walked onto, it was
+ * tested as one, so `* > i` matched a shadow root's top-level child (the root passed `*`) and `.a b` THREW reading an
+ * element property off the root. The browser's answer, measured against jsdom, is no match.
+ */
+const elementParent = (element: ElementShim): ElementShim | null => {
+  const parent = element._parent as ElementShim | null | undefined;
+  return parent?.openTag ? parent : null;
+};
 
 /** Match one complex selector against one element, walking its steps from right to left. */
-const matchesComplex = (element, steps, scope) => {
+const matchesComplex = (element: ElementShim, steps: Step[], scope: ContainerShim): boolean => {
   const last = steps[steps.length - 1];
   if (!last.tests.every((test) => test(element, scope))) return false;
 
@@ -177,10 +203,12 @@ const matchesComplex = (element, steps, scope) => {
   for (let i = steps.length - 2; i >= 0; i--) {
     const step = steps[i];
     const combinator = steps[i + 1].combinator;
-    const passes = (candidate) => candidate && step.tests.every((test) => test(candidate, scope));
+    const passes = (candidate: ElementShim | null | undefined): boolean | null | undefined =>
+      candidate && step.tests.every((test) => test(candidate, scope));
     if (combinator === '>') {
-      current = current._parent;
-      if (!passes(current)) return false;
+      const parent = elementParent(current);
+      if (parent === null || !passes(parent)) return false;
+      current = parent;
     } else if (combinator === '+') {
       const siblings = siblingsOf(current);
       current = siblings[siblings.indexOf(current) - 1];
@@ -191,8 +219,8 @@ const matchesComplex = (element, steps, scope) => {
       if (!before) return false;
       current = before;
     } else {
-      let above = current._parent;
-      while (above && !passes(above)) above = above._parent;
+      let above = elementParent(current);
+      while (above && !passes(above)) above = elementParent(above);
       if (!above) return false;
       current = above;
     }
@@ -200,12 +228,11 @@ const matchesComplex = (element, steps, scope) => {
   return true;
 };
 
-/** @param {any} element @param {string} selector */
-export const matches = (element, selector, scope = element) =>
+export const matches = (element: ElementShim, selector: string, scope: ContainerShim = element): boolean =>
   compile(selector).some((steps) => matchesComplex(element, steps, scope));
 
 /** Every descendant, in document order. */
-const descendants = (node, out = []) => {
+const descendants = (node: ContainerShim, out: ElementShim[] = []): ElementShim[] => {
   for (const child of childrenOf(node)) {
     out.push(child);
     descendants(child, out);
@@ -214,21 +241,21 @@ const descendants = (node, out = []) => {
 };
 
 /** Every descendant element, in document order — shared with the collection queries. */
-export const descendantsOf = (node) => descendants(node);
+export const descendantsOf = (node: ContainerShim): ElementShim[] => descendants(node);
 
-export const querySelectorAll = (node, selector) => {
+export const querySelectorAll = (node: ContainerShim, selector: string): ElementShim[] => {
   const compiled = compile(selector);
   return descendants(node).filter((element) => compiled.some((steps) => matchesComplex(element, steps, node)));
 };
 
-export const querySelector = (node, selector) => {
+export const querySelector = (node: ContainerShim, selector: string): ElementShim | null => {
   const compiled = compile(selector);
   return descendants(node).find((element) => compiled.some((steps) => matchesComplex(element, steps, node))) ?? null;
 };
 
-export const closest = (element, selector) => {
+export const closest = (element: ElementShim, selector: string): ElementShim | null => {
   const compiled = compile(selector);
-  for (let current = element; current; current = current._parent)
+  for (let current: ElementShim | null = element; current; current = current._parent as ElementShim | null)
     if (current.localName && compiled.some((steps) => matchesComplex(current, steps, element))) return current;
   return null;
 };

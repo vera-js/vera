@@ -34,6 +34,11 @@ wireDirectives([motion({ inertia: 0 })]);
 wireFunctions({
   probe: (el, p) => seen.push({ el, p }),
   thrower: () => { throws++; throw new Error('boom'); },
+  /** Throws a value that cannot even be printed: its every trap throws (see `thrownMessage` in shared-utils). */
+  hostile: () => {
+    const trap = () => { throw new Error('trap'); };
+    throw new Proxy({}, { get: trap, getPrototypeOf: trap });
+  },
   lifecycled: {
     run: () => {},
     setup: () => { setups++; return () => { teardowns++; }; },
@@ -85,6 +90,15 @@ test('a throwing tick dies alone, once — no console storm, no page damage', as
   /** The neighbor is untouched — one bad tick costs its own element, never the page. */
   assert.match(host.querySelector('#good').getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/);
 
+  host.remove();
+  await settled();
+});
+
+test('a tick that throws an unprintable value is still reported, and never crashes the report', async () => {
+  const host = await mount(`<div data-vd-motion="{ function: 'hostile', scroll: '100%, 0%' }">x</div>`);
+  const reasons = rejections(host.querySelector('div'));
+  assert.ok(reasons.some((r) => r.code === 'motion-function-threw'), 'reported');
+  if (!isProduction) assert.ok(reasons.some((r) => /\[unprintable value thrown\]/.test(r.message)), 'with the fixed phrase');
   host.remove();
   await settled();
 });

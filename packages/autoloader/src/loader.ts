@@ -34,6 +34,7 @@
  * exactly the autoloader's posture with URLs; the ASKER memoizes refusals, this memoizes loads.
  */
 import type { DirectiveLoaderInstance, DirectiveLoaderOptions } from './types.js';
+import { thrownMessage } from '@verajs/shared-utils';
 
 /** The name grammar. An attribute tail that is not a plausible directive name is declined —
  *  which also means it never becomes a URL. */
@@ -104,7 +105,8 @@ export const directiveLoader = (
     try {
       src = url(name);
     } catch (error) {
-      console.error(`[vera] ${(error as Error).message}`);
+      /** `url` runs the caller's `resolve`, which can throw any value at all: formatted by what never throws. */
+      console.error(`[vera] ${thrownMessage(error)}`);
       return false;
     }
     /**

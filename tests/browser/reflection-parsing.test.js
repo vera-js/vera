@@ -2,7 +2,7 @@
  * **How a numeric reflection PARSES its attribute, asked of the engine that decides it.**
  *
  * `tests/browser/element-reflections.test.js` pins WHICH properties reflect. Nothing pinned what
- * they do with a value — and `packages/ssr/src/vera/reflections.js` has to answer that on a server,
+ * they do with a value — and `packages/ssr/src/vera/reflections.ts` has to answer that on a server,
  * with no engine to ask:
  *
  *     const parsed = Number.parseInt(raw, 10);

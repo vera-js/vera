@@ -13,11 +13,12 @@ cd bench && npm install
 shown below — they resolve `@verajs/*` from the built `dist`, and the competitors from
 `bench/node_modules`.
 
-Three harnesses:
+Four harnesses:
 
 | | What it measures |
 | --- | --- |
 | `reactivity.mjs` | the store's read/write cost, against itself over time |
+| `ssr-scan.mjs` | `@verajs/ssr` render speed against any git ref, cold and steady |
 | `size.mjs` | bundle size against seven competing frameworks |
 | `dom/` | the js-framework-benchmark DOM workload, in a real browser |
 
@@ -32,6 +33,23 @@ node bench/reactivity.mjs --baseline bench/baseline.json   # re-record the refer
 
 `baseline.json` is the committed reference. Per `docs/CODE-PRINCIPLES.md` #4, anything touching a
 hot path states before/after numbers — `--compare` produces them.
+
+## SSR, before and after
+
+```bash
+npm run build
+node bench/ssr-scan.mjs --compare 46060d3                       # the published SSR performance table
+node bench/ssr-scan.mjs --compare HEAD~1 --only content,compile   # a change against its parent
+```
+
+Builds `@verajs/ssr` from the ref into `bench/.cache/` (gitignored, inside the tree so it resolves the same
+`@verajs/core`), then runs each workload in a fresh process per round — the ref, HEAD, and a byte-identical copy of
+HEAD as the A/A control, in a seeded shuffled order. Every process reports **two** numbers: the total of its first
+calls from cold, and the time per call after a long warm-up. **Never one window after a fixed warm-up**: that measures
+when V8 tiers the code up as much as how fast it is, and it once reported a change 28% slower that was faster on both
+counts. It waits for Spotlight to stay under 10% for 30 seconds before the first timed process (a build, and the
+copies it makes, wake the indexer), prints the load it saw, and still flags any row whose A/A gap is past 2% — the
+machine was busy; let it settle and run again.
 
 ## Reading the results
 

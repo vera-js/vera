@@ -16,8 +16,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFragment as parse5Fragment } from 'parse5';
-import { parseFragment } from '../packages/ssr/src/vera/parse.js';
-import { TextShim, CommentShim } from '../packages/ssr/src/vera/nodes.js';
+import { parseFragment } from '../packages/ssr/dist/vera/parse.js';
+import { TextShim, CommentShim } from '../packages/ssr/dist/vera/nodes.js';
 import '@verajs/ssr';
 
 /** Element structure only — the part a selector can see, and where error recovery shows up. */

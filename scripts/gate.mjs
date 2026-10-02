@@ -22,7 +22,7 @@ const steps = [
    *
    * `scripts/typecheck.mjs` ends with `tests/consumer`, which resolves imports through each
    * package's `exports` → `types` exactly as npm does — and so reads `dist/development/*.d.ts` and
-   * `packages/ssr/types/*.d.ts`. The script's own comment says that pass "requires a build"; the
+   * `packages/ssr/dist/vera/*.d.ts`. The script's own comment says that pass "requires a build"; the
    * gate did not do one, so it checked whatever declarations happened to be on disk.
    *
    * That fails safely in one direction and not the other. A *stale* declaration that is worse than

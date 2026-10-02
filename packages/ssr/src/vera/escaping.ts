@@ -43,9 +43,9 @@ const ESCAPE = /[&<>"'\r]/g;
  *
  * Precomputed, because building `'&#' + c.charCodeAt(0) + ';'` per character is the slow half.
  */
-const ESCAPED = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;', '\r': '&#13;' };
+const ESCAPED: Readonly<Record<string, string>> = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;', '\r': '&#13;' };
 
-export const escapeHtml = (value) => {
+export const escapeHtml = (value: unknown): string => {
   /**
    * `` `${value}` `` rather than `String(value)`: identical for everything except a **symbol**,
    * which `String` special-cases into its description while every DOM conversion on the client
@@ -79,7 +79,7 @@ export const escapeHtml = (value) => {
  * security rule is a real risk, so `tests/ssr-escaping.test.mjs` asserts the two agree on the
  * payloads that matter rather than trusting they will be edited together.
  */
-export const escapeStyleText = (value) => `${value}`.replace(/<\/(style)/gi, '<\\/$1');
+export const escapeStyleText = (value: unknown): string => `${value}`.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
  * The same neutralization, for whichever RAWTEXT element the value landed in.
@@ -98,9 +98,9 @@ export const escapeStyleText = (value) => `${value}`.replace(/<\/(style)/gi, '<\
  * `<title>` and `<textarea>` are **RCDATA** — references *are* decoded there — so they keep ordinary
  * escaping, which is also what the client produces for them.
  */
-const RAW_TEXT_CLOSERS = { style: /<\/(style)/gi, script: /<\/(script)/gi };
+const RAW_TEXT_CLOSERS: Partial<Record<string, RegExp>> = { style: /<\/(style)/gi, script: /<\/(script)/gi };
 
-export const escapeRawText = (value, tag) => {
+export const escapeRawText = (value: unknown, tag: string): string => {
   const closer = RAW_TEXT_CLOSERS[tag];
   return closer ? `${value}`.replace(closer, '<\\/$1') : escapeHtml(value);
 };
@@ -166,31 +166,83 @@ export const INLINE_HANDLER = /^on./i;
  * `&NewLine;`); every other named reference decodes to a character that cannot be part of
  * `javascript:`, so leaving it encoded gives the same verdict.
  */
-/** A numeric reference's character, as a parser decodes it: NUL, a surrogate or an out-of-range value is U+FFFD. */
-const decodeCodePoint = (code) =>
-  code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || Number.isNaN(code) ? '\ufffd' : String.fromCodePoint(code);
+/**
+ * The C1 numbers a parser reads as Windows-1252: `&#128;` is `€`, not U+0080. The HTML standard's table, by
+ * offset from 0x80; the five holes (0x81, 0x8D, 0x8F, 0x90, 0x9D) keep their own code point.
+ */
+const C1 = [0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021, 0x2c6, 0x2030, 0x160, 0x2039, 0x152, 0x8d, 0x17d, 0x8f, 0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x2dc, 0x2122, 0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178];
+/**
+ * **A numeric reference's character, exactly as a parser decodes it** — the one decoder every reader here uses: NUL, a
+ * surrogate or an out-of-range value is U+FFFD, and 0x80–0x9F map through `C1`. `String.fromCodePoint` THROWS past
+ * U+10FFFF, so the copies that called it directly took a whole render down on `&#1114112;` in markup.
+ */
+export const decodeCodePoint = (code: number): string =>
+  code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || Number.isNaN(code)
+    ? '\ufffd'
+    : code >= 0x80 && code <= 0x9f
+      ? String.fromCharCode(C1[code - 0x80])
+      : String.fromCodePoint(code);
 
-export const decodeSchemeReferences = (text) =>
-  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(colon|Tab|NewLine));?/g, (whole, decimal, hex, name) =>
+export const decodeSchemeReferences = (text: string): string =>
+  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(colon|Tab|NewLine));?/g, (whole: string, decimal?: string, hex?: string, name?: string) =>
     decimal !== undefined || hex !== undefined
-      ? decodeCodePoint(parseInt(decimal ?? hex, decimal !== undefined ? 10 : 16))
+      ? /** One of the two matched, so `decimal ?? hex` is a string: the `!` restates what the test proved. */
+        decodeCodePoint(parseInt((decimal ?? hex)!, decimal !== undefined ? 10 : 16))
       : name === 'colon' ? ':' : name === 'Tab' ? '\t' : name === 'NewLine' ? '\n' : whole
   );
 
 /**
  * Where a comment opened at `open` (the index of its `<!--`) ends, as the HTML tokenizer reads it: at `-->`, at
- * `--!>`, or ABRUPTLY at `<!-->` and `<!--->`. Answers `[dataEnd, end]` — where its text stops and where the markup
- * resumes — or `null` when it runs to the end of the input.
+ * `--!>`, or ABRUPTLY at `<!-->` and `<!--->`. Answers the index just past it, or `-1` when it runs to the end of the
+ * input — one number, never an allocation, since the component scan asks it for every comment of every render.
  *
  * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. Every
  * scanner here that meets a comment asks this one rule, and the client's scanner holds its twin.
+ *
+ * @param markup
+ * @param open
+ * @returns The index past the comment, or `-1`. The declared `number` is what makes a caller still reading the old
+ *   `[dataEnd, end]` shape a compile error; `server-content.test.mjs` also pins every comment shape before a script.
  */
-export const commentEnd = (markup, open) => {
+export const commentEnd = (markup: string, open: number): number => {
   const start = open + 4;
-  if (markup[start] === '>') return [start, start + 1];
-  if (markup.startsWith('->', start)) return [start, start + 2];
-  COMMENT_CLOSE.lastIndex = start;
-  const match = COMMENT_CLOSE.exec(markup);
-  return match === null ? null : [match.index, match.index + match[0].length];
+  if (markup[start] === '>') return start + 1;
+  if (markup[start] === '-' && markup[start + 1] === '>') return start + 2;
+  /** `indexOf` for the `--`, then the one or two characters after it: a regex here cost the component scan about 1%. */
+  for (let at = markup.indexOf('--', start); at !== -1; at = markup.indexOf('--', at + 1)) {
+    if (markup[at + 2] === '>') return at + 3;
+    if (markup[at + 2] === '!' && markup[at + 3] === '>') return at + 4;
+  }
+  return -1;
 };
-const COMMENT_CLOSE = /--!?>/g;
+/**
+ * Where a comment's TEXT stops, given the end `commentEnd` answered: before `-->`/`--!>`, or at once when abrupt.
+ *
+ * @param markup
+ * @param open
+ * @param end
+ */
+export const commentDataEnd = (markup: string, open: number, end: number): number => (end - open <= 6 ? open + 4 : markup[end - 2] === '!' ? end - 4 : end - 3);
+
+/**
+ * **What a thrown value says, whatever was thrown — and it never throws itself.** JavaScript can throw anything, and
+ * the value comes from component code: `null`, `undefined`, an object with no prototype (`String()` finds no
+ * `toString`), one whose `toString` or `message` getter throws, a Proxy whose every trap throws. A message built from
+ * `(error as Error).message` crashed on the first two, and a careless formatter crashes on the rest — either way the
+ * real failure was replaced by an unrelated TypeError from inside the framework. So anything that cannot be read
+ * becomes a fixed phrase; `Object.prototype.toString` is no fallback, since it reads `Symbol.toStringTag` through a
+ * Proxy's trap too.
+ *
+ * **A deliberate duplicate of `thrownMessage` in `packages/shared-utils/src/utils.ts` — fix both copies.** This package
+ * is compiled per file with no bundling, so it cannot import that private, unpublished package at run time;
+ * `tests/thrown-message-copies.test.mjs` runs one table of thrown values against both, so they cannot drift.
+ */
+export const thrownMessage = (error: unknown): string => {
+  try {
+    if (error instanceof Error) return String(error.message);
+    const message = (error as { message?: unknown } | null)?.message;
+    return typeof message === 'string' ? message : String(error);
+  } catch {
+    return '[unprintable value thrown]';
+  }
+};

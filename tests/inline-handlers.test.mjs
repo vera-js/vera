@@ -69,7 +69,7 @@ test("the server's twin is the same rule as shared-utils'", () => {
   const rule = (source) => /export const INLINE_HANDLER = (\/.+\/[a-z]*);/.exec(source)?.[1];
   const client = rule(read('packages/shared-utils/src/markup-grammar.ts'));
   assert.ok(client, 'CONTROL: the rule was found');
-  assert.equal(rule(read('packages/ssr/src/vera/escaping.js')), client);
+  assert.equal(rule(read('packages/ssr/src/vera/escaping.ts')), client);
   for (const name of NAMES) assert.ok(new RegExp(client.slice(1, -2), 'i').test(name), name);
   for (const name of ['on', 'title', 'o']) assert.ok(!new RegExp(client.slice(1, -2), 'i').test(name), name);
 });

@@ -25,6 +25,7 @@ import { syncTo, rampTo, dispose } from './drive.js';
 
 import { emit, EVENTS } from './events.js';
 import type { ElementMotion, Generated, ParsedElement, RawKeyframe, RuntimeElement, RuntimeSettings, SheetRoot, WindowSize } from './types.js';
+import { thrownMessage } from '@verajs/shared-utils';
 
 
 
@@ -587,7 +588,7 @@ export const createRuntimeElement = (
           if (typeof off === 'function') tickTeardown = off;
         } catch (error) {
           dead = true;
-          rejectFor('motion-function-threw', [tickName, String(error)]);
+          rejectFor('motion-function-threw', [tickName, thrownMessage(error)]);
         }
       }
     };
@@ -607,7 +608,7 @@ export const createRuntimeElement = (
         bound!.run(node as HTMLElement, progress);
       } catch (error) {
         dead = true;
-        rejectFor('motion-function-threw', [tickName, String(error)]);
+        rejectFor('motion-function-threw', [tickName, thrownMessage(error)]);
       }
     };
   }

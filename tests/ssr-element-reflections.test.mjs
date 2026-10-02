@@ -11,7 +11,7 @@
  * and stayed that way until the bundle landed. Nothing failed, which is why it lasted.
  *
  * The table itself is measured from Chromium, Firefox and WebKit rather than written from memory
- * (`packages/ssr/src/vera/reflections.js`), and `tests/browser/element-reflections.test.js` fails if
+ * (`packages/ssr/src/vera/reflections.ts`), and `tests/browser/element-reflections.test.js` fails if
  * it and a real engine ever disagree. This suite covers what the table is *for*.
  */
 import assert from 'node:assert/strict';

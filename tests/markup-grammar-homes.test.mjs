@@ -75,7 +75,7 @@ const RESERVED = [
 test('the reserved element names are the spec\'s eight, in the home and in ssr\'s copy', async () => {
   const { RESERVED_ELEMENT_NAMES } = await import('@verajs/shared-utils');
   assert.deepEqual([...RESERVED_ELEMENT_NAMES].sort(), [...RESERVED].sort(), 'RESERVED_ELEMENT_NAMES');
-  const shim = read('packages/ssr/src/vera/shim.js');
+  const shim = read('packages/ssr/src/vera/shim.ts');
   const copy = /const RESERVED_NAMES = new Set\(\[([^\]]*)\]\)/.exec(shim);
   assert.ok(copy, 'the ssr shim still spells its copy as a Set literal this suite can read');
   const names = [...copy[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
@@ -83,7 +83,7 @@ test('the reserved element names are the spec\'s eight, in the home and in ssr\'
 });
 
 test("@verajs/ssr's copies agree — it cannot import, so this is what keeps them together", async () => {
-  const { VOID_ELEMENTS, RAW_TEXT_ELEMENTS } = await import('../packages/ssr/src/vera/escaping.js');
+  const { VOID_ELEMENTS, RAW_TEXT_ELEMENTS } = await import('../packages/ssr/dist/vera/escaping.js');
   assert.deepEqual([...VOID_ELEMENTS].sort(), [...VOID].sort(),
     'a void element ssr does not know gets an end tag it must not have, and the client reads that as a second element');
   assert.deepEqual([...RAW_TEXT_ELEMENTS].sort(), [...RAW_TEXT].sort(),

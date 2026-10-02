@@ -1,0 +1,180 @@
+/**
+ * `requestAnimationFrame` on a machine that has no frames. Callbacks queue here and are drained once a
+ * component's `connectedCallback` has returned — where a browser would run them, so a component's own
+ * ordering holds (work scheduled before `render()` still sees the template) — and drained REPEATEDLY, so
+ * the markup is where the client settles: an effect that derives state schedules another render, which is
+ * another frame.
+ */
+
+/** One queued callback: handed the frame's timestamp, and allowed to return a promise — the asynchronous drain awaits it. */
+type Frame = (time: number) => unknown;
+
+/** Where a frame callback's throw is reported, so the render can fail naming the component. */
+type FrameReport = (error: unknown) => void;
+
+/**
+ * **Callbacks awaiting a frame that will not arrive on its own, by the id they were given.** The ids are the
+ * platform's: unique and increasing for the life of the page, never reused, and a cancel of one that already ran, or
+ * of one that never existed, does nothing. They used to be queue positions, which restarted at 1 after every drain,
+ * so a component canceling its OWN finished frame deleted whichever callback now sat at that position; and a cancel
+ * from inside a frame never reached a callback of the same frame, already taken off the queue. A `Map` keeps the order
+ * they were requested in, which is the order they run.
+ */
+const frames = new Map<number, Frame>();
+/** The ids that are idle callbacks: a browser keeps those apart, so `cancelIdleCallback` never cancels a frame. */
+const idle = new Set<number>();
+let lastId = 0;
+
+/** `requestAnimationFrame` (`isIdle` false) and `requestIdleCallback` (true): queue `fn`, answer its id. */
+export const requestFrame = (fn: Frame, isIdle: boolean): number => {
+  const id = ++lastId;
+  frames.set(id, fn);
+  if (isIdle) idle.add(id);
+  return id;
+};
+
+/** `cancelAnimationFrame`/`cancelIdleCallback`: drops the callback with that id, if it is still waiting and of that kind. */
+export const cancelFrame = (id: number, isIdle: boolean): void => {
+  if (idle.has(id) !== isIdle) return;
+  frames.delete(id);
+  idle.delete(id);
+};
+
+/**
+ * One round: every callback waiting when it starts — those a callback schedules have later ids and run in the NEXT
+ * round, as the next frame — each taken off as it runs, so a callback canceling a later one of the same round stops
+ * it, exactly as a browser's frame does. Walked in place: a `Map` iterates in insertion order, skips entries deleted
+ * mid-walk and stops here at the round's last id, so a round allocates nothing (a copied id list per round cost a page
+ * of 100 components 17% at steady state).
+ */
+const round = (report: FrameReport | undefined): void => {
+  const last = lastId;
+  for (const [id, fn] of frames) {
+    if (id > last) break;
+    frames.delete(id);
+    if (idle.size !== 0) idle.delete(id);
+    run(fn, report);
+  }
+};
+/** A loop that never settles leaves work queued; it must not reach the next component. */
+const discard = (): void => {
+  if (frames.size !== 0) frames.clear();
+  if (idle.size !== 0) idle.clear();
+};
+
+/**
+ * How many rounds one render drains. The bound is for a component that schedules a frame from inside a
+ * frame forever — an animation loop, browser-only code reachable here — which runs a few times and stops
+ * rather than hanging the request.
+ */
+const FRAME_ROUNDS = 20;
+
+/**
+ * One frame callback, isolated: a browser runs each independently and reports a throw rather than
+ * abandoning the frame, and here the throw is REPORTED (`report`) so the render fails naming the
+ * component, the way a hook error does.
+ */
+const run = (frame: Frame, report?: FrameReport): unknown => {
+  try {
+    return frame(performance.now());
+  } catch (error) {
+    report?.(error);
+  }
+};
+
+/** Runs everything waiting on a frame, and everything those schedule, up to the bound. */
+export const flushFrames = (report?: FrameReport): void => {
+  for (let count = 0; count < FRAME_ROUNDS && frames.size !== 0; count++) round(report);
+  discard();
+};
+
+/**
+ * **The render's time budget: no server render waits unboundedly on a user promise.** An asynchronous render awaits
+ * what a component starts — an `async connectedCallback`, a promise a frame callback returns — and one that never
+ * settles (a wait on a child the server never defines, a forgotten `new Promise(() => {})`) held the request open for
+ * ever. Renders take turns (`takeTurn` in `index.ts`), so it held EVERY later request too: the whole server stopped.
+ * So each awaited promise races the time left in this render's budget (the `timeout` option, 2000 ms by default),
+ * which starts when the render's turn does. When it runs out the promise is abandoned — it may settle later, harmlessly
+ * — the render finishes with what it has, and `index.ts` says so in every build, because the served page changed.
+ */
+const EXPIRED = Symbol('expired');
+let deadline = Number.POSITIVE_INFINITY;
+let expiry: Promise<typeof EXPIRED> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined;
+let expired = false;
+/** Starts a render's budget; the timer itself is made only when something is first awaited. */
+export const beginBudget = (milliseconds: number): void => {
+  deadline = performance.now() + milliseconds;
+  expiry = undefined;
+  expired = false;
+};
+/** Ends it — the timer cleared, so it never holds the process open — and answers whether it ran out. */
+export const endBudget = (): boolean => {
+  if (timer !== undefined) clearTimeout(timer);
+  timer = undefined;
+  deadline = Number.POSITIVE_INFINITY;
+  expiry = undefined;
+  const ranOut = expired;
+  expired = false;
+  return ranOut;
+};
+/**
+ * Awaits `value` if it is a promise, for no longer than the budget allows; a rejection still reaches the caller.
+ * Answers whether THIS wait was the one cut at the deadline — so the warning names the component still waiting, not
+ * only the page — and not for a wait abandoned unexamined after it, which was never shown to be stuck.
+ */
+export const bounded = async (value: unknown): Promise<boolean> => {
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function') || typeof (value as PromiseLike<unknown>).then !== 'function')
+    return false;
+  const promise = Promise.resolve(value);
+  if (deadline === Number.POSITIVE_INFINITY) {
+    await promise;
+    return false;
+  }
+  if (expired) {
+    /** Past the budget nothing more is waited for — and a rejection that arrives later is not an unhandled one. */
+    promise.catch(() => {});
+    return false;
+  }
+  expiry ??= new Promise<typeof EXPIRED>((done) => {
+    timer = setTimeout(() => done(EXPIRED), Math.max(0, deadline - performance.now()));
+  });
+  if ((await Promise.race([promise, expiry])) !== EXPIRED) return false;
+  expired = true;
+  promise.catch(() => {});
+  return true;
+};
+
+/**
+ * The same drain, for a render allowed to wait. A frame callback that starts asynchronous work —
+ * a router's first `navigate()`, awaiting guards and a route module — returns a promise the markup
+ * depends on, so it is awaited, and the microtask queue runs between rounds (`await null`, not a timer,
+ * so no unrelated request interleaves). **An empty queue is not the end** while such work is in flight:
+ * it takes three consecutive empty turns to conclude that nothing more is coming. Answers whether a wait was cut at
+ * the deadline, as `bounded` does.
+ */
+export const flushFramesAsync = async (report?: FrameReport): Promise<boolean> => {
+  let cut = false;
+  for (let round = 0, empty = 0; round < FRAME_ROUNDS && empty < 3; round++) {
+    await null;
+    if (!frames.size) {
+      empty++;
+      continue;
+    }
+    empty = 0;
+    /** The same in-place round as `round`, each callback awaited before the next. */
+    const last = lastId;
+    for (const [id, fn] of frames) {
+      if (id > last) break;
+      frames.delete(id);
+      if (idle.size !== 0) idle.delete(id);
+      try {
+        if (await bounded(run(fn, report))) cut = true;
+      } catch (error) {
+        report?.(error);
+      }
+    }
+  }
+  discard();
+  return cut;
+};

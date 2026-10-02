@@ -59,6 +59,7 @@ already awaits. A render that throws does not stop the queue.
 | `seen` | a `Set` carried across renders, so a page of islands ships each component's styles once |
 | `base` | a directory the module URL must resolve inside. Pass it whenever **any part of the URL came from a request** |
 | `static` | `true` for a page that will not be interactive: reactivity is skipped, about 3x faster, identical markup |
+| `timeout` | how long `renderToStringAsync` waits on promises a component starts, in milliseconds (default 2000), before serving what it has and warning — see below. **`0` waits for nothing** (it is not "no limit", which this option cannot express): every such promise is abandoned at once |
 
 A wrong type is refused with a `TypeError` naming the option (`children: 5` used to surface as
 `markup.includes is not a function`).
@@ -68,7 +69,42 @@ and a request does not: the call awaits `import()`, which yields on a module's f
 whichever request assigned last wins for every render after it. Measured with three concurrent
 first-time imports, two of three rendered another request's path. The option is applied inside the
 render's turn and restored in a `finally`. `title` is returned rather than left on the global for the
-same reason, and the document's own title is restored afterwards.
+same reason, and the document's own title is restored afterwards. **Renders take turns**, process-wide: two
+calls made together run one after the other, so no render ever sees another's frames, adopted stylesheets or
+globals (measured: two `renderToStringAsync` calls started at once finish at 154 ms and 255 ms, the second's
+budget starting at its turn).
+
+**No render waits unboundedly on a component's promise.** `renderToStringAsync` awaits what a component starts
+— an `async connectedCallback`, a promise a frame callback returns — for at most `timeout` milliseconds (2000 by
+default) from the start of its turn. One that never settles, such as a wait on a child the server never defines,
+used to hold the request open forever, and because renders take turns, every request after it as well. When the
+budget runs out the render serves what it has and warns, in every build, naming the component: the page served is
+not the one its code describes, so raise `timeout` if the wait is real or find the promise that never settles.
+There is deliberately no way to wait without limit: `timeout: 0` means wait for nothing, and the largest value is
+2147483647 ms.
+
+**A wait on a child only the browser defines costs the whole `timeout`, on every request** — and since renders take
+turns, every request queued behind it waits too. The warning names the component waiting and the child it waits on.
+Return before that wait on the server:
+
+```js
+async connectedCallback() {
+  init(this, { mode: 'open' });
+  render(() => html`<p>${state.ready ? 'map ready' : 'loading map'}</p><x-map></x-map>`);
+  if (globalThis.__veraSsrShimmed) return;   // the server serves the state before the wait
+  await customElements.whenDefined('x-map');
+  state.ready = true;
+}
+```
+
+That serves the component's state from before the wait, which is exactly what the browser shows first, so hydrating
+changes nothing — and it takes no time and prints no warning. Skipping only the `await`
+(`if (!globalThis.__veraSsrShimmed) await …`) serves the state *after* it, which the browser then replaces with its own
+starting state: a visible flash. A stand-in class defined on the server does the same.
+
+**`globalThis.__veraSsrShimmed` is the supported way to tell the server render from a browser**, here and for guarding
+client wiring: `@verajs/ssr` sets it to `true` when it is imported, before any component runs, and nothing sets it in a
+browser. `typeof window` cannot tell them apart, because the server provides a `window`.
 
 ## What runs, and when
 
@@ -107,8 +143,14 @@ renders.
 ## Nested components
 
 After a component renders, its markup is scanned for tags the registry knows, and each is rendered in
-place. The scan is state-aware, not a regex: it respects quoted attribute values (a `>` is legal inside
-one) and leaves comments, `<script>`, `<style>`, `<textarea>` and `<title>` alone — those are text.
+place — **exactly where the browser creates an element the definition upgrades**, read by the same tag scanner
+every template goes through. It respects quoted attribute values (a `>` is legal inside one), leaves comments,
+raw text (`<script>`, `<style>`, `<textarea>`, `<title>`…) and `<template>` content alone, and renders nothing
+inside `<svg>` or `<math>`, where a dashed tag is a foreign element no definition upgrades — except inside an
+HTML integration point (`<svg><foreignObject>`, `<math><mtext>`…), or after a tag that breaks out of foreign
+content (`<svg><p><my-comp>`), both of which the browser reads as HTML. A tag's name is the whole name the tokenizer
+reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written. After `<font color>` inside
+`<svg>` (a breakout this scan does not track) a component is not rendered on the server, and renders on the client.
 
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
   registered class — field initializers run, `instanceof` answers — and appending it renders **that
@@ -155,8 +197,15 @@ corrupts the content (`.a > .b` used to serve as `.a &#62; .b`, a selector match
 the browser will parse the element, not by its name**: inside `<svg>` or `<math>` a `<style>` is an SVG or
 MathML element whose content is markup, and `<noscript>` is markup to a browser with scripting off — so
 inside any of them every value is escaped, and so is every value in a template rendered into one (an
-`svg`/`mathml` template included, wherever it renders). Inside `<xmp>`, `<noembed>`, `<noframes>` and
-`<plaintext>`, which the browser reads as text whole, nothing is raw either.
+`svg`/`mathml` template included, wherever it renders) — except inside an HTML integration point, which the
+browser reads as HTML: SVG `<foreignObject>`, `<desc>` and `<title>`, MathML `<mi>`, `<mo>`, `<mn>`, `<ms>` and
+`<mtext>`, and an `<annotation-xml>` whose `encoding` is HTML, each only in its own namespace and only when not
+self-closed (`<math><mi><mglyph>` is MathML again) — and after a tag that ENDS foreign content, which the browser
+reads as HTML again (`<svg><p>`, `<math><b>`, `</p>`; the standard's breakout list). Inside `<xmp>`, `<noembed>`, `<noframes>` and
+`<plaintext>`, which the browser reads as text whole, nothing is raw either. **And a tag is read where the
+browser's tokenizer reads one**: a tag's name is the whole run up to whitespace, `/` or `>` (`<script.x>` is an
+unknown element, never a `<script>`), a `<` before anything but a letter is text, `<!x>` and `<?x>` are comments,
+and a quote or `=` inside a name is part of the name.
 
 **Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** Both are
 written through untouched — that is what they are for — so neither may carry anything from a request
@@ -169,8 +218,9 @@ unsanitized. Everything else is checked:
   (`<div .innerHTML=${markup}>`) is in the served page rather than filled in after hydration. It is made to behave
   as an `innerHTML` assignment, not as parsed page markup: a `<script>` in it is served with an inert `type` (an
   assignment never runs one), and a `<template shadowrootmode>` cannot attach a shadow root (an assignment never
-  does). Whatever the markup leaves open is closed before the element's own end tag, so it cannot reach the
-  markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
+  does) — wherever the tokenizer reads a start tag, which the server finds with the same scanner it reads every
+  template with. Whatever the markup leaves open is closed before the element's own end tag, and an unfinished tag
+  at its end is dropped, as an assignment drops it, so it cannot reach the markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
   `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, and for any `.textContent`, it is
   escaped text. A `<script .textContent=${code}>` host is the one code-execution door this opens, and it is the
   author's: it runs on the served page as it runs on the client. `.innerText`, `.outerHTML` and `.outerText` stay
@@ -333,12 +383,15 @@ dependency involved.
   whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
   strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
 - **A `<style>` or `<script>` the server cannot place in HTML is served escaped.** Raw text is recognized
-  only outside `<svg>`, `<math>` and `<noscript>`, and the scanner does not track the ways a browser
-  re-enters HTML inside them — an integration point (`<svg><foreignObject><style>`), or a tag like `<p>`
-  that breaks out of foreign content — nor an `svg` template rendered outside any `<svg>`. There the
-  browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it.
-  That is the safe direction of a misreading on purpose: the other one writes a value's markup into the
-  page. Put the stylesheet outside the foreign element.
+  outside `<svg>`, `<math>` and `<noscript>`, inside their HTML integration points (`<svg><foreignObject>`,
+  `<math><mi>`…) and after a breakout tag (`<svg><p>`), but the scanner does not track the remaining ways a browser
+  re-enters HTML: `<font>` with a `color`, `face` or `size` attribute (it breaks out; here it never does), an end tag
+  the parser ignores, an `svg` template rendered outside any `<svg>`, and a template rendered INTO a foreign position
+  by its parent — it knows the depth it starts at, not whether that is
+  SVG or MathML, so it recognizes no integration point (`html`<svg>${svg`<foreignObject><style>…`}</svg>``). There
+  the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it. That is
+  the safe direction of a misreading on purpose: the other one writes a value's markup into the page. Put the
+  stylesheet in the template that opens the foreign element, or outside it.
 - **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
   the value with the element as its context; the served page is parsed with every real ancestor around it, so a
   few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),

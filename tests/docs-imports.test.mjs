@@ -75,7 +75,7 @@ for (const [specifier, bundle] of Object.entries(PACKAGES)) {
  * other module in this file has already finished reading.
  */
 exportsOf['@verajs/eslint-config'] = await import('../packages/eslint-config/index.js');
-exportsOf['@verajs/ssr'] = await import('../packages/ssr/src/vera/index.js');
+exportsOf['@verajs/ssr'] = await import('../packages/ssr/dist/vera/index.js');
 
 /** Markdown and text docs, minus changelogs — those describe releases, not the current API. */
 const docs = [];

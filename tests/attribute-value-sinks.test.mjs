@@ -32,7 +32,7 @@ const core = await load('core');
 core.wire([renderer]);
 const { renderInto } = await load('renderer/hydrate');
 const { spread } = await load('renderer/spread');
-const { serializeTemplate } = await import('../packages/ssr/src/vera/index.js');
+const { serializeTemplate } = await import('../packages/ssr/dist/vera/index.js');
 const doc = dom.window.document;
 
 /** A template result built by hand, so one value can be pushed through all three sinks unchanged. */

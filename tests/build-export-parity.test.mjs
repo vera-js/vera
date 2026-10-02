@@ -84,6 +84,41 @@ for (const manifest of manifests) {
   }
 }
 
+/**
+ * **Reachable means reachable through an import, not only named by `exports`.** A bundled package's entry IS its whole
+ * build, but `@verajs/ssr` is compiled file by file, so its internal modules are reached through the entry's own
+ * relative imports — and a module that nothing imports is still stranded, which is what this exists to catch.
+ */
+const RELATIVE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g;
+for (const reached of reachable.values()) {
+  const pending = [...reached];
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (!existsSync(join(root, file))) continue;
+    /** A module's declaration ships with the module (a per-file build emits one per file, public or not). */
+    const declaration = file.replace(/\.js$/, '.d.ts');
+    if (file.endsWith('.js') && !reached.has(declaration) && existsSync(join(root, declaration))) {
+      reached.add(declaration);
+      pending.push(declaration);
+    }
+    for (const [, specifier] of readFileSync(join(root, file), 'utf8').matchAll(RELATIVE_IMPORT)) {
+      /** A declaration's `./x.js` is what TypeScript resolves to `./x.d.ts`. */
+      const named = join(dirname(file), specifier).replace(/\\/g, '/');
+      const target = file.endsWith('.d.ts') ? named.replace(/\.js$/, '.d.ts') : named;
+      if (reached.has(target) || !existsSync(join(root, target))) continue;
+      reached.add(target);
+      pending.push(target);
+    }
+  }
+}
+
+/** What a package's `files` negations keep out of its tarball (`!dist/vera/types.js`): built, but never published. */
+const excludedFromTarball = (dir, built) => {
+  const json = JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8'));
+  const relative = built.replace(/\\/g, '/').slice(dir.length + 1);
+  return (json.files ?? []).some((entry) => entry.startsWith('!') && entry.slice(1) === relative);
+};
+
 /** A derived list that derived nothing passes every check below, so refuse an empty one. */
 assert.ok(manifests.length > 0, 'no package manifests were found');
 assert.ok(
@@ -126,7 +161,7 @@ test('and every built artifact is reachable through some subpath', () => {
       ...globSync(`${dir}/dist/**/*.d.ts`, { cwd: root }),
     ]) {
       examined++;
-      if (!reached.has(built.replace(/\\/g, '/'))) stranded.push(built);
+      if (!reached.has(built.replace(/\\/g, '/')) && !excludedFromTarball(dir, built)) stranded.push(built);
     }
 
   /**

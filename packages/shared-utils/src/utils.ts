@@ -95,3 +95,25 @@ export const isSelection = (element: Element, name: unknown) => {
  * passes three arguments, and `Reflect.get`'s third is the RECEIVER — `undefined` there runs the getter with no `this`.
  */
 export const read = (target: object, key: string) => (target as Record<string, unknown>)[key];
+
+/**
+ * **What a thrown value says, whatever was thrown — and it never throws itself.** A caught value comes from author
+ * code (a `resolve` option, a motion tick or vocabulary function), and JavaScript can throw anything: `null`, an object
+ * with no prototype (`String()` finds no `toString`), one whose `toString` or `message` getter throws, a Proxy whose
+ * traps throw. Formatting it naively replaced the real failure with an unrelated TypeError from inside the framework.
+ * Anything unreadable becomes a fixed phrase; `Object.prototype.toString` is no fallback, since it reads
+ * `Symbol.toStringTag` through a Proxy's trap too.
+ *
+ * **A deliberate duplicate of `thrownMessage` in `packages/ssr/src/vera/escaping.ts` — fix both copies.** `@verajs/ssr`
+ * is compiled per file with no bundling, so it cannot import this private, unpublished package at run time;
+ * `tests/thrown-message-copies.test.mjs` runs one table of thrown values against both, so they cannot drift.
+ */
+export const thrownMessage = (error: unknown): string => {
+  try {
+    if (error instanceof Error) return String(error.message);
+    const message = (error as { message?: unknown } | null)?.message;
+    return typeof message === 'string' ? message : String(error);
+  } catch {
+    return '[unprintable value thrown]';
+  }
+};

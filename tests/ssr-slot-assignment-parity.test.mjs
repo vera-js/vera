@@ -58,7 +58,7 @@ test("the SSR shim's assignment matches the platform, comments included", async 
 
 test('the two vera copies of the rule are byte-identical in behavior', async () => {
   const { readFileSync } = await import('node:fs');
-  const shim = readFileSync(new URL('../packages/ssr/src/vera/nodes.js', import.meta.url), 'utf8');
+  const shim = readFileSync(new URL('../packages/ssr/src/vera/nodes.ts', import.meta.url), 'utf8');
   const client = readFileSync(new URL('../packages/renderer/src/slots.ts', import.meta.url), 'utf8');
   /** Both must spell the same three-way rule: text -> '', element -> attr ?? '', else null. */
   const rule = /nodeType === 3\s*\?\s*''\s*:\s*[\s\S]{0,40}nodeType === 1\s*\?\s*\(?[\s\S]{0,60}getAttribute\('slot'\)\s*\?\?\s*''\)?\s*:\s*null/;

@@ -7,8 +7,28 @@
  * two copies is how the shims drifted apart the first time.
  */
 
+import type { ElementShim } from './nodes.js';
+
+/** One declaration of a `style` attribute, by property name: its value and whether it was `!important`. */
+type Declaration = { value: string; priority: string };
+
+/**
+ * `element.style` as this DOM answers it: `cssText`, the declaration count, the CSSOM methods, and every
+ * property by name — camel-cased or custom — read as its value or `''`.
+ */
+type StyleView = {
+  cssText: string;
+  readonly length: number;
+  setProperty(name: unknown, value: unknown, priority?: unknown): void;
+  removeProperty(name: unknown): string;
+  getPropertyValue(name: unknown): string;
+  getPropertyPriority(name: unknown): string;
+  item(index: number): string;
+  [property: string]: unknown;
+};
+
 /** `backgroundColor` -> `background-color`, for the `style` and `dataset` views below. */
-const dashed = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
+const dashed = (name: string): string => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
 
 /**
  * `dataset` and `style` are **views over an attribute**, not stores of their own: an assignment that
@@ -16,7 +36,7 @@ const dashed = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
  * so `this.dataset.userId = '7'` and `this.style.color = 'red'` end up in the tag, which is what
  * they do in a browser.
  */
-export const datasetView = (element) =>
+export const datasetView = (element: ElementShim): Record<string, string | undefined> =>
   new Proxy(
     {},
     {
@@ -33,15 +53,15 @@ export const datasetView = (element) =>
  * Shared because they are the same thing: `classList` was written first and `part` would have been
  * a second copy of it, which is how `ElementShim` and `ShadowRootShim` came to disagree.
  */
-export const tokenListView = (element, attribute) => {
-  const tokens = () => (element.getAttribute(attribute) ?? '').split(/\s+/).filter(Boolean);
+export const tokenListView = (element: ElementShim, attribute: string) => {
+  const tokens = (): string[] => (element.getAttribute(attribute) ?? '').split(/\s+/).filter(Boolean);
   /**
    * **Emptying an attribute is not removing it.** A browser leaves `class=""` behind when the last
    * token goes, and only leaves the attribute absent when it was never there to begin with. Removing
    * it outright made the server's markup differ from the client's for an element that had ever
    * carried a class, which is the whole class of difference this package exists not to produce.
    */
-  const write = (list) => {
+  const write = (list: string[]): void => {
     if (list.length) element.setAttribute(attribute, list.join(' '));
     else if (element.hasAttribute(attribute)) element.setAttribute(attribute, '');
   };
@@ -50,7 +70,7 @@ export const tokenListView = (element, attribute) => {
    * with those two names, and it is worth throwing here for the same reason `connectedCallback` is
    * refused when it is `async`: code that cannot work in the browser should not quietly work here.
    */
-  const check = (...names) => {
+  const check = (...names: string[]): void => {
     for (const name of names) {
       if (name === '') throw new DOMException('The token provided must not be empty.', 'SyntaxError');
       if (/\s/.test(String(name)))
@@ -61,17 +81,17 @@ export const tokenListView = (element, attribute) => {
     }
   };
   const list = {
-    add: (...names) => {
+    add: (...names: string[]): void => {
       check(...names);
       const current = tokens();
       for (const name of names) if (!current.includes(name)) current.push(name);
       write(current);
     },
-    remove: (...names) => {
+    remove: (...names: string[]): void => {
       check(...names);
       write(tokens().filter((token) => !names.includes(token)));
     },
-    toggle: (name, force) => {
+    toggle: (name: string, force?: boolean): boolean => {
       check(name);
       const current = tokens();
       const wanted = force ?? !current.includes(name);
@@ -81,7 +101,7 @@ export const tokenListView = (element, attribute) => {
       return wanted;
     },
     /** Replaces in place, and answers `false` without writing when the old token is not there. */
-    replace: (oldToken, newToken) => {
+    replace: (oldToken: string, newToken: string): boolean => {
       check(oldToken, newToken);
       const current = tokens();
       const at = current.indexOf(oldToken);
@@ -90,32 +110,33 @@ export const tokenListView = (element, attribute) => {
       write(current.filter((token, index) => current.indexOf(token) === index));
       return true;
     },
-    contains: (name) => tokens().includes(name),
+    contains: (name: string): boolean => tokens().includes(name),
     /**
      * `supports` throws for these two lists in every engine — `class` and `part` define no supported
      * tokens, and the spec says a `DOMTokenList` with none raises `TypeError`. Present and throwing
      * is the accurate shim; absent would be a `TypeError` too, but the wrong one.
      */
-    supports: () => {
+    supports: (): never => {
       throw new TypeError('supports() is not applicable to this attribute.');
     },
-    item: (index) => tokens()[index] ?? null,
-    forEach: (callback, thisArg) => tokens().forEach(callback, thisArg),
-    keys: () => tokens().keys(),
-    values: () => tokens().values(),
-    entries: () => tokens().entries(),
+    item: (index: number): string | null => tokens()[index] ?? null,
+    forEach: (callback: (token: string, index: number, list: string[]) => void, thisArg?: unknown): void =>
+      tokens().forEach(callback, thisArg),
+    keys: (): ArrayIterator<number> => tokens().keys(),
+    values: (): ArrayIterator<string> => tokens().values(),
+    entries: (): ArrayIterator<[number, string]> => tokens().entries(),
     /** `String(el.classList)` is the attribute's value, not `[object Object]`. */
-    toString: () => element.getAttribute(attribute) ?? '',
-    get value() {
+    toString: (): string => element.getAttribute(attribute) ?? '',
+    get value(): string {
       return element.getAttribute(attribute) ?? '';
     },
-    set value(text) {
+    set value(text: unknown) {
       element.setAttribute(attribute, String(text));
     },
-    get length() {
+    get length(): number {
       return tokens().length;
     },
-    [Symbol.iterator]: () => tokens()[Symbol.iterator](),
+    [Symbol.iterator]: (): ArrayIterator<string> => tokens()[Symbol.iterator](),
   };
   /** `list[0]` is indexed access on a real `DOMTokenList`, which a plain object cannot answer. */
   return new Proxy(list, {
@@ -136,8 +157,8 @@ export const tokenListView = (element, attribute) => {
  *
  * Quotes and parentheses both nest a semicolon, and CSS allows one inside either.
  */
-const declarations = (text) => {
-  const out = [];
+const declarations = (text: string): string[] => {
+  const out: string[] = [];
   let start = 0;
   let depth = 0;
   let quote = '';
@@ -158,15 +179,15 @@ const declarations = (text) => {
   return out;
 };
 
-export const styleView = (element) => {
+export const styleView = (element: ElementShim): StyleView => {
   /** `[name, value, priority]` per declaration, in source order. */
-  const read = () => {
+  const read = (): Map<string, Declaration> => {
     /**
      * A loop rather than `map().filter(Boolean)`: the filter does not narrow, so the entries reach
-     * `new Map` typed as `(any[] | null)[]` and `checkJs` rejects them. Building the map directly
+     * `new Map` typed as `(any[] | null)[]` and the type check rejects them. Building the map directly
      * says the same thing without a cast.
      */
-    const rules = new Map();
+    const rules = new Map<string, Declaration>();
     for (const rule of declarations(element.getAttribute('style') ?? '')) {
       const at = rule.indexOf(':');
       if (at === -1) continue;
@@ -191,7 +212,7 @@ export const styleView = (element) => {
    * An emptied `style` stays as `style=""` rather than being removed, for the reason the token list
    * above does the same: a browser removes the declarations, not the attribute.
    */
-  const write = (rules) => {
+  const write = (rules: Map<string, Declaration>): void => {
     const text = [...rules]
       .map(([name, { value, priority }]) => `${name}: ${value}${priority ? ' !important' : ''};`)
       .join(' ');
@@ -199,11 +220,11 @@ export const styleView = (element) => {
     else if (element.hasAttribute('style')) element.setAttribute('style', '');
   };
   /** A custom property keeps its name verbatim; everything else is camel-cased in JS and dashed in CSS. */
-  const cssName = (key) => (key.startsWith('--') ? key : dashed(key));
+  const cssName = (key: string): string => (key.startsWith('--') ? key : dashed(key));
   const methods = {
-    setProperty: (name, value, priority = '') =>
+    setProperty: (name: unknown, value: unknown, priority: unknown = ''): void =>
       write(read().set(cssName(String(name)), { value: String(value), priority: priority ? 'important' : '' })),
-    removeProperty: (name) => {
+    removeProperty: (name: unknown): string => {
       const rules = read();
       const key = cssName(String(name));
       const previous = rules.get(key)?.value ?? '';
@@ -211,17 +232,18 @@ export const styleView = (element) => {
       write(rules);
       return previous;
     },
-    getPropertyValue: (name) => read().get(cssName(String(name)))?.value ?? '',
-    getPropertyPriority: (name) => read().get(cssName(String(name)))?.priority ?? '',
-    item: (index) => [...read().keys()][index] ?? '',
+    getPropertyValue: (name: unknown): string => read().get(cssName(String(name)))?.value ?? '',
+    getPropertyPriority: (name: unknown): string => read().get(cssName(String(name)))?.priority ?? '',
+    item: (index: number): string => [...read().keys()][index] ?? '',
   };
+  /** The target is never read — every trap answers from the attribute — so it is typed as the proxy's answers. */
   return new Proxy(
-    {},
+    {} as StyleView,
     {
       get: (_, key) => {
         if (key === 'cssText') return element.getAttribute('style') ?? '';
         if (key === 'length') return read().size;
-        if (key in methods) return methods[key];
+        if (key in methods) return methods[key as keyof typeof methods];
         if (typeof key === 'string' && /^\d+$/.test(key)) return methods.item(Number(key));
         return read().get(cssName(String(key)))?.value ?? '';
       },
