@@ -1,7 +1,7 @@
 /**
  * Light-DOM slot distribution on the SERVER — `@verajs/ssr` + `@verajs/renderer/slots`. The
  * server renders once and distributes through the slots module's `_$server$` hook (markerless: no
- * comments, `<slot>` unwrapped). What hydration needs is STATED, not inferred: every parent a slot
+ * comments; a filled `<slot>` steps out, one with nothing assigned stays showing its fallback, as on the client). What hydration needs is STATED, not inferred: every parent a slot
  * filled carries `data-vm-slotted="offset,count"` (one pair per slot it holds), and the host carries
  * `data-vm-light` — for each light child in light order, the index of the range it sits in,
  * run-length encoded, the last index being the unassigned carrier. The client seam is inert under
@@ -22,7 +22,7 @@ const CARD = new URL('./fixtures/ssr/slot-card-ssr.js', import.meta.url);
 const render = async (children) => (await renderToString(CARD, { children })).html;
 const bare = (html) => html.replace(/ data-vm-(?:slotted|light)="[^"]*"/g, '');
 
-test('assigned named + default: distributed, marked, and MARKERLESS (no <slot>, no comments)', async () => {
+test('assigned named + default: distributed, marked, and MARKERLESS (a filled slot leaves no <slot>, no comments)', async () => {
   const html = await render('<h2 slot="header">Hi there</h2>plain body<b>bold</b>');
   assert.match(bare(html), /<header><h2 slot="header">Hi there<\/h2><\/header>/, 'named content in its slot');
   assert.match(html, /<header data-vm-slotted="0,1">/, 'the named slot\'s parent states its range too');
@@ -40,25 +40,26 @@ test('assigned named + default: distributed, marked, and MARKERLESS (no <slot>, 
 
 test('nothing assigned: both slots fall back, no range is marked', async () => {
   const html = await render('');
-  assert.match(bare(html), /<header><em>fallback header<\/em><\/header>/);
-  assert.match(bare(html), /<main>default fallback<\/main>/);
+  assert.match(bare(html), /<header><slot name="header"><em>fallback header<\/em><\/slot><\/header>/);
+  assert.match(bare(html), /<main><slot>default fallback<\/slot><\/main>/);
   assert.doesNotMatch(html, /data-vm-slotted/, 'nothing distributed, so no range is marked');
   assert.match(html, /<slot-card-ssr data-vm-light="">/, 'and the host states an empty light tree');
-  assert.doesNotMatch(bare(html), /<slot[\s>]/);
+  /** A slot with nothing assigned stays in the page, showing its fallback (Brian, 2026-10-02) — both do here. */
+  assert.equal((bare(html).match(/<slot[\s>]/g) ?? []).length, 2, 'both fallback slots stay');
 });
 
 test('named only: named distributes and is marked, default falls back unmarked', async () => {
   const html = await render('<h2 slot="header">Only</h2>');
   assert.match(bare(html), /<header><h2 slot="header">Only<\/h2><\/header>/);
-  assert.match(bare(html), /<main>default fallback<\/main>/);
+  assert.match(bare(html), /<main><slot>default fallback<\/slot><\/main>/);
   assert.match(html, /<header data-vm-slotted="0,1">/, 'the named slot\'s parent states its range');
-  assert.match(html, /<main>default fallback/, 'the fallen-back one states nothing');
+  assert.match(html, /<main><slot>default fallback/, 'the fallen-back one states nothing');
   assert.match(html, /<slot-card-ssr data-vm-light="0">/, 'the one light child sits in range 0');
 });
 
 test('default only: default distributes and marks; named falls back', async () => {
   const html = await render('just text');
-  assert.match(bare(html), /<header><em>fallback header<\/em><\/header>/);
+  assert.match(bare(html), /<header><slot name="header"><em>fallback header<\/em><\/slot><\/header>/);
   assert.match(html, /<main data-vm-slotted="0,1">just text<\/main>/);
 });
 
@@ -95,7 +96,7 @@ test('values align around a slot whose fallback holds an expression', async () =
   const assigned = (await renderToString(EXPR, { children: '<i slot="s">MINE</i>' })).html;
   assert.match(bare(assigned), /<x>A<\/x><s><i slot="s">MINE<\/i><\/s><y>C<\/y>/, 'fallback skipped, x and y still correct');
   const unassigned = (await renderToString(EXPR, { children: '' })).html;
-  assert.match(bare(unassigned), /<x>A<\/x><s>fb:B<\/s><y>C<\/y>/, 'fallback rendered with its own expression');
+  assert.match(bare(unassigned), /<x>A<\/x><s><slot name="s">fb:B<\/slot><\/s><y>C<\/y>/, 'fallback rendered with its own expression');
 });
 
 /**

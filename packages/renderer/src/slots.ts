@@ -720,11 +720,10 @@ const serverDistribute = (host: Element, source: Node[]) => {
         rangeOf.set(node, ranges.length);
       }
       ranges.push({ parent: parent as Element, first: assigned[0], last: assigned[assigned.length - 1], count: assigned.length });
-    } else {
-      /** Fallback: the slot's own children, unwrapped in place. */
-      while (slot.firstChild !== null) parent.insertBefore(slot.firstChild, slot);
+      /** A slot with content steps out of the page, its content in its place — as the client places it. */
+      parent.removeChild(slot);
     }
-    parent.removeChild(slot);
+    /** A slot with nothing assigned STAYS, showing its fallback — as the client keeps it (Brian, 2026-10-02). */
   }
   /**
    * **Separators where two text runs would MERGE**, because serialization is where node identity

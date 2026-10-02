@@ -125,7 +125,11 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     const tag = `parity-${index++}`;
     const fromServer = server(tag, template, children);
 
-    const host = dom.window.document.createElement('div');
+    /**
+     * A CUSTOM element, as the server's host is (Brian's ruling 4: light slots capture custom elements, by name; a
+     * plain container keeps what it had). Never defined here, so the renderer's own first render captures it.
+     */
+    const host = dom.window.document.createElement(`${tag}-client`);
     host.innerHTML = children;
     dom.window.document.body.append(host);
     renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, host);
