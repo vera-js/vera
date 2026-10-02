@@ -49,3 +49,5 @@ packages/ssr/types/
 bench/dom/bundle.js
 
 examples/media/
+# `node bench/ssr-scan.mjs --compare <ref>` builds the ref's @verajs/ssr here, inside the tree so it resolves the same core.
+bench/.cache/
