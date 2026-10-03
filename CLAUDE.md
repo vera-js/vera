@@ -101,7 +101,11 @@ code, so they are not re-litigated.
   8-round median had the rebuilt SSR stack 7% SLOWER than the old one while the total over the same
   rounds from cold, and a 30-round median, both had it faster. Compare TOTALS from a cold process, or
   medians over long windows, across many fresh processes — and never read a per-component split out
-  of a mixed workload, which only says which batch a collection landed in.
+  of a mixed workload, which only says which batch a collection landed in. (3) A workload that
+  ALTERNATES between two modes (a collection every other sample) puts the median on one of them:
+  print the per-sample curve and compare per mode, or totals, before believing a median. Measured
+  2026-10-02: hydrating 10k rows alternated ~23 / ~18.5 ms, every session median landed on the slow
+  mode, and it reported parity while the fast mode was 1 ms (5%) slower.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
   `@verajs/store`, `@verajs/store/collections`, anything built on core's public API — resolves core
