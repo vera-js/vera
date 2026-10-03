@@ -119,56 +119,112 @@ test('on SUCCESS: every binding commits once, the listener works, the ref is han
 
 /* ── phase 1 runs NOTHING, pinned as a whole ─────────────────────────────────────────────────────── */
 
-test('before a mismatch is declined, the walk has only split text and put in comments — no user code ran but text conversion (CONTROL: the client render runs it all)', () => {
-  const counts = { ref: 0, set: 0, apply: 0, child: 0, toString: 0 };
-  if (!customElements.get('hw-spy'))
-    customElements.define('hw-spy', class extends dom.window.HTMLElement {
+/**
+ * **vera-5a's bar for queue-then-run** — nothing user-observable happens before the decision but the walk's text splits,
+ * its comments, and text conversion. A container with every kind of client work, mismatching at its LAST marker: before
+ * the clear, ZERO of every callback but `toString`; the clear causes exactly one disconnect; and the CONTROL, the same
+ * container matching, shows every counter moving once the queue runs — so the zeros are not a probe measuring nothing.
+ */
+test('before a mismatch is declined, the walk has only split text and put in comments — no user code ran but text conversion (CONTROL: a matching container runs it all)', () => {
+  const counts = { connected: 0, disconnected: 0, attributeChanged: 0, set: 0, listen: 0, ref: 0, apply: 0, child: 0, value: 0, toString: 0 };
+  if (!customElements.get('hw-cb'))
+    customElements.define('hw-cb', class extends dom.window.HTMLElement {
+      static observedAttributes = ['title'];
+      connectedCallback() {
+        counts.connected++;
+      }
+      disconnectedCallback() {
+        counts.disconnected++;
+      }
+      attributeChangedCallback() {
+        counts.attributeChanged++;
+      }
       set item(v) {
         counts.set++;
       }
+      addEventListener(...args) {
+        if (args[0] === 'click') counts.listen++;
+        return super.addEventListener(...args);
+      }
     });
+  const claimed = Symbol('claimed');
+  const handler = (part, value) => {
+    counts.value++;
+    if (value?.[claimed] !== true) return false;
+    part._$commit$('claimed');
+    return true;
+  };
   const applier = { _$apply$: () => counts.apply++ };
   const childApplier = { _$child$: () => counts.child++ };
   /** Text conversion is the one exception: an object's text is read during the walk, to match it. */
   const spoken = { toString: () => (counts.toString++, 'spoken') };
+  const handled = { [claimed]: true, toString: () => 'handled' };
   /** A NODE value too: placing an element is queued, never done by the walk. */
   const clientNode = doc.createElement('mark');
-  const draw = (tail) =>
-    html`<div ${() => counts.ref++} ${applier} title=${'x'}><hw-spy .item=${1}></hw-spy>${'text'}${spoken}<span>${childApplier}</span>${clientNode}</div>${tail}`;
-  const markup = serverOf(draw(html`<b>end</b>`));
-  /** The mismatch is AFTER everything: the walk covers the whole container before declining. */
-  const container = holding(markup.replace('<b>end</b>', '<i>end</i>'));
-  const records = [];
-  const observer = new MutationObserver((r) => records.push(...r));
-  observer.observe(container, { subtree: true, childList: true, attributes: true, characterData: true });
-  let before = null;
-  let atClear = null;
-  const real = container.removeChild.bind(container);
-  container.removeChild = (node) => {
-    /** The first removal through the container IS the fallback's clear — the walk is over by then. */
-    if (before === null) {
-      before = [...records, ...observer.takeRecords()];
-      atClear = { ...counts };
-    }
-    return real(node);
-  };
-  const snapshot = { ...counts };
-  warnings(() => renderInto(draw(html`<b>end</b>`), container));
-  observer.disconnect();
-  assert.notEqual(before, null, 'CONTROL: the fallback cleared the container');
-  const only = before.every(
-    (r) =>
-      /** Text and comments in; out, only the walk's own root markers (comments) as it declines. */
-      (r.type === 'childList' && [...r.removedNodes].every((n) => n.nodeType === 8) && [...r.addedNodes].every((n) => n.nodeType === 3 || n.nodeType === 8)) ||
-      (r.type === 'characterData' && r.target.nodeType === 3)
-  );
-  assert.equal(only, true, 'the walk did something other than split text and put in comments');
-  assert.ok(before.length > 0, 'CONTROL: the walk did split text and put in its anchors');
-  const delta = (at) => Object.fromEntries(Object.entries(at).map(([k, v]) => [k, v - snapshot[k]]));
-  assert.deepEqual(delta(atClear), { ref: 0, set: 0, apply: 0, child: 0, toString: 1 }, 'user code ran before the clear');
-  /** CONTROL: the client render after it ran every piece — so the zeros above are not a probe that measured nothing. */
-  assert.deepEqual(delta(counts), { ref: 1, set: 1, apply: 1, child: 1, toString: 2 });
-  container.remove();
+  /** The server wrote title="x"; the client says "y" — a REPAIR, which is a commit, and so queued. */
+  const draw = (title, tail) =>
+    html`<div ${() => counts.ref++} ${applier}><hw-cb title=${title} .item=${1} @click=${() => {}}></hw-cb>${'text'}${spoken}<span>${childApplier}</span><p>${handled}</p>${clientNode}</div>${tail}`;
+  /** The server never asks handlers: its markup is made BEFORE the handler is wired, so `handled` is written as its text. */
+  /** Nor can a server render a live node: the client's `<mark>` is not in what it wrote. */
+  const markup = serverOf(draw('x', html`<b>end</b>`)).replace('<mark></mark>', '');
+  inserts.set('value', [...(inserts.get('value') ?? []), handler]);
+  try {
+    const run = (served) => {
+      const container = holding(served);
+      const records = [];
+      const observer = new MutationObserver((r) => records.push(...r));
+      observer.observe(container, { subtree: true, childList: true, attributes: true, characterData: true });
+      let before = null;
+      let atClear = null;
+      const real = container.removeChild.bind(container);
+      container.removeChild = (node) => {
+        /** The first removal through the container IS the fallback's clear — the walk is over by then. */
+        if (before === null) {
+          before = [...records, ...observer.takeRecords()];
+          atClear = { ...counts };
+        }
+        return real(node);
+      };
+      /** The server's custom element upgraded on parse, before any hydration: counted from here. */
+      const server = container.querySelector('hw-cb');
+      const start = { ...counts };
+      const said = warnings(() => renderInto(draw('y', html`<b>end</b>`), container));
+      observer.disconnect();
+      const delta = (at) => Object.fromEntries(Object.entries(at).map(([k, v]) => [k, v - start[k]]));
+      const result = { said, before, atClear: atClear && delta(atClear), after: delta(counts), kept: container.querySelector('hw-cb') === server };
+      container.remove();
+      return result;
+    };
+    const missed = run(markup.replace('<b>end</b>', '<i>end</i>'));
+    assert.equal(missed.said.length, 1, 'CONTROL: it did fall back');
+    assert.match(missed.said[0], /<i\b/, 'CONTROL: at the LAST marker — the tail — not somewhere earlier');
+    assert.notEqual(missed.before, null, 'CONTROL: the fallback cleared the container');
+    const only = missed.before.every(
+      (r) =>
+        /** Text and comments in; out, only the walk's own root markers (comments) as it declines. */
+        (r.type === 'childList' && [...r.removedNodes].every((n) => n.nodeType === 8) && [...r.addedNodes].every((n) => n.nodeType === 3 || n.nodeType === 8)) ||
+        (r.type === 'characterData' && r.target.nodeType === 3)
+    );
+    assert.equal(only, true, 'the walk did something other than split text and put in comments');
+    assert.ok(missed.before.length > 0, 'CONTROL: the walk did split text and put in its anchors');
+    assert.deepEqual(
+      missed.atClear,
+      { connected: 0, disconnected: 0, attributeChanged: 0, set: 0, listen: 0, ref: 0, apply: 0, child: 0, value: 0, toString: 1 },
+      'user code ran before the clear'
+    );
+    /** The clear disconnects the server's element, once; the client render then does all of it, once. */
+    assert.equal(missed.after.disconnected, 1, 'the clear disconnected the server element exactly once');
+    const matched = run(markup);
+    assert.deepEqual(matched.said, [], 'CONTROL: the matching container hydrated');
+    assert.equal(matched.kept, true, 'CONTROL: the server element was adopted, not replaced');
+    assert.deepEqual(
+      matched.after,
+      { connected: 0, disconnected: 0, attributeChanged: 1, set: 1, listen: 1, ref: 1, apply: 1, child: 1, value: 4, toString: 1 },
+      'CONTROL: once the queue runs, every piece of client work happened once (the handler is asked of each object value)'
+    );
+  } finally {
+    inserts.set('value', (inserts.get('value') ?? []).filter((h) => h !== handler));
+  }
 });
 
 /**

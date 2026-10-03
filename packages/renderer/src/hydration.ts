@@ -19,6 +19,9 @@
  * exception is the platform's: a server custom element already defined upgrades on parse and runs its own setup before
  * any hydration starts — `tests/hydration-walk.test.mjs` pins it.)
  *
+ * User code that THROWS while the queue runs leaves the container partly committed — exactly as a client render that
+ * throws midway does; it is the render's error, not a hydration one.
+ *
  * **The renderer's commit never asks "am I hydrating?".** Where the server's attribute already says what the client
  * would write, the walk SEEDS the binding's committed value and calls the base commit — which runs every sink check as
  * always (a `javascript:` URL is refused and removed exactly as on a fresh render) and then skips the write on its own
@@ -533,7 +536,8 @@ const adoptItem = (value: unknown, cursor: Cursor): Item => {
 /**
  * **A handler is asked with the part as a client render would hand it over — empty** — and the server's span stays
  * where it is meanwhile: a claim commits into the empty part and the span is removed after; no claim puts the adopted
- * state back. Copied whole (`{ ...part }`), so no field of the renderer's needs naming here.
+ * state back. Copied whole (`{ ...part }`), so no field of the renderer's needs naming here — and so a handler that
+ * declines must not write to the part (a field it ADDED would stay).
  */
 const claimed = (part: ChildPart, value: unknown, handlers: ValueHandler[]) => {
   const was = { ...part };

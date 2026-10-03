@@ -51,3 +51,31 @@ test("a claim is asked about the template, not its first instance — a hydrated
   }
   assert.deepEqual(seen, [null], 'asked once, with no bound value');
 });
+
+/**
+ * **A claim's `mount` is client work, so it is QUEUED** (vera-5a's bar): a container mismatching at its LAST marker has
+ * mounted nothing when it is cleared — the client render then mounts its own element, told `adopted: false`.
+ */
+test('a mismatching container mounts no claim before it is cleared; the client render mounts once, not adopted', () => {
+  const host = document.body.appendChild(document.createElement('div'));
+  host.innerHTML = '<p data-track id="m">x</p><b>server</b>';
+  const draw = () => html`<p data-track id="m">x</p><i>client</i>`;
+  const from = log.length;
+  let atClear = null;
+  const real = host.removeChild.bind(host);
+  host.removeChild = (node) => {
+    if (atClear === null) atClear = log.length - from;
+    return real(node);
+  };
+  const quiet = console.warn;
+  let warned = 0;
+  console.warn = () => warned++;
+  try {
+    renderInto(draw(), host);
+  } finally {
+    console.warn = quiet;
+  }
+  assert.equal(warned, 1, 'CONTROL: it fell back');
+  assert.equal(atClear, 0, 'a claim mounted before the decision');
+  assert.deepEqual(log.slice(from).map(([el, adopted]) => [el.isConnected, adopted]), [[true, false]], 'the client render mounted once');
+});
