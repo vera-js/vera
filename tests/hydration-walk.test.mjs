@@ -395,3 +395,65 @@ test('a claimed span holding server custom elements disconnects each exactly onc
     inserts.set('value', (inserts.get('value') ?? []).filter((h) => h !== handler));
   }
 });
+
+/* ── re-entrancy (vera-5a, RUN on c65b53e: the outer render threw) ───────────────────────────────── */
+
+/**
+ * Phase 2 runs user code, and user code can render: a setter that renders into its own element adopts THAT container
+ * in the middle of this one. Each adoption has its own walk state; shared, the nested one reset the outer's texts and
+ * the outer render threw.
+ */
+test('a setter that renders into its own element during the outer adoption: both adopt, nothing throws', () => {
+  let runs = 0;
+  if (!customElements.get('hw-in'))
+    customElements.define('hw-in', class extends dom.window.HTMLElement {
+      set item(v) {
+        runs++;
+        renderInto(html`<b>${v}</b>`, this);
+      }
+    });
+  const outer = (a, v, b) => html`<p>${a}</p><hw-in .item=${v}></hw-in><p>${b}</p>`;
+  const container = holding('<p>A</p><hw-in><b>v</b></hw-in><p>B</p>');
+  const [p1, p2] = container.querySelectorAll('p');
+  const b = container.querySelector('b');
+  const said = warnings(() => renderInto(outer('A', 'v', 'B'), container));
+  assert.deepEqual(said, []);
+  assert.equal(runs, 1);
+  assert.equal(container.querySelectorAll('p')[0], p1, 'the outer adopted');
+  assert.equal(container.querySelectorAll('p')[1], p2);
+  assert.equal(container.querySelector('b'), b, 'and the inner adopted too');
+  container.remove();
+});
+
+test('a nested MISMATCH during the outer adoption falls back for the inner only; the outer stays adopted', () => {
+  if (!customElements.get('hw-in2'))
+    customElements.define('hw-in2', class extends dom.window.HTMLElement {
+      set item(v) {
+        renderInto(html`<b>${v}</b>`, this);
+      }
+    });
+  const outer = (a, v) => html`<p>${a}</p><hw-in2 .item=${v}></hw-in2>`;
+  /** The inner's server markup disagrees (an <i>, not a <b>); the outer's matches. */
+  const container = holding('<p>A</p><hw-in2><i>v</i></hw-in2>');
+  const p = container.querySelector('p');
+  const said = warnings(() => renderInto(outer('A', 'v'), container));
+  assert.equal(said.length, 1, `one warning — the inner's: ${said}`);
+  assert.match(said[0], /expected <b> and found <i>/, 'naming the inner\'s disagreement, not leaking it into the outer');
+  assert.equal(container.querySelector('p'), p, 'the outer stayed adopted');
+  assert.equal(container.querySelector('hw-in2').innerHTML.replace(/<!---->/g, ''), '<b>v</b>', 'the inner rendered fresh');
+  container.remove();
+});
+
+test('the warning is said once per KIND: two containers differing in their text detail, one warning', () => {
+  const draw = (t) => html`<p>${t}</p>`;
+  const a = holding('<p>server one</p>');
+  const b = holding('<p>server two</p>');
+  const said = warnings(() => {
+    renderInto(draw('client one'), a);
+    renderInto(draw('client two'), b);
+  });
+  assert.equal(said.length, 1, `two different details of one kind, one warning: ${said.length}`);
+  assert.match(said[0], /client one/, 'naming the first');
+  a.remove();
+  b.remove();
+});

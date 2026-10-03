@@ -80,8 +80,9 @@ let untracked: Untracked;
 
 const warned = new Set<string>();
 /**
- * Said once per CAUSE per hydration pass, in every build: a page of 500 containers that disagree for one reason, adopted
- * in one pass, says it once. The record clears at the next microtask, so a later pass that meets the cause again says it.
+ * Said once per KIND of cause per hydration pass, in every build — keyed by the kind (`text`, `element`…), not the
+ * detail: a page of 500 containers that each differ in their text says it once, naming the first. The record clears at
+ * the next microtask, so a later pass that meets the kind again says it.
  */
 const warn = (cause: string, message: string) => {
   if (warned.has(cause)) return;
@@ -107,7 +108,10 @@ let why = '';
 
 /** Why adoption stops: thrown, caught at the container, never escapes. */
 const MISMATCH = {};
-const mismatch = (reason: () => string): never => {
+/** The KIND of the first disagreement — what the warning is said once per: `text`, `value`, `element`, `extra`. */
+let kind = '';
+const mismatch = (cause: string, reason: () => string): never => {
+  kind = cause;
   why = reason();
   throw MISMATCH;
 };
@@ -197,11 +201,11 @@ const expectText = (cursor: Cursor, text: string) => {
   while (text !== '') {
     passComments(cursor);
     const node = cursor.node;
-    if (node === null || node.nodeType !== 3) return mismatch(() => `expected the text ${JSON.stringify(text)} and found ${describe(node)}`);
+    if (node === null || node.nodeType !== 3) return mismatch('text', () => `expected the text ${JSON.stringify(text)} and found ${describe(node)}`);
     const data = (node as Text).data;
     const take = Math.min(data.length - cursor.offset, text.length);
     if (data.slice(cursor.offset, cursor.offset + take) !== text.slice(0, take))
-      return mismatch(() => `expected the text ${JSON.stringify(text)} and found ${JSON.stringify(data.slice(cursor.offset, cursor.offset + 30))}`);
+      return mismatch('text', () => `expected the text ${JSON.stringify(text)} and found ${JSON.stringify(data.slice(cursor.offset, cursor.offset + 30))}`);
     text = text.slice(take);
     cursor.offset += take;
     if (cursor.offset === data.length) {
@@ -225,11 +229,12 @@ const claimText = (cursor: Cursor, text: string): Text => {
   passComments(cursor);
   const node = cursor.node;
   if (node === null || node.nodeType !== 3)
-    return mismatch(() => `expected a text node holding an interpolated value and found ${describe(node)}`);
+    return mismatch('value', () => `expected a text node holding an interpolated value and found ${describe(node)}`);
   const data = (node as Text).data;
   const at = cursor.offset;
   if (!data.startsWith(text, at))
     return mismatch(
+      'value',
       () =>
         `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(data.slice(at, at + text.length))} ` +
         `— a value that stringifies differently on the server (a Date? locale formatting?) disagrees here`
@@ -253,7 +258,7 @@ const claimElement = (cursor: Cursor, name: string): Element => {
   passComments(cursor);
   const node = cursor.offset > 0 ? null : cursor.node;
   if (node === null || node.nodeType !== 1 || (node as Element).localName !== name)
-    return mismatch(() => `expected <${name}> and found ${cursor.offset > 0 ? describe(cursor.node) : describe(node)}`);
+    return mismatch('element', () => `expected <${name}> and found ${cursor.offset > 0 ? describe(cursor.node) : describe(node)}`);
   cursor.node = node.nextSibling;
   return node as Element;
 };
@@ -262,7 +267,7 @@ const claimElement = (cursor: Cursor, name: string): Element => {
 const finish = (cursor: Cursor, top = false) => {
   passComments(cursor);
   if (cursor.offset > 0 || cursor.node !== null)
-    mismatch(() =>
+    mismatch('extra', () =>
       !top && cursor.parent.nodeType === 1
         ? `<${(cursor.parent as Element).localName}> contains ${describe(cursor.node)}, which the template does not describe`
         : `${describe(cursor.node)} follows everything the template describes`
@@ -392,7 +397,7 @@ const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
     return;
   }
   const part = dry ? scratch() : new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
-  if (!dry) insertHere(cursor, part.$s!);
+  insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
   if (!dry) {
     if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
@@ -561,7 +566,7 @@ const adoptItem = (value: unknown, cursor: Cursor): Item => {
     return instance;
   }
   const part = dry ? scratch() : new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
-  if (!dry) insertHere(cursor, part.$s!);
+  insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
   if (!dry) {
     if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
@@ -590,6 +595,20 @@ const clearPreservingStyles = (container: Node) => {
  */
 const adopt = (result: unknown, container: Node): boolean => {
   if (result === null || typeof result !== 'object' || !isTemplateResult(result as object)) return false;
+  /**
+   * **One walk's state per adoption.** Phase 2 runs user code — a setter that renders into its own element, a component
+   * set up synchronously — and that can adopt ANOTHER container in the middle of this one: its walk gets its own state,
+   * and this one's is restored when it returns. Shared, the nested walk reset this one's texts underneath it.
+   */
+  const saved = [dry, texts, textAt, lists, why, kind] as const;
+  try {
+    return adoptContainer(result as TemplateResult, container);
+  } finally {
+    [dry, texts, textAt, lists, why, kind] = saved;
+  }
+};
+
+const adoptContainer = (result: TemplateResult, container: Node): boolean => {
   let first: Node | null = container.firstChild;
   while (isSheet(first)) first = first!.nextSibling;
   texts = [];
@@ -606,7 +625,7 @@ const adopt = (result: unknown, container: Node): boolean => {
     dry = false;
     /** The whole story in development; production says the cause and the fix in one line — it warns in every build. */
     warn(
-      why,
+      kind,
       __DEV__
         ? `hydration fell back to a client render: ${why}. This container's server markup was discarded and rebuilt (its ` +
             `SSR <style> is kept), so the page is correct but the server's work on it was wasted. Its children are taken ` +
