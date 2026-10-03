@@ -64,8 +64,9 @@ export type SlotSeamState = { _$park$?: () => void };
  * templates that need it carry one, so every other instance pays one property read. For every
  * instance of that template the renderer CREATES it calls `$c` BEFORE the first update, with the
  * instance's fresh fragment and the render root (`null` for a commit outside any `renderInto`, such as
- * an applier resolving later) — an instance hydration ADOPTS is never created, so it calls neither
- * `$c` nor `$m`, and slots adopts its `<slot>`s through its own seam instead; `$m`
+ * an applier resolving later) — and for an instance hydration ADOPTS, `$c` too, told `adopted`, with the
+ * instance's live elements in template pre-order in place of a root (a live root also holds what its
+ * nested parts rendered, so counting from it would find the wrong elements); `$m`
  * once the RENDER that created the instance has finished — so bindings are live, a `<slot
  * name=${…}>` has its name, and the instance is in place in its container rather than in a detached
  * fragment (a nested instance is inserted only when its outer one is) — with whatever `$c` returned;
@@ -90,10 +91,11 @@ export type SlotSeamState = { _$park$?: () => void };
 export type InstanceHook = {
   /**
    * Before the first update: the hook's own state for this instance, or `undefined` to take no part. `root` is the
-   * instance's root — the clone's fragment, or its one element for a single-root template (then position 0). The
-   * renderer keeps the state in one slot of the instance and hands it back; what is in it is the hook's business.
+   * instance's root — the clone's fragment, or its one element for a single-root template (then position 0) — or, for
+   * an ADOPTED instance, its elements in template pre-order (position `p` is `root[p]`). The renderer keeps the state
+   * in one slot of the instance and hands it back; what is in it is the hook's business.
    */
-  $c(root: Node, renderRoot: Node | null, adopted: boolean): unknown;
+  $c(root: Node | readonly Element[], renderRoot: Node | null, adopted: boolean): unknown;
   /** Once the render that created the instance has finished, with that state. */
   $m(state: unknown): void;
   /** At the instance's teardown — before or after its mount — with that state. */

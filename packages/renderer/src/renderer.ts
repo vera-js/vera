@@ -767,7 +767,7 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
  * clone), with its mount queued for when the render that created it finishes. Arms removal work, so an instance
  * discarded before then is walked at teardown and never mounts. Also how hydration hooks an adopted instance.
  */
-export const hookUp = (instance: Instance, root: Node, adopted: boolean) => {
+export const hookUp = (instance: Instance, root: Node | readonly Element[], adopted: boolean) => {
   const hook = instance._template._$inst$;
   if (hook === undefined) return;
   /** The hook's own state — what to mount, and later what to unmount — or nothing to take part. */

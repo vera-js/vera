@@ -16,7 +16,9 @@ const { renderer, renderInto } = await load('renderer');
 const { hydration } = await load('renderer/hydration');
 const { elements } = await load('renderer/elements');
 const log = [];
-const track = { mount: (element, { adopted }) => log.push([element, adopted]) };
+/** `create` runs as the instance is set up (the hook's `$c`), `mount` once its render finishes — both are client work. */
+const created = [];
+const track = { create: (element, adopted) => created.push([element, adopted]), mount: (element, { adopted }) => log.push([element, adopted]) };
 core.wire([renderer, hydration, elements, { on: 'element', fn: (el) => (el.hasAttribute('data-track') ? track : undefined), priority: 50 }]);
 const { html } = core;
 
@@ -61,10 +63,11 @@ test('a mismatching container mounts no claim before it is cleared; the client r
   host.innerHTML = '<p data-track id="m">x</p><b>server</b>';
   const draw = () => html`<p data-track id="m">x</p><i>client</i>`;
   const from = log.length;
+  const createdFrom = created.length;
   let atClear = null;
   const real = host.removeChild.bind(host);
   host.removeChild = (node) => {
-    if (atClear === null) atClear = log.length - from;
+    if (atClear === null) atClear = log.length - from + (created.length - createdFrom);
     return real(node);
   };
   const quiet = console.warn;
@@ -76,6 +79,48 @@ test('a mismatching container mounts no claim before it is cleared; the client r
     console.warn = quiet;
   }
   assert.equal(warned, 1, 'CONTROL: it fell back');
-  assert.equal(atClear, 0, 'a claim mounted before the decision');
+  assert.equal(atClear, 0, 'a claim was created or mounted before the decision');
+  assert.deepEqual(created.slice(createdFrom).map(([el, adopted]) => [el.isConnected, adopted]), [[true, false]], 'CONTROL: create is counted — the client render created once');
   assert.deepEqual(log.slice(from).map(([el, adopted]) => [el.isConnected, adopted]), [[true, false]], 'the client render mounted once');
+});
+
+/**
+ * **A claim mounts on the SAME element hydrated as rendered fresh.** Claims are found by position in the template; an
+ * adopted instance's live tree also holds what its nested parts rendered, so the position must come from the walk's
+ * pairing, never a count of the live tree — content before the claim, a fragment root, and a list row each broke it.
+ */
+test('a hydrated claim mounts on the element a fresh render mounts on: nested content first, a fragment root, a list row', () => {
+  const nested = (n) => html`<i id=${`inner-${n}`}>i</i>`;
+  const cases = [
+    ['nested content before it', (n) => html`<div><b>${nested(n)}</b><p data-track id=${`n-${n}`}>x</p></div>`],
+    ['a fragment root', (n) => html`<label>L</label><p data-track id=${`f-${n}`}>x</p>`],
+    ['a list row', (n) => html`<ul>${[1, 2].map((r) => html`<li>${nested(`${n}-${r}`)}<p data-track id=${`r-${n}-${r}`}>x</p></li>`)}</ul>`],
+  ];
+  for (const [name, draw] of cases) {
+    /** Fresh, into an empty container: the reference answer. */
+    const fresh = document.body.appendChild(document.createElement('div'));
+    const from = log.length;
+    renderInto(draw('s'), fresh);
+    const expected = log.slice(from).map(([el, adopted]) => [el.id, adopted]);
+    /** The server's markup is the fresh render's, its anchors stripped — every value here is one a server writes. */
+    const host = document.body.appendChild(document.createElement('div'));
+    host.innerHTML = fresh.innerHTML.replace(/<!---->/g, '');
+    const servers = [...host.querySelectorAll('[data-track]')];
+    const at = log.length;
+    const quiet = console.warn;
+    let warned = 0;
+    console.warn = () => warned++;
+    try {
+      renderInto(draw('s'), host);
+    } finally {
+      console.warn = quiet;
+    }
+    assert.equal(warned, 0, `${name}: CONTROL — it hydrated`);
+    const got = log.slice(at);
+    assert.ok(expected.length > 0, `${name}: CONTROL — the fresh render mounted a claim`);
+    assert.deepEqual(got.map(([el]) => el.id), expected.map(([id]) => id), `${name}: mounted on the same elements, by id`);
+    assert.ok(got.every(([el, adopted], i) => el === servers[i] && adopted === true), `${name}: the SERVER's elements, told adopted`);
+    fresh.remove();
+    host.remove();
+  }
 });

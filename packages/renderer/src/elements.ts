@@ -48,10 +48,16 @@ type State = { f: (Element | ElementBehavior)[] | null; r: Node | null; a: boole
 const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHook => ({
   $c: (instance, root, adopted) => {
     const found: (Element | ElementBehavior)[] = [];
-    let node = firstIn(instance);
+    /**
+     * ADOPTED, the instance arrives as its elements in template order (hydration pairs them): its live root already
+     * holds what its nested parts rendered, so counting there would land on the wrong element.
+     */
+    const listed = Array.isArray(instance);
+    let node = listed ? null : firstIn(instance as Node);
     let at = 0;
     for (let k = 0; k < positions.length; k++) {
-      for (; at < positions[k]; at++) node = nextIn(node!, instance);
+      if (listed) node = (instance as readonly Element[])[positions[k]];
+      else for (; at < positions[k]; at++) node = nextIn(node!, instance as Node);
       found.push(node!, behaviors[k]);
       /** At creation — before the first update, and before the instance is connected anywhere. */
       behaviors[k].create?.(node!, adopted);

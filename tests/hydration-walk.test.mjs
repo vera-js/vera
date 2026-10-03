@@ -292,8 +292,10 @@ test('a fully matched element queues no commit but its URL binding; later render
   let commits = 0;
   H.$M = (...args) => (commits++, real(...args));
   try {
-    const draw = (cls, x, hidden, href) => html`<p class=${cls} data-x=${x} ?hidden=${hidden}><a href=${href}>x</a></p>`;
-    const container = holding('<p data-x="t"><a href="/ok">x</a></p>');
+    /** A number and a boolean too: the seed is the RAW value a client render stores, never its text ("5" !== 5). */
+    const draw = (cls, x, hidden, href, n = 5, b = true) =>
+      html`<p class=${cls} data-x=${x} data-n=${n} data-b=${b} ?hidden=${hidden}><a href=${href}>x</a></p>`;
+    const container = holding('<p data-x="t" data-n="5" data-b="true"><a href="/ok">x</a></p>');
     const p = container.querySelector('p');
     const records = [];
     const observer = new MutationObserver((r) => records.push(...r));
@@ -301,12 +303,12 @@ test('a fully matched element queues no commit but its URL binding; later render
     const said = warnings(() => renderInto(draw(null, 't', false, '/ok'), container));
     assert.deepEqual(said, []);
     assert.equal(container.querySelector('p'), p, 'CONTROL: adopted');
-    assert.equal(commits, 1, 'only the URL-bearing href committed — class (both absent), data-x and ?hidden were elided');
+    assert.equal(commits, 1, 'only the URL-bearing href committed — class (both absent), data-x/-n/-b and ?hidden were elided');
     renderInto(draw(null, 't', false, '/ok'), container);
     assert.equal(observer.takeRecords().length + records.length, 0, 'the same values again: nothing written');
-    renderInto(draw('c', 'u', true, '/ok'), container);
+    renderInto(draw('c', 'u', true, '/ok', 6, false), container);
     const written = observer.takeRecords().map((r) => r.attributeName).sort();
-    assert.deepEqual(written, ['class', 'data-x', 'hidden'], 'different values: each one written, as after a client render');
+    assert.deepEqual(written, ['class', 'data-b', 'data-n', 'data-x', 'hidden'], 'different values: each one written, as after a client render');
     observer.disconnect();
     container.remove();
   } finally {

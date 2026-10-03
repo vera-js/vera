@@ -67,7 +67,7 @@ type Handoff = {
   $W: object;
   $M: (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => void;
   $A: (root: Node | null, part: ChildPart, value: unknown, home?: Node | null) => void;
-  $U: (instance: Instance, root: Node, adopted: boolean) => void;
+  $U: (instance: Instance, root: Node | readonly Element[], adopted: boolean) => void;
   $Q: (template: Template, parent: Node) => Template;
   $O: WeakMap<Node, ChildPart>;
   $T: (value: unknown) => string;
@@ -275,7 +275,11 @@ const finish = (cursor: Cursor, top = false) => {
 /* ── the walk ────────────────────────────────────────────────────────────────────────────────────── */
 
 /** One instance being adopted. */
-type Adoption = { template: Template; bindings: unknown[]; values: unknown[]; plan: Map<Node, number[]> };
+/**
+ * One instance being adopted. `found`: for a template with an instance hook, its live elements in TEMPLATE pre-order —
+ * the walk pairs each canonical element with its live one, the only place that knows both orders.
+ */
+type Adoption = { template: Template; bindings: unknown[]; values: unknown[]; plan: Map<Node, number[]>; found: Element[] | null };
 
 /** Adopts the canonical siblings from `canonical` on, against the live cursor. */
 const walk = (canonical: Node | null, cursor: Cursor, into: Adoption) => {
@@ -359,6 +363,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
  * render commits them (queued) — then its content is adopted: as one SOLE value, or as canonical children.
  */
 const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: number[] | undefined) => {
+  if (into.found !== null) into.found.push(live);
   let sole = -1;
   /** A content property (`.innerHTML`, `.textContent`…) writes this element's children itself — see below. */
   let content = false;
@@ -431,18 +436,22 @@ const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
     bindings: new Array(template.$K.length * 2 + (template.$X ? 1 : 0)),
     values: result.values,
     plan: planOf(template),
+    found: template._$inst$ === undefined ? null : [],
   };
   const root = template.$R;
-  if (root.nodeType === 1) {
-    const adopted = claimElement(cursor, (root as Element).localName);
-    const instance = new H.$I(template, result.strings, adopted, into.bindings);
-    /** Its instance hook meets it before its bindings commit, as a client instance does — told it was adopted: queued first. */
-    if (template.$X) later(HOOK, instance, adopted);
-    adoptElement(root as Element, adopted, into, into.plan.get(root));
-    return instance;
-  }
-  walk(root.firstChild, cursor, into);
-  return new H.$I(template, result.strings, cursor.parent.ownerDocument!.createDocumentFragment(), into.bindings);
+  const single = root.nodeType === 1;
+  const adopted = single ? claimElement(cursor, (root as Element).localName) : cursor.parent.ownerDocument!.createDocumentFragment();
+  const instance = new H.$I(template, result.strings, adopted, into.bindings);
+  /**
+   * **Its instance hook meets it before its bindings commit**, as a client instance does — told it was adopted, and
+   * handed its elements in template order rather than a root to count from: an adopted root already holds what its
+   * nested parts rendered, so counting would land on the wrong element (or, for a fragment, on none). Queued first;
+   * the list is complete by the time the queue runs.
+   */
+  if (into.found !== null) later(HOOK, instance, into.found);
+  if (single) adoptElement(root as Element, adopted as Element, into, into.plan.get(root));
+  else walk(root.firstChild, cursor, into);
+  return instance;
 };
 
 
@@ -574,7 +583,7 @@ const run = (q: unknown[]) => {
     else if (op === APPLY) {
       H.$E();
       (q[k + 1] as Applies)._$apply$(q[k + 2] as Element, q[k + 3] as Slot, untracked, true);
-    } else if (op === HOOK) H.$U(q[k + 1] as Instance, q[k + 2] as Node, true);
+    } else if (op === HOOK) H.$U(q[k + 1] as Instance, q[k + 2] as Element[], true);
     else if (op === CHILD) {
       const applyChild = q[k + 1] as (part: ChildPart, previous: unknown, adopting: boolean) => unknown;
       const part = q[k + 3] as ChildPart;
