@@ -58,7 +58,7 @@ const hydrateOver = (markup, template) => {
 const skip = false;
 const full = !isProduction;
 
-test('a mismatch names the first place the two renders disagreed', { skip }, () => {
+test('a mismatch names the first place the two renders disagreed', { skip }, async () => {
   const cases = [
     ['<p>WRONG</p>', () => html`<p>${'a'}</p>`, /reads "a" here and the markup says "W"/],
     ['<div>a</div>', () => html`<p>${'a'}</p>`, /expected <p> and found <div>/],
@@ -72,10 +72,13 @@ test('a mismatch names the first place the two renders disagreed', { skip }, () 
     ],
   ];
   for (const [markup, template, expected] of cases) {
+    /** Each case its own pass: the warning is said once per KIND of cause per pass, and two cases share a kind. */
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const { said } = hydrateOver(markup, template());
     assert.equal(said.length, 1, `${markup} — expected one warning, got ${JSON.stringify(said)}`);
     assert.match(said[0], /^\[vera\] hydration fell back to a client render: /);
-    assert.match(said[0], expected, markup);
+    /** Development names both sides; production (Brian's option C) the kind and what the server had there. */
+    assert.match(said[0], full ? expected : /: (?:value|text|element|extra): found /, markup);
     /** And it says what was lost, not just that something was wrong. */
     if (full) assert.match(said[0], /server markup was discarded and rebuilt/);
     /**

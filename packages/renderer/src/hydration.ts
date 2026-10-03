@@ -84,11 +84,13 @@ const warned = new Set<string>();
  * detail: a page of 500 containers that each differ in their text says it once, naming the first. The record clears at
  * the next microtask, so a later pass that meets the kind again says it.
  */
-const warn = (cause: string, message: string) => {
+const warn = (cause: string, message: string, container?: Node) => {
   if (warned.has(cause)) return;
   if (warned.size === 0) queueMicrotask(() => warned.clear());
   warned.add(cause);
-  console.warn(`[vera] ${message}`);
+  /** The container itself rides along: a live element in devtools — hover to highlight it, click to reveal it. */
+  if (container === undefined) console.warn(`[vera] ${message}`);
+  else console.warn(`[vera] ${message}`, container);
 };
 
 /* ── the walk's state, per hydration ─────────────────────────────────────────────────────────────── */
@@ -110,9 +112,9 @@ let why = '';
 const MISMATCH = {};
 /** The KIND of the first disagreement — what the warning is said once per: `text`, `value`, `element`, `extra`. */
 let kind = '';
-const mismatch = (cause: string, reason: () => string): never => {
+const mismatch = (cause: string, at: Node | null, reason: false | (() => string)): never => {
   kind = cause;
-  why = reason();
+  why = reason ? reason() : `${cause}: found ${describe(at)}`;
   throw MISMATCH;
 };
 
@@ -142,6 +144,12 @@ const itemsOf = (value: Iterable<unknown>) => {
 };
 
 const isTemplateResult = (value: object): value is TemplateResult => (value as TemplateResult).strings !== undefined;
+
+/** A template's opening markup, as its author wrote it — something to search the code for (development only). */
+const opening = (result: TemplateResult) => {
+  const text = result.strings.join('${…}').replace(/\s+/g, ' ').trim();
+  return `\`${text.length > 60 ? `${text.slice(0, 60)}…` : text}\``;
+};
 
 /* ── where the walk stands ───────────────────────────────────────────────────────────────────────── */
 
@@ -201,11 +209,11 @@ const expectText = (cursor: Cursor, text: string) => {
   while (text !== '') {
     passComments(cursor);
     const node = cursor.node;
-    if (node === null || node.nodeType !== 3) return mismatch('text', () => `expected the text ${JSON.stringify(text)} and found ${describe(node)}`);
+    if (node === null || node.nodeType !== 3) return mismatch('text', node, __DEV__ && (() => `expected the text ${JSON.stringify(text)} and found ${describe(node)}`));
     const data = (node as Text).data;
     const take = Math.min(data.length - cursor.offset, text.length);
     if (data.slice(cursor.offset, cursor.offset + take) !== text.slice(0, take))
-      return mismatch('text', () => `expected the text ${JSON.stringify(text)} and found ${JSON.stringify(data.slice(cursor.offset, cursor.offset + 30))}`);
+      return mismatch('text', node, __DEV__ && (() => `expected the text ${JSON.stringify(text)} and found ${JSON.stringify(data.slice(cursor.offset, cursor.offset + 30))}`));
     text = text.slice(take);
     cursor.offset += take;
     if (cursor.offset === data.length) {
@@ -229,16 +237,17 @@ const claimText = (cursor: Cursor, text: string): Text => {
   passComments(cursor);
   const node = cursor.node;
   if (node === null || node.nodeType !== 3)
-    return mismatch('value', () => `expected a text node holding an interpolated value and found ${describe(node)}`);
+    return mismatch('value', node, __DEV__ && (() => `expected a text node holding an interpolated value and found ${describe(node)}`));
   const data = (node as Text).data;
   const at = cursor.offset;
   if (!data.startsWith(text, at))
     return mismatch(
       'value',
-      () =>
+      node,
+      __DEV__ && (() =>
         `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(data.slice(at, at + text.length))} ` +
         `— a value that stringifies differently on the server (a Date? locale formatting?) disagrees here`
-    );
+    ));
   if (dry) {
     if (at + text.length < data.length) cursor.offset = at + text.length;
     else {
@@ -258,7 +267,7 @@ const claimElement = (cursor: Cursor, name: string): Element => {
   passComments(cursor);
   const node = cursor.offset > 0 ? null : cursor.node;
   if (node === null || node.nodeType !== 1 || (node as Element).localName !== name)
-    return mismatch('element', () => `expected <${name}> and found ${cursor.offset > 0 ? describe(cursor.node) : describe(node)}`);
+    return mismatch('element', cursor.offset > 0 ? cursor.node : node, __DEV__ && (() => `expected <${name}> and found ${cursor.offset > 0 ? describe(cursor.node) : describe(node)}`));
   cursor.node = node.nextSibling;
   return node as Element;
 };
@@ -267,11 +276,11 @@ const claimElement = (cursor: Cursor, name: string): Element => {
 const finish = (cursor: Cursor, top = false) => {
   passComments(cursor);
   if (cursor.offset > 0 || cursor.node !== null)
-    mismatch('extra', () =>
+    mismatch('extra', cursor.node, __DEV__ && (() =>
       !top && cursor.parent.nodeType === 1
         ? `<${(cursor.parent as Element).localName}> contains ${describe(cursor.node)}, which the template does not describe`
         : `${describe(cursor.node)} follows everything the template describes`
-    );
+    ));
 };
 
 /* ── the walk ────────────────────────────────────────────────────────────────────────────────────── */
@@ -627,13 +636,15 @@ const adoptContainer = (result: TemplateResult, container: Node): boolean => {
     warn(
       kind,
       __DEV__
-        ? `hydration fell back to a client render: ${why}. This container's server markup was discarded and rebuilt (its ` +
+        ? `hydration fell back to a client render: ${why}. This container's server markup was discarded and rebuilt ` +
+            `(its template begins ${opening(result)}; its ` +
             `SSR <style> is kept), so the page is correct but the server's work on it was wasted. Its children are taken ` +
             `as server output of this template — if they were a client-side placeholder instead, empty the container ` +
             `first (\`container.replaceChildren()\`) or render the placeholder with vera. Otherwise the two renders have ` +
             `to agree exactly: check for markup the template does not describe, or state settled after the server ` +
             `render. Other containers on the page hydrate independently and are unaffected.`
-        : `hydration fell back to a client render: ${why} (a placeholder? \`container.replaceChildren()\` first).`
+        : `hydration fell back to a client render: ${why} (a placeholder? \`container.replaceChildren()\` first).`,
+      container
     );
     clearPreservingStyles(container);
     return false;

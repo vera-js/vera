@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 import { hydrating } from './hydration.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -37,11 +37,16 @@ const holding = (markup) => {
   doc.body.append(container);
   return container;
 };
-/** Runs `work`, collecting `console.warn`. */
+/** Runs `work`, collecting `console.warn` — the text; `elements` holds what rode along (the container). */
+const elements = [];
 const warnings = (work) => {
   const said = [];
+  elements.length = 0;
   const real = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
+  console.warn = (message, ...rest) => {
+    said.push(String(message));
+    elements.push(...rest);
+  };
   try {
     work();
   } finally {
@@ -66,7 +71,9 @@ test('a mismatch at the LAST marker of a container yields exactly the client ren
   const said = warnings(() => renderInto(draw('client'), container));
   await tick();
   assert.equal(said.length, 1, `exactly one fallback warning: ${said}`);
-  assert.match(said[0], /^\[vera\] hydration fell back to a client render: expected <span>/);
+  /** Development says the whole sentence; production (Brian's option C) the KIND and the first node that disagreed. */
+  assert.match(said[0], isProduction ? /^\[vera\] hydration fell back to a client render: element: found <i>/ : /^\[vera\] hydration fell back to a client render: expected <span>/);
+  assert.deepEqual(elements, [container], 'the container rides along, for devtools to reveal');
   assert.equal(container.querySelector('p') === serverP, false, 'the server <p> was discarded, not adopted');
   assert.equal(container.querySelector('span').textContent, 'client');
   /** The ref ran ONCE — for the client render's element, never for the discarded server one. */
@@ -282,6 +289,8 @@ test('a placeholder: client render plus ONE warning for two containers, naming r
   });
   assert.equal(said.length, 1, `one warning per cause, not per container: ${said.length}`);
   assert.match(said[0], /replaceChildren/);
+  assert.deepEqual(elements, [a], 'the first container rides along');
+  if (!isProduction) assert.match(said[0], /its template begins `<main>app<\/main>`/, 'development names the template to search for');
   assert.equal(a.textContent, 'app');
   assert.equal(b.textContent, 'app');
   a.remove();
@@ -438,7 +447,8 @@ test('a nested MISMATCH during the outer adoption falls back for the inner only;
   const p = container.querySelector('p');
   const said = warnings(() => renderInto(outer('A', 'v'), container));
   assert.equal(said.length, 1, `one warning — the inner's: ${said}`);
-  assert.match(said[0], /expected <b> and found <i>/, 'naming the inner\'s disagreement, not leaking it into the outer');
+  assert.match(said[0], isProduction ? /element: found <i>/ : /expected <b> and found <i>/, 'naming the inner\'s disagreement, not leaking it into the outer');
+  assert.deepEqual(elements, [container.querySelector('hw-in2')], 'and pointing at the INNER container');
   assert.equal(container.querySelector('p'), p, 'the outer stayed adopted');
   assert.equal(container.querySelector('hw-in2').innerHTML.replace(/<!---->/g, ''), '<b>v</b>', 'the inner rendered fresh');
   container.remove();
@@ -453,7 +463,7 @@ test('the warning is said once per KIND: two containers differing in their text 
     renderInto(draw('client two'), b);
   });
   assert.equal(said.length, 1, `two different details of one kind, one warning: ${said.length}`);
-  assert.match(said[0], /client one/, 'naming the first');
+  assert.match(said[0], isProduction ? /value: found the text "server one"/ : /client one/, 'naming the first');
   a.remove();
   b.remove();
 });
