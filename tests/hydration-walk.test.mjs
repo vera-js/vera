@@ -279,6 +279,41 @@ test('a javascript: URL the server wrote is refused through hydration exactly as
   container.remove();
 });
 
+/**
+ * **A matched binding that names no URL commits NOTHING at hydration** — its commit would return at `value ===
+ * committed`, so none is queued — while a URL-bearing one always commits (the `javascript:` refusal runs through the
+ * base). The seed is what a client render stores: the next render with the same values writes nothing, a different one
+ * writes. Counted through the hand-off's commit, which is what the queue calls.
+ */
+test('a fully matched element queues no commit but its URL binding; later renders fast-path or write as after a client render', () => {
+  const H = inserts.$H;
+  assert.equal(typeof H?.$M, 'function', 'CONTROL: the hand-off is reachable');
+  const real = H.$M;
+  let commits = 0;
+  H.$M = (...args) => (commits++, real(...args));
+  try {
+    const draw = (cls, x, hidden, href) => html`<p class=${cls} data-x=${x} ?hidden=${hidden}><a href=${href}>x</a></p>`;
+    const container = holding('<p data-x="t"><a href="/ok">x</a></p>');
+    const p = container.querySelector('p');
+    const records = [];
+    const observer = new MutationObserver((r) => records.push(...r));
+    observer.observe(container, { subtree: true, attributes: true });
+    const said = warnings(() => renderInto(draw(null, 't', false, '/ok'), container));
+    assert.deepEqual(said, []);
+    assert.equal(container.querySelector('p'), p, 'CONTROL: adopted');
+    assert.equal(commits, 1, 'only the URL-bearing href committed — class (both absent), data-x and ?hidden were elided');
+    renderInto(draw(null, 't', false, '/ok'), container);
+    assert.equal(observer.takeRecords().length + records.length, 0, 'the same values again: nothing written');
+    renderInto(draw('c', 'u', true, '/ok'), container);
+    const written = observer.takeRecords().map((r) => r.attributeName).sort();
+    assert.deepEqual(written, ['class', 'data-x', 'hidden'], 'different values: each one written, as after a client render');
+    observer.disconnect();
+    container.remove();
+  } finally {
+    H.$M = real;
+  }
+});
+
 test('a matching attribute costs no write; a differing one is repaired; null removes the server\'s', () => {
   const draw = (cls, title) => html`<p class="item ${cls}" title=${title}>x</p>`;
   const container = holding('<p class="item a" title="server">x</p>');
