@@ -23,7 +23,7 @@ import { hydrating } from './hydration.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'Event', 'CustomEvent', 'NodeFilter', 'Comment', 'Text'])
@@ -50,8 +50,13 @@ const hydrateOver = (markup, template) => {
   return { said, text: host.textContent.trim(), host };
 };
 
-/** The fallback warning ships in EVERY build (Brian, 2026-10-02): asserted in production as well. */
+/**
+ * The fallback warning ships in EVERY build (Brian, 2026-10-02): that it happens, and its cause, are asserted in both.
+ * The full explanation is development's; production's one line names the cause and the fix, so the prose checks are
+ * development-only (`full`).
+ */
 const skip = false;
+const full = !isProduction;
 
 test('a mismatch names the first place the two renders disagreed', { skip }, () => {
   const cases = [
@@ -72,7 +77,7 @@ test('a mismatch names the first place the two renders disagreed', { skip }, () 
     assert.match(said[0], /^\[vera\] hydration fell back to a client render: /);
     assert.match(said[0], expected, markup);
     /** And it says what was lost, not just that something was wrong. */
-    assert.match(said[0], /server markup was discarded and rebuilt/);
+    if (full) assert.match(said[0], /server markup was discarded and rebuilt/);
     /**
      * **Scoped to the container.** It used to say "nothing the server rendered was used", which is a
      * page-wide claim about a per-container event — see the isolation test below. Pinned negatively
@@ -190,7 +195,7 @@ test('a mismatch in one container does not cost the others their server markup',
   assert.equal(b.host.textContent.replace(/\s+/g, ' ').trim(), 'hello b');
   assert.equal(b.host.querySelector('span'), null, 'the undescribed markup should be gone');
 
-  assert.match(said[0], /Other containers on the page hydrate independently/);
+  if (full) assert.match(said[0], /Other containers on the page hydrate independently/);
 });
 
 /** The SSR stylesheet survives a fallback — `clearPreservingStyles` exists for exactly this. */
@@ -207,5 +212,5 @@ test('a fallback keeps the SSR stylesheet, and the message says so', { skip }, (
   }
   assert.ok(host.querySelector('style[data-vm-sheet="styles"]'), 'the SSR stylesheet was thrown away with the rest');
   assert.equal(host.querySelector('span'), null);
-  assert.match(said[0], /SSR <style> is kept/, 'the message says the markup was discarded without the exception');
+  if (full) assert.match(said[0], /SSR <style> is kept/, 'the message says the markup was discarded without the exception');
 });

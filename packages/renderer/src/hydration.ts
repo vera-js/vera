@@ -604,14 +604,17 @@ const adopt = (result: unknown, container: Node): boolean => {
   } catch (error) {
     if (error !== MISMATCH) throw error;
     dry = false;
+    /** The whole story in development; production says the cause and the fix in one line — it warns in every build. */
     warn(
       why,
-      `hydration fell back to a client render: ${why}. This container's server markup was discarded and rebuilt (its SSR ` +
-        `<style> is kept), so the page is correct but the server's work on it was wasted. Its children are taken as ` +
-        `server output of this template — if they were a client-side placeholder instead, empty the container first ` +
-        `(\`container.replaceChildren()\`) or render the placeholder with vera. Otherwise the two renders have to agree ` +
-        `exactly: check for markup the template does not describe, or state settled after the server render. Other ` +
-        `containers on the page hydrate independently and are unaffected.`
+      __DEV__
+        ? `hydration fell back to a client render: ${why}. This container's server markup was discarded and rebuilt (its ` +
+            `SSR <style> is kept), so the page is correct but the server's work on it was wasted. Its children are taken ` +
+            `as server output of this template — if they were a client-side placeholder instead, empty the container ` +
+            `first (\`container.replaceChildren()\`) or render the placeholder with vera. Otherwise the two renders have ` +
+            `to agree exactly: check for markup the template does not describe, or state settled after the server ` +
+            `render. Other containers on the page hydrate independently and are unaffected.`
+        : `hydration fell back to a client render: ${why} (a placeholder? \`container.replaceChildren()\` first).`
     );
     clearPreservingStyles(container);
     return false;
@@ -659,10 +662,13 @@ export const hydration = (given: Registry) => {
   if (handoff.$V !== PROTOCOL) {
     warn(
       'protocol',
-      `hydration: this @verajs/renderer speaks hand-off protocol ${handoff.$V} and this hydration ${PROTOCOL} — they are from ` +
-        `different releases. Pages render fresh (correct, without adopting the server's markup); update both together.`
+      __DEV__
+        ? `hydration: this @verajs/renderer speaks hand-off protocol ${handoff.$V} and this hydration ${PROTOCOL} — they ` +
+            `are from different releases. Pages render fresh (correct, without adopting the server's markup); update both ` +
+            `together.`
+        : `hydration: this @verajs/renderer speaks hand-off protocol ${handoff.$V} and this hydration ${PROTOCOL} — update both together.`
     );
-    handoff.$Y((result, container) => {
+    handoff.$Y((_result, container) => {
       clearPreservingStyles(container);
       return false;
     });
