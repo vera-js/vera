@@ -49,31 +49,46 @@ import {
   SOLE,
   TEMPLATE,
   TEXT,
+  HANDOFF_ADOPTER,
+  HANDOFF_CHILD_PART,
+  HANDOFF_COMMIT,
+  HANDOFF_COMMIT_AS,
+  HANDOFF_GET_TEMPLATE,
+  HANDOFF_HOOK_UP,
+  HANDOFF_INSTANCE,
+  HANDOFF_PROTOCOL,
+  HANDOFF_REMOVAL_WORK,
+  HANDOFF_RESOLVE,
+  HANDOFF_ROOTS,
+  HANDOFF_SLOT,
+  HANDOFF_TO_TEXT,
+  HANDOFF_UNSET,
+  HANDOFF_UPGRADED,
 } from './kinds.js';
 import type { ChildPart, Instance, Item, KeyedResult, Slot, Template } from './renderer.js';
 import type { TemplateResult } from './types.js';
 
-/** The hand-off protocol this module speaks — the renderer's `$V` must equal it. */
+/** The hand-off protocol this module speaks — the renderer's, at `HANDOFF_PROTOCOL`, must equal it. */
 const PROTOCOL = 1;
 
-/** What the renderer hands over (`renderer.ts`, `connect`). */
-type Handoff = {
-  $V: number;
-  $G: (result: TemplateResult) => Template;
-  $C: new (start: Comment | null, end: Node | null) => ChildPart;
-  $I: new (template: Template, strings: TemplateStringsArray, root: Node, bindings: unknown[]) => Instance;
-  $S: new (element: Element) => Slot;
-  $Z: object;
-  $W: object;
-  $M: (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => void;
-  $A: (root: Node | null, part: ChildPart, value: unknown, home?: Node | null) => void;
-  $U: (instance: Instance, root: Node | readonly Element[], adopted: boolean) => void;
-  $Q: (template: Template, parent: Node) => Template;
-  $O: WeakMap<Node, ChildPart>;
-  $T: (value: unknown) => string;
-  $E: () => void;
-  $Y: (adopt: (result: unknown, container: Node) => boolean) => void;
-};
+/** What the renderer hands over (`renderer.ts`, `connect`), by the `HANDOFF_*` positions in `kinds.ts`. */
+type Handoff = [
+  protocol: number,
+  adopter: (adopt: (result: unknown, container: Node) => boolean) => void,
+  getTemplate: (result: TemplateResult) => Template,
+  ChildPart: new (start: Comment | null, end: Node | null) => ChildPart,
+  Instance: new (template: Template, strings: TemplateStringsArray, root: Node, bindings: unknown[]) => Instance,
+  Slot: new (element: Element) => Slot,
+  unset: object,
+  upgraded: object,
+  commit: (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => void,
+  commitAs: (root: Node | null, part: ChildPart, value: unknown, home?: Node | null) => void,
+  hookUp: (instance: Instance, root: Node | readonly Element[], adopted: boolean) => void,
+  resolve: (template: Template, parent: Node) => Template,
+  roots: WeakMap<Node, ChildPart>,
+  toText: (value: unknown) => string,
+  removalWork: () => void,
+];
 type Registry = { get(name: string): unknown[] | undefined; $H?: Handoff; $t?: Untracked };
 type Untracked = <A extends unknown[], R>(fn: (...args: A) => R, ...args: A) => R;
 type Applies = { _$apply$: (element: Element, key: object, run: Untracked, adopting?: boolean) => void };
@@ -145,7 +160,7 @@ const describe = (node: Node | null) =>
           : `a ${node.nodeName} node`;
 
 /** A value's text — the base's own conversion, once, as a client render converts it. */
-const textOf = (value: unknown) => H.$T(value);
+const textOf = (value: unknown) => H[HANDOFF_TO_TEXT](value);
 
 const isTemplateResult = (value: object): value is TemplateResult => (value as TemplateResult).strings !== undefined;
 
@@ -310,8 +325,8 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
   const { template, bindings, values } = into;
   const slot = i * 2;
   const name = template.$N[i];
-  bindings[slot] = kind >= EVENT && kind <= ADOPT ? new H.$S(live) : live;
-  bindings[slot + 1] = H.$Z;
+  bindings[slot] = kind >= EVENT && kind <= ADOPT ? new H[HANDOFF_SLOT](live) : live;
+  bindings[slot + 1] = H[HANDOFF_UNSET];
   const raw = values[i];
   /** Recorded, never written: a selection, a `!name`, a form control's value. */
   if (kind === SELECT || kind === SELECT_INDEX || kind === LIVE || (kind === PROPERTY && FORM_STATE.test(name))) {
@@ -327,7 +342,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
   if (kind === ATTR) {
     const parts = template.$J[i];
     let text: string | null;
-    if (parts === null) text = primitive(raw) ? (raw == null ? null : H.$T(raw)) : undefined!;
+    if (parts === null) text = primitive(raw) ? (raw == null ? null : H[HANDOFF_TO_TEXT](raw)) : undefined!;
     else {
       text = parts[0];
       for (let p = 1; p < parts.length; p++) {
@@ -336,7 +351,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
           text = undefined!;
           break;
         }
-        text += H.$T(v) + parts[p];
+        text += H[HANDOFF_TO_TEXT](v) + parts[p];
       }
     }
     if (text !== undefined) {
@@ -405,12 +420,12 @@ const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
     into.bindings[i * 2 + 1] = value;
     return;
   }
-  const part = new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
+  const part = new H[HANDOFF_CHILD_PART](cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
   insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
   if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
   into.bindings[i * 2] = part;
-  into.bindings[i * 2 + 1] = H.$W;
+  into.bindings[i * 2 + 1] = H[HANDOFF_UPGRADED];
 };
 
 /** A SOLE binding: its element's one text node, or a part that owns the element (no markers). */
@@ -421,18 +436,18 @@ const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
     into.bindings[i * 2 + 1] = value;
     return;
   }
-  const part = new H.$C(null, null);
+  const part = new H[HANDOFF_CHILD_PART](null, null);
   part.$w = live;
   adoptValue(part, value, inner);
   into.bindings[i * 2] = part;
-  into.bindings[i * 2 + 1] = H.$W;
+  into.bindings[i * 2 + 1] = H[HANDOFF_UPGRADED];
 };
 
 /** Adopts a template's instance at the cursor. */
 const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
-  let template = H.$G(result);
+  let template = H[HANDOFF_GET_TEMPLATE](result);
   /** Adoption is in place: an extension resolving the template (namespaces) is asked with the LIVE parent. */
-  if (template.$X) template = H.$Q(template, cursor.parent);
+  if (template.$X) template = H[HANDOFF_RESOLVE](template, cursor.parent);
   const into: Adoption = {
     template,
     bindings: new Array(template.$K.length * 2 + (template.$X ? 1 : 0)),
@@ -443,7 +458,7 @@ const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
   const root = template.$R;
   const single = root.nodeType === 1;
   const adopted = single ? claimElement(cursor, (root as Element).localName) : cursor.parent.ownerDocument!.createDocumentFragment();
-  const instance = new H.$I(template, result.strings, adopted, into.bindings);
+  const instance = new H[HANDOFF_INSTANCE](template, result.strings, adopted, into.bindings);
   /**
    * **Its instance hook meets it before its bindings commit**, as a client instance does — told it was adopted, and
    * handed its elements in template order rather than a root to count from: an adopted root already holds what its
@@ -534,8 +549,8 @@ const adoptObject = (part: ChildPart, value: object, cursor: Cursor) => {
 
 /** The root the template at this position will build — after an extension resolves it, as the base asks. */
 const rootOf = (result: TemplateResult, cursor: Cursor) => {
-  const template = H.$G(result);
-  return (template.$X ? H.$Q(template, cursor.parent) : template).$R;
+  const template = H[HANDOFF_GET_TEMPLATE](result);
+  return (template.$X ? H[HANDOFF_RESOLVE](template, cursor.parent) : template).$R;
 };
 
 /** Adopts one list item — the same shapes the base builds. */
@@ -545,7 +560,7 @@ const adoptItem = (value: unknown, cursor: Cursor): Item => {
     instance.$k = (value as KeyedResult).key;
     return instance;
   }
-  const part = new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
+  const part = new H[HANDOFF_CHILD_PART](cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
   insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
   if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
@@ -564,7 +579,7 @@ const claimed = (part: ChildPart, value: unknown, handlers: ValueHandler[]) => {
   const span: Node[] = [];
   for (let node = part.$s === null ? part.$w!.firstChild : part.$s.nextSibling; node !== null && node !== part.$e; node = node.nextSibling)
     span.push(node);
-  Object.assign(part, new H.$C(part.$s, part.$e), { $w: was.$w, $k: was.$k });
+  Object.assign(part, new H[HANDOFF_CHILD_PART](part.$s, part.$e), { $w: was.$w, $k: was.$k });
   for (let i = 0; i < handlers.length; i++)
     if (handlers[i](part, value)) {
       for (const node of span) node.parentNode?.removeChild(node);
@@ -582,15 +597,15 @@ const run = (from: number, to: number) => {
   const q = queue;
   for (let k = from; k < to; k += 6) {
     const op = q[k];
-    if (op === COMMIT) H.$M(q[k + 1] as Template, q[k + 2] as unknown[], q[k + 3] as number, q[k + 4] as number, q[k + 5] as unknown[]);
+    if (op === COMMIT) H[HANDOFF_COMMIT](q[k + 1] as Template, q[k + 2] as unknown[], q[k + 3] as number, q[k + 4] as number, q[k + 5] as unknown[]);
     else if (op === APPLY) {
-      H.$E();
+      H[HANDOFF_REMOVAL_WORK]();
       (q[k + 1] as Applies)._$apply$(q[k + 2] as Element, q[k + 3] as Slot, untracked, true);
-    } else if (op === HOOK) H.$U(q[k + 1] as Instance, q[k + 2] as Element[], true);
+    } else if (op === HOOK) H[HANDOFF_HOOK_UP](q[k + 1] as Instance, q[k + 2] as Element[], true);
     else if (op === CHILD) {
       const applyChild = q[k + 1] as (part: ChildPart, previous: unknown, adopting: boolean) => unknown;
       const part = q[k + 3] as ChildPart;
-      if ((applyChild as { _$detach$?: unknown })._$detach$ !== undefined) H.$E();
+      if ((applyChild as { _$detach$?: unknown })._$detach$ !== undefined) H[HANDOFF_REMOVAL_WORK]();
       part.$z = applyChild.call(q[k + 2], part, undefined, true);
     } else if (op === HANDLE) {
       if (claimed(q[k + 1] as ChildPart, q[k + 2], q[k + 3] as ValueHandler[])) k = (q[k + 4] as number) - 6;
@@ -616,7 +631,7 @@ const clearPreservingStyles = (container: Node) => {
 };
 
 /**
- * **A container's first render, with children already there** — the renderer asks (`$Y`). Adopts them and answers
+ * **A container's first render, with children already there** — the renderer asks (the hook set at `HANDOFF_ADOPTER`). Adopts them and answers
  * true, or answers false having cleared them, and the renderer renders fresh.
  */
 const adopt = (result: unknown, container: Node): boolean => {
@@ -645,7 +660,7 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
   const start = doc.createComment('');
   container.insertBefore(start, first);
   const end = container.appendChild(doc.createComment(''));
-  const part = new H.$C(start, end);
+  const part = new H[HANDOFF_CHILD_PART](start, end);
   try {
     const cursor: Cursor = { parent: container, node: first, offset: 0 };
     adoptValue(part, result, cursor);
@@ -674,8 +689,8 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
   }
   /** Matched: the queue runs, inside the renderer's own render bracket (a stand-in part) — refs at its end, as always. */
   const to = queue.length;
-  H.$A(container, { $p: () => run(from, to) } as unknown as ChildPart, undefined, container);
-  H.$O.set(container, part);
+  H[HANDOFF_COMMIT_AS](container, { $p: () => run(from, to) } as unknown as ChildPart, undefined, container);
+  H[HANDOFF_ROOTS].set(container, part);
   return true;
 };
 
@@ -687,21 +702,21 @@ export const hydration = (given: Registry) => {
     return;
   }
   /**
-   * **Another release's renderer: the page still works, rendered fresh** (Brian, 2026-10-02). `$V` and `$Y` are the
-   * hand-off's FROZEN pair — the same in every protocol — so even a mismatched renderer can be asked to clear a
+   * **Another release's renderer: the page still works, rendered fresh** (Brian, 2026-10-02). The protocol and adopter
+   * positions are the hand-off's FROZEN pair — the same in every protocol — so even a mismatched renderer can be asked to clear a
    * container's server markup before its first render; nothing else of the hand-off is read. Without that, the base
    * renderer keeps what a container holds and the server's markup would stand beside the client's.
    */
-  if (handoff.$V !== PROTOCOL) {
+  if (handoff[HANDOFF_PROTOCOL] !== PROTOCOL) {
     warn(
       'protocol',
       __DEV__
-        ? `hydration: this @verajs/renderer speaks hand-off protocol ${handoff.$V} and this hydration ${PROTOCOL} — they ` +
+        ? `hydration: this @verajs/renderer speaks hand-off protocol ${handoff[HANDOFF_PROTOCOL]} and this hydration ${PROTOCOL} — they ` +
             `are from different releases. Pages render fresh (correct, without adopting the server's markup); update both ` +
             `together.`
-        : `hydration: this @verajs/renderer speaks hand-off protocol ${handoff.$V} and this hydration ${PROTOCOL} — update both together.`
+        : `hydration: this @verajs/renderer speaks hand-off protocol ${handoff[HANDOFF_PROTOCOL]} and this hydration ${PROTOCOL} — update both together.`
     );
-    handoff.$Y((_result, container) => {
+    handoff[HANDOFF_ADOPTER]((_result, container) => {
       clearPreservingStyles(container);
       return false;
     });
@@ -710,5 +725,5 @@ export const hydration = (given: Registry) => {
   H = handoff;
   registry = given;
   untracked = given.$t ?? (((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(...args)) as Untracked);
-  handoff.$Y(adopt);
+  handoff[HANDOFF_ADOPTER](adopt);
 };

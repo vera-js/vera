@@ -1729,26 +1729,27 @@ export const renderer = {
     /**
      * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
      * bundled module cannot import them, and production mangles their names): only values the renderer already holds,
-     * so it pulls no code in. Its fields are UPPERCASE single characters, so none reads like a part's own `$` fields.
-     * `$V` is its protocol number; on a mismatch hydration declines and the page renders fresh, with a warning. `$V`
-     * and `$Y` are FROZEN — the same in every protocol — so a mismatched hydration can still clear server markup.
+     * so it pulls no code in. An ARRAY, read by the `HANDOFF_*` positions in `kinds.ts` (names would cost every app
+     * bytes). Position 0 is its protocol number; on a mismatch hydration declines and the page renders fresh, with a
+     * warning. Positions 0 and 1 are FROZEN — the same in every protocol — so a mismatched hydration can still clear
+     * server markup.
      */
-    (given as { $H?: unknown }).$H = {
-      $V: 1,
-      $G: getTemplate,
-      $C: ChildPart,
-      $I: Instance,
-      $S: Slot,
-      $Z: UNSET,
-      $W: UPGRADED,
-      $M: commit,
-      $A: commitAs,
-      $U: hookUp,
-      $Q: resolved,
-      $O: rootParts,
-      $T: toText,
-      $E: needRemovalWork,
-      $Y: (fn: typeof adopt) => (adopt = fn),
-    };
+    (given as { $H?: unknown }).$H = [
+      1, // HANDOFF_PROTOCOL
+      (fn: typeof adopt) => (adopt = fn), // HANDOFF_ADOPTER
+      getTemplate, // HANDOFF_GET_TEMPLATE
+      ChildPart, // HANDOFF_CHILD_PART
+      Instance, // HANDOFF_INSTANCE
+      Slot, // HANDOFF_SLOT
+      UNSET, // HANDOFF_UNSET
+      UPGRADED, // HANDOFF_UPGRADED
+      commit, // HANDOFF_COMMIT
+      commitAs, // HANDOFF_COMMIT_AS
+      hookUp, // HANDOFF_HOOK_UP
+      resolved, // HANDOFF_RESOLVE
+      rootParts, // HANDOFF_ROOTS
+      toText, // HANDOFF_TO_TEXT
+      needRemovalWork, // HANDOFF_REMOVAL_WORK
+    ];
   },
 };

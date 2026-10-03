@@ -286,11 +286,13 @@ test('a javascript: URL the server wrote is refused through hydration exactly as
  * writes. Counted through the hand-off's commit, which is what the queue calls.
  */
 test('a fully matched element queues no commit but its URL binding; later renders fast-path or write as after a client render', () => {
+  /** The hand-off is an array; the base commit sits at `HANDOFF_COMMIT` (8, `packages/renderer/src/kinds.ts`). */
   const H = inserts.$H;
-  assert.equal(typeof H?.$M, 'function', 'CONTROL: the hand-off is reachable');
-  const real = H.$M;
+  const COMMIT = 8;
+  assert.equal(typeof H?.[COMMIT], 'function', 'CONTROL: the hand-off is reachable');
+  const real = H[COMMIT];
   let commits = 0;
-  H.$M = (...args) => (commits++, real(...args));
+  H[COMMIT] = (...args) => (commits++, real(...args));
   try {
     /** A number and a boolean too: the seed is the RAW value a client render stores, never its text ("5" !== 5). */
     const draw = (cls, x, hidden, href, n = 5, b = true) =>
@@ -312,7 +314,7 @@ test('a fully matched element queues no commit but its URL binding; later render
     observer.disconnect();
     container.remove();
   } finally {
-    H.$M = real;
+    H[COMMIT] = real;
   }
 });
 

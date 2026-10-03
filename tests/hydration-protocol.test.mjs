@@ -19,7 +19,8 @@ test('a protocol mismatch renders fresh, warns once, and leaves no server markup
   const { hydration } = await load('renderer/hydration');
   const { html } = await load('core');
   wire([renderer]);
-  inserts.$H.$V = 999;
+  /** Position 0 is the protocol number (`HANDOFF_PROTOCOL`), frozen across protocols. */
+  inserts.$H[0] = 999;
   const said = [];
   const real = console.warn;
   console.warn = (...args) => said.push(args.join(' '));
