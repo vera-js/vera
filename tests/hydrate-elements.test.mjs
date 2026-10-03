@@ -12,11 +12,12 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { renderer, renderInto } = await load('renderer/hydrate');
+const { renderer, renderInto } = await load('renderer');
+const { hydration } = await load('renderer/hydration');
 const { elements } = await load('renderer/elements');
 const log = [];
 const track = { mount: (element, { adopted }) => log.push([element, adopted]) };
-core.wire([renderer, elements, { on: 'element', fn: (el) => (el.hasAttribute('data-track') ? track : undefined), priority: 50 }]);
+core.wire([renderer, hydration, elements, { on: 'element', fn: (el) => (el.hasAttribute('data-track') ? track : undefined), priority: 50 }]);
 const { html } = core;
 
 test('an adopted element mounts with adopted: true — the server node itself; a client render says false', () => {

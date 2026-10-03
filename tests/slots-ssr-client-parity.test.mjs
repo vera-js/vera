@@ -81,7 +81,7 @@ for (const key of [
 }
 const { wire } = await load('core');
 const { renderer, renderInto } = await load('renderer');
-const { renderInto: hydrateInto, renderer: hydrateRenderer } = await load('renderer/hydrate');
+const { hydration } = await load('renderer/hydration');
 const { slots, slotted } = await load('renderer/slots');
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -171,17 +171,18 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
   });
 
 /**
- * **The third corner: server output, HYDRATED, against the client-only render.**
- *
- * The two comparisons above hold the server to the client. This holds the HYDRATED result to it —
- * which is the corner that produced this feature's worst defects, because a mismatch there does not
- * merely render differently, it discards the server's DOM and once destroyed the user's content
- * outright. A shape can serialize correctly and still adopt wrongly.
- *
- * The hydrate entry carries its own renderer, so it needs its own wiring; the seam is resolved from
- * the registry `connect()` hands it, exactly as the base entry's is.
+ * Hydration is wired by the FIRST hydration test, not here: module code runs before every test, and with hydration
+ * wired a first render into a container that already holds children adopts them — the client-render tests above render
+ * light hosts holding their user's children, which are light content, never server output.
  */
-wire([hydrateRenderer, slots]);
+let hydrationWired = false;
+const hydrateInto = (result, container) => {
+  if (!hydrationWired) {
+    hydrationWired = true;
+    wire([hydration]);
+  }
+  return renderInto(result, container);
+};
 
 let hydrateIndex = 0;
 for (const [label, [template, children]] of Object.entries(SHAPES))

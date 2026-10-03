@@ -71,10 +71,6 @@ const specifiersIn = (path, atLeast) => {
  * go missing quietly.
  */
 const NO_SIZE_CLAIM = {
-  '@verajs/renderer/hydrate':
-    'ENROLLED 2026-09-11 (owner: "agree — do anything you need"); row phrased INSTEAD-OF. ' +
-    'the renderer entry rather than something added beside it, so a row next to `@verajs/renderer` ' +
-    'in the public modules table would read as an extra cost nobody pays. Worth a row of its own.',
   '@verajs/store':
     'ENROLLED 2026-09-11 (owner-approved); the oversight it looked like. ' +
     'the table looks more like an oversight than a decision. `store/computed` and ' +
@@ -94,8 +90,6 @@ const NO_CONSUMER_CHECK = {
   '@verajs/tsconfig': 'config, not a module',
   '@verajs/jsx': 'a build-time transform, exercised by the JSX suites rather than as a runtime import',
   '@verajs/jsx/standalone': 'browser-only by construction: it captures `document` at module scope',
-  '@verajs/renderer/hydrate': 'a drop-in replacement for the renderer entry; importing both in one ' +
-    'file would be two renderers, and `ssrcheck.ts` covers the hydration surface',
   '@verajs/ssr': 'Node-only, and covered by `ssrcheck.ts` beside it',
 };
 

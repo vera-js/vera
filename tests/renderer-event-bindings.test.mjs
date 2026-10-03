@@ -12,8 +12,8 @@
  * called `.call()` unconditionally, so passing the platform's own listener shape bound successfully
  * and then threw `this._handler.call is not a function` on **every** dispatch.
  *
- * Both renderer entries are exercised, because `@verajs/renderer/hydrate` inlines its own copy of
- * this file and a fix to one is not a fix to the other.
+ * One renderer: hydration is a module wired beside it (`@verajs/renderer/hydration`), not a second copy of this
+ * file — so one entry asserts it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,9 +39,9 @@ const html = (strings, ...values) => ({ strings, values });
 const div = () => dom.window.document.createElement('div');
 const click = (el) => el.dispatchEvent(new dom.window.Event('click', { bubbles: true }));
 
-/** Both published entries; each inlines its own renderer, so each needs its own assertion. */
+/** One renderer now: hydration is a module wired beside it, not a second copy of the renderer to assert separately. */
 const ENTRIES = Object.fromEntries(
-  await Promise.all(['renderer', 'renderer/hydrate'].map(async (name) => [name, (await load(name)).renderInto]))
+  await Promise.all(['renderer'].map(async (name) => [name, (await load(name)).renderInto]))
 );
 
 /** Collects `console.warn` for the duration of `work`. */

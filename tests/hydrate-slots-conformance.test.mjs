@@ -39,17 +39,16 @@ const doc = dom.window.document;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 const core = await load('core');
-const hydrating = await load('renderer/hydrate');
 const base = await load('renderer');
+const { hydration } = await load('renderer/hydration');
 const { slots } = await load('renderer/slots');
 const { keyed } = await load('renderer/keyed');
-core.wire([hydrating.renderer, slots]);
 /**
- * The base renderer is a separate bundle from the hydrating one, with its own reference to the
- * registry — handed over by its `connect`, which only runs for a wired module. The client-side
- * control renders through it, so it is connected too (not registered: one renderer per page).
+ * ONE renderer, hydration wired — what an app writes. The client-side control renders a host made on the client
+ * (its user's children are LIGHT content, captured by slots, never server output) through the same renderer: it must
+ * render client-side, not be taken for server markup.
  */
-core.wire([(registry) => base.renderer.connect(registry)]);
+core.wire([base.renderer, hydration, slots]);
 const { html } = core;
 
 /** A template source is the body of `html\`…\`` with `S` in scope — one string, both sides. */
@@ -124,7 +123,7 @@ const run = async ({ source, state, children, steps, inner }) => {
     wrap.innerHTML = mode === 'hydrated' ? serverHtml : `<${tag}>${children}</${tag}>`;
     const host = wrap.firstElementChild;
     doc.body.append(host);
-    const renderInto = mode === 'hydrated' ? hydrating.renderInto : base.renderInto;
+    const renderInto = base.renderInto;
     const warned = [];
     const warn = console.warn;
     console.warn = (...args) => warned.push(args.join(' '));
@@ -180,7 +179,7 @@ test('CONTROL: a fallback is visible to the adoption check', { skip: isProductio
   const warn = console.warn;
   console.warn = (...args) => warned.push(args.join(' '));
   try {
-    hydrating.renderInto(drawFrom('<main>${S}</main>')('x'), host);
+    base.renderInto(drawFrom('<main>${S}</main>')('x'), host);
   } finally {
     console.warn = warn;
   }

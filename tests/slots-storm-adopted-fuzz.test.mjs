@@ -34,9 +34,10 @@ for (const k of ['window', 'document', 'Node', 'Element', 'HTMLElement', 'Commen
 globalThis.requestAnimationFrame = (fn) => dom.window.setTimeout(() => fn(0), 0);
 
 const { html, wire } = await load('core');
-const { renderInto, renderer } = await load('renderer/hydrate');
+const { renderInto, renderer } = await load('renderer');
+const { hydration } = await load('renderer/hydration');
 const { slots, slotted } = await load('renderer/slots');
-wire([renderer, slots]);
+wire([renderer, hydration, slots]);
 const doc = dom.window.document;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 const SHELL = '<article><header><slot name="header"><em>fallback header</em></slot></header><main><slot>default fallback</slot></main></article>';

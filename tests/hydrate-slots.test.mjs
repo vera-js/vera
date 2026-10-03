@@ -36,9 +36,10 @@ globalThis.requestAnimationFrame = (fn) => dom.window.setTimeout(() => fn(0), 0)
 const settle = () => new Promise((r) => dom.window.setTimeout(r, 0));
 
 const { wire } = await load('core');
-const { renderInto, renderer } = await load('renderer/hydrate');
+const { renderInto, renderer } = await load('renderer');
+const { hydration } = await load('renderer/hydration');
 const { slots, slotted } = await load('renderer/slots');
-wire([renderer, slots]);
+wire([renderer, hydration, slots]);
 const html = (strings, ...values) => ({ strings, values });
 // the SAME template the fixture renders
 const card = () => html`<article><header><slot name="header"><em>fallback header</em></slot></header><main><slot>default fallback</slot></main></article>`;

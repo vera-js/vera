@@ -32,9 +32,10 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame = (fn) => do
 const frame = () => new Promise((resolve) => dom.window.setTimeout(resolve, 10));
 
 const core = await load('core');
-const { renderer } = await load('renderer/hydrate');
+const { renderer } = await load('renderer');
+const { hydration } = await load('renderer/hydration');
 const { collections } = await load('store/collections');
-core.wire([renderer, collections]);
+core.wire([renderer, hydration, collections]);
 
 test('a Map-driven component serializes, hydrates by adoption, and stays live', async () => {
   assert.ok(serverHtml.includes('a=1') && serverHtml.includes('b=2'), 'CONTROL: the server rendered the rows at all');

@@ -81,7 +81,6 @@ const SAFE = [
  */
 const NEEDS_A_DOM = [
   '@verajs/renderer',
-  '@verajs/renderer/hydrate',
   '@verajs/renderer/profiler',
   '@verajs/jsx/standalone',
 ];

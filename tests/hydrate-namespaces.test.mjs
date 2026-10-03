@@ -13,9 +13,10 @@ const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true 
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent'])
   globalThis[key] = dom.window[key];
 const core = await load('core');
-const { renderer, renderInto } = await load('renderer/hydrate');
+const { renderer, renderInto } = await load('renderer');
+const { hydration } = await load('renderer/hydration');
 const { namespaces } = await load('renderer/namespaces');
-core.wire([renderer, namespaces]);
+core.wire([renderer, hydration, namespaces]);
 const { html } = core;
 
 test('an html template inside <svg> adopts the server markup parsed as SVG — self-closed siblings included', () => {
