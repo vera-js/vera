@@ -29,7 +29,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { hydrating } from './hydration.mjs';
-import { load, isProduction } from './dist.mjs';
+import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 import { extendSeeds } from './fuzz-seeds.mjs';
 
