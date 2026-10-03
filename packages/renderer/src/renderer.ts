@@ -1730,7 +1730,8 @@ export const renderer = {
      * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
      * bundled module cannot import them, and production mangles their names): only values the renderer already holds,
      * so it pulls no code in. Its fields are UPPERCASE single characters, so none reads like a part's own `$` fields.
-     * `$V` is its protocol number; on a mismatch hydration declines and the page renders fresh, with a warning.
+     * `$V` is its protocol number; on a mismatch hydration declines and the page renders fresh, with a warning. `$V`
+     * and `$Y` are FROZEN — the same in every protocol — so a mismatched hydration can still clear server markup.
      */
     (given as { $H?: unknown }).$H = {
       $V: 1,

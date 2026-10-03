@@ -296,3 +296,102 @@ test('the same page after replaceChildren(): no warning', () => {
   assert.equal(container.textContent, 'app');
   container.remove();
 });
+
+/* ── the edges vera-5a named ─────────────────────────────────────────────────────────────────────── */
+
+/**
+ * An applier's content is its own: phase 1 cannot verify it (it is the applier's code that decides), so it runs in
+ * phase 2, after the container is committed — it cannot decline the container; it adopts or replaces ITS region.
+ */
+test('an applier at a SOLE position replaces its own region; the container around it stays adopted', () => {
+  const applier = { _$child$: (part, previous, adopting) => (part._$commit$(adopting ? 'fresh' : 'x'), {}) };
+  const container = holding('<section><h1>title</h1><div>server-written</div></section>');
+  const h1 = container.querySelector('h1');
+  const said = warnings(() => renderInto(html`<section><h1>title</h1><div>${applier}</div></section>`, container));
+  assert.deepEqual(said, []);
+  assert.equal(container.querySelector('h1'), h1, 'the container was adopted');
+  assert.equal(container.querySelector('div').textContent, 'fresh', 'the applier replaced its own region');
+  container.remove();
+});
+
+/**
+ * **The one known exception — the platform's.** A custom element that is already defined upgrades as the server
+ * markup is parsed and runs its own setup BEFORE any hydration starts; a parent mismatch then discards it, so that
+ * setup runs again for the client render. No walk design can prevent it: pinned so it stays a known number.
+ */
+test('a defined server custom element under a mismatched parent sets up twice (the platform upgraded it on parse)', () => {
+  let setups = 0;
+  if (!customElements.get('hw-parsed')) customElements.define('hw-parsed', class extends dom.window.HTMLElement { connectedCallback() { setups++; } });
+  const container = holding('<hw-parsed></hw-parsed><i>server</i>');
+  assert.equal(setups, 1, 'CONTROL: it set up on parse, before hydration');
+  warnings(() => renderInto(html`<hw-parsed></hw-parsed><b>client</b>`, container));
+  assert.equal(setups, 2, 'and once more for the client render — exactly twice, never more');
+  container.remove();
+});
+
+test('a value handler claiming an ARRAY replaces the server\'s entries, without a warning', () => {
+  const owned = new WeakSet();
+  const handler = (part, value) => {
+    if (!owned.has(value)) return false;
+    part._$commit$(`[${value.length} owned]`);
+    return true;
+  };
+  inserts.set('value', [...(inserts.get('value') ?? []), handler]);
+  try {
+    const list = ['a', 'b'];
+    owned.add(list);
+    const container = holding('<ul>ab</ul>');
+    const ul = container.querySelector('ul');
+    const said = warnings(() => renderInto(html`<ul>${list}</ul>`, container));
+    assert.deepEqual(said, []);
+    assert.equal(container.querySelector('ul'), ul, 'CONTROL: adopted');
+    assert.equal(ul.textContent, '[2 owned]', 'the server\'s entries replaced, nothing doubled');
+  } finally {
+    inserts.set('value', (inserts.get('value') ?? []).filter((h) => h !== handler));
+  }
+});
+
+test('a value handler rendering LATER leaves its range empty at once, and its content on resolve', async () => {
+  const pending = new WeakSet();
+  const handler = (part, value) => {
+    if (!pending.has(value)) return false;
+    setTimeout(() => part._$commit$('resolved'), 0);
+    return true;
+  };
+  inserts.set('value', [...(inserts.get('value') ?? []), handler]);
+  try {
+    const thing = { toString: () => 'later' };
+    pending.add(thing);
+    const container = holding('<p>later</p>');
+    const said = warnings(() => renderInto(html`<p>${thing}</p>`, container));
+    assert.deepEqual(said, []);
+    assert.equal(container.querySelector('p').textContent, '', 'the server text went with the claim');
+    await tick();
+    assert.equal(container.querySelector('p').textContent, 'resolved');
+  } finally {
+    inserts.set('value', (inserts.get('value') ?? []).filter((h) => h !== handler));
+  }
+});
+
+test('a claimed span holding server custom elements disconnects each exactly once', () => {
+  let gone = 0;
+  if (!customElements.get('hw-gone')) customElements.define('hw-gone', class extends dom.window.HTMLElement { disconnectedCallback() { gone++; } });
+  const owned = new WeakSet();
+  const handler = (part, value) => {
+    if (!owned.has(value)) return false;
+    part._$commit$('mine');
+    return true;
+  };
+  inserts.set('value', [...(inserts.get('value') ?? []), handler]);
+  try {
+    const items = [html`<hw-gone></hw-gone>`, html`<hw-gone></hw-gone>`];
+    owned.add(items);
+    const container = holding('<div><hw-gone></hw-gone><hw-gone></hw-gone></div>');
+    gone = 0;
+    warnings(() => renderInto(html`<div>${items}</div>`, container));
+    assert.equal(container.querySelector('div').textContent, 'mine', 'CONTROL: the handler claimed the span');
+    assert.equal(gone, 2, 'two server elements, two disconnects — once each');
+  } finally {
+    inserts.set('value', (inserts.get('value') ?? []).filter((h) => h !== handler));
+  }
+});

@@ -650,12 +650,22 @@ export const hydration = (given: Registry) => {
     console.warn('[vera] hydration: no renderer to hydrate — wire it after the renderer, `wire([renderer, hydration])`.');
     return;
   }
+  /**
+   * **Another release's renderer: the page still works, rendered fresh** (Brian, 2026-10-02). `$V` and `$Y` are the
+   * hand-off's FROZEN pair — the same in every protocol — so even a mismatched renderer can be asked to clear a
+   * container's server markup before its first render; nothing else of the hand-off is read. Without that, the base
+   * renderer keeps what a container holds and the server's markup would stand beside the client's.
+   */
   if (handoff.$V !== PROTOCOL) {
     warn(
       'protocol',
       `hydration: this @verajs/renderer speaks hand-off protocol ${handoff.$V} and this hydration ${PROTOCOL} — they are from ` +
         `different releases. Pages render fresh (correct, without adopting the server's markup); update both together.`
     );
+    handoff.$Y((result, container) => {
+      clearPreservingStyles(container);
+      return false;
+    });
     return;
   }
   H = handoff;
