@@ -70,3 +70,11 @@ export type ParsedObject = { [key: string]: Parsed };
  * behalf), so that code's reads cannot subscribe the render.
  */
 export type Untracked = <A, B, C, R>(fn: (a: A, b: B, c: C) => R, a?: A, b?: B, c?: C) => R;
+
+/**
+ * **A diagnostic table entry** — keyed by its code in a package's DEVELOPMENT-ONLY table: the sentence, and an optional
+ * fix, from the call's arguments. Parameters are named for what they ARE, because `scripts/sync-diagnostics.mjs`
+ * publishes each entry with its parameter names as placeholders (`{why}`), so the docs page documents its own
+ * interpolation. See `diagnostic` (`diagnostic.ts`).
+ */
+export type Prose = (...args: string[]) => readonly [string, string?];

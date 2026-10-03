@@ -1,0 +1,25 @@
+{
+  "url": "https://docs.verajs.dev/e/",
+  "entries": [
+    {
+      "code": "hydration-fallback",
+      "params": [
+        "template"
+      ],
+      "message": "fell back to a client render. This container's server markup was discarded and rebuilt (its template begins {template}; its SSR <style> is kept), so the page is correct but the server's work on it was wasted.",
+      "fix": "Its children are taken as server output of this template — if they were a client-side placeholder instead, empty the container first (`container.replaceChildren()`) or render the placeholder with vera. Otherwise the two renders have to agree exactly: check for markup the template does not describe, or state settled after the server render. Other containers on the page hydrate independently and are unaffected."
+    },
+    {
+      "code": "hydration-no-renderer",
+      "params": [],
+      "message": "there is no renderer to hydrate.",
+      "fix": "Wire it after the renderer: `wire([renderer, hydration])`."
+    },
+    {
+      "code": "hydration-protocol",
+      "params": [],
+      "message": "this @verajs/renderer and this hydration are from different releases. Pages render fresh (correct, without adopting the server's markup).",
+      "fix": "Update both together."
+    }
+  ]
+}

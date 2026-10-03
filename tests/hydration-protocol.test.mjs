@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>');
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment'])
@@ -32,7 +32,13 @@ test('a protocol mismatch renders fresh, warns once, and leaves no server markup
     const serverP = container.querySelector('p');
     renderInto(html`<p>${'client'}</p>`, container);
     assert.equal(said.length, 1, `one warning: ${said}`);
-    assert.match(said[0], /^\[vera\] hydration: this @verajs\/renderer speaks hand-off protocol 999/);
+    /** Both builds name the two protocols; development explains, production links the page that does. */
+    assert.match(
+      said[0],
+      isProduction
+        ? /^\[vera\] hydration: protocol 999, expected 1 — https:\/\/docs\.verajs\.dev\/e\/hydration-protocol$/
+        : /^\[vera\] hydration: protocol 999, expected 1 — this @verajs\/renderer and this hydration are from different releases.* \(hydration-protocol\)$/
+    );
     assert.equal(container.querySelectorAll('p').length, 1, 'the server markup does not stand beside the client render');
     assert.notEqual(container.querySelector('p'), serverP, 'rendered fresh, not adopted');
     assert.equal(container.textContent, 'client');

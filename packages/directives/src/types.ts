@@ -248,7 +248,7 @@ export type ListChange = {
 /**
  * The `$` vocabulary the engine ships — the DECLARATION, apart from the engine that registers it.
  *
- * Its own module for the same reason `docs-url.ts` and `scripts/size-modules.mjs` are: something
+ * Its own module for the same reason shared-utils' `DOCS` and `scripts/size-modules.mjs` are: something
  * other than the runtime needs to read it. `scripts/sync-diagnostics.mjs` publishes this list into
  * `diagnostics.json` and into the documentation, and a hand-typed second copy of a vocabulary is a
  * copy that drifts — which is how `$x $y $button` came to be written in three places with nothing

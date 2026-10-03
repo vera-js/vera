@@ -43,6 +43,13 @@ const CONSOLE_CALL = /console\.(warn|error)\(\s*(?:`([^`]*)|'([^']*)|"([^"]*))/g
 const ANY_CONSOLE_CALL = /console\.(warn|error)\(/g;
 
 /**
+ * **A call printing what the shared formatter built is prefixed by construction** — `diagnostic` (shared-utils) writes
+ * `[vera]` itself, which the test below the next one reads from its source, so such a call is read here rather than
+ * excused.
+ */
+const DIAGNOSTIC_CALL = /console\.(warn|error)\(\s*diagnostic\(/g;
+
+/**
  * **Calls whose first argument is not a literal, so `CONSOLE_CALL` cannot read them.**
  *
  * The header above claims *anything* reaching `console.warn` or `console.error` starts `[vera]`, and
@@ -59,6 +66,8 @@ const NOT_A_LITERAL = new Map([
   ['autoloader/src/autoloader.ts', [1, "forwards a caught error's own message"]],
   ['ssr/src/vera/shim.ts', [1, 'forwards a caught error object']],
   ['router/src/services.ts', [1, 'a ternary between two messages — both branches are checked below']],
+  /** Hydration's once-per-kind helper: every caller hands it a `diagnostic(…)` line — asserted below. */
+  ['renderer/src/hydration.ts', [2, 'prints a line diagnostic() built — every caller passes one']],
 ]);
 
 /**
@@ -112,7 +121,7 @@ test('no console call escapes the check by not starting with a literal', () => {
   for (const file of sources) {
     const text = readIfPresent(file);
     if (text === null) continue;
-    const parsed = new Set([...text.matchAll(CONSOLE_CALL)].map((match) => match.index));
+    const parsed = new Set([...text.matchAll(CONSOLE_CALL), ...text.matchAll(DIAGNOSTIC_CALL)].map((match) => match.index));
     const where = relative(root, file);
 
     for (const match of text.matchAll(ANY_CONSOLE_CALL)) {
@@ -165,6 +174,27 @@ test('no console call escapes the check by not starting with a literal', () => {
       );
   }
   assert.deepEqual(miscounted, [], `\n  ${miscounted.join('\n  ')}`);
+});
+
+/**
+ * **The shared formatter prefixes every line it builds** — which is what lets a `console.warn(diagnostic(…))` be read
+ * as prefixed above. Both of its templates (production's link line, development's sentence) must begin `[vera]`.
+ */
+test('the shared diagnostic formatter prefixes both of its lines', () => {
+  const text = readFileSync(new URL('../packages/shared-utils/src/diagnostic.ts', import.meta.url), 'utf8');
+  const body = text.slice(text.indexOf('export const diagnostic'));
+  const lines = [...body.matchAll(/[?:]\s*`([^`]*)/g)].map(([, line]) => line);
+  assert.equal(lines.length, 2, 'CONTROL: the development and production templates were both found');
+  for (const line of lines) assert.ok(line.startsWith('[vera] '), `a formatter line lacks the prefix: ${line.slice(0, 40)}`);
+});
+
+/** And a local helper excused above for printing `diagnostic()` lines receives nothing else. */
+test("hydration's warn helper is only ever handed a diagnostic() line", () => {
+  const text = readFileSync(new URL('../packages/renderer/src/hydration.ts', import.meta.url), 'utf8');
+  const calls = [...text.matchAll(/(?<![.\w])warn\(/g)].filter((m) => !text.slice(m.index - 20, m.index).includes('const '));
+  const coded = calls.filter((m) => /^warn\([^,]+,\s*diagnostic\(/.test(text.slice(m.index, m.index + 200)));
+  assert.ok(calls.length > 0, 'CONTROL: the helper is called');
+  assert.equal(coded.length, calls.length, 'a warn() call passes something other than a diagnostic() line');
 });
 
 /** And the prefix has to survive into the shipped bundles, or it only exists in source. */

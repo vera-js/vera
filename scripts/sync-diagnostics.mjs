@@ -1,6 +1,6 @@
 /**
  * Generates `packages/directives/diagnostics.json` from the diagnostics table — every refusal the
- * package can record, as DATA.
+ * package can record, as DATA — and the same file for every other package with a table (`TABLES`).
  *
  * Three consumers, one source. The development bundle renders these sentences into the console;
  * `docs.verajs.dev/e/<code>` is a page per entry; and **Vera Studio** ships this file so its
@@ -32,7 +32,7 @@ const OUT = new URL('../packages/directives/diagnostics.json', import.meta.url);
  */
 const { PROSE } = await import('../packages/directives/src/diagnostics.ts');
 /** The same constant the production bundle prints, never a second copy of the string. */
-const { DOCS } = await import('../packages/directives/src/docs-url.ts');
+const { DOCS } = await import('../packages/shared-utils/src/diagnostic.ts');
 /**
  * The `$` vocabulary, from the same declaration the runtime registers. It was typed by hand into
  * `llms.txt` and the package README, so adding `$deltaY` for `wheel` would have meant editing three
@@ -48,11 +48,42 @@ const paramsOf = (fn) => {
   return head.split(',').map((p) => p.split(':')[0].trim().replace(/\?$/, '')).filter(Boolean);
 };
 
-const entries = Object.keys(PROSE).sort().map((code) => {
-  const params = paramsOf(PROSE[code]);
-  const [message, fix] = PROSE[code](...params.map((p) => `{${p}}`));
-  return { code, params, message, ...(fix ? { fix } : {}) };
-});
+/** A table as published entries — every package's the same way, so a docs page reads one shape. */
+const entriesOf = (table) =>
+  Object.keys(table).sort().map((code) => {
+    const params = paramsOf(table[code]);
+    const [message, fix] = table[code](...params.map((p) => `{${p}}`));
+    return { code, params, message, ...(fix ? { fix } : {}) };
+  });
+const entries = entriesOf(PROSE);
+
+/**
+ * **Every other package with a diagnostics table** — listed once in `scripts/diagnostic-tables.mjs` — each writing its
+ * own `diagnostics.json` beside its package.json. Directives' carries more than its codes (payloads, above), which is
+ * why it is not in that list; its codes still join the uniqueness check below.
+ */
+const { TABLES: LISTED } = await import('./diagnostic-tables.mjs');
+const TABLES = [];
+for (const { name, table } of LISTED) {
+  const tableEntries = entriesOf((await import(`../packages/${name}/${table}`)).PROSE);
+  TABLES.push({
+    name,
+    out: new URL(`../packages/${name}/diagnostics.json`, import.meta.url),
+    entries: tableEntries,
+    json: `${JSON.stringify({ url: DOCS, entries: tableEntries }, null, 2)}\n`,
+  });
+}
+
+/** One page per code at one URL: a code two packages both raise would be one page describing two things. */
+const owners = new Map(entries.map(({ code }) => [code, 'directives']));
+for (const { name, entries: list } of TABLES)
+  for (const { code } of list) {
+    if (owners.has(code)) {
+      console.error(`diagnostic code "${code}" is raised by both ${owners.get(code)} and ${name} — codes are one namespace.`);
+      process.exit(1);
+    }
+    owners.set(code, name);
+  }
 
 /** Grouped by the vocabulary each set of bases shares, which is how a reader wants to see it —
  *  nine mouse bases offering the same three names is one fact, not nine. */
@@ -174,9 +205,21 @@ if (process.argv.includes('--check')) {
     );
     process.exit(1);
   }
+  for (const { name, out, json: tableJson, entries: list } of TABLES) {
+    let tableCurrent = '';
+    try {
+      tableCurrent = readFileSync(out, 'utf8');
+    } catch { /* missing counts as stale */ }
+    if (tableCurrent !== tableJson) {
+      console.error(`packages/${name}/diagnostics.json is stale.\nRun: node scripts/sync-diagnostics.mjs`);
+      process.exit(1);
+    }
+    console.log(`packages/${name}/diagnostics.json is current (${list.length} codes)`);
+  }
   console.log(`diagnostics.json is current (${entries.length} codes)`);
 } else {
   writeFileSync(OUT, json);
+  for (const { out, json: tableJson } of TABLES) writeFileSync(out, tableJson);
   writeFileSync(VOCAB_OUT, vocabJson);
   for (const [url, next] of docWrites) writeFileSync(url, next);
   console.log(`diagnostics.json written (${entries.length} codes, ${payloads.length} payload groups)` +

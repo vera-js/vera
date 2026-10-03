@@ -28,12 +28,12 @@
  * fold. The array form, `ctx.reject(code, [args])`, is what asks this table.
  */
 /**
- * Entry parameters are typed `string` because that is how they READ, and the sentence is what this
- * file is for. The call path accepts `readonly unknown[]` and casts here: an argument reaches a
- * template literal, which stringifies a number or a null exactly as the console would print it, so
- * demanding `String(...)` at forty call sites would buy nothing but noise.
+ * Entries are the shared `Prose` (one type for every package's table). Their parameters are typed `string` because
+ * that is how they READ, and the sentence is what this file is for. The call path accepts `readonly unknown[]` and
+ * casts here: an argument reaches a template literal, which stringifies a number or a null exactly as the console would
+ * print it, so demanding `String(...)` at forty call sites would buy nothing but noise.
  */
-type Prose = (...args: string[]) => [string, string?];
+import type { Prose } from '@verajs/shared-utils';
 
 /**
  * The PARSER's refusals, which arrive differently from every other code here.

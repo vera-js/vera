@@ -22,8 +22,8 @@ import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnec
  * production bundle: once those fold, nothing names `PROSE` and rollup drops the import with it.
  */
 import { PROSE } from './diagnostics.js';
-/** Its own module so a PRODUCTION reference cannot tether the dev-only table — see `docs-url.ts`. */
-import { DOCS } from './docs-url.js';
+/** The one format every package prints, from shared-utils — production's link never tethers the dev-only table. */
+import { diagnostic } from '@verajs/shared-utils';
 import { DEFAULT_PAYLOADS, TYPE } from './payload-defaults.js';
 import type { Payload } from './payload-defaults.js';
 
@@ -311,7 +311,7 @@ export const reject = (
     const key = `${code}:${directive}`;
     if (!warned.has(key)) {
       warned.add(key);
-      console.warn(`[vera] directives: ${directive} — ${message}${fix ? ` ${fix}` : ''} (${code})`);
+      console.warn(diagnostic('directives', directive, code, [message, fix]));
     }
   } else if (!warned.has(code)) {
     /**
@@ -330,7 +330,7 @@ export const reject = (
      * reader nothing they can act on differently.
      */
     warned.add(code);
-    console.warn(`[vera] directives: ${directive} — ${DOCS}${code}`);
+    console.warn(diagnostic('directives', directive, code));
   }
 };
 

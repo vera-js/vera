@@ -72,7 +72,7 @@ test('development explains it instead, and links nothing', (t) => {
 });
 
 test('the URL is declared once, and the docs artifact agrees with the bundle', async () => {
-  const { DOCS } = await import('../packages/directives/src/docs-url.ts');
+  const { DOCS } = await import('../packages/shared-utils/src/diagnostic.ts');
   const { readFileSync } = await import('node:fs');
   const published = JSON.parse(
     readFileSync(new URL('../packages/directives/diagnostics.json', import.meta.url), 'utf8'));

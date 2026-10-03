@@ -31,7 +31,9 @@
  * A mismatch — or a renderer speaking another hand-off protocol — never breaks the page: the container renders fresh,
  * and the console says so once per cause.
  */
-import { CONTENT_PROPERTY } from '@verajs/shared-utils';
+import { CONTENT_PROPERTY, diagnostic } from '@verajs/shared-utils';
+/** Development only — behind `__DEV__` at every use, so production drops the table whole. */
+import { PROSE } from './hydration-diagnostics.js';
 import {
   ADOPT,
   ATTR,
@@ -111,8 +113,8 @@ const warn = (cause: string, message: string, container?: Node) => {
   if (warned.size === 0) queueMicrotask(() => warned.clear());
   warned.add(cause);
   /** The container itself rides along: a live element in devtools — hover to highlight it, click to reveal it. */
-  if (container === undefined) console.warn(`[vera] ${message}`);
-  else console.warn(`[vera] ${message}`, container);
+  if (container === undefined) console.warn(message);
+  else console.warn(message, container);
 };
 
 /* ── the walk's state, per hydration ─────────────────────────────────────────────────────────────── */
@@ -669,20 +671,8 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
     start.remove();
     end.remove();
     if (error !== MISMATCH) throw error;
-    /** The whole story in development; production says the cause and the fix in one line — it warns in every build. */
-    warn(
-      kind,
-      __DEV__
-        ? `hydration fell back to a client render: ${why}. This container's server markup was discarded and rebuilt ` +
-            `(its template begins ${opening(result)}; its ` +
-            `SSR <style> is kept), so the page is correct but the server's work on it was wasted. Its children are taken ` +
-            `as server output of this template — if they were a client-side placeholder instead, empty the container ` +
-            `first (\`container.replaceChildren()\`) or render the placeholder with vera. Otherwise the two renders have ` +
-            `to agree exactly: check for markup the template does not describe, or state settled after the server ` +
-            `render. Other containers on the page hydrate independently and are unaffected.`
-        : `hydration fell back to a client render: ${why} (a placeholder? \`container.replaceChildren()\` first).`,
-      container
-    );
+    /** Every build names the kind and the first node that disagreed; development adds the whole story, production the link. */
+    warn(kind, diagnostic('hydration', why, 'hydration-fallback', __DEV__ && PROSE['hydration-fallback'](opening(result))), container);
     /** The queue is dropped unrun; the clear takes the walk's text splits and comments with the server's nodes. */
     clearPreservingStyles(container);
     return false;
@@ -698,7 +688,7 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
 export const hydration = (given: Registry) => {
   const handoff = given.$H;
   if (handoff === undefined) {
-    console.warn('[vera] hydration: no renderer to hydrate — wire it after the renderer, `wire([renderer, hydration])`.');
+    console.warn(diagnostic('hydration', 'no renderer', 'hydration-no-renderer', __DEV__ && PROSE['hydration-no-renderer']()));
     return;
   }
   /**
@@ -708,14 +698,8 @@ export const hydration = (given: Registry) => {
    * renderer keeps what a container holds and the server's markup would stand beside the client's.
    */
   if (handoff[HANDOFF_PROTOCOL] !== PROTOCOL) {
-    warn(
-      'protocol',
-      __DEV__
-        ? `hydration: this @verajs/renderer speaks hand-off protocol ${handoff[HANDOFF_PROTOCOL]} and this hydration ${PROTOCOL} — they ` +
-            `are from different releases. Pages render fresh (correct, without adopting the server's markup); update both ` +
-            `together.`
-        : `hydration: this @verajs/renderer speaks hand-off protocol ${handoff[HANDOFF_PROTOCOL]} and this hydration ${PROTOCOL} — update both together.`
-    );
+    const subject = `protocol ${handoff[HANDOFF_PROTOCOL]}, expected ${PROTOCOL}`;
+    warn('protocol', diagnostic('hydration', subject, 'hydration-protocol', __DEV__ && PROSE['hydration-protocol']()));
     handoff[HANDOFF_ADOPTER]((_result, container) => {
       clearPreservingStyles(container);
       return false;

@@ -11,6 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
 import { isProduction, load } from './dist.mjs';
 import { hydrating } from './hydration.mjs';
 
@@ -72,7 +73,7 @@ test('a mismatch at the LAST marker of a container yields exactly the client ren
   await tick();
   assert.equal(said.length, 1, `exactly one fallback warning: ${said}`);
   /** Development says the whole sentence; production (Brian's option C) the KIND and the first node that disagreed. */
-  assert.match(said[0], isProduction ? /^\[vera\] hydration fell back to a client render: element: found <i>/ : /^\[vera\] hydration fell back to a client render: expected <span>/);
+  assert.match(said[0], isProduction ? /^\[vera\] hydration: element: found <i> — https:\/\/docs\.verajs\.dev\/e\/hydration-fallback$/ : /^\[vera\] hydration: expected <span>/);
   assert.deepEqual(elements, [container], 'the container rides along, for devtools to reveal');
   assert.equal(container.querySelector('p') === serverP, false, 'the server <p> was discarded, not adopted');
   assert.equal(container.querySelector('span').textContent, 'client');
@@ -421,7 +422,7 @@ test('an object with NO handler hydrates as the server wrote it: its text', () =
 
 /* ── the warning ─────────────────────────────────────────────────────────────────────────────────── */
 
-test('a placeholder: client render plus ONE warning for two containers, naming replaceChildren', () => {
+test('a placeholder: client render plus ONE warning for two containers — development names replaceChildren, production links the page that does', () => {
   const draw = () => html`<main>app</main>`;
   const a = holding('Loading…');
   const b = holding('Loading…');
@@ -430,7 +431,12 @@ test('a placeholder: client render plus ONE warning for two containers, naming r
     renderInto(draw(), b);
   });
   assert.equal(said.length, 1, `one warning per cause, not per container: ${said.length}`);
-  assert.match(said[0], /replaceChildren/);
+  if (isProduction) {
+    assert.match(said[0], /docs\.verajs\.dev\/e\/hydration-fallback$/);
+    /** The page production links to is the one that names the fix: the published table says it. */
+    const page = JSON.parse(readFileSync(new URL('../packages/renderer/diagnostics.json', import.meta.url), 'utf8'));
+    assert.match(page.entries.find((e) => e.code === 'hydration-fallback').fix, /replaceChildren/);
+  } else assert.match(said[0], /replaceChildren/);
   assert.deepEqual(elements, [a], 'the first container rides along');
   if (!isProduction) assert.match(said[0], /its template begins `<main>app<\/main>`/, 'development names the template to search for');
   assert.equal(a.textContent, 'app');
