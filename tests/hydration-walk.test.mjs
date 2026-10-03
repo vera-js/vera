@@ -574,6 +574,34 @@ test('a setter that renders into its own element during the outer adoption: both
   container.remove();
 });
 
+/**
+ * **The queue is one array, each adoption owning its range** — a nested adoption runs its range and truncates back to
+ * where it began, so the outer's work QUEUED AFTER the nesting setter still runs, on the right elements.
+ */
+test('work the outer adoption queued after a nested adoption still runs: a later ref and a later setter', () => {
+  if (!customElements.get('hw-nest'))
+    customElements.define('hw-nest', class extends dom.window.HTMLElement {
+      set item(v) {
+        renderInto(html`<b>${v}</b>`, this);
+      }
+    });
+  const seen = [];
+  if (!customElements.get('hw-after'))
+    customElements.define('hw-after', class extends dom.window.HTMLElement {
+      set item(v) {
+        seen.push(`set ${v}`);
+      }
+    });
+  const outer = (v) => html`<hw-nest .item=${v}></hw-nest><p ${(el) => seen.push(`ref ${el.localName}`)}>P</p><hw-after .item=${'late'}></hw-after>`;
+  const container = holding('<hw-nest><b>v</b></hw-nest><p>P</p><hw-after></hw-after>');
+  const b = container.querySelector('b');
+  const said = warnings(() => renderInto(outer('v'), container));
+  assert.deepEqual(said, []);
+  assert.equal(container.querySelector('b'), b, 'CONTROL: the nested container adopted');
+  assert.deepEqual(seen.sort(), ['ref p', 'set late'], 'the outer queue survived the nested one: both ran');
+  container.remove();
+});
+
 test('a nested MISMATCH during the outer adoption falls back for the inner only; the outer stays adopted', () => {
   if (!customElements.get('hw-in2'))
     customElements.define('hw-in2', class extends dom.window.HTMLElement {

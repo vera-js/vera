@@ -104,10 +104,12 @@ const warn = (cause: string, message: string, container?: Node) => {
 
 /**
  * **The work that runs user code, held until the whole container matches** — flat tuples of six, in walk order (client
- * order): `[op, a, b, c, d, e]`. One per adoption: a nested adoption (a queued setter rendering into its own element)
- * gets its own.
+ * order): `[op, a, b, c, d, e]`. ONE array for every adoption, reused — allocating one per adoption cost a measured
+ * share of hydration in collection alone. Each adoption owns the range from where the queue stood when it began, and
+ * truncates back to that when it ends: a nested adoption (a queued setter rendering into its own element) pushes past
+ * the outer's range and is gone again before the outer goes on.
  */
-let queue: unknown[] = [];
+const queue: unknown[] = [];
 const COMMIT = 0;
 const APPLY = 1;
 const HOOK = 2;
@@ -576,8 +578,9 @@ const claimed = (part: ChildPart, value: unknown, handlers: ValueHandler[]) => {
  * **The queue runs** — once the whole container matched, inside the renderer's render bracket, in walk order. A handler
  * that claims its value skips everything queued for the content it replaced.
  */
-const run = (q: unknown[]) => {
-  for (let k = 0; k < q.length; k += 6) {
+const run = (from: number, to: number) => {
+  const q = queue;
+  for (let k = from; k < to; k += 6) {
     const op = q[k];
     if (op === COMMIT) H.$M(q[k + 1] as Template, q[k + 2] as unknown[], q[k + 3] as number, q[k + 4] as number, q[k + 5] as unknown[]);
     else if (op === APPLY) {
@@ -619,22 +622,24 @@ const clearPreservingStyles = (container: Node) => {
 const adopt = (result: unknown, container: Node): boolean => {
   if (result === null || typeof result !== 'object' || !isTemplateResult(result as object)) return false;
   /**
-   * **One walk's state per adoption.** Phase 2 runs user code — a setter that renders into its own element, a component
+   * **One walk's state per adoption.** The queue runs user code — a setter that renders into its own element, a component
    * set up synchronously — and that can adopt ANOTHER container in the middle of this one: its walk gets its own state,
    * and this one's is restored when it returns. Shared, a nested walk reset this one's state underneath it.
    */
-  const saved = [queue, why, kind] as const;
+  const from = queue.length;
+  const saved = [why, kind] as const;
   try {
-    return adoptContainer(result as TemplateResult, container);
+    return adoptContainer(result as TemplateResult, container, from);
   } finally {
-    [queue, why, kind] = saved;
+    /** Run or dropped, this adoption's range goes — a throw included. */
+    queue.length = from;
+    [why, kind] = saved;
   }
 };
 
-const adoptContainer = (result: TemplateResult, container: Node): boolean => {
+const adoptContainer = (result: TemplateResult, container: Node, from: number): boolean => {
   let first: Node | null = container.firstChild;
   while (isSheet(first)) first = first!.nextSibling;
-  queue = [];
   /** The root range is bounded before the walk: an insert at the root during it (a client-only node) needs the end. */
   const doc = container.ownerDocument ?? (container as Document);
   const start = doc.createComment('');
@@ -668,8 +673,8 @@ const adoptContainer = (result: TemplateResult, container: Node): boolean => {
     return false;
   }
   /** Matched: the queue runs, inside the renderer's own render bracket (a stand-in part) — refs at its end, as always. */
-  const q = queue;
-  H.$A(container, { $p: () => run(q) } as unknown as ChildPart, undefined, container);
+  const to = queue.length;
+  H.$A(container, { $p: () => run(from, to) } as unknown as ChildPart, undefined, container);
   H.$O.set(container, part);
   return true;
 };
