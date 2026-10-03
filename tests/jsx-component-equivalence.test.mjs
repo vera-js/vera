@@ -24,6 +24,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
@@ -35,7 +36,7 @@ const { transformJsx } = await load('jsx');
 const { renderer } = await load('renderer');
 const core = await load('core');
 core.wire([renderer]);
-const { renderInto } = await load('renderer/hydrate');
+const renderInto = await hydrating();
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
 const { tag } = await load('renderer/tag');

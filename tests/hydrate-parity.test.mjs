@@ -13,6 +13,7 @@
  * and the other half of it is the assertion that **nothing else** differs, which is what would catch
  * a real divergence appearing.
  */
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
@@ -28,7 +29,7 @@ for (const key of [
 
 const { html } = await load('core');
 const { renderInto } = await load('renderer');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
 const { hold } = await load('renderer');

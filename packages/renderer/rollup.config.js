@@ -7,13 +7,13 @@ import pkg from './package.json' with { type: 'json' };
  * | bundle | prod size | contains a renderer | rule |
  * | --- | --- | --- | --- |
  * | `vera-renderer` | 9875 B | yes | pick one |
- * | `vera-renderer-hydrate` | 13608 B | yes | pick one |
+ * | `vera-renderer-hydration` | measured | **no** | add freely |
  * | `vera-renderer-profiler` | dev only | yes | pick one |
  * | `vera-renderer-keyed` | 1184 B | **no** | add freely |
  * | `vera-renderer-spread` | 1639 B | **no** | add freely |
  * | `vera-renderer-tag` | 2845 B | **no** (inlines `spread`) | add freely |
  *
- * **Substitutes.** `renderer`, `hydrate` and `profiler` each inline their own `./renderer.js`, with
+ * **Substitutes.** `renderer` and `profiler` each inline their own `./renderer.js`, with
  * their own template cache, marker and root-part map — so two of *them* must never load side by
  * side: the second renders into state the first cannot see. A CDN page points its importmap's
  * `@verajs/renderer` at whichever one it wants and nothing else changes.
@@ -41,7 +41,11 @@ const isProduction = process.env.MODE === 'prod';
 
 export default [
   defaultRollupConfig(pkg.filename, [], /^_[a-z]/),
-  defaultRollupConfig(`${pkg.filename}-hydrate`, [], /^_[a-z]/, { input: 'src/hydrate.ts', hydrating: true }),
+  /**
+   * Additive: `wire([renderer, hydration])`. It imports no renderer — it reaches the one present through the
+   * hand-off the renderer sets at `connect` (`$H`, sigiled, so the mangling regex cannot touch it).
+   */
+  defaultRollupConfig(`${pkg.filename}-hydration`, [], /^_[a-z]/, { input: 'src/hydration.ts' }),
   /**
    * **Additive**, the first of three. It imports nothing at all and talks to whatever renderer is
    * present through the `_$apply$` protocol, so it is safe alongside any of them.

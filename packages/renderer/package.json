@@ -25,10 +25,10 @@
       "development": "./dist/development/vera-renderer.js",
       "default": "./dist/vera-renderer.min.js"
     },
-    "./hydrate": {
-      "types": "./dist/development/vera-renderer-hydrate.d.ts",
-      "development": "./dist/development/vera-renderer-hydrate.js",
-      "default": "./dist/vera-renderer-hydrate.min.js"
+    "./hydration": {
+      "types": "./dist/development/vera-renderer-hydration.d.ts",
+      "development": "./dist/development/vera-renderer-hydration.js",
+      "default": "./dist/vera-renderer-hydration.min.js"
     },
     "./keyed": {
       "types": "./dist/development/vera-renderer-keyed.d.ts",
@@ -145,8 +145,5 @@
     "web-components",
     "buildless"
   ],
-  "sideEffects": [
-    "./dist/development/vera-renderer-hydrate.js",
-    "./dist/vera-renderer-hydrate.min.js"
-  ]
+  "sideEffects": false
 }

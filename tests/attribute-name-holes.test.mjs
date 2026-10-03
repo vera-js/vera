@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 import { ROWS, T } from './fixtures/attribute-name-holes.mjs';
 
@@ -33,7 +34,7 @@ const dom = new JSDOM('<!doctype html><body></body>');
 for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[key] = dom.window[key];
 const { renderInto } = await load('renderer');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const clientSays = (row) => {
   try {
     renderInto(T(row), document.createElement('div'));

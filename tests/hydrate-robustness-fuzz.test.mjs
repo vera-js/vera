@@ -28,6 +28,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 import { extendSeeds } from './fuzz-seeds.mjs';
@@ -41,7 +42,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const { html } = await load('core');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const { serializeTemplate } = await import('@verajs/ssr');
 
 const D = dom.window.document;
@@ -110,12 +111,16 @@ test('hydration adopts or falls back for any markup, and never throws', () => {
 
       const host = D.createElement('div');
       host.innerHTML = markup;
-      const warnings = [];
+      /**
+       * A fallback replaces EVERY node the server wrote; adoption keeps them. Counted by identity, not by warnings: the
+       * warning is said once per cause, so a run of identical causes warns once.
+       */
+      const originals = [...host.childNodes];
       const originalWarn = console.warn;
-      console.warn = (...args) => warnings.push(args.join(' '));
+      console.warn = () => {};
       try {
         hydrateInto(shape(value), host);
-        if (warnings.some((line) => /fell back/.test(line))) fellBack++;
+        if (originals.length > 0 && !originals.some((node) => host.contains(node))) fellBack++;
         else adopted++;
       } catch (error) {
         problems.push(
@@ -141,12 +146,8 @@ test('hydration adopts or falls back for any markup, and never throws', () => {
    * mean nothing is being disturbed, all-fallback that nothing resembles the server's output. This is
    * a statement about the *generator*, and it is the assertion that would notice it going stale.
    *
-   * The development build is what reports a fallback; production folds the diagnostic away, so the
-   * count is only meaningful there. `adopted` is then everything, and the throw check above — which
-   * is the actual subject — still runs in both.
+   * Counted by node identity, so it holds in both builds.
    */
-  if (!isProduction) {
-    assert.ok(adopted > cases * 0.2, `only ${adopted} of ${cases} adopted — the mutators disturb every case`);
-    assert.ok(fellBack > cases * 0.2, `only ${fellBack} of ${cases} fell back — the mutators disturb nothing`);
-  }
+  assert.ok(adopted > cases * 0.2, `only ${adopted} of ${cases} adopted — the mutators disturb every case`);
+  assert.ok(fellBack > cases * 0.2, `only ${fellBack} of ${cases} fell back — the mutators disturb nothing`);
 });

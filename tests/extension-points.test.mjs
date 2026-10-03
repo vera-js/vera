@@ -13,6 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -174,7 +175,7 @@ test('JSX-shaped text that is not JSX is left alone', async () => {
  */
 test('profiling a hydrating app explains itself instead of reporting a silent zero', { skip: isProduction && 'the profiler is not built for production' }, async () => {
   const profiler = await load('renderer/profiler');
-  const { renderInto: hydrateInto } = await load('renderer/hydrate');
+  const hydrateInto = await hydrating();
   const host = dom.window.document.createElement('div');
   host.innerHTML = '<p>1</p>';
 

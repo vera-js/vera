@@ -20,6 +20,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
@@ -31,7 +32,7 @@ const { transformJsx } = await load('jsx');
 const { renderer } = await load('renderer');
 const core = await load('core');
 core.wire([renderer]);
-const { renderInto } = await load('renderer/hydrate');
+const renderInto = await hydrating();
 const doc = dom.window.document;
 
 /** A tree node. A string is a text node; otherwise `[tag, ...children]`. */

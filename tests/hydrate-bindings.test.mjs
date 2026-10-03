@@ -10,6 +10,7 @@
  * The server half runs in a subprocess because `@verajs/ssr` installs DOM globals that jsdom's
  * would fight over.
  */
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
@@ -86,7 +87,7 @@ const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
-const { renderInto } = await load('renderer/hydrate');
+const renderInto = await hydrating();
 const html = (strings, ...values) => ({ strings, values });
 const state = { text: 'hello & <world>', count: 3, rows: ['a', 'b'] };
 

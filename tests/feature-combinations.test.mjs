@@ -14,6 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -23,7 +24,7 @@ for (const key of ['document', 'HTMLElement', 'Node', 'Element', 'customElements
 
 const core = await load('core');
 const { renderInto, hold } = await load('renderer');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
 const { slots, slotted } = await load('renderer/slots');

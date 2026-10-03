@@ -4,6 +4,7 @@
  * hydration means the server DOM survives, listeners attach, and updates mutate adopted nodes.
  */
 import { load } from './dist.mjs';
+import { hydrating } from './hydration.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ assert.ok(serverHtml.includes('hello ssr') && !serverHtml.includes('<!--'), 'ser
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { renderInto } = await load('renderer/hydrate');
+const renderInto = await hydrating();
 const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 

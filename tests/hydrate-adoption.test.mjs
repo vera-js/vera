@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -22,7 +23,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 const { html } = await load('core');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const { spread } = await load('renderer/spread');
 
 /** A container holding server markup, with a MutationObserver counting what adoption writes into it. */

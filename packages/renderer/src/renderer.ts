@@ -36,6 +36,7 @@ import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
 import type { Untracked } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
+import { IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
 
 export type { TemplateResult } from './types.js';
 
@@ -113,36 +114,6 @@ const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
  * Set, as `RAW_TEXT_TAGS` is: an imported `new Set` measured 62 B in production.
  */
 const VOID_TAGS = /^(?:area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr|param)$/i;
-
-/** A binding's kind, resolved once per template. */
-const IGNORED = 0; // consumed, nothing rendered: inside a comment, the later values of a multi-part attribute
-const CHILD = 1; // anchored on a primed empty text node the template carries
-const SOLE = 2; // its element's only content: no anchor in the template, the first commit writes `textContent`
-const ATTR = 3;
-const PROPERTY = 4;
-const BOOLEAN = 5;
-/** `EVENT` through `ADOPT` hold a `Slot` record in their node slot — one range test, in `instantiate` and `commit`. */
-const EVENT = 6;
-/** An element-position expression: a ref, or a value that applies itself (`_$apply$`). */
-const REF = 7;
-/** An element-position expression ON a `<select>`: a value applying itself there (a spread) waits for `flush`. */
-const SELECT_REF = 8;
-/** `.name` on a custom element — see `adoptProperty` in shared-utils. */
-const ADOPT = 9;
-/**
- * Kinds from here on re-assert on EVERY render, so the update loop never skips them as unchanged:
- * `!name` writes from the live DOM's point of view (a sibling radio's click unchecks this one with no
- * event on it), and a `<select>`'s selection is re-applied after its options exist — see `flush`.
- */
-const LIVE = 10;
-/** A `<select>`'s selection — `value` or `selectedIndex` (`isSelection`) — written when the pass ends: see `flush`. */
-const SELECT = 11;
-/** `!name` on a custom element: compared against the LIVE value — read through `untracked`, it is the component's getter. */
-const LIVE_CUSTOM = 12;
-/** A binding that must never write — and, from here on, the kinds `commit` handles before anything is computed. */
-const REFUSED = 13;
-/** A `<select>`'s `selectedIndex` — the rare spelling of its selection, queued as `SELECT` is (see `flush`). */
-const SELECT_INDEX = 14;
 
 /** A binding slot's value before its first commit — never equal to a user value. */
 const UNSET = {};
@@ -263,7 +234,7 @@ class Template {
   $K: number[];
   $N: string[];
   /** The statics around a bound attribute's values; `null` for one full-value expression. */
-  _statics: (string[] | null)[];
+  $J: (string[] | null)[];
   /** Child-index hops from `$R` to each binding's node. */
   $P: number[][] = [];
   /** The template statically writes the attribute too, so a first nullish commit must still remove it. */
@@ -299,7 +270,7 @@ class Template {
     const count = strings.length - 1;
     const kinds = (this.$K = new Array(count).fill(IGNORED));
     const names = (this.$N = new Array(count).fill(''));
-    const statics = (this._statics = new Array(count).fill(null));
+    const statics = (this.$J = new Array(count).fill(null));
     const present = (this._present = new Array(count).fill(false));
     const urls = (this._urls = new Array(count).fill(0));
     const nodes: (Node | null)[] = new Array(count).fill(null);
@@ -815,7 +786,7 @@ export const hookUp = (instance: Instance, root: Node, adopted: boolean) => {
 const update = (instance: Instance, values: unknown[]) => {
   const template = instance._template;
   const kinds = template.$K;
-  const statics = template._statics;
+  const statics = template.$J;
   const bindings = instance._bindings;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
@@ -965,17 +936,17 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   }
   /**
    * One test for the kinds decided before anything is computed — the same one comparison `REFUSED` alone cost. A
-   * `selectedIndex` has no statics and no URL: queued, as a select's value is — except while adopting, where the
-   * server marked the option and whatever the user chose before the script arrived stands.
+   * `selectedIndex` has no statics and no URL: queued, as a select's value is. (Hydration never commits a selection:
+   * the server marked the option, and whatever the user chose before the script arrived stands.)
    */
   if (kind >= REFUSED) {
     if (kind === SELECT_INDEX) {
       bindings[slot + 1] = values[i];
-      if (!(__HYDRATING__ && adopting)) (pendingSelects ??= []).push(LATER, [node, values[i]]);
+      (pendingSelects ??= []).push(LATER, [node, values[i]]);
     }
     return;
   }
-  const parts = template._statics[i];
+  const parts = template.$J[i];
   let value = values[i];
   if (parts !== null && kind !== EVENT && kind !== REF) {
     value = parts[0];
@@ -1003,31 +974,6 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     bindings[slot + 1] = value;
     element.removeAttribute(name);
     return;
-  }
-  /**
-   * **Adopting server markup** (the hydrate entry only — `__HYDRATING__` folds this away everywhere else). The server
-   * wrote the attribute already, so it is READ and written only on a difference — a wrong one is repaired, a right one
-   * costs no write. A form control's value, a `!name` on a plain element and a select's selection are RECORDED, not
-   * written: the server's default, and anything the user typed before the script arrived, stand. (A `!name` then
-   * compares on the next render and overwrites what was typed — the controlled contract, unchanged.)
-   */
-  if (__HYDRATING__ && adopting) {
-    if (kind === ATTR) {
-      bindings[slot + 1] = value;
-      if (value == null) {
-        if (element.hasAttribute(name)) element.removeAttribute(name);
-      } else if (element.getAttribute(name) !== toText(value)) element.setAttribute(name, value as string);
-      return;
-    }
-    if (kind === BOOLEAN) {
-      bindings[slot + 1] = value;
-      if (element.hasAttribute(name) !== !!value) element.toggleAttribute(name, !!value);
-      return;
-    }
-    if (kind === SELECT || kind === LIVE || (kind === PROPERTY && (name === 'value' || name === 'checked' || name === 'selected'))) {
-      bindings[slot + 1] = value;
-      return;
-    }
   }
   /** The kinds that re-assert every render sit from `LIVE` up (`REFUSED` returned above): ONE test routes them all. */
   if (kind >= LIVE) {
@@ -1090,9 +1036,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     /** A FUNCTION, not merely present: parsed JSON can carry the key, never a function — data stays data. */
     if (typeof (value as { _$apply$?: unknown })._$apply$ === 'function') {
       /** On a `<select>` it may set the selection (a spread's `.value`), so it waits for the options too — see `flush`. */
-      if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, __HYDRATING__ ? [value, element, node, adopting] : [value, element, node]);
-      /** Adopting, it is told so (the hydrate entry only): a form control's value the user typed must stand. */
-      else if (__HYDRATING__) (value as Applies)._$apply$(element, node as Slot, untracked, adopting);
+      if (kind === SELECT_REF) (pendingSelects ??= []).push(LATER, [value, element, node]);
       else (value as Applies)._$apply$(element, node as Slot, untracked);
     }
     /**
@@ -1152,11 +1096,7 @@ const isTemplateResult = (value: object): value is TemplateResult =>
   (value as TemplateResult).strings !== undefined;
 
 /** What a ChildPart holds. */
-const EMPTY = 0;
-const TEXT = 1;
-const TEMPLATE = 2;
-const LIST = 3;
-const NODE = 4;
+
 
 /** Removal is a move into this fragment, then one clear. */
 const SCRATCH = doc.createDocumentFragment();
@@ -1576,27 +1516,11 @@ let renderRoot: Node | null = null;
  */
 let notifyOnRemoval = false;
 
-/**
- * The binding being committed belongs to ADOPTED server markup — true only inside `commitAdopting`, only in the hydrate
- * entry. Scoped to one commit, never to the pass: client code runs during adoption (an applier rendering, a component
- * setter rendering), and what it instantiates is fresh and must be written in full — `commitAs` clears it for them.
- */
-let adopting = false;
-
-/** Something adopted must be told when it goes away — an applier with `_$detach$` (the hydrate entry's setter). */
+/** Something adopted must be told when it goes away — an applier with `_$detach$` that hydration adopts. */
 export const needRemovalWork = () => {
   notifyOnRemoval = true;
 };
 
-/** Commits one binding of adopted server markup. */
-export const commitAdopting = (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => {
-  adopting = true;
-  try {
-    commit(template, bindings, i, kind, values);
-  } finally {
-    adopting = false;
-  }
-};
 
 /**
  * Refs held until the pass's DOM exists, as flat `(bindings, slot)` pairs: each is handed its element once that
@@ -1638,8 +1562,7 @@ const flush = (selectsFrom: number, refsFrom: number) => {
         /** Read and written BY NAME: a computed `select[name]` on a DOM accessor measured 5% slower. */
         if (r.length === 2) {
           if ((r[0] as HTMLSelectElement).selectedIndex !== r[1]) (r[0] as HTMLSelectElement).selectedIndex = r[1] as number;
-        } else if (__HYDRATING__) (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked, r[3] === true);
-        else (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked);
+        } else (r[0] as Applies)._$apply$(r[1] as Element, r[2] as Slot, untracked);
       } else if ((a as HTMLSelectElement).value !== b) (a as HTMLSelectElement).value = b as string;
     }
   }
@@ -1725,9 +1648,6 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   const refsMark = pendingRefs?.length ?? 0;
   const outerScope = scope;
   scope = null;
-  /** A render nested inside an adopted binding's commit builds fresh DOM: it is never adopting (hydrate entry only). */
-  const outerAdopting = __HYDRATING__ && adopting;
-  if (__HYDRATING__) adopting = false;
   renderRoot = root;
   /** A document's own `ownerDocument` is null — so a document container is its own. */
   if (home !== null) passDoc = home.ownerDocument ?? (home as Document);
@@ -1738,39 +1658,14 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
     renderRoot = outer;
     passDoc = outerDoc;
     scope = outerScope;
-    if (__HYDRATING__) adopting = outerAdopting;
   }
 };
 
-/**
- * **Hydration's bracket** — the hydrate entry's only way into the pass state, which another module cannot assign.
- * The same as `commitAs`, except that if `run` throws — a mismatch — everything the pass queued is dropped before
- * the flush, so a ref inside markup about to be discarded is
- * never handed its element. Unused by the base entry, so its bundle never carries it.
- */
-export const adoptAs = (container: Node, run: () => void) => {
-  const outer = renderRoot;
-  const outerDoc = passDoc;
-  const selectsMark = pendingSelects?.length ?? 0;
-  const refsMark = pendingRefs?.length ?? 0;
-  renderRoot = container;
-  passDoc = container.ownerDocument ?? (container as Document);
-  let adopted = false;
-  try {
-    run();
-    adopted = true;
-  } finally {
-    if (!adopted) {
-      if (pendingSelects !== null) pendingSelects.length = selectsMark;
-      if (pendingRefs !== null) pendingRefs.length = refsMark;
-    }
-    flush(selectsMark, refsMark);
-    renderRoot = outer;
-    passDoc = outerDoc;
-  }
-};
 
 const rootParts = new WeakMap<Node, ChildPart>();
+
+/** `hydration`'s adoption, installed through the hand-off (`$Y`): true when it adopted the container. */
+let adopt: ((result: unknown, container: Node) => boolean) | undefined;
 
 /**
  * The container is the argument people forget, and forgetting it failed with `Cannot read properties of undefined`
@@ -1795,8 +1690,17 @@ export const renderInto = (result: unknown, container: Node) => {
   if (__DEV__) expectContainer(container);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
-  if (part === undefined) rootParts.set(container, (part = markered(container, null)));
-  commitAs(container, part, result);
+  /**
+   * A container's FIRST render, with something already in it: `hydration` (when wired) may adopt that as server output
+   * of this template — then it is committed, and the render is done. Asked only on a first render, never on the hot
+   * path; without hydration it is one undefined read.
+   */
+  if (part === undefined && adopt !== undefined && container.firstChild !== null && adopt(result, container))
+    part = rootParts.get(container)!;
+  else {
+    if (part === undefined) rootParts.set(container, (part = markered(container, null)));
+    commitAs(container, part, result);
+  }
   /**
    * **A render has finished** — said to whatever asked (light-DOM slots, which re-distributes what this render did to
    * a host's light children before anything reads them, and at a container's first render takes what was there before
@@ -1828,6 +1732,22 @@ export const renderer = {
      * so it pulls no code in. Its fields are UPPERCASE single characters, so none reads like a part's own `$` fields.
      * `$V` is its protocol number; on a mismatch hydration declines and the page renders fresh, with a warning.
      */
-    (given as { $H?: unknown }).$H = { $V: 1, $G: getTemplate, $C: ChildPart, $I: Instance, $M: commit, $A: commitAs, $U: hookUp, $Q: resolved, $O: rootParts, $T: toText };
+    (given as { $H?: unknown }).$H = {
+      $V: 1,
+      $G: getTemplate,
+      $C: ChildPart,
+      $I: Instance,
+      $S: Slot,
+      $Z: UNSET,
+      $W: UPGRADED,
+      $M: commit,
+      $A: commitAs,
+      $U: hookUp,
+      $Q: resolved,
+      $O: rootParts,
+      $T: toText,
+      $E: needRemovalWork,
+      $Y: (fn: typeof adopt) => (adopt = fn),
+    };
   },
 };

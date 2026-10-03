@@ -26,6 +26,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -185,7 +186,7 @@ test('the renderer warns on a self-closed element if and only if it is NOT void'
   const { renderer } = await load('renderer');
   const core = await load('core');
   core.wire([renderer]);
-  const { renderInto } = await load('renderer/hydrate');
+  const renderInto = await hydrating();
   const target = dom.window.document.getElementById('a');
 
   const real = console.warn;

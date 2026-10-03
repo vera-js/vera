@@ -22,6 +22,7 @@
  * (`keyed`, `spread`, `hold`), events, or updates after the first render — every case here renders
  * once.
  */
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,7 +39,7 @@ for (const key of [
 
 const { html } = await load('core');
 const { renderInto } = await load('renderer');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const { serializeTemplate } = await import('@verajs/ssr');
 
 const D = dom.window.document;

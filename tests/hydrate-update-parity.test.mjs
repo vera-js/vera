@@ -12,6 +12,7 @@
  *
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 import { canonical } from './canonical.mjs';
 import { execFileSync } from 'node:child_process';
@@ -81,7 +82,7 @@ globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 
-const { renderInto: hydrateRender } = await load('renderer/hydrate');
+const hydrateRender = await hydrating();
 const { renderInto } = await load('renderer');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 

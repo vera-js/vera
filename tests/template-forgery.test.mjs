@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 import { DOORS, forged } from './fixtures/template-forgery.mjs';
 
@@ -38,7 +39,7 @@ const dom = new JSDOM('<!doctype html><body></body>');
 for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[key] = dom.window[key];
 const { renderInto } = await load('renderer');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+const hydrateInto = await hydrating();
 const rendered = {};
 for (const [name, make] of Object.entries(DOORS)) {
   const host = document.createElement('div');

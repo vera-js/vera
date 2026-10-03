@@ -9,6 +9,7 @@
  *
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -338,7 +339,7 @@ test('bindings on a dynamic element behave like bindings anywhere', () => {
   });
 
   test('a client adopts the server markup for a dynamic tag', async () => {
-    const { renderInto: hydratingRender } = await load('renderer/hydrate');
+    const hydratingRender = await hydrating();
     const container = into();
     container.innerHTML = server.one;
     const adopted = container.querySelector('.t');

@@ -37,7 +37,7 @@ export const ENTRY = {
   jsx: ['jsx', 'vera-jsx'],
   'jsx/standalone': ['jsx', 'vera-jsx-standalone'],
   renderer: ['renderer', 'vera-renderer'],
-  'renderer/hydrate': ['renderer', 'vera-renderer-hydrate'],
+  'renderer/hydration': ['renderer', 'vera-renderer-hydration'],
   'renderer/profiler': ['renderer', 'vera-renderer-profiler'],
   router: ['router', 'vera-router'],
   autoloader: ['autoloader', 'vera-autoloader'],

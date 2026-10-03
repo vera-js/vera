@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { JSDOM, VirtualConsole } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 
 const serverScript = `
@@ -135,7 +136,7 @@ test('conversion follows each property’s IDL, measured against a live setter',
 });
 
 test('hydrating the server output adopts each host and ends exactly where a client render does', async () => {
-  const { renderInto: hydrateInto } = await load('renderer/hydrate');
+  const hydrateInto = await hydrating();
   const { renderInto } = await load('renderer');
   const strings = (list) => Object.assign([...list], { raw: [...list] });
   const tpl = (host, prop, value) => ({ ['_$litType$']: 1, strings: strings([`<${host} .${prop}=`, `></${host}>`]), values: [value] });

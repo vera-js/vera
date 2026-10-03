@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -20,7 +21,12 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 
 const { html } = await load('core');
 const { renderInto } = await load('renderer');
-const { renderInto: hydrateInto } = await load('renderer/hydrate');
+/**
+ * Hydration is wired only by the hydration tests below — and they come LAST: once it is wired, a first render into a
+ * container that already holds something adopts it (or, not matching, replaces it), so the base contract above — content
+ * already in a container survives — is the renderer's WITHOUT hydration.
+ */
+let hydrateInto;
 
 /** Two different templates from ONE function — two call sites, so switching between them is a template swap. */
 const swap = (which, label = 'x') => (which ? html`<p>${label}</p>` : html`<b>${label}</b>`);
@@ -89,7 +95,8 @@ test('a root list grows in order, inside its range', () => {
   assert.equal(host.lastChild, extra, 'new items land before the foreign node, never after it');
 });
 
-test('hydration bounds its root: a foreign node appended after adoption survives a swap', () => {
+test('hydration bounds its root: a foreign node appended after adoption survives a swap', async () => {
+  hydrateInto = await hydrating();
   const host = document.body.appendChild(document.createElement('div'));
   host.innerHTML = '<p>x</p>';
   const adopted = host.querySelector('p');
@@ -102,7 +109,8 @@ test('hydration bounds its root: a foreign node appended after adoption survives
   assert.equal(host.querySelector('b')?.textContent, 'x');
 });
 
-test('hydration: a top-level list longer on the client than the server rendered does not throw', () => {
+test('hydration: a top-level list longer on the client than the server rendered does not throw', async () => {
+  hydrateInto = await hydrating();
   const host = document.body.appendChild(document.createElement('div'));
   host.innerHTML = '<i>0</i><i>1</i>';
   /** A template whose top level is the list — a bare array at the root is never adopted, only rendered. */
@@ -123,7 +131,8 @@ test('hydration: a top-level list longer on the client than the server rendered 
   assert.equal(host.lastChild, extra);
 });
 
-test('hydration: a client-only node at the root lands inside the range', () => {
+test('hydration: a client-only node at the root lands inside the range', async () => {
+  hydrateInto = await hydrating();
   const host = document.body.appendChild(document.createElement('div'));
   host.innerHTML = '<p>x</p>';
   const node = document.createElement('em');

@@ -25,6 +25,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
@@ -35,7 +36,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 const { renderer } = await load('renderer');
 const core = await load('core');
 core.wire([renderer]);
-const { renderInto } = await load('renderer/hydrate');
+const renderInto = await hydrating();
 /** A real tagged template already carries a frozen `raw`, so it is passed through untouched — the
  *  hand-built-array helper the sibling suite uses throws here. */
 const html = (strings, ...values) => ({ strings, values, ['_$litType$']: 1 });

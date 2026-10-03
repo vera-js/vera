@@ -1,3 +1,4 @@
+import { hydrating } from './hydration.mjs';
 /**
  * **Falling back has to say so.**
  *
@@ -22,7 +23,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { isProduction, load } from './dist.mjs';
+import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'Event', 'CustomEvent', 'NodeFilter', 'Comment', 'Text'])
@@ -31,7 +32,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 const { html } = await load('core');
-const { renderInto } = await load('renderer/hydrate');
+const renderInto = await hydrating();
 
 /** Hydrates `template` over `markup` and returns what it warned, plus the DOM it settled on. */
 const hydrateOver = (markup, template) => {
@@ -49,7 +50,8 @@ const hydrateOver = (markup, template) => {
   return { said, text: host.textContent.trim(), host };
 };
 
-const skip = isProduction && 'development-only diagnostics';
+/** The fallback warning ships in EVERY build (Brian, 2026-10-02): asserted in production as well. */
+const skip = false;
 
 test('a mismatch names the first place the two renders disagreed', { skip }, () => {
   const cases = [
