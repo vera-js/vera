@@ -7,11 +7,15 @@
  * template: node identity kept, listeners attached, updates mutating the adopted nodes. Server HTML carries no framework
  * comments; the client puts in the anchors it needs.
  *
- * **Verify, then commit.** Phase 1 walks the container READING ONLY — statics byte for byte, element names, text
- * boundaries, nested templates and lists — and runs no user code but the one text conversion a client render would run
- * anyway, recorded and reused. Only when the whole container matches does phase 2 walk it again for real: anchors put
- * in, hooks told, bindings committed in client order. So a container that does not match is rendered fresh with NOTHING
- * of the client's run against the server's nodes: no setter, no `create`, no ref, no listener, no applier. (The one
+ * **Queue, then run.** ONE walk matches the container — statics byte for byte, element names, text boundaries, nested
+ * templates and lists — doing only what runs no user code as it goes: splitting text and putting in the renderer's
+ * comment anchors. Everything that runs user code — a binding's commit (a setter, a listener, an attribute write a
+ * component observes), an instance hook, an applier, a `'value'` handler, a node placed into the page — is QUEUED, in
+ * walk order, which is client order. Only when the whole container matches does the queue run. So a container that does
+ * not match is rendered fresh with NOTHING of the client's run against the server's nodes: no setter, no `create`, no
+ * ref, no listener, no applier. Two notes: each text value is converted once, during the walk, as a client render
+ * converts it (an object's `toString` is the one user code that runs before the decision); and a user's own
+ * MutationObserver on a container that then mismatches sees text splits and comments put in, then the clear. (The one
  * exception is the platform's: a server custom element already defined upgrades on parse and runs its own setup before
  * any hydration starts — `tests/hydration-walk.test.mjs` pins it.)
  *
@@ -53,7 +57,7 @@ const PROTOCOL = 1;
 type Handoff = {
   $V: number;
   $G: (result: TemplateResult) => Template;
-  $C: new (start: Comment | null, end: Comment | null) => ChildPart;
+  $C: new (start: Comment | null, end: Node | null) => ChildPart;
   $I: new (template: Template, strings: TemplateStringsArray, root: Node, bindings: unknown[]) => Instance;
   $S: new (element: Element) => Slot;
   $Z: object;
@@ -95,16 +99,21 @@ const warn = (cause: string, message: string, container?: Node) => {
 
 /* ── the walk's state, per hydration ─────────────────────────────────────────────────────────────── */
 
-/** Phase 1: read only. Every mutation and every commit below is guarded by it. */
-let dry = false;
 /**
- * Each text value's string, converted ONCE in phase 1 and reused in phase 2, in walk order — so keyed by binding
- * POSITION: one object bound at two text positions is converted twice, as a client render converts it twice.
+ * **The work that runs user code, held until the whole container matches** — flat tuples of six, in walk order (client
+ * order): `[op, a, b, c, d, e]`. One per adoption: a nested adoption (a queued setter rendering into its own element)
+ * gets its own.
  */
-let texts: string[] = [];
-let textAt = 0;
-/** Each iterable list value, materialized ONCE (a generator iterates once); phase 2 adopts from the same array. */
-let lists = new WeakMap<object, unknown[]>();
+let queue: unknown[] = [];
+const COMMIT = 0;
+const APPLY = 1;
+const HOOK = 2;
+const CHILD = 3;
+const HANDLE = 4;
+const INSERT = 5;
+const later = (op: number, a: unknown, b?: unknown, c?: unknown, d?: unknown, e?: unknown) => {
+  queue.push(op, a, b, c, d, e);
+};
 /** The first place the two renders disagreed — for the warning. */
 let why = '';
 
@@ -130,18 +139,8 @@ const describe = (node: Node | null) =>
           ? 'a comment'
           : `a ${node.nodeName} node`;
 
-/** A value's text, converted once (phase 1) and replayed (phase 2) — the base's own conversion. */
-const textOf = (value: unknown) => {
-  if (dry && textAt === texts.length) texts.push(H.$T(value));
-  return texts[textAt++];
-};
-/** An iterable's items, materialized once. */
-const itemsOf = (value: Iterable<unknown>) => {
-  if (Array.isArray(value)) return value;
-  let items = lists.get(value as object);
-  if (items === undefined) lists.set(value as object, (items = [...value]));
-  return items;
-};
+/** A value's text — the base's own conversion, once, as a client render converts it. */
+const textOf = (value: unknown) => H.$T(value);
 
 const isTemplateResult = (value: object): value is TemplateResult => (value as TemplateResult).strings !== undefined;
 
@@ -180,8 +179,7 @@ const planOf = (template: Template) => {
 
 /**
  * Where the walk stands among a live parent's children: a node, and an offset into it when it is text — server text
- * runs arrive MERGED (`a${x}b` is one text node), so a static and a value share a node until phase 2 splits them.
- * Phase 1 never splits: it moves the offset.
+ * runs arrive MERGED (`a${x}b` is one text node), so a static and a value share a node until the walk splits them.
  */
 type Cursor = { parent: Node; node: Node | null; offset: number };
 
@@ -190,7 +188,7 @@ const passComments = (cursor: Cursor) => {
   while (cursor.offset === 0 && cursor.node !== null && cursor.node.nodeType === 8) cursor.node = cursor.node.nextSibling;
 };
 
-/** Puts the cursor on a node boundary (splitting the text it stands in) and returns the node there. Phase 2 only. */
+/** Puts the cursor on a node boundary (splitting the text it stands in) and returns the node there. */
 const boundary = (cursor: Cursor) => {
   if (cursor.offset > 0) {
     cursor.node = (cursor.node as Text).splitText(cursor.offset);
@@ -199,10 +197,8 @@ const boundary = (cursor: Cursor) => {
   return cursor.node;
 };
 
-/** Inserts at the cursor — phase 2 only. */
-const insertHere = (cursor: Cursor, node: Node) => {
-  if (!dry) cursor.parent.insertBefore(node, boundary(cursor));
-};
+/** Inserts at the cursor — the walk inserts only text and the renderer's comment anchors, which run no user code. */
+const insertHere = (cursor: Cursor, node: Node) => cursor.parent.insertBefore(node, boundary(cursor));
 
 /** Consumes exactly `text`, a static; anything else is a mismatch. Reads only. */
 const expectText = (cursor: Cursor, text: string) => {
@@ -224,12 +220,11 @@ const expectText = (cursor: Cursor, text: string) => {
 };
 
 /**
- * Claims a text node holding exactly `text`, a value — split out of the run it arrived in (phase 2), or stepped over
- * (phase 1). `''` has no server counterpart: phase 2 puts in a fresh empty node as its anchor.
+ * Claims a text node holding exactly `text`, a value — split out of the run it arrived in. `''` has no server
+ * counterpart: a fresh empty text node is put in as its anchor.
  */
 const claimText = (cursor: Cursor, text: string): Text => {
   if (text === '') {
-    if (dry) return null as unknown as Text;
     const anchor = cursor.parent.ownerDocument!.createTextNode('');
     insertHere(cursor, anchor);
     return anchor;
@@ -248,14 +243,6 @@ const claimText = (cursor: Cursor, text: string): Text => {
         `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(data.slice(at, at + text.length))} ` +
         `— a value that stringifies differently on the server (a Date? locale formatting?) disagrees here`
     ));
-  if (dry) {
-    if (at + text.length < data.length) cursor.offset = at + text.length;
-    else {
-      cursor.node = node.nextSibling;
-      cursor.offset = 0;
-    }
-    return null as unknown as Text;
-  }
   const own = boundary(cursor) as Text;
   if (own.data.length > text.length) own.splitText(text.length);
   cursor.node = own.nextSibling;
@@ -307,7 +294,7 @@ const FORM_STATE = /^(?:value|checked|selected)$/;
 const primitive = (value: unknown) => value === null || (typeof value !== 'object' && typeof value !== 'function');
 
 /**
- * **One element binding, adopted** (phase 2). The seedable kinds are ATTR and BOOLEAN — ONLY those: their server DOM can
+ * **One element binding, adopted** — seeded now (DOM reads only), its commit QUEUED. The seedable kinds are ATTR and BOOLEAN — ONLY those: their server DOM can
  * be compared to the client value without running user code, and seeding anything else (an EVENT's handler, a
  * setter) would skip work the client must do. Seeded with the CLIENT value, and only on exact equality.
  */
@@ -326,8 +313,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
   /** An element-position value applying itself is told it is adopting — a form control the user typed in stands. */
   if ((kind === REF || kind === SELECT_REF) && raw != null && typeof (raw as Applies)._$apply$ === 'function') {
     bindings[slot + 1] = raw;
-    H.$E();
-    (raw as Applies)._$apply$(live, bindings[slot] as Slot, untracked, true);
+    later(APPLY, raw, live, bindings[slot]);
     return;
   }
   if (kind === ATTR) {
@@ -353,12 +339,12 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
         bindings[slot + 1] = server;
     }
   } else if (kind === BOOLEAN && live.hasAttribute(name) === !!raw) bindings[slot + 1] = raw;
-  H.$M(template, bindings, i, kind, values);
+  later(COMMIT, template, bindings, i, kind, values);
 };
 
 /**
  * An element's own bindings commit when the walk reaches it — before its content, in document pre-order, as a client
- * render commits them (phase 2) — then its content is adopted: as one SOLE value, or as canonical children.
+ * render commits them (queued) — then its content is adopted: as one SOLE value, or as canonical children.
  */
 const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: number[] | undefined) => {
   let sole = -1;
@@ -370,7 +356,7 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
       if (kind === SOLE) sole = i;
       else {
         if ((kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(into.template.$N[i])) content = true;
-        if (!dry) commitBinding(into, i, kind, live);
+        commitBinding(into, i, kind, live);
       }
     }
   const inner: Cursor = { parent: live, node: live.firstChild, offset: 0 };
@@ -391,103 +377,62 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
 /** A value is TEXT at a child position when the base would write it as text. */
 const isText = (value: unknown) => value != null && typeof value !== 'object';
 
-/** A part for phase 1, which builds nothing: fields written on it are thrown away. */
-const scratch = () => ({}) as ChildPart;
 
 /** A CHILD binding: text split to the value, or a part between two markers put in around what it adopts. */
 const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
   const value = into.values[i];
   if (isText(value)) {
-    const node = claimText(cursor, textOf(value));
-    if (!dry) {
-      into.bindings[i * 2] = node;
-      into.bindings[i * 2 + 1] = value;
-    }
+    into.bindings[i * 2] = claimText(cursor, textOf(value));
+    into.bindings[i * 2 + 1] = value;
     return;
   }
-  const part = dry ? scratch() : new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
+  const part = new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
   insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
-  if (!dry) {
-    if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
-    into.bindings[i * 2] = part;
-    into.bindings[i * 2 + 1] = H.$W;
-  }
+  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
+  into.bindings[i * 2] = part;
+  into.bindings[i * 2 + 1] = H.$W;
 };
 
 /** A SOLE binding: its element's one text node, or a part that owns the element (no markers). */
 const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
   const value = into.values[i];
   if (isText(value)) {
-    const node = claimText(inner, textOf(value));
-    if (!dry) {
-      into.bindings[i * 2] = node;
-      into.bindings[i * 2 + 1] = value;
-    }
+    into.bindings[i * 2] = claimText(inner, textOf(value));
+    into.bindings[i * 2 + 1] = value;
     return;
   }
-  const part = dry ? scratch() : new H.$C(null, null);
+  const part = new H.$C(null, null);
   part.$w = live;
   adoptValue(part, value, inner);
-  if (!dry) {
-    into.bindings[i * 2] = part;
-    into.bindings[i * 2 + 1] = H.$W;
-  }
+  into.bindings[i * 2] = part;
+  into.bindings[i * 2 + 1] = H.$W;
 };
 
-/** Adopts a template's instance at the cursor (phase 1 returns nothing: it builds nothing). */
+/** Adopts a template's instance at the cursor. */
 const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
   let template = H.$G(result);
   /** Adoption is in place: an extension resolving the template (namespaces) is asked with the LIVE parent. */
   if (template.$X) template = H.$Q(template, cursor.parent);
   const into: Adoption = {
     template,
-    bindings: dry ? [] : new Array(template.$K.length * 2 + (template.$X ? 1 : 0)),
+    bindings: new Array(template.$K.length * 2 + (template.$X ? 1 : 0)),
     values: result.values,
     plan: planOf(template),
   };
   const root = template.$R;
   if (root.nodeType === 1) {
     const adopted = claimElement(cursor, (root as Element).localName);
-    const instance = dry ? (null as unknown as Instance) : new H.$I(template, result.strings, adopted, into.bindings);
-    /** Its instance hook meets it before its bindings commit, as a client instance does — told it was adopted. */
-    if (!dry && template.$X) H.$U(instance, adopted, true);
+    const instance = new H.$I(template, result.strings, adopted, into.bindings);
+    /** Its instance hook meets it before its bindings commit, as a client instance does — told it was adopted: queued first. */
+    if (template.$X) later(HOOK, instance, adopted);
     adoptElement(root as Element, adopted, into, into.plan.get(root));
     return instance;
   }
   walk(root.firstChild, cursor, into);
-  return dry ? (null as unknown as Instance) : new H.$I(template, result.strings, cursor.parent.ownerDocument!.createDocumentFragment(), into.bindings);
+  return new H.$I(template, result.strings, cursor.parent.ownerDocument!.createDocumentFragment(), into.bindings);
 };
 
-/**
- * **A position a `'value'` handler claims** (phase 2, base precedence: templates first, then the handlers). The server
- * never asks handlers — it wrote the value as the renderer's own types, or as its text — so phase 1 matched that; here
- * the span it matched is measured by the same consume, run dry, and if a handler claims the value the span goes and the
- * handler renders client-side. Nothing claims: the cursor and the recorded texts rewind, and the span is adopted.
- */
-const claimedByHandler = (part: ChildPart, value: unknown, cursor: Cursor, handlers: ValueHandler[]) => {
-  const first = boundary(cursor);
-  const mark = textAt;
-  dry = true;
-  try {
-    adoptValue(scratch(), value, cursor);
-  } finally {
-    dry = false;
-  }
-  const end = boundary(cursor);
-  const span: Node[] = [];
-  for (let node = first; node !== null && node !== end; node = node.nextSibling) span.push(node);
-  if (part.$e !== null && part.$e.parentNode === null) cursor.parent.insertBefore(part.$e, end);
-  for (let i = 0; i < handlers.length; i++)
-    if (handlers[i](part, value)) {
-      for (const node of span) node.parentNode?.removeChild(node);
-      return true;
-    }
-  cursor.node = first;
-  cursor.offset = 0;
-  textAt = mark;
-  return false;
-};
 
 /**
  * Adopts `value` into `part` — the same decisions, in the same order, as the server's serializer made them (templates,
@@ -496,69 +441,72 @@ const claimedByHandler = (part: ChildPart, value: unknown, cursor: Cursor, handl
 const adoptValue = (part: ChildPart, value: unknown, cursor: Cursor): void => {
   if (value == null) return;
   if (typeof value !== 'object') {
-    const node = claimText(cursor, textOf(value));
-    if (!dry) {
-      part.$l = node;
-      part.$v = value;
-      part.$o = TEXT;
-    }
+    part.$l = claimText(cursor, textOf(value));
+    part.$v = value;
+    part.$o = TEXT;
     return;
   }
   const held = (value as { $h?: TemplateResult }).$h;
   if (held !== undefined || isTemplateResult(value)) {
-    const instance = adoptInstance(held ?? (value as TemplateResult), cursor);
-    if (!dry) {
-      part.$n = instance;
-      part.$o = TEMPLATE;
-    }
+    part.$n = adoptInstance(held ?? (value as TemplateResult), cursor);
+    part.$o = TEMPLATE;
     return;
   }
-  if (!dry) {
-    const handlers = registry.get('value') as ValueHandler[] | undefined;
-    if (handlers !== undefined && claimedByHandler(part, value, cursor, handlers)) return;
-  }
+  /**
+   * **A `'value'` handler is asked when the queue runs, with base precedence** (templates first, then the handlers).
+   * The server never asks handlers — it wrote the value as the renderer's own types, or as its text — so the walk adopts
+   * it as written; a handler that then claims it commits over the part, which clears what was adopted, and everything
+   * queued for that content is skipped (`end`). Nothing claims: it stays adopted.
+   */
+  const handlers = registry.get('value') as ValueHandler[] | undefined;
+  const at = handlers === undefined ? -1 : queue.length;
+  if (handlers !== undefined) later(HANDLE, part, value, handlers, 0);
+  adoptObject(part, value, cursor);
+  if (at >= 0) queue[at + 4] = queue.length;
+};
+
+/** An object value that is not a template: a list, an applier, a node, or its text. */
+const adoptObject = (part: ChildPart, value: object, cursor: Cursor) => {
   if (Array.isArray(value) || (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined)) {
-    const list = itemsOf(value as Iterable<unknown>);
+    /** Read once: a generator iterates once. */
+    const list = Array.isArray(value) ? value : [...(value as Iterable<unknown>)];
     const items: Item[] = [];
     for (let i = 0; i < list.length; i++) items.push(adoptItem(list[i], cursor));
-    if (!dry) {
-      part.$i = items;
-      part.$o = LIST;
-    }
+    part.$i = items;
+    part.$o = LIST;
     return;
   }
   const applyChild = (value as { _$child$?: (part: ChildPart, previous: unknown, adopting: boolean) => unknown })._$child$;
   if (applyChild !== undefined) {
     /** What the server wrote for an applier cannot be delimited except as a SOLE element's whole content. */
     if (part.$w != null && cursor.node !== null) {
-      if (!dry) part.$o = NODE;
+      part.$o = NODE;
       cursor.node = null;
       cursor.offset = 0;
     }
-    if (dry) return;
     if (part.$e !== null && part.$e.parentNode === null) insertHere(cursor, part.$e);
     part.$a = applyChild;
     part.$R = cursor.parent;
-    if ((applyChild as { _$detach$?: unknown })._$detach$ !== undefined) H.$E();
-    part.$z = applyChild.call(value, part, undefined, true);
+    later(CHILD, applyChild, value, part);
     return;
   }
-  /** A node the server could not have rendered: put in where it belongs, and adoption goes on around it. */
+  /**
+   * A node the server could not have rendered: it goes where it belongs — QUEUED, since placing an element runs its
+   * connected callback. A comment holds its place until then: inserted later at a captured `null`, it would land after
+   * the anchors the walk appends meanwhile.
+   */
   if ((value as Node).nodeType !== undefined) {
-    insertHere(cursor, value as Node);
-    if (!dry) {
-      part.$v = value;
-      part.$o = NODE;
-    }
+    const place = cursor.parent.ownerDocument!.createComment('');
+    insertHere(cursor, place);
+    later(INSERT, cursor.parent, value, place);
+    part.$v = value;
+    part.$o = NODE;
     return;
   }
   /** Every other object, as the server wrote it: its text, converted once. */
-  const node = claimText(cursor, textOf(value));
-  if (!dry) {
-    part.$l = node;
-    part.$v = value;
-    part.$o = TEXT;
-  }
+  part.$l = claimText(cursor, textOf(value));
+  part.$v = value;
+  part.$o = TEXT;
 };
 
 /** The root the template at this position will build — after an extension resolves it, as the base asks. */
@@ -571,17 +519,61 @@ const rootOf = (result: TemplateResult, cursor: Cursor) => {
 const adoptItem = (value: unknown, cursor: Cursor): Item => {
   if (value !== null && typeof value === 'object' && isTemplateResult(value) && rootOf(value, cursor).nodeType === 1) {
     const instance = adoptInstance(value, cursor);
-    if (!dry) instance.$k = (value as KeyedResult).key;
+    instance.$k = (value as KeyedResult).key;
     return instance;
   }
-  const part = dry ? scratch() : new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
+  const part = new H.$C(cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
   insertHere(cursor, part.$s!);
   adoptValue(part, value, cursor);
-  if (!dry) {
-    if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
-    part.$k = (value as TemplateResult | null)?.key;
-  }
+  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
+  part.$k = (value as TemplateResult | null)?.key;
   return part;
+};
+
+/**
+ * **A handler is asked with the part as a client render would hand it over — empty** — and the server's span stays
+ * where it is meanwhile: a claim commits into the empty part and the span is removed after; no claim puts the adopted
+ * state back. Copied whole (`{ ...part }`), so no field of the renderer's needs naming here.
+ */
+const claimed = (part: ChildPart, value: unknown, handlers: ValueHandler[]) => {
+  const was = { ...part };
+  const span: Node[] = [];
+  for (let node = part.$s === null ? part.$w!.firstChild : part.$s.nextSibling; node !== null && node !== part.$e; node = node.nextSibling)
+    span.push(node);
+  Object.assign(part, new H.$C(part.$s, part.$e), { $w: was.$w, $k: was.$k });
+  for (let i = 0; i < handlers.length; i++)
+    if (handlers[i](part, value)) {
+      for (const node of span) node.parentNode?.removeChild(node);
+      return true;
+    }
+  Object.assign(part, was);
+  return false;
+};
+
+/**
+ * **The queue runs** — once the whole container matched, inside the renderer's render bracket, in walk order. A handler
+ * that claims its value skips everything queued for the content it replaced.
+ */
+const run = (q: unknown[]) => {
+  for (let k = 0; k < q.length; k += 6) {
+    const op = q[k];
+    if (op === COMMIT) H.$M(q[k + 1] as Template, q[k + 2] as unknown[], q[k + 3] as number, q[k + 4] as number, q[k + 5] as unknown[]);
+    else if (op === APPLY) {
+      H.$E();
+      (q[k + 1] as Applies)._$apply$(q[k + 2] as Element, q[k + 3] as Slot, untracked, true);
+    } else if (op === HOOK) H.$U(q[k + 1] as Instance, q[k + 2] as Node, true);
+    else if (op === CHILD) {
+      const applyChild = q[k + 1] as (part: ChildPart, previous: unknown, adopting: boolean) => unknown;
+      const part = q[k + 3] as ChildPart;
+      if ((applyChild as { _$detach$?: unknown })._$detach$ !== undefined) H.$E();
+      part.$z = applyChild.call(q[k + 2], part, undefined, true);
+    } else if (op === HANDLE) {
+      if (claimed(q[k + 1] as ChildPart, q[k + 2], q[k + 3] as ValueHandler[])) k = (q[k + 4] as number) - 6;
+    } else {
+      (q[k + 1] as Node).insertBefore(q[k + 2] as Node, q[k + 3] as Node);
+      (q[k + 3] as ChildNode).remove();
+    }
+  }
 };
 
 /* ── the container ───────────────────────────────────────────────────────────────────────────────── */
@@ -607,31 +599,34 @@ const adopt = (result: unknown, container: Node): boolean => {
   /**
    * **One walk's state per adoption.** Phase 2 runs user code — a setter that renders into its own element, a component
    * set up synchronously — and that can adopt ANOTHER container in the middle of this one: its walk gets its own state,
-   * and this one's is restored when it returns. Shared, the nested walk reset this one's texts underneath it.
+   * and this one's is restored when it returns. Shared, a nested walk reset this one's state underneath it.
    */
-  const saved = [dry, texts, textAt, lists, why, kind] as const;
+  const saved = [queue, why, kind] as const;
   try {
     return adoptContainer(result as TemplateResult, container);
   } finally {
-    [dry, texts, textAt, lists, why, kind] = saved;
+    [queue, why, kind] = saved;
   }
 };
 
 const adoptContainer = (result: TemplateResult, container: Node): boolean => {
   let first: Node | null = container.firstChild;
   while (isSheet(first)) first = first!.nextSibling;
-  texts = [];
-  textAt = 0;
-  lists = new WeakMap();
-  /** PHASE 1 — read only. A mismatch here has run nothing of the client's against the server's nodes. */
-  dry = true;
+  queue = [];
+  /** The root range is bounded before the walk: an insert at the root during it (a client-only node) needs the end. */
+  const doc = container.ownerDocument ?? (container as Document);
+  const start = doc.createComment('');
+  container.insertBefore(start, first);
+  const end = container.appendChild(doc.createComment(''));
+  const part = new H.$C(start, end);
   try {
     const cursor: Cursor = { parent: container, node: first, offset: 0 };
-    adoptValue(scratch(), result, cursor);
+    adoptValue(part, result, cursor);
     finish(cursor, true);
   } catch (error) {
+    start.remove();
+    end.remove();
     if (error !== MISMATCH) throw error;
-    dry = false;
     /** The whole story in development; production says the cause and the fix in one line — it warns in every build. */
     warn(
       kind,
@@ -646,32 +641,13 @@ const adoptContainer = (result: TemplateResult, container: Node): boolean => {
         : `hydration fell back to a client render: ${why} (a placeholder? \`container.replaceChildren()\` first).`,
       container
     );
+    /** The queue is dropped unrun; the clear takes the walk's text splits and comments with the server's nodes. */
     clearPreservingStyles(container);
     return false;
-  } finally {
-    dry = false;
   }
-  /** PHASE 2 — for real, inside the renderer's own render bracket (a stand-in part), in client order. */
-  textAt = 0;
-  const doc = container.ownerDocument ?? (container as Document);
-  const start = doc.createComment('');
-  container.insertBefore(start, first);
-  const end = container.appendChild(doc.createComment(''));
-  const part = new H.$C(start, end);
-  const walkInto = {
-    $p: () => {
-      const cursor: Cursor = { parent: container, node: first, offset: 0 };
-      adoptValue(part, result, cursor);
-      finish(cursor, true);
-    },
-  } as unknown as ChildPart;
-  try {
-    H.$A(container, walkInto, undefined, container);
-  } catch (error) {
-    /** Phase 2 makes phase 1's decisions again, by the same code: disagreeing is a bug, never a page's fault. */
-    if (error === MISMATCH) throw new Error(`[vera] hydration: the commit pass disagreed with the check pass (${why}) — a bug in hydration; please report it.`);
-    throw error;
-  }
+  /** Matched: the queue runs, inside the renderer's own render bracket (a stand-in part) — refs at its end, as always. */
+  const q = queue;
+  H.$A(container, { $p: () => run(q) } as unknown as ChildPart, undefined, container);
   H.$O.set(container, part);
   return true;
 };

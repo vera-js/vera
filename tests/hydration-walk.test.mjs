@@ -119,8 +119,8 @@ test('on SUCCESS: every binding commits once, the listener works, the ref is han
 
 /* ── phase 1 runs NOTHING, pinned as a whole ─────────────────────────────────────────────────────── */
 
-test('phase 1 alone mutates nothing and runs nothing — and the client render does (CONTROL)', () => {
-  const counts = { ref: 0, set: 0, apply: 0, child: 0, value: 0, toString: 0 };
+test('before a mismatch is declined, the walk has only split text and put in comments — no user code ran but text conversion (CONTROL: the client render runs it all)', () => {
+  const counts = { ref: 0, set: 0, apply: 0, child: 0, toString: 0 };
   if (!customElements.get('hw-spy'))
     customElements.define('hw-spy', class extends dom.window.HTMLElement {
       set item(v) {
@@ -129,40 +129,87 @@ test('phase 1 alone mutates nothing and runs nothing — and the client render d
     });
   const applier = { _$apply$: () => counts.apply++ };
   const childApplier = { _$child$: () => counts.child++ };
-  /** A NODE value too: the one path where `insertHere`'s own guard is all that keeps phase 1 from inserting. */
+  /** Text conversion is the one exception: an object's text is read during the walk, to match it. */
+  const spoken = { toString: () => (counts.toString++, 'spoken') };
+  /** A NODE value too: placing an element is queued, never done by the walk. */
   const clientNode = doc.createElement('mark');
   const draw = (tail) =>
-    html`<div ${() => counts.ref++} ${applier} title=${'x'}><hw-spy .item=${1}></hw-spy>${'text'}<span>${childApplier}</span>${clientNode}</div>${tail}`;
+    html`<div ${() => counts.ref++} ${applier} title=${'x'}><hw-spy .item=${1}></hw-spy>${'text'}${spoken}<span>${childApplier}</span>${clientNode}</div>${tail}`;
   const markup = serverOf(draw(html`<b>end</b>`));
-  /** The mismatch is AFTER everything: phase 1 walks the whole container before declining. */
+  /** The mismatch is AFTER everything: the walk covers the whole container before declining. */
   const container = holding(markup.replace('<b>end</b>', '<i>end</i>'));
   const records = [];
   const observer = new MutationObserver((r) => records.push(...r));
   observer.observe(container, { subtree: true, childList: true, attributes: true, characterData: true });
-  /** Phase 1 alone: the client render after the decline is what the fallback does — measure up to it by clearing. */
-  const before = container.innerHTML;
-  let phase1Records = null;
+  let before = null;
+  let atClear = null;
   const real = container.removeChild.bind(container);
   container.removeChild = (node) => {
-    /** The first removal IS the fallback's clear — phase 1 is over by then. */
-    if (phase1Records === null) phase1Records = [...records, ...observer.takeRecords()];
+    /** The first removal through the container IS the fallback's clear — the walk is over by then. */
+    if (before === null) {
+      before = [...records, ...observer.takeRecords()];
+      atClear = { ...counts };
+    }
     return real(node);
   };
   const snapshot = { ...counts };
   warnings(() => renderInto(draw(html`<b>end</b>`), container));
   observer.disconnect();
-  assert.deepEqual(phase1Records, [], 'phase 1 mutated the server DOM');
-  assert.notEqual(before, '', 'CONTROL: there was server markup to walk');
-  /** Everything counted ran exactly once: the client render's, never phase 1's. */
-  assert.deepEqual(
-    Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, v - snapshot[k]])),
-    { ref: 1, set: 1, apply: 1, child: 1, value: 0, toString: 0 },
-    'every piece of user code ran exactly ONCE — the client render\'s; phase 1 ran none of it'
+  assert.notEqual(before, null, 'CONTROL: the fallback cleared the container');
+  const only = before.every(
+    (r) =>
+      /** Text and comments in; out, only the walk's own root markers (comments) as it declines. */
+      (r.type === 'childList' && [...r.removedNodes].every((n) => n.nodeType === 8) && [...r.addedNodes].every((n) => n.nodeType === 3 || n.nodeType === 8)) ||
+      (r.type === 'characterData' && r.target.nodeType === 3)
   );
+  assert.equal(only, true, 'the walk did something other than split text and put in comments');
+  assert.ok(before.length > 0, 'CONTROL: the walk did split text and put in its anchors');
+  const delta = (at) => Object.fromEntries(Object.entries(at).map(([k, v]) => [k, v - snapshot[k]]));
+  assert.deepEqual(delta(atClear), { ref: 0, set: 0, apply: 0, child: 0, toString: 1 }, 'user code ran before the clear');
+  /** CONTROL: the client render after it ran every piece — so the zeros above are not a probe that measured nothing. */
+  assert.deepEqual(delta(counts), { ref: 1, set: 1, apply: 1, child: 1, toString: 2 });
   container.remove();
 });
 
-/* ── seeding: wrap, never bypass ─────────────────────────────────────────────────────────────────── */
+/**
+ * **The queue runs the client's work in the client's order.** The same template, rendered fresh into an empty container
+ * and hydrated from the server's markup, logs the same calls in the same sequence — refs, element appliers, setters on a
+ * nested component, child appliers — through nested templates and a keyed list.
+ */
+test('hydration calls user code in exactly the order a client render does (nested templates, a list, a nested component)', () => {
+  const log = [];
+  if (!customElements.get('hw-order'))
+    customElements.define('hw-order', class extends dom.window.HTMLElement {
+      set item(v) {
+        log.push(`set ${v}`);
+      }
+    });
+  const ref = (name) => () => log.push(`ref ${name}`);
+  const applier = (name) => ({ _$apply$: () => log.push(`apply ${name}`) });
+  const child = (name) => ({ _$child$: () => log.push(`child ${name}`) });
+  const row = (n) => html`<li ${ref(`li${n}`)}><hw-order .item=${`row${n}`}></hw-order>${`r${n}`}</li>`;
+  const draw = () =>
+    html`<section ${ref('section')} ${applier('section')}>
+      <header><hw-order .item=${'head'} ${ref('head')}></hw-order></header>
+      <ul>${[1, 2, 3].map(row)}</ul>
+      ${html`<p ${applier('p')}><span>${child('span')}</span></p>`}
+      <footer ${ref('footer')}>${'end'}</footer>
+    </section>`;
+  const markup = serverOf(draw());
+  log.length = 0;
+  const fresh = doc.createElement('div');
+  doc.body.append(fresh);
+  renderInto(draw(), fresh);
+  const client = log.splice(0);
+  const container = holding(markup);
+  const said = warnings(() => renderInto(draw(), container));
+  assert.deepEqual(said, [], 'it hydrated — a fallback would be a client render, and the comparison would prove nothing');
+  /** CONTROL: the client render did log every kind — a silent log on both sides would match perfectly. */
+  assert.ok(['ref', 'apply', 'set', 'child'].every((k) => client.some((e) => e.startsWith(k))), client.join(', '));
+  assert.deepEqual(log, client);
+  fresh.remove();
+  container.remove();
+});
 
 test('a javascript: URL the server wrote is refused through hydration exactly as on a fresh render', () => {
   const draw = (href) => html`<a href=${href}>x</a>`;
