@@ -17,6 +17,8 @@ import { dirname, relative, resolve } from 'node:path';
  * @param options.input Entry file (default `src/index.ts`) — secondary entries like the
  * renderer's `hydrate` build pass their own.
  * @param options.alwaysExternal Specifiers kept external in **every** mode, production included.
+ * @param options.preamble A line terser writes FIRST in the production bundle — through terser, so the source map is
+ * offset with it (a string prepended afterwards would put every mapped position one line off).
  *
  * Production normally inlines everything so each `.min.js` stands alone, which is right for a
  * module that shares no runtime state with core — `@verajs/styles` and `@verajs/spread` import
@@ -171,6 +173,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
              * tool in the chain.
              */
             preserve_annotations: true,
+            ...(options.preamble ? { preamble: options.preamble } : {}),
           },
           /**
            * `keep_quoted` because a quoted access and a dynamic write can name the same

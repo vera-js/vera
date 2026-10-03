@@ -45,7 +45,19 @@ export default [
    * Additive: `wire([renderer, hydration])`. It imports no renderer — it reaches the one present through the
    * hand-off the renderer sets at `connect` (`$H`, sigiled, so the mangling regex cannot touch it).
    */
-  defaultRollupConfig(`${pkg.filename}-hydration`, [], /^_[a-z]/, { input: 'src/hydration.ts' }),
+  /*
+   * **Compiled eagerly, as it is loaded** (Chromium's explicit compile hint; other engines ignore the comment). Every
+   * function in this module runs on a hydrating page's first render, so lazy compilation only compiles it twice — a
+   * pre-parse at load, then a full compile inside the first hydration. Measured on V8 traces (2026-10-02, 30 fresh
+   * pages each, 1k rows): compile inside the first hydration 0.99 → 0.62 ms (lower on 30/30), the first hydration
+   * 6.45 → 6.10 ms, main-thread compile before it unchanged — the work moves to a BACKGROUND thread (+0.9 ms there),
+   * which on a busy low-core device competes with other work: less main-thread work, not free. It applies to a page
+   * that loads this file on its own; a bundler strips the comment, harmlessly. `tests/dist-preamble` pins it.
+   */
+  defaultRollupConfig(`${pkg.filename}-hydration`, [], /^_[a-z]/, {
+    input: 'src/hydration.ts',
+    preamble: '//# allFunctionsCalledOnLoad',
+  }),
   /**
    * **Additive**, the first of three. It imports nothing at all and talks to whatever renderer is
    * present through the `_$apply$` protocol, so it is safe alongside any of them.
