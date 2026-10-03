@@ -243,7 +243,7 @@ class Template {
    * Per binding, whether it names a URL a browser navigates to (a `javascript:` value is refused, see `SCRIPT_URL`):
    * 0 not one; 1 converted once, and that string checked and written; 2 a custom element's property — strings only.
    */
-  _urls: number[];
+  $L: number[];
   /**
    * **An extension marked this template** (`'template'` insert): namespaces' resolver, an instance hook. False for
    * every template of an app that wires none — ONE read per instance created, never a per-row cost otherwise.
@@ -272,7 +272,7 @@ class Template {
     const names = (this.$N = new Array(count).fill(''));
     const statics = (this.$J = new Array(count).fill(null));
     const present = (this._present = new Array(count).fill(false));
-    const urls = (this._urls = new Array(count).fill(0));
+    const urls = (this.$L = new Array(count).fill(0));
     const nodes: (Node | null)[] = new Array(count).fill(null);
     /**
      * Development bookkeeping for a binding whose marker never arrives: the tag it was written in, whether it is an
@@ -963,7 +963,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
    * to `setAttribute` converted it twice, so an object whose `toString` answered differently each time
    * passed the check as `https:` and was written as `javascript:`.
    */
-  const url = template._urls[i];
+  const url = template.$L[i];
   if (url > 1 && value != null && typeof value !== 'string') value = `${value}`;
   if (url !== 0 && typeof value === 'string' && (url === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(value)) {
     if (__DEV__ && value !== committed)

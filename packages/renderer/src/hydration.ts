@@ -233,23 +233,22 @@ const claimText = (cursor: Cursor, text: string): Text => {
     return anchor;
   }
   passComments(cursor);
-  const node = cursor.node;
+  /** Split first: a text split runs no user code, so the walk may make it before the container is decided. */
+  const node = boundary(cursor);
   if (node === null || node.nodeType !== 3)
     return mismatch('value', node, __DEV__ && (() => `expected a text node holding an interpolated value and found ${describe(node)}`));
   const data = (node as Text).data;
-  const at = cursor.offset;
-  if (!data.startsWith(text, at))
+  if (!data.startsWith(text))
     return mismatch(
       'value',
       node,
       __DEV__ && (() =>
-        `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(data.slice(at, at + text.length))} ` +
+        `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(data.slice(0, text.length))} ` +
         `— a value that stringifies differently on the server (a Date? locale formatting?) disagrees here`
     ));
-  const own = boundary(cursor) as Text;
-  if (own.data.length > text.length) own.splitText(text.length);
-  cursor.node = own.nextSibling;
-  return own;
+  if (data.length > text.length) (node as Text).splitText(text.length);
+  cursor.node = node.nextSibling;
+  return node as Text;
 };
 
 /** Claims the element named `name` at the cursor. Reads only. */
@@ -336,12 +335,22 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
     }
     if (text !== undefined) {
       const server = live.getAttribute(name);
-      /** Equal: the client value itself is seeded, and the base's fast path skips the write after its sink checks. */
-      if (server === text) bindings[slot + 1] = parts === null ? raw : text;
-      /** The client writes nothing and the server wrote something: a non-UNSET seed so the base REMOVES it. */ else if (text === null && server !== null)
-        bindings[slot + 1] = server;
+      /**
+       * Equal — both texts, or both absent: the client value itself is seeded, exactly what the base's commit would
+       * have stored. A binding naming no URL then has NOTHING to commit (its commit would return at `value ===
+       * committed`), so nothing is queued; a URL-bearing one always commits, so a `javascript:` value the server wrote
+       * is refused through the base, as on a fresh render.
+       */
+      if (server === text) {
+        bindings[slot + 1] = parts === null ? raw : text;
+        if (template.$L[i] === 0) return;
+      } else if (text === null) bindings[slot + 1] = server;
+      /** ↑ The client writes nothing and the server wrote something: a non-UNSET seed so the base REMOVES it. */
     }
-  } else if (kind === BOOLEAN && live.hasAttribute(name) === !!raw) bindings[slot + 1] = raw;
+  } else if (kind === BOOLEAN && live.hasAttribute(name) === !!raw) {
+    bindings[slot + 1] = raw;
+    if (template.$L[i] === 0) return;
+  }
   later(COMMIT, template, bindings, i, kind, values);
 };
 
