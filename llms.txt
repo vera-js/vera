@@ -810,7 +810,10 @@ path for a component's props is `props<CalendarDay>({ … })`.
 `.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed` and `spread` are
 injected as needed (`inject: false` to provide them yourself; each is also individually configurable
 — `html: ['h', 'my-lib']`), and every compiled file wires `@verajs/renderer/namespaces`
-(`namespaces: false` to leave it out; `inject: false` leaves it out too, with the other imports).
+(`namespaces: false` to leave it out; `inject: false` leaves it out too, with the other imports). `onWarning`
+hears what compiles but is probably a mistake (`file:line:col — message`; the Vite plugin reports it through Vite, the
+buildless loader prints it in development): today a controlled `value`/`checked` that no `onInput`/`onChange` keeps in
+step and no `readOnly` fixes.
 
 **What it compiles to.** `onClick={f}` → `@click=${f}`; `className`/`htmlFor` → `class`/`for`;
 `value`/`checked` → `!value`/`!checked` (controlled: compared with the control's live state, so a value reset before

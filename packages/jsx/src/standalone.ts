@@ -45,11 +45,11 @@
  */
 import type { ImportSite } from './types.js';
 
-/** The compiler's two functions, from `vera-jsx(.min).js` — loaded only when something must compile. */
-type Compiler = {
-  transformJsx: (code: string, fileName: string) => string;
-  importSites: (code: string) => ImportSite[];
-};
+/**
+ * The compiler's two functions, from `vera-jsx(.min).js` — loaded only when something must compile. Their types are
+ * the module's own (type-only, erased): a restated signature here had stopped at two parameters when a third arrived.
+ */
+type Compiler = Pick<typeof import('./transform.js'), 'transformJsx' | 'importSites'>;
 /** A file ready to link: its JavaScript and where its imports are in it. */
 type Compiled = { js: string; sites: ImportSite[] };
 /** What the cache keeps, for the text whose fingerprint is `fp`: a JS file's text is not kept. */
@@ -230,7 +230,8 @@ const fetchFile = async (url: string, importer: string): Promise<Response> => {
 
 const compile = async (url: string, source: string): Promise<Compiled> => {
   const { transformJsx, importSites } = await loadCompiler();
-  const js = isJsx(url) ? transformJsx(source, url) : source;
+  /** What compiles but is probably a mistake is said in development, as every vera diagnostic is. */
+  const js = isJsx(url) ? transformJsx(source, url, __DEV__ ? { onWarning: (message) => console.warn(`[vera] jsx: ${message}`) } : {}) : source;
   return { js, sites: importSites(js) };
 };
 /** A file's text, compiled — from the cache when it was compiled from exactly this text. */

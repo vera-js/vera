@@ -21,10 +21,13 @@ export type { VeraJsxOptions } from './types.js';
 export const veraJsx = (options: VeraJsxOptions = {}) => ({
   name: 'vera-jsx',
   enforce: 'pre' as const,
-  transform(code: string, id: string): { code: string; map: null } | null {
+  transform(this: { warn?: (message: string) => void } | void, code: string, id: string): { code: string; map: null } | null {
     const file = id.split('?')[0]!;
     if (!/\.[jt]sx$/.test(file)) return null;
-    return { code: transformJsx(code, file, options), map: null };
+    /** What compiles but is probably a mistake is reported through the bundler (Vite's `this.warn`), unless the caller took it. */
+    const warn = (this as { warn?: (message: string) => void } | undefined)?.warn;
+    const onWarning = options.onWarning ?? (warn === undefined ? undefined : (message: string) => warn.call(this, message));
+    return { code: transformJsx(code, file, { ...options, onWarning }), map: null };
   },
 });
 /** The default export died in the conventions pass — jsx was the only package carrying one. */

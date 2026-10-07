@@ -175,6 +175,13 @@ export type VeraJsxOptions = {
   keyed?: [string, string];
   /** [importedName, moduleSpecifier] for spread(). Default ['spread', '@verajs/renderer/spread']. */
   spread?: [string, string];
+  /**
+   * Told of what compiles but is probably a mistake, as `file:line:col — message` (the shape a `JsxError` carries):
+   * today, a controlled `value`/`checked` on a form control with no input handler and no `readOnly`, whose typed text
+   * every render then writes back over. The Vite plugin reports it through Vite; the standalone loader prints it in
+   * development. Unset, nothing is said.
+   */
+  onWarning?: (message: string) => void;
 };
 
 /** The lexical walker's cursor — a plain record; `createParseState` builds one. */

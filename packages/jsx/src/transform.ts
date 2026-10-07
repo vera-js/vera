@@ -89,14 +89,24 @@ const isComponentName = (tag: string): boolean => tag.includes('.') || !/^[a-z]/
  */
 
 /** Platform idiom, named in the principles: an error class STAYS a class. */
+/** `file:line:col — message`, the position counted from `offset` into `code` — what an error and a warning both say. */
+const located = (message: string, code: string, fileName: string, offset: number) => {
+  const upTo = code.slice(0, offset);
+  const line = upTo.split('\n').length;
+  const character = offset - (upTo.lastIndexOf('\n') + 1) + 1;
+  return `${fileName}:${line}:${character} — ${message}`;
+};
+
 class JsxError extends Error {
   constructor(message: string, code: string, fileName: string, offset: number) {
-    const upTo = code.slice(0, offset);
-    const line = upTo.split('\n').length;
-    const character = offset - (upTo.lastIndexOf('\n') + 1) + 1;
-    super(`${fileName}:${line}:${character} — ${message}`);
+    super(located(message, code, fileName, offset));
   }
 }
+
+/** `<input type=…>` values a person does not type into: no `value` warning for them. */
+const UNTYPED_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'image', 'file']);
+/** What makes a controlled form control the author's to keep in step — or deliberately fixed. */
+const KEEPS_IN_STEP = new Set(['onInput', 'onChange', 'oninput', 'onchange', '@input', '@change', 'readOnly', 'readonly']);
 
 /** Escapes static text for placement inside a template literal. */
 const escapeStatic = (text: string) => text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
@@ -829,7 +839,39 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     }
   };
 
-  const emitAttribute = (_node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
+  /**
+   * **A controlled form control nothing keeps in step** — `value`/`checked` on an `<input>`, `<textarea>` or `<select>`
+   * with no input handler and no `readOnly`: every render writes the bound value back over what was typed or ticked, as
+   * React's do (React warns at runtime; this says it at compile time, at no runtime cost). Silent where the compiler
+   * cannot know — a spread may carry the handler, a bound `type` may make it a checkbox.
+   */
+  const warnUncontrolled = (node: ElementNode, name: string, at: number) => {
+    const { tag, attrs } = node;
+    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') return;
+    let type: string | null = null;
+    for (const attribute of attrs) {
+      if (attribute.spread || KEEPS_IN_STEP.has(attribute.name)) return;
+      if (attribute.name === 'type') {
+        if (attribute.kind !== 'str') return;
+        type = attribute.text.toLowerCase();
+      }
+    }
+    const typesValue = name === 'value' && (tag !== 'input' || type === null || !UNTYPED_INPUTS.has(type));
+    const ticksChecked = name === 'checked' && tag === 'input' && (type === 'checkbox' || type === 'radio');
+    if (!typesValue && !ticksChecked) return;
+    options.onWarning!(
+      located(
+        `${name}={…} makes this <${tag}> controlled: every render writes it back, so ${name === 'value' ? 'typed text is replaced' : 'a tick is undone'} ` +
+          `unless onInput/onChange keeps the bound value in step. For an initial value use default${name === 'value' ? 'Value' : 'Checked'}; ` +
+          `for a fixed one, add readOnly.`,
+        code,
+        fileName,
+        at
+      )
+    );
+  };
+
+  const emitAttribute = (node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
     if (attribute.spread) {
       /**
        * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is
@@ -905,7 +947,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * guesses below (`value`/`checked`, the boolean table) are interpretations of HTML controls
      * and deliberately never reach a component — its `disabled={x}` is its own prop.
      */
-    if (isCustomElementName(_node.tag) && IDENTIFIER.test(name) && !RENAMED_ATTRIBUTES.has(name)) {
+    if (isCustomElementName(node.tag) && IDENTIFIER.test(name) && !RENAMED_ATTRIBUTES.has(name)) {
       tpl.static(` .${name}=`);
       tpl.expr(bound ? expression! : JSON.stringify(attribute.kind === 'none' ? true : literal));
       return;
@@ -918,6 +960,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * (Content Flow, 2026-10-01). `!value` writes whenever the control disagrees, whatever was rendered last.
        */
       tpl.static(` !${name}=`);
+      if (options.onWarning !== undefined) warnUncontrolled(node, name, attribute.start);
       /**
        * A LITERAL `checked` is a boolean by the same rule as `hidden` below — `""` is true, `"false"`
        * is false. Passed through as the string it was, the property coerced it the other way round:

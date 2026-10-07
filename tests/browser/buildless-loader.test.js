@@ -190,3 +190,34 @@ it('a file the import map names, imported by its path or full URL, is the same m
   expect(result.sameUrl, 'by full URL').to.equal(true);
   result.frame.remove();
 });
+
+/**
+ * **The compile-time controlled-input warning reaches a buildless page in development** — the users least likely to
+ * read a changelog (vera-5a). Mapped to the DEVELOPMENT standalone (production folds the warning away), the page hooks
+ * console.warn before the loader runs; a control with an input handler must stay silent and report the app instead.
+ */
+const DEV_IMPORTS = { ...IMPORTS, '@verajs/jsx': '/packages/jsx/dist/development/vera-jsx-standalone.js' };
+const warnHook = `<script>
+  const warn = console.warn;
+  console.warn = (...args) => {
+    if (String(args[0]).includes('[vera] jsx:')) parent.postMessage({ kind: 'warn', text: String(args[0]) }, '*');
+    warn(...args);
+  };
+</script>`;
+it('development: a controlled input with nothing keeping it in step is warned about, with its position', async () => {
+  const result = await page(
+    `${warnHook}<script type="text/vera-jsx">const v = 'x'; document.body.append(document.createElement('p')); const t = <input value={v} />; parent.postMessage({ kind: 'app' }, '*');</script>`,
+    { imports: DEV_IMPORTS }
+  );
+  expect(result.kind, result.text).to.equal('warn');
+  expect(result.text).to.match(/\[vera\] jsx: .*value=\{…\} makes this <input> controlled/);
+  result.frame.remove();
+});
+it('development: CONTROL — with onInput nothing is said, and the app runs', async () => {
+  const result = await page(
+    `${warnHook}<script type="text/vera-jsx">let v = 'x'; const t = <input value={v} onInput={(e) => (v = e.target.value)} />; parent.postMessage({ kind: 'app' }, '*');</script>`,
+    { imports: DEV_IMPORTS }
+  );
+  expect(result.kind, result.text).to.equal('app');
+  result.frame.remove();
+});

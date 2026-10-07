@@ -36,6 +36,7 @@ Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Im
 | `keyed` | `['keyed', '@verajs/renderer/keyed']` | `[export, module]` to import `keyed` from |
 | `spread` | `['spread', '@verajs/renderer/spread']` | `[export, module]` to import `spread` from, for `{...rest}` on elements |
 | `namespaces` | `true` | wire `@verajs/renderer/namespaces` from every compiled file, so a component's SVG children draw. `false` if you wire it yourself, or want neither its bytes nor SVG children |
+| `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, told of what compiles but is probably a mistake, as `file:line:col — message`. Today: a controlled `value`/`checked` on an `<input>`, `<textarea>` or `<select>` with no `onInput`/`onChange` and no `readOnly` — every render writes it back over what was typed. A direct `transformJsx` call with no `onWarning` says nothing; the buildless loader prints it in development |
 
 **Writing TSX? Add the types, or nothing type-checks.** The JSX namespace ships with this package's
 declarations, but a TSX app imports `@verajs/core` and never imports the plugin, so TypeScript
@@ -118,7 +119,7 @@ not camel-cased.
 | `<p class={c}>` | `<p class=${c}>` | an attribute |
 | `className` / `htmlFor` | `class` / `for` | the only two renamed |
 | `onClick={f}` | `@click=${f}` | any `on` + capital: the rest is lower-cased |
-| `value` / `checked` | `!value=` / `!checked=` | controlled: compared with the control's LIVE state every render, so a value reset before the next render (`'x'` → `''` in one frame) is still written — the attribute is only the *default* |
+| `value` / `checked` | `!value=` / `!checked=` | controlled, as React's are: compared with the control's LIVE state every render, so a value reset before the next render (`'x'` → `''` in one frame) is still written — and typed text is written back unless `onInput`/`onChange` keeps the value in step (the compiler warns when nothing does; `defaultValue` for an initial value, `readOnly` for a fixed one) |
 | `defaultValue` / `defaultChecked` | `value=` / `?checked=${…}` | the attribute, when you mean the default (bare `defaultChecked` is a static `checked`) |
 | `hidden`, `disabled`, `open`, … | `?hidden=${…}` | the boolean-attribute table below |
 | `hidden=""`, `checked=""` | `${true}` | the empty string is how the platform writes a set boolean |
