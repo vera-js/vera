@@ -220,8 +220,16 @@ const planOf = (template: Template) => {
 type Cursor = HydrationCursor;
 
 /** A comment carries no content: adoption neither matches nor requires one, at a node boundary. */
+/**
+ * **The node after `node` on this walk** — its next sibling, until `hydrate-slots` is wired: then the piece's own step,
+ * which on a light host's walk gives the next light child. Only then can a light cursor exist, so a page without the
+ * piece walks exactly as before it (a light check on every step cost Chrome's hydrate phase ~2%, measured 2026-10-07,
+ * on pages with no light hosts at all) and carries none of its code.
+ */
+let next = (_cursor: Cursor, node: Node): Node | null => node.nextSibling;
+
 const passComments = (cursor: Cursor) => {
-  while (cursor.offset === 0 && cursor.node !== null && cursor.node.nodeType === 8) cursor.node = cursor.node.nextSibling;
+  while (cursor.offset === 0 && cursor.node !== null && cursor.node.nodeType === 8) cursor.node = next(cursor, cursor.node);
 };
 
 /** Puts the cursor on a node boundary (splitting the text it stands in) and returns the node there. */
@@ -249,7 +257,7 @@ const expectText = (cursor: Cursor, text: string) => {
     text = text.slice(take);
     cursor.offset += take;
     if (cursor.offset === data.length) {
-      cursor.node = node.nextSibling;
+      cursor.node = next(cursor, node);
       cursor.offset = 0;
     }
   }
@@ -279,8 +287,8 @@ const claimText = (cursor: Cursor, text: string): Text => {
         `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(data.slice(0, text.length))} ` +
         `— a value that stringifies differently on the server (a Date? locale formatting?) disagrees here`
     ));
-  if (data.length > text.length) (node as Text).splitText(text.length);
-  cursor.node = node.nextSibling;
+  /** The rest of a split run is the same light child's, so it stands next; otherwise the walk moves on. */
+  cursor.node = data.length > text.length ? (node as Text).splitText(text.length) : next(cursor, node);
   return node as Text;
 };
 
@@ -290,14 +298,14 @@ const claimElement = (cursor: Cursor, name: string): Element => {
   const node = cursor.offset > 0 ? null : cursor.node;
   if (node === null || node.nodeType !== 1 || (node as Element).localName !== name)
     return mismatch('element', cursor.offset > 0 ? cursor.node : node, __DEV__ && (() => `expected <${name}> and found ${cursor.offset > 0 ? describe(cursor.node) : describe(node)}`));
-  cursor.node = node.nextSibling;
+  cursor.node = next(cursor, node);
   return node as Element;
 };
 
 /** The walk has consumed everything the template describes here: whatever is left is a mismatch. */
 const finish = (cursor: Cursor, top = false) => {
   passComments(cursor);
-  if (cursor.offset > 0 || cursor.node !== null)
+  if (cursor.offset > 0 || (cursor.node !== null && (cursor.light === undefined || cursor.at! < cursor.end!)))
     mismatch('extra', cursor.node, __DEV__ && (() =>
       !top && cursor.parent.nodeType === 1
         ? `<${(cursor.parent as Element).localName}> contains ${describe(cursor.node)}, which the template does not describe`
@@ -437,7 +445,12 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
         commitBinding(into, i, kind, live);
       }
     }
-  const inner: Cursor = { parent: live, node: live.firstChild, offset: 0 };
+  /**
+   * A light host the template places content into: walked in light order (`hydrate-slots`), not as its DOM stands —
+   * unless a binding writes a RUN directly among those children (a value that is not text): its anchors would have to
+   * span the host's slots, so that host falls back as before until runs are adopted in the client's own shape.
+   */
+  const inner: Cursor = piece?.[5](live, canonical, into.plan, into.values) ?? { parent: live, node: live.firstChild, offset: 0 };
   if (sole >= 0) adoptSole(into, sole, live, inner);
   /**
    * Content the template does not describe that is not the template's to describe: a `<textarea>`'s server content is
@@ -700,6 +713,7 @@ const adopt = (result: unknown, container: Node): boolean => {
   const from = queue.length;
   const saved = [why, kind, served] as const;
   piece = registry._$hydrateSlots$;
+  if (piece !== undefined) next = piece[6];
   try {
     return adoptContainer(result as TemplateResult, container, from);
   } finally {

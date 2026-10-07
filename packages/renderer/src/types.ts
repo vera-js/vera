@@ -179,7 +179,20 @@ export type OverlayOptions = {
  * text runs arrive MERGED (`a${x}b` is one text node), so a static and a value share a node until the walk splits them.
  * `hydrate-slots` moves it past a filled slot's range. Plain names, so property mangling leaves them alone.
  */
-export type HydrationCursor = { parent: Node; node: Node | null; offset: number };
+export type HydrationCursor = {
+  parent: Node;
+  node: Node | null;
+  offset: number;
+  /**
+   * Walking a LIGHT host's children in light order (`hydrate-slots`): the list, `node`'s index in it, and how many of
+   * them the template must account for — all of a list read from the server's statement, none of a live record's (a
+   * node the page added since is the host's, not the template's). ABSENT on every other walk, so a page without light
+   * hosts walks one three-field shape: carrying them on every cursor cost Chrome's hydrate 14% (measured 2026-10-07).
+   */
+  light?: Node[];
+  at?: number;
+  end?: number;
+};
 
 /** Hydration's mismatch: records the cause and the first node that disagreed, and stops the adoption by throwing. */
 export type HydrationFail = (cause: string, at: Node | null, reason: false | (() => string)) => never;
@@ -193,6 +206,9 @@ export type ServedHost = { readonly carrier: Node | null };
  */
 export type LightCapture = (host: Element, before: Node | null, nodes?: Node[], carrier?: HTMLElement | null) => unknown;
 
+/** Slots' seam (`_$capture$`), stamped with the package's seam protocol: its `capture`, and a host's light children as its record holds them (`null` without one). */
+export type CaptureSeam = [protocol: number, capture: LightCapture, lightNodes: (host: Element) => Node[] | null];
+
 /**
  * **Hydrating light slots is its own piece** (`@verajs/renderer/hydrate-slots`): hydration calls it through these
  * positions (`_$hydrateSlots$`), stamped with the package's seam protocol — open a served host, take a filled slot's
@@ -204,4 +220,12 @@ export type HydrateSlots = [
   slot: (canonical: Element, cursor: HydrationCursor, served: ServedHost) => Element | null,
   close: (served: ServedHost) => void,
   rescue: (served: ServedHost) => void,
+  /**
+   * The cursor that walks a light host's children in light order, for a template placing content into it — over the
+   * live record's list, else the statement's (strict) — or `null`: walked as its DOM stands. Given the canonical
+   * element, its adoption's plan and values, so a RUN written among those children (a value that is not text) can decline.
+   */
+  light: (host: Element, canonical: Element, plan: ReadonlyMap<Node, readonly number[]>, values: readonly unknown[]) => HydrationCursor | null,
+  /** The walk's step, light-aware: the next light child on a light cursor, else the next sibling. Hydration adopts it once the piece is wired. */
+  next: (cursor: HydrationCursor, node: Node) => Node | null,
 ];

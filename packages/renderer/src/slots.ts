@@ -776,6 +776,14 @@ const slotBehavior = {
   },
 };
 
+/** A light host's children in light order, as its record holds them — what a template placing content into it adopts. */
+const lightNodes = (host: Element): Node[] | null => {
+  const light = HOSTS.get(host);
+  if (light === undefined) return null;
+  flush();
+  return lightOf(light);
+};
+
 /** The slotted nodes a light host shows in its slot of `name` — or a shadow host's, from the platform. */
 export const slotted = (host: Element, name = ''): Node[] => {
   const light = HOSTS.get(host);
@@ -845,7 +853,7 @@ export const slotDiscovery = [
   (registry: Map<string, unknown[]>) => {
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
-    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture];
+    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes];
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it

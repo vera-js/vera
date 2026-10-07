@@ -11,10 +11,10 @@
  * served, and a component boundary reports it once.
  */
 import { PROTOCOL } from './kinds.js';
-import type { HydrateSlots, HydrationCursor, HydrationFail, LightCapture, ServedHost } from './types.js';
+import type { CaptureSeam, HydrateSlots, HydrationCursor, HydrationFail, LightCapture, ServedHost } from './types.js';
 
 /** The registry as this module uses it — `get` named so `wire`'s registry is assignable (a type of optional members alone is "weak"). */
-type Registry = { get(name: string): unknown[] | undefined; _$capture$?: [number, LightCapture]; _$hydrateSlots$?: HydrateSlots };
+type Registry = { get(name: string): unknown[] | undefined; _$capture$?: CaptureSeam; _$hydrateSlots$?: HydrateSlots };
 /** A served host being adopted: what hydration sees (`ServedHost`), and what this module keeps beside it. */
 type Served = ServedHost & { host: Element; runs: string; carrier: HTMLElement | null; pools: Node[][]; capture: LightCapture };
 
@@ -29,15 +29,21 @@ const pool = (from: Node | null, to: Node | null): Node[] => {
   for (let node = from; node !== null && node !== to; node = node.nextSibling) if (node.nodeType !== 8) out.push(node);
   return out;
 };
-/** The pools' nodes in light order, as the statement gives it — `null` unless it accounts for every one, exactly. */
+/**
+ * The pools' nodes in light order, as the statement gives it — `null` unless it accounts for every one, exactly. The
+ * statement counts a run of adjacent TEXT as one light child, as the parser makes it; a walk may since have split it
+ * (an outer template's static text beside its value), so the pieces that follow one taken are taken with it.
+ */
 const ordered = (runs: string, pools: Node[][]): Node[] | null => {
   const order: Node[] = [];
   for (const run of runs === '' ? [] : runs.split(',')) {
     const [index, count = '1'] = run.split('*');
+    const nodes = pools[+index];
     for (let k = +count; k > 0; k--) {
-      const node = pools[+index]?.shift();
+      let node = nodes?.shift();
       if (node === undefined) return null;
       order.push(node);
+      while (node.nodeType === 3 && nodes![0] !== undefined && nodes![0] === node.nextSibling && nodes![0].nodeType === 3) order.push((node = nodes!.shift()!));
     }
   }
   return pools.every((nodes) => nodes.length === 0) ? order : null;
@@ -120,8 +126,50 @@ const rescue = (served: ServedHost) => {
   capture(host, null, nodes, carrier);
 };
 
+/**
+ * **A light host a template places content into** (the outer walk's light cursor): its children in light order. Slots'
+ * live record is the one source once it exists — a node the page added since is in it, and the template need not
+ * account for it; before that (the host not yet adopted), the server's statement, read fresh and never cached, which the
+ * template must account for exactly. Neither: `null`, and the walk reads the host's DOM.
+ */
+const light = (host: Element, canonical: Element, plan: ReadonlyMap<Node, readonly number[]>, values: readonly unknown[]): HydrationCursor | null => {
+  /** Only a custom element the template places content into can be a light host. */
+  if (canonical.firstChild === null || !host.localName.includes('-')) return null;
+  /**
+   * A RUN written directly among the children the template places (a value that is not text) declines: its anchors would
+   * have to span the host's slots — the template falls back, until runs are adopted in the client's own shape (2c, R1).
+   * A text value needs no anchors: it is claimed in place.
+   */
+  for (let node: Node | null = canonical.firstChild; node !== null; node = node.nextSibling)
+    if (node.nodeType === 3) {
+      const owned = plan.get(node);
+      if (owned !== undefined && values[owned[0]] != null && typeof values[owned[0]] === 'object') return null;
+    }
+  const seam = registry._$capture$;
+  const live = seam?.[0] === PROTOCOL ? seam[2](host) : null;
+  if (live !== null) return walker(host, live, 0);
+  const spec = host.getAttribute(LIGHT_ATTR);
+  const colon = spec === null ? -1 : spec.indexOf(':');
+  if (colon < 0 || spec!.slice(0, colon) !== FORMAT) return null;
+  const first = host.firstChild;
+  const carrier = first !== null && first.nodeType === 1 && (first as Element).localName === UNASSIGNED ? first : null;
+  const pools: Node[][] = [];
+  scan(host, pools, carrier);
+  if (carrier !== null) pools.push(pool(carrier.firstChild, null));
+  const nodes = ordered(spec!.slice(colon + 1), pools);
+  return nodes === null ? null : walker(host, nodes, nodes.length);
+};
+/** A cursor over `nodes` — the walk must account for the first `end` of them (all of a statement's, none of a record's). */
+const walker = (host: Element, nodes: Node[], end: number): HydrationCursor => ({ parent: host, node: nodes[0] ?? null, offset: 0, light: nodes, at: 0, end });
+
+/** The walk's step, once this piece is wired: on a light cursor the next light child, else the next sibling. */
+const next = (cursor: HydrationCursor, node: Node): Node | null => {
+  const nodes = cursor.light;
+  return nodes === undefined ? node.nextSibling : (nodes[++cursor.at!] ?? null);
+};
+
 /** `wire([renderer, hydration, slots, hydrateSlots])`. */
 export const hydrateSlots = (given: Registry) => {
   registry = given;
-  given._$hydrateSlots$ = [PROTOCOL, open, slot, close, rescue];
+  given._$hydrateSlots$ = [PROTOCOL, open, slot, close, rescue, light, next];
 };
