@@ -39,13 +39,14 @@ const { wire } = await load('core');
 const { renderInto, renderer } = await load('renderer');
 const { hydration } = await load('renderer/hydration');
 const { slots, slotted } = await load('renderer/slots');
-wire([renderer, hydration, slots]);
+const { hydrateSlots } = await load('renderer/hydrate-slots');
+wire([renderer, hydration, slots, hydrateSlots]);
 const html = (strings, ...values) => ({ strings, values });
 // the SAME template the fixture renders
 const card = () => html`<article><header><slot name="header"><em>fallback header</em></slot></header><main><slot>default fallback</slot></main></article>`;
 
-/** Server output with the hydration marks removed, for asserting WHERE the server put things. */
-const bare = (markup) => markup.replace(/ data-vm-(?:slotted|light)="[^"]*"/g, '');
+/** Server output without the light-tree statement and each filled slot's two region markers, for asserting WHERE the server put things. */
+const bare = (markup) => markup.replace(/ data-vm-light="[^"]*"/g, '').replace(/<!--[[\]]-->/g, '');
 
 /** Build the light host from server output: parse it, take the host element into #root. */
 const hostFromServer = (serverHtml) => {
@@ -91,7 +92,8 @@ test('fallback-only hydrates: both slots show their (server-rendered) fallback',
   await settle();
   assert.equal(host.querySelector('header').textContent, 'fallback header');
   assert.equal(host.querySelector('main').textContent, 'default fallback');
-  assert.equal(host.querySelector('slot'), null);
+  /** An unfilled slot STAYS, showing its fallback — as a client render keeps it (Brian, 2026-10-02). */
+  assert.equal(host.querySelectorAll('slot').length, 2, 'both unfilled slots stay, as the client keeps them');
 });
 
 test('re-render after hydration keeps user nodes in place', async () => {
@@ -108,13 +110,17 @@ test('re-render after hydration keeps user nodes in place', async () => {
 
 test('AUDIT — hydration recovers server-parked unassigned content into the capture map', async () => {
   const serverHtml = server('<h2 slot="header">Hi</h2><p slot="nowhere">Recovered</p>');
-  assert.ok(serverHtml.includes('data-vm-unassigned'), 'the server parked it');
+  assert.match(serverHtml, /<vm-unassigned hidden="">/, 'the server parked it, in the client\'s own container');
   const host = hostFromServer(serverHtml);
+  const carrier = host.querySelector('vm-unassigned');
+  const p = carrier.querySelector('p');
   renderInto(card(), host);
   await settle();
-  assert.equal(host.querySelector('template[data-vm-unassigned]'), null, 'the carrier is consumed');
-  assert.equal(slotted(host, 'nowhere').length, 1, 'and its content is captured, ready for its slot');
-  assert.equal(host.textContent.includes('Recovered'), false, 'still unrendered, as native leaves it');
+  /** Unassigned content stays CONNECTED, as under native slots: the carrier IS the client's holding, adopted. */
+  assert.equal(host.querySelector('vm-unassigned'), carrier, 'the carrier is adopted as the holding, by identity');
+  assert.equal(carrier.style.getPropertyValue('display'), 'none', 'and hidden as a client-made one is (inline, important)');
+  assert.equal(p.parentNode, carrier, 'its content stays in it, by identity');
+  assert.equal(slotted(host, 'nowhere').length, 1, 'and is captured, ready for its slot');
 });
 
 test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry\'s own invariant)', async () => {
@@ -143,16 +149,18 @@ test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry
  * it behind puts a framework marker in the user's live DOM permanently. `data-vm-select` sets
  * the precedent — `ssr-select-parity` asserts "the mark must not survive".
  */
-test('AUDIT — the data-vm-slotted delimiter is stripped once adopted', async () => {
+test('AUDIT — the light-tree statement is stripped once adopted, and the range markers become the slot\'s region', async () => {
   const serverHtml = server('plain body<b>bold</b>');
-  assert.match(serverHtml, /<main data-vm-slotted="0,2">/,
-    'CONTROL: the server did emit the mark, on the slot\'s parent (or this test proves nothing)');
+  assert.match(serverHtml, /<main><!--\[-->plain body<b>bold<\/b><!--\]--><\/main>/,
+    'CONTROL: the server did mark the range (or this test proves nothing)');
   const host = hostFromServer(serverHtml);
   const bBefore = host.querySelector('b');
+  const [rs, re] = [host.querySelector('main').firstChild, host.querySelector('main').lastChild];
   renderInto(card(), host);
   await settle();
-  assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and the hydrator strips it');
-  assert.equal(host.hasAttribute('data-vm-light'), false, 'the host\'s statement too');
+  assert.equal(host.hasAttribute('data-vm-light'), false, 'the host\'s statement is stripped');
+  assert.equal(host.querySelector('main').firstChild, rs, 'the server\'s start marker is the region\'s start, by identity');
+  assert.equal(host.querySelector('main').lastChild, re, 'and its end marker the region\'s end');
   assert.equal(host.querySelector('b'), bBefore, 'while still adopting in place — identity preserved');
   assert.equal(slotted(host).length, 2, 'and the capture map holds both default nodes');
 });
@@ -179,7 +187,7 @@ test('AUDIT — a mismatch BEFORE any slot is adopted still keeps every slotted 
   assert.ok(host.textContent.includes('USER BODY'), 'default text survived');
   assert.ok(host.querySelector('b'), 'and the rest of the default run');
   assert.equal(host.querySelector('section > header > h2').textContent, 'USER HEADER', 'redistributed, not merely present');
-  assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and no marker is left behind');
+  assert.equal(host.hasAttribute('data-vm-light'), false, 'and no statement is left behind');
 
   /** Live afterwards, like any client render — and content for a slot this state does not have
    *  is in holding rather than destroyed. */
@@ -217,24 +225,22 @@ test('AUDIT — nested light-slot components hydrate in place, both levels', asy
   assert.equal(outer.querySelector('header').textContent, 'OUTER HEAD');
   assert.equal(inner.querySelector('i').textContent, 'TAG', 'inner named slot adopted');
   assert.equal(inner.querySelector('u').textContent, 'INNER BODY', 'inner default slot adopted');
-  assert.equal(outer.querySelector('[data-vm-slotted]'), null, 'markers stripped at both levels');
+  assert.equal(outer.querySelector('[data-vm-light]'), null, 'statements stripped at both levels');
   assert.deepEqual(slotted(inner, 'tag').map((n) => n.textContent), ['TAG'], 'the inner capture map is live');
   outer.remove();
 });
 
 /**
  * **The rescue walks the SERVER's subtree, which is full of the user's own markup**, so it may not
- * assume anything about what it finds there. `data-vm-unassigned` on an element that is not a
- * `<template>` reached `.content` on an element that has none — a TypeError thrown straight out of
- * `renderInto`, so the mismatch never finished falling back and the page was left with no client
- * render at all. Reserved attribute or not, a page's markup cannot be allowed to do that.
+ * assume anything about what it finds there. (Originally: `data-vm-unassigned` on a non-`<template>`
+ * reached `.content` and threw out of `renderInto`.) The carrier's reserved name today is the
+ * `<vm-unassigned>` element, looked for as the host's FIRST child; one anywhere else is ordinary markup.
  */
-test('AUDIT — a reserved marker on a non-template element does not break the render', async () => {
-  /** Server-shaped (the host states its light tree) with a reserved marker the server never wrote,
-   *  on a direct child — exactly where the carrier is looked for. */
+test('AUDIT — a reserved element out of the carrier\'s place does not break the render', async () => {
+  /** Server-shaped (the host states its light tree), with a `<vm-unassigned>` the server never wrote, NOT first. */
   const host = hostFromServer(
-    '<my-host data-vm-light="0"><article><header data-vm-slotted="0,1"><h2 slot="h">KEEP</h2></header></article>' +
-      '<div data-vm-unassigned>USER DIV</div></my-host>'
+    '<my-host data-vm-light="1:0"><article><header><!--[--><h2 slot="h">KEEP</h2><!--]--></header></article>' +
+      '<vm-unassigned>USER DIV</vm-unassigned></my-host>'
   );
   /** Disagrees at the root, so the rescue runs over that subtree. */
   renderInto(html`<section><header><slot name="h">fb</slot></header></section>`, host);
@@ -278,7 +284,7 @@ test('AUDIT — a slot carrying bindings hydrates in place, and its API is live'
     console.warn = original;
   }
 
-  assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
+  assert.deepEqual(warnings.filter((w) => w.includes('hydration-fallback')), [],
     'adoption succeeded — the values after the slot line up');
   assert.equal(host.querySelector('h2'), before, 'and the server node kept its identity');
   assert.equal(host.querySelector('footer').textContent, 'AFTER', 'the value after the slot is its own');
@@ -325,48 +331,48 @@ test('AUDIT — three levels of light-slot components hydrate in place, all at o
     console.warn = original;
   }
 
-  assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
+  assert.deepEqual(warnings.filter((w) => w.includes('hydration-fallback')), [],
     'no level bailed — a bail at any of them would take the levels below it too');
   assert.equal(host.querySelector('i[slot="x"]'), innermost, 'node identity kept through the whole depth');
   assert.equal(host.querySelector('a1').textContent, 'A-NAMED');
   assert.equal(host.querySelector('b1').textContent, 'B-NAMED');
   assert.equal(host.querySelector('c').textContent, 'C-NAMED');
-  assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and every marker is stripped');
+  assert.equal(host.querySelector('[data-vm-light]'), null, 'and every statement is stripped');
   host.remove();
 });
 
 /**
- * **The offset/count mark is a NUMBER PAIR parsed out of markup, and markup is not trustworthy.**
+ * **The light-tree statement and the range markers are parsed out of markup, and markup is not trustworthy.**
  *
- * `data-vm-slotted="offset,count"` is the server's own handoff, but the rescue and the adopt walk
- * read it from whatever is in the page — and a user can paste content carrying that attribute, or
- * a proxy can mangle it. The pair is turned into a range and used to slice a child list, which is
- * exactly the shape that hangs, throws, or quietly captures somebody else's nodes when the numbers
- * are hostile.
- *
- * Companion to the reserved-marker test above: that one covers the attribute on the wrong ELEMENT,
- * this one covers the wrong VALUE. Every case must complete, and none may claim more nodes than
- * the element actually has.
+ * `data-vm-light` and the `[`/`]` markers are the server's own hand-off, but the reader takes them from whatever is in the
+ * page — a user can paste content carrying them, a proxy can mangle them. A statement indexes ranges and counts nodes,
+ * which is exactly the shape that hangs, throws, or quietly captures somebody else's nodes when the values are hostile.
+ * Every case must complete, replace the server markup, and claim no node the host did not contain. (Rewritten 2026-10-07
+ * for the marker format: the old rows set `data-vm-slotted`, which nothing reads any more, so they measured nothing.)
  */
-for (const [label, value, light = '0'] of [
-  ['a count far beyond the child list', '0,999999'],
-  ['a negative offset', '-5,3'],
-  ['non-numeric halves', 'abc,def'],
-  ['no comma at all', '7'],
-  ['an empty value', ''],
-  ['an overflowing exponent', '1e400,1e400'],
-  /** And the host's statement, which indexes those ranges. */
-  ['a light run far beyond its range', '0,1', '0*1e9'],
-  ['a light index past every range', '0,1', '9,-3,abc'],
-  ['a light run with a hostile count', '0,1', '0*-1,0*abc,0*1e400'],
+for (const [label, light, main] of [
+  ['a run far beyond its range', '1:0*999999', '<!--[-->USER<!--]-->'],
+  ['a negative index', '1:-5', '<!--[-->USER<!--]-->'],
+  ['non-numeric runs', '1:abc,def', '<!--[-->USER<!--]-->'],
+  ['an empty statement over a filled range', '1:', '<!--[-->USER<!--]-->'],
+  ['an overflowing exponent', '1:1e400', '<!--[-->USER<!--]-->'],
+  ['an index past every range', '1:9', '<!--[-->USER<!--]-->'],
+  ['hostile run counts', '1:0*-1,0*abc,0*1e400', '<!--[-->USER<!--]-->'],
+  ['an unpaired start', '1:0', '<!--[-->USER'],
+  ['a stray end', '1:0', 'USER<!--]-->'],
+  ['nested starts', '1:0', '<!--[--><!--[-->USER<!--]-->'],
+  ['a conditional-comment look-alike', '1:0', '<!--[if IE]>-->USER<!--]-->'],
+  /** The format number: another release's, and none at all (the pre-number format). */
+  ['a foreign format number', '2:0', '<!--[-->USER<!--]-->'],
+  ['no format number', '0', '<!--[-->USER<!--]-->'],
 ])
-  test(`AUDIT — a hostile slotted mark (${label}) degrades safely`, async () => {
+  test(`AUDIT — a hostile light statement or marker (${label}) degrades safely`, async () => {
     /** Stated, as server output is — an unstated component host is client-made and never reads marks. */
     const host = dom.window.document.createElement('my-host');
     host.setAttribute('data-vm-light', light);
-    host.innerHTML = `<article><main data-vm-slotted="${value}">USER</main></article>`;
+    host.innerHTML = `<article><main>${main}</main></article>`;
     dom.window.document.getElementById('root').appendChild(host);
-    /** Disagrees at the root, so the rescue reads the mark on the way to a clean render. */
+    /** Disagrees at the root, so the rescue reads the marks on the way to a clean render. */
     renderInto(html`<section><main><slot>fb</slot></main></section>`, host);
     await settle();
     assert.ok(host.querySelector('section'), 'the render completed rather than throwing');
@@ -377,7 +383,10 @@ for (const [label, value, light = '0'] of [
   });
 
 /**
- * **The OFFSET half of `data-vm-slotted="offset,count"`, which nothing exercised.**
+ * **A filled slot right after the component's own content** (2026-10-07: the marker format has no offset — the markers
+ * ARE the boundary — so this row now asserts the rescue keeps exactly the range, never the component's PREFIX).
+ *
+ * Originally: the OFFSET half of `data-vm-slotted="offset,count"`, which nothing exercised.
  *
  * The mark tells a failed adoption which of the parent's children were the user's. Adoption itself
  * only needs the count — the walk is already standing in the right place — so the offset is used by
@@ -392,9 +401,7 @@ for (const [label, value, light = '0'] of [
  */
 test('AUDIT — a non-zero slotted offset rescues the user content, not the component\'s', async () => {
   const serverHtml = server('USER BODY', 'slot-offset-ssr');
-  const mark = /data-vm-slotted="(\d+),(\d+)"/.exec(serverHtml);
-  assert.ok(mark, `the server emitted no slotted mark: ${serverHtml}`);
-  assert.notEqual(mark[1], '0', 'CONTROL: this fixture exists to produce a NON-ZERO offset');
+  assert.match(serverHtml, /<i>PREFIX<\/i><!--\[-->USER BODY<!--\]-->/, `CONTROL: the range follows the component's own content: ${serverHtml}`);
 
   const host = hostFromServer(serverHtml);
   /** Disagrees at the root, so the bail runs and the rescue reads the mark. */
@@ -441,8 +448,9 @@ for (const [shape, want] of [
   test(`AUDIT — slotted text adjacent to the component's own text hydrates intact (${shape})`, async () => {
     const serverHtml = server('BODY', 'slot-adjacent-ssr', false, { shape });
     const served = /<main[^>]*>([\s\S]*?)<\/main>/.exec(serverHtml)?.[1] ?? '';
-    assert.match(served, /<!---->/, 'CONTROL: the server marked the boundary that would merge');
-    assert.equal(served.replace(/<!---*>/g, ''), want, 'CONTROL: and served the right text');
+    assert.match(served, /<!--\[-->BODY<!--\]-->/, 'CONTROL: the range markers separate the text that would merge');
+    /** Text, not markup: an unfilled slot stays as its element, showing its fallback (Brian, 2026-10-02). */
+    assert.equal(served.replace(/<[^>]*>/g, ''), want, 'CONTROL: and served the right text');
 
     const host = hostFromServer(serverHtml);
     renderInto(SHAPES[shape](), host);
@@ -551,7 +559,7 @@ test('AUDIT — non-server children: a client-made component keeps every child, 
   assert.equal(host.querySelector('header h2'), h2, 'the named node, same identity, distributed');
   assert.equal(host.querySelector('main span'), span, 'the unnamed one too');
   assert.equal(host.querySelector('main').textContent, 'plainbare', 'and the bare text');
-  assert.deepEqual(said.filter((line) => line.includes('fell back')), [], 'no mismatch is reported, because there was none');
+  assert.deepEqual(said.filter((line) => line.includes('hydration-fallback')), [], 'no mismatch is reported, because there was none');
   host.remove();
 });
 
@@ -630,8 +638,10 @@ test('adopted content survives a branch-away and returns on branch-back', async 
 
   renderInto(html`<p>away</p>`, host);
   await settle();
-  assert.equal(item.isConnected, false, 'branched away: the node is parked, not in the page');
-  assert.equal(host.textContent, 'away', 'and the branch actually rendered');
+  /** Parked content stays CONNECTED, in the hidden holding, as under native slots (option 4). */
+  assert.equal(item.parentNode, host.querySelector('vm-unassigned'), 'branched away: the node is parked in the holding');
+  assert.equal(host.querySelector('vm-unassigned').style.getPropertyValue('display'), 'none', 'which is hidden');
+  assert.equal(host.querySelector('p').textContent, 'away', 'and the branch actually rendered');
 
   renderInto(card(), host);
   await settle();
@@ -783,5 +793,5 @@ test('a hydrated component whose <slot> appears later: no throw, no fallback ren
   } finally {
     console.warn = original;
   }
-  assert.deepEqual(said.filter((m) => m.includes('fell back')), [], 'no hydration fallback');
+  assert.deepEqual(said.filter((m) => m.includes('hydration-fallback')), [], 'no hydration fallback');
 });

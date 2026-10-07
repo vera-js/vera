@@ -36,7 +36,7 @@ import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
 import type { Untracked } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
-import { IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
+import { PROTOCOL, IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
 
 export type { TemplateResult } from './types.js';
 
@@ -1735,7 +1735,7 @@ export const renderer = {
      * server markup.
      */
     (given as { $H?: unknown }).$H = [
-      1, // HANDOFF_PROTOCOL
+      PROTOCOL, // HANDOFF_PROTOCOL
       (fn: typeof adopt) => (adopt = fn), // HANDOFF_ADOPTER
       getTemplate, // HANDOFF_GET_TEMPLATE
       ChildPart, // HANDOFF_CHILD_PART

@@ -63,6 +63,8 @@ const SAFE = [
   '@verajs/store/computed',
   '@verajs/renderer/keyed',
   '@verajs/renderer/slots',
+  '@verajs/renderer/hydration',
+  '@verajs/renderer/hydrate-slots',
   '@verajs/renderer/namespaces',
   '@verajs/renderer/elements',
   '@verajs/renderer/spread',

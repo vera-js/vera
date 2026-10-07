@@ -48,7 +48,8 @@ const { keyed } = await load('renderer/keyed');
  * (its user's children are LIGHT content, captured by slots, never server output) through the same renderer: it must
  * render client-side, not be taken for server markup.
  */
-core.wire([base.renderer, hydration, slots]);
+const { hydrateSlots } = await load('renderer/hydrate-slots');
+core.wire([base.renderer, hydration, slots, hydrateSlots]);
 const { html } = core;
 
 /** A template source is the body of `html\`…\`` with `S` in scope — one string, both sides. */
@@ -165,13 +166,14 @@ const scenario = (name, spec) =>
      * adoption is asserted separately: the hydrating renderer reports every fallback in development.
      */
     if (!isProduction && !KNOWN.has(name))
-      assert.deepEqual(hydratedWarned.filter((line) => line.includes('fell back')), [], 'hydration adopted rather than falling back');
+      assert.deepEqual(hydratedWarned.filter((line) => line.includes('hydration-fallback')), [], 'hydration adopted rather than falling back');
     const known = KNOWN.get(name);
     if (known === undefined) assert.deepEqual(hydrated, client);
     else assert.notDeepEqual(hydrated, client, `KNOWN divergence (${known}) now CONFORMS — take it off KNOWN`);
   });
 
-test('CONTROL: a fallback is visible to the adoption check', { skip: isProduction && 'the warning is development-only' }, () => {
+/** Every build prints the fallback's code, so the check above is real in production too. */
+test('CONTROL: a fallback is visible to the adoption check', () => {
   const host = doc.createElement('div');
   host.innerHTML = '<p>not what the template says</p>';
   doc.body.append(host);
@@ -184,7 +186,7 @@ test('CONTROL: a fallback is visible to the adoption check', { skip: isProductio
     console.warn = warn;
   }
   host.remove();
-  assert.ok(warned.some((line) => line.includes('fell back')), `a mismatch is reported: ${warned}`);
+  assert.ok(warned.some((line) => line.includes('hydration-fallback')), `a mismatch is reported: ${warned}`);
 });
 
 const el = (host, tag, attrs = {}, content = '') => {

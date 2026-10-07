@@ -21,5 +21,9 @@ export const PROSE: Record<string, Prose> = {
       `adopting the server's markup).`,
     'Update both together.',
   ],
+  'hydration-slots': () => [
+    'this page was server-rendered with light-DOM slots, which hydration reads through `hydrateSlots`. The server markup is left as served.',
+    'Wire it: `wire([renderer, hydration, slots, hydrateSlots])`.',
+  ],
   'hydration-no-renderer': () => ['there is no renderer to hydrate.', 'Wire it after the renderer: `wire([renderer, hydration])`.'],
 };

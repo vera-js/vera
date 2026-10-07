@@ -499,7 +499,12 @@ The differences worth knowing, all deliberate:
 Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into, and the module is
 <!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
-and input values survive. Node-safe to import (it imports nothing and touches no DOM until something renders).
+and input values survive — with one more module wired where both are used:
+`wire([renderer, hydration, slots, hydrateSlots])` (`import { hydrateSlots } from '@verajs/renderer/hydrate-slots'`;
+only an app that hydrates light slots loads it). Without it a server-rendered slots host stays
+exactly as served and the console names what to wire (`hydration-slots`). Serve the server's HTML
+unmodified, comments included: stripped markers mean the host renders fresh. Node-safe to import (it
+imports nothing and touches no DOM until something renders).
 
 ### Element claims (`@verajs/renderer/elements`)
 
@@ -723,9 +728,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) — its
   `renderer` wirable binds the adopting render, so `wire([renderer])` stays the only wiring — and the
   first render ADOPTS server-rendered children — no per-part marker comments in server HTML
-  (with light slots wired, the handoff is one offset attribute, the host's `<vm-unassigned hidden>`
-  container for content no slot took, and a rare `<!---->` where two text runs would merge — each present only when
-  needed, each consumed on adoption), node identity preserved, listeners attached, keyed updates
+  (with light slots, each filled slot's content sits between two `<!--[-->`/`<!--]-->` comments, the host
+  states its light tree in `data-vm-light` and keeps content no slot took in `<vm-unassigned hidden>` —
+  read by `hydrateSlots`, each consumed on adoption), node identity preserved, listeners attached, keyed updates
   move adopted nodes. An attribute is READ and written only on a difference (a wrong one is
   repaired, a right one costs no write); any other disagreement discards that ONE container's
   server markup (keeping its SSR `<style>`) and renders it fresh — the result is always exactly what

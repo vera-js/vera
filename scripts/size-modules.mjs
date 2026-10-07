@@ -28,6 +28,7 @@ export const MODULES = [
   { pkg: 'namespaces', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-namespaces.min.js', what: 'an `html` template parsed in the namespace of the position it lands in — SVG children of components' },
   { pkg: 'elements', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-elements.min.js', what: 'behavior attached to claimed elements in templates, mounted and unmounted with their instances' },
   { pkg: 'hydration', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-hydration.min.js', what: 'adopting server-rendered markup — wired BESIDE the renderer (`wire([renderer, hydration])`)' },
+  { pkg: 'hydrate-slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-hydrate-slots.min.js', what: 'hydrating light-DOM slots — the server\'s light-slot format, read only where both are used (`wire([renderer, hydration, slots, hydrateSlots])`)' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
   /**
    * `@verajs/directives` enrolls per ENTRY, not as one number, because one number is the thing that

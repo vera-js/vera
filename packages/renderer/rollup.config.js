@@ -82,10 +82,17 @@ export default [
   /**
    * Additive: it inlines `elements` (it claims each `<slot>` and each dashed host through it) and imports
    * nothing else; the renderer reaches IT through `_$done$` on the registry (a render ended) and the
-   * `_$slotted$` mark on a node it moved, and `@verajs/ssr` through `_$server$` on its 'slot' insert —
-   * mangle-exempt by the same `$` rule as the others.
+   * `_$slotted$` mark on a node it moved, and `hydrate-slots` through `_$capture$` — mangle-exempt by the
+   * same `$` rule as the others. Its `'slot'` insert is only a marker: `@verajs/ssr` distributes on the
+   * server, with its own copy of the format, while it is wired.
    */
   defaultRollupConfig(`${pkg.filename}-slots`, [], /^_[a-z]/, { input: 'src/slots.ts' }),
+  /**
+   * Additive: hydrating light slots — the server's light-slot format, read only where both `hydration` and
+   * `slots` are wired. Imports nothing; it reaches them through `_$hydrateSlots$` (hydration calls it) and
+   * `_$capture$` (it calls slots), both stamped with the package's seam protocol.
+   */
+  defaultRollupConfig(`${pkg.filename}-hydrate-slots`, [], /^_[a-z]/, { input: 'src/hydrate-slots.ts' }),
   /**
    * Additive for the same reason as `slots`: imports nothing, and the renderer reaches it only
    * through the wired `'template'` insert and the sigiled `_$at$`/`_$ns$` members.

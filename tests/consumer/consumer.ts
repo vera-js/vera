@@ -19,6 +19,8 @@ import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
 import { slots, slotted } from '@verajs/renderer/slots';
+import { hydration } from '@verajs/renderer/hydration';
+import { hydrateSlots } from '@verajs/renderer/hydrate-slots';
 import { namespaces } from '@verajs/renderer/namespaces';
 import { elements } from '@verajs/renderer/elements';
 import type { ElementBehavior } from '@verajs/renderer/elements';
@@ -153,6 +155,12 @@ stopProfiling();
  * never imported the entry.
  */
 wire([renderer, slots]);
+
+/**
+ * **Hydration, and hydrating light slots, wired the documented way** — two connectors beside the renderer and slots:
+ * each is handed the registry, so neither is a descriptor and both must still be assignable as `wire` takes them.
+ */
+wire([renderer, hydration, slots, hydrateSlots]);
 
 /**
  * **`@verajs/renderer/namespaces`, wired the documented way.** Its descriptor is `on: 'template'`,

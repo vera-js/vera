@@ -545,12 +545,25 @@ only. **Every node goes to the slot its own `slot` names** — including the nod
 page's template writes, so ``${items.map((i) => html`<li slot=${i.where}>…</li>`)}`` distributes
 exactly as the same markup written out by hand, and keeps doing so as the list changes. Live:
 appending, removing, or re-slotting children redistributes automatically. Re-renders leave slotted
-nodes in place, identity intact, so focus and input values survive; SSR emits already-distributed markup, stating the light tree on each host, and hydration
-adopts it in place, nested components included. A component host carrying no statement was made on
-the client, and gets a client first render rather than an adoption. **The server distributes with
-this same module**, so the statement is a format internal to `@verajs/renderer`: render and hydrate
-with the same version of it. HTML cached from a version before the statement existed is read as
-client-made content, not adopted.
+nodes in place, identity intact, so focus and input values survive.
+
+**Server-rendered and hydrated.** `@verajs/ssr` emits already-distributed markup — each filled slot's
+content between two comments, exactly as this module leaves it on the client — and states the light
+tree on each host. A hydrating page adopts it in place, nested components included, with one more
+module wired, which only an app that hydrates light slots loads:
+
+```js
+import { hydrateSlots } from '@verajs/renderer/hydrate-slots';
+wire([renderer, hydration, slots, hydrateSlots]);
+```
+
+Without it, a server-rendered slots host is left exactly as served — never cleared — and the console
+names what to wire (`hydration-slots`). **Serve the server's HTML unmodified, comments included:** a
+minifier that strips comments removes the slots' markers, and the host renders fresh, as React, Lit
+and Solid treat a missing marker. The light-tree statement carries a format number, so render and
+hydrate with matching releases of `@verajs/ssr` and `@verajs/renderer`: a page in another format
+renders fresh, its content kept, and the warning says so. A component host carrying no statement was
+made on the client, and gets a client first render rather than an adoption.
 
 **Measured, including where it still differs.** `tests/browser/slots-conformance.test.js` runs whole
 component lifecycles through a real shadow root and through this module on Chromium, Firefox and

@@ -16,6 +16,7 @@
  */
 import { isCustomElementName } from '@verajs/shared-utils';
 import { elements } from './elements.js';
+import { PROTOCOL } from './kinds.js';
 
 /** A slot's assignment name: an element's `slot` attribute, `''` for text; a comment is never slottable. */
 const slotNameOf = (node: Node): string | null =>
@@ -30,7 +31,8 @@ const slotNameOf = (node: Node): string | null =>
 type Unit = { a: Node; z: Node };
 /** One `<slot>` of a light host: while it has content, `rs`/`re` stand in its place and the element is out. */
 type Rec = { slot: Kept; light: Light; rs: Comment | null; re: Comment | null; shown: Node[]; queued: boolean };
-type Kept = HTMLSlotElement & { $rec?: Rec };
+/** `_$region$`: a filled slot's region handed over before it mounts — by hydration, the server's two markers. */
+type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
 
 /** A host's light children, by unit, in the order the page wrote them, and its slots. */
 type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean };
@@ -67,6 +69,12 @@ const STAND = new WeakMap<Node, Comment>();
 const REAL = new WeakMap<Node, Node>();
 /** The slot a light node was placed in (`null`: holding). */
 const PLACED = new WeakMap<Node, Rec | null>();
+/**
+ * A light node CAPTURED WHERE IT STANDS — outside the host, in a slot's region (the server put it there) — before that
+ * slot has mounted: where it is, it stays. Slots mount one at a time, and a node waiting for a later one would otherwise
+ * read as taken away (see `isWhere`).
+ */
+const ADOPTED = {} as Rec;
 
 /** The host's light children in the order the page wrote them — a run read through its stand-ins. */
 const lightOf = (light: Light): Node[] => {
@@ -149,7 +157,7 @@ const before = (x: Node[], y: Node[]) => {
 
 /**
  * **A filled slot's region is bounded by two comments, spelled the same on both sides.** The client creates them here;
- * the server writes exactly them (`serverDistribute`), so a server-rendered host and a client-distributed one are the
+ * the server writes exactly them (`@verajs/ssr`), so a server-rendered host and a client-distributed one are the
  * same DOM down to comment data, and hydration ADOPTS the server's instead of creating its own. Measured 2026-10-07:
  * that end state hydrates faster than any marking that makes the client split text and create markers (Chrome −11%,
  * Firefox −37%, WebKit −9% on a worst case), and it needs no counting, so nothing depends on how the browser decodes
@@ -198,6 +206,7 @@ const inLight = (node: Node, light: Light): boolean => {
 /** Whether a light node is still where this module put it — false once something else took it (the user's adoption stands). */
 const isWhere = (node: Node, light: Light): boolean => {
   const rec = PLACED.get(node);
+  if (rec === ADOPTED) return true;
   const parent = firstOf(node).parentNode;
   if (rec === undefined) return parent === light.holding;
   /** `PLACED` is shared by every host: a node another host has placed is not this one's, wherever it sits. */
@@ -332,6 +341,8 @@ const place = (light: Light) => {
     if (taken.has(node)) continue;
     const rec = PLACED.get(node);
     if (rec !== undefined && rec !== null && parked.has(rec)) continue;
+    /** Adopted and waiting for its slot, which mounts later in the same render: it stays where the server put it. */
+    if (rec === ADOPTED && !ending) continue;
     if (STAND.has(node) || (rec !== undefined && rec !== null) || (ending && statics.has(node) && node.parentNode === host)) toHolding(light, node);
   }
   /** A run captured in the host goes to holding now — its markers, stand-ins and unassigned nodes; its slotted nodes left in one move each. */
@@ -588,9 +599,10 @@ const release = (light: Light) => {
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
 
 /** A host's light record, new: its holding (bracketed by two comments, so `lastChild` is always an anchor), watched. */
-const lightFor = (host: Element, late: boolean): Light => {
+const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = null): Light => {
   const doc = host.ownerDocument;
-  const holding = doc.createElement(UNASSIGNED) as HTMLElement;
+  /** The server's carrier, adopted, is the same element a client render makes: given the same style and anchors. */
+  const holding = carrier ?? (doc.createElement(UNASSIGNED) as HTMLElement);
   holding.setAttribute('hidden', '');
   /**
    * `hidden` is only the UA's `display: none`, and any author rule that sets `display` beats it — a reset, a design
@@ -598,7 +610,8 @@ const lightFor = (host: Element, late: boolean): Light => {
    * author stylesheet; written through CSSOM, which a strict CSP does not block (served markup carries `hidden` only).
    */
   holding.style.setProperty('display', 'none', 'important');
-  holding.append(doc.createComment(''), doc.createComment(''));
+  holding.insertBefore(doc.createComment(''), holding.firstChild);
+  holding.append(doc.createComment(''));
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late };
   HOSTS.set(host, light);
   lights.add(light);
@@ -611,13 +624,18 @@ const lightFor = (host: Element, late: boolean): Light => {
  * **Capture**, at `init` — before the host's first render, when everything it holds is the page's. Each static child
  * is a unit; each run between statics (what the page's template bound there) is one unit, wrapped in this module's
  * two comments so its extent survives whatever the renderer writes inside it.
+ *
+ * `nodes` and `carrier` are hydration's (`_$capture$`): a served host's light children in light order, wherever the server
+ * distributed them, and the server's unassigned container, which becomes the holding. A node captured in a slot's region
+ * stays there (`ADOPTED`) — distribution then moves only what is out of place, so the server's placement decides at most
+ * WHETHER a node moves, never where it ends up.
  */
-const capture = (host: Element, before: Node | null = null): Light => {
+const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...host.childNodes], carrier: HTMLElement | null = null): Light => {
   let light = HOSTS.get(host);
   /** A slot of a custom element `init` never saw mounted first: its light content arrives now, at the render's end. */
   if (light !== undefined && !light.late) return light;
   const doc = host.ownerDocument;
-  light ??= lightFor(host, false);
+  light ??= lightFor(host, false, carrier);
   light.late = false;
   const statics = STATICS.get(host);
   let run: Node[] | null = null;
@@ -634,9 +652,11 @@ const capture = (host: Element, before: Node | null = null): Light => {
     light!.units.push({ a, z });
     run = null;
   };
-  for (const child of [...host.childNodes]) {
+  for (const child of nodes) {
     /** At a first render's end, only what precedes the render's own range is light content. */
     if (child === before) break;
+    const parent = child.parentNode;
+    if (parent !== host) PLACED.set(child, parent === light.holding ? null : ADOPTED);
     if (statics === undefined || statics.has(child)) {
       close();
       light.units.push({ a: child, z: child });
@@ -724,6 +744,17 @@ const slotBehavior = {
     const kept = slot as Kept;
     const rec: Rec = { slot: kept, light, rs: null, re: null, shown: [], queued: false };
     kept.$rec = rec;
+    /** A region handed over (hydration: the server's two markers) IS this slot's region, and what is between them stays. */
+    const served = kept._$region$;
+    if (served !== undefined) {
+      kept._$region$ = undefined;
+      [rec.rs, rec.re] = served;
+      for (let node = rec.rs.nextSibling!; node !== rec.re; node = node.nextSibling!) {
+        PLACED.set(node, rec);
+        (node as Node & { _$slotted$?: boolean })._$slotted$ = true;
+      }
+      watch(rec.re.parentNode!, light);
+    }
     kept.assignedNodes = (options?: AssignedNodesOptions) => assigned(rec, false, options?.flatten);
     kept.assignedElements = (options?: AssignedNodesOptions) => assigned(rec, true, options?.flatten) as Element[];
     light.recs.push(rec);
@@ -765,90 +796,18 @@ export const slotted = (host: Element, name = ''): Node[] => {
 };
 
 const LIGHT_ATTR = 'data-vm-light';
-/**
- * **The server writes the client's end state, and states the light tree.** Distribution moves a host's light children
- * into its slots. Each filled slot is written exactly as the client leaves it: its region's two markers (`RANGE_START`,
- * `RANGE_END`) around the assigned content, the `<slot>` stepped out; an unfilled slot stays, showing its fallback. The
- * markers also keep text from merging across a range's edge, so no separator is needed and nothing is counted.
- *
- * What the DOM alone cannot say is written once, on the host: `data-vm-light`, for each light child in light-tree order,
- * the index of the range it went into (ranges numbered in document order, the unassigned carrier last), run-length
- * encoded as `index*count`. Distribution loses which nodes are light children at all (a component's own elements can
- * carry `slot` too) and their order ACROSS slots; this is both.
- */
-const serverDistribute = (host: Element, source: Node[]) => {
-  const buckets = new Map<string, Node[]>();
-  const light: Node[] = [];
-  for (const node of source) {
-    const name = slotNameOf(node);
-    if (name === null) continue;
-    light.push(node);
-    let bucket = buckets.get(name);
-    if (bucket === undefined) buckets.set(name, (bucket = []));
-    bucket.push(node);
-    if (node.parentNode !== null) node.parentNode.removeChild(node);
-  }
-  const filled = new Set<string>();
-  const doc = host.ownerDocument!;
-  /** How many ranges received content, numbered in document order — see `data-vm-light`. */
-  let ranges = 0;
-  const rangeOf = new Map<Node, number>();
-  /** Collected first: the live list mutates as slots are unwrapped. */
-  for (const slot of [...host.querySelectorAll('slot')]) {
-    const parent = slot.parentNode;
-    if (parent === null) continue; // already unwrapped as another slot's assigned content
-    const name = slot.getAttribute('name') ?? '';
-    const assigned = !filled.has(name) ? buckets.get(name) : undefined;
-    if (assigned !== undefined && assigned.length > 0) {
-      filled.add(name);
-      /** The client's own region, exactly: its two markers around the content, the slot stepped out (see `RANGE_START`). */
-      parent.insertBefore(doc.createComment(RANGE_START), slot);
-      for (const node of assigned) {
-        parent.insertBefore(node, slot);
-        rangeOf.set(node, ranges);
-      }
-      ranges++;
-      parent.insertBefore(doc.createComment(RANGE_END), slot);
-      parent.removeChild(slot);
-    }
-    /** A slot with nothing assigned STAYS, showing its fallback — as the client keeps it (Brian, 2026-10-02). */
-  }
-  /**
-   * **Whatever no slot claimed is PRESERVED, in the client's own container** — `<vm-unassigned hidden>`, the host's first
-   * child, in light-tree order, exactly where the client keeps it: present and connected, unrendered, as native leaves an
-   * unassigned light child. It is the last range of the statement.
-   */
-  let carrier: Element | null = null;
-  for (const node of light)
-    if (!rangeOf.has(node)) {
-      if (carrier === null) {
-        carrier = doc.createElement(UNASSIGNED);
-        carrier.setAttribute('hidden', '');
-      }
-      carrier.appendChild(node);
-      rangeOf.set(node, ranges);
-    }
-  if (carrier !== null) host.insertBefore(carrier, host.firstChild);
-  /** The light order, run-length encoded — written on every light host, empty when it has none. */
-  const runs: string[] = [];
-  for (let k = 0; k < light.length; ) {
-    const index = rangeOf.get(light[k])!;
-    let n = 1;
-    while (k + n < light.length && rangeOf.get(light[k + n]) === index) n++;
-    runs.push(n === 1 ? `${index}` : `${index}*${n}`);
-    k += n;
-  }
-  host.setAttribute(LIGHT_ATTR, runs.join(','));
-};
 
-
-/** The server half: `@verajs/ssr` reads it off the `'slot'` chain. */
 /**
- * The server half, carried ON THE FUNCTION: the registry keeps an insert's `fn`, not its descriptor, so `@verajs/ssr`
- * reads `chain('slot')[0]._$server$` off the function. On the descriptor it never reached the server, and every
- * light-slot component rendered undistributed.
+ * Whether hydration is wired — it marks the registry (`_$hydrating$`) when it installs, which may be before or after this
+ * module: a served host (`data-vm-light`) is then captured by the adoption, never by `init`'s capture.
  */
-const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: Object.assign(() => null, { _$server$: serverDistribute }), priority: 50 };
+let wired: { _$hydrating$?: boolean } | null = null;
+
+/**
+ * **The `'slot'` insert: a marker** — `@verajs/ssr` distributes light hosts on the server exactly while it is wired. The
+ * client claims each `<slot>` through `'element'`, so the function is never called here.
+ */
+const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => null, priority: 50 };
 
 /** Discovery: `<slot>` elements and dashed hosts claimed in templates, through `elements`. */
 export const slotDiscovery = [
@@ -867,7 +826,8 @@ export const slotDiscovery = [
        * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
        */
       if ((element as unknown as Record<string, unknown>)['_root'] != null || element.shadowRoot !== null) return;
-      if (isCustomElementName(element.localName) && !HOSTS.has(element)) capture(element);
+      /** A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption). */
+      if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
     },
     priority: 10,
   },
@@ -883,6 +843,9 @@ export const slotDiscovery = [
    * light host's children is distributed before anything reads them.
    */
   (registry: Map<string, unknown[]>) => {
+    /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
+    wired = registry as unknown as { _$hydrating$?: boolean };
+    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture];
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it

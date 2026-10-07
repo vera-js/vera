@@ -1,8 +1,19 @@
 # @verajs/ssr
 
 Server-side rendering for VeraJS components. Node only, plain ESM, **zero dependencies** — no jsdom,
-no parse5, no lit, no acorn. Components render to **declarative shadow DOM** with no framework
-comments, and `@verajs/renderer/hydrate` adopts that markup in the browser without re-creating it.
+no parse5, no lit, no acorn. Components render to **declarative shadow DOM**, and the renderer's
+`hydration` module (`wire([renderer, hydration])`) adopts that markup in the browser without re-creating it.
+
+**Light-DOM slots** are distributed on the server while `@verajs/renderer/slots` is wired: each filled slot is written
+with the two comments the client keeps around it (`<!--[-->` … `<!--]-->`), and the host states its light tree in
+`data-vm-light`. A hydrating page reads that through one more module, wired only where both are used:
+`wire([renderer, hydration, slots, hydrateSlots])` (`@verajs/renderer/hydrate-slots`). Render and hydrate with
+matching releases of `@verajs/ssr` and `@verajs/renderer` — the statement carries a format number, and a page in
+another format renders fresh, its content kept.
+
+**Serve the HTML unmodified — comments included.** Hydration adopts those slot comments. An HTML minifier that strips
+comments removes them, and hydration then treats that component as a mismatch: the standard fallback warning and a
+fresh render, as React, Lit and Solid treat a missing marker of theirs.
 
 ```js
 import { renderToString } from '@verajs/ssr';   // first — it installs the DOM the renderer needs
@@ -22,8 +33,8 @@ is the light-DOM CSS for the page's `<style>` (already escaped for that element 
 page. `examples/ssr-node/server-native.mjs` is a complete server on bare `node:http` serving the whole
 round trip, hydration included.
 
-The package publishes its source — there is no build and no `dist` — and is type-checked from its
-JSDoc, with `.d.ts` files generated from the same comments for TypeScript consumers.
+The package is TypeScript, compiled file by file to `dist` (no bundling, no minification), with its `.d.ts` files
+beside it for TypeScript consumers.
 
 ## Two entry points
 

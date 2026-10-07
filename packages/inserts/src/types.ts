@@ -90,11 +90,10 @@ export type InitInsert = (element: HTMLElement) => void;
 export type ValueInsert = (part: object, value: unknown) => boolean | void;
 
 /**
- * **The server half of light-DOM slots** — `@verajs/renderer/slots` registers it, `@verajs/ssr` reads
- * `_$server$` off the function and calls it with a host and its light children, once the host's render
- * is final (`@verajs/ssr` declares that member, in the types of its own DOM). On the client the slots module claims each `<slot>` through `'element'` instead, so the
- * function itself is never called there and declines (`null`). A hand-off between those two packages,
- * one module distributing on both sides; not a point to register a strategy on.
+ * **Light-DOM slots are wired** — `@verajs/renderer/slots` registers it as a MARKER: `@verajs/ssr` distributes light
+ * hosts on the server exactly while it is there (the distributor is ssr's own). On the client the slots module claims
+ * each `<slot>` through `'element'` instead, so the function itself is never called and declines (`null`). Not a point to
+ * register a strategy on.
  *
  * Declared here rather than structurally for the same reason `ValueInsert` is: without it
  * `wire([renderer, slots])` does not typecheck for a consumer, because a descriptor's `on` is

@@ -34,7 +34,7 @@ type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[]; _n?
  *   gets wired to it
  * - an **array** of any of these, nested arrays included — which is also how a module that
  *   registers on more than one insert point ships: `@verajs/renderer/slots` is its `'element'` claimant
- *   plus its `'slot'` server half, and an app still writes `wire([renderer, slots])`
+ *   plus its `'slot'` marker for the server, and an app still writes `wire([renderer, slots])`
  *
  * The name is the act: you are wiring modules together. `insert` stays as the noun — these are
  * still insert points, and a descriptor still says which one it is `on` — but the verb was never

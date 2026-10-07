@@ -20,6 +20,12 @@
       "params": [],
       "message": "this @verajs/renderer and this hydration are from different releases. Pages render fresh (correct, without adopting the server's markup).",
       "fix": "Update both together."
+    },
+    {
+      "code": "hydration-slots",
+      "params": [],
+      "message": "this page was server-rendered with light-DOM slots, which hydration reads through `hydrateSlots`. The server markup is left as served.",
+      "fix": "Wire it: `wire([renderer, hydration, slots, hydrateSlots])`."
     }
   ]
 }

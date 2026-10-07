@@ -158,7 +158,7 @@ naming audit of 2026-09-10:
   with their own authored attributes self-namespace under `data-` with the package word
   (`data-autoload`, `data-autoload-dir`, `data-autoload-ignore`).
 - **The machine writes `data-vm-*` and `--vm-*`, and an author never does.** Markers
-  (`data-vm-motion`, `data-vm-native`, `data-vm-armed`, `data-vm-on`, `data-vm-slotted`,
+  (`data-vm-motion`, `data-vm-native`, `data-vm-armed`, `data-vm-on`,
   `data-vm-light`, `data-vm-select`, and the value-discriminated `data-vm-sheet="motion"` /
   `data-vm-sheet="styles"`), plumbing variables (`--vm-p`, `--vm-s`, `--vm-so`, `--vm-r0`,
   `--vm-r1`), generated keyframes names (`vm-<hash>`), and one element, light slots'

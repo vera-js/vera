@@ -60,6 +60,7 @@ import {
   HANDOFF_INSTANCE,
   HANDOFF_PROTOCOL,
   HANDOFF_REMOVAL_WORK,
+  PROTOCOL,
   HANDOFF_RESOLVE,
   HANDOFF_ROOTS,
   HANDOFF_SLOT,
@@ -68,10 +69,7 @@ import {
   HANDOFF_UPGRADED,
 } from './kinds.js';
 import type { ChildPart, Instance, Item, KeyedResult, Slot, Template } from './renderer.js';
-import type { TemplateResult } from './types.js';
-
-/** The hand-off protocol this module speaks — the renderer's, at `HANDOFF_PROTOCOL`, must equal it. */
-const PROTOCOL = 1;
+import type { HydrateSlots, HydrationCursor, ServedHost, TemplateResult } from './types.js';
 
 /** What the renderer hands over (`renderer.ts`, `connect`), by the `HANDOFF_*` positions in `kinds.ts`. */
 type Handoff = [
@@ -91,13 +89,32 @@ type Handoff = [
   toText: (value: unknown) => string,
   removalWork: () => void,
 ];
-type Registry = { get(name: string): unknown[] | undefined; $H?: Handoff; $t?: Untracked };
+/**
+ * **Light-DOM slots' seam** (`@verajs/renderer/slots` installs it, off-chain like `_$done$`): its own `capture`, stamped
+ * with this package's seam protocol — a served host's light children, in light order, captured where the server put
+ * them, the server's carrier as their holding. Everything about the SERVER's format is read here; slots knows none of it.
+ */
+type Registry = {
+  get(name: string): unknown[] | undefined;
+  $H?: Handoff;
+  $t?: Untracked;
+  _$hydrateSlots$?: HydrateSlots;
+  _$hydrating$?: boolean;
+};
 type Untracked = <A extends unknown[], R>(fn: (...args: A) => R, ...args: A) => R;
 type Applies = { _$apply$: (element: Element, key: object, run: Untracked, adopting?: boolean) => void };
 type ValueHandler = (part: object, value: unknown) => boolean | void;
 
 let H: Handoff;
 let registry: Registry;
+/** The piece, read per adoption (it may be wired after this module); the served host being adopted, else `null`. */
+let piece: HydrateSlots | undefined;
+let served: ServedHost | null = null;
+/**
+ * Walking a FILLED slot's element: a detached copy of the canonical one, as the client keeps it — the server never wrote
+ * it, so its fallback's values are committed fresh into the copy rather than claimed (see `fresh*`).
+ */
+let fresh = false;
 let untracked: Untracked;
 
 /* ── the warning: the only signal a fallback gives, once per cause ───────────────────────────────── */
@@ -199,11 +216,8 @@ const planOf = (template: Template) => {
   return plan;
 };
 
-/**
- * Where the walk stands among a live parent's children: a node, and an offset into it when it is text — server text
- * runs arrive MERGED (`a${x}b` is one text node), so a static and a value share a node until the walk splits them.
- */
-type Cursor = { parent: Node; node: Node | null; offset: number };
+/** Where the walk stands (`types.ts`: `hydrate-slots` moves it too). */
+type Cursor = HydrationCursor;
 
 /** A comment carries no content: adoption neither matches nor requires one, at a node boundary. */
 const passComments = (cursor: Cursor) => {
@@ -300,6 +314,30 @@ const finish = (cursor: Cursor, top = false) => {
  */
 type Adoption = { template: Template; bindings: unknown[]; values: unknown[]; plan: Map<Node, number[]>; found: Element[] | null };
 
+/** A filled slot's detached copy, from the piece — or `null`, and the element is claimed live. */
+const copyAt = (canonical: Element, cursor: Cursor) => (served === null || fresh ? null : piece![2](canonical, cursor, served));
+
+/** A filled slot's copy, adopted: everything inside it is committed fresh, as the client renders a slot it keeps. */
+const adoptCopy = (canonical: Element, copy: Element, into: Adoption, owned: number[] | undefined) => {
+  fresh = true;
+  try {
+    adoptElement(canonical, copy, into, owned);
+  } finally {
+    fresh = false;
+  }
+};
+
+/**
+ * **A binding the server never wrote** (inside a filled slot's detached copy): set up exactly as a client render's clone
+ * sets it — its node, and `''` for a child position (the empty text the template parsed it as) or UNSET — and queued, so
+ * the renderer's own first commit does the rest, text or template alike.
+ */
+const freshCommit = (into: Adoption, i: number, node: Node) => {
+  into.bindings[i * 2] = node;
+  into.bindings[i * 2 + 1] = into.template.$K[i] === SOLE ? H[HANDOFF_UNSET] : '';
+  later(COMMIT, into.template, into.bindings, i, into.template.$K[i], into.values);
+};
+
 /** Adopts the canonical siblings from `canonical` on, against the live cursor. */
 const walk = (canonical: Node | null, cursor: Cursor, into: Adoption) => {
   for (let node = canonical; node !== null; node = node.nextSibling) {
@@ -309,7 +347,11 @@ const walk = (canonical: Node | null, cursor: Cursor, into: Adoption) => {
     if (type === 3) {
       if (owned !== undefined) adoptChild(into, owned[0], cursor);
       else expectText(cursor, (node as Text).data);
-    } else adoptElement(node as Element, claimElement(cursor, (node as Element).localName), into, owned);
+    } else {
+      const copy = copyAt(node as Element, cursor);
+      if (copy === null) adoptElement(node as Element, claimElement(cursor, (node as Element).localName), into, owned);
+      else adoptCopy(node as Element, copy, into, owned);
+    }
   }
 };
 
@@ -416,6 +458,11 @@ const isText = (value: unknown) => value != null && typeof value !== 'object';
 
 /** A CHILD binding: text split to the value, or a part between two markers put in around what it adopts. */
 const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
+  if (fresh) {
+    const placeholder = cursor.node!;
+    cursor.node = placeholder.nextSibling;
+    return freshCommit(into, i, placeholder);
+  }
   const value = into.values[i];
   if (isText(value)) {
     into.bindings[i * 2] = claimText(cursor, textOf(value));
@@ -433,6 +480,7 @@ const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
 /** A SOLE binding: its element's one text node, or a part that owns the element (no markers). */
 const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
   const value = into.values[i];
+  if (fresh) return freshCommit(into, i, live);
   if (isText(value)) {
     into.bindings[i * 2] = claimText(inner, textOf(value));
     into.bindings[i * 2 + 1] = value;
@@ -459,7 +507,9 @@ const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
   };
   const root = template.$R;
   const single = root.nodeType === 1;
-  const adopted = single ? claimElement(cursor, (root as Element).localName) : cursor.parent.ownerDocument!.createDocumentFragment();
+  /** A single root is claimed here, not by the walk — so a `<slot>` at a template's root is asked here too. */
+  const copy = single ? copyAt(root as Element, cursor) : null;
+  const adopted = copy ?? (single ? claimElement(cursor, (root as Element).localName) : cursor.parent.ownerDocument!.createDocumentFragment());
   const instance = new H[HANDOFF_INSTANCE](template, result.strings, adopted, into.bindings);
   /**
    * **Its instance hook meets it before its bindings commit**, as a client instance does — told it was adopted, and
@@ -468,7 +518,8 @@ const adoptInstance = (result: TemplateResult, cursor: Cursor): Instance => {
    * the list is complete by the time the queue runs.
    */
   if (into.found !== null) later(HOOK, instance, into.found);
-  if (single) adoptElement(root as Element, adopted as Element, into, into.plan.get(root));
+  if (copy !== null) adoptCopy(root as Element, copy, into, into.plan.get(root));
+  else if (single) adoptElement(root as Element, adopted as Element, into, into.plan.get(root));
   else walk(root.firstChild, cursor, into);
   return instance;
 };
@@ -618,6 +669,9 @@ const run = (from: number, to: number) => {
   }
 };
 
+/** A served light host — the piece reads the rest. */
+const LIGHT_ATTR = 'data-vm-light';
+
 /* ── the container ───────────────────────────────────────────────────────────────────────────────── */
 
 /** A container's own SSR stylesheets lead its content and are not part of any template. */
@@ -644,33 +698,47 @@ const adopt = (result: unknown, container: Node): boolean => {
    * and this one's is restored when it returns. Shared, a nested walk reset this one's state underneath it.
    */
   const from = queue.length;
-  const saved = [why, kind] as const;
+  const saved = [why, kind, served] as const;
+  piece = registry._$hydrateSlots$;
   try {
     return adoptContainer(result as TemplateResult, container, from);
   } finally {
     /** Run or dropped, this adoption's range goes — a throw included. */
     queue.length = from;
-    [why, kind] = saved;
+    [why, kind, served] = saved;
   }
 };
 
 const adoptContainer = (result: TemplateResult, container: Node, from: number): boolean => {
-  let first: Node | null = container.firstChild;
-  while (isSheet(first)) first = first!.nextSibling;
-  /** The root range is bounded before the walk: an insert at the root during it (a client-only node) needs the end. */
   const doc = container.ownerDocument ?? (container as Document);
-  const start = doc.createComment('');
-  container.insertBefore(start, first);
-  const end = container.appendChild(doc.createComment(''));
-  const part = new H[HANDOFF_CHILD_PART](start, end);
+  served = null;
+  /** The root range is bounded before the walk: an insert at the root during it (a client-only node) needs the end. */
+  let start: Comment | null = null;
+  let end: Comment | null = null;
+  let part: ChildPart;
   try {
+    if (container.nodeType === 1 && (container as Element).hasAttribute(LIGHT_ATTR)) {
+      /** No piece to read it: thrown before anything is touched, so the server's markup stands exactly as served. */
+      if (piece === undefined) throw new Error(diagnostic('hydration', 'no hydrateSlots', 'hydration-slots', __DEV__ && PROSE['hydration-slots']()));
+      if (piece[0] !== PROTOCOL) mismatch('protocol', container, () => `hydrateSlots protocol ${piece![0]}, expected ${PROTOCOL}`);
+      served = piece[1](container as Element, mismatch);
+    }
+    let first: Node | null = container.firstChild;
+    while (isSheet(first) || (first !== null && first === served?.carrier)) first = first!.nextSibling;
+    start = doc.createComment('');
+    container.insertBefore(start, first);
+    end = container.appendChild(doc.createComment(''));
+    part = new H[HANDOFF_CHILD_PART](start, end);
     const cursor: Cursor = { parent: container, node: first, offset: 0 };
     adoptValue(part, result, cursor);
     finish(cursor, true);
+    if (served !== null) piece![3](served);
   } catch (error) {
-    start.remove();
-    end.remove();
+    start?.remove();
+    end?.remove();
     if (error !== MISMATCH) throw error;
+    /** A served host keeps its light content: captured into holding before the clear, distributed by the fresh render. */
+    if (served !== null) piece![4](served);
     /** Every build names the kind and the first node that disagreed; development adds the whole story, production the link. */
     warn(kind, diagnostic('hydration', why, 'hydration-fallback', __DEV__ && PROSE['hydration-fallback'](opening(result))), container);
     /** The queue is dropped unrun; the clear takes the walk's text splits and comments with the server's nodes. */
@@ -708,6 +776,8 @@ export const hydration = (given: Registry) => {
   }
   H = handoff;
   registry = given;
+  /** Slots, wired after or before this module, defers a served host's capture to the adoption (`_$capture$`). */
+  given._$hydrating$ = true;
   untracked = given.$t ?? (((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(...args)) as Untracked);
   handoff[HANDOFF_ADOPTER](adopt);
 };

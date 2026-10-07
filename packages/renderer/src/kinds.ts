@@ -46,8 +46,14 @@ export const NODE = 4;
  * it by these. An array, not an object of named fields: the names cost every app bytes (−35 B gzipped measured,
  * 2026-10-02), and these constants inline to literals in both bundles. The first two are FROZEN across protocols — a
  * hydration from another release reads the protocol at 0 and, on a mismatch, can still install its clearing hook at 1.
- * Any other change here is a protocol change: bump the renderer's protocol number.
+ * Any other change here is a protocol change: bump `PROTOCOL`.
  */
+/**
+ * **The protocol of this package's first-party seams** — the renderer's hand-off (`$H`, at `HANDOFF_PROTOCOL`) and slots'
+ * capture (`_$capture$`), both read by hydration. One number for both: the three ship in one package, and a change to
+ * either seam bumps it. A hydration that meets another number declines (the page renders fresh) and says so.
+ */
+export const PROTOCOL = 1;
 /** The protocol number — FROZEN at 0. */
 export const HANDOFF_PROTOCOL = 0;
 /** The first-render hook's setter — FROZEN at 1. */

@@ -274,6 +274,8 @@ const isNode = (value: unknown): value is ChildShim =>
  */
 const slotNameOf = (node: ChildShim): string | null =>
   node.nodeType === 3 ? '' : node.nodeType === 1 ? (node.getAttribute('slot') ?? '') : null;
+/** For the server's distributor (`slots.ts`) — an alias, so this module's own reads stay module-local. */
+export const slotName = slotNameOf;
 
 /**
  * **What a `<slot>` projects.** A slot shows the host's light-DOM children whose `slot` attribute

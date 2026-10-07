@@ -1,11 +1,10 @@
 /**
- * Light-DOM slot distribution on the SERVER — `@verajs/ssr` + `@verajs/renderer/slots`. The
- * server renders once and distributes through the slots module's `_$server$` hook (markerless: no
- * comments; a filled `<slot>` steps out, one with nothing assigned stays showing its fallback, as on the client). What hydration needs is STATED, not inferred: every parent a slot
- * filled carries `data-vm-slotted="offset,count"` (one pair per slot it holds), and the host carries
- * `data-vm-light` — for each light child in light order, the index of the range it sits in,
- * run-length encoded, the last index being the unassigned carrier. The client seam is inert under
- * the shim; this is the server pass.
+ * Light-DOM slot distribution on the SERVER — `@verajs/ssr` distributes while `@verajs/renderer/slots` is
+ * wired (its `'slot'` insert is the marker; the distributor is ssr's own). A filled `<slot>` steps out between the
+ * client's own region markers (`<!--[-->` … `<!--]-->`); one with nothing assigned stays showing its fallback, as on the
+ * client. What hydration needs and the DOM cannot say is STATED on the host: `data-vm-light="FORMAT:runs"` — the format
+ * number, then for each light child in light order the index of the range it sits in, run-length encoded, the last
+ * index being the unassigned carrier. The client seam is inert under the shim; this is the server pass.
  *
  * Placement is asserted on the markup with the marks removed (`bare`), and the marks themselves
  * where a test is about them — so a format change moves the mark tests and nothing else.
@@ -27,7 +26,7 @@ test('assigned named + default: distributed, and each filled slot bounded by the
   const html = await render('<h2 slot="header">Hi there</h2>plain body<b>bold</b>');
   assert.match(bare(html), /<header><h2 slot="header">Hi there<\/h2><\/header>/, 'named content in its slot');
   assert.match(html, /<header><!--\[--><h2 slot="header">Hi there<\/h2><!--\]--><\/header>/, 'the named slot\'s region, as the client leaves it');
-  assert.match(html, /<slot-card-ssr data-vm-light="0,1\*2">/,
+  assert.match(html, /<slot-card-ssr data-vm-light="1:0,1\*2">/,
     'and the host states the light tree: one child in range 0, then two in range 1');
   assert.match(html, /<main><!--\[-->plain body<b>bold<\/b><!--\]--><\/main>/,
     'default content in the default slot, between its region markers');
@@ -45,7 +44,7 @@ test('nothing assigned: both slots fall back, no range is marked', async () => {
   assert.match(bare(html), /<header><slot name="header"><em>fallback header<\/em><\/slot><\/header>/);
   assert.match(bare(html), /<main><slot>default fallback<\/slot><\/main>/);
   assert.doesNotMatch(html, /<!--/, 'nothing distributed, so no region is marked');
-  assert.match(html, /<slot-card-ssr data-vm-light="">/, 'and the host states an empty light tree');
+  assert.match(html, /<slot-card-ssr data-vm-light="1:">/, 'and the host states an empty light tree');
   /** A slot with nothing assigned stays in the page, showing its fallback (Brian, 2026-10-02) — both do here. */
   assert.equal((bare(html).match(/<slot[\s>]/g) ?? []).length, 2, 'both fallback slots stay');
 });
@@ -56,7 +55,7 @@ test('named only: named distributes and is marked, default falls back unmarked',
   assert.match(bare(html), /<main><slot>default fallback<\/slot><\/main>/);
   assert.match(html, /<header><!--\[--><h2 slot="header">Only<\/h2><!--\]--><\/header>/, 'the named slot\'s region is marked');
   assert.match(html, /<main><slot>default fallback/, 'the fallen-back one states nothing');
-  assert.match(html, /<slot-card-ssr data-vm-light="0">/, 'the one light child sits in range 0');
+  assert.match(html, /<slot-card-ssr data-vm-light="1:0">/, 'the one light child sits in range 0');
 });
 
 test('default only: default distributes and marks; named falls back', async () => {

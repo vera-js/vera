@@ -43,6 +43,8 @@ const PACKAGES = {
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/slots': 'renderer/slots',
+  '@verajs/renderer/hydration': 'renderer/hydration',
+  '@verajs/renderer/hydrate-slots': 'renderer/hydrate-slots',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/elements': 'renderer/elements',
   '@verajs/renderer/hydrate': 'renderer/hydrate',

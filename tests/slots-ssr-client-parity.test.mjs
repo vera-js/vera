@@ -49,8 +49,8 @@ const SHAPES = {
 /**
  * Three things differ legitimately and are normalized away — nothing else is.
  *
- * The server's `data-vm-slotted` markers are the hydration handoff and the hydrator strips them. The client's anchors are
- * comments it never serializes. And the client's unassigned container carries an inline `display: none !important`
+ * The server's region markers (`<!--[-->` / `<!--]-->` around a filled slot) are the client's own, so they are compared
+ * as-is; the client's anchors are empty comments the server never writes. And the client's unassigned container carries an inline `display: none !important`
  * beside `hidden` — written through CSSOM, so an author stylesheet cannot make unassigned content render — which the
  * server deliberately does not emit (a strict CSP blocks a `style=` attribute in served markup; hydration sets it on
  * adoption). Everything else about `<vm-unassigned hidden>` — that it exists, where, and what it holds — is compared:
@@ -61,7 +61,6 @@ const CLIENT_HIDING = /(<vm-unassigned hidden(?:="")?) style="[^"]*"/g;
 const normalize = (markup) =>
   markup
     .replace(CLIENT_HIDING, '$1')
-    .replace(/ data-vm-slotted="[^"]*"/g, '')
     .replace(/<!---->/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -83,6 +82,7 @@ const { wire } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { hydration } = await load('renderer/hydration');
 const { slots, slotted } = await load('renderer/slots');
+const { hydrateSlots } = await load('renderer/hydrate-slots');
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -110,6 +110,8 @@ const server = (tag, template, children, shadow = false) => {
   });
   /** The host's own tag is the wrapper both sides share; compare what is INSIDE it. */
   hosts.set(tag, html);
+  /** The format NUMBER the hydration side reads (`FORMAT` in both packages) — held fixed across the writer's move. */
+  if (!shadow) assert.match(html, new RegExp(`^<${tag} data-vm-light="1:`), `the server states format 1: ${html}`);
   return html.replace(new RegExp(`^<${tag}[^>]*>`), '').replace(new RegExp(`</${tag}>$`), '');
 };
 /**
@@ -119,6 +121,12 @@ const server = (tag, template, children, shadow = false) => {
 const hosts = new Map();
 
 let index = 0;
+/**
+ * The client-only answer per shape, from the loop below: a custom-element host rendered BEFORE hydration is wired. The
+ * hydration loop compares against it — rendering a client-only answer there would itself be adopted (hydration is wired
+ * by then), and a plain container never captures light content (ruling 4), so either way it is not the answer.
+ */
+const clientAnswers = new Map();
 /**
  * CONTROL: shapes in which the server parked content and the retained-content check below RAN. It ran for none from
  * connected parking until its pattern caught up (it looked for the retired `<template>` carrier): a rename of the
@@ -140,6 +148,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, host);
     await settle();
     const fromClient = host.innerHTML;
+    clientAnswers.set(label, normalize(fromClient));
 
     assert.equal(normalize(fromClient), normalize(fromServer),
       `the two renders disagree.\n  server: ${normalize(fromServer)}\n  client: ${normalize(fromClient)}`);
@@ -179,7 +188,7 @@ let hydrationWired = false;
 const hydrateInto = (result, container) => {
   if (!hydrationWired) {
     hydrationWired = true;
-    wire([hydration]);
+    wire([hydration, hydrateSlots]);
   }
   return renderInto(result, container);
 };
@@ -190,13 +199,9 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     const tag = `hydrated-${hydrateIndex++}`;
     const fromServer = server(tag, template, children);
 
-    /** Client-only, for the answer to match. */
-    const fresh = dom.window.document.createElement('div');
-    fresh.innerHTML = children;
-    dom.window.document.body.append(fresh);
-    renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, fresh);
-    await settle();
-    const clientOnly = normalize(fresh.innerHTML);
+    /** Client-only, for the answer to match — recorded by the client-render loop, which must have run. */
+    const clientOnly = clientAnswers.get(label);
+    assert.ok(clientOnly !== undefined, `no client-only answer was recorded for ${label}`);
 
     /** The server's markup, adopted. */
     const wrap = dom.window.document.createElement('div');
@@ -213,11 +218,10 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
       console.warn = originalWarn;
     }
 
-    assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
+    assert.deepEqual(warnings.filter((w) => w.includes('hydration-fallback')), [],
       `adoption bailed, so the server's work was thrown away.\n  server: ${normalize(fromServer)}`);
     assert.equal(normalize(hydrated.innerHTML), clientOnly,
       `hydrated and client-only disagree.\n  hydrated: ${normalize(hydrated.innerHTML)}\n  client:   ${clientOnly}`);
-    fresh.remove();
     hydrated.remove();
   });
 

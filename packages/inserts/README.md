@@ -113,7 +113,7 @@ wire([renderer, router, collections]);
 
 `router` is a **connector** — `wire` hands it this registry, and the router keeps no registry
 of its own. A module can also be an **array** of descriptors and connectors, nested as deep as it
-likes — `@verajs/renderer/slots` is its client discovery plus its server half — and sits in the list
+likes — `@verajs/renderer/slots` is its client discovery plus its `'slot'` marker for the server — and sits in the list
 like any other module. That removes the hazard by construction rather than reconciling it afterwards, and it is
 why `@verajs/router` has no dependencies at all. `tests/cdn-cross-bundle.test.mjs` guards the shape.
 

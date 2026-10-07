@@ -171,3 +171,37 @@ export type OverlayOptions = {
   /** Churn rows to show before collapsing the rest into a count. Default 4. */
   rows?: number;
 };
+
+/* ── hydrating light slots: the seams between `hydration`, `hydrate-slots` and `slots` ───────────── */
+
+/**
+ * Where hydration's walk stands among a live parent's children: a node, and an offset into it when it is text — server
+ * text runs arrive MERGED (`a${x}b` is one text node), so a static and a value share a node until the walk splits them.
+ * `hydrate-slots` moves it past a filled slot's range. Plain names, so property mangling leaves them alone.
+ */
+export type HydrationCursor = { parent: Node; node: Node | null; offset: number };
+
+/** Hydration's mismatch: records the cause and the first node that disagreed, and stops the adoption by throwing. */
+export type HydrationFail = (cause: string, at: Node | null, reason: false | (() => string)) => never;
+
+/** A served light host as hydration sees it: only its carrier (`<vm-unassigned>`), which the walk passes over. */
+export type ServedHost = { readonly carrier: Node | null };
+
+/**
+ * Slots' `capture` (`_$capture$`): a light host's light children, in light order, captured wherever they stand — the
+ * server's carrier, when given, becoming the holding.
+ */
+export type LightCapture = (host: Element, before: Node | null, nodes?: Node[], carrier?: HTMLElement | null) => unknown;
+
+/**
+ * **Hydrating light slots is its own piece** (`@verajs/renderer/hydrate-slots`): hydration calls it through these
+ * positions (`_$hydrateSlots$`), stamped with the package's seam protocol — open a served host, take a filled slot's
+ * range at a canonical `<slot>` (its detached copy, or `null`), close a matched walk, rescue a mismatched one.
+ */
+export type HydrateSlots = [
+  protocol: number,
+  open: (host: Element, fail: HydrationFail) => ServedHost,
+  slot: (canonical: Element, cursor: HydrationCursor, served: ServedHost) => Element | null,
+  close: (served: ServedHost) => void,
+  rescue: (served: ServedHost) => void,
+];

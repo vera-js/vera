@@ -167,8 +167,8 @@ premise of VeraJS is that the platform is now good enough; act like it.
 - **Do not leak the framework into the DOM.** The attribute conventions (`.prop`, `?bool`, `@event`,
   `route`, `view`, `autoloader`) are the public contract; keep them documented and stable. A marker
   the framework writes for its own use is removed once it has been used — `data-vm-select` never
-  reaches the page, and `data-vm-slotted`/`data-vm-light` are stripped the moment hydration reads
-  the light tree they state.
+  reaches the page, and `data-vm-light` is stripped the moment hydration reads the light tree it
+  states.
 - **Derive `document` and `window` from the node, never from the module global — and treat every
   REALM-BOUND API the same way.** An element can live in a document that is not the one your code
   was loaded into — a popped-out window, an iframe, a portal — and it is the element that knows

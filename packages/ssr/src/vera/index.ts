@@ -36,6 +36,7 @@ import { serializeTemplate, serializeValue } from './serializer.js';
 import { decode as decodeEntities } from './parse.js';
 import { ATTRIBUTE, renderComponentTags } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
+import { distributeLight } from './slots.js';
 import type { ElementShim } from './nodes.js';
 import { thrownMessage } from './escaping.js';
 import type { SsrRenderOptions, SsrRenderResult, SsrTemplate } from './types.js';
@@ -50,19 +51,11 @@ interface ComponentInstance extends ElementShim {
   _veraSlotSource?: SlotSource;
 }
 
-/** A host's children, as the slots module is handed them. */
+/** A host's children, held out of its render for the light-DOM slots distributor (`slots.ts`). */
 type SlotSource = ElementShim['childNodes'][number][];
 
-/**
- * The slot insert as the server reads it: `@verajs/renderer/slots` hangs its server distribution on the
- * insert as `_$server$`, so this module reaches it without importing the renderer.
- */
-interface ServerSlotInsert extends SlotInsert {
-  _$server$?: (host: ComponentInstance, source: SlotSource) => void;
-}
-
-/** The chains this module reads, typed as it reads them. */
-type ServerChains = { slot: ServerSlotInsert; settle: SettleInsert };
+/** The chains this module reads, typed as it reads them — `'slot'` only as a marker: light-DOM slots are wired. */
+type ServerChains = { slot: SlotInsert; settle: SettleInsert };
 
 /** One failure collected during a render, and the component it happened in. */
 type Failure = { error: unknown; tag: string | undefined };
@@ -176,7 +169,7 @@ wire({
 
 /* ── instances ───────────────────────────────────────────────────────────────────────────────── */
 
-/** The slot strategy and settle chain carry members their insert types cannot name. */
+/** The chains, typed as this module reads them. */
 const chain = <K extends keyof ServerChains>(name: K) =>
   (inserts.get(name as keyof InsertFunctionMap) ?? []) as unknown as ServerChains[K][];
 
@@ -236,7 +229,7 @@ const prepareInstance = (
       }
     }
   if (children) element.innerHTML = children;
-  if (chain('slot')[0]?._$server$) {
+  if (chain('slot').length > 0) {
     element._veraSlotSource = [...element.childNodes];
     for (const node of element._veraSlotSource) element.removeChild(node);
   }
@@ -263,7 +256,7 @@ const finishInstance = (element: ComponentInstance, tag: string, previousTag: st
   if (source !== undefined) {
     element._veraSlotSource = undefined;
     if (element._shadowRoot) for (const node of source) element.appendChild(node);
-    else chain('slot')[0]?._$server$?.(element, source);
+    else distributeLight(element, source);
   }
   const root = element._shadowRoot;
   return { open: element.openTag(), root, shadow: root?.innerHTML ?? '', light: element.innerHTML };

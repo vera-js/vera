@@ -54,6 +54,11 @@
       "development": "./dist/development/vera-renderer-slots.js",
       "default": "./dist/vera-renderer-slots.min.js"
     },
+    "./hydrate-slots": {
+      "types": "./dist/development/vera-renderer-hydrate-slots.d.ts",
+      "development": "./dist/development/vera-renderer-hydrate-slots.js",
+      "default": "./dist/vera-renderer-hydrate-slots.min.js"
+    },
     "./elements": {
       "types": "./dist/development/vera-renderer-elements.d.ts",
       "development": "./dist/development/vera-renderer-elements.js",

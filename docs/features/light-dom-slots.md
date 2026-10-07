@@ -77,15 +77,18 @@ That file asks the three questions directly. Does the SERVER produce what the CL
 the server's markup ADOPT into that, without discarding it? And is a SHADOW component — one not
 using the feature at all — completely untouched by the module being wired?
 
-Server output carries no wrapper elements: a `<slot>` with content is replaced by it, in place, and
-one with nothing assigned is kept with its fallback — as the client keeps it. Distribution loses two facts hydration needs (which nodes are the user's,
-since a component's own elements can carry `slot` too, and their order across slots), so the server
-**states the light tree** rather than leaving the client to infer it. Every parent a slot filled
-carries `data-vm-slotted="offset,count"`, and the host carries `data-vm-light`: for each light child
-in light order, which of those ranges it went into. Two more things are present only when the markup
-needs them: the host's `<vm-unassigned hidden>` holding children no slot claimed — the same element,
-in the same place, the client keeps them in — so content meant for a slot that only appears in
-another state survives the round trip instead of vanishing from the HTML; and a `<!---->` separator where two text runs would otherwise merge in the parser.
+Server output carries no wrapper elements: a `<slot>` with content is replaced by it, between the
+same two comments the client puts around a filled slot (`<!--[-->` … `<!--]-->`), and one with nothing
+assigned is kept with its fallback — as the client keeps it. The comments also keep text from merging
+across a slot's edge in the parser. Distribution loses two facts hydration needs (which nodes are the
+user's, since a component's own elements can carry `slot` too, and their order across slots), so the
+server **states the light tree** rather than leaving the client to infer it: the host carries
+`data-vm-light`, a format number and, for each light child in light order, which of those ranges it
+went into. Present only when the markup needs it: the host's `<vm-unassigned hidden>` holding children
+no slot claimed — the same element, in the same place, the client keeps them in — so content meant for
+a slot that only appears in another state survives the round trip instead of vanishing from the HTML.
+A hydrating page reads all of it through `@verajs/renderer/hydrate-slots`
+(`wire([renderer, hydration, slots, hydrateSlots])`), which only an app that hydrates light slots loads.
 All of it is consumed on adoption. Adoption is in place, so node identity survives and with it
 focus, input values and scroll position — asserted in a real browser, on three engines.
 
