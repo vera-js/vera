@@ -42,7 +42,10 @@ code, so they are not re-litigated.
   `a=b` and `a/b`. `tests/browser/spread-names.test.js` records the engines' rule on purpose — read
   it before changing anything about attribute-name validation, because a jsdom probe will tell you
   the denylist is broken when it is exactly right. More generally: **jsdom is the regression net,
-  never the oracle** for anything the platform decides.
+  never the oracle** for anything the platform decides. And in a probe, read direct children with
+  `[...el.children]`, never `querySelector(':scope > …')`: on a page the renderer and custom elements
+  BUILT, jsdom answered a NESTED host's child (2026-10-02) — a false "nested hosts never distribute"
+  finding on every seed of a storm, on a correct page.
 - **The SSR shim is a DOM implementation, so audit it by differential test, never by reading it.**
   Run the same operation against the shim and against jsdom and compare the answers — a twenty-line
   script over `setAttribute`/`getAttribute`/`localName`/`className` found three real divergences in
@@ -87,8 +90,10 @@ code, so they are not re-litigated.
   machine" for three runs. Timing 20 renders per sample (~60 ms) brought A/A to ±1.1% on all three.
   The machine CAN be the cause, but check it rather than assume: here it was Spotlight
   (`corespotlightd` at 150% CPU) reindexing the files our own builds had just written — it settles
-  within a minute or two of the last build. Look at `ps -Ao pcpu,comm -r | head` before a race; there
-  is nothing else to close on this machine. **And leave it time to cool** (Brian, 2026-09-27): a few
+  within a minute or two of the last build. Read the TOP of `ps -Ao pcpu,comm -r | head` before a
+  race — not only the Spotlight row — and do not start while anything else holds more than ≈ 10% of a
+  core: a busy tab in Brian's own Chrome held 50–95% of a core for a day and shifted every absolute
+  ≈ 44% (2026-10-02; paired deltas held). The race harnesses wait on exactly that check. **And leave it time to cool** (Brian, 2026-09-27): a few
   minutes after the last build, gate or race before any timing run, and between consecutive races —
   it is a fanless laptop, and correctness suites are the only thing that can run back to back.
 - **An async timing loop is ONE job, and a short window's median measures the GC schedule, not the
@@ -151,6 +156,9 @@ code, so they are not re-litigated.
   tier-up is part of the cost, not noise: it is what a server's first requests pay. Keep what a hot loop reads module-local and export a separate alias (`export const
   RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
   every hot-path change gets a cold-process or race measurement before it lands.
+- **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
+  create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
+  class defines is work the engine does for every instance; never add one speculatively.
 - **A timing window after a fixed warm-up measures WHEN V8 tiers up, not how fast the code is.** A race that warmed 20
   calls and then timed 200 reported the breakout change 28% SLOWER on a 50 KB `.innerHTML` scan (2026-10-01); a
   per-batch curve showed the truth — the new build was twice as fast over its first 20 calls, sat in a middle tier
@@ -374,6 +382,10 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   through your own copy works in development and silently does nothing in production — it does not
   throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
   way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
+- **A property on an insert DESCRIPTOR is not reachable through `chain()`** — the registry keeps the
+  descriptor's `fn`, so a protocol member set on the descriptor object is invisible to whoever reads
+  the insert. Put it on the function. Measured 2026-10-02: slots' server hook sat on the descriptor and
+  every light-slot component rendered undistributed on the server (ssr-slots 4/19 → 19/19 once moved).
 - `@verajs/ssr` self-wires correctly by taking `wire` from core. (Core used to
   self-register a default renderer at module scope, which was safe only because it lived *inside*
   core's bundle with no boundary to cross; it was removed in 0.2.0.)
@@ -470,19 +482,12 @@ vendors. The shared base value grammar lives in `@verajs/shared-utils` (both pac
 The npm name reuses the retired package's; nothing about the phase-4 fold's *pack* design was
 reversed — what moved is exactly the part that was never a directive.
 
-### Motion — the phase-4 fold into `@verajs/directives` (2026-09-06; partially superseded above)
+### Motion — history: the phase-4 fold (2026-09-06 → 09-10), superseded by the cut above
 
-`packages/motion` no longer exists here. Its behaviors were folded into the directives engine as
-the **motion pack** — `@verajs/directives/motion`, one `data-vd-motion` attribute (preset literal
-or object), with `easings`/`paint`/`path`/`sequence`/`split` as wired vocabulary — and the
-package was archived at its moment of retirement to **`vera-js/vera-archive`** (private; a copy,
-not a history move). Its 447-commit pre-migration history stays in the private
-`briangrider/animate`; its monorepo life is in this repo's history. The operational lore, audits
-and the fold-in's design record live in the portal (`internal/docs/motion/`,
-`internal/docs/DESIGN-DIRECTIVES.md` §16b + build logs). Two debts survived the retirement,
-tracked in the portal TODO: the mutation-test groups were retired with the package and the
-directives motion pack does not yet have equivalents (desktop-only sweeps, as ever), and motion's
-`spikes/` harnesses in the portal still point at archived paths.
+For four days motion lived only as the directives motion pack and `packages/motion` was removed
+(archived, as it stood then, to the private `vera-js/vera-archive`); the cut above brought
+`packages/motion` back. Its pre-migration history is the private `briangrider/animate`. Two debts from
+then are tracked in the portal TODO (motion's retired mutation-test groups; `spikes/` paths).
 
 **The repo root is for configuration only** — no source, no bundles, no experiments. `CLAUDE.md` sits
 at the root because Claude Code auto-discovers it there; that is a technical requirement, not a
