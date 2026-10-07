@@ -193,7 +193,9 @@ escaped as it is written; `<style>` and `<script>` content is written raw with i
 neutralized (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer), because a
 browser does not decode a character reference inside either: escaping there protects nothing and
 corrupts the content (`.a > .b` used to serve as `.a &#62; .b`, a selector matching nothing).
-`<title>` and `<textarea>` decode references, so they keep ordinary escaping. **Raw is decided by where
+`<title>` and `<textarea>` decode references, so they keep ordinary escaping. **The same rule holds for content
+a component writes through the server DOM**: `textContent`, `value`, `innerHTML` or a text node in any of those
+elements is stored as text and written by its parent's rule, so data can never close the element it is in. **Raw is decided by where
 the browser will parse the element, not by its name**: inside `<svg>` or `<math>` a `<style>` is an SVG or
 MathML element whose content is markup, and `<noscript>` is markup to a browser with scripting off — so
 inside any of them every value is escaped, and so is every value in a template rendered into one (an

@@ -9,8 +9,8 @@
  * tripping over it.
  */
 import { interfaceFor } from './reflections.js';
-import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
-import { parseFragment } from './parse.js';
+import { escapeHtml, escapeRawText, escapeStyleText, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
+import { decode, parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
@@ -634,8 +634,18 @@ export class TextShim extends CharacterDataShim {
   get wholeText(): string {
     return this._data;
   }
+  /**
+   * **A text node is written by its PARENT's rule — the platform's serialization rule, and the one place this DOM
+   * decides it.** Inside `<style>`/`<script>` it is raw, with only the element's own end tag neutralized
+   * (`escapeRawText`); everywhere else, `<textarea>` and `<title>` included, it is escaped. Untouched parsed text keeps
+   * the bytes it came from. Raw-text content used to be stored as MARKUP by `textContent`/`value`, which nothing then
+   * escaped: `textarea.value = '</textarea><img onerror=…>'` closed the element and served the `<img>`.
+   */
   markup(): string {
-    return this._source ?? escapeHtml(this._data);
+    if (this._source !== null) return this._source;
+    const parent = (this._parent as { localName?: string } | null)?.localName;
+    /** Named, not looked up: a lookup keyed by every parent's name is a megamorphic load on every text node written. */
+    return parent === 'style' || parent === 'script' ? escapeRawText(this._data, parent) : escapeHtml(this._data);
   }
   cloneNode(): TextShim {
     const copy = new TextShim(this._data);
@@ -735,9 +745,29 @@ export class ContainerShim extends EventTarget {
      * the platform stringifies it.
      */
     const text = markup === null ? '' : `${markup}`;
+    /**
+     * A raw-text element's markup is never markup: the platform parses it as ONE text node (decoded in RCDATA), so it
+     * is stored as one — and written by the text node's rule (`TextShim.markup`), never as given.
+     */
+    const name = (this as { localName?: string }).localName ?? '';
+    if (RAW_TEXT_ELEMENTS.has(name)) {
+      const data = normalizeNewlines(text);
+      this._replaceWithText(RCDATA_ELEMENTS.has(name) ? decode(data) : data);
+      return;
+    }
     this._entries = text === '' ? [] : [text];
     /** New markup has not been looked at yet, whatever was true of the markup it replaced. */
     this._parsed = false;
+  }
+  /** Children replaced by one text node holding `data` — none for `''`, as `textContent` does. */
+  _replaceWithText(data: string): void {
+    for (const entry of this._entries) if (typeof entry !== 'string') entry._parent = null;
+    this._entries = [];
+    this._parsed = true;
+    if (data === '') return;
+    const node = new TextShim(data);
+    node._parent = this;
+    this._entries.push(node);
   }
   /**
    * **Every insertion path places its nodes here, at `at`, replacing `replace` entries** — `appendChild`,
@@ -2309,7 +2339,8 @@ export class ElementShim extends ContainerShim {
    */
   set textContent(value: unknown) {
     const text = value == null ? '' : value;
-    this.innerHTML = RAW_TEXT_ELEMENTS.has(this.localName) ? String(text) : escapeHtml(text);
+    if (RAW_TEXT_ELEMENTS.has(this.localName)) this._replaceWithText(`${text}`);
+    else this.innerHTML = escapeHtml(text);
   }
 }
 

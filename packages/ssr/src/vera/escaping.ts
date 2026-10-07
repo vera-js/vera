@@ -2,10 +2,12 @@
  * Escaping at the render boundary, and the elements that must not be escaped at all.
  *
  * One place decides what becomes a character reference, because escaping in two places
- * double-escapes and escaping in none is an injection. `<style>`, `<script>`, `<textarea>` and
- * `<title>` hold **text**, not markup: a browser does not decode a character reference inside them,
- * so escaping there does not protect anything and does corrupt the content — a `static styles` with
- * `.a > .b` shipped a broken stylesheet until that was understood.
+ * double-escapes and escaping in none is an injection. `<style>` and `<script>` hold **raw text**: a
+ * browser does not decode a character reference inside them, so escaping there does not protect
+ * anything and does corrupt the content — a `static styles` with `.a > .b` shipped a broken
+ * stylesheet until that was understood. `<textarea>` and `<title>` hold text too, but RCDATA: a
+ * reference IS decoded there, so escaping is exactly right — and writing them raw let a value close
+ * the element (see `TextShim.markup`).
  */
 
 const NEEDS_ESCAPE = /[&<>"'\r]/;
@@ -122,6 +124,15 @@ export const escapeRawText = (value: unknown, tag: string): string => {
  * `noscript` and all three real engines disagree with both.
  */
 export const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title', 'iframe', 'noscript']);
+/** The raw-text elements whose text IS decoded — RCDATA. The rest mean their bytes. */
+export const RCDATA_ELEMENTS = new Set(['textarea', 'title']);
+
+/**
+ * **A parsed value starts by normalizing line breaks.** The input stream turns every CRLF and lone CR into LF before a
+ * token exists, so `a\r\nb` is `"a\nb"` as text, as an attribute value, as comment data and as raw text alike — while a
+ * REFERENCE to CR (`&#13;`) is decoded after that and stays a CR. So this runs on bytes, before any decoding.
+ */
+export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? raw.replace(/\r\n?/g, '\n') : raw);
 
 /**
  * Elements that have no end tag. Writing one is not merely redundant — a parser reads `</br>` as
