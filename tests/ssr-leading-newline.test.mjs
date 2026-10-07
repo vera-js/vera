@@ -103,6 +103,9 @@ test('the line feed is written exactly where a binding follows the start tag, an
   assert.equal(serializeTemplate(bound('x')), '<pre>\nx</pre>');
   assert.equal(serializeTemplate(attributeBound('c', 'x')), '<pre class="c">\nx</pre>');
   assert.equal(serializeTemplate(authored('x')), '<pre>\nabcx</pre>');
+  /** An END tag takes nothing: a `\n` after `</pre>` would be real text in the parent. */
+  const afterEnd = (x, y) => html`<pre>${x}</pre>${y}`;
+  assert.equal(serializeTemplate(afterEnd('x', 'y')), '<pre>\nx</pre>y');
   assert.equal(parsedText(serializeTemplate(authored('x')), 'pre'), 'abcx', 'the client template drops the author\'s line feed too');
   const negatives = ROWS.filter(([name]) => / inside /.test(name) && !/textarea/.test(name)).concat([ROWS.find(([n]) => n === 'a comment first')]);
   assert.equal(negatives.length, 3, 'the negative controls ran');
