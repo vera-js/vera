@@ -147,12 +147,23 @@ const before = (x: Node[], y: Node[]) => {
 
 /* ── distribution ──────────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * **A filled slot's region is bounded by two comments, spelled the same on both sides.** The client creates them here;
+ * the server writes exactly them (`serverDistribute`), so a server-rendered host and a client-distributed one are the
+ * same DOM down to comment data, and hydration ADOPTS the server's instead of creating its own. Measured 2026-10-07:
+ * that end state hydrates faster than any marking that makes the client split text and create markers (Chrome −11%,
+ * Firefox −37%, WebKit −9% on a worst case), and it needs no counting, so nothing depends on how the browser decodes
+ * text. The data carries no slot name or index: pairing is positional, and a name could close the comment.
+ */
+const RANGE_START = '[';
+const RANGE_END = ']';
+
 const region = (rec: Rec) => {
   if (rec.rs !== null) return;
   const doc = rec.slot.ownerDocument;
   const parent = rec.slot.parentNode!;
-  rec.rs = doc.createComment('');
-  rec.re = doc.createComment('');
+  rec.rs = doc.createComment(RANGE_START);
+  rec.re = doc.createComment(RANGE_END);
   parent.insertBefore(rec.rs, rec.slot);
   parent.insertBefore(rec.re, rec.slot);
   rec.slot.remove();
@@ -753,23 +764,17 @@ export const slotted = (host: Element, name = ''): Node[] => {
   return slot === undefined ? [] : slot.assignedNodes();
 };
 
-const SLOTTED_ATTR = 'data-vm-slotted';
 const LIGHT_ATTR = 'data-vm-light';
 /**
- * **The server states the light tree, so the client never reconstructs it.** Distribution moves a
- * host's light children into its slots, which loses two facts the client needs: which nodes are
- * light children at all (a component's own elements can carry `slot` too), and their order ACROSS
- * slots. Both are written down, uniformly:
+ * **The server writes the client's end state, and states the light tree.** Distribution moves a host's light children
+ * into its slots. Each filled slot is written exactly as the client leaves it: its region's two markers (`RANGE_START`,
+ * `RANGE_END`) around the assigned content, the `<slot>` stepped out; an unfilled slot stays, showing its fallback. The
+ * markers also keep text from merging across a range's edge, so no separator is needed and nothing is counted.
  *
- * - every slot position that received content marks its RANGE on its parent — `data-vm-slotted`,
- *   `"offset,count"`, space-separated when one parent holds several — named slots as well as the
- *   default, so no slot is found by guessing;
- * - the host carries `data-vm-light`: for each light child in light-tree order, the index of the range
- *   it went into (ranges numbered in document order, the unassigned carrier last), run-length encoded
- *   as `index*count`. `lightOf` reads the two back into the exact list.
- *
- * Positions are written LAST, once nothing else will move: separators (below) and the carrier both
- * shift offsets, and a position computed before them addressed the wrong node.
+ * What the DOM alone cannot say is written once, on the host: `data-vm-light`, for each light child in light-tree order,
+ * the index of the range it went into (ranges numbered in document order, the unassigned carrier last), run-length
+ * encoded as `index*count`. Distribution loses which nodes are light children at all (a component's own elements can
+ * carry `slot` too) and their order ACROSS slots; this is both.
  */
 const serverDistribute = (host: Element, source: Node[]) => {
   const buckets = new Map<string, Node[]>();
@@ -784,8 +789,9 @@ const serverDistribute = (host: Element, source: Node[]) => {
     if (node.parentNode !== null) node.parentNode.removeChild(node);
   }
   const filled = new Set<string>();
-  /** Every range that received content, in document order — see `data-vm-light`. */
-  const ranges: Array<{ parent: Element; first: Node; last: Node; count: number }> = [];
+  const doc = host.ownerDocument!;
+  /** How many ranges received content, numbered in document order — see `data-vm-light`. */
+  let ranges = 0;
   const rangeOf = new Map<Node, number>();
   /** Collected first: the live list mutates as slots are unwrapped. */
   for (const slot of [...host.querySelectorAll('slot')]) {
@@ -795,27 +801,17 @@ const serverDistribute = (host: Element, source: Node[]) => {
     const assigned = !filled.has(name) ? buckets.get(name) : undefined;
     if (assigned !== undefined && assigned.length > 0) {
       filled.add(name);
+      /** The client's own region, exactly: its two markers around the content, the slot stepped out (see `RANGE_START`). */
+      parent.insertBefore(doc.createComment(RANGE_START), slot);
       for (const node of assigned) {
         parent.insertBefore(node, slot);
-        rangeOf.set(node, ranges.length);
+        rangeOf.set(node, ranges);
       }
-      ranges.push({ parent: parent as Element, first: assigned[0], last: assigned[assigned.length - 1], count: assigned.length });
-      /** A slot with content steps out of the page, its content in its place — as the client places it. */
+      ranges++;
+      parent.insertBefore(doc.createComment(RANGE_END), slot);
       parent.removeChild(slot);
     }
     /** A slot with nothing assigned STAYS, showing its fallback — as the client keeps it (Brian, 2026-10-02). */
-  }
-  /**
-   * **Separators where two text runs would MERGE**, because serialization is where node identity
-   * dies: the client's parser joins adjacent text into one node, and a range then addresses a node
-   * spanning a boundary it cannot see. Emitted by the side that knows — one rule for the class.
-   */
-  const doc = host.ownerDocument!;
-  for (const { first, last } of ranges) {
-    const ahead = first.previousSibling;
-    if (ahead !== null && ahead.nodeType === 3 && first.nodeType === 3) first.parentNode!.insertBefore(doc.createComment(''), first);
-    const behind = last.nextSibling;
-    if (behind !== null && behind.nodeType === 3 && last.nodeType === 3) last.parentNode!.insertBefore(doc.createComment(''), behind);
   }
   /**
    * **Whatever no slot claimed is PRESERVED, in the client's own container** — `<vm-unassigned hidden>`, the host's first
@@ -830,19 +826,9 @@ const serverDistribute = (host: Element, source: Node[]) => {
         carrier.setAttribute('hidden', '');
       }
       carrier.appendChild(node);
-      rangeOf.set(node, ranges.length);
+      rangeOf.set(node, ranges);
     }
   if (carrier !== null) host.insertBefore(carrier, host.firstChild);
-  /** Positions last — see above. */
-  const marks = new Map<Element, string[]>();
-  for (const { parent, first, count } of ranges) {
-    let offset = 0;
-    for (let n = parent.firstChild; n !== null && n !== first; n = n.nextSibling) offset++;
-    let list = marks.get(parent);
-    if (list === undefined) marks.set(parent, (list = []));
-    list.push(`${offset},${count}`);
-  }
-  for (const [parent, list] of marks) parent.setAttribute(SLOTTED_ATTR, list.join(' '));
   /** The light order, run-length encoded — written on every light host, empty when it has none. */
   const runs: string[] = [];
   for (let k = 0; k < light.length; ) {

@@ -20,20 +20,22 @@ wire([slots]);
 
 const CARD = new URL('./fixtures/ssr/slot-card-ssr.js', import.meta.url);
 const render = async (children) => (await renderToString(CARD, { children })).html;
-const bare = (html) => html.replace(/ data-vm-(?:slotted|light)="[^"]*"/g, '');
+/** The content, without the framework's marks: the host's light-tree statement and each filled slot's two region markers. */
+const bare = (html) => html.replace(/ data-vm-light="[^"]*"/g, '').replace(/<!--[[\]]-->/g, '');
 
-test('assigned named + default: distributed, marked, and MARKERLESS (a filled slot leaves no <slot>, no comments)', async () => {
+test('assigned named + default: distributed, and each filled slot bounded by the client\'s own region markers', async () => {
   const html = await render('<h2 slot="header">Hi there</h2>plain body<b>bold</b>');
   assert.match(bare(html), /<header><h2 slot="header">Hi there<\/h2><\/header>/, 'named content in its slot');
-  assert.match(html, /<header data-vm-slotted="0,1">/, 'the named slot\'s parent states its range too');
+  assert.match(html, /<header><!--\[--><h2 slot="header">Hi there<\/h2><!--\]--><\/header>/, 'the named slot\'s region, as the client leaves it');
   assert.match(html, /<slot-card-ssr data-vm-light="0,1\*2">/,
     'and the host states the light tree: one child in range 0, then two in range 1');
-  assert.match(html, /<main data-vm-slotted="0,2">plain body<b>bold<\/b><\/main>/,
-    'default content in the default slot, its parent stating where it is and how much of it there is');
+  assert.match(html, /<main><!--\[-->plain body<b>bold<\/b><!--\]--><\/main>/,
+    'default content in the default slot, between its region markers');
   assert.doesNotMatch(bare(html), /<slot[\s>]/, 'no <slot> element survives to the light DOM');
-  assert.doesNotMatch(bare(html), /<!--/, 'no framework comments');
-  assert.doesNotMatch(html, /<slot-card-ssr[^>]*data-vm-slotted/,
-    'the mark belongs to the slot\'s parent, never the host — position is what makes it recoverable');
+  assert.doesNotMatch(bare(html), /<!--/, 'no comments but the two markers of each filled slot');
+  assert.equal((html.match(/<!--\[-->/g) ?? []).length, 2, 'one region start per filled slot');
+  assert.equal((html.match(/<!--\]-->/g) ?? []).length, 2, 'one region end per filled slot');
+  assert.doesNotMatch(html, /data-vm-slotted/, 'no position attributes: the markers are the positions');
   /** No top-level duplicate of the source. */
   assert.equal((html.match(/Hi there/g) || []).length, 1, 'source appears exactly once');
 });
@@ -42,7 +44,7 @@ test('nothing assigned: both slots fall back, no range is marked', async () => {
   const html = await render('');
   assert.match(bare(html), /<header><slot name="header"><em>fallback header<\/em><\/slot><\/header>/);
   assert.match(bare(html), /<main><slot>default fallback<\/slot><\/main>/);
-  assert.doesNotMatch(html, /data-vm-slotted/, 'nothing distributed, so no range is marked');
+  assert.doesNotMatch(html, /<!--/, 'nothing distributed, so no region is marked');
   assert.match(html, /<slot-card-ssr data-vm-light="">/, 'and the host states an empty light tree');
   /** A slot with nothing assigned stays in the page, showing its fallback (Brian, 2026-10-02) — both do here. */
   assert.equal((bare(html).match(/<slot[\s>]/g) ?? []).length, 2, 'both fallback slots stay');
@@ -52,7 +54,7 @@ test('named only: named distributes and is marked, default falls back unmarked',
   const html = await render('<h2 slot="header">Only</h2>');
   assert.match(bare(html), /<header><h2 slot="header">Only<\/h2><\/header>/);
   assert.match(bare(html), /<main><slot>default fallback<\/slot><\/main>/);
-  assert.match(html, /<header data-vm-slotted="0,1">/, 'the named slot\'s parent states its range');
+  assert.match(html, /<header><!--\[--><h2 slot="header">Only<\/h2><!--\]--><\/header>/, 'the named slot\'s region is marked');
   assert.match(html, /<main><slot>default fallback/, 'the fallen-back one states nothing');
   assert.match(html, /<slot-card-ssr data-vm-light="0">/, 'the one light child sits in range 0');
 });
@@ -60,7 +62,7 @@ test('named only: named distributes and is marked, default falls back unmarked',
 test('default only: default distributes and marks; named falls back', async () => {
   const html = await render('just text');
   assert.match(bare(html), /<header><slot name="header"><em>fallback header<\/em><\/slot><\/header>/);
-  assert.match(html, /<main data-vm-slotted="0,1">just text<\/main>/);
+  assert.match(html, /<main><!--\[-->just text<!--\]--><\/main>/);
 });
 
 test('multiple nodes to one slot keep order', async () => {
@@ -118,7 +120,7 @@ for (const [name, renderer] of [
     assert.match(bare(html), /<\/template><h2 slot="header">Projected<\/h2>/,
       'the light child follows the declarative shadow template, for the native slot to project');
     assert.doesNotMatch(html, /data-vm-unassigned/, 'never parked — this host distributes nothing');
-    assert.doesNotMatch(html, /data-vm-slotted/, 'and carries no light-slots marker');
+    assert.doesNotMatch(html, /<!--[[\]]-->|data-vm-light="./, 'and carries no light-slots marker');
     assert.match(bare(html), /<slot name="header">fallback<\/slot>/, 'the native <slot> survives verbatim');
   });
 
@@ -142,7 +144,7 @@ for (const [name, renderer] of [
     const { html } = await renderer(NESTED, { children: NESTED_CHILDREN });
     assert.match(bare(html), /<header><h2 slot="header">OUTER HEAD<\/h2><\/header>/, 'the outer distributes');
     assert.match(bare(html), /<i><b slot="tag">TAG<\/b><\/i>/, 'and the INNER one distributes its named slot');
-    assert.match(html, /<u data-vm-slotted="0,1">INNER BODY<\/u>/, 'and its default slot, marked for hydration');
+    assert.match(html, /<u><!--\[-->INNER BODY<!--\]--><\/u>/, 'and its default slot, between its region markers');
     assert.doesNotMatch(bare(html), /no tag|no body/, 'no slot fell back to content it was given');
     assert.doesNotMatch(bare(html), /<slot[\s>]/, 'and nothing is left as a <slot>');
   });
@@ -188,9 +190,9 @@ test('AUDIT — light slots compose three levels deep, through the async chain',
       '<deep-b slot=""><i slot="x">B-NAMED</i><deep-c><i slot="x">C-NAMED</i></deep-c></deep-b>',
   });
   assert.match(bare(html), /<a1><i slot="x">A-NAMED<\/i><\/a1>/, 'the outermost distributes its named slot');
-  assert.match(html, /<a2 data-vm-slotted="0,1"><deep-b/, 'and its default slot took the middle component');
+  assert.match(html, /<a2><!--\[--><deep-b/, 'and its default slot took the middle component');
   assert.match(bare(html), /<b1><i slot="x">B-NAMED<\/i><\/b1>/, 'the middle one distributes while BEING distributed');
-  assert.match(html, /<b2 data-vm-slotted="0,1"><deep-c/, 'and passes the innermost along');
+  assert.match(html, /<b2><!--\[--><deep-c/, 'and passes the innermost along');
   assert.match(bare(html), /<c><i slot="x">C-NAMED<\/i><\/c>/, 'the innermost distributes too');
   assert.doesNotMatch(bare(html), /no-a\b|no-b\b|no-c\b/, 'no level fell back to content it was given');
   assert.doesNotMatch(bare(html), /<slot[\s>]/, 'and nothing is left as a <slot>');
@@ -251,6 +253,6 @@ test('AUDIT — a <template> among the children distributes like any other node'
     children: '<h2 slot="header">H</h2><template><b>x</b></template>tail',
   });
   assert.match(bare(mixed.html), /<header><h2 slot="header">H<\/h2><\/header>/, 'the named slot still works beside it');
-  assert.match(mixed.html, /<main data-vm-slotted="0,2"><template><b>x<\/b><\/template>tail<\/main>/,
+  assert.match(mixed.html, /<main><!--\[--><template><b>x<\/b><\/template>tail<!--\]--><\/main>/,
     'and a template in the default slot is counted and placed like any other node');
 });
