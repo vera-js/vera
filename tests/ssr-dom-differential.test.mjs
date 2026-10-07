@@ -110,6 +110,11 @@ const OPS = [
    *  answered [b,a,b,c]. Same-parent moves through every other op were already right. */
   ['prepend an existing child moves it', "el.innerHTML='<p>a</p><i>b</i><u>c</u>'; el.prepend(el.children[1]); return [...el.children].map(n=>n.localName).join(',');"],
   ['dispatch, bubbling and non-bubbling', "el.innerHTML='<p>1</p>'; let hits=0; el.addEventListener('x',()=>hits++); const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.firstElementChild.dispatchEvent(new E('x',{bubbles:true})); el.firstElementChild.dispatchEvent(new E('x')); return String(hits);"],
+  /** What the parser makes of the bytes (2026-10-06): a value read back is the platform's, not the markup's. */
+  ['parsed values: a leading line feed taken', "el.innerHTML='<pre>\\nabc</pre><textarea>\\r\\nx</textarea>'; return JSON.stringify([el.children[0].textContent, el.children[1].value]);"],
+  ['parsed values: RCDATA decoded, CR normalized', "el.innerHTML='<textarea>a &amp; b</textarea><p title=\"a\\r\\nb\">c\\rd</p>'; return JSON.stringify([el.children[0].value, el.children[1].getAttribute('title'), el.children[1].textContent]);"],
+  /** Serialized and parsed BACK by the same side: the value survives, and nothing breaks out of the element. */
+  ['a closer written into a textarea stays text', "const d = el.ownerDocument; const t = d.createElement('textarea'); t.textContent = '</textarea><b>x</b>'; const h = d.createElement('div'); h.append(t); const back = d.createElement('div'); back.innerHTML = h.innerHTML; return back.querySelectorAll('b').length + ':' + back.firstChild.value;"],
   ['remove/once/dedupe listeners', "let hits=0; const f=()=>hits++; const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.addEventListener('x',f); el.addEventListener('x',f); el.dispatchEvent(new E('x')); el.removeEventListener('x',f); el.addEventListener('y',()=>hits+=10,{once:true}); el.dispatchEvent(new E('y')); el.dispatchEvent(new E('y')); return String(hits);"]
 ];;
 
@@ -151,4 +156,23 @@ test('the shim answers every operation the way a real DOM answers it', () => {
     divergences, [],
     `the server and the client would disagree about these:\n  ${divergences.join('\n  ')}`
   );
+});
+
+/**
+ * **The one deliberate difference, named and exact** (also in the ssr README). A `<pre>`, `<listing>` or `<textarea>`
+ * whose content starts with a line feed serializes with ONE MORE line feed than a browser writes — because a browser's
+ * own serialization of it does not round-trip (`<pre>\nabc</pre>` parses back as `"abc"`), and this DOM's serialization
+ * is what the server sends. Asserted as exact strings, so any other serialization difference still fails above.
+ */
+test('the one deliberate difference: a leading line feed is serialized so that it survives', () => {
+  for (const tag of ['pre', 'listing', 'textarea']) {
+    const ours = shim.createElement(tag);
+    const theirs = real.createElement(tag);
+    ours.textContent = theirs.textContent = '\nabc';
+    assert.equal(theirs.outerHTML, `<${tag}>\nabc</${tag}>`, `${tag}: the platform's (lossy) serialization`);
+    assert.equal(ours.outerHTML, `<${tag}>\n\nabc</${tag}>`, `${tag}: one line feed more`);
+    const back = real.createElement('div');
+    back.innerHTML = ours.outerHTML;
+    assert.equal(back.firstChild.textContent, '\nabc', `${tag}: and it parses back to the content`);
+  }
 });

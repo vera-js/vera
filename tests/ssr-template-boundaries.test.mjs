@@ -116,9 +116,10 @@ test('the refusals: a template ending inside a tag, a template in a text-only el
 test('what stays allowed: a bare `<`, strings, numbers and arrays of strings in a textarea, the tag entry, closed svg', () => {
   const { lessThan, textareaString, textareaNumber, textareaArray, tagEntry, closedSvg } = served.allowed;
   assert.equal(lessThan.out, '<p>1 < 2<style>.a > .b</style></p>');
-  assert.equal(textareaString.out, '<textarea>a &#60; b</textarea>');
-  assert.equal(textareaNumber.out, '<textarea>42</textarea>');
-  assert.equal(textareaArray.out, '<textarea>ab</textarea>');
+  /** Each `\n` after a bound textarea's start tag is the one the parser takes — see ssr-leading-newline. */
+  assert.equal(textareaString.out, '<textarea>\na &#60; b</textarea>');
+  assert.equal(textareaNumber.out, '<textarea>\n42</textarea>');
+  assert.equal(textareaArray.out, '<textarea>\nab</textarea>');
   assert.equal(tagEntry.out, '<h1>x</h1>');
   assert.equal(closedSvg.out, '<div><svg></svg><style>.a > .b</style></div>', 'a closed svg adds nothing');
 });

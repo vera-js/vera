@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
 import { registry } from './registry.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
@@ -254,6 +254,25 @@ const STATIC_ATTRIBUTE = /\s([a-zA-Z][\w:-]*)(?==|[\s>]|$)/g;
  */
 const forDoubleQuotes = (text: string, quote: string): string => (quote === '"' || !text.includes('"') ? text : text.replaceAll('"', '&#34;'));
 
+/**
+ * Whether this static's LAST character — a `>`, which the caller has checked — ends a start tag that takes a leading
+ * line feed (`NEWLINE_TAKERS`). Only that position matters: content written as static text after the tag is parsed
+ * alike on both sides, while what the next binding writes there arrives on the client through the DOM, which takes
+ * nothing. Such a static gets one `\n` of its own, ALWAYS: the parser takes exactly one, so whatever comes first —
+ * a value, an empty one, a list, a nested template's static, the next static — arrives as the client has it, and the
+ * render does nothing at all (measured: 28 tag × content shapes, 2026-10-07). One byte per such element.
+ *
+ * Asked of the scan itself — the static minus its `>`, from a copy of the state before it — so a `<pre>` inside an
+ * attribute value, a comment or raw text is never mistaken for one. Whether it is HTML is the full scan's answer,
+ * after the `>`: a `<pre>` breaks out of `<svg>`. Plan time only.
+ */
+const takesNewline = (text: string, before: ScanStart | ScanResult): boolean => {
+  const at = scanTag(text.slice(0, -1), { ...before, opens: before.opens.slice() });
+  return (
+    at.inTag && !at.closing && !(at.inValue && at.quote !== '') && at.comment === '' && NEWLINE_TAKERS.has(at.tagName)
+  );
+};
+
 const compile = (strings: unknown, depth: number): Plan | null => {
   /**
    * **A template is a tagged template literal's, never data shaped like one.** Template detection is by shape (`strings`),
@@ -333,7 +352,31 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * gone. The scanner then waits for a `'` that never comes and reads the whole rest of the
      * template as one attribute value, which made every element position after it invisible.
      */
+    /**
+     * Whether this static ends with such a start tag. The cheap part is written out here, no call: on a cold server a
+     * newly compiled function costs its first render more than the check does (measured 2026-10-07). Only a static
+     * ending in `>` that continues such a tag, or holds `<pre`, `<lis` or `<tex` in any case, is asked properly —
+     * three letters, because one let `<p>`, `<li>`, `<td>` and `<title>` through and every template paid the scan.
+     */
+    let taker = false;
+    const text = strings[i];
+    if (text.charCodeAt(text.length - 1) === 62) {
+      const open = tagState.inTag ? tagState.tagName : '';
+      let maybe = open === 'pre' || open === 'listing' || open === 'textarea';
+      for (let at = text.indexOf('<'); !maybe && at !== -1; at = text.indexOf('<', at + 1)) {
+        const a = text.charCodeAt(at + 1);
+        const b = text.charCodeAt(at + 2);
+        const c = text.charCodeAt(at + 3);
+        /** `pre`, `lis` or `tex`, each letter in either case. */
+        maybe =
+          ((a === 112 || a === 80) && (b === 114 || b === 82) && (c === 101 || c === 69)) ||
+          ((a === 108 || a === 76) && (b === 105 || b === 73) && (c === 115 || c === 83)) ||
+          ((a === 116 || a === 84) && (b === 101 || b === 69) && (c === 120 || c === 88));
+      }
+      if (maybe) taker = takesNewline(text, tagState);
+    }
     tagState = scanTag(strings[i], tagState);
+    if (taker && (tagState.foreign !== 0 || tagState.inert !== 0)) taker = false;
     /**
      * **Every question about where this hole sits is answered by that scan** — whether it is inside a tag, which tag,
      * whether a new one opened, and whether the hole is a sigil binding. They used to be answered beside it, by tests
@@ -532,7 +575,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * a different token: `<!${…}--!>` read as a bogus comment, ended by its `>`, while the bare join `<!--!>` OPENS a
      * comment that swallowed the page after it; `-${…}->` joined to `-->` and ended a comment early.
      */
-    parts.push(tagState.comment !== '' && !inert ? part + ' ' : part);
+    parts.push(tagState.comment !== '' && !inert ? part + ' ' : taker ? part + '\n' : part);
     if (tagState.foreign) depths[kinds.length] = tagState.foreign;
     if (tagState.textTag) texts[kinds.length] = true;
     /** A binding inside a comment is dropped, as the client drops it — never written into the comment. */
@@ -715,7 +758,11 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
             out += adoption.mark;
             adoption.mark = '';
           }
-          if (folded.text !== null) pendingText = folded.text;
+          /** With its own host: a stale `pendingStrip` from an earlier `.textContent` kept the author's content. */
+          if (folded.text !== null) {
+            pendingText = folded.text;
+            pendingStrip = owners[i];
+          }
           if (folded.select !== null) out += ` ${SELECT_MARK}="${selectValues.push(folded.select) - 1}"`;
         }
         /**
@@ -1055,7 +1102,9 @@ const insertContent = (staticText: string, text: string, strip: string): string 
   if (close === -1) return staticText;
   const rest = staticText.slice(close + 1);
   const end = rest.toLowerCase().indexOf('</' + strip);
-  return staticText.slice(0, close + 1) + text + (end === -1 ? rest : rest.slice(end));
+  /** One line feed for the parser to take, always — the client sets this content through the DOM (see `takesNewline`). */
+  const guard = NEWLINE_TAKERS.has(strip) ? '\n' : '';
+  return staticText.slice(0, close + 1) + guard + text + (end === -1 ? rest : rest.slice(end));
 };
 
 /**

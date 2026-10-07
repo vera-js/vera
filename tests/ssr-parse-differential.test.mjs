@@ -20,7 +20,12 @@ import { parseFragment } from '../packages/ssr/dist/vera/parse.js';
 import { TextShim, CommentShim } from '../packages/ssr/dist/vera/nodes.js';
 import '@verajs/ssr';
 
-/** Element structure only — the part a selector can see, and where error recovery shows up. */
+/**
+ * Element structure, attributes, AND every text and comment value. Values were not compared until 2026-10-06, and the
+ * 67-row corpus was clean only because of that: the parser kept CR where the input stream normalizes it, left RCDATA
+ * (`<textarea>`, `<title>`) undecoded, and kept the line feed a `<pre>`/`<listing>`/`<textarea>` start tag takes — so
+ * a server component READING its content saw what no browser holds, while every tree matched.
+ */
 /**
  * **Foreign content is compared at its boundary only.** `<svg>` and `<math>` switch the spec into
  * rules this parser does not implement, so it models the element and keeps the interior as one
@@ -42,9 +47,13 @@ const FOREIGN = new Set(['svg', 'math', 'template']);
 
 const ours = (entries) =>
   entries
-    .filter((entry) => typeof entry !== 'string' && entry.openTag)
+    .filter((entry) => typeof entry !== 'string')
     .map((element) =>
-      FOREIGN.has(element.localName)
+      element instanceof TextShim
+        ? { text: element.data }
+        : element instanceof CommentShim
+          ? { comment: element.data }
+          : FOREIGN.has(element.localName)
         ? { tag: element.localName, foreign: true }
         : {
             tag: element.localName,
@@ -55,9 +64,12 @@ const ours = (entries) =>
 
 const theirs = (nodes) =>
   nodes
-    .filter((node) => node.tagName)
     .map((node) =>
-      FOREIGN.has(node.tagName)
+      node.nodeName === '#text'
+        ? { text: node.value }
+        : node.nodeName === '#comment'
+          ? { comment: node.data }
+          : FOREIGN.has(node.tagName)
         ? { tag: node.tagName, foreign: true }
         : {
             tag: node.tagName,
@@ -149,7 +161,46 @@ const CORPUS = [
   '<table><tbody><tr><td>a<td>b</tr></tbody></table>',
   '<template><b>x</b></template>',
   '</stray>',
+
+  /* Values: what the parser makes of the bytes (compared since 2026-10-06). */
+  '<textarea>a &amp; b</textarea>',
+  '<title>a &amp; b &#60;</title>',
+  '<p>a\r\nb\rc</p>',
+  '<p>a&#13;b</p>',
+  '<p title="a\r\nb">x</p>',
+  '<!--a\r\nb--><i></i>',
+  '<script>a\r\nb</script>',
+  '<pre>\nabc</pre>',
+  '<pre>\n\nabc</pre>',
+  '<pre>\r\nabc</pre>',
+  '<pre>\rabc</pre>',
+  '<pre>&#10;abc</pre>',
+  '<pre>&#x0A;abc</pre>',
+  '<pre>&#100;</pre>',
+  '<pre> \nabc</pre>',
+  '<pre class="x">\nabc</pre>',
+  '<textarea>\nabc</textarea>',
+  '<listing>\nabc</listing>',
+  '<div>\nabc</div>',
+  '<p>&#38 &#x26 a&#10b</p>',
+  '<p title="&#38">x</p>',
 ];
+
+/**
+ * **Named references beyond the six this parser decodes** — the full WHATWG table, and its legacy no-semicolon rule
+ * with the attribute-value exception. Undecided (2026-10-06): vendoring the table is install size for `@verajs/ssr`;
+ * declining the parse would cost ordinary content its node view. Recorded here so the gap is visible, not silent.
+ */
+test('named references beyond the six-entry table', { todo: 'pending a decision: vendor the WHATWG table, or not' }, () => {
+  for (const markup of ['<p>&copy; &hellip; &mdash;</p>', '<p>&amp</p>', '<p title="&ampx=1">x</p>', '<p>&notin; &notit;</p>']) {
+    const parsed = parseFragment(markup, {
+      element: (name) => document.createElement(name),
+      text: (data) => new TextShim(data),
+      comment: (data) => new CommentShim(data),
+    });
+    assert.deepEqual(ours(parsed), theirs(parse5Fragment(markup).childNodes), markup);
+  }
+});
 
 test('never disagrees with parse5 — it matches or it declines', () => {
   const declined = [];

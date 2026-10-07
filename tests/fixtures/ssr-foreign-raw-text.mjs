@@ -69,5 +69,5 @@ export const EXACT = [
   { label: 'after a self-closed <svg/>', template: () => tpl(['<svg/><style>', '</style>'], ['.a > .b']), expect: '<style>.a > .b</style>' },
   { label: 'after </SVG >', template: () => tpl(['<SVG></SVG ><style>', '</style>'], ['.a > .b']), expect: '<style>.a > .b</style>' },
   { label: 'a plain <style>', template: () => tpl(['<style>', '</style>'], ['.a > .b']), expect: '<style>.a > .b</style>' },
-  { label: 'textarea after </svg>', template: () => tpl(['<svg></svg><textarea>', '</textarea>'], ['a&b']), expect: '<textarea>a&#38;b</textarea>' },
+  { label: 'textarea after </svg>', template: () => tpl(['<svg></svg><textarea>', '</textarea>'], ['a&b']), expect: '<textarea>\na&#38;b</textarea>' }, // the `\n` is the one the parser takes (ssr-leading-newline)
 ];

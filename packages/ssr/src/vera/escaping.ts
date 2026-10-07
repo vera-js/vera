@@ -135,6 +135,29 @@ export const RCDATA_ELEMENTS = new Set(['textarea', 'title']);
 export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? raw.replace(/\r\n?/g, '\n') : raw);
 
 /**
+ * **The line feed a parser takes.** Right after a `<pre>`, `<listing>` or `<textarea>` start tag the HTML parser drops
+ * ONE line feed: a raw LF, a CR or CRLF (the input stream normalizes both to LF first), or a reference to one
+ * (`&#10;`, `&#xA;`, `&NewLine;`). So content that BEGINS with a line feed loses it on the way in. The platform's own
+ * serialization does not guard against that — Chromium, Firefox, WebKit and jsdom all serialize a `<pre>` whose text is
+ * `"\nabc"` as `<pre>\nabc</pre>`, which parses back as `"abc"` (measured 2026-10-06) — so a server that writes what
+ * the platform writes ships content the client never had. Whatever this package writes for such an element puts one
+ * extra line feed in front of content that starts with one, for the parser to take.
+ */
+export const NEWLINE_TAKERS = new Set(['pre', 'listing', 'textarea']);
+/** A numeric reference may omit its `;`, a named one may not — and `&#100;` is not `&#10` followed by `0`. */
+const LEADING_NEWLINE = /\r\n?|\n|&(?:#0*10(?![0-9]);?|#[xX]0*[aA](?![0-9a-fA-F]);?|NewLine;)/y;
+/** How many characters at `at` form the line feed a parser takes there — `0` when it would take none. */
+export const leadingNewline = (text: string, at: number): number => {
+  const code = text.charCodeAt(at);
+  /** The characters themselves answer without the pattern; only a `&` can be a reference to one. */
+  if (code === 10) return 1;
+  if (code === 13) return text.charCodeAt(at + 1) === 10 ? 2 : 1;
+  if (code !== 38) return 0;
+  LEADING_NEWLINE.lastIndex = at;
+  return LEADING_NEWLINE.exec(text)?.[0].length ?? 0;
+};
+
+/**
  * Elements that have no end tag. Writing one is not merely redundant — a parser reads `</br>` as
  * *another* `<br>`, so `appendChild(createElement('br'))` served `<br></br>` and rendered two line
  * breaks where the client has one. The same content assigned as a markup string was already correct,

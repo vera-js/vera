@@ -9,7 +9,7 @@
  * tripping over it.
  */
 import { interfaceFor } from './reflections.js';
-import { escapeHtml, escapeRawText, escapeStyleText, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
+import { escapeHtml, escapeRawText, escapeStyleText, leadingNewline, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { decode, parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
@@ -193,10 +193,23 @@ const SHADOW_ATTRIBUTES: ReadonlyArray<readonly [ShadowFlag, string]> = [
  * point of keeping it: a mutation made after `appendChild` is still on the node when this runs.
  * The expression is the one `appendChild` used to inline, unchanged, so the bytes are identical.
  */
-export const serializeElement = (element: ElementShim): string =>
-  VOID_ELEMENTS.has(element.localName)
-    ? element.openTag()
-    : element.openTag() + element.innerHTML + (element._sourceCloseTag ?? `</${element.localName}>`);
+export const serializeElement = (element: ElementShim): string => {
+  const open = element.openTag();
+  if (VOID_ELEMENTS.has(element.localName)) return open;
+  const inner = element.innerHTML;
+  /**
+   * Content that starts with a line feed gets one more for the parser to take (`NEWLINE_TAKERS`) — unless the open
+   * tag is parsed source still carrying the one the parser took from it, which is the only way it ends in anything
+   * but `>` (see `parseFragment`). So the markup round-trips: what parses back is this element's content.
+   */
+  const name = element.localName;
+  /** Named, not hashed: this runs for every element written. */
+  const guard =
+    (name === 'pre' || name === 'textarea' || name === 'listing') && open.charCodeAt(open.length - 1) === 62 && leadingNewline(inner, 0) !== 0;
+  const close = element._sourceCloseTag ?? `</${name}>`;
+  /** Two plain joins: an empty string joined into every element cost a server DOM's serialization ~2% (measured). */
+  return guard ? open + '\n' + inner + close : open + inner + close;
+};
 
 const serializeEntry = (entry: EntryShim): string =>
   typeof entry === 'string'

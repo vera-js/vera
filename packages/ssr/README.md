@@ -365,6 +365,16 @@ dependency involved.
   detached element in a browser. A `style` value is kept as written (`url("data:…")` keeps its quotes).
 - `insertAdjacentHTML` with `beforebegin` or `afterend` raises a message explaining that a
   server-rendered component has no parent.
+- **A created or parsed `<pre>`, `<listing>` or `<textarea>` whose text begins with a line feed reads back with
+  one extra line feed from `innerHTML`/`outerHTML`.** The parser takes one line feed right after those start tags,
+  and a browser's own serialization does not account for it — Chromium, Firefox and WebKit serialize the text
+  `"\nabc"` as `<pre>\nabc</pre>`, which parses back as `"abc"`. This DOM's serialization is what the server sends,
+  so it writes the one the parser will take; templates and `.textContent`/`.value`/`.innerHTML` bindings do the same.
+
+**Values read back are the platform's.** A parsed node's text, attribute and comment values are what a browser's
+parser makes of the markup: line breaks normalized (CRLF and CR read as LF; a `&#13;` reference stays a CR),
+`<textarea>` and `<title>` content decoded, and the line feed after `<pre>`/`<listing>`/`<textarea>` taken. The
+markup itself is served byte for byte as it was written.
 
 ## What cannot round-trip
 
@@ -414,6 +424,11 @@ dependency involved.
   covered by `tests/ssr-text-boundary.test.mjs`, alongside twenty-odd cases that do round-trip exactly.
 
 ## Known limits
+
+- **A parsed node decodes six named references**: `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and `&nbsp;`, and
+  every numeric one. Any other (`&copy;`, `&mdash;`, a legacy `&amp` with no `;`) reads back as written in that node's
+  `textContent` and attributes. The markup is served unchanged, so the page is right; only what a server component
+  READS from such markup differs.
 
 - `keyed()` and `hold()` are client-renderer constructs; templates that must also server-render use
   plain `.map`.

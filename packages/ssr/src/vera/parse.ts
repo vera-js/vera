@@ -21,12 +21,13 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint } from './escaping.js';
+import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 
 /** The entity spellings this package emits, plus the handful every document uses. */
 const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-const ENTITY = /&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z]+));/g;
+/** A numeric reference decodes without its `;` too, in text and in attribute values alike; a named one here never does. */
+const ENTITY = /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|([a-zA-Z]+);)/g;
 
 /**
  * **Character references, decoded — owned here and shared.** Decimal, hex and the named refs this
@@ -190,7 +191,7 @@ export const parseFragment = (
    */
   const flushText = () => {
     if (text !== '') {
-      const node = create.text(decode(text));
+      const node = create.text(decode(normalized(text)));
       node._source = text;
       open().children.push(node);
     }
@@ -210,7 +211,7 @@ export const parseFragment = (
       const end = commentEnd(markup, next);
       if (end === -1) return null;
       flushText();
-      const node = create.comment(markup.slice(next + 4, commentDataEnd(markup, next, end)));
+      const node = create.comment(normalized(markup.slice(next + 4, commentDataEnd(markup, next, end))));
       node._source = markup.slice(next, end);
       open().children.push(node);
       index = end;
@@ -269,7 +270,7 @@ export const parseFragment = (
       const attribute = ATTRIBUTE.exec(markup.slice(cursor));
       if (!attribute || cursor >= markup.length) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
-      attributes.push([attribute[1].toLowerCase(), decode(value)]);
+      attributes.push([attribute[1].toLowerCase(), decode(normalized(value))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);
@@ -321,6 +322,18 @@ export const parseFragment = (
     const node: ElementFrame = { element, children: [], localName: name, closeTag: '', foreign: false };
     open().children.push(node);
     index = end + 1;
+    /**
+     * **The line feed the parser takes** right after this start tag (`NEWLINE_TAKERS`) is not content, so it is no
+     * text node's. It stays in the bytes as part of the source tag — which is how `serializeElement` knows the markup
+     * already carries one and adds none.
+     */
+    if (NEWLINE_TAKERS.has(name)) {
+      const taken = leadingNewline(markup, index);
+      if (taken !== 0) {
+        element._sourceOpenTag += markup.slice(index, index + taken);
+        index += taken;
+      }
+    }
 
     /** A void element never has children and never has an end tag. */
     if (VOID_ELEMENTS.has(name)) continue;
@@ -362,9 +375,10 @@ export const parseFragment = (
       if (close === -1) return null;
       const closeEnd = markup.indexOf('>', close);
       if (closeEnd === -1) return null;
-      /** Raw text is not markup and is never decoded — a `<script>` means its bytes exactly. */
+      /** Raw text is not markup: a `<script>` means its bytes exactly, line breaks normalized; RCDATA is decoded. */
       if (index !== close) {
-        const raw = create.text(markup.slice(index, close));
+        const bytes = markup.slice(index, close);
+        const raw = create.text(RCDATA_ELEMENTS.has(name) ? decode(normalized(bytes)) : normalized(bytes));
         raw._source = markup.slice(index, close);
         node.children.push(raw);
       }

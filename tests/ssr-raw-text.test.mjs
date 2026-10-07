@@ -89,7 +89,8 @@ test('title and textarea are still escaped', async () => {
   });
   assert.doesNotMatch(html, /<title>a > b & c<\/title>/, 'RCDATA must not be written raw');
   assert.match(html, /<title>a &#62; b &#38; c<\/title>/);
-  assert.match(html, /<textarea>a &#62; b &#38; c<\/textarea>/);
+  /** The `\n` after a bound textarea's start tag is the one the parser takes — see ssr-leading-newline. */
+  assert.match(html, /<textarea>\na &#62; b &#38; c<\/textarea>/);
 });
 
 /** A self-closing or immediately-closed raw element must not swallow what follows. */
