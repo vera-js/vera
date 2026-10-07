@@ -813,7 +813,8 @@ injected as needed (`inject: false` to provide them yourself; each is also indiv
 (`namespaces: false` to leave it out; `inject: false` leaves it out too, with the other imports).
 
 **What it compiles to.** `onClick={f}` → `@click=${f}`; `className`/`htmlFor` → `class`/`for`;
-`value`/`checked` → `.value`/`.checked` and `defaultValue`/`defaultChecked` → the attributes;
+`value`/`checked` → `!value`/`!checked` (controlled: compared with the control's live state, so a value reset before
+the next render is still written) and `defaultValue`/`defaultChecked` → the attributes;
 the boolean-attribute table → `?attr=${…}` (a literal `""` is true and `"false"` is false — for
 `checked` too, deliberately unlike HTML, where any present value is true); `key={id}` → `keyed(id, …)` on a list callback's root;
 `ref={r}` → an element-position ref; `{...rest}` → `spread(rest)`;
@@ -1631,7 +1632,7 @@ Rules an assistant must not guess around:
 Say so rather than inventing an API:
 
 - **JSX/TSX is opt-in, never a requirement.** `@verajs/jsx` compiles JSX into the same tagged
-  templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`, `key`→`keyed()`,
+  templates (`onClick`→`@click`, `className`→`class`, `value`→`!value`, `key`→`keyed()`,
   `.prop`/`?bool`/`@event`/`&ref` passed through as written, components become function calls,
   `{...props}` on elements needs `@verajs/renderer/spread`). Zero runtime
   cost via the Vite plugin; buildless stays the baseline, and `onClick=${fn}` works in raw

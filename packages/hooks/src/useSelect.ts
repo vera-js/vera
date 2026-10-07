@@ -166,6 +166,11 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     config.onChange?.([...value]);
   };
 
+  /** Back to nothing chosen — one commit, so `onChange` fires once, as a pick does. */
+  const clear = () => {
+    if (state.value.length) commit([]);
+  };
+
   const pick = (option: SelectOption | undefined) => {
     if (!option || option.disabled) return;
     if (multi()) {
@@ -244,6 +249,12 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   const onTriggerKeydown = (event: KeyboardEvent) => {
     if (disabled()) return;
+    /** Clearable: Delete clears everything; Backspace too in single mode (multi keeps its chips gesture, below). */
+    if (config.clearable?.() && state.value.length && (event.key === 'Delete' || (event.key === 'Backspace' && !multi()))) {
+      event.preventDefault();
+      clear();
+      return;
+    }
     /** The chips pattern: Backspace on the trigger removes the most recent pill in multi mode. */
     if (event.key === 'Backspace' && multi() && state.value.length) {
       event.preventDefault();
@@ -426,6 +437,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     open,
     close,
     pick,
+    clear,
     activate,
     step,
     attach,

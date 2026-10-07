@@ -42,7 +42,7 @@ const view = (s) => (
     <span ref={s.r} hidden />
   </form>
 );`, 't.jsx', { inject: false });
-for (const expected of ['class="a"', ' for="f"', '.value=${s.v}', 'value="dv"', '.checked=${s.c}',
+for (const expected of ['class="a"', ' for="f"', '!value=${s.v}', 'value="dv"', '!checked=${s.c}',
   'checked', '?disabled=${s.d}', '@change=${s.f}', '.innerHTML=${s.trusted}', ' ${s.r}', 'hidden></span>']) {
   assert.ok(emitted.includes(expected), `mapping emits ${expected}`);
 }

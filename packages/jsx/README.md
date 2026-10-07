@@ -118,7 +118,7 @@ not camel-cased.
 | `<p class={c}>` | `<p class=${c}>` | an attribute |
 | `className` / `htmlFor` | `class` / `for` | the only two renamed |
 | `onClick={f}` | `@click=${f}` | any `on` + capital: the rest is lower-cased |
-| `value` / `checked` | `.value=` / `.checked=` | properties, because the attribute is only the *default* |
+| `value` / `checked` | `!value=` / `!checked=` | controlled: compared with the control's LIVE state every render, so a value reset before the next render (`'x'` → `''` in one frame) is still written — the attribute is only the *default* |
 | `defaultValue` / `defaultChecked` | `value=` / `?checked=${…}` | the attribute, when you mean the default (bare `defaultChecked` is a static `checked`) |
 | `hidden`, `disabled`, `open`, … | `?hidden=${…}` | the boolean-attribute table below |
 | `hidden=""`, `checked=""` | `${true}` | the empty string is how the platform writes a set boolean |

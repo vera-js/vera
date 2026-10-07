@@ -45,6 +45,7 @@ test('the rendered DOM carries exactly the declared parts — no more, no fewer'
   dom.window.document.body.append(element);
   /** Feature-complete options, so conditionally rendered parts (icon, description, group) exist. */
   element.setAttribute('multi', ''); // pills render only in multi with a selection
+  element.setAttribute('clearable', ''); // the clear control renders only when clearable, with a selection
   element.options = [
     { label: 'A', value: 'a', group: 'Letters', iconBefore: '★', description: 'the first one' },
     { label: 'B', value: 'b', group: 'Letters', iconAfter: '✦' },

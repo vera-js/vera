@@ -72,6 +72,11 @@ export type SelectConfig = {
   creatable?: () => boolean;
   /** Remote filtering: `matches()` returns options untouched — the host owns narrowing them. */
   remote?: () => boolean;
+  /**
+   * Clearable: Delete on the trigger clears the whole selection (and Backspace too in single mode — in multi it keeps
+   * removing the last pill). The host renders its own clear control and calls `clear()`.
+   */
+  clearable?: () => boolean;
   /** Called after every committed change with the new selection. */
   onChange?: (value: SelectOption[]) => void;
   /** Called when the create row is activated, with the searched label. The host decides what a

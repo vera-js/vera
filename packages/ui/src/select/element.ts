@@ -317,6 +317,8 @@ export class VeraSelect extends HTMLElement {
     'loading-message',
     'create-message',
     'remove-message',
+    'clearable',
+    'clear-message',
     'aria-label',
   ];
 
@@ -520,6 +522,12 @@ export class VeraSelect extends HTMLElement {
   set searchable(next: boolean) {
     this.toggleAttribute('searchable', next === true);
   }
+  get clearable(): boolean {
+    return this.hasAttribute('clearable');
+  }
+  set clearable(next: boolean) {
+    this.toggleAttribute('clearable', next === true);
+  }
   get creatable(): boolean {
     return this.hasAttribute('creatable');
   }
@@ -642,6 +650,7 @@ export class VeraSelect extends HTMLElement {
       disabled: () => this.hasAttribute('disabled') || entry.host.formDisabled,
       creatable: () => this.hasAttribute('creatable'),
       remote: () => this.hasAttribute('remote'),
+      clearable: () => this.hasAttribute('clearable'),
       canToggle: (next) =>
         this.dispatchEvent(toggleEvent('beforetoggle', next === 'open' ? 'closed' : 'open', next, true)),
       onToggle: (next) => {
@@ -884,6 +893,27 @@ export class VeraSelect extends HTMLElement {
               `
             )
           : labels;
+      /**
+       * **`clearable`: back to nothing chosen** — shown only while something is (single mode: the one choice; multi: all
+       * of them), and never on a disabled select. Named for the FIELD ("Clear Tone"), as the pills are named for their
+       * option; `clear-message` rewords it. Clearing fires `input` then `change` with an empty value, as removing the
+       * last pill does.
+       */
+      const label = labelOf(this);
+      const clearControl =
+        attrs()['clearable'] != null && state.value.length > 0 && attrs()['disabled'] == null && !entry.host.formDisabled
+          ? html`<button
+              part="clear"
+              type="button"
+              aria-label=${(attrs()['clear-message'] ?? (label === null ? 'Clear selection' : 'Clear {label}')).replace('{label}', label ?? '')}
+              @click=${(event: Event) => {
+                event.stopPropagation();
+                select.clear();
+              }}
+            >
+              ✕
+            </button>`
+          : null;
       const loading = attrs()['loading'] != null;
       const overflow = attrs()['overflow-message'] ?? null;
       /**
@@ -926,6 +956,7 @@ export class VeraSelect extends HTMLElement {
             <slot name="value" @slotchange=${refresh}
               ><span part="value" data-placeholder=${attrs()['placeholder'] ?? 'Select…'}>${valueContent}</span></slot
             >
+            ${clearControl}
           </div>
         </slot>
         <div

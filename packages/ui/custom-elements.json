@@ -90,6 +90,14 @@
               "description": "The pill remove button’s accessible name; {label} interpolates. Default \"Remove {label}\"."
             },
             {
+              "name": "clearable",
+              "description": "A clear control while something is chosen — single mode back to nothing, multi mode clears every pill. Clearing fires input then change with an empty value; Delete on the trigger clears too (Backspace as well in single mode)."
+            },
+            {
+              "name": "clear-message",
+              "description": "The clear control’s accessible name; {label} interpolates the field’s label. Default \"Clear {label}\", or \"Clear selection\" with no label."
+            },
+            {
               "name": "results-message",
               "description": "The screen-reader announcement after filtering; {count} interpolates. Default \"{count} options\"."
             },
@@ -202,6 +210,14 @@
                 "text": "boolean"
               },
               "description": "Reflection of the `remote` attribute; setting it toggles the attribute — how JSX delivers a bare `remote`."
+            },
+            {
+              "kind": "field",
+              "name": "clearable",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Reflection of the `clearable` attribute; setting it toggles the attribute — how JSX delivers a bare `clearable`."
             },
             {
               "kind": "field",
@@ -375,6 +391,10 @@
             {
               "name": "pill-remove",
               "description": "The chip’s remove button (Backspace on the trigger removes the last)."
+            },
+            {
+              "name": "clear",
+              "description": "The clear control (`clearable`), shown while something is chosen."
             },
             {
               "name": "option-icon",

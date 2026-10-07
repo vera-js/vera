@@ -52,6 +52,12 @@ export const selectSurface = {
     { name: 'create-message', description: 'The create row’s text; {label} interpolates. Default "Create “{label}”".' },
     { name: 'remove-message', description: 'The pill remove button’s accessible name; {label} interpolates. Default "Remove {label}".' },
     {
+      name: 'clearable',
+      description:
+        'A clear control while something is chosen — single mode back to nothing, multi mode clears every pill. Clearing fires input then change with an empty value; Delete on the trigger clears too (Backspace as well in single mode).',
+    },
+    { name: 'clear-message', description: 'The clear control’s accessible name; {label} interpolates the field’s label. Default "Clear {label}", or "Clear selection" with no label.' },
+    {
       name: 'results-message',
       description:
         'The screen-reader announcement after filtering; {count} interpolates. Default "{count} options".',
@@ -117,6 +123,11 @@ export const selectSurface = {
       name: 'remote',
       type: 'boolean',
       description: 'Reflection of the `remote` attribute; setting it toggles the attribute — how JSX delivers a bare `remote`.',
+    },
+    {
+      name: 'clearable',
+      type: 'boolean',
+      description: 'Reflection of the `clearable` attribute; setting it toggles the attribute — how JSX delivers a bare `clearable`.',
     },
     {
       name: 'loading',
@@ -222,6 +233,7 @@ export const selectSurface = {
     { name: 'pill', description: 'One selected chip in the multi trigger.' },
     { name: 'pill-icon', description: 'A chip’s icon — the option’s `iconBefore` (a copy when it is a DOM node), aria-hidden. Hide it with CSS for label-only chips.' },
     { name: 'pill-remove', description: 'The chip’s remove button (Backspace on the trigger removes the last).' },
+    { name: 'clear', description: 'The clear control (`clearable`), shown while something is chosen.' },
     { name: 'option-icon', description: 'The aria-hidden icon span before/after the label, when the option carries one.' },
     { name: 'option-label', description: 'The label column inside a row (label, and description when present).' },
     { name: 'option-description', description: 'The dimmer second line under a label.' },

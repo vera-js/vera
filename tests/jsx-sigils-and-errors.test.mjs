@@ -121,9 +121,9 @@ test('a boolean attribute set to the empty string is TRUE', () => {
    * the property coerced it backwards — `""` unchecked, `"false"` checked. `value` is the control: a
    * literal there is a string and must stay one.
    */
-  assert.equal(compile('const a = <input checked="" />;'), 'const a = html`<input .checked=${true} />`;');
-  assert.equal(compile('const a = <input checked="false" />;'), 'const a = html`<input .checked=${false} />`;');
-  assert.equal(compile('const a = <input value="" />;'), 'const a = html`<input .value=${""} />`;');
+  assert.equal(compile('const a = <input checked="" />;'), 'const a = html`<input !checked=${true} />`;');
+  assert.equal(compile('const a = <input checked="false" />;'), 'const a = html`<input !checked=${false} />`;');
+  assert.equal(compile('const a = <input value="" />;'), 'const a = html`<input !value=${""} />`;');
 });
 
 test('a mixed-case void element still self-closes', () => {

@@ -51,7 +51,7 @@ The full contract — every attribute, property, event, slot, part, state and to
 `custom-elements.json`, generated from the declared surface and drift-checked by the gate. This
 README deliberately does not enumerate it: a hand-copied list is how docs rot (this one had
 already drifted three attributes behind when the rule was adopted). Broad strokes: HTML or
-property options; string value model with `selectedOptions`; searchable/creatable/remote;
+property options; string value model with `selectedOptions`; searchable/creatable/remote/clearable;
 form-associated with real validity; every user-facing string an attribute; `beforetoggle`/`toggle`
 with veto; top-layer menu where the engine has anchor positioning.
 

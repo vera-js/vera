@@ -131,8 +131,9 @@ const NAMES = {
   __proto__: null,
   className: 'class',
   htmlFor: 'for',
-  value: '.value',
-  checked: '.checked',
+  /** Controlled, compared with the control's LIVE state — the compiler's twin (`@verajs/jsx`) maps them the same. */
+  value: '!value',
+  checked: '!checked',
   defaultValue: 'value',
   defaultChecked: '?checked',
   ref: '&ref',

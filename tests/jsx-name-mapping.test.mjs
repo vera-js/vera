@@ -2,7 +2,7 @@
  * The JSX name table exists twice, and the two must agree.
  *
  * `@verajs/jsx` maps React's names when it compiles a written element — `className` to `class`,
- * `value` to `.value`, a bound boolean to `?attr`. `@verajs/renderer/tag` has to apply the same
+ * `value` to `!value` (controlled: compared with the control's live state), a bound boolean to `?attr`. `@verajs/renderer/tag` has to apply the same
  * mapping at runtime, because a tag used in JSX arrives as a *component call* and the compiler
  * passes component props through raw.
  *
@@ -42,9 +42,9 @@ test('the boolean attribute lists are identical', () => {
   for (const name of BOOLEAN_ATTRIBUTES) assert.equal(jsxName(name), `?${name}`, name);
 });
 
-test('the controlled-input names map to properties, and the default* names to markup', () => {
-  assert.equal(jsxName('value'), '.value');
-  assert.equal(jsxName('checked'), '.checked');
+test('the controlled-input names map to live bindings, and the default* names to markup', () => {
+  assert.equal(jsxName('value'), '!value');
+  assert.equal(jsxName('checked'), '!checked');
   assert.equal(jsxName('defaultValue'), 'value');
   assert.equal(jsxName('defaultChecked'), '?checked');
 });
@@ -92,8 +92,8 @@ test('the compiler emits, for a written element, what the runtime answers for a 
   };
   for (const [from, to] of Object.entries(NAME_MAP)) assert.equal(compiled(from), to, `compiler: ${from}`);
   for (const name of BOOLEAN_ATTRIBUTES) assert.equal(compiled(name), `?${name}`, `compiler: ${name}`);
-  assert.equal(compiled('value'), '.value');
-  assert.equal(compiled('checked'), '.checked');
+  assert.equal(compiled('value'), '!value');
+  assert.equal(compiled('checked'), '!checked');
   assert.equal(compiled('defaultValue'), 'value');
   assert.equal(compiled('defaultChecked'), '?checked');
   assert.equal(compiled('onClick'), '@click', 'the compiler DOES map events — spread is the runtime half');

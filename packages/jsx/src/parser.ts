@@ -334,6 +334,33 @@ const skipWhitespace = (state: ParseState): void => {
 };
 
 /**
+ * **Whitespace and comments between a tag's attributes** — `// why` on its own line above one, or `/* … *\/` inline,
+ * which TypeScript, Babel and esbuild all accept and drop. Skipped only whitespace before, so the comment's `/` ended
+ * the tag, the parser answered "never JSX", and the element was left as raw JSX for the bundler to fail on — with no
+ * word about the comment (Content Flow, 2026-10-01). An unterminated `/*` cannot be anything but broken, so it is
+ * reported. `/>` is not a comment and is left for the caller.
+ */
+const skipTrivia = (state: ParseState): void => {
+  const { code } = state;
+  for (;;) {
+    skipWhitespace(state);
+    if (code[state.i] !== '/') return;
+    const next = code[state.i + 1];
+    if (next === '/') {
+      while (state.i < code.length && code[state.i] !== '\n') state.i++;
+    } else if (next === '*') {
+      const end = code.indexOf('*/', state.i + 2);
+      if (end < 0) {
+        if (state.mismatch === null) state.mismatch = { message: 'a comment among the attributes is never closed (*/)', at: state.i };
+        state.i = code.length;
+        return;
+      }
+      state.i = end + 2;
+    } else return;
+  }
+};
+
+/**
  * Parses one JSX element/fragment with `state.i` at `<`. Returns the node or null (caller treats
  * the `<` literally). Nodes:
  *   { fragment: true, children, start }
@@ -359,7 +386,7 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
 
   const attrs: JsxAttribute[] = [];
   for (;;) {
-    skipWhitespace(state);
+    skipTrivia(state);
     const ch = code[state.i];
     if (ch === undefined) return null;
     if (ch === '/') {
@@ -412,13 +439,13 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
     while (state.i < code.length && isAttrNameChar(code[state.i]!)) name += code[state.i++];
     /** A lone sigil is a name only for `&`, which is how the renderer spells an explicit ref. */
     if (name.length === 1 && SIGILS.has(name) && name !== '&') return null;
-    skipWhitespace(state);
+    skipTrivia(state);
     if (code[state.i] !== '=') {
       attrs.push({ name, kind: 'none', start: nameStart });
       continue;
     }
     state.i++; // =
-    skipWhitespace(state);
+    skipTrivia(state);
     const valueChar = code[state.i];
     if (valueChar === '"' || valueChar === "'") {
       state.i++;

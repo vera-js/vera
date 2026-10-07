@@ -1226,3 +1226,124 @@ test('multi: each bubble shows its option’s iconBefore, and a DOM-node icon is
   assert.equal(root(element).querySelector('[part="pill-icon"] i.dot'), copy, 'a re-render keeps the same copy');
   element.remove();
 });
+
+/**
+ * **`clearable`: back to nothing chosen** (Content Flow, 2026-10-01: an optional one-choice field could never be emptied
+ * again). A clear control while something is chosen — named for the field, as the pills are named for their option —
+ * firing `input` then `change` with an empty value; Delete on the trigger clears (Backspace too in single mode; in
+ * multi Backspace keeps removing the last pill). Multi mode clears every pill (Brian, 2026-10-07).
+ */
+const key = (element, name) =>
+  part(element, 'trigger').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
+const pickAt = async (element, index) => {
+  part(element, 'trigger').click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[index].click();
+  await frame();
+};
+
+for (const light of [false, true])
+  test(`clearable, single${light ? ', light DOM' : ''}: the control appears once chosen, clears, and fires input then change with ''`, async () => {
+    const element = await mount((el) => {
+      el.setAttribute('clearable', '');
+      el.setAttribute('aria-label', 'Tone');
+      if (light) el.setAttribute('light', '');
+    });
+    assert.equal(part(element, 'clear'), null, 'nothing chosen: no clear control');
+    await pickAt(element, 0);
+    assert.equal(element.value, 'a');
+    const clear = part(element, 'clear');
+    assert.ok(clear, 'chosen: the clear control is there');
+    assert.equal(clear.getAttribute('aria-label'), 'Clear Tone', 'named for the field');
+    const order = [];
+    element.addEventListener('input', () => order.push('input'));
+    element.addEventListener('change', (event) => order.push(`change:${JSON.stringify(event.detail.value)}`));
+    clear.click();
+    await frame();
+    assert.equal(element.value, '', 'back to nothing chosen');
+    assert.deepEqual(order, ['input', 'change:""'], 'input then change, with the empty value');
+    assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'clearing does not open the menu');
+    assert.equal(part(element, 'clear'), null, 'and the control is gone again');
+    element.remove();
+  });
+
+test('clearable, single: Backspace and Delete on the trigger clear', async () => {
+  for (const name of ['Backspace', 'Delete']) {
+    const element = await mount((el) => el.setAttribute('clearable', ''));
+    await pickAt(element, 1);
+    assert.equal(element.value, 'b');
+    key(element, name);
+    await frame();
+    assert.equal(element.value, '', `${name} cleared`);
+    element.remove();
+  }
+});
+
+test('clearable, multi: the control clears every pill; Delete clears all, Backspace still removes only the last', async () => {
+  const element = await mount((el) => {
+    el.setAttribute('clearable', '');
+    el.setAttribute('multi', '');
+  });
+  part(element, 'trigger').click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[1].click();
+  await frame();
+  assert.deepEqual(element.value, ['a', 'b']);
+  key(element, 'Backspace');
+  await frame();
+  assert.deepEqual(element.value, ['a'], 'Backspace keeps the chips gesture');
+  key(element, 'Delete');
+  await frame();
+  assert.deepEqual(element.value, [], 'Delete clears all');
+  root(element).querySelectorAll('[part="option"]')[1].click();
+  await frame();
+  let detail = null;
+  element.addEventListener('change', (event) => (detail = event.detail.value));
+  part(element, 'clear').click();
+  await frame();
+  assert.deepEqual(element.value, [], 'the control clears every pill');
+  assert.deepEqual(detail, [], 'change carries the empty array');
+  element.remove();
+});
+
+test('clearable: the name falls back without a label, and clear-message rewords it', async () => {
+  const element = await mount((el) => el.setAttribute('clearable', ''));
+  await pickAt(element, 0);
+  assert.equal(part(element, 'clear').getAttribute('aria-label'), 'Clear selection', 'no label: a generic name');
+  element.setAttribute('aria-label', 'Tone');
+  element.setAttribute('clear-message', 'Remove {label}');
+  await frame();
+  assert.equal(part(element, 'clear').getAttribute('aria-label'), 'Remove Tone');
+  element.remove();
+});
+
+test('not clearable, or disabled: no control, and Delete clears nothing', async () => {
+  const plain = await mount();
+  await pickAt(plain, 0);
+  assert.equal(part(plain, 'clear'), null);
+  key(plain, 'Delete');
+  await frame();
+  assert.equal(plain.value, 'a', 'not clearable: kept');
+  plain.remove();
+  const off = await mount((el) => el.setAttribute('clearable', ''));
+  await pickAt(off, 0);
+  off.setAttribute('disabled', '');
+  await frame();
+  assert.equal(part(off, 'clear'), null, 'disabled: no control');
+  key(off, 'Delete');
+  await frame();
+  assert.equal(off.value, 'a', 'disabled: kept');
+  off.remove();
+});
+
+test('clearable reflects as a property, as searchable does', async () => {
+  const element = await mount();
+  assert.equal(element.clearable, false);
+  element.clearable = true;
+  assert.equal(element.hasAttribute('clearable'), true);
+  element.clearable = false;
+  assert.equal(element.hasAttribute('clearable'), false);
+  element.remove();
+});

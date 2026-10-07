@@ -178,6 +178,26 @@ export const SELECT_STYLES = /* css */ `
   :where([part='pill-remove']):hover {
     background: color-mix(in srgb, var(--vera-accent, #7c3aed) 25%, transparent);
   }
+  /** \`clearable\`'s control: at the trigger's end, before the chevron's reserved space; the pill ✕'s look. */
+  :where([part='clear']) {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    margin-inline-start: auto;
+    inline-size: 18px;
+    block-size: 18px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0;
+    background: transparent;
+    color: var(--vera-fg-muted, #71717a);
+    font-size: 10px;
+    cursor: pointer;
+  }
+  :where([part='clear']):hover {
+    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 25%, transparent);
+    color: var(--vera-fg, #18181b);
+  }
   :where([part='value']:empty)::before {
     content: attr(data-placeholder);
     color: var(--vera-fg-muted, #71717a);

@@ -15,7 +15,7 @@ import type { ImportSite, JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptio
  * Attribute mapping:
  *   onClick={f}                    -> @click=${f}
  *   className / htmlFor           -> class / for
- *   value / checked               -> .value / .checked   (controlled-input semantics)
+ *   value / checked               -> !value / !checked   (controlled: compared with the control's LIVE state)
  *   defaultValue / defaultChecked -> value="…" / ?checked=${…}
  *   disabled / hidden / …         -> ?bool=${…}, a literal too ("" true, "false" false); bare stays static
  *   dangerouslySetInnerHTML={{__html: x}} -> .innerHTML=${x}
@@ -911,7 +911,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     if (name === 'value' || name === 'checked') {
-      tpl.static(` .${name}=`);
+      /**
+       * **Controlled, as React's are: `!`, compared with the control's LIVE state every render.** `.value` compared with
+       * the last value RENDERED, so a value that went 'x' → '' within one frame — typing, then a submit handler resetting
+       * the store before the next render — rendered '' twice, wrote nothing, and left the user's text in the box
+       * (Content Flow, 2026-10-01). `!value` writes whenever the control disagrees, whatever was rendered last.
+       */
+      tpl.static(` !${name}=`);
       /**
        * A LITERAL `checked` is a boolean by the same rule as `hidden` below — `""` is true, `"false"`
        * is false. Passed through as the string it was, the property coerced it the other way round:
