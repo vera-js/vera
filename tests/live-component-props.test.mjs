@@ -100,6 +100,10 @@ test('`!name` and `.name` changed in one render coalesce to one child render', a
   host.remove();
 });
 
+/**
+ * The row that GUARDS the comparison itself (vera-5a's mutation: always deliver → only this row red). An unchanged
+ * primitive delivered again dies at core's same-value store write, so the zero-renders row above cannot see it.
+ */
 test('an unchanged OBJECT `!name` is not delivered again on every render — compared by identity, raw', async () => {
   const host = mount();
   const value = { label: 'x' };

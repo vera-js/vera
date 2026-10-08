@@ -41,7 +41,8 @@ export interface ComponentElement extends HTMLElement {
    * The delivered values, RAW: the target of the store behind the accessors (the store writes raw values into it).
    * What a parent's `!name` compares against — reading through the accessor costs a store read on every render and
    * hands an object back as its proxy, which never equals the object bound. Created with the store, so a component
-   * that received nothing has none.
+   * that received nothing has none. **READ-ONLY by contract:** it is the store's raw target, so a write through it
+   * changes the value without notifying anything that read it — every write goes through the accessor.
    */
   _$raw$?: Record<string, unknown>;
 }
