@@ -34,7 +34,7 @@ const page = (markup = served) => {
   wrap.innerHTML = markup;
   const host = wrap.firstElementChild;
   dom.window.document.getElementById('root').appendChild(host);
-  return [host, host.querySelector('slot-placed-inner, slot-run-inner, slot-placed-literal-inner')];
+  return [host, host.querySelector('slot-placed-inner, slot-run-inner, slot-placed-literal-inner, slot-shape-inner')];
 };
 const quietly = async (fn) => {
   const said = [];
@@ -158,28 +158,6 @@ test('the statement is STRICT at the end: a last light child the outer template 
 });
 
 /**
- * **Interim, until runs are adopted in the client's own shape (2c, R1):** a host with a RUN among the children the outer
- * places is not walked in light order — the outer falls back, as before 2c: one standard warning, never a throw. R1
- * replaces this row with the run pins below.
- */
-test('interim: a run among the placed children falls back cleanly — one warning, no throw', async () => {
-  const [host] = page(runServed);
-  let threw = null;
-  const said = await quietly(async () => {
-    try {
-      renderInto(runOuter(['a', 'b', 'c']), host);
-      await settle();
-    } catch (error) {
-      threw = error;
-    }
-  });
-  assert.equal(threw, null, 'no throw');
-  assert.equal(said.length, 1, `one warning: ${said.join(' | ')}`);
-  assert.match(said[0], /hydration-fallback/);
-  host.remove();
-});
-
-/**
  * **vera-5a's lazy-order pins.** (a) A literal `<!--[-->`…`<!--]-->` pair in the INNER host's own template, the outer
  * walking first: the statement cannot tell the inner template's literal pair from a real range — only the inner's own
  * template knows its statics — so the statement does not reconcile, the outer falls back, and the END STATE is what a
@@ -235,13 +213,13 @@ test('(b) an inner host never defined: the outer adopts its own, the inner\'s ma
 });
 
 /**
- * TODO (step 4, 2c — design with vera-5a): a run's anchors would have to span the inner host's slots, so a host with a run
- * among its placed children is not walked in light order: the outer falls back, as before 2c. Its end state also needs
- * 2d (the fallback's client-made inner host keeps its children). Measured with the light cursor applied to runs: hydrates,
- * but GROWING the list threw NotFoundError (the end anchor sat at the host's level) and emptying it left a node.
+ * Runs are adopted in the client's own shape (2c part 2, R1): whichever walk reaches the inner host first captures it,
+ * the run a unit in holding — its part's anchors inside, a stand-in at each slotted node's place — so the renderer's
+ * later inserts and removals land as on a client-distributed host. (Before R1, growing the list threw NotFoundError: the
+ * end anchor sat at the host's level.)
  */
 for (const order of ['outer first (statement)', 'inner first (live record)'])
-  test(`a run the outer binds into the inner host, ${order}: adopted, then it updates as a client render does`, { todo: 'runs in the client\'s own shape (2c design) + 2d' }, async () => {
+  test(`a run the outer binds into the inner host, ${order}: adopted, then it updates as a client render does`, async () => {
     const [host, inside] = page(runServed);
     const [a, b, c] = [...inside.querySelectorAll('i')].sort((x, y) => x.textContent.localeCompare(y.textContent));
     const said = await quietly(async () => {
@@ -313,3 +291,139 @@ for (const order of ['outer first (statement)', 'inner first (live record)'])
     assert.deepEqual(slotted(two).map((n) => n.textContent).join(''), 'Hi Grace!', 'all of it the inner\'s light content');
     host.remove();
   });
+
+/**
+ * **Runs, held step by step** (R1, vera-5a's conditions): every shape a list takes after hydration — keyed REORDER (each
+ * node kept by identity), GROW, SHRINK to EMPTY, REPLACE by a template and back, runs mixed with statics with one
+ * emptied in the MIDDLE (its unit must stand before the static after it, never at the end) — in both orders, and
+ * hydrating moves NOTHING the server rendered: the run is seated in holding, never by moving a light node.
+ */
+const shapesServed = (tag) => execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
+  import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
+  const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-run-shapes-ssr.js', 'file://' + process.cwd() + '/'), { tag: '${tag}' })).html);
+`], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+const { keyed } = await load('renderer/keyed');
+const keyedOuter = (items) => html`<p>outer</p><slot-run-inner>${items.map((x) => keyed(x, html`<i slot=${x === 'b' ? 't' : ''}>${x}</i>`))}</slot-run-inner>`;
+const swapOuter = (items) => html`<p>outer</p><slot-run-inner>${items === null ? html`<u>ONE</u>` : items.map((x) => html`<i slot=${x === 'b' ? 't' : ''}>${x}</i>`)}</slot-run-inner>`;
+const mixedOuter = (a, b) => html`<p>outer</p><slot-shape-inner><em>first</em>${a.map((x) => html`<i>${x}</i>`)}<u slot="t">mid</u>${b.map((x) => html`<s>${x}</s>`)}<em>last</em></slot-shape-inner>`;
+
+/** Hydrates `markup` in `order` with `first`, counting every server-rendered node it inserted or removed. */
+const hydrateRun = async (markup, order, first, drawInner = runInner) => {
+  const [host, inside] = page(markup);
+  const nodes = [...inside.querySelectorAll('*'), ...[...inside.querySelectorAll('*')].flatMap((e) => [...e.childNodes])].filter((n) => n.nodeType !== 8);
+  const moved = moves(host, nodes);
+  const said = await quietly(async () => {
+    if (order.startsWith('inner')) {
+      renderInto(drawInner(), inside);
+      await settle();
+    }
+    renderInto(first, host);
+    await settle();
+    if (order.startsWith('outer')) {
+      renderInto(drawInner(), inside);
+      await settle();
+    }
+  });
+  return { host, inside, said, moved: moved() };
+};
+const step = async (host, view) => {
+  renderInto(view, host);
+  await settle();
+};
+
+for (const order of ['outer first (statement)', 'inner first (live record)']) {
+  test(`a KEYED run, ${order}: nothing moves hydrating; reorder keeps each node; grow, shrink to empty, refill`, async () => {
+    const { host, inside, said, moved } = await hydrateRun(runServed, order, keyedOuter(['a', 'b', 'c']));
+    assert.deepEqual(said, [], 'both adopted');
+    assert.equal(moved, 0, 'hydrating moved no server-rendered node');
+    const node = (x) => [...inside.querySelectorAll('i')].find((i) => i.textContent === x);
+    const [a, b, c] = ['a', 'b', 'c'].map(node);
+    assert.deepEqual(shows(inside), ['b', 'ac', 'bac'], 'hydrated');
+    await step(host, keyedOuter(['c', 'a', 'b']));
+    assert.deepEqual(shows(inside), ['b', 'ca', 'bca'], 'reordered');
+    assert.deepEqual(['a', 'b', 'c'].map(node), [a, b, c], 'each keyed node kept by identity');
+    await step(host, keyedOuter(['c', 'a', 'd', 'b']));
+    assert.deepEqual(shows(inside), ['b', 'cad', 'bcad'], 'grown in the middle');
+    await step(host, keyedOuter(['d']));
+    assert.deepEqual(shows(inside), ['', 'd', 'Td'], 'shrunk: the named slot shows its fallback');
+    await step(host, keyedOuter([]));
+    assert.deepEqual(shows(inside), ['', '', 'TFB'], 'emptied');
+    await step(host, keyedOuter(['b', 'e']));
+    assert.deepEqual(shows(inside), ['b', 'e', 'be'], 'refilled');
+    host.remove();
+  });
+
+  test(`a run REPLACED by a template and back, ${order}`, async () => {
+    const { host, inside, said, moved } = await hydrateRun(runServed, order, swapOuter(['a', 'b', 'c']));
+    assert.deepEqual(said, [], 'both adopted');
+    assert.equal(moved, 0, 'hydrating moved no server-rendered node');
+    await step(host, swapOuter(null));
+    assert.deepEqual(shows(inside), ['', 'ONE', 'TONE'], 'replaced by a template');
+    await step(host, swapOuter(['b', 'c']));
+    assert.deepEqual(shows(inside), ['b', 'c', 'bc'], 'and a list again');
+    host.remove();
+  });
+
+  test(`runs MIXED with statics, ${order}: one emptied in the middle stands before the static after it`, async () => {
+    const { host, inside, said, moved } = await hydrateRun(shapesServed('slot-mixed-ssr'), order, mixedOuter(['a1', 'a2'], ['b1']));
+    assert.deepEqual(said, [], 'both adopted');
+    assert.equal(moved, 0, 'hydrating moved no server-rendered node');
+    assert.deepEqual(shows(inside), ['mid', 'firsta1a2b1last', 'midfirsta1a2b1last'], 'hydrated');
+    await step(host, mixedOuter([], ['b1']));
+    assert.deepEqual(shows(inside), ['mid', 'firstb1last', 'midfirstb1last'], 'the first run emptied, in the middle');
+    await step(host, mixedOuter(['a3'], ['b1']));
+    assert.deepEqual(shows(inside), ['mid', 'firsta3b1last', 'midfirsta3b1last'], 'refilled where it stood');
+    await step(host, mixedOuter(['a3'], []));
+    assert.deepEqual(shows(inside), ['mid', 'firsta3last', 'midfirsta3last'], 'the second emptied');
+    await step(host, mixedOuter(['a3', 'a4'], ['b2', 'b3']));
+    assert.deepEqual(shows(inside), ['mid', 'firsta3a4b2b3last', 'midfirsta3a4b2b3last'], 'both grown');
+    host.remove();
+  });
+
+  /**
+   * **A run beside text, and a run whose component leaves a slot EMPTY** — found by a probe, all silently wrong before
+   * (2026-10-07). The walk splits the server's merged text (`AtB`) into the pieces a client render makes, so the run is
+   * seated against the light children as they stand THEN, never as the walk began (the pieces were never captured, and
+   * the next distribution dropped them); and an empty named slot mounting first must not read the run's node, in the
+   * default slot's served region not yet registered, as taken (outer first, it vanished — the commonest run shape).
+   */
+  for (const [label, tag, draw, views] of [
+    ['alone, the named slot empty', 'slot-plainrun-ssr', (t, l) => html`<p>outer</p><slot-shape-inner>${l.map((x) => html`<i>${x}</i>`)}</slot-shape-inner>`, ['a', 'a|b', '', 'c']],
+    ['after text split around a value', 'slot-split-ssr', (t, l) => html`<p>outer</p><slot-shape-inner>A${t}B${l.map((x) => html`<i>${x}</i>`)}</slot-shape-inner>`, ['A|t|B|a', 'A|u|B|a|b', 'A|v|B', 'A|w|B|c']],
+    ['between a value and text', 'slot-textrun-ssr', (t, l) => html`<p>outer</p><slot-shape-inner>A${t}${l.map((x) => html`<i>${x}</i>`)}B</slot-shape-inner>`, ['A|t|a|B', 'A|u|a|b|B', 'A|v|B', 'A|w|c|B']],
+    /** Served EMPTY between two texts, which the server merges (`AB`): the walk stands inside that text as the run begins. */
+    ['empty, between two texts the server merged', 'slot-emptyrun-ssr', (t, l) => html`<p>outer</p><slot-shape-inner>A${(t === 't' ? [] : l).map((x) => html`<i>${x}</i>`)}B</slot-shape-inner>`, ['A|B', 'A|a|b|B', 'A|B', 'A|c|B']],
+  ])
+    test(`a run ${label}, ${order}: adopted, and every update is the client's`, async () => {
+      const { host, inside, said, moved } = await hydrateRun(shapesServed(tag), order, draw('t', ['a']));
+      assert.deepEqual(said, [], 'both adopted');
+      assert.equal(moved, 0, 'hydrating moved no server-rendered node');
+      const view = () => slotted(inside).map((n) => n.textContent).join('|');
+      const seen = [view()];
+      for (const [t, l] of [['u', ['a', 'b']], ['v', []], ['w', ['c']]]) {
+        await step(host, draw(t, l));
+        seen.push(view());
+      }
+      assert.deepEqual(seen, views, 'hydrated, grown, emptied, refilled — each piece of text a light child, as on the client');
+      host.remove();
+    });
+
+  /** **What the first release of runs declines**: items that are not each one element — ONE standard fallback warning, never a throw. */
+  for (const [label, tag, draw] of [['items of two elements each', 'slot-pairs-ssr', () => html`<p>outer</p><slot-shape-inner>${['a', 'b'].map((x) => html`<i>${x}</i><b>${x}</b>`)}</slot-shape-inner>`]])
+    test(`a run of ${label}, ${order}: declined — one standard fallback warning, never a throw`, async () => {
+      const [host, inside] = page(shapesServed(tag));
+      const said = await quietly(async () => {
+        if (order.startsWith('inner')) {
+          renderInto(runInner(), inside);
+          await settle();
+        }
+        renderInto(draw(), host);
+        await settle();
+      });
+      assert.equal(said.length, 1, `one warning: ${said.join(' | ')}`);
+      assert.match(said[0], /hydration-fallback/, 'the standard fallback, with its code');
+      assert.equal(host.querySelector('p')?.textContent, 'outer', "the outer's own content rendered");
+      host.remove();
+    });
+}

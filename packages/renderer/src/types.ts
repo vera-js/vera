@@ -192,6 +192,12 @@ export type HydrationCursor = {
   light?: Node[];
   at?: number;
   end?: number;
+  /**
+   * On a light walk, how many RUNS the template writes among those children, and each anchor the walk set for them with
+   * the node it stands before (`null`: the end) — `hydrate-slots`' own, so `_`-named: the minifier shortens them.
+   */
+  _runs?: number;
+  _marks?: (Node | null)[];
 };
 
 /** Hydration's mismatch: records the cause and the first node that disagreed, and stops the adoption by throwing. */
@@ -204,10 +210,30 @@ export type ServedHost = { readonly carrier: Node | null };
  * Slots' `capture` (`_$capture$`): a light host's light children, in light order, captured wherever they stand — the
  * server's carrier, when given, becoming the holding.
  */
-export type LightCapture = (host: Element, before: Node | null, nodes?: Node[], carrier?: HTMLElement | null) => unknown;
+export type LightCapture = (host: Element, before: Node | null, nodes?: Node[], carrier?: HTMLElement | null, wait?: boolean) => unknown;
 
-/** Slots' seam (`_$capture$`), stamped with the package's seam protocol: its `capture`, and a host's light children as its record holds them (`null` without one). */
-export type CaptureSeam = [protocol: number, capture: LightCapture, lightNodes: (host: Element) => Node[] | null];
+/**
+ * A RUN a template wrote among a light host's children, as hydration found it: its part's two anchors (still detached) and
+ * the light nodes between them, in order — wherever the server distributed them.
+ */
+export type LightRun = [start: Comment, nodes: Node[], end: Comment];
+
+/**
+ * Slots' seam (`_$capture$`), stamped with the package's seam protocol: its `capture` (light children, or runs, in light
+ * order), a host's light children as its record holds them (`null` without one), and `runOf`: a run turned into one unit
+ * of a record that holds its nodes as statics already — nothing moves.
+ */
+export type CaptureSeam = [
+  protocol: number,
+  capture: LightCapture,
+  lightNodes: (host: Element) => Node[] | null,
+  records: WeakMap<Element, LightRecord>,
+  standIn: (node: Node, parent: Node, ref: Node | null) => void,
+  placed: WeakMap<Node, unknown>,
+  adopted: unknown,
+];
+/** The parts of slots' light record `hydrate-slots` builds runs into (placement (ii) measurement). */
+export type LightRecord = { host: Element; units: { a: Node; z: Node }[]; holding: Element; dirty: boolean };
 
 /**
  * **Hydrating light slots is its own piece** (`@verajs/renderer/hydrate-slots`): hydration calls it through these
@@ -218,8 +244,8 @@ export type HydrateSlots = [
   protocol: number,
   open: (host: Element, fail: HydrationFail) => ServedHost,
   slot: (canonical: Element, cursor: HydrationCursor, served: ServedHost) => Element | null,
-  close: (served: ServedHost) => void,
-  rescue: (served: ServedHost) => void,
+  close: (served: ServedHost | null) => void,
+  rescue: (served: ServedHost | null) => void,
   /**
    * The cursor that walks a light host's children in light order, for a template placing content into it — over the
    * live record's list, else the statement's (strict) — or `null`: walked as its DOM stands. Given the canonical
@@ -228,4 +254,6 @@ export type HydrateSlots = [
   light: (host: Element, canonical: Element, plan: ReadonlyMap<Node, readonly number[]>, values: readonly unknown[]) => HydrationCursor | null,
   /** The walk's step, light-aware: the next light child on a light cursor, else the next sibling. Hydration adopts it once the piece is wired. */
   next: (cursor: HydrationCursor, node: Node) => Node | null,
+  /** An insert on a light walk: an anchor of a RUN is held for the unit the piece builds, text put in place. */
+  insert: (cursor: HydrationCursor, node: Node) => void,
 ];

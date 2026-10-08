@@ -35,7 +35,11 @@ type Rec = { slot: Kept; light: Light; rs: Comment | null; re: Comment | null; s
 type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
 
 /** A host's light children, by unit, in the order the page wrote them, and its slots. */
-type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean };
+/**
+ * `wait`: captured by a template that placed runs into this host during hydration, before the host's own slots exist —
+ * nothing distributes until the first of them mounts, so the nodes stay exactly where the server put them.
+ */
+type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean };
 
 /**
  * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<vm-unassigned hidden>`, the host's first
@@ -109,6 +113,14 @@ const move = (parent: Node, node: Node, ref: Node | null) => {
     parent.insertBefore(at, ref);
     at = next;
   }
+};
+
+/** A run's node that sits in a slot, its place in the run held by a comment before `ref` in `parent` — both ways. */
+const standIn = (node: Node, parent: Node, ref: Node | null) => {
+  const stand = node.ownerDocument!.createComment('');
+  parent.insertBefore(stand, ref);
+  STAND.set(node, stand);
+  REAL.set(stand, node);
 };
 
 /** A light node back to holding: a run's node to its place in the run (where its stand-in is), any other to the end. */
@@ -195,8 +207,13 @@ const changed = (rec: Rec) => {
   });
 };
 
-/** Whether a node is in this host's holding or one of its slots' regions. */
+/**
+ * Whether a node is in this host's holding or one of its slots' regions — or where the server put it (`ADOPTED`), which
+ * holds until its slot mounts, as `isWhere` holds a static: a slot mounting first must not read the run's node in a
+ * later slot's served region, not yet registered, as taken.
+ */
 const inLight = (node: Node, light: Light): boolean => {
+  if (PLACED.get(node) === ADOPTED) return true;
   const parent = node.parentNode;
   if (parent === null) return false;
   if (parent === light.holding) return true;
@@ -319,12 +336,7 @@ const place = (light: Light) => {
           continue;
         }
         /** A run's node, still at its place in holding: a stand-in takes the place before it leaves. */
-        if (!statics.has(node) && home(node) && !STAND.has(node)) {
-          const stand = node.ownerDocument!.createComment('');
-          first.parentNode!.insertBefore(stand, first);
-          STAND.set(node, stand);
-          REAL.set(stand, node);
-        }
+        if (!statics.has(node) && home(node) && !STAND.has(node)) standIn(node, first.parentNode!, first);
         move(parent, node, previous.nextSibling);
         /** Marked as moved by slots: the renderer follows it here when it inserts beside it (see `into`). */
         (node as Node & { _$slotted$?: boolean })._$slotted$ = true;
@@ -434,7 +446,7 @@ const lights = new Set<Light>();
 const flush = () => {
   if (busy) return;
   note(pending());
-  for (const light of lights) if (light.dirty || (ending && light.fresh)) distribute(light);
+  for (const light of lights) if (!light.wait && (light.dirty || (ending && light.fresh))) distribute(light);
   settle();
 };
 const watch = (node: Node, light: Light) => {
@@ -612,7 +624,7 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   holding.style.setProperty('display', 'none', 'important');
   holding.insertBefore(doc.createComment(''), holding.firstChild);
   holding.append(doc.createComment(''));
-  const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late };
+  const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
   lights.add(light);
   watch(holding, light);
@@ -630,7 +642,7 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
  * stays there (`ADOPTED`) — distribution then moves only what is out of place, so the server's placement decides at most
  * WHETHER a node moves, never where it ends up.
  */
-const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...host.childNodes], carrier: HTMLElement | null = null): Light => {
+const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...host.childNodes], carrier: HTMLElement | null = null, wait = false): Light => {
   let light = HOSTS.get(host);
   /** A slot of a custom element `init` never saw mounted first: its light content arrives now, at the render's end. */
   if (light !== undefined && !light.late) return light;
@@ -663,8 +675,12 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
     } else (run ??= []).push(child);
   }
   close();
-  light.dirty = true;
-  light.fresh = true;
+  /**
+   * `wait`: captured by a template that placed content into this host (hydration), not by the host — nothing is
+   * distributed until the host's own slots mount, so a host never defined keeps its nodes where they stand.
+   */
+  if (wait) light.wait = true;
+  else light.dirty = light.fresh = true;
   return light;
 };
 
@@ -758,6 +774,7 @@ const slotBehavior = {
     kept.assignedNodes = (options?: AssignedNodesOptions) => assigned(rec, false, options?.flatten);
     kept.assignedElements = (options?: AssignedNodesOptions) => assigned(rec, true, options?.flatten) as Element[];
     light.recs.push(rec);
+    light.wait = false;
     watch(kept, light);
     observersOf(light.host)[1].observe(kept, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
     distribute(light);
@@ -853,7 +870,7 @@ export const slotDiscovery = [
   (registry: Map<string, unknown[]>) => {
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
-    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes];
+    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it

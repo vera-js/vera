@@ -242,7 +242,10 @@ const boundary = (cursor: Cursor) => {
 };
 
 /** Inserts at the cursor — the walk inserts only text and the renderer's comment anchors, which run no user code. */
-const insertHere = (cursor: Cursor, node: Node) => cursor.parent.insertBefore(node, boundary(cursor));
+const plainInsert = (cursor: Cursor, node: Node) => cursor.parent.insertBefore(node, boundary(cursor));
+/** Like `next`: the plain insert until `hydrate-slots` is wired, then light-aware — a run's anchors go to the piece. */
+let insertHere: (cursor: Cursor, node: Node) => unknown = plainInsert;
+const lightInsert = (cursor: Cursor, node: Node) => (cursor.light === undefined ? plainInsert(cursor, node) : piece![7](cursor, node));
 
 /** Consumes exactly `text`, a static; anything else is a mismatch. Reads only. */
 const expectText = (cursor: Cursor, text: string) => {
@@ -713,7 +716,10 @@ const adopt = (result: unknown, container: Node): boolean => {
   const from = queue.length;
   const saved = [why, kind, served] as const;
   piece = registry._$hydrateSlots$;
-  if (piece !== undefined) next = piece[6];
+  if (piece !== undefined) {
+    next = piece[6];
+    insertHere = lightInsert;
+  }
   try {
     return adoptContainer(result as TemplateResult, container, from);
   } finally {
@@ -746,13 +752,13 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
     const cursor: Cursor = { parent: container, node: first, offset: 0 };
     adoptValue(part, result, cursor);
     finish(cursor, true);
-    if (served !== null) piece![3](served);
+    piece?.[3](served);
   } catch (error) {
     start?.remove();
     end?.remove();
     if (error !== MISMATCH) throw error;
     /** A served host keeps its light content: captured into holding before the clear, distributed by the fresh render. */
-    if (served !== null) piece![4](served);
+    piece?.[4](served);
     /** Every build names the kind and the first node that disagreed; development adds the whole story, production the link. */
     warn(kind, diagnostic('hydration', why, 'hydration-fallback', __DEV__ && PROSE['hydration-fallback'](opening(result))), container);
     /** The queue is dropped unrun; the clear takes the walk's text splits and comments with the server's nodes. */

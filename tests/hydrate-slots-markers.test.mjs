@@ -108,6 +108,26 @@ test('a component\'s own literal `<!--[-->`…`<!--]-->` is a comment the walk p
   host.remove();
 });
 
+/**
+ * **An unpaired literal `<!--[-->` beside a range is never its start** — on the RESCUE path, which finds ranges by
+ * structure: a range is well-formed only if its `]` comes before another `[`, so the component's own text after its
+ * literal is never taken for light content (it would be claimed, and shown in the slot beside the user's).
+ */
+test('a component\'s own unpaired `<!--[-->` right before a filled slot: the rescue takes only the real range', async () => {
+  const served = server('USER', 'slot-literal-open-ssr');
+  assert.match(served, /<main><!--\[-->own<!--\[-->USER<!--\]--><\/main>/, 'CONTROL: the literal sits right before the real range');
+  const host = hostFromServer(served);
+  const user = host.querySelector('main').lastChild.previousSibling;
+  const said = await warnings(async () => {
+    renderInto(html`<section><main>own<slot>fb</slot></main></section>`, host);
+    await settle();
+  });
+  assert.equal(said.length, 1, `CONTROL: the template changed, so the rescue ran: ${said.join(' | ')}`);
+  assert.deepEqual(slotted(host), [user], 'only the real range is light content, by identity');
+  assert.equal(host.querySelector('main').textContent, 'ownUSER', "the component's own text once, never claimed into the slot");
+  host.remove();
+});
+
 test('a slot NAME never reaches a comment: a hostile name serves no markup and hydrates', async () => {
   const name = 'a-->x<img src=x>';
   const served = server(`<h2 slot="${name.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}">H</h2>`, 'slot-hostile-name-ssr');
