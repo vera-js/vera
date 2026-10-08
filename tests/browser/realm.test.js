@@ -31,6 +31,20 @@ customElements.define('x-realm-counter', class extends HTMLElement {
   }
 });
 
+/** A component whose effect writes what it reads, up to `loop.until`: its third run in a flush waits for a frame. */
+const loop = { until: 0 };
+customElements.define('x-realm-loop', class extends HTMLElement {
+  connectedCallback() {
+    init(this);
+    const state = createStore({ n: 0 });
+    this._state = state;
+    useEffect(() => {
+      if (state.n < loop.until) state.n++;
+    });
+    render(() => html`<b>${state.n}</b>`);
+  }
+});
+
 const openIframe = async () => {
   const iframe = document.createElement('iframe');
   document.body.append(iframe);
@@ -49,7 +63,7 @@ const spyFrames = (view) => {
   return spy;
 };
 
-it('a component moved into another window re-renders, and runs effects, on that window\'s frames', async () => {
+it('a component moved into another window re-renders, and runs effects, never on the opener\'s clock', async () => {
   const iframe = await openIframe();
   const element = document.createElement('x-realm-counter');
   document.body.append(element);
@@ -69,7 +83,37 @@ it('a component moved into another window re-renders, and runs effects, on that 
   }
   expect(element.textContent.trim()).to.equal(String(store.count), 'CONTROL: it re-rendered');
   expect(effects).to.be.above(effectsBefore, 'CONTROL: the effect re-ran');
-  expect(inner.calls).to.be.at.least(2, 'the render and the effect were scheduled on the iframe\'s clock');
+  /** Within the budget a flush is a microtask (2026-10-08): no clock at all, so a hidden opener cannot freeze it. */
+  expect(opener.calls).to.equal(0, 'none on the opener\'s clock');
+  iframe.remove();
+});
+
+/**
+ * **What does wait for a frame waits for the ELEMENT's window's** — a hook's third run in one flush (a self-feeding
+ * loop), and work past the budget. On the opener's clock it would stop whenever the opener's tab is hidden.
+ */
+it('a component in another window waits for THAT window\'s frames when it must wait at all', async () => {
+  const iframe = await openIframe();
+  /** Made where its tag is defined, then moved — as a popped-out window receives one. */
+  const element = document.createElement('x-realm-loop');
+  document.body.append(element);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  iframe.contentDocument.body.append(element);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  const opener = spyFrames(window);
+  const inner = spyFrames(iframe.contentWindow);
+  try {
+    loop.until = 6;
+    element._state.n = 1;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  } finally {
+    opener.restore();
+    inner.restore();
+    loop.until = 0;
+  }
+  expect(element.textContent.trim()).to.equal('6', 'CONTROL: the loop settled');
+  expect(inner.calls).to.be.at.least(1, 'its held runs waited on the iframe\'s frames');
   expect(opener.calls).to.equal(0, 'and none on the opener\'s');
   iframe.remove();
 });

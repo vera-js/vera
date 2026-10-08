@@ -506,30 +506,6 @@ const CASES = {
  * suite exists to prevent is a divergence nobody wrote down.
  */
 const KNOWN_DIVERGENCES = {
-  /**
-   * **It runs — it just cannot reach the template it sits beside.**
-   *
-   * A layout effect is coalesced on a microtask and `renderToString` is asynchronous, so it does
-   * execute server-side: a `setAttribute` inside one reaches the markup, because the host's opening
-   * tag is serialized after `connectedCallback` returns. What it cannot do is change what the
-   * template already rendered, which is what this case pins — the server keeps `start` where the
-   * client settles on `layout-ran`.
-   *
-   * The consequence for a component author is the same either way (settle that state before
-   * `render()`), but "does not run" is not what happens, and a layout effect with a side effect
-   * other than state will happen on the server whether or not it was meant to.
-   */
-  'useLayoutEffect does not reach the markup on the server': {
-    body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ label: 'start' });
-      useLayoutEffect(() => { if (state.label === 'start') state.label = 'layout-ran'; });
-      render(() => html\`<p>\${state.label}</p>\`);
-      state.label = 'start';
-    `,
-    server: '<p >start</p>',
-    client: '<p >layout-ran</p>',
-  },
 };
 
 /**
@@ -549,6 +525,22 @@ KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
   `,
   server: '<p >bounded=true</p>',
   client: '<p >bounded=true</p>',
+};
+
+/**
+ * **A layout effect reaches the server's markup — the divergence this suite used to pin as known is closed.** Core
+ * flushes as a microtask, and the server's drains run core's flush each round (2026-10-08), so the render a layout
+ * effect's write schedules lands before the server serializes — as it lands before the client paints. Before, the server
+ * kept `start` where the client settled on `layout-ran`.
+ */
+CASES['useLayoutEffect reaches the markup on the server, as on the client'] = {
+  body: `
+    init(this, { mode: 'open' });
+    const state = createStore({ label: 'start' });
+    useLayoutEffect(() => { if (state.label === 'start') state.label = 'layout-ran'; });
+    render(() => html\`<p>\${state.label}</p>\`);
+    state.label = 'start';
+  `,
 };
 
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };

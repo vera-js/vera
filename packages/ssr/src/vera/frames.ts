@@ -82,9 +82,25 @@ const run = (frame: Frame, report?: FrameReport): unknown => {
   }
 };
 
-/** Runs everything waiting on a frame, and everything those schedule, up to the bound. */
+/**
+ * **Core's flush** — every queued render, layout effect and effect, run now. Core flushes as a microtask (within its
+ * budget), so the synchronous chain, which serializes without yielding, would otherwise serialize before a write's
+ * re-render, while the asynchronous chain, which yields, would not: the two disagreed about the same page. Each round
+ * of a drain runs it first, so renders and frames interleave until both are empty — and both chains serialize the
+ * same settled markup. Set by `index.ts` from the core it wires (the one the page's components import).
+ */
+let flushCore = (): void => {};
+export const setCoreFlush = (flush: () => void): void => {
+  flushCore = flush;
+};
+
+/** Runs everything queued in core and waiting on a frame, and everything those schedule, up to the bound. */
 export const flushFrames = (report?: FrameReport): void => {
-  for (let count = 0; count < FRAME_ROUNDS && frames.size !== 0; count++) round(report);
+  for (let count = 0; count < FRAME_ROUNDS; count++) {
+    flushCore();
+    if (frames.size === 0) break;
+    round(report);
+  }
   discard();
 };
 
@@ -157,6 +173,7 @@ export const flushFramesAsync = async (report?: FrameReport): Promise<boolean> =
   let cut = false;
   for (let round = 0, empty = 0; round < FRAME_ROUNDS && empty < 3; round++) {
     await null;
+    flushCore();
     if (!frames.size) {
       empty++;
       continue;

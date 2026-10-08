@@ -84,11 +84,12 @@ test('bumping an owner\'s generation retires its hooks', () => {
  * **A write an effect makes to state it read schedules its next run — it does not recurse into one.**
  * The deferred run re-enters through the hook with a flag raised for that one call; the flag must be
  * lowered before the effect body runs, or the body's own write finds it still raised and runs the
- * effect again synchronously, inside itself — every step of a settling loop in one frame, and a
- * self-feeding one straight into a stack overflow instead of the frame-paced loop the render-loop
- * guard is built to catch. Pinned in the only shape that shows it: steps counted after ONE frame.
+ * effect again synchronously, inside itself — every step of a settling loop at once, and a
+ * self-feeding one straight into a stack overflow instead of the paced loop the render-loop guard is
+ * built to catch. And the scheduler's rule (2026-10-08): a hook runs at most TWICE in one flush — a
+ * measure-then-set lands before paint — and a third run waits for the next frame. Pinned step by step.
  */
-test('an effect that writes what it read steps once per frame rather than recursing', async () => {
+test('an effect that writes what it read steps twice per flush, then a frame, rather than recursing', async () => {
   const el = element();
   const state = core.createStore({ go: false, n: 0 });
   let runs = 0;
@@ -100,11 +101,12 @@ test('an effect that writes what it read steps once per frame rather than recurs
   core.mount();
   assert.equal(runs, 1, 'CONTROL: the first pass ran');
   state.go = true;
+  assert.equal(state.n, 0, 'the write queued a run — nothing ran inside it');
+  await Promise.resolve();
+  assert.equal(state.n, 2, 'two steps in the flush, not all three: the third run waits for the frame');
   await nextFrame();
-  assert.equal(state.n, 1, 'one step in the first frame, not all three at once');
   await nextFrame();
-  await nextFrame();
-  assert.equal(state.n, 3, 'and it still settles, a frame per step');
+  assert.equal(state.n, 3, 'and it settles on the frame');
 });
 
 /**

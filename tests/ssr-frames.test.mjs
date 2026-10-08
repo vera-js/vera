@@ -54,13 +54,13 @@ test('async: a frame callback awaiting a timer is waited for', async () => {
 });
 
 /**
- * A layout effect is coalesced on a microtask. The synchronous chain serializes before any microtask
- * runs, so the state it settles misses the markup (the known divergence `lifecycle-parity` pins); the
- * async chain lets the microtask queue run between frame rounds, so its markup matches the client's.
+ * A layout effect's write reaches the markup through BOTH chains, as on the client. Core flushes as a microtask, and
+ * each round of a server drain runs core's flush first (2026-10-08) — so the synchronous chain, which serializes
+ * without yielding, settles the same markup as the asynchronous one. Before, it serialized first and kept `start`.
  */
-test('a layout effect reaches the markup through the async chain, as on the client', async () => {
+test('a layout effect reaches the markup through both chains, as on the client', async () => {
   const sync = await renderToString(fixture('layout-effect'));
-  assert.match(sync.html, /<p>start<\/p>/, 'CONTROL: the synchronous chain serializes first');
+  assert.match(sync.html, /<p>layout-ran<\/p>/, 'the synchronous chain settles it too');
   const later = await renderToStringAsync(fixture('layout-effect'));
   assert.match(later.html, /<p>layout-ran<\/p>/);
 });

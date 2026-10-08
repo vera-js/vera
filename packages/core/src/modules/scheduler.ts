@@ -6,16 +6,16 @@ import type { ComponentElement, HookPass, RenderScheduler } from '../types.js';
  * flood probe in the scheduler plan). The queue runs in KEY order: a pass's PRIORITY (layout 25 → render 50 → effect
  * 75), then its hook's CREATION — a parent's hooks are created before the children its render makes, so a child
  * re-rendered by its parent's new props runs once, after the parent; and one component's hooks run in the order it
- * registered them. A pass queued during a flush joins it in its place: the rest of the queue is sorted again before
- * the next pass is taken — the built-in sort, which merges a sorted run and a few new passes in linear time (smaller
- * than a heap, and the case is a parent handing its children new props: one sort per parent).
+ * registered them. A pass that arrives OUT of key order marks the queue, and the rest of it is sorted again before the
+ * next pass is taken — the built-in sort, which merges a sorted run and a few new passes in linear time (smaller than
+ * a heap). Passes queued in creation order — a store write waking its readers — never sort at all.
  */
 let queue: HookPass[] = [];
 let next = 0;
 let unsorted = false;
 
 /**
- * **The element window's next frame, or ~100 ms — whichever comes first** (the other is cancelled). Where work that
+ * **The element window's next frame, or ~100 ms — whichever comes first** (the other is canceled). Where work that
  * must not run at once goes: past the budget, or a hook's third run in one flush. A visible window's frame always wins;
  * a hidden one has no frames, and its throttled timer runs instead (a runaway loop in a background tab costs almost
  * nothing); a window hidden WHILE waiting still recovers; and without `requestAnimationFrame` at all (a test, a server)
@@ -77,7 +77,9 @@ export const enqueue = (pass: HookPass) => {
   /** Development: which pass's run queued this one — the hook a loop warning names is the one that WRITES. */
   if (__DEV__) pass._b = flushing ? running : undefined;
   if (!pass._in) {
-    pass._in = unsorted = true;
+    pass._in = true;
+    /** Only a pass arriving OUT of key order needs a sort — passes queued in creation order never pay one. */
+    if (next < queue.length && pass._k < queue[queue.length - 1]._k) unsorted = true;
     queue.push(pass);
   }
   if (scheduled || flushing) return;

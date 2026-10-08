@@ -23,6 +23,7 @@ import {
   beginHoisting,
   flushFrames,
   flushFramesAsync,
+  setCoreFlush,
   beginBudget,
   bounded,
   endBudget,
@@ -70,7 +71,8 @@ type Assembled = { open: string; inner: string };
 type Checked = keyof SsrRenderOptions | 'url';
 
 installShims();
-const { wire, inserts } = await import('@verajs/core');
+const { wire, inserts, flush } = await import('@verajs/core');
+setCoreFlush(flush);
 /** `static styles` are part of what a browser renders, so the server adopts them unconditionally. */
 const { styles } = await import('@verajs/styles');
 wire([styles]);
