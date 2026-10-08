@@ -182,11 +182,14 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   }
   if (kind === LIVE) {
     binding._committed = value;
-    /** A component is compared against its current value (`liveValue`) and receives a difference, as in a template. */
+    /**
+     * A built-in is compared against its live property. A COMPONENT is compared against its current value — the raw one
+     * its store holds (`_$raw$`) for a name it received, else read through `untracked` — and receives a difference
+     * through `adoptProperty`. Inline, as the renderer's `commit` reads a template's `!name`: keep the two equal.
+     */
     if (binding._read === null) {
       if (element[name] !== value) element[name] = value;
     } else {
-      /** The template's `!name` reads the same way, inline for the same measured reason — keep the two equal. */
       const raw = element._$raw$ as Record<string, unknown> | undefined;
       if ((raw !== undefined && name in raw ? raw[name] : binding._read(read, element, name)) !== value) adoptProperty(element, name, value);
     }
