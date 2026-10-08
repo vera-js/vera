@@ -503,9 +503,10 @@ Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive — with one more module wired where both are used:
 `wire([renderer, hydration, slots, hydrateSlots])` (`import { hydrateSlots } from '@verajs/renderer/hydrate-slots'`;
-only an app that hydrates light slots loads it). Without it a server-rendered slots host stays
-exactly as served and the console names what to wire (`hydration-slots`). Serve the server's HTML
-unmodified, comments included: stripped markers mean the host renders fresh. Node-safe to import (it
+only an app that hydrates light slots loads it). Without it a server-rendered host with light content stays
+exactly as served and the console names what to wire (`hydration-slots`). Wire `slots` on the SERVER too: without
+it the server states no light tree, and every component it rendered re-renders on the client (no warning possible).
+Serve the server's HTML unmodified, comments included: stripped markers mean the host renders fresh. Node-safe to import (it
 imports nothing and touches no DOM until something renders).
 
 ### Element claims (`@verajs/renderer/elements`)
@@ -726,9 +727,8 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
     <p ?hidden=${!busy}>loading</p>
   </section>`
   ```
-- Hydration is a drop-in entry: SSR apps import from `'@verajs/renderer/hydrate'`
-  (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) — its
-  `renderer` wirable binds the adopting render, so `wire([renderer])` stays the only wiring — and the
+- Hydration is one more module wired beside the renderer: `wire([renderer, hydration])`
+  (`import { hydration } from '@verajs/renderer/hydration'`; on a CDN page, `vera-renderer-hydration.min.js`) — and the
   first render ADOPTS server-rendered children — no per-part marker comments in server HTML
   (with light slots, each filled slot's content sits between two `<!--[-->`/`<!--]-->` comments, the host
   states its light tree in `data-vm-light` and keeps content no slot took in `<vm-unassigned hidden>` —
@@ -981,8 +981,9 @@ Semantics worth stating:
   and Node-safe (SSR can import it; routing itself is browser-only).
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
-  `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
+  `@verajs/renderer/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
   `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`,
+  `renderer/hydration`, `renderer/hydrate-slots`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow
@@ -1579,7 +1580,7 @@ DOM-shape-dependent bugs are otherwise intermittent and will waste your time.
 ## Server-side rendering (`@verajs/ssr`) — Node only
 
 Vera-native, zero dependencies (no parse5, no jsdom, no lit). Components render to **declarative
-shadow DOM**; `@verajs/renderer/hydrate` adopts the markup client-side.
+shadow DOM**; `hydration` (`@verajs/renderer/hydration`, wired beside the renderer) adopts the markup client-side.
 
 ```js
 import { renderToString } from '@verajs/ssr';   // import BEFORE anything importing @verajs/renderer
@@ -1672,8 +1673,9 @@ Say so rather than inventing an API:
   literal's strings (an array owning `raw`) make a template, so a hand-built array — like
   template-shaped data from `JSON.parse` — renders as text (`[object Object]`), on client and server.
 - **SSR is real and dependency-free**: `@verajs/ssr` renders components to declarative shadow
-  DOM server-side (import it before core); `@verajs/renderer/hydrate` adopts the markup
-  client-side. Comment-free server HTML; `keyed`/`hold` are client-only (use `.map` in SSR).
+  DOM server-side (import it before core); `hydration` (`@verajs/renderer/hydration`) adopts the markup
+  client-side. Comment-free server HTML (light slots aside: a filled slot's content sits between two comments);
+  `keyed`/`hold` are client-only (use `.map` in SSR).
 
 ## Common mistakes
 

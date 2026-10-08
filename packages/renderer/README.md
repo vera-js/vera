@@ -350,7 +350,8 @@ committed in place against templates that replaced a different template.
 | Import | What it adds | Ships in production |
 | --- | --- | --- |
 | `@verajs/renderer` | the renderer | yes |
-| `@verajs/renderer/hydrate` | a superset whose first render adopts server-rendered DOM | yes |
+| `@verajs/renderer/hydration` | `hydration` (wire it beside the renderer) — the first render adopts server-rendered DOM | yes |
+| `@verajs/renderer/hydrate-slots` | `hydrateSlots` (wire it) — reads the server's light-slot format, for an app that hydrates light slots | yes |
 | `@verajs/renderer/keyed` | `keyed(key, result)` — keyed list reconciliation | yes |
 | `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
 | `@verajs/renderer/tag` | `` tag`h1` `` — an element whose tag name is decided at runtime | yes |
@@ -557,8 +558,11 @@ import { hydrateSlots } from '@verajs/renderer/hydrate-slots';
 wire([renderer, hydration, slots, hydrateSlots]);
 ```
 
-Without it, a server-rendered slots host is left exactly as served — never cleared — and the console
-names what to wire (`hydration-slots`). **Serve the server's HTML unmodified, comments included:** a
+Without it, a server-rendered host with light content is left exactly as served — never cleared — and the console
+names what to wire (`hydration-slots`); a host the server stated empty (`1:`) hydrates without it.
+**Wire `slots` on the server too:** a server without it writes no light-tree statement, so every
+component it rendered is taken for client-made and renders fresh on the client — its server markup kept, hidden, as
+unassigned light content — and no warning is possible, because the client cannot tell the two apart. **Serve the server's HTML unmodified, comments included:** a
 minifier that strips comments removes the slots' markers, and the host renders fresh, as React, Lit
 and Solid treat a missing marker. The light-tree statement carries a format number, so render and
 hydrate with matching releases of `@verajs/ssr` and `@verajs/renderer`: a page in another format
@@ -710,20 +714,22 @@ seam, so it is safe beside any renderer entry on a CDN page. The entry is
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.
 
-## `@verajs/renderer/hydrate`
+## `@verajs/renderer/hydration`
 
 <!-- recipe -->
 ```js
-import { renderer } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { hydration } from '@verajs/renderer/hydration';
+
+wire([renderer, hydration]);
 ```
 
-Same name, same `wire([renderer])`, different entry — this one's `renderer` binds the adopting
-render below, so swapping the import (or the importmap target) really is the only change.
-
-The first render into a container that already has children **adopts** them as server output of the
-same template: node identity is preserved, listeners attach, and updates mutate the adopted nodes.
-Hydration here is **markerless** — server HTML carries no framework comments, and the client repairs
-its own anchors into the adopted DOM.
+One more module wired beside the renderer — nothing else changes. The first render into a container that already has
+children **adopts** them as server output of the same template: node identity is preserved, listeners attach, and
+updates mutate the adopted nodes. Hydration here is **markerless** — server HTML carries no framework comments (light
+slots aside: each filled slot's content sits between two, see [`/slots`](#verajsrendererslots--light-dom-slots)), and
+the client repairs its own anchors into the adopted DOM.
 
 Any disagreement with the server markup clears the container (keeping `<style data-vm-sheet="styles">` tags)
 and renders fresh, so correctness never depends on the server output being right. A DOM node at a
@@ -757,22 +763,22 @@ required in the server markup, and one in the server markup that your template d
 a disagreement. A comment renders nothing, so neither direction changes what a reader sees; matching
 on them would only cost every commented template its adoption.
 
-On a CDN page, point the import map's `@verajs/renderer` at `vera-renderer-hydrate.min.js` and
-nothing else changes. Apps that never hydrate download none of this.
+On a CDN page, load `vera-renderer-hydration.min.js` beside `vera-renderer.min.js` and wire both. Apps that never
+hydrate download none of this.
 
 ### Importing this in Node
 
 **`@verajs/renderer` needs a DOM to be imported at all**, not merely to render. It captures
 `document` at module scope (and creates its scratch fragment there) — so `import '@verajs/renderer'` on a server throws
 `ReferenceError: document is not defined` before any of your code runs. The same is true of
-`/hydrate` and `/profiler`, and of `@verajs/jsx/standalone`, which contains a renderer.
+`/profiler`, and of `@verajs/jsx/standalone`, which contains a renderer.
 
 This is worth stating because [`@verajs/router`](../router#node-and-ssr) documents the opposite
 about itself, and the asymmetry is easy to read the wrong way. The rest of the family is Node-safe:
 `@verajs/core`, `@verajs/inserts`, `@verajs/store` and `/collections`, `@verajs/router`,
 `@verajs/styles`, `@verajs/autoloader`, `@verajs/jsx` (the transform), `@verajs/ssr` — **and
-`@verajs/renderer/keyed`, `/spread` and `/tag`**, which hold no DOM of their own even though their
-parent entry does.
+`@verajs/renderer/keyed`, `/spread`, `/tag`, `/hydration` and `/hydrate-slots`**, which hold no DOM of their own even
+though their parent entry does.
 
 In a universal app, hand the renderer in rather than importing it in shared code — which is what
 `examples/kitchen-sink/wiring.js` does, taking it as a parameter so the server can pass `null`.
@@ -1159,7 +1165,7 @@ for apps that import it.
 | element — `<div ${value}>` | `_$apply$` | `value._$apply$(element, part, untracked, adopting)` |
 | child — `<div>${value}</div>` | `_$child$` | `value._$child$(part, previous, adopting)` |
 
-`adopting` is `true` exactly once, while `@verajs/renderer/hydrate` adopts server markup: leave form state
+`adopting` is `true` exactly once, while `hydration` adopts server markup: leave form state
 alone, and adopt what the server rendered at the position or replace it — an applier that ignores the flag
 renders, which replaces. (`untracked` is how an applier runs someone else's code without subscribing the
 render — see core's `untrack`.)

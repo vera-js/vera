@@ -24,7 +24,8 @@ const record = process.argv.includes('--record');
 const BUNDLES = {
   core: 'packages/core/dist/vera.min.js',
   renderer: 'packages/renderer/dist/vera-renderer.min.js',
-  'renderer/hydrate': 'packages/renderer/dist/vera-renderer-hydrate.min.js',
+  'renderer/hydration': 'packages/renderer/dist/vera-renderer-hydration.min.js',
+  'renderer/hydrate-slots': 'packages/renderer/dist/vera-renderer-hydrate-slots.min.js',
   'renderer/spread': 'packages/renderer/dist/vera-renderer-spread.min.js',
   router: 'packages/router/dist/vera-router.min.js',
   autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',

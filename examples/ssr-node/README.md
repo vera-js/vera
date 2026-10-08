@@ -1,7 +1,8 @@
 # SSR — Node, vera-native, zero dependencies
 
 The smallest complete server-side rendering round trip: one component, rendered to declarative
-shadow DOM by `@verajs/ssr`, served, and hydrated in the browser by `@verajs/renderer/hydrate`.
+shadow DOM by `@verajs/ssr`, served, and hydrated in the browser by `hydration` wired beside the renderer
+(`wire([renderer, hydration])`, from `@verajs/renderer/hydration`).
 
 ```sh
 npm run build          # once, from the repo root

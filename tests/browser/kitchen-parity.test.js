@@ -4,7 +4,7 @@
  *   server   `@verajs/ssr` markup, parsed by the browser, no script — what a reader without
  *            JavaScript sees and what a crawler indexes
  *   client   the same components rendered from scratch by `@verajs/renderer`
- *   hydrate  the server's markup adopted in place by `@verajs/renderer/hydrate`
+ *   hydrate  the server's markup adopted in place by `hydration`, wired beside `@verajs/renderer`
  *
  * All three must be identical. A hydration mismatch is **silent by design** — the DOM is repaired
  * in place until it matches the template, so the page looks perfect and the server's work is quietly

@@ -47,7 +47,6 @@ const PACKAGES = {
   '@verajs/renderer/hydrate-slots': 'renderer/hydrate-slots',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/elements': 'renderer/elements',
-  '@verajs/renderer/hydrate': 'renderer/hydrate',
   '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
   '@verajs/jsx': 'jsx',

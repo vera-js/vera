@@ -24,7 +24,8 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/slots` | 10.72 KB | 4.08 KB |
 | `@verajs/renderer/namespaces` | 1.28 KB | 742 B |
 | `@verajs/renderer/elements` | 931 B | 530 B |
-| `@verajs/renderer/hydrate` | 18.16 KB | 6.65 KB |
+| `@verajs/renderer/hydration` | 7.98 KB | 3.37 KB |
+| `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.64 KB |
 | `@verajs/inserts` | 464 B | 344 B |
 | `@verajs/directives` | 15.59 KB | 6.01 KB |
 | `@verajs/directives/directives-standalone` | 18.62 KB | 7.10 KB |

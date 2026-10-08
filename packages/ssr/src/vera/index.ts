@@ -2,8 +2,8 @@
  * Vera-native SSR. Node resolves the module graph (`import()`), execution registers component classes
  * (through `customElements.define`, which the shim owns), templates flatten through the sigil-aware
  * serializer, and nested components are found by scanning the markup just written for tags the registry
- * knows (`scan.js`) — never by parsing HTML. Client takeover is `@verajs/renderer/hydrate`, which adopts
- * this markup in place, markerless.
+ * knows (`scan.js`) — never by parsing HTML. Client takeover is `hydration` (`@verajs/renderer/hydration`, wired beside
+ * the renderer), which adopts this markup in place, markerless but for light slots' region comments.
  *
  * Import THIS module first — before anything that imports `@verajs/renderer`, which needs the shims at
  * import time.

@@ -11,6 +11,9 @@ with the two comments the client keeps around it (`<!--[-->` … `<!--]-->`), an
 matching releases of `@verajs/ssr` and `@verajs/renderer` — the statement carries a format number, and a page in
 another format renders fresh, its content kept.
 
+**Wire `slots` on the client AND here:** without it this server writes no light-tree statement, so the client takes
+every component it rendered for client-made and renders it fresh — its markup kept, hidden — with no warning possible.
+
 **Serve the HTML unmodified — comments included.** Hydration adopts those slot comments. An HTML minifier that strips
 comments removes them, and hydration then treats that component as a mismatch: the standard fallback warning and a
 fresh render, as React, Lit and Solid treat a missing marker of theirs.

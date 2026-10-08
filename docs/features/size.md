@@ -137,7 +137,8 @@ describing the bytes honestly.)*
 | `@verajs/renderer/slots` | 4 175 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/namespaces` | 742 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/elements` | 530 B | behavior attached to claimed elements in templates, mounted and unmounted with their instances |
-| `@verajs/renderer/hydrate` | 6 814 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
+| `@verajs/renderer/hydration` | 3 451 B | adopting server-rendered markup — wired BESIDE the renderer (`wire([renderer, hydration])`) |
+| `@verajs/renderer/hydrate-slots` | 1 675 B | hydrating light-DOM slots — the server's light-slot format, read only where both are used (`wire([renderer, hydration, slots, hydrateSlots])`) |
 | `@verajs/inserts` | 344 B | the extension point |
 | `@verajs/directives/core` | 6 158 B | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | 7 275 B | the engine with its own store, for a page running no vera |

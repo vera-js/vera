@@ -62,6 +62,11 @@ const REMOVED = {
    *  single-registrant 'slot' STRATEGY contract is retired — 'slot' remains only as the server hand-off.
    *  `_$park$` was the one name only a strategy wrote. */
   _$park$: 'nothing — custom slot strategies are retired; wire([renderer, slots])',
+  /** The hydrating renderer ENTRY retired in the lean rebuild (step 4): hydration is a module wired beside the renderer.
+   *  Keyed with its delimiters, so `@verajs/renderer/hydrate-slots` and its bundle never match. */
+  '`@verajs/renderer/hydrate`': "`@verajs/renderer/hydration` — wire([renderer, hydration])",
+  "'@verajs/renderer/hydrate'": "'@verajs/renderer/hydration' — wire([renderer, hydration])",
+  'vera-renderer-hydrate.': 'vera-renderer-hydration.min.js beside vera-renderer.min.js',
   'data-vera-slotted': 'data-vm-slotted',
   /** The same audit's author-facing renames. */
   'data-vd-region': 'data-vd-list',
