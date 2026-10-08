@@ -11,6 +11,10 @@ with the two comments the client keeps around it (`<!--[-->` … `<!--]-->`), an
 matching releases of `@verajs/ssr` and `@verajs/renderer` — the statement carries a format number, and a page in
 another format renders fresh, its content kept.
 
+**Hydrate what this renders: wire `hydration` on the client** (`wire([renderer, hydration])`). Without it the client renders
+beside the server's markup — two copies — except a light-slots host, which re-renders once or, holding light content,
+stands as served with `hydration-unwired`.
+
 **Wire `slots` on the client AND here:** without it this server writes no light-tree statement, so the client takes
 every component it rendered for client-made and renders it fresh — its markup kept, hidden — with no warning possible.
 

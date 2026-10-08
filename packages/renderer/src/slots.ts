@@ -879,6 +879,31 @@ const slotBehavior = {
   },
 };
 
+/**
+ * **A served light host whose first render nothing adopts** — the renderer asks (`_$unadopted$`) before that render
+ * would APPEND beside the server's markup: two copies, the server's dead. The server states every host it renders while
+ * slots is wired (`data-vm-light`): stated EMPTY (`N:`), the host holds nothing of the page's, so the server's render
+ * is cleared (its SSR stylesheets kept) and the client renders fresh — working, without the server's head start; stated
+ * with light content, that content cannot be told from the server's render without `hydrateSlots`, so the host stands
+ * as served and the coded error names what to wire. Development warns once per page.
+ */
+let warnedUnadopted = false;
+const unadopted = (container: Node) => {
+  const spec = container.nodeType === 1 ? (container as Element).getAttribute(LIGHT_ATTR) : null;
+  if (spec === null) return;
+  if (!spec.endsWith(':')) throw new Error(__DEV__ ? `[vera] slots: a server-rendered light host holds the page's content, and nothing hydrates it — it stands as served. Wire \`wire([renderer, hydration, slots, hydrateSlots])\`. (hydration-unwired)` : '[vera] hydration-unwired');
+  for (let node = container.firstChild; node !== null; ) {
+    const next: ChildNode | null = node.nextSibling;
+    if (node.nodeType !== 1 || !(node as Element).hasAttribute('data-vm-sheet')) container.removeChild(node);
+    node = next;
+  }
+  (container as Element).removeAttribute(LIGHT_ATTR);
+  if (__DEV__ && !warnedUnadopted) {
+    warnedUnadopted = true;
+    console.warn('[vera] slots: this page was server-rendered and nothing hydrates it, so its components re-render on the client instead of adopting the server markup. Wire `hydration` beside the renderer: `wire([renderer, hydration])`. (hydration-unwired)');
+  }
+};
+
 /** A light host's children in light order, as its record holds them — what a template placing content into it adopts. */
 const lightNodes = (host: Element): Node[] | null => {
   const light = HOSTS.get(host);
@@ -957,6 +982,7 @@ export const slotDiscovery = [
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
+    (registry as unknown as { _$unadopted$?: (container: Node) => void })._$unadopted$ = unadopted;
     (registry as unknown as { _$parked$?: (root: Node) => void })._$parked$ = (root) =>
       (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(handle)).observe(root, {
         attributes: true,

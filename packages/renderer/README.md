@@ -729,6 +729,13 @@ updates mutate the adopted nodes. Hydration here is **markerless** — server HT
 slots aside: each filled slot's content sits between two, see [`/slots`](#verajsrendererslots--light-dom-slots)), and
 the client repairs its own anchors into the adopted DOM.
 
+**Server-rendered HTML must be hydrated.** A client that does not wire `hydration` renders beside the server's markup
+— two copies, the server's dead — because a first render appends, and markup without a marker cannot be recognized.
+The one case that can be: with slots wired, the server states every component host it renders, so on a client
+without `hydration` a host stated empty (no light content) is cleared and rendered once, and a host holding the page's
+light content stands exactly as served with a coded error (`hydration-unwired`) naming what to wire; development warns
+once per page.
+
 Any disagreement with the server markup clears the container (keeping `<style data-vm-sheet="styles">` tags)
 and renders fresh, so correctness never depends on the server output being right. A DOM node at a
 child position is the one thing the server cannot have rendered; it is inserted without giving up

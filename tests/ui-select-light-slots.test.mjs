@@ -18,7 +18,14 @@ const { wire } = await load('core');
 const { renderer } = await load('renderer');
 const { styles } = await load('styles');
 const { slots, slotted } = await load('renderer/slots');
-wire([renderer, styles, slots]); // the app opts into light-DOM slots
+const { hydration } = await load('renderer/hydration');
+const { hydrateSlots } = await load('renderer/hydrate-slots');
+/**
+ * The app opts into light-DOM slots — and hydrates, because one row below serves the component and hydrates it: a page
+ * that does not hydrate server markup either re-renders it or, holding light content, leaves it as served
+ * (`hydration-unwired`). Client-made instances carry no light-tree statement and render on the client as before.
+ */
+wire([renderer, styles, slots, hydration, hydrateSlots]);
 
 await load('ui');
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(r));

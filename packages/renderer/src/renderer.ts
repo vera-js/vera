@@ -1700,7 +1700,11 @@ export const renderInto = (result: unknown, container: Node) => {
   if (part === undefined && adopt !== undefined && container.firstChild !== null && adopt(result, container))
     part = rootParts.get(container)!;
   else {
-    if (part === undefined) rootParts.set(container, (part = markered(container, null)));
+    if (part === undefined) {
+      /** Nothing adopts: whatever recognizes server markup is told before this render would append beside it (light slots). */
+      if (adopt === undefined) (registry as { _$unadopted$?: (container: Node) => void } | null)?._$unadopted$?.(container);
+      rootParts.set(container, (part = markered(container, null)));
+    }
     commitAs(container, part, result);
   }
   /**
