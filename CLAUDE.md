@@ -389,6 +389,12 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   through your own copy works in development and silently does nothing in production — it does not
   throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
   way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
+  **The rule holds for TEST code too, and it was broken there** (2026-10-08): the shared hydration harness
+  (`tests/hydration.mjs`) took `wire` from `@verajs/inserts`, so in production the renderer was connected to two
+  registries, slots wired through core was never asked, and production rows passed or failed for the wrong reason —
+  one suite (`hydration-walk`) only passed BECAUSE of the split. Found by luck, checking a migration in production.
+  `tests/one-registry.test.mjs` now fails the gate when a suite takes the standalone registry, unless it is on its
+  allow-list with a reason (only the suites that test the inserts module itself).
 - **A property on an insert DESCRIPTOR is not reachable through `chain()`** — the registry keeps the
   descriptor's `fn`, so a protocol member set on the descriptor object is invisible to whoever reads
   the insert. Put it on the function. Measured 2026-10-02: slots' server hook sat on the descriptor and
