@@ -71,13 +71,5 @@ export default defineConfig(({ mode }) => ({
    */
   define: {
     __DEV__: JSON.stringify(mode !== 'production'),
-    /**
-     * `__HYDRATING__` folds per ENTRY in the real build, not per mode — the renderer's base bundle
-     * gets `false` and its hydrate bundle `true`, from one source. A dev server has one copy of
-     * that source and must pick, and `false` is the copy these examples use: adoption is exercised
-     * by `examples/ssr-node` (its own server) and by the browser suite's fixtures, both of which
-     * run against BUILT artifacts where the fold is real.
-     */
-    __HYDRATING__: 'false',
   },
 }));

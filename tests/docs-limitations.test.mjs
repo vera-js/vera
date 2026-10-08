@@ -40,12 +40,6 @@ const LIMITATIONS = [
     'the name promises the opposite in Vue, Solid and Preact',
   ],
   [
-    'a hydrating app cannot be profiled',
-    'packages/renderer/README.md',
-    'hydrating app cannot be profiled',
-    '/hydrate and /profiler are both drop-in replacements, so an app can have one of them',
-  ],
-  [
     'a carriage return cannot survive inside style or script',
     'packages/ssr/README.md',
     'RAWTEXT is the exception, and it is not fixable',

@@ -34,8 +34,7 @@ an example using the default stack:
 
 - `vite.config.js` aliases `@verajs/*` to package **source**, and the source guards diagnostics as
   `if (__DEV__)`. Only the real build folds that to a literal, so the page died on
-  `__DEV__ is not defined` — no render, no clue, browser-only. Same again for `__HYDRATING__`. The
-  config now defines both.
+  `__DEV__ is not defined` — no render, no clue, browser-only. The config now defines it.
 - Two modules were missing: light-DOM slots (`<parent-element>` renders a `<slot>` without a shadow
   root) and `static styles` adoption, which left core in 0.2.0. Both were found by *reading the
   development diagnostics*, each of which named the module and the exact line to add — which is

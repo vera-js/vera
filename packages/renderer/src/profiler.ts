@@ -23,15 +23,13 @@
  * no hook, no call sites and no cost, and this entry is not built for production at all. Profiling
  * minified, property-mangled output would not be meaningful anyway.
  *
- * Like `./hydrate.ts`, this bundle contains its own copy of the renderer. Import the app's renderer
- * *through* this entry; importing both side by side gives you two renderer modules with two
- * template caches, and the profiler would observe an instance nothing renders into.
- *
- * **A hydrating app therefore cannot be profiled**, and that is worth stating rather than leaving to
- * be inferred: `/hydrate` is a drop-in replacement for the same public API, so an app can have this
- * one or that one and not both. Measured — a hydrating app driven through three renders reports zero
- * frames while rendering correctly. `formatReport` says so when it observed nothing, because a zero
- * report is otherwise indistinguishable from an app with nothing to optimize.
+ * This bundle contains its own copy of the renderer. Import the app's renderer *through* this entry;
+ * importing both side by side gives you two renderer modules with two template caches, and the
+ * profiler would observe an instance nothing renders into. A hydrating app profiles like any other:
+ * `hydration` is wired beside whichever renderer the app uses, so `wire([renderer, hydration])` with
+ * THIS entry's `renderer` adopts the server's markup and is profiled (`tests/profiler-hydration`).
+ * `formatReport` says so when it observed nothing, because a zero report is otherwise
+ * indistinguishable from an app with nothing to optimize.
  */
 import {
   setProfileHook as _setProfileHook,
@@ -261,10 +259,10 @@ export const formatReport = (report: ProfileReport): string => {
   const share = committed === 0 ? 0 : Math.round((report.rebuilds / committed) * 100);
   /**
    * **Nothing observed is the one result that cannot be read.** It is what a healthy idle app looks
-   * like, and it is also what profiling the *wrong renderer* looks like — and this entry, `/hydrate`
-   * and `@verajs/renderer` each carry their own copy with their own hook, so an app that renders
-   * through any of the others is invisible here no matter how busy it is. Measured: a hydrating app
-   * driven through three renders reports `0 frames` while rendering perfectly.
+   * like, and it is also what profiling the *wrong renderer* looks like — this entry and
+   * `@verajs/renderer` each carry their own copy with their own hook, so an app that renders through
+   * the other is invisible here no matter how busy it is. Measured: an app hydrating through the
+   * base renderer, driven through renders, reports `0 frames` while rendering perfectly.
    *
    * A zero report is therefore where the explanation belongs. It costs a production build nothing —
    * this entry is not built for production at all.
@@ -273,9 +271,8 @@ export const formatReport = (report: ProfileReport): string => {
     return (
       'No renders observed.\n' +
       'If the app is rendering, it is rendering through a different copy of the renderer: this ' +
-      'entry, @verajs/renderer/hydrate and @verajs/renderer each bundle their own, with their own ' +
-      'hook.\nImport the app\'s renderer through this entry — and note that a hydrating app cannot ' +
-      'be profiled, because /hydrate is a drop-in replacement too and only one of them can be it.'
+      'entry and @verajs/renderer each bundle their own, with their own hook.\nImport the app\'s ' +
+      'renderer through this entry — hydrating too: wire([renderer, hydration]) with this entry\'s renderer.'
     );
   const lines = [
     `${report.frames} frame(s), ${report.ms.toFixed(1)}ms total, slowest ${report.slowestFrameMs.toFixed(1)}ms`,

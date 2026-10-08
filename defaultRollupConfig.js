@@ -69,17 +69,9 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
        */
       renderChunk(code) {
         const replacement = (isProduction ? 'false' : 'true').padEnd('__DEV__'.length);
-        /**
-         * `__HYDRATING__` folds per entry, not per mode: the renderer's base and hydrate bundles
-         * compile the same source, and the three adoption branches in `AttrPart._commit` are
-         * reachable only from the hydrate entry — folding the flag lets terser delete them from
-         * the base bundle instead of shipping dead branches to every non-SSR app (−31 B gzipped).
-         */
-        const hydrating = (options.hydrating ? 'true' : 'false').padEnd('__HYDRATING__'.length);
         return {
           code: code
             .replace(/\b__DEV__\b/g, replacement)
-            .replace(/\b__HYDRATING__\b/g, hydrating)
             .replace(/\b__VERSION__\b/g, version),
           map: null,
         };

@@ -165,15 +165,16 @@ test('JSX-shaped text that is not JSX is left alone', async () => {
 
 
 /**
- * `/hydrate` and `/profiler` are both drop-in replacements for the whole renderer, each bundling its
- * own copy with its own instrumentation hook — so an app can have one of them and not both, and
- * profiling a hydrating app observes an instance nothing renders into.
+ * `/profiler` is a drop-in replacement for the whole renderer, bundling its own copy with its own
+ * instrumentation hook — so an app rendering through `@verajs/renderer` (here: hydrating through it)
+ * while profiling this entry observes an instance nothing renders into. A hydrating app profiled
+ * through the profiler's OWN renderer works (`tests/profiler-hydration`).
  *
  * That is a design consequence rather than a bug. The bug was its **silence**: a report of all zeros
  * is exactly what a healthy idle app produces, so the one result that cannot be read was the one
  * being returned. Pass 94.
  */
-test('profiling a hydrating app explains itself instead of reporting a silent zero', { skip: isProduction && 'the profiler is not built for production' }, async () => {
+test('profiling the WRONG renderer copy explains itself instead of reporting a silent zero', { skip: isProduction && 'the profiler is not built for production' }, async () => {
   const profiler = await load('renderer/profiler');
   const hydrateInto = await hydrating();
   const host = dom.window.document.createElement('div');
@@ -188,7 +189,8 @@ test('profiling a hydrating app explains itself instead of reporting a silent ze
   assert.equal(report.frames, 0, 'if this ever observes frames, the two bundles have started sharing a hook');
   const text = profiler.formatReport(report);
   assert.match(text, /No renders observed/);
-  assert.match(text, /hydrating app cannot be profiled/, 'the message must name the actual cause');
+  assert.match(text, /different copy of the renderer/, 'the message must name the actual cause');
+  assert.match(text, /wire\(\[renderer, hydration\]\)/, 'and how a hydrating app is profiled');
 });
 
 test('and a real profiling session still reports normally', { skip: isProduction && 'the profiler is not built for production' }, async () => {

@@ -267,7 +267,7 @@ than at install. Both ship from this package and bump together, so a single vers
 the trap is pinning one and floating the other. `@verajs/renderer/spread` carries the same rule for
 the same reason.
 
-**It is additive, not a substitute.** Unlike `/hydrate` and `/profiler`, this entry imports nothing
+**It is additive, not a substitute.** Unlike `/profiler`, this entry imports nothing
 at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
 it is safe alongside any of them, `/hydrate` included.
 
@@ -360,15 +360,13 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/elements` | `elements` (wire it) — behavior attached to claimed elements in templates, mounted and unmounted with their instances | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
-`/hydrate` and `/profiler` each re-export the whole public API, so they are drop-in replacements for
-the base import. **Never mix two of them in one app** — that loads two renderers with two template
-caches.
-
-**Which means an app can have one of them, not both — so a hydrating app cannot be profiled.** They
-each bundle their own renderer with its own instrumentation hook, so profiling while rendering
-through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
-frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
-zero report is otherwise indistinguishable from an app with nothing to optimize.
+`/profiler` re-exports the whole public API, so it is a drop-in replacement for the base import. **Never mix it
+with `@verajs/renderer` in one app** — that loads two renderers with two template caches, and profiling while
+rendering through the other observes an instance nothing renders into (measured: renders reported zero frames while
+the page updated correctly). `formatReport` says so when it observed nothing, because a zero report is otherwise
+indistinguishable from an app with nothing to optimize. **A hydrating app profiles like any other:** wire
+`hydration` beside the profiler's renderer — `wire([renderer, hydration])` with `renderer` from
+`@verajs/renderer/profiler` — and its adoption is profiled too.
 
 ## `@verajs/renderer/elements` — behavior on elements in templates
 
