@@ -1305,6 +1305,8 @@ class ChildPart {
               node = next;
             }
           } else (root as ChildNode).remove();
+          /** Off the page now: slots watches what a parked branch's slots hold (`_$park$`, off-chain like `_$done$`). */
+          (registry as { _$park$?: (root: Node) => void } | null)?._$park$?.(root);
           parked.set(current._strings, current);
           this.$o = EMPTY;
         }

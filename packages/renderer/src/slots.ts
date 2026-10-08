@@ -392,6 +392,12 @@ const observersOf = (light: Light): Pair => {
   const Observer = globalThis.MutationObserver ?? (light.host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
   return (light.obs ??= [new Observer(handle), new Observer(handle)]);
 };
+/**
+ * **A `hold()`-parked branch, watched while it is parked** — a slot's region in it is out of its host's subtree, where
+ * the host's own attribute registration cannot see a node in it renamed (`slot=`): re-routed now, as native slots would.
+ * One observer for every parked root (the renderer's `_$park$`), registering the same root again when it parks again.
+ */
+let parkedObserver: MutationObserver | undefined;
 /** A light's pending records, onto `into` — or dropped, without `into` (this module's own moves). */
 const take = (light: Light, into?: MutationRecord[]) => {
   if (light.obs !== undefined)
@@ -485,6 +491,7 @@ const flush = (context?: Light, root?: Node) => {
     );
   for (const light of near) take(light, records);
   for (const light of work) take(light, records);
+  if (parkedObserver !== undefined) for (const record of parkedObserver.takeRecords()) records.push(record);
   note(records);
   for (const light of work) {
     if (light.dirty || (ending && light.fresh)) {
@@ -936,6 +943,12 @@ export const slotDiscovery = [
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
+    (registry as unknown as { _$park$?: (root: Node) => void })._$park$ = (root) =>
+      (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(handle)).observe(root, {
+        attributes: true,
+        attributeFilter: ['slot'],
+        subtree: true,
+      });
     /** Development only: how many lights wait for work — 0 once every rendered host is distributed (a retention pin). */
     if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
