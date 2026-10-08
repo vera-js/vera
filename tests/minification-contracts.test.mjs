@@ -20,7 +20,8 @@ const PROD = {
   jsx: 'packages/jsx/dist/vera-jsx.min.js',
   'jsx-standalone': 'packages/jsx/dist/vera-jsx-standalone.min.js',
   renderer: 'packages/renderer/dist/vera-renderer.min.js',
-  hydrate: 'packages/renderer/dist/vera-renderer-hydrate.min.js',
+  hydration: 'packages/renderer/dist/vera-renderer-hydration.min.js',
+  'hydrate-slots': 'packages/renderer/dist/vera-renderer-hydrate-slots.min.js',
   router: 'packages/router/dist/vera-router.min.js',
   inserts: 'packages/inserts/dist/vera-inserts.min.js',
   styles: 'packages/styles/dist/vera-styles.min.js',
@@ -60,10 +61,11 @@ const EXTERNAL_CORE = {
 // regex added to another package must reserve them. Getting this wrong fails silently: the
 // callback simply lands where nothing looks for it.
 
+/** Each bundle is held to the names it READS: hydration, wired beside the renderer, reads a result's strings and values. */
 test('the lit template contract survives minification', () => {
-  for (const name of ['renderer', 'hydrate']) {
+  for (const [name, contracts] of [['renderer', ['_$litType$', 'strings', 'values']], ['hydration', ['strings', 'values']]]) {
     const src = read(PROD[name]);
-    for (const contract of ['_$litType$', 'strings', 'values']) {
+    for (const contract of contracts) {
       assert.ok(src.includes(contract), `${name}: ${contract} must not be mangled`);
     }
   }
@@ -75,9 +77,10 @@ test('the lit template contract survives minification', () => {
  * the renderer mangles `/^_[a-z]/`, which `_$…$` deliberately does not match.
  */
 test('the child-position directive protocol survives minification', () => {
-  for (const name of ['renderer', 'hydrate']) {
+  /** Hydration tells a child value and an applier it is adopting — it calls `_$child$` and `_$apply$`, never `_$commit$`. */
+  for (const [name, contracts] of [['renderer', ['_$child$', '_$commit$', '_$apply$']], ['hydration', ['_$child$', '_$apply$']]]) {
     const src = read(PROD[name]);
-    for (const contract of ['_$child$', '_$commit$', '_$apply$']) {
+    for (const contract of contracts) {
       assert.ok(src.includes(contract), `${name}: ${contract} must not be mangled`);
     }
   }

@@ -128,13 +128,14 @@ test('hold keeps user state across a swap, against the production bundle', async
 test('the additive bundles carry no renderer, and the substitutes do', () => {
   const source = (file) => readFileSync(new URL(`../packages/renderer/dist/${file}`, import.meta.url), 'utf8');
 
-  for (const file of ['vera-renderer.min.js', 'vera-renderer-hydrate.min.js'])
+  for (const file of ['vera-renderer.min.js'])
     assert.ok(
       source(file).includes('renderInto'),
       `${file} is a substitute and should carry a renderer — if this changed, the co-loading rule changed with it`
     );
 
-  for (const file of ['vera-renderer-keyed.min.js', 'vera-renderer-spread.min.js', 'vera-renderer-tag.min.js'])
+  /** `hydration` and `hydrate-slots` are wired BESIDE the renderer (`wire([renderer, hydration])`): additive too. */
+  for (const file of ['vera-renderer-keyed.min.js', 'vera-renderer-spread.min.js', 'vera-renderer-tag.min.js', 'vera-renderer-hydration.min.js', 'vera-renderer-hydrate-slots.min.js'])
     assert.ok(
       !source(file).includes('renderInto'),
       `${file} is documented as additive and now carries a renderer, so loading it beside one gives the page two template caches`

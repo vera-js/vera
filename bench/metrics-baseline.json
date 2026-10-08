@@ -6,7 +6,6 @@
   "size": {
     "core": 2764,
     "renderer": 3719,
-    "renderer/hydrate": 4902,
     "renderer/spread": 842,
     "router": 3613,
     "autoloader": 1122,

@@ -102,7 +102,10 @@ test('after hydration, releasing a key restores the server value — deliberatel
   for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements', 'Event',
                    'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
     globalThis[k] = dom.window[k];
-  const { renderInto } = await import('../packages/renderer/dist/development/vera-renderer-hydrate.js');
+  const { wire } = await import('../packages/core/dist/development/vera.js');
+  const { renderInto, renderer } = await import('../packages/renderer/dist/development/vera-renderer.js');
+  const { hydration } = await import('../packages/renderer/dist/development/vera-renderer-hydration.js');
+  wire([renderer, hydration]);
   const { spread } = await import('../packages/renderer/dist/development/vera-renderer-spread.js');
   const tag = (strings, ...values) => ({ _$litType$: 1, strings, values });
 

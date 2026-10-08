@@ -5,8 +5,10 @@
  * It used to call `hydrate` from `@lit-labs/ssr-client` before rendering, alongside a commented-out
  * block wiring lit's SSR renderer. Both went with the move to `@verajs/renderer`, and neither was
  * doing anything: the call handed lit a FUNCTION where it wants a `TemplateResult`, and `render`
- * ran immediately afterwards regardless. Hydration in this framework is `@verajs/renderer/hydrate`,
- * exercised for real by `examples/ssr-node` and the browser suite's fixtures.
+ * ran immediately afterwards regardless.
+ *
+ * Hydration in this framework is `hydration` from `@verajs/renderer/hydration`, wired beside the renderer
+ * (`wire([renderer, hydration])`), exercised for real by `examples/ssr-node` and the browser suite's fixtures.
  */
 import { html, init, render, useEffect } from '@verajs/core';
 
