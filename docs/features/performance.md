@@ -23,9 +23,9 @@ framework actually costs.
 >
 > **The VeraJS implementations schedule on a microtask** (`setRenderScheduler(microtask)`), the
 > same flush model Lit and Vue use in this table, so no row contains a frame boundary for one
-> framework and not another. The default scheduler is an animation frame — frame-aligned batching
-> at the cost of ~0.2–0.4 ms of latency on small updates, which is a real trade an app picks with
-> one documented call; see `setRenderScheduler`.
+> framework and not another. The default scheduler is a microtask too, within a per-frame budget
+> (past ~4 ms of flush work in a frame, the next flush waits for a frame) — a single operation like
+> each row here never reaches the budget, so the default and the table's choice time the same.
 
 `@verajs/core` + `@verajs/renderer` — the default pairing:
 

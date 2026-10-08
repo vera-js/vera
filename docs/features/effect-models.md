@@ -28,7 +28,7 @@ different value, which is a real capability. **VeraJS is the only one that offer
 ```js
 import { useEffect, useSyncEffect } from '@verajs/core';
 
-// Batched: one run per frame, no matter how many writes landed.
+// Batched: one run per flush (a microtask), no matter how many writes landed.
 useEffect(() => {
   save(state.draft);                 // runs once, after all three writes
 });
@@ -55,8 +55,11 @@ explicitly.
   will recurse until the stack gives out. **Solid and Preact carry exactly the same hazard**; it is
   the cost of the model, not a VeraJS flaw. `useEffect` cannot do this to you, which is why it is
   the default.
-- **Coalescing keeps one observation per frame.** A coalesced run reads current state, not the steps
+- **Coalescing keeps one observation per flush.** A coalesced run reads current state, not the steps
   between. Use `useSyncEffect` when the steps matter.
+- **A coalesced effect runs before the browser paints** — after its flush's renders, in the same
+  microtask — so a slow one delays its own update's paint. (React runs its effects after paint; Vue,
+  Svelte and Lit run them before, as here.)
 - Vue offers `flush: 'sync'` on `watchEffect`, so it is closest to matching this.
 
 ## Reproduce

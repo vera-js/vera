@@ -191,9 +191,17 @@ store has since outgrown). When rows are replaced rather than mutated — which 
 
 | | Runs | Batching |
 | --- | --- | --- |
-| `useLayoutEffect` | before render | coalesced, microtask |
-| `useEffect` | after render | coalesced, animation frame |
+| `useLayoutEffect` | first in each flush, before the render — it sees the DOM the last render left | coalesced, one flush |
+| `useEffect` | after the render, in the same flush — before the browser paints | coalesced, one flush |
 | `useSyncEffect` | immediately on every change | **not** batched |
+
+**Every queued render, layout effect and effect runs in one flush** — a microtask, so after `await` the DOM and its
+effects are current. In a flush, layout effects run first, then renders, then effects, and parents before their
+children: a child re-rendered by its parent's new props renders once. A hook may run **twice** in one flush — so an
+effect that measures what was just rendered and stores it lands before paint — and a third run waits for the next
+frame. Past a budget of about 4 ms of flush work per frame, the next flush also waits for a frame (or, where there are
+no frames — a hidden tab, a test, a server — a short timer): fifty events landing in one frame render about once, not
+fifty times. One caveat: an effect runs before the browser paints its update, so a slow one delays that paint.
 
 All three take `(callback, element?)` and treat a returned function as cleanup — run before the next
 pass, **and on element removal**. No `disconnectedCallback` is needed for it; if the component has
@@ -222,22 +230,22 @@ state.n = 1; state.n = 2; state.n = 3;
 `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
 write, or use `useEffect`. In development the recursion is stopped and named at depth 50.
 
-`useEffect` and a template can loop too, and there the loop is real but not always a mistake: the
-default scheduler is an animation frame, so an effect that writes what it reads simply runs once per
-frame — which is also how you write an animation. So development **warns and does not stop it**,
-after 50 consecutive frames in which the pass fed itself:
+`useEffect` and a template can loop too, and there the loop is real but not always a mistake: an
+effect that writes what it reads runs twice per flush and then once more per frame — it can never
+freeze the page. So development **warns and does not stop it**, after 50 consecutive frames in which
+the pass fed itself, naming the hook that writes:
 
 ```
-[vera] useEffect has re-run for 50 consecutive frames because it writes state it also reads …
+[vera] useEffect on <x-clock> has re-run for 50 consecutive frames because it writes state it also reads …
 ```
 
 A write that lands *outside* the pass — from your own `requestAnimationFrame`, a timer, an event —
-never trips it at any threshold, because the count resets on the first pass that does not feed
-itself. Only a pass whose own body writes what it reads climbs. If that is deliberate, say so:
+never trips it at any threshold: only a pass whose own body writes what it reads is held. A frame
+loop is plainest written with `requestAnimationFrame`; if a self-feeding effect is deliberate, say so:
 
 ```js
 init(this);
-allowRenderLoop(this);           // an animation: one store write per frame, on purpose
+allowRenderLoop(this);           // an animation driven by its own writes, on purpose
 useEffect(() => { state.t = state.t + 1 });
 ```
 
@@ -259,11 +267,11 @@ per write, so it sees every one.
 | `mount()` | commit the setup for a component that draws nothing |
 | `useRender(template, element, ...args)` | the lower-level half of `render`: registers a render on the component being set up that draws into `element` — which may be a different element |
 | `wire([renderer])` | choose what writes to the DOM |
-| `setRenderScheduler(fn)` | defaults to the **element's own window's** `requestAnimationFrame` — so a component in a popped-out window or an iframe runs on that window's frames; pass `microtask` for Lit/Vue-style timing. A scheduler receives `(run, element)` |
+| `flush()` | run every queued render and effect now, synchronously — a test, or work that must see the DOM settled (a View Transition's callback) |
+| `setRenderScheduler(fn)` | when a FLUSH runs. The default is a microtask within a per-frame budget, and past it the **element's own window's** next frame (a component in a popped-out window or an iframe waits on that window's frames); `microtask` is the same without a budget. A scheduler receives `(run, element)` and returns the one it replaced |
 
 ```js
-import { init, mount, useRender, useEffect, mathml, html,
-         setRenderScheduler, microtask } from '@verajs/core';
+import { init, mount, useRender, useEffect, mathml, html, flush } from '@verajs/core';
 
 class TickerLogger extends HTMLElement {
   connectedCallback() {
@@ -277,7 +285,7 @@ const formula = html`<math>${mathml`<mi>x</mi><mo>=</mo><mn>${x}</mn>`}</math>`;
 
 useRender(() => html`<p>${state.n}</p>`, element);  // during setup: draw into another element, on this component's lifecycle
 
-setRenderScheduler(microtask);           // Lit/Vue-style timing instead of requestAnimationFrame
+document.startViewTransition(() => { state.rows = next; flush(); });  // the DOM settled inside the snapshot
 ```
 
 **`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the

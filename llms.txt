@@ -23,10 +23,11 @@ lit's own output rather than asserting it. VeraJS ships its own renderer and nee
 >   provenance attestation (`npm audit signatures`).
 > - `@verajs/renderer` is browser-confirmed fastest-or-tied against lit-html on the benchmark's
 >   eight operations; prefer it.
-> - Render scheduling defaults to `requestAnimationFrame` (frame-aligned batching).
->   `setRenderScheduler(microtask)` gives Lit/Vue-style microtask flushing — it is what the
->   published DOM benchmarks use for like-for-like timing, and the right choice when update
->   latency matters more than frame alignment.
+> - Render scheduling: every queued render and effect runs in ONE flush, a microtask (Lit/Vue
+>   timing), within a budget of about 4 ms of flush work per frame — past it, the next flush waits
+>   for a frame, so a flood of events renders about once per frame. After `await`, the DOM and its
+>   effects are current; `flush()` drains on demand. `setRenderScheduler(microtask)` drops the
+>   budget (every flush at once).
 > - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
 >   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
 >   under `@web/test-runner` and Playwright. Green in CI. `npm run gate` runs all of it.
@@ -134,8 +135,9 @@ the right tool.
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | What you use. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
-| `setRenderScheduler` | `(scheduler) => previous` | Defaults to the element's own window's `requestAnimationFrame` (a popped-out window or iframe runs on its own frames). A scheduler receives `(run, element)`. |
-| `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
+| `flush` | `() => void` | Runs every queued render and effect now, synchronously — tests, or a View Transition's callback. |
+| `setRenderScheduler` | `(scheduler) => previous` | When a FLUSH runs. Default: a microtask within a per-frame budget; past it, the element's own window's next frame (a popped-out window or iframe waits on its own), or a short timer where there are none. A scheduler receives `(run, element)`. |
+| `microtask` | `RenderScheduler` | Every flush as a microtask, with no budget. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
 
 ### Props — passing data to a child component
@@ -179,8 +181,8 @@ is the platform's own and untouched by any of this.
 
 | Export | When it runs | Batching |
 | --- | --- | --- |
-| `useLayoutEffect` | before render (priority 25) | coalesced, microtask |
-| `useEffect` | after render (priority 75) | coalesced, animation frame |
+| `useLayoutEffect` | first in each flush, before the render (priority 25) | coalesced, one flush |
+| `useEffect` | after the render, same flush, before paint (priority 75) | coalesced, one flush |
 | `useSyncEffect` | immediately on every change (priority 75) | **not** batched |
 
 All three accept `(callback, element?)` and **run a returned function as cleanup** — before the
@@ -194,8 +196,10 @@ useEffect(() => {
 });
 ```
 
-**Coalesced vs sync.** `useEffect` runs once per frame no matter how many writes landed, so it only
-ever observes final state. `useSyncEffect` runs once per individual write and observes every
+**Coalesced vs sync.** `useEffect` runs once per flush no matter how many writes landed, so it only
+ever observes final state. Order in a flush: layout effects, renders, effects — parents before
+children. A hook may run twice in one flush (a measure-then-set lands before paint); a third run
+waits for the next frame. `useSyncEffect` runs once per individual write and observes every
 intermediate value — the Solid/Preact model.
 
 ```js
@@ -207,17 +211,17 @@ state.n = 1; state.n = 2; state.n = 3;
 ⚠️ `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
 write or use `useEffect`. Development stops and names the recursion at depth 50.
 
-⚠️ `useEffect` and templates can loop too, and there it is ambiguous — the default scheduler is an
-animation frame, so an effect that writes what it reads runs once per frame, which is also how an
-animation is written. Development **warns without stopping it** after 50 consecutive self-feeding
-passes; production carries neither the counter nor the text.
+⚠️ `useEffect` and templates can loop too, and there it is ambiguous — an effect that writes what it
+reads runs twice per flush and then once more per frame (it never freezes the page), which is also
+one way an animation is written. Development **warns without stopping it** after 50 consecutive
+held frames, naming the hook that writes; production carries neither the counter nor the text.
 
 | Export | Signature | Notes |
 | --- | --- | --- |
 | `allowRenderLoop` | `(element) => void` | Marks a component's self-feeding loop as deliberate, silencing that warning for it. No-op in production. Throws in development if not given an element. |
 
-The count is per element **and** per hook, and resets on the first pass that does not feed itself —
-so a write scheduled from your own `requestAnimationFrame`, a timer or an event never trips it.
+The count is per hook, and resets on the first pass that does not feed itself — so a write
+scheduled from your own `requestAnimationFrame`, a timer or an event never trips it.
 
 ```js
 init(this);
@@ -704,8 +708,8 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   `.fade[hidden] { display: block; opacity: 0 }` — the `display: block` overrides the UA rule, and
   do NOT use `transition-behavior: allow-discrete` on `display`, which Firefox reports as supported
   and does not honor (measured). For a real removal, wrap the state change:
-  `document.startViewTransition(() => flushSync(() => { state.rows = next }))`, where `flushSync`
-  swaps the scheduler — `setRenderScheduler` returns the previous one for exactly this.
+  `document.startViewTransition(() => { state.rows = next; flush(); })` — `flush()` (from
+  `@verajs/core`) settles the DOM inside the snapshot.
 - **A dynamic tag name** needs `@verajs/renderer/tag`: `const H1 = tag\`h1\`` then
   `` html`<${H1} class="t">${x}</${H1}>` `` — note the `html` comes from that entry, not core. A
   string can never become a tag, only another tag. In JSX the same value is a component:
@@ -1574,8 +1578,8 @@ is loaded from beside the mapped renderer; relative imports, `import()` in any f
     open a sink nothing can review. Write that element directly.
 
 **Testing one of these without a browser:** import `transformJsx` from `@verajs/jsx`, compile the
-block, and run it under jsdom with `pretendToBeVisual: true` (the default render scheduler is
-`requestAnimationFrame`, so tests must await a frame). If the app uses `Math.random`, seed it —
+block, and run it under jsdom, then await a microtask or call `flush()` (the scheduler flushes every
+queued render and effect as one microtask). If the app uses `Math.random`, seed it —
 DOM-shape-dependent bugs are otherwise intermittent and will waste your time.
 
 ---
@@ -1614,9 +1618,9 @@ Rules an assistant must not guess around:
   awaits the lifecycle and lets promises settle between frame rounds — use it for async setup, and
   **always for a router**: only the async chain waits for the initial navigation, so it serves the
   route `location` names; the sync chain serves the shell with an empty `[view]` outlet.
-- Frames (`requestAnimationFrame`) are drained before serializing, bounded at 20 rounds, so
-  re-renders and `useEffect` reach the markup. A `useLayoutEffect`'s state reaches it only through
-  `renderToStringAsync`.
+- Core's queued renders and effects, and frames (`requestAnimationFrame`), are drained before
+  serializing — interleaved, bounded at 20 rounds — so re-renders, `useEffect` and
+  `useLayoutEffect` reach the markup through BOTH entry points.
 - Renders take a turn each across both entry points, so concurrent calls cannot see each other's
   state. Pass `location` per call; never assign `globalThis.location`.
 - **A component that throws rejects the render** — it is never silently empty markup. Catch and
