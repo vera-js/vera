@@ -14,10 +14,10 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
   globalThis[key] = dom.window[key];
 
 test('a protocol mismatch renders fresh, warns once, and leaves no server markup standing', async () => {
-  const { wire, inserts } = await load('inserts');
+  /** Core's registry, as an app wires — a production `@verajs/inserts` bundle is a second map (tests/one-registry). */
+  const { wire, inserts, html } = await load('core');
   const { renderer, renderInto } = await load('renderer');
   const { hydration } = await load('renderer/hydration');
-  const { html } = await load('core');
   wire([renderer]);
   /** Position 0 is the protocol number (`HANDOFF_PROTOCOL`), frozen across protocols. */
   inserts.$H[0] = 999;
