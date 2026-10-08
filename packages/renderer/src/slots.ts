@@ -392,8 +392,14 @@ const observersOf = (light: Light): Pair => {
   const Observer = globalThis.MutationObserver ?? (light.host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
   return (light.obs ??= [new Observer(handle), new Observer(handle)]);
 };
-/** A light's pending records. */
-const take = (light: Light): MutationRecord[] => (light.obs === undefined ? [] : [...light.obs[0].takeRecords(), ...light.obs[1].takeRecords()]);
+/** A light's pending records, onto `into` — or dropped, without `into` (this module's own moves). */
+const take = (light: Light, into?: MutationRecord[]) => {
+  if (light.obs !== undefined)
+    for (const observer of light.obs) {
+      const records = observer.takeRecords();
+      if (into !== undefined) for (const record of records) into.push(record);
+    }
+};
 /** A render is ending (the renderer's `_$done$`): captured children no slot took are parked now, not before. */
 let ending = false;
 /** Records of this module's own moves, taken and dropped once it is done — they are not news. */
@@ -461,9 +467,10 @@ const mark = (light: Light) => {
 /** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
 const flush = (context?: Light, root?: Node) => {
   if (busy) return;
-  /** Only the lights this flush knows: the work set, its context, and what a finished render's root fed; the rest arrive at the microtask. */
-  const read = new Set(work);
-  if (context !== undefined) read.add(context);
+  /** Only the lights this flush knows: its context, what a finished render's root fed, and the work set; the rest arrive at the microtask. */
+  const records: MutationRecord[] = [];
+  const near: Light[] = [];
+  if (context !== undefined) near.push(context);
   const fed = root === undefined ? undefined : FED.get(root);
   if (fed !== undefined)
     FED.set(
@@ -472,19 +479,22 @@ const flush = (context?: Light, root?: Node) => {
         const element = ref.deref();
         if (element === undefined) return false;
         const light = HOSTS.get(element);
-        if (light !== undefined) read.add(light);
+        if (light !== undefined) near.push(light);
         return true;
       })
     );
-  const records: MutationRecord[] = [];
-  for (const light of read) records.push(...take(light));
+  for (const light of near) take(light, records);
+  for (const light of work) take(light, records);
   note(records);
   for (const light of work) {
-    read.add(light);
-    if (light.dirty || (ending && light.fresh)) distribute(light);
+    if (light.dirty || (ending && light.fresh)) {
+      distribute(light);
+      take(light);
+    }
     if (!light.dirty && (!light.fresh || !light.host.isConnected)) work.delete(light);
   }
-  for (const light of read) take(light);
+  /** What this module just moved, recorded on the lights it read: not news. */
+  for (const light of near) take(light);
 };
 const watch = (node: Node, light: Light) => {
   let set = WATCHED.get(node);
@@ -493,7 +503,8 @@ const watch = (node: Node, light: Light) => {
   set.add(light);
   const [children, attributes] = observersOf(light);
   children.observe(node, { childList: true });
-  attributes.observe(node, { attributes: true, attributeFilter: ['slot'], subtree: true });
+  /** A kept slot's own `name` too: renaming it re-routes. */
+  attributes.observe(node, { attributes: true, attributeFilter: (node as Kept).$rec === undefined ? ['slot'] : ['slot', 'name'], subtree: true });
 };
 
 /**
@@ -828,7 +839,6 @@ const slotBehavior = {
     light.recs.push(rec);
     light.wait = false;
     watch(kept, light);
-    observersOf(light)[1].observe(kept, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
     distribute(light);
     take(light);
     return rec;
