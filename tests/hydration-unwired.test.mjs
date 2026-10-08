@@ -63,6 +63,22 @@ test('a served host stated EMPTY is cleared and rendered once: no duplicate, the
   assert.equal(host.hasAttribute('data-vm-light'), false, 'the statement consumed');
 });
 
+/**
+ * **An empty statement can never hold the page's content**, so the clear above can never drop it. The number before the
+ * colon is the statement's FORMAT, not a count; the runs after it place every light child, and the unassigned carrier is
+ * a range like any slot's. A host whose only light content no slot took is stated WITH a run — and stands, untouched.
+ * (Asked by the audit: does "stated empty" clear content that waits in the carrier? It cannot reach the clear at all.)
+ */
+test('light content no slot took is stated as a run, so an unwired client leaves it standing', () => {
+  const served = serve('slot-free-ssr', '<b slot="later">L</b>');
+  assert.match(served, /data-vm-light="1:0"/, 'CONTROL: the carrier is a range — stated with a run, not empty');
+  assert.match(served, /<vm-unassigned hidden="">\s*<b slot="later">L<\/b>/, 'and the content waits in it');
+  const host = mount(served);
+  const before = host.outerHTML;
+  assert.throws(() => renderInto(plain(), host), /hydration-unwired/);
+  assert.equal(host.outerHTML, before, 'nothing cleared: the unassigned content is still the host\'s');
+});
+
 test('the clear keeps the host\'s SSR stylesheet, as a hydration fallback does', () => {
   const host = mount('<slot-free-ssr data-vm-light="1:"><style data-vm-sheet="styles">p{}</style><section>server</section></slot-free-ssr>');
   const sheet = host.querySelector('style');
