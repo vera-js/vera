@@ -112,7 +112,7 @@ export type HookPass = (() => void) & {
   /** The flush `_r` counts runs in, and the count. */
   _f?: number;
   _r?: number;
-  /** Development: the frame this pass was last held on, its run of consecutive held frames, and the pass that queued it. */
+  /** Development: whether its last run was queued by a hold, its run of consecutive held frames, and the pass that queued it. */
   _hf?: number;
   _s?: number;
   _b?: HookPass;

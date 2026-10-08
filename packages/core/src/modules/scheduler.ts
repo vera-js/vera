@@ -92,28 +92,20 @@ export const enqueue = (pass: HookPass) => {
   }
 };
 
-/** Passes held for the next frame by the two-runs rule; and frames that ran held passes, for the loop warning. */
-let held: HookPass[] = [];
-let frames = 0;
-
 /**
  * **At most TWO runs of a hook per flush; a third waits for the next frame.** A hook scheduled again by its own run
  * gets one more pass in the same flush — a measure-then-set lands before paint, and converges, because its second
- * measurement writes the same value, which the store ignores — and a third is a loop: held for the next frame, so a
- * self-feeding pass runs twice per frame, runaway or intended, and never freezes the tab. (Main ran it once per frame;
- * Vue allows a hundred re-runs; React throws.)
+ * measurement writes the same value, which the store ignores — and a third is a loop: held for the element window's
+ * next frame (or the timer), where it is queued again, so a self-feeding pass runs twice per frame, runaway or
+ * intended, and never freezes the tab. (Main ran it once per frame; Vue allows a hundred re-runs; React throws.) Each
+ * held pass asks for its own frame: only a loop is ever held, so batching them is not worth its bytes.
  */
 const hold = (pass: HookPass) => {
-  if (!held.length)
-    frameOrTimer(() => {
-      const passes = held;
-      held = [];
-      frames++;
-      for (const each of passes) enqueue(each);
-      flush();
-    }, pass._o ?? undefined);
-  held.push(pass);
   if (__DEV__) loopWarning(pass);
+  frameOrTimer(() => {
+    if (__DEV__) pass._hf = 1;
+    enqueue(pass);
+  }, pass._o ?? undefined);
 };
 
 /**
@@ -181,9 +173,9 @@ const warned = /* @__PURE__ */ new WeakSet<Element>();
 const LABELS: Record<number, string> = { 25: 'useLayoutEffect', 50: 'render', 75: 'useEffect' };
 
 const loopWarning = (pass: HookPass) => {
-  /** Held again on the frame its last hold ran it: one more consecutive frame. Anything else starts a new count. */
-  pass._s = pass._hf === frames - 1 ? pass._s! + 1 : 1;
-  pass._hf = frames;
+  /** Held again after a run its last hold queued: one more consecutive frame. Anything else starts a new count. */
+  pass._s = pass._hf ? pass._s! + 1 : 1;
+  pass._hf = 0;
   const element = pass._o;
   if (pass._s < LIMIT || !element || exempt.has(element) || warned.has(element)) return;
   warned.add(element);
