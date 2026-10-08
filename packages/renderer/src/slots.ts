@@ -459,11 +459,23 @@ const mark = (light: Light) => {
   if (!light.wait) work.add(light);
 };
 /** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
-const flush = (context?: Light) => {
+const flush = (context?: Light, root?: Node) => {
   if (busy) return;
-  /** PROTOTYPE: only the lights this flush knows — the work set and its context; the rest arrive at the microtask. */
+  /** Only the lights this flush knows: the work set, its context, and what a finished render's root fed; the rest arrive at the microtask. */
   const read = new Set(work);
   if (context !== undefined) read.add(context);
+  const fed = root === undefined ? undefined : FED.get(root);
+  if (fed !== undefined)
+    FED.set(
+      root!,
+      fed.filter((ref) => {
+        const element = ref.deref();
+        if (element === undefined) return false;
+        const light = HOSTS.get(element);
+        if (light !== undefined) read.add(light);
+        return true;
+      })
+    );
   const records: MutationRecord[] = [];
   for (const light of read) records.push(...take(light));
   note(records);
@@ -715,7 +727,20 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
  * children it has then are exactly its statics: a binding position is still the empty text the template parsed it
  * as. Recorded by node; `init` capture reads it.
  */
+/**
+ * **Which elements each render root's templates created** — so that root's render end reads their lights' records too:
+ * a host whose light children an OUTER template changed is distributed by the end of that render, synchronously, though
+ * it has an observer of its own (Gecko's `observe()` is linear in its observer's registrations, so none is shared).
+ * Weak both ways: a root or an element gone takes its entries with it, and a dead ref is dropped by the read itself.
+ */
+const FED = new WeakMap<Node, WeakRef<Element>[]>();
 const hostBehavior = {
+  mount: (element: Element, { root }: { root: Node | null }) => {
+    if (root === null) return;
+    let fed = FED.get(root);
+    if (fed === undefined) FED.set(root, (fed = []));
+    fed.push(new WeakRef(element));
+  },
   create: (element: Element, adopted: boolean) => {
     if (adopted) return;
     const statics = new Set<Node>();
@@ -781,7 +806,8 @@ const slotBehavior = {
         );
     }
     /** A host `init` never saw has no captured children: what it holds now is its own render, never light content. */
-    flush();
+    /** Its own light's records first: what the user did to it this task is noted before this module's moves, which are dropped. */
+    flush(HOSTS.get(root as Element));
     const light = HOSTS.get(root as Element) ?? lightFor(root as Element, isCustomElementName((root as Element).localName));
     const kept = slot as Kept;
     const rec: Rec = { slot: kept, light, rs: null, re: null, shown: [], queued: false };
@@ -809,7 +835,7 @@ const slotBehavior = {
   },
   /** Torn down: its content goes back to holding first, and the element back in its place, before the renderer removes it. */
   unmount: (rec: Rec) => {
-    flush();
+    flush(rec.light);
     const light = rec.light;
     light.recs.splice(light.recs.indexOf(rec), 1);
     for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
@@ -911,7 +937,7 @@ export const slotDiscovery = [
       if (own?.fresh && !own.wait) work.add(own);
       ending = true;
       try {
-        flush(own);
+        flush(own, container);
       } finally {
         ending = false;
       }
