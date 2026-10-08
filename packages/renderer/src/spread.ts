@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, liveValue, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
+import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
@@ -185,7 +185,11 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
     /** A component is compared against its current value (`liveValue`) and receives a difference, as in a template. */
     if (binding._read === null) {
       if (element[name] !== value) element[name] = value;
-    } else if (liveValue(binding._read, element, name) !== value) adoptProperty(element, name, value);
+    } else {
+      /** The template's `!name` reads the same way, inline for the same measured reason — keep the two equal. */
+      const raw = element._$raw$ as Record<string, unknown> | undefined;
+      if ((raw !== undefined && name in raw ? raw[name] : binding._read(read, element, name)) !== value) adoptProperty(element, name, value);
+    }
     return;
   }
   if (value === binding._committed) return;

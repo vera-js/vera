@@ -18,7 +18,6 @@
 
 import {
   adoptProperty,
-  liveValue,
   call,
   CONTENT_PROPERTY,
   contentClash,
@@ -27,6 +26,7 @@ import {
   tagHole,
   INLINE_HANDLER,
   isSelection,
+  read,
   reportUncaught,
   SCRIPT_URL,
   SCRIPT_URL_ITEM,
@@ -892,6 +892,8 @@ const setProfileHook = (hook: ProfileHook | null) => {
 /** How many times a part's child applier changed identity — development only; `@__PURE__` keeps it out of production. */
 const applierSwaps = /* @__PURE__ */ new WeakMap<object, number>();
 
+/** `commit`'s scratch for a component's `_$raw$` — module-level, so the read stays one expression. */
+let raw: Record<string, unknown> | undefined;
 const commit = (template: Template, bindings: unknown[], i: number, kind: number, values: unknown[]) => {
   const slot = i * 2;
   const committed = bindings[slot + 1];
@@ -979,11 +981,21 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   if (kind >= LIVE) {
     if (kind === SELECT) (pendingSelects ??= []).push(element, value);
     /**
-     * A COMPONENT is compared against its current value (`liveValue`) and RECEIVES a difference — through
-     * `adoptProperty`, as `.name` does — or a running one never hears it: a plain write landed beside its render, which
-     * went on showing the old value (released through 0.2.x). An unchanged `!name` costs one plain read.
+     * A COMPONENT is compared against its CURRENT value and RECEIVES a difference — through `adoptProperty`, as `.name`
+     * does — or a running one never hears it: a plain write landed beside its render, which went on showing the old
+     * value (released through 0.2.x). The current value of a name it received is the RAW one its store holds (core's
+     * `_$raw$`): through the accessor it cost a store read every render and handed an object back as its proxy, never
+     * `===` the object bound, so it was delivered again every render; any other name is read through `untracked`.
+     * **Inline, not a shared helper — and spread's `!name` key has the same lines (keep them equal):** a call here cost
+     * WebKit +3–4% on an unchanged `!name` (5 sessions, 0 faster), inlined −1.1% (5/5 faster than before the fix).
      */
-    else if ((kind === LIVE ? element[name] : liveValue(untracked, element, name)) !== value) {
+    else if (
+      (kind === LIVE
+        ? element[name]
+        : (raw = element._$raw$ as Record<string, unknown> | undefined) !== undefined && name in raw
+          ? raw[name]
+          : untracked(read, element, name)) !== value
+    ) {
       if (kind === LIVE) element[name] = value;
       else adoptProperty(element, name, value);
     }

@@ -101,13 +101,17 @@ test('`!name` and `.name` changed in one render coalesce to one child render', a
 });
 
 /**
- * The row that GUARDS the comparison itself (vera-5a's mutation: always deliver → only this row red). An unchanged
- * primitive delivered again dies at core's same-value store write, so the zero-renders row above cannot see it.
+ * The rows that GUARD the comparison itself (vera-5a's mutation: always deliver → only these red). An unchanged
+ * primitive delivered again dies at core's same-value store write, so the zero-renders row above cannot see it. One per
+ * spelling: the template and spread each carry their own inline copy of the read.
  */
-test('an unchanged OBJECT `!name` is not delivered again on every render — compared by identity, raw', async () => {
+for (const [spelling, bind] of [
+  ['template', (value) => html`<lp-row !live=${value} .item=${'fixed'}></lp-row>`],
+  ['spread', (value) => html`<lp-row ${spread({ '!live': value, '.item': 'fixed' })}></lp-row>`],
+]) test(`${spelling}: an unchanged OBJECT \`!name\` is not delivered again on every render — compared by identity, raw`, async () => {
   const host = mount();
   const value = { label: 'x' };
-  const draw = () => renderInto(html`<lp-row !live=${value} .item=${'fixed'}></lp-row>`, host);
+  const draw = () => renderInto(bind(value), host);
   draw();
   await frame();
   draw(); // received now: its accessor is the component's

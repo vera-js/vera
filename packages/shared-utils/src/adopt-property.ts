@@ -1,5 +1,4 @@
-import { read } from './utils.js';
-import type { PropertyHost, Untracked } from './types.js';
+import type { PropertyHost } from './types.js';
 
 /**
  * **Delivering a bound property to a custom element that may not receive it yet** — the one home of the
@@ -18,17 +17,6 @@ import type { PropertyHost, Untracked } from './types.js';
  * `_$props$` and `_$adopt$` are `$`-named because they cross bundle boundaries (renderer, spread, core)
  * and must survive property mangling.
  */
-/**
- * **A component's current value of a bound name, as `!name` compares it** — the template binding and spread's bag key
- * alike. For a name the component RECEIVED, the raw value core's store holds (`_$raw$`, the store's own target): reading
- * the accessor instead costs a store read on every render, and hands an object back as its proxy, which never equals the
- * object bound, so it was delivered again on every render. Any other name is read through `untracked` — a component's
- * own getter is its code, and must not subscribe the parent's render.
- */
-export const liveValue = (untracked: Untracked, element: Element, name: string): unknown => {
-  const raw = (element as unknown as { _$raw$?: Record<string, unknown> })._$raw$;
-  return raw !== undefined && name in raw ? raw[name] : untracked(read, element, name);
-};
 
 /** Development only: getter-only names already reported, per element — a `!name` re-asserts on every render. */
 let refused: WeakMap<PropertyHost, Set<string>> | undefined;
