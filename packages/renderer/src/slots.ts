@@ -462,21 +462,62 @@ const mark = (light: Light) => {
 /** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
 const flush = () => {
   if (busy) return;
-  note(pending());
+  note(registered > limit ? compact() : pending());
   for (const light of work) {
     if (light.dirty || (ending && light.fresh)) distribute(light);
     if (!light.dirty && (!light.fresh || !light.host.isConnected)) work.delete(light);
   }
   settle();
 };
+/**
+ * **Registrations, compacted.** Gecko's `observe()` is linear in what the observer already watches — and keeps watching
+ * removed nodes, through collections (measured: 2000 observes 4 → 45 ms over ten batches on one observer, flat on a
+ * fresh one, flat on Chromium and WebKit) — so a page that keeps replacing light hosts made every new host slower in
+ * Firefox, without end. So once the registrations have doubled since the last rebuild, `flush` takes what is pending,
+ * disconnects, and registers again only what each LIVE light watches NOW: its host, its holding, and each slot's element
+ * and region parent — derived from the light, never a history, so a host that keeps changing templates re-registers
+ * only its current ones. A host removed but not yet collected is still live to its `WeakRef` and is registered again:
+ * the doubling rule keeps that amortized linear, and a compaction that shrinks nothing is not a defect.
+ */
+let lights: WeakRef<Light>[] = [];
+let registered = 0;
+let limit = 1024;
+/** What this generation of registrations covers — replaced, not cleared, by a compaction. */
+let seen = new WeakSet<Node>();
 const watch = (node: Node, light: Light) => {
   let set = WATCHED.get(node);
   if (set === undefined) WATCHED.set(node, (set = new Set()));
-  if (set.has(light)) return;
   set.add(light);
+  if (seen.has(node)) return;
+  seen.add(node);
   const [children, attributes] = observersOf(light.host);
   children.observe(node, { childList: true });
-  attributes.observe(node, { attributes: true, attributeFilter: ['slot'], subtree: true });
+  /** A kept slot's own `name` too: renaming it re-routes. */
+  attributes.observe(node, { attributes: true, attributeFilter: (node as Kept).$rec === undefined ? ['slot'] : ['slot', 'name'], subtree: true });
+  registered += 2;
+};
+/** What a light watches now: its host's children, its holding, each slot's element and region parent. */
+const enlist = (light: Light) => {
+  observersOf(light.host)[0].observe(light.host, { childList: true });
+  watch(light.holding, light);
+  for (const rec of light.recs) {
+    watch(rec.slot, light);
+    if (rec.re !== null) watch(rec.re.parentNode!, light);
+  }
+};
+const compact = (): MutationRecord[] => {
+  /** Pending records first: a disconnect drops them. */
+  const records = pending();
+  for (const observer of pair!) observer.disconnect();
+  seen = new WeakSet();
+  registered = 0;
+  /** A collected light is dropped; one released to a shadow root is registered again, harmlessly (its holding is gone). */
+  lights = lights.filter((ref) => {
+    const light = ref.deref();
+    return light !== undefined && (enlist(light), true);
+  });
+  limit = registered * 2;
+  return records;
 };
 
 /**
@@ -645,8 +686,8 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   holding.append(doc.createComment(''));
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
-  watch(holding, light);
-  observersOf(host)[0].observe(host, { childList: true });
+  lights.push(new WeakRef(light));
+  enlist(light);
   return light;
 };
 
@@ -797,7 +838,6 @@ const slotBehavior = {
     light.recs.push(rec);
     light.wait = false;
     watch(kept, light);
-    observersOf(light.host)[1].observe(kept, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
     distribute(light);
     settle();
     return rec;
@@ -893,7 +933,12 @@ export const slotDiscovery = [
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
     /** Development only: how many lights wait for work — 0 once every rendered host is distributed (a retention pin). */
-    if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
+    if (__DEV__) {
+      (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
+      /** And the registrations since the last compaction, and a way to force one at the next flush. */
+      (registry as unknown as { _$slotsObserved$?: () => number })._$slotsObserved$ = () => registered;
+      (registry as unknown as { _$slotsCompact$?: () => void })._$slotsCompact$ = () => void (limit = -1);
+    }
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
