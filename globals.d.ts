@@ -9,12 +9,6 @@
 declare const __DEV__: boolean;
 
 /**
- * True only in `@verajs/renderer`'s hydrate entry. The base entry never adopts, so the build
- * folds the adoption branches out of it — see `defineDev` in `defaultRollupConfig.js`.
- */
-declare const __HYDRATING__: boolean;
-
-/**
  * The building package's own version, folded to a string literal by `defaultRollupConfig.js`.
  * `@verajs/jsx`'s loader keys its compiled cache by it; `@verajs/renderer`'s development build
  * compares it with the slots module's.
