@@ -37,6 +37,13 @@ export interface ComponentElement extends HTMLElement {
    * drain — a hydrated child whose parent commits late, a spread bag growing a key — is handed here.
    */
   _$adopt$?: (key: string, value: unknown) => void;
+  /**
+   * The delivered values, RAW: the target of the store behind the accessors (the store writes raw values into it).
+   * What a parent's `!name` compares against — reading through the accessor costs a store read on every render and
+   * hands an object back as its proxy, which never equals the object bound. Created with the store, so a component
+   * that received nothing has none.
+   */
+  _$raw$?: Record<string, unknown>;
 }
 
 /** What `createHook` registers: the callback, its priority, and optionally its owner. */

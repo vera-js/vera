@@ -368,8 +368,15 @@ const walk = (canonical: Node | null, cursor: Cursor, into: Adoption) => {
   }
 };
 
-/** A form control's state the user may have changed before the script arrived: recorded, never written. */
-const FORM_STATE = /^(?:value|checked|selected)$/;
+/**
+ * A control's state the user may have changed before the script arrived: recorded, never written — through `.name` or
+ * `!name` alike. Only this: any other `!name` on a plain element is the client's to write (`!indeterminate` has no
+ * markup at all), and on a COMPONENT `!name` is never recorded — it is delivered (the commit's `adoptProperty`). No
+ * first-party component holds such state before its script runs (`vera-select`'s value lives in its internals and its
+ * template has no native control); a choice made between a child's hydration and its parent's commit is overruled by
+ * the parent's `!name`, which is what `!` means on every client render.
+ */
+const FORM_STATE = /^(?:value|checked|selected|open)$/;
 /** A value whose conversion to text runs no user code. */
 const primitive = (value: unknown) => value === null || (typeof value !== 'object' && typeof value !== 'function');
 
@@ -386,7 +393,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
   bindings[slot + 1] = H[HANDOFF_UNSET];
   const raw = values[i];
   /** Recorded, never written: a selection, a `!name`, a form control's value. */
-  if (kind === SELECT || kind === SELECT_INDEX || kind === LIVE || (kind === PROPERTY && FORM_STATE.test(name))) {
+  if (kind === SELECT || kind === SELECT_INDEX || ((kind === LIVE || kind === PROPERTY) && FORM_STATE.test(name))) {
     bindings[slot + 1] = raw;
     return;
   }

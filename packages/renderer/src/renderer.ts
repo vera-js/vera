@@ -18,6 +18,7 @@
 
 import {
   adoptProperty,
+  liveValue,
   call,
   CONTENT_PROPERTY,
   contentClash,
@@ -26,14 +27,13 @@ import {
   tagHole,
   INLINE_HANDLER,
   isSelection,
-  read,
   reportUncaught,
   SCRIPT_URL,
   SCRIPT_URL_ITEM,
   URL_SINK,
 } from '@verajs/shared-utils';
 import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
-import type { Untracked } from '@verajs/shared-utils';
+import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
 import { PROTOCOL, IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
@@ -953,7 +953,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     for (let p = 1; p < parts.length; p++) value += toText(values[i + p - 1]) + parts[p];
   }
   const name = template.$N[i];
-  const element = (kind >= EVENT && kind <= ADOPT ? (node as Slot)._element : node) as Element;
+  const element = (kind >= EVENT && kind <= ADOPT ? (node as Slot)._element : node) as PropertyHost;
   /**
    * A `javascript:` URL bound where a browser navigates is code arriving as data: refused, and the
    * attribute removed, on the JOINED value (so `href="java${x}"` is caught too). Statics are the author's
@@ -978,9 +978,15 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   /** The kinds that re-assert every render sit from `LIVE` up (`REFUSED` returned above): ONE test routes them all. */
   if (kind >= LIVE) {
     if (kind === SELECT) (pendingSelects ??= []).push(element, value);
-    /** A component's getter is its own code: read on the parent's behalf, it must not subscribe the parent's render. */
-    else if ((kind === LIVE ? (element as unknown as Record<string, unknown>)[name] : untracked(read, element, name)) !== value)
-      (element as unknown as Record<string, unknown>)[name] = value;
+    /**
+     * A COMPONENT is compared against its current value (`liveValue`) and RECEIVES a difference — through
+     * `adoptProperty`, as `.name` does — or a running one never hears it: a plain write landed beside its render, which
+     * went on showing the old value (released through 0.2.x). An unchanged `!name` costs one plain read.
+     */
+    else if ((kind === LIVE ? element[name] : liveValue(untracked, element, name)) !== value) {
+      if (kind === LIVE) element[name] = value;
+      else adoptProperty(element, name, value);
+    }
   } else if (value === committed) return;
   bindings[slot + 1] = value;
   if (kind === ATTR) {
@@ -996,7 +1002,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
     else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
-  } else if (kind === PROPERTY) (element as unknown as Record<string, unknown>)[name] = value;
+  } else if (kind === PROPERTY) element[name] = value;
   else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
   else if (kind === EVENT) {
     const listener = node as Slot;
@@ -1019,7 +1025,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     listener._handler = value ?? null;
   } else if (kind === ADOPT) {
     const adopting = node as Slot;
-    if (adopting._state === 1) (element as unknown as Record<string, unknown>)[name] = value;
+    if (adopting._state === 1) element[name] = value;
     else if (adopting._state === 0) adopting._state = adoptProperty(element, name, value);
   } else if (kind === REF || kind === SELECT_REF) {
     /**

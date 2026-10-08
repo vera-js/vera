@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
+import { adoptProperty, liveValue, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueComplaint } from './dev-values.js';
 
@@ -141,11 +141,11 @@ class Binding {
         );
       return;
     }
-    const el = element as unknown as Record<string, unknown>;
     if (kind === ATTR) this._initial = element.getAttribute(name as string);
     else if (kind === BOOLEAN) this._initial = element.hasAttribute(name as string);
     /** On a custom element this is the component's getter, run on the parent's behalf: read through `untracked`. */
-    else if (kind === PROPERTY || kind === LIVE) this._initial = custom ? untracked(read, el, name as string) : el[name as string];
+    else if (kind === PROPERTY || kind === LIVE)
+      this._initial = custom ? untracked(read, element, name as string) : (element as unknown as Record<string, unknown>)[name as string];
     if (kind === PROPERTY && custom) this._state = 0;
   }
   /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
@@ -160,15 +160,16 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   const kind = binding._kind;
   const value = checked(binding._url, given);
   const name = binding._name;
-  const element = binding._element;
-  const el = element as unknown as Record<string, unknown>;
+  /** One variable, typed for both uses: a cast alias survives minification as a second variable. */
+  const element = binding._element as Element & Record<string, unknown>;
   if (kind === REFUSED) return;
   /**
-   * **Adopting server markup** (hydration hands this in): a built-in control's value and a `!name` are RECORDED, not
-   * written — the server's default, and anything the user typed before the script arrived, stand, exactly as for a
-   * written binding. A component's property is still delivered.
+   * **Adopting server markup** (hydration hands this in): a built-in control's state — `value`, `checked`, `selected`,
+   * `open`, by `.name` or `!name` — is RECORDED, not written: the server's default, and anything the user changed before
+   * the script arrived, stand, exactly as for a written binding (hydration's `FORM_STATE`, the same list — keep them
+   * equal). Any other name is written, and a component's property is always delivered.
    */
-  if (adopting && binding._read === null && (kind === LIVE || (kind === PROPERTY && (name === 'value' || name === 'checked' || name === 'selected')))) {
+  if (adopting && binding._read === null && (kind === LIVE || kind === PROPERTY) && /^(?:value|checked|selected|open)$/.test(name as string)) {
     binding._committed = value;
     return;
   }
@@ -181,7 +182,10 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   }
   if (kind === LIVE) {
     binding._committed = value;
-    if ((binding._read !== null ? binding._read(read, el, name) : el[name]) !== value) el[name] = value;
+    /** A component is compared against its current value (`liveValue`) and receives a difference, as in a template. */
+    if (binding._read === null) {
+      if (element[name] !== value) element[name] = value;
+    } else if (liveValue(binding._read, element, name) !== value) adoptProperty(element, name, value);
     return;
   }
   if (value === binding._committed) return;
@@ -196,11 +200,11 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
       element.setAttribute(name, `${value}`);
     }
   } else if (kind === PROPERTY) {
-    if (binding._state === 1) el[name] = value;
+    if (binding._state === 1) element[name] = value;
     else if (binding._state === 0) binding._state = adoptProperty(element, name, value);
   } else if (kind === BOOLEAN) element.toggleAttribute(name, !!value);
   else if (kind === REF) {
-    if (typeof value === 'function') (value as (el: Element) => void)(element);
+    if (typeof value === 'function') (value as (element: Element) => void)(element);
     else if (value !== null && typeof value === 'object') (value as { value: unknown }).value = element;
   } else {
     if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&

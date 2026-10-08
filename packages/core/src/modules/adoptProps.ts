@@ -50,7 +50,7 @@ export const adoptProps = (element: ComponentElement) => {
         }
         break;
       }
-      state ??= createStore({});
+      state ??= createStore((element._$raw$ = {}));
       delete el[key];
       Object.defineProperty(element, key, {
         get: () => state![key],

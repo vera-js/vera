@@ -739,10 +739,11 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   repaired, a right one costs no write); any other disagreement discards that ONE container's
   server markup (keeping its SSR `<style>`) and renders it fresh — the result is always exactly what
   the template describes, and development names the first disagreement. Form state stands:
-  `.value`/`.checked`/`.selected`, `!name` on built-ins and a select's selection are recorded, not
-  written (a `!name` then compares on the next render). A custom element's children are its own
-  render when the template writes nothing inside the tag. Never mix the two entries in one app. The base entry
-  carries zero hydration code.
+  `value`/`checked`/`selected`/`open` on built-ins (`.name` or `!name`) and a select's selection are
+  recorded, not written (a `!name` then compares on the next render); any other `!name` is written,
+  and on a component delivered, as `.name` is. A custom element's children are its own
+  render when the template writes nothing inside the tag. An app that never hydrates wires none of it,
+  and the renderer carries no hydration code.
 - **Profiling (development only).** `@verajs/renderer/profiler` is another drop-in entry that
   re-exports the whole renderer API and adds measurement. It exists to make the rule above
   *visible*: it counts templates committed in place against templates that REPLACED a different

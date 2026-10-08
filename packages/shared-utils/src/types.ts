@@ -69,6 +69,12 @@ export type ParsedObject = { [key: string]: Parsed };
  * the framework runs SOMEONE ELSE'S code through during a render (a ref; a component's getter read on the parent's
  * behalf), so that code's reads cannot subscribe the render.
  */
+/**
+ * An element written by NAME — a bound property. Typed as both so one variable serves the DOM calls and the indexed
+ * write: a cast alias (`const el = element as …`) survives minification as a second variable in every bundle inlining it.
+ */
+export type PropertyHost = Element & Record<string, unknown>;
+
 export type Untracked = <A, B, C, R>(fn: (a: A, b: B, c: C) => R, a?: A, b?: B, c?: C) => R;
 
 /**

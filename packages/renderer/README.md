@@ -140,9 +140,13 @@ It is deliberately narrow, and it is a **property** binding only:
   and is authoritative, which is precisely why it is not the default.
 - **Not offered for attributes or booleans.** Nothing changes those behind the renderer's back, so
   there is nothing to re-read.
-- **It yields during hydration.** A click that happened before the bundle landed had no handler to
-  report it, so adoption records the value without writing; live semantics resume on the first
-  state-driven render.
+- **On a component it is delivered**, exactly as `.name` is: compared against the component's current
+  value on every render and, on a difference, handed to it — a running component re-renders. An equal
+  value costs one read and renders nothing.
+- **It yields during hydration — for a control's user state.** A click that happened before the bundle
+  landed had no handler to report it, so adoption records `value`, `checked`, `selected` and `open`
+  without writing; live semantics resume on the first state-driven render. Any other `!name` is
+  written on adoption (`!indeterminate`, which no markup can carry), and on a component delivered.
 
 `spread({ '!checked': … })` means the same thing, and `@verajs/ssr` serializes it exactly as
 `.checked` — a server has nothing to re-read.

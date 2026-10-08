@@ -1,3 +1,6 @@
+import { read } from './utils.js';
+import type { PropertyHost, Untracked } from './types.js';
+
 /**
  * **Delivering a bound property to a custom element that may not receive it yet** — the one home of the
  * rule `@verajs/renderer` (a `.prop` template binding) and `@verajs/renderer/spread` (a `.prop` bag key)
@@ -15,34 +18,54 @@
  * `_$props$` and `_$adopt$` are `$`-named because they cross bundle boundaries (renderer, spread, core)
  * and must survive property mangling.
  */
-export const adoptProperty = (element: Element, name: string, value: unknown): 0 | 1 | 2 => {
-  const el = element as unknown as Record<string, unknown>;
-  const adopt = el._$adopt$ as ((key: string, value: unknown) => void) | undefined;
+/**
+ * **A component's current value of a bound name, as `!name` compares it** — the template binding and spread's bag key
+ * alike. For a name the component RECEIVED, the raw value core's store holds (`_$raw$`, the store's own target): reading
+ * the accessor instead costs a store read on every render, and hands an object back as its proxy, which never equals the
+ * object bound, so it was delivered again on every render. Any other name is read through `untracked` — a component's
+ * own getter is its code, and must not subscribe the parent's render.
+ */
+export const liveValue = (untracked: Untracked, element: Element, name: string): unknown => {
+  const raw = (element as unknown as { _$raw$?: Record<string, unknown> })._$raw$;
+  return raw !== undefined && name in raw ? raw[name] : untracked(read, element, name);
+};
+
+/** Development only: getter-only names already reported, per element — a `!name` re-asserts on every render. */
+let refused: WeakMap<PropertyHost, Set<string>> | undefined;
+
+export const adoptProperty = (element: PropertyHost, name: string, value: unknown): 0 | 1 | 2 => {
+  const adopt = element._$adopt$ as ((key: string, value: unknown) => void) | undefined;
   /** The walk comes first: what it finds decides whether writing is even legal. */
-  for (let carrier: object | null = el; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
+  for (let carrier: object | null = element; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
     const desc = Object.getOwnPropertyDescriptor(carrier, name);
     if (desc === undefined) continue;
     if (desc.set !== undefined) {
-      el[name] = value;
+      element[name] = value;
       return 1;
     }
     if (desc.get !== undefined) {
       if (adopt !== undefined) adopt(name, value);
-      else if (__DEV__)
-        console.warn(
-          `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no setter — the value ` +
-            `bound by \`.${name}=\${…}\` cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
-        );
+      else if (__DEV__) {
+        const names = (refused ??= new WeakMap()).get(element) ?? new Set<string>();
+        refused.set(element, names);
+        if (!names.has(name)) {
+          names.add(name);
+          console.warn(
+            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no setter — the value ` +
+              `bound to it (\`.${name}\` or \`!${name}\`) cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
+          );
+        }
+      }
       return 2;
     }
     break; // a data property: an own field, or an inherited default — nothing receives it
   }
-  el[name] = value;
+  element[name] = value;
   if (adopt !== undefined) {
     adopt(name, value);
     return 1;
   }
-  const record = (el._$props$ ??= {}) as Record<string, unknown>;
+  const record = (element._$props$ ??= {}) as Record<string, unknown>;
   const first = __DEV__ && !Object.hasOwn(record, name);
   record[name] = value;
   /** Upgrade is read off the PROTOTYPE — a bag key named `constructor` can shadow `el.constructor`. The realm is the element's. */
@@ -50,19 +73,19 @@ export const adoptProperty = (element: Element, name: string, value: unknown): 0
     HTMLElement: { prototype: object };
     customElements: CustomElementRegistry;
   } | null;
-  const upgraded = view === null || Object.getPrototypeOf(el) !== view.HTMLElement.prototype;
+  const upgraded = view === null || Object.getPrototypeOf(element) !== view.HTMLElement.prototype;
   /** Development only: an element that never drains still loses the value at upgrade — told apart by ownership. */
   if (__DEV__ && view !== null && !upgraded && first) {
     const tag = element.localName;
     view.customElements.whenDefined(tag).then(() => {
       let owned = false;
-      for (let carrier: object | null = el; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
+      for (let carrier: object | null = element; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
         const desc = Object.getOwnPropertyDescriptor(carrier, name);
         if (desc === undefined) continue;
         owned = desc.get !== undefined || desc.set !== undefined;
         break;
       }
-      if (!owned && el[name] !== record[name])
+      if (!owned && element[name] !== record[name])
         console.warn(
           `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced while the element ` +
             `upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits \`${name};\`, which runs ` +
