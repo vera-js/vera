@@ -1,4 +1,4 @@
-/** A layout effect settles state after the template drew it — the case lifecycle-parity pins as a server divergence. */
+/** A layout effect settles state after the template drew it — once a server divergence, now reaching the markup through both chains. */
 import { init, render, html, createStore, useLayoutEffect } from '@verajs/core';
 export default class LayoutEffect extends HTMLElement {
   connectedCallback() {

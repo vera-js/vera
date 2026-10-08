@@ -64,3 +64,19 @@ test('a layout effect reaches the markup through both chains, as on the client',
   const later = await renderToStringAsync(fixture('layout-effect'));
   assert.match(later.html, /<p>layout-ran<\/p>/);
 });
+
+/**
+ * **A component whose effect settles it over several steps reaches its final state on the server — at once.** Its
+ * later runs are HELD for a frame (a hook runs at most twice per flush). On the server the frame is the shim's, which
+ * the drain runs; the held path's fallback timer (~100 ms) must never be what the server waits on, or every such
+ * component would cost a request hundreds of milliseconds (vera-5a's check, 2026-10-08).
+ */
+test('a self-settling component reaches its final state through both chains, without waiting on the timer', async () => {
+  const start = performance.now();
+  const sync = await renderToString(fixture('self-settling'));
+  const later = await renderToStringAsync(fixture('self-settling'));
+  const elapsed = performance.now() - start;
+  assert.match(sync.html, /<p>settled-5<\/p>/, 'the synchronous chain settled it');
+  assert.match(later.html, /<p>settled-5<\/p>/, 'and the asynchronous one');
+  assert.ok(elapsed < 150, `both renders took ${elapsed.toFixed(0)} ms — a held run waited on the ~100 ms timer`);
+});
