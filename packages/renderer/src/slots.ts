@@ -242,7 +242,12 @@ const isWhere = (node: Node, light: Light): boolean => {
 let busy = false;
 const distribute = (light: Light) => {
   if (busy) {
-    light.dirty = true;
+    /**
+     * Unreached outside the work set in every suite (18 hits, all already marked — a first connection is a fresh capture);
+     * kept because the invariant requires a dirty light in work, and redundancy here is not proven. Unlike `settleIn`'s
+     * mark (removed: its only caller marks first), this one is equivalent by observation only.
+     */
+    mark(light);
     return;
   }
   busy = true;
@@ -403,7 +408,7 @@ const note = (records: MutationRecord[]) => {
     if (record.type === 'attributes') {
       const rec = (target as Kept).$rec;
       if (rec !== undefined) {
-        rec.light.dirty = true;
+        mark(rec.light);
         continue;
       }
       while (target !== null && !WATCHED.has(target)) target = target.parentNode;
@@ -412,7 +417,7 @@ const note = (records: MutationRecord[]) => {
     const lights = WATCHED.get(target);
     if (lights !== undefined)
       for (const light of lights) {
-        light.dirty = true;
+        mark(light);
         if (record.type === 'childList') replay(light, record);
       }
     /** A host's own children: an addition outside its render's range is a new light child. */
@@ -441,12 +446,27 @@ const handle = (records: MutationRecord[]) => {
   note(records);
   flush();
 };
-const lights = new Set<Light>();
+/**
+ * **The lights that need work** — dirty, or fresh until their first render ends, never one waiting for its own slots
+ * (`wait`): the only ones `flush` visits. A set of EVERY light ever seen held each removed host for good (a leak) and
+ * made every flush walk them all — hydrating 2000 light hosts slowed 72 → 365 ms over ten renders that replaced them.
+ * A light leaves once it is clean, or clean and disconnected (a first render that threw stays fresh); it comes back
+ * through `mark`, or its own render's end (`_$done$`).
+ */
+const work = new Set<Light>();
+/** The one way a light asks to be distributed. */
+const mark = (light: Light) => {
+  light.dirty = true;
+  if (!light.wait) work.add(light);
+};
 /** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
 const flush = () => {
   if (busy) return;
   note(pending());
-  for (const light of lights) if (!light.wait && (light.dirty || (ending && light.fresh))) distribute(light);
+  for (const light of work) {
+    if (light.dirty || (ending && light.fresh)) distribute(light);
+    if (!light.dirty && (!light.fresh || !light.host.isConnected)) work.delete(light);
+  }
   settle();
 };
 const watch = (node: Node, light: Light) => {
@@ -487,7 +507,7 @@ const adopt = (light: Light, node: Node) => {
     light.units.splice(at, 0, { a: node, z: node });
     lead.set(light, at + 1);
   } else light.units.push({ a: node, z: node });
-  light.dirty = true;
+  mark(light);
 };
 
 /** Which unit a light node is in — its own, or (a run's node in a slot) the run its stand-in sits in. */
@@ -501,7 +521,7 @@ const unitIndexOf = (light: Light, node: Node): number => {
 
 /**
  * A node the USER put inside a slot's region — `slotted.before(node)`, `after()`: a light unit of its own, at that
- * place in light order.
+ * place in light order. (No `mark`: only `replay` reaches here, for a record `note` has already marked the light for.)
  */
 const settleIn = (light: Light, node: Node) => {
   const parent = node.parentNode;
@@ -514,7 +534,6 @@ const settleIn = (light: Light, node: Node) => {
     if (at < 0) light.units.push({ a: node, z: node });
     else light.units.splice(at, 0, { a: node, z: node });
     PLACED.set(node, rec);
-    light.dirty = true;
     return;
   }
 };
@@ -605,7 +624,7 @@ const release = (light: Light) => {
   }
   light.holding.remove();
   HOSTS.delete(light.host);
-  lights.delete(light);
+  work.delete(light);
 };
 
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
@@ -626,7 +645,6 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   holding.append(doc.createComment(''));
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
-  lights.add(light);
   watch(holding, light);
   observersOf(host)[0].observe(host, { childList: true });
   return light;
@@ -680,7 +698,10 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
    * distributed until the host's own slots mount, so a host never defined keeps its nodes where they stand.
    */
   if (wait) light.wait = true;
-  else light.dirty = light.fresh = true;
+  else {
+    light.fresh = true;
+    mark(light);
+  }
   return light;
 };
 
@@ -871,6 +892,8 @@ export const slotDiscovery = [
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
+    /** Development only: how many lights wait for work — 0 once every rendered host is distributed (a retention pin). */
+    if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
@@ -878,6 +901,9 @@ export const slotDiscovery = [
        */
       if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? true) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName))
         capture(container as Element, start);
+      /** Its own render ended: a fresh light that left the work set (disconnected meanwhile) is distributed now. */
+      const own = HOSTS.get(container as Element);
+      if (own?.fresh && !own.wait) work.add(own);
       ending = true;
       try {
         flush();
