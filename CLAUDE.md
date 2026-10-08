@@ -76,6 +76,13 @@ code, so they are not re-litigated.
   `innerHTML` and no vera at all reports the same lone survivor.
   **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
   `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`.
+- **jsdom cannot measure retention of anything a `MutationObserver` watches.** jsdom's observer keeps every observed
+  node in a strong list until `disconnect()`; browsers hold them weakly. Slots' two shared observers never disconnect,
+  so under jsdom every light host ever observed stays reachable — a gc probe reports a leak the browser does not have,
+  and would equally report a real fix as still leaking. Measured 2026-10-07 on the slots work-set fix: jsdom 30/30
+  removed hosts alive before AND after; Chrome with CDP `HeapProfiler.collectGarbage` 30/30 → 1/30, the same as its
+  no-slots control. Measure retention in a real engine with CDP gc and both controls (`.probe/race-f/leak.mjs` in the
+  hydra worktree is the template); keep jsdom gc probes for code that observes nothing.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
