@@ -11,7 +11,6 @@
  * would fight over.
  */
 import { hydrating } from './hydration.mjs';
-import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
