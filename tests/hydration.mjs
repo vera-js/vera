@@ -8,7 +8,7 @@ import { load } from './dist.mjs';
 let wired;
 export const hydrating = () =>
   (wired ??= (async () => {
-    const { wire } = await load('inserts');
+    const { wire } = await load('core');
     const { renderInto, renderer } = await load('renderer');
     const { hydration } = await load('renderer/hydration');
     wire([renderer, hydration]);

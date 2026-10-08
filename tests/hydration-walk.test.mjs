@@ -21,9 +21,9 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 const doc = dom.window.document;
 
-const { html } = await load('core');
+/** Core's own registry — the one `hydrating()` wires into. A production `@verajs/inserts` bundle is a SECOND map. */
+const { html, inserts } = await load('core');
 const renderInto = await hydrating();
-const { inserts } = await load('inserts');
 
 /** The server's markup for `result`: a client render's HTML, its anchor comments stripped — markerless. */
 const serverOf = (result) => {
