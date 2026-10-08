@@ -39,7 +39,7 @@ type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
  * `wait`: captured by a template that placed runs into this host during hydration, before the host's own slots exist —
  * nothing distributes until the first of them mounts, so the nodes stay exactly where the server put them.
  */
-type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean };
+type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: Pair };
 
 /**
  * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<vm-unassigned hidden>`, the host's first
@@ -380,24 +380,39 @@ const place = (light: Light) => {
 /* ── the observer: what the page's templates (and the user) do afterwards ─────────────────────── */
 
 /**
- * **One observer pair, from THIS module's own realm** — which cannot close while its code runs — observing hosts in any
- * document (a MutationObserver watches nodes of another document: measured on Chromium, Firefox and WebKit). The pair
- * used to come from the FIRST host's window, and went deaf with it: a first light host in an iframe or a popped-out
- * window, closed later, left every host after it unobserved on Chromium and WebKit (`tests/browser/slots-realm.test.js`).
- * The host's window is the fallback only where this realm has no observer at all.
+ * **An observer pair per light** — its children (`childList`, node by node) and its names (`slot`/`name`, over a subtree)
+ * — never one shared by every host: Gecko's `observe()` is linear in what that observer already watches, removed nodes
+ * included, through collections (2000 observes 4 → 45 ms over ten batches on one observer, flat on a fresh one, flat on
+ * Chromium and WebKit), so a shared pair made every new light host slower in Firefox without end (2000 hosts: 262 →
+ * 9305 ms over eight renders that replaced them; flat now). A light's observers go with it.
+ *
+ * From THIS module's own realm, which cannot close while its code runs — a MutationObserver watches nodes of another
+ * document (measured on Chromium, Firefox and WebKit). Taking it from a host's window went deaf with that window: a
+ * light host in an iframe or a popped-out window, closed later (`tests/browser/slots-realm.test.js`). The host's window
+ * is the fallback only where this realm has no observer at all.
  */
 type Pair = [MutationObserver, MutationObserver];
-let pair: Pair | null = null;
-const observersOf = (host: Element): Pair => {
-  const Observer = globalThis.MutationObserver ?? (host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
-  return (pair ??= [new Observer(handle), new Observer(handle)]);
+const observersOf = (light: Light): Pair => {
+  const Observer = globalThis.MutationObserver ?? (light.host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
+  return (light.obs ??= [new Observer(handle), new Observer(handle)]);
 };
-/** Every pending record. */
-const pending = (): MutationRecord[] => (pair === null ? [] : [...pair[0].takeRecords(), ...pair[1].takeRecords()]);
+/**
+ * **A `hold()`-parked branch, watched while it is parked** — a slot's region in it is out of its host's subtree, where
+ * the host's own attribute registration cannot see a node in it renamed (`slot=`): re-routed now, as native slots would.
+ * One observer for every parked root (the renderer's `_$parked$`), registering the same root again when it parks again.
+ */
+let parkedObserver: MutationObserver | undefined;
+/** A light's pending records, onto `into` — or dropped, without `into` (this module's own moves). */
+const take = (light: Light, into?: MutationRecord[]) => {
+  if (light.obs !== undefined)
+    for (const observer of light.obs) {
+      const records = observer.takeRecords();
+      if (into !== undefined) for (const record of records) into.push(record);
+    }
+};
 /** A render is ending (the renderer's `_$done$`): captured children no slot took are parked now, not before. */
 let ending = false;
 /** Records of this module's own moves, taken and dropped once it is done — they are not news. */
-const settle = () => void pending();
 /** How many nodes this batch has put ahead of everything, per host — so a batch's front insertions keep their order. */
 let lead = new WeakMap<Light, number>();
 const note = (records: MutationRecord[]) => {
@@ -459,24 +474,54 @@ const mark = (light: Light) => {
   light.dirty = true;
   if (!light.wait) work.add(light);
 };
-/** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
-const flush = () => {
+/**
+ * **Applies what is pending, now** — after every component render, and before any read of the assignment. It reads the
+ * records of the lights it can name: its `context` (the light being read, mounted into, or rendered), every light whose
+ * element the finished render's `root` created (`FED` — an outer template changing a component's children is
+ * distributed by the end of that render), the work set, and the parked branches. Any other light's records arrive at the
+ * microtask, through its own observer: a light host changed DIRECTLY by the page's code is redistributed by the next
+ * microtask, or at once when its slotted content is read through the slots API (`tests/slots-sync-reads.test.mjs`).
+ */
+const flush = (context?: Light, root?: Node) => {
   if (busy) return;
-  note(pending());
+  const records: MutationRecord[] = [];
+  const near: Light[] = [];
+  if (context !== undefined) near.push(context);
+  const fed = root === undefined ? undefined : FED.get(root);
+  if (fed !== undefined)
+    FED.set(
+      root!,
+      fed.filter((ref) => {
+        const element = ref.deref();
+        if (element === undefined) return false;
+        const light = HOSTS.get(element);
+        if (light !== undefined) near.push(light);
+        return true;
+      })
+    );
+  for (const light of near) take(light, records);
+  for (const light of work) take(light, records);
+  if (parkedObserver !== undefined) for (const record of parkedObserver.takeRecords()) records.push(record);
+  note(records);
   for (const light of work) {
-    if (light.dirty || (ending && light.fresh)) distribute(light);
+    if (light.dirty || (ending && light.fresh)) {
+      distribute(light);
+      take(light);
+    }
     if (!light.dirty && (!light.fresh || !light.host.isConnected)) work.delete(light);
   }
-  settle();
+  /** What this module just moved, recorded on the lights it read: not news. */
+  for (const light of near) take(light);
 };
 const watch = (node: Node, light: Light) => {
   let set = WATCHED.get(node);
   if (set === undefined) WATCHED.set(node, (set = new Set()));
   if (set.has(light)) return;
   set.add(light);
-  const [children, attributes] = observersOf(light.host);
+  const [children, attributes] = observersOf(light);
   children.observe(node, { childList: true });
-  attributes.observe(node, { attributes: true, attributeFilter: ['slot'], subtree: true });
+  /** A slot steps OUT of the page while it has content, out of its host's subtree: its own name (and its fallback's slots) are watched on it. */
+  if ((node as Kept).$rec !== undefined) attributes.observe(node, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
 };
 
 /**
@@ -646,7 +691,14 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
   watch(holding, light);
-  observersOf(host)[0].observe(host, { childList: true });
+  const [children, attributes] = observersOf(light);
+  children.observe(host, { childList: true });
+  /**
+   * Its names, ONCE over its whole subtree — holding, regions and slots are inside it — not on every node it watches
+   * (9 registrations per card host, not 13: `observe()` was 15% of Chrome's slot hydration). What leaves the subtree is
+   * watched where it goes: a slot that stepped out (`watch`), a `hold()`-parked branch (`_$parked$`).
+   */
+  attributes.observe(host, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
   return light;
 };
 
@@ -710,7 +762,20 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
  * children it has then are exactly its statics: a binding position is still the empty text the template parsed it
  * as. Recorded by node; `init` capture reads it.
  */
+/**
+ * **Which elements each render root's templates created** — so that root's render end reads their lights' records too:
+ * a host whose light children an OUTER template changed is distributed by the end of that render, synchronously, though
+ * it has an observer of its own (Gecko's `observe()` is linear in its observer's registrations, so none is shared).
+ * Weak both ways: a root or an element gone takes its entries with it, and a dead ref is dropped by the read itself.
+ */
+const FED = new WeakMap<Node, WeakRef<Element>[]>();
 const hostBehavior = {
+  mount: (element: Element, { root }: { root: Node | null }) => {
+    if (root === null) return;
+    let fed = FED.get(root);
+    if (fed === undefined) FED.set(root, (fed = []));
+    fed.push(new WeakRef(element));
+  },
   create: (element: Element, adopted: boolean) => {
     if (adopted) return;
     const statics = new Set<Node>();
@@ -740,7 +805,7 @@ const hostBehavior = {
  * `flatten`, an unassigned slot answers its fallback's slottables, a nested slot through itself.
  */
 const assigned = (rec: Rec, elementsOnly: boolean, flatten = false): Node[] => {
-  flush();
+  flush(rec.light);
   const out = rec.shown.filter((node) => !elementsOnly || node.nodeType === 1);
   /** The fallback is read only when NOTHING is assigned — assigned text with no element still answers [] for elements. */
   if (rec.shown.length > 0 || !flatten) return out;
@@ -776,7 +841,8 @@ const slotBehavior = {
         );
     }
     /** A host `init` never saw has no captured children: what it holds now is its own render, never light content. */
-    flush();
+    /** Its own light's records first: what the user did to it this task is noted before this module's moves, which are dropped. */
+    flush(HOSTS.get(root as Element));
     const light = HOSTS.get(root as Element) ?? lightFor(root as Element, isCustomElementName((root as Element).localName));
     const kept = slot as Kept;
     const rec: Rec = { slot: kept, light, rs: null, re: null, shown: [], queued: false };
@@ -797,20 +863,19 @@ const slotBehavior = {
     light.recs.push(rec);
     light.wait = false;
     watch(kept, light);
-    observersOf(light.host)[1].observe(kept, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
     distribute(light);
-    settle();
+    take(light);
     return rec;
   },
   /** Torn down: its content goes back to holding first, and the element back in its place, before the renderer removes it. */
   unmount: (rec: Rec) => {
-    flush();
+    flush(rec.light);
     const light = rec.light;
     light.recs.splice(light.recs.indexOf(rec), 1);
     for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
     unregion(rec);
     distribute(light);
-    settle();
+    take(light);
   },
 };
 
@@ -818,7 +883,7 @@ const slotBehavior = {
 const lightNodes = (host: Element): Node[] | null => {
   const light = HOSTS.get(host);
   if (light === undefined) return null;
-  flush();
+  flush(light);
   return lightOf(light);
 };
 
@@ -826,7 +891,7 @@ const lightNodes = (host: Element): Node[] | null => {
 export const slotted = (host: Element, name = ''): Node[] => {
   const light = HOSTS.get(host);
   if (light !== undefined) {
-    flush();
+    flush(light);
     for (const rec of light.recs) if ((rec.slot.getAttribute('name') ?? '') === name && rec.shown.length > 0) return [...rec.shown];
     /** Unassigned, a node still belongs to the host: it waits in holding for a slot of its name. */
     return lightOf(light).filter((node) => slotNameOf(node) === name);
@@ -892,6 +957,12 @@ export const slotDiscovery = [
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
+    (registry as unknown as { _$parked$?: (root: Node) => void })._$parked$ = (root) =>
+      (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(handle)).observe(root, {
+        attributes: true,
+        attributeFilter: ['slot'],
+        subtree: true,
+      });
     /** Development only: how many lights wait for work — 0 once every rendered host is distributed (a retention pin). */
     if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
@@ -906,7 +977,7 @@ export const slotDiscovery = [
       if (own?.fresh && !own.wait) work.add(own);
       ending = true;
       try {
-        flush();
+        flush(own, container);
       } finally {
         ending = false;
       }

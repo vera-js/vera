@@ -622,6 +622,12 @@ canvas, a repeater, a drag-to-copy.
 answered identically in shadow mode (native assignment) and light mode (the capture map). Omit
 `name` for the default slot. Component authors reach for this; app users do not.
 
+**When the assignment is current.** Whatever a template does is distributed by the end of that render — an outer
+template changing a component's children included — so code measuring slotted content right after a render (a layout
+effect, `getBoundingClientRect`) sees the new assignment. A light host changed directly by your code
+(`host.append(node)`, `node.slot = 'x'`) is redistributed by the next microtask, or at once when its slotted content is
+read through the slots API (`slotted()`, `slot.assignedNodes()`).
+
 ### Where the `<slot>` element is
 
 **A slot with content steps out of the page, and its content stands in its place. A slot with
