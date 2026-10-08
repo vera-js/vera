@@ -165,7 +165,7 @@ naming audit of 2026-09-10:
   `<vm-unassigned hidden>`. The test: if a name appears in an
   author's code, it is not `vm`. Keeping machine names out of the scanned `data-vd-*` prefix is
   load-bearing — a marker inside it files an `unknown-directive` refusal on every page
-  (`data-vd-a` did exactly that until this audit).
+  (`data-vd-a` was such a marker until this audit).
 - **Events carry the prefix of the package's authored family**, because authors listen for them
   by name: core/router dispatch `vera:*` (`vera:route-error`, `vera:after-route`), directives
   dispatch `vd:*` (`vd:motion:active`). Custom element tags are `vera-*`; per-element component

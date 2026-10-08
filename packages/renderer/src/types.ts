@@ -48,16 +48,6 @@ export type Part = {
 };
 
 /**
- * The state a taken-over `<slot>` hands back.
- *
- * `_$park$` is `$`-sigiled so property mangling cannot touch it — the light-slots seam is a
- * cross-bundle contract and a CDN page meets it across separate bundles. It is called before the
- * instance's DOM is bulk-discarded, so the USER'S slotted nodes are rescued before the renderer
- * throws the rest away.
- */
-export type SlotSeamState = { _$park$?: () => void };
-
-/**
  * **An instance hook: per-template behavior for every instance, with nothing on the hot path.**
  *
  * A `'template'` hook sets one as the template's `_$inst$` while the template is built — only

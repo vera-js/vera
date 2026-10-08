@@ -173,7 +173,12 @@ const RETIRED_RULES = {
  *
  * The exemption rate is asserted below, so this trade stays where it was measured rather than drifting.
  */
-const HISTORICAL = /\b(was|were|used to|no longer|removed|replaced|previously|until|before|renamed|gone)\b/i;
+/**
+ * Not `before` or `until`: they are present-tense words in technical prose ("called before the DOM is
+ * discarded", "waits until"), and a paragraph using one was exempt whatever it taught — a retired type's
+ * live-sounding doc and a stale `setRenderer` explanation both passed this way until 2026-10-08.
+ */
+const HISTORICAL = /\b(was|were|used to|no longer|removed|replaced|previously|renamed|gone)\b/i;
 
 const root = new URL('..', import.meta.url).pathname;
 const docs = [];
@@ -356,4 +361,7 @@ test('the guard rejects an instruction and admits an explanation', () => {
   };
   assert.equal(flags(teaching).length, 1, 'an instruction must be caught');
   assert.equal(flags(explaining).length, 0, 'an explanation must be allowed');
+  /** The miss this rule had: a PRESENT-tense paragraph whose "before" made it look like history. */
+  const presentTense = ['`setRenderer` is called before the DOM is discarded, so nothing is lost.'];
+  assert.equal(flags(presentTense).length, 1, 'a present-tense "before" is not a historical marker');
 });
