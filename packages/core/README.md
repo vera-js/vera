@@ -250,7 +250,9 @@ useEffect(() => { state.t = state.t + 1 });
 ```
 
 `allowRenderLoop(element)` silences the warning for that component, and is a no-op in production —
-where none of this exists.
+where none of this exists. In such a loop the render's third run waits for the frame along with the
+effect's, so for that moment the DOM shows the state one step behind; this happens only past two runs
+in one flush — a genuine loop — never to a measure-then-set, which settles in its second run.
 
 Every callback receives a signal describing the change: `signal.prop`, `signal.value` and
 `signal.prevValue`. A coalesced run describes the write that scheduled it; `useSyncEffect` runs once
