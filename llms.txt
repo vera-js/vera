@@ -504,7 +504,9 @@ the server distributes and the client adopts the result in place, keeping node i
 and input values survive — with one more module wired where both are used:
 `wire([renderer, hydration, slots, hydrateSlots])` (`import { hydrateSlots } from '@verajs/renderer/hydrate-slots'`;
 only an app that hydrates light slots loads it). Without it a server-rendered host with light content stays
-exactly as served and the console names what to wire (`hydration-slots`). Wire `slots` on the SERVER too: without
+exactly as served and the console names what to wire (`hydration-slots`). Server-rendered HTML MUST be hydrated: a client without `hydration` renders beside the server's markup (two copies);
+only a light-slots host is caught — stated empty it re-renders once, holding light content it stands as served
+(`hydration-unwired`). Wire `slots` on the SERVER too: without
 it the server states no light tree, and every component it rendered re-renders on the client (no warning possible).
 Serve the server's HTML unmodified, comments included: stripped markers mean the host renders fresh. Node-safe to import (it
 imports nothing and touches no DOM until something renders).
