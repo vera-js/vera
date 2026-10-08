@@ -47,7 +47,7 @@ import { untracked } from './modules/untrack.js';
  */
 (inserts as unknown as { $t: typeof untracked }).$t = untracked;
 export { useRender } from './hooks/useRender.js';
-export { setRenderScheduler, microtask } from './modules/setRenderScheduler.js';
+export { allowRenderLoop, flush, setRenderScheduler, microtask } from './modules/scheduler.js';
 export { html, mathml, svg } from './store/store.js';
 export { useEffect } from './hooks/useEffect.js';
 export { useLayoutEffect } from './hooks/useLayoutEffect.js';

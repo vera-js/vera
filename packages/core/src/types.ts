@@ -91,11 +91,32 @@ export type Signal<V> = {
 };
 
 /**
- * How a render pass or `useEffect` run is deferred: handed the pass, and the element it belongs to when
- * there is one (so a scheduler can use that element's own window), it decides WHEN to run it — never
- * whether. The default is the element window's next animation frame; `microtask` is exported.
+ * When a FLUSH runs — the one drain of every queued render, layout effect and effect: handed the flush, and the element
+ * whose pass asked for it when there is one (so a scheduler can use that element's own window), it decides WHEN to run
+ * it — never whether. The default runs it as a microtask within a per-frame budget, and on the element window's next
+ * frame past it; `microtask` is exported (no budget).
  */
 export type RenderScheduler = (run: () => void, element?: Element) => void;
+
+/**
+ * **A queued hook pass** — one per hook, reused for every run. Core's scheduler reads and writes these fields; nothing
+ * else does. `_k` orders the queue: priority × 1e9 + the hook's creation sequence (parent-first, then registration order).
+ */
+export type HookPass = (() => void) & {
+  /** The order key. */
+  _k: number;
+  /** The owner, whose window a deferred flush waits on. */
+  _o: ComponentElement | null | undefined;
+  /** In the queue now. */
+  _in?: boolean;
+  /** The flush `_r` counts runs in, and the count. */
+  _f?: number;
+  _r?: number;
+  /** Development: the frame this pass was last held on, its run of consecutive held frames, and the pass that queued it. */
+  _hf?: number;
+  _s?: number;
+  _b?: HookPass;
+};
 
 /** A reactive store over `T`. */
 export type Store<T extends object = object> = T;

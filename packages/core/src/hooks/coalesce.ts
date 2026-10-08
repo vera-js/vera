@@ -1,7 +1,7 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
-import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
-import type { ComponentElement, HookCallback, HookCleanup } from '../types.js';
+import { enqueue } from '../modules/scheduler.js';
+import type { ComponentElement, HookCallback, HookCleanup, HookPass } from '../types.js';
 
 /**
  * Runs a cleanup, reported on its own if it throws — a throwing teardown must neither stop the run it
@@ -15,15 +15,18 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
   }
 };
 
+/** Every coalesced hook's creation, in order: the second half of the queue's key (`HookPass._k`). */
+let created = 0;
+
 /**
- * **One hook, run at once on the first pass and then at most once per `schedule`, however many
- * writes land before it runs** — the shape `useRender`, `useEffect`, `useLayoutEffect` and
- * `useSyncEffect` all share, differing only in priority and in when `schedule` runs the pass.
+ * **One hook, run at once on the first pass and then at most once per flush, however many writes land
+ * before it runs** — the shape `useRender`, `useEffect`, `useLayoutEffect` and `useSyncEffect` all share,
+ * differing only in priority and in whether a write queues the pass (`sync` runs it at once).
  *
  * The deferred run re-enters through the hook itself: `now` is raised for exactly that one call, so
  * the hook's own wrapper provides the tracking context and the error isolation, as it does for
  * every other run. It is lowered before the callback runs, so a write the callback makes to state it
- * reads schedules another pass rather than recursing into one.
+ * reads queues another pass rather than recursing into one.
  *
  * Whatever the callback returns is its cleanup, run before its next run and when its owner is
  * removed — it is kept in the owner's `_cleanups`, which the removal sweeps (see `init`). An owner
@@ -31,37 +34,30 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
  * rather than into a set nothing will drain again.
  *
  * @param callback The effect, or a render pass (which returns nothing)
- * @param priority Where it runs among its owner's hooks
- * @param schedule Runs the deferred pass, handed the owner — the render scheduler, a microtask, or at once
+ * @param priority Where it runs: among its owner's hooks, and in the flush (layout 25 → render 50 → effect 75)
+ * @param sync Runs the pass at once on every change instead of queueing it (`useSyncEffect`)
  * @param element The owner, instead of the element being set up
  * @return The hook, as `createHook` returns it
  */
-/** The render scheduler, read at each scheduling so a swapped one takes effect at once — see `setRenderScheduler`. */
-export const deferred = (run: () => void, owner?: Element | null) => renderScheduler(run, owner ?? undefined);
-
-export const coalesce = (
-  callback: HookCallback,
-  priority: number,
-  schedule: (run: () => void, owner?: ComponentElement | null) => void,
-  element?: ComponentElement
-) => {
+export const coalesce = (callback: HookCallback, priority: number, sync: boolean, element?: ComponentElement) => {
   const owner = element ?? currentInstance.element;
-  let queued = false;
-  /** Which scheduler generation the queued pass was handed to — see `schedulerGeneration`. */
-  let queuedUnder = 0;
   let now = false;
   let cleanup: void | HookCleanup;
+  /** The signal of the first write since the last run — what the queued run is handed. */
+  let queuedSignal: Parameters<HookCallback>[0] | undefined;
   /**
    * The pass a write queues — ONE closure per hook, never one per update (measured: a synchronous
-   * effect's write 4–5% faster). It runs with the signal of the write that queued it.
+   * effect's write 4–5% faster).
    */
-  let queuedSignal: Parameters<HookCallback>[0];
-  const run = () => {
-    queued = false;
+  const run = (() => {
+    const signal = queuedSignal;
+    queuedSignal = undefined;
     now = true;
-    hook!(queuedSignal);
+    hook!(signal!);
     now = false;
-  };
+  }) as HookPass;
+  run._k = priority * 1e9 + ++created;
+  run._o = owner;
   const hook = createHook({
     priority,
     element,
@@ -82,21 +78,9 @@ export const coalesce = (
         }
         return;
       }
-      /** A pass queued under a scheduler since replaced is stranded, not pending — queue it again. */
-      if (queued && queuedUnder === schedulerGeneration) return;
-      queued = true;
-      queuedUnder = schedulerGeneration;
-      queuedSignal = signal;
-      /**
-       * Lowered again if the scheduler throws: otherwise the flag stays raised and every later write
-       * returns above — the component never renders again, silently, even after the scheduler is fixed.
-       */
-      try {
-        schedule(run, owner);
-      } catch (error) {
-        queued = false;
-        throw error;
-      }
+      queuedSignal ??= signal;
+      if (sync) run();
+      else enqueue(run);
     },
   });
   return hook;

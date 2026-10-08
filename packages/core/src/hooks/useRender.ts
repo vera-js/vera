@@ -1,6 +1,6 @@
 import type { ComponentElement, RenderTemplate } from '../types.js';
 import { RENDER_PRIORITY } from '../modules/createHook.js';
-import { coalesce, deferred } from './coalesce.js';
+import { coalesce } from './coalesce.js';
 import { inserts } from '@verajs/inserts';
 import type { Renderer } from '@verajs/shared-types';
 
@@ -18,5 +18,5 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
       inserts.get('render')?.forEach((renderer) => (renderer as Renderer)(result, target, ...args));
     },
     RENDER_PRIORITY,
-    deferred
+    false
   );

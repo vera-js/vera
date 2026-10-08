@@ -277,13 +277,13 @@ test('a render that throws leaves nothing queued for the next one', async () => 
 });
 
 /**
- * **A window with no animation frames runs the pass at once — it never drops it.** The default
- * scheduler uses the element's own window's `requestAnimationFrame`; a window with none (a jsdom made
+ * **A window with no animation frames still runs the pass — it never drops it.** The default scheduler flushes as a
+ * microtask (a frame only past its budget, or a timer where there are no frames); a window with none (a jsdom made
  * without `pretendToBeVisual`, an embedded runtime) must still update, or a write there would leave the
  * component showing its first render forever. Pinned by the lean rebuild (2026-09-28): nothing failed
  * without the fallback.
  */
-test('an element in a window without requestAnimationFrame still re-runs on a write, at once', () => {
+test('an element in a window without requestAnimationFrame still re-runs on a write — after a microtask, as every window', async () => {
   const frameless = new JSDOM('<!doctype html><body></body>');
   assert.equal(typeof frameless.window.requestAnimationFrame, 'undefined', 'CONTROL: this window has no frames');
   const el = frameless.window.document.createElement('div');
@@ -294,5 +294,7 @@ test('an element in a window without requestAnimationFrame still re-runs on a wr
   core.useEffect(() => { seen.push(state.n); });
   core.mount();
   state.n = 1;
+  /** The scheduler flushes as a microtask in every window (2026-10-08): a frame-less one no longer runs it synchronously. */
+  await Promise.resolve();
   assert.deepEqual(seen, [0, 1], 'the write re-ran the effect without waiting for a frame that never comes');
 });
