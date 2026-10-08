@@ -19,7 +19,7 @@ import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['document', 'HTMLElement', 'Node', 'Element', 'customElements', 'DocumentFragment',
-                   'Text', 'Comment', 'Event', 'CSSStyleSheet', 'MutationObserver'])
+                   'Text', 'Comment', 'Event', 'CustomEvent', 'CSSStyleSheet', 'MutationObserver'])
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
@@ -37,6 +37,16 @@ core.wire([await load('renderer').then((m) => m.renderer), slots]);
 /** Observer callbacks are microtasks; a macrotask hop settles a pending batch. */
 const settle = () => new Promise((resolve) => dom.window.setTimeout(resolve, 0));
 const div = () => dom.window.document.createElement('div');
+/**
+ * A light-DOM slot host is a CUSTOM element that calls `init` — a plain container keeps what it had (ruling 4), so the
+ * slots rows below were written against `div` hosts and distributed nothing once only custom elements captured.
+ */
+dom.window.customElements.define('fc-light', class extends dom.window.HTMLElement {
+  connectedCallback() {
+    core.init(this);
+  }
+});
+const lightHost = () => dom.window.document.createElement('fc-light');
 
 test('spread + hydrate: bindings apply to the adopted node, and updates keep it', () => {
   const host = div();
@@ -136,7 +146,7 @@ test('keyed + ref: a reorder keeps every ref, a removal releases exactly one', (
  * would render its fallback; if a removal did NOT park, the node would be discarded with the row.
  */
 test('slots + keyed: rows carry their slotted content through a reorder, and give it back on removal', async () => {
-  const host = div();
+  const host = lightHost();
   host.innerHTML = '<b slot="s1">ONE</b><i slot="s2">TWO</i>';
   dom.window.document.body.appendChild(host);
   const rows = (order) => html`<ul>${order.map((id) =>
@@ -172,7 +182,7 @@ test('slots + keyed: rows carry their slotted content through a reorder, and giv
  * visible as churn even when the result looks the same.
  */
 test('slots + hold: a held subtree keeps its slot binding and the node inside it', async () => {
-  const host = div();
+  const host = lightHost();
   host.innerHTML = '<b slot="h">HELD</b>';
   dom.window.document.body.appendChild(host);
   const draw = (n) => html`<section>${hold(html`<div><slot name="h">fb</slot></div>`)}<footer>${n}</footer></section>`;
@@ -213,7 +223,7 @@ test('autoloader + slots: parked content stays dormant, restored content loads',
     const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
     const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 
-    const host = div();
+    const host = lightHost();
     host.setAttribute('data-autoload', '');
     dom.window.document.body.append(host);
     autoloader(rootDir, 'components')(host);

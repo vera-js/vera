@@ -248,8 +248,15 @@ test('outlet children slot into routes, park across slotless ones, and return by
   setRouterRenderer((template, target) => renderInto(template, target));
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 
+  /** A light host is a CUSTOM element that calls `init` — a plain `<main>` keeps what it had, so this row distributed nothing. */
+  if (!window.customElements.get('rb-outlet'))
+    window.customElements.define('rb-outlet', class extends window.HTMLElement {
+      connectedCallback() {
+        core.init(this);
+      }
+    });
   const shell = doc.createElement('div');
-  const outlet = doc.createElement('main');
+  const outlet = doc.createElement('rb-outlet');
   shell.appendChild(outlet);
   doc.body.appendChild(shell);
   const badge = doc.createElement('u');
@@ -268,8 +275,11 @@ test('outlet children slot into routes, park across slotless ones, and return by
 
   badge.textContent = 'edited-badge';
   await navigate('/no-slot', 'navigate'); await settle();
-  assert.equal(outlet.textContent, 'just B', 'the slotless route shows only itself');
-  assert.equal(badge.isConnected, false, 'the badge parked rather than being destroyed');
+  assert.deepEqual([...outlet.children].filter((el) => !el.hidden).map((el) => el.outerHTML), ['<p>just B</p>'],
+    'the slotless route shows only itself');
+  /** As under native slots: content no slot takes waits CONNECTED and unrendered, in the host's hidden carrier. */
+  assert.equal(badge.parentElement?.localName, 'vm-unassigned', 'the badge waits in the carrier rather than being destroyed');
+  assert.equal(badge.parentElement.hidden, true, 'unrendered');
 
   await navigate('/with-slot', 'navigate'); await settle();
   assert.ok(outlet.querySelector('article').contains(badge), 'the SAME node returned');
