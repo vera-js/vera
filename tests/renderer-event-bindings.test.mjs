@@ -43,6 +43,34 @@ const click = (el) => el.dispatchEvent(new dom.window.Event('click', { bubbles: 
 const ENTRIES = Object.fromEntries(
   await Promise.all(['renderer'].map(async (name) => [name, (await load(name)).renderInto]))
 );
+/**
+ * **The same rows on an ADOPTED element** — `wire([renderer, hydration])`, each container's first render taking the
+ * server's markup of the same template. Adoption commits a listener through hydration's own queue, never the client
+ * path above, and every later render through the renderer's: the lifecycle crosses from one to the other on the very
+ * node the server sent. The retired `renderer/hydrate` rows rendered into EMPTY containers, so they asserted that entry's
+ * inlined copy of the renderer and never adopted anything — this is the coverage they were thought to give.
+ */
+{
+  const renderInto = ENTRIES.renderer;
+  const { hydration } = await load('renderer/hydration');
+  (await load('core')).wire([(await load('renderer')).renderer, hydration]);
+  const served = new WeakMap();
+  ENTRIES['renderer + hydration (adopted)'] = (result, container) => {
+    if (!served.has(container)) {
+      /** The server's markup: a client render's HTML with its anchor comments stripped — what a server emits. */
+      const scratch = div();
+      listen(() => renderInto(result, scratch));
+      container.innerHTML = scratch.innerHTML.replace(/<!---->/g, '');
+      const button = container.querySelector('button');
+      served.set(container, button);
+      renderInto(result, container);
+      /** CONTROL, every row: adoption happened — the server's button is the live one. */
+      assert.equal(container.querySelector('button'), button, 'the first render adopted the server\'s button');
+      return;
+    }
+    renderInto(result, container);
+  };
+}
 
 /** Collects `console.warn` for the duration of `work`. */
 const listen = (work) => {
