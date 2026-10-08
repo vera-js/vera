@@ -105,9 +105,11 @@ const viewer = () => {
 let count = 0;
 /**
  * One scenario, both ways. `steps` are `[label, (side) => …]`; `side.render(state)` renders the
- * component's template (the hydrating renderer adopts the first time), `side.host` is the host.
+ * component's template (the hydrating renderer adopts the first time), `side.host` is the host. `innerFirst`
+ * adopts a served inner host before the outer reaches it (the client has none yet: it renders in the usual order);
+ * `moved` counts how many server-rendered nodes the FIRST step inserted or removed anywhere.
  */
-const run = async ({ source, state, children, steps, inner }) => {
+const run = async ({ source, state, children, steps, inner, innerFirst = false }) => {
   const n = ++count;
   const tag = `hc-host-${n}`;
   const innerTag = inner ? `hc-inner-${n}` : null;
@@ -128,24 +130,41 @@ const run = async ({ source, state, children, steps, inner }) => {
     const warned = [];
     const warn = console.warn;
     console.warn = (...args) => warned.push(args.join(' '));
+    let first = innerFirst;
     const side = {
       host,
       view: viewer(),
       render: (s) => {
+        const served = first && host.querySelector(innerTag);
+        first = false;
+        if (served) renderInto(drawInner({}), served);
         renderInto(draw(s), host);
         if (drawInner) renderInto(drawInner({}), host.querySelector(innerTag));
       },
       trace: [],
     };
+    const before = new Set();
+    for (const node of host.querySelectorAll('*')) for (const n of [node, ...node.childNodes]) if (n.nodeType !== 8) before.add(n);
+    let moved = 0;
+    const observer = new dom.window.MutationObserver((records) => {
+      for (const record of records) for (const n of [...record.addedNodes, ...record.removedNodes]) if (before.has(n)) moved++;
+    });
+    observer.observe(host, { childList: true, subtree: true });
     for (const [label, step] of steps) {
       try {
         await step(side);
         await settle();
+        if (observer !== null && side.trace.length === 0) {
+          for (const record of observer.takeRecords()) for (const n of [...record.addedNodes, ...record.removedNodes]) if (before.has(n)) moved++;
+          observer.disconnect();
+        }
         side.trace.push(`${label}: ${side.view(host)}`);
       } catch (error) {
         side.trace.push(`${label}: THREW ${error.message}`);
       }
     }
+    observer.disconnect();
+    sides[`${mode}Moved`] = moved;
     console.warn = warn;
     host.remove();
     sides[mode] = side.trace;
@@ -159,7 +178,7 @@ const KNOWN = new Map([]);
 
 const scenario = (name, spec) =>
   test(name, async () => {
-    const { client, hydrated, hydratedWarned } = await run(spec);
+    const { client, hydrated, hydratedWarned, hydratedMoved } = await run(spec);
     assert.ok(client.every((line) => !line.includes('THREW')), `CONTROL: the client render never throws: ${client}`);
     /**
      * A fallback to a client render would pass the view comparison — it IS a client render — so
@@ -168,6 +187,7 @@ const scenario = (name, spec) =>
     if (!isProduction && !KNOWN.has(name))
       assert.deepEqual(hydratedWarned.filter((line) => line.includes('hydration-fallback')), [], 'hydration adopted rather than falling back');
     const known = KNOWN.get(name);
+    if (spec.still) assert.equal(hydratedMoved, 0, 'nothing the server rendered moved while hydrating');
     if (known === undefined) assert.deepEqual(hydrated, client);
     else assert.notDeepEqual(hydrated, client, `KNOWN divergence (${known}) now CONFORMS — take it off KNOWN`);
   });
@@ -282,3 +302,59 @@ scenario('a light component nested in another\'s template hydrates, and the oute
     ['outer updates', (side) => side.render({ v: 'Y' })],
   ],
 });
+
+/**
+ * **Runs placed into a light component (2c part 2, R1), held to the client step by step** — vera-5a's conditions:
+ * GROW, SHRINK to EMPTY, keyed REORDER, REPLACE; both orders (the outer walking the inner host first, from the
+ * statement; the inner first, its live record converted); runs mixed with statics, one emptied in the MIDDLE (an empty
+ * run must stand before the static after it, never at the end); and NOTHING the server rendered moves while hydrating.
+ */
+const RUN_INNER = '<div class="box"><slot name="t">T</slot><slot>FB</slot></div>';
+for (const innerFirst of [false, true]) {
+  const order = innerFirst ? 'the inner first (its live record)' : 'the outer first (the statement)';
+  scenario(`a keyed run placed into a light component, ${order}: reorders, grows, empties, refills`, {
+    source: '<p>outer</p><INNER>${S.items.map((x) => keyed(x, html`<i slot=${x === "b" ? "t" : ""}>${x}</i>`))}</INNER>',
+    inner: RUN_INNER,
+    innerFirst,
+    still: true,
+    state: { items: ['a', 'b', 'c'] },
+    children: '',
+    steps: [
+      ['hydrate', (side) => side.render({ items: ['a', 'b', 'c'] })],
+      ['reorder', (side) => side.render({ items: ['c', 'a', 'b'] })],
+      ['grow', (side) => side.render({ items: ['c', 'a', 'd', 'b'] })],
+      ['shrink', (side) => side.render({ items: ['d'] })],
+      ['empty', (side) => side.render({ items: [] })],
+      ['refill', (side) => side.render({ items: ['b', 'e'] })],
+    ],
+  });
+  scenario(`a run placed into a light component, replaced by a template and back, ${order}`, {
+    source: '<p>outer</p><INNER>${S.list ? S.items.map((x) => html`<i slot=${x === "b" ? "t" : ""}>${x}</i>`) : html`<u>ONE</u>`}</INNER>',
+    inner: RUN_INNER,
+    innerFirst,
+    still: true,
+    state: { list: true, items: ['a', 'b'] },
+    children: '',
+    steps: [
+      ['hydrate', (side) => side.render({ list: true, items: ['a', 'b'] })],
+      ['replace', (side) => side.render({ list: false, items: [] })],
+      ['back', (side) => side.render({ list: true, items: ['b', 'c'] })],
+    ],
+  });
+  scenario(`runs mixed with statics in a light component, one emptied in the middle, ${order}`, {
+    source:
+      '<p>outer</p><INNER><em>first</em>${S.a.map((x) => html`<i>${x}</i>`)}<u slot="t">mid</u>${S.b.map((x) => html`<s>${x}</s>`)}<em>last</em></INNER>',
+    inner: RUN_INNER,
+    innerFirst,
+    still: true,
+    state: { a: ['a1', 'a2'], b: ['b1'] },
+    children: '',
+    steps: [
+      ['hydrate', (side) => side.render({ a: ['a1', 'a2'], b: ['b1'] })],
+      ['first run emptied (middle)', (side) => side.render({ a: [], b: ['b1'] })],
+      ['first run refilled', (side) => side.render({ a: ['a3'], b: ['b1'] })],
+      ['second run emptied', (side) => side.render({ a: ['a3'], b: [] })],
+      ['both grow', (side) => side.render({ a: ['a3', 'a4'], b: ['b2', 'b3'] })],
+    ],
+  });
+}

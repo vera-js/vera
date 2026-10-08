@@ -3,7 +3,8 @@ import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
 import { BINDINGS_HTML } from './fixtures/hello-ssr.html.js';
 import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
-import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
 /**
  * Every binding kind, adopted through **real declarative shadow DOM**.
@@ -18,7 +19,7 @@ import { renderInto as hydratingRender } from '../../packages/renderer/dist/deve
  * reference to a server-built node and checking it is still there can tell the difference.
  */
 
-wire({ on: 'render', fn: hydratingRender, priority: 50 });
+wire([renderer, hydration]);
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

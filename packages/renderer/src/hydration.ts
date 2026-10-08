@@ -100,6 +100,8 @@ type Registry = {
   $t?: Untracked;
   _$hydrateSlots$?: HydrateSlots;
   _$hydrating$?: boolean;
+  /** Slots' seam: present when slots is wired — read here only to know that. */
+  _$capture$?: unknown;
 };
 type Untracked = <A extends unknown[], R>(fn: (...args: A) => R, ...args: A) => R;
 type Applies = { _$apply$: (element: Element, key: object, run: Untracked, adopting?: boolean) => void };
@@ -736,8 +738,20 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
   let start: Comment | null = null;
   let end: Comment | null = null;
   let part: ChildPart;
+  const host = container.nodeType === 1 ? (container as Element) : null;
+  const spec = host === null ? null : host.getAttribute(LIGHT_ATTR);
+  /**
+   * **A light component the server did not render is rendered, not hydrated** — and keeps its children. With slots
+   * wired, the server states the light tree on EVERY component host it renders, so a custom element without that
+   * statement is client-made (by a template, or `createElement`): its children are light content, not server output, so
+   * the walk declines without clearing them, and slots distributes them. (So slots must be wired on both sides: a host a
+   * server rendered without it carries no statement, and is rendered on the client.)
+   */
+  if (spec === null && registry._$capture$ !== undefined && host?.localName.includes('-')) return false;
   try {
-    if (container.nodeType === 1 && (container as Element).hasAttribute(LIGHT_ATTR)) {
+    /** A statement with runs needs the piece; one with none (`N:`) states no light content — its slots walk as elements. */
+    if (spec?.endsWith(':') && piece === undefined) host!.removeAttribute(LIGHT_ATTR);
+    else if (spec !== null) {
       /** No piece to read it: thrown before anything is touched, so the server's markup stands exactly as served. */
       if (piece === undefined) throw new Error(diagnostic('hydration', 'no hydrateSlots', 'hydration-slots', __DEV__ && PROSE['hydration-slots']()));
       if (piece[0] !== PROTOCOL) mismatch('protocol', container, () => `hydrateSlots protocol ${piece![0]}, expected ${PROTOCOL}`);

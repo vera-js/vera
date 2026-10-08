@@ -165,12 +165,11 @@ test('the statement is STRICT at the end: a last light child the outer template 
  * walk passes the literal as the comment it is (`hydrate-slots-markers`, W1 first).
  */
 /**
- * TODO until step 4's 2d: the outer's fallback renders a CLIENT-MADE inner host holding the placed `<i>`, and that host's
- * own first render then takes `<i>` for server output and clears it — the decline path for non-server children (the two
- * `AUDIT — non-server children` rows in hydrate-slots). Measured 2026-10-07: outer falls back as designed, then the
- * inner's render warns "expected <div> and found <i>". 2d removes this `todo`.
+ * The outer's fallback renders a CLIENT-MADE inner host holding the placed `<i>`: with no statement, its own first render
+ * declines the walk and keeps `<i>` as light content (step 4's 2d — before it, the render took `<i>` for server output,
+ * warned "expected <div> and found <i>", and cleared it).
  */
-test('(a) a literal marker pair in the inner\'s own template, the outer first: the end state is the client\'s', { todo: 'green with 2d (the decline path for non-server children)' }, async () => {
+test('(a) a literal marker pair in the inner\'s own template, the outer first: the end state is the client\'s', async () => {
   const literal = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
     import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots'); wire([slots]);

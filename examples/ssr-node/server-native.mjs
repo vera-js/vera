@@ -5,9 +5,9 @@
  *
  *   node examples/ssr-node/server-native.mjs
  *
- * It serves the whole round trip, not just the markup: the page ships a client module that imports
- * `@verajs/renderer/hydrate` and adopts what the server sent. This example used to stop at the
- * markup, which left the headline claim — swap one import and the server DOM is adopted in place —
+ * It serves the whole round trip, not just the markup: the page ships a client module that wires
+ * `hydration` beside the renderer (`wire([renderer, hydration])`) and adopts what the server sent. This
+ * example used to stop at the markup, which left the headline claim — the server DOM is adopted in place —
  * as something the reader had to take on trust.
  */
 import { renderToString } from '@verajs/ssr';
@@ -27,9 +27,10 @@ const component = new URL('./components/hello-ssr.js', import.meta.url);
  */
 const CLIENT = `
 import { wire } from '/packages/core/dist/development/vera.js';
-import { renderer } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderer } from '/packages/renderer/dist/development/vera-renderer.js';
+import { hydration } from '/packages/renderer/dist/development/vera-renderer-hydration.js';
 
-wire([renderer]);
+wire([renderer, hydration]);
 await import('/examples/ssr-node/components/hello-ssr.js');
 document.body.dataset.hydrated = 'true';
 `;

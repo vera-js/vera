@@ -14,10 +14,11 @@ import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
 import { wire, init, render, html } from '../../packages/core/dist/development/vera.js';
-import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 import { adoptStyles, css } from '../../packages/styles/dist/development/vera-styles.js';
 
-wire({ on: 'render', fn: hydratingRender, priority: 50 });
+wire([renderer, hydration]);
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

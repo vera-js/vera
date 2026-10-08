@@ -12,10 +12,11 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, shallowRef, untrack } from '../../packages/core/dist/development/vera.js';
-import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
-wire({ on: 'render', fn: hydratingRender, priority: 50 });
+wire([renderer, hydration]);
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 const ROWS = ['a', 'b', 'c', 'd'];

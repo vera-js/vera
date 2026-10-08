@@ -255,3 +255,31 @@ test('AUDIT — a <template> among the children distributes like any other node'
   assert.match(mixed.html, /<main><!--\[--><template><b>x<\/b><\/template>tail<!--\]--><\/main>/,
     'and a template in the default slot is counted and placed like any other node');
 });
+
+/**
+ * **Two text light children never meet in one range** (2026-10-08): `t1` and `t2` belong to the default slot with a named
+ * child between them in LIGHT order, so the server writes them side by side in the default range — where the browser's
+ * parser merged them into one node while the statement counts two, and hydration fell back. An empty comment goes
+ * between them; a range's comments are never light content, so hydration needs no rule for it.
+ */
+test('interleaved text: the default range keeps its two text children apart, so the browser parses two nodes', async () => {
+  const html = await render('<b slot="header">H1</b>t1<b slot="header">H2</b>t2');
+  assert.match(html, /<main><!--\[-->t1<!---->t2<!--\]--><\/main>/, 'an empty comment between the two texts');
+  assert.match(html, /data-vm-light="1:0,1,0,1"/, 'and the statement counts both, in light order');
+  const { JSDOM } = await import('jsdom');
+  const parsed = new JSDOM(html).window.document.querySelector('main');
+  assert.deepEqual([...parsed.childNodes].filter((node) => node.nodeType === 3).map((node) => node.data), ['t1', 't2'], 'two text nodes, as the statement counts');
+});
+
+test('CONTROL: text beside an element in a range needs no separator', async () => {
+  const html = await render('plain body<b>bold</b>');
+  assert.match(html, /<main><!--\[-->plain body<b>bold<\/b><!--\]--><\/main>/);
+});
+
+test('the unassigned carrier keeps two text children apart too', async () => {
+  const html = (await renderToString(new URL('./fixtures/ssr/slot-named-only-ssr.js', import.meta.url), { children: 't1<b slot="h">H</b>t2' })).html;
+  assert.match(html, /<vm-unassigned hidden="">t1<!---->t2<\/vm-unassigned>/, 'an empty comment between the two texts in the carrier');
+  const { JSDOM } = await import('jsdom');
+  const carrier = new JSDOM(html).window.document.querySelector('vm-unassigned');
+  assert.deepEqual([...carrier.childNodes].filter((node) => node.nodeType === 3).map((node) => node.data), ['t1', 't2'], 'two text nodes, as the statement counts');
+});
