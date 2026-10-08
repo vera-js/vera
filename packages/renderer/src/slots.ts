@@ -380,14 +380,18 @@ const place = (light: Light) => {
 /* ── the observer: what the page's templates (and the user) do afterwards ─────────────────────── */
 
 /**
- * **One observer pair, from THIS module's own realm** — which cannot close while its code runs — observing hosts in any
- * document (a MutationObserver watches nodes of another document: measured on Chromium, Firefox and WebKit). The pair
- * used to come from the FIRST host's window, and went deaf with it: a first light host in an iframe or a popped-out
- * window, closed later, left every host after it unobserved on Chromium and WebKit (`tests/browser/slots-realm.test.js`).
- * The host's window is the fallback only where this realm has no observer at all.
+ * **An observer pair per light** — its children (`childList`, node by node) and its names (`slot`/`name`, over a subtree)
+ * — never one shared by every host: Gecko's `observe()` is linear in what that observer already watches, removed nodes
+ * included, through collections (2000 observes 4 → 45 ms over ten batches on one observer, flat on a fresh one, flat on
+ * Chromium and WebKit), so a shared pair made every new light host slower in Firefox without end (2000 hosts: 262 →
+ * 9305 ms over eight renders that replaced them; flat now). A light's observers go with it.
+ *
+ * From THIS module's own realm, which cannot close while its code runs — a MutationObserver watches nodes of another
+ * document (measured on Chromium, Firefox and WebKit). Taking it from a host's window went deaf with that window: a
+ * light host in an iframe or a popped-out window, closed later (`tests/browser/slots-realm.test.js`). The host's window
+ * is the fallback only where this realm has no observer at all.
  */
 type Pair = [MutationObserver, MutationObserver];
-/** PROTOTYPE: a pair per light — Gecko's observe() is linear in its observer's registrations, so none may accumulate. */
 const observersOf = (light: Light): Pair => {
   const Observer = globalThis.MutationObserver ?? (light.host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
   return (light.obs ??= [new Observer(handle), new Observer(handle)]);
@@ -395,7 +399,7 @@ const observersOf = (light: Light): Pair => {
 /**
  * **A `hold()`-parked branch, watched while it is parked** — a slot's region in it is out of its host's subtree, where
  * the host's own attribute registration cannot see a node in it renamed (`slot=`): re-routed now, as native slots would.
- * One observer for every parked root (the renderer's `_$park$`), registering the same root again when it parks again.
+ * One observer for every parked root (the renderer's `_$parked$`), registering the same root again when it parks again.
  */
 let parkedObserver: MutationObserver | undefined;
 /** A light's pending records, onto `into` — or dropped, without `into` (this module's own moves). */
@@ -470,10 +474,16 @@ const mark = (light: Light) => {
   light.dirty = true;
   if (!light.wait) work.add(light);
 };
-/** Applies whatever is pending, now — after every component render, and before any read of the assignment. */
+/**
+ * **Applies what is pending, now** — after every component render, and before any read of the assignment. It reads the
+ * records of the lights it can name: its `context` (the light being read, mounted into, or rendered), every light whose
+ * element the finished render's `root` created (`FED` — an outer template changing a component's children is
+ * distributed by the end of that render), the work set, and the parked branches. Any other light's records arrive at the
+ * microtask, through its own observer: a light host changed DIRECTLY by the page's code is redistributed by the next
+ * microtask, or at once when its slotted content is read through the slots API (`tests/slots-sync-reads.test.mjs`).
+ */
 const flush = (context?: Light, root?: Node) => {
   if (busy) return;
-  /** Only the lights this flush knows: its context, what a finished render's root fed, and the work set; the rest arrive at the microtask. */
   const records: MutationRecord[] = [];
   const near: Light[] = [];
   if (context !== undefined) near.push(context);
@@ -683,7 +693,11 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   watch(holding, light);
   const [children, attributes] = observersOf(light);
   children.observe(host, { childList: true });
-  /** PROTOTYPE: one attribute registration per host, over its whole subtree — holding, regions and slots are inside it. */
+  /**
+   * Its names, ONCE over its whole subtree — holding, regions and slots are inside it — not on every node it watches
+   * (9 registrations per card host, not 13: `observe()` was 15% of Chrome's slot hydration). What leaves the subtree is
+   * watched where it goes: a slot that stepped out (`watch`), a `hold()`-parked branch (`_$parked$`).
+   */
   attributes.observe(host, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
   return light;
 };
@@ -943,7 +957,7 @@ export const slotDiscovery = [
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
-    (registry as unknown as { _$park$?: (root: Node) => void })._$park$ = (root) =>
+    (registry as unknown as { _$parked$?: (root: Node) => void })._$parked$ = (root) =>
       (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(handle)).observe(root, {
         attributes: true,
         attributeFilter: ['slot'],
