@@ -18,3 +18,7 @@ swap to `vera-renderer-hydrate.min.js` no longer exists. Adoption is unchanged i
 kept, attributes read and written only on a difference, form state left as the user left it, a mismatch rebuilding
 one container and warning once — and an app that never hydrates loads none of it. `hydration` and
 `@verajs/renderer/hydrate-slots` are Node-safe to import, unlike the retired entry.
+
+**A container holding nothing but its SSR stylesheets is rendered, not hydrated.** `styles` writes a
+`<style data-vm-sheet>` into a client-made shadow root whenever it cannot adopt a sheet — string `static styles` in
+every engine — and the retired entry took that for server output and warned a mismatch on a page no server rendered.

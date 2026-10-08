@@ -759,6 +759,12 @@ const adoptContainer = (result: TemplateResult, container: Node, from: number): 
     }
     let first: Node | null = container.firstChild;
     while (isSheet(first) || (first !== null && first === served?.carrier)) first = first!.nextSibling;
+    /**
+     * **Stylesheets alone are not server output** — a client-made shadow root holds one before its first render whenever
+     * `styles` writes a `<style>` (string styles, or no `adoptedStyleSheets`). Nothing to adopt: rendered fresh after
+     * them, without a fallback warning that would blame the server for a page it never rendered.
+     */
+    if (first === null && served === null) return false;
     start = doc.createComment('');
     container.insertBefore(start, first);
     end = container.appendChild(doc.createComment(''));

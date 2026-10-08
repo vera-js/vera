@@ -80,9 +80,21 @@ test('the SAME markup in SHADOW mode also works (native slots) — one component
   trigger.setAttribute('slot', 'trigger');
   trigger.className = 'shadow-trigger';
   el.append(trigger);
-  dom.window.document.body.append(el);
-  el.options = OPTS;
-  await frame();
+  /**
+   * jsdom has no `adoptedStyleSheets`, so `styles` writes a `<style>` into the fresh shadow root before its first render
+   * — and hydration, wired here, took that for server output and warned a fallback on a page no server rendered.
+   */
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    dom.window.document.body.append(el);
+    el.options = OPTS;
+    await frame();
+  } finally {
+    console.warn = warn;
+  }
+  assert.deepEqual(said, [], 'a client-made shadow root is rendered, not hydrated — no fallback warning');
   assert.ok(el.shadowRoot, 'shadow mode');
   assert.equal(trigger.getAttribute('role'), 'combobox', 'the slotted trigger wired via native assignment + slotted()');
   trigger.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -335,10 +347,21 @@ test('a server whose id counter has advanced still hydrates cleanly', async () =
 
   const holder = dom.window.document.createElement('div');
   holder.innerHTML = serverHtml;
-  dom.window.document.body.append(holder);
+  const servedTrigger = holder.querySelector('[role="combobox"]');
+  assert.ok(servedTrigger, 'CONTROL: the server rendered the built-in trigger');
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    dom.window.document.body.append(holder);
+    await frame();
+    await frame();
+  } finally {
+    console.warn = warn;
+  }
   const element = holder.querySelector('vera-select');
-  await frame();
-  await frame();
+  assert.deepEqual(said, [], 'hydrated without a fallback');
+  assert.equal(element.querySelector('[role="combobox"]'), servedTrigger, 'ADOPTED: the server\'s trigger is the live one');
 
   const after = prefixes(element.outerHTML);
   assert.equal(after.length, 1, 'the client settled on exactly one prefix for this instance');

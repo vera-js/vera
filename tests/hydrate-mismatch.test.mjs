@@ -220,3 +220,21 @@ test('a fallback keeps the SSR stylesheet, and the message says so', { skip }, (
   assert.equal(host.querySelector('span'), null);
   if (full) assert.match(said[0], /SSR <style> is kept/, 'the message says the markup was discarded without the exception');
 });
+
+/**
+ * **Stylesheets alone are not server output.** `styles` writes a `<style data-vm-sheet>` into a client-made shadow root
+ * before its first render whenever it cannot adopt a sheet — string styles in every engine, any styles where
+ * `adoptedStyleSheets` is missing — and the renderer asks hydration about any container with children. Adopting that
+ * as server output found "nothing" where the template's first node should be, and warned `hydration-fallback` on a
+ * page no server rendered (found through vera-select in shadow mode). Rendered fresh after the sheet, silently.
+ */
+test('a container holding only SSR stylesheets renders fresh after them, without a fallback warning', { skip }, () => {
+  const { said, host } = hydrateOver('<style data-vm-sheet="styles">p{color:red}</style>', html`<p>${'a'}</p>`);
+  assert.deepEqual(said, [], 'nothing was served, so nothing fell back');
+  assert.deepEqual([...host.childNodes].filter((n) => n.nodeType === 1).map((n) => n.localName), ['style', 'p'],
+    'the sheet kept, leading, and the template rendered once after it');
+  assert.equal(host.querySelector('p').textContent, 'a');
+  /** CONTROL: the same sheet beside markup that disagrees still falls back, so the decline is exactly "nothing else". */
+  const control = hydrateOver('<style data-vm-sheet="styles">p{color:red}</style><b>x</b>', html`<p>${'a'}</p>`);
+  assert.equal(control.said.length, 1, 'a sheet with real markup beside it is still hydrated, and still reports');
+});
