@@ -353,3 +353,39 @@ test('a hydrateSlots seam of another protocol: one warning, the ordinary fallbac
     registry._$hydrateSlots$ = seam;
   }
 });
+
+/**
+ * **An ordinary server-rendered component — no `<slot>` in its template — on a page that wires slots hydrates** (vera-5a,
+ * 2026-10-08: the decline's boundary, settled by a pin). The decline renders a custom element WITHOUT a light-tree
+ * statement on the client, as client-made; that is only safe because a server with slots wired states EVERY component
+ * host it renders — `N:` for one with no light content — so "no statement" reliably means "not the server's".
+ */
+test('a server-rendered component with NO slot in its template hydrates on a slots page: its nodes kept, nothing parked, no warning', async () => {
+  const served = server('', 'slot-free-ssr');
+  assert.match(served, /<slot-free-ssr data-vm-light="1:">/, 'CONTROL: the server states it — no light content, but a statement');
+  const host = hostFromServer(served);
+  const [section, input] = [host.querySelector('section'), host.querySelector('input')];
+  input.value = 'typed before hydration';
+  const said = await warnings(async () => {
+    renderInto(html`<section><h1>Plain</h1><input value="server"><button>go</button></section>`, host);
+    await settle();
+  });
+  assert.deepEqual(said, [], 'adopted: no warning');
+  assert.equal(host.querySelector('section'), section, 'the server node kept, by identity');
+  assert.equal(host.querySelector('input'), input, 'and the input');
+  assert.equal(input.value, 'typed before hydration', 'with the state typed before hydration');
+  assert.equal(host.querySelector('vm-unassigned'), null, 'nothing parked as unassigned');
+  assert.equal(host.hasAttribute('data-vm-light'), false, 'the statement consumed');
+  host.remove();
+});
+
+/** The documented consequence of a server WITHOUT slots wired: its hosts state nothing, so the client renders them. */
+test('the same markup with NO statement (a server without slots) is rendered on the client, its server nodes kept hidden — the documented consequence', async () => {
+  const host = hostFromServer(server('', 'slot-free-ssr').replace(' data-vm-light="1:"', ''));
+  const section = host.querySelector('section');
+  renderInto(html`<section><h1>Plain</h1><input value="server"><button>go</button></section>`, host);
+  await settle();
+  assert.notEqual(host.querySelector('section:not(vm-unassigned section)'), section, 'not adopted: a client render');
+  assert.equal(section.closest('vm-unassigned') !== null, true, 'the server node kept, held as unassigned light content');
+  host.remove();
+});
