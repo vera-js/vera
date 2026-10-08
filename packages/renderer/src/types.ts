@@ -193,7 +193,7 @@ export type HydrationCursor = {
 /** Hydration's mismatch: records the cause and the first node that disagreed, and stops the adoption by throwing. */
 export type HydrationFail = (cause: string, at: Node | null, reason: false | (() => string)) => never;
 
-/** A served light host as hydration sees it: only its carrier (`<vm-unassigned>`), which the walk passes over. */
+/** A served light host as hydration sees it: only its carrier (`<ins data-vm-unassigned>`), which the walk passes over. */
 export type ServedHost = { readonly carrier: Node | null };
 
 /**

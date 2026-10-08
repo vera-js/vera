@@ -92,6 +92,11 @@ const REMOVED = {
   runHooks: 'mount()',
   /** Rehomed: static mode is @verajs/ssr's own 'store' insert, read per operation. */
   setStaticStores: 'renderToString(url, { static: true })',
+  /** Light slots' carrier (Brian, 2026-10-08): the dashed `<vm-unassigned>` was never defined, so it matched
+   *  `:not(:defined)` forever (the autoloader imported it). Keyed with delimiters: the marker itself never matches. */
+  '<vm-unassigned': '<ins hidden data-vm-unassigned>',
+  '(vm-unassigned)': ':not([data-vm-unassigned])',
+  "'vm-unassigned'": "'[data-vm-unassigned]' — the carrier is a standard <ins>",
 };
 
 /**

@@ -26,7 +26,7 @@ import type { ElementShim } from './nodes.js';
 const FORMAT = '1';
 const RANGE_START = '[';
 const RANGE_END = ']';
-const UNASSIGNED = 'vm-unassigned';
+const UNASSIGNED = 'data-vm-unassigned';
 const LIGHT_ATTR = 'data-vm-light';
 
 type Child = ElementShim['childNodes'][number];
@@ -75,16 +75,17 @@ export const distributeLight = (host: ElementShim, source: Child[]): void => {
     /** A slot with nothing assigned STAYS, showing its fallback — as the client keeps it (Brian, 2026-10-02). */
   }
   /**
-   * **Whatever no slot claimed is PRESERVED, in the client's own container** — `<vm-unassigned hidden>`, the host's first
-   * child, in light-tree order, exactly where the client keeps it: present and connected, unrendered, as native leaves an
-   * unassigned light child. It is the last range of the statement.
+   * **Whatever no slot claimed is PRESERVED, in the client's own container** — `<ins hidden data-vm-unassigned>`, the
+   * host's first child, in light-tree order, exactly where the client keeps it: present and connected, unrendered, as
+   * native leaves an unassigned light child. It is the last range of the statement.
    */
   let carrier: ElementShim | null = null;
   for (const node of light)
     if (!rangeOf.has(node)) {
       if (carrier === null) {
-        carrier = createElement(UNASSIGNED);
+        carrier = createElement('ins');
         carrier.setAttribute('hidden', '');
+        carrier.setAttribute(UNASSIGNED, '');
       }
       separate(carrier, node, null);
       rangeOf.set(node, ranges);

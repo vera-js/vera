@@ -22,7 +22,7 @@ type Served = ServedHost & { _host: Element; _runs: string; carrier: HTMLElement
 /** What `@verajs/ssr` writes — a deliberate second address of its writer; `slots-ssr-client-parity` holds them together. */
 const FORMAT = '1';
 const LIGHT_ATTR = 'data-vm-light';
-const UNASSIGNED = 'vm-unassigned';
+const UNASSIGNED = 'data-vm-unassigned';
 const isMark = (node: Node, data: string) => node.nodeType === 8 && (node as Comment).data === data;
 /** The slottable nodes from `from` up to `to` — comments are never light content. */
 const pool = (from: Node | null, to: Node | null): Node[] => {
@@ -70,10 +70,10 @@ const scan = (parent: Node, out: Node[][], skip: Node | null) => {
   }
 };
 
-/** The server's carrier — the host's first child, when it is `<vm-unassigned>` — or `null`. */
+/** The server's carrier — the host's first child, when it is `<ins data-vm-unassigned>` — or `null`. */
 const carrierOf = (host: Element): HTMLElement | null => {
   const first = host.firstChild;
-  return first !== null && first.nodeType === 1 && (first as Element).localName === UNASSIGNED ? (first as HTMLElement) : null;
+  return first !== null && first.nodeType === 1 && (first as Element).hasAttribute(UNASSIGNED) ? (first as HTMLElement) : null;
 };
 /** The statement's runs (after its format number), or `null` for another format or none. */
 const statementOf = (spec: string | null): string | null => {

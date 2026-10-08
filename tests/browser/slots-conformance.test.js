@@ -94,14 +94,14 @@ const view = (side) => {
     /**
      * The light side's composed reading (option 4, 2026-10-02): a `<slot>` still in the page is one with nothing assigned,
      * showing its fallback — `display: contents`, so it composes as its children, as a shadow slot composes as its
-     * flattened assignment; and `<vm-unassigned hidden>` holds what no slot took — present, connected, unrendered, as a
+     * flattened assignment; and `<ins hidden data-vm-unassigned>` holds what no slot took — present, connected, unrendered, as a
      * native unassigned light child is, so it is not in the composed tree.
      */
     if (node.localName === 'slot') {
       for (const child of node.childNodes) walk(child);
       return;
     }
-    if (node.localName === 'vm-unassigned') return;
+    if (node.nodeType === 1 && node.hasAttribute('data-vm-unassigned')) return;
     flush();
     const tag = node.localName.replace(/-(native|light)$/, '');
     const attrs = [...node.attributes].map((a) => ` ${a.name}="${a.value}"`).sort().join('');

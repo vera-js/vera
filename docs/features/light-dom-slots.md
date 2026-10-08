@@ -84,7 +84,7 @@ across a slot's edge in the parser. Distribution loses two facts hydration needs
 user's, since a component's own elements can carry `slot` too, and their order across slots), so the
 server **states the light tree** rather than leaving the client to infer it: the host carries
 `data-vm-light`, a format number and, for each light child in light order, which of those ranges it
-went into. Present only when the markup needs it: the host's `<vm-unassigned hidden>` holding children
+went into. Present only when the markup needs it: the host's `<ins hidden data-vm-unassigned>` holding children
 no slot claimed — the same element, in the same place, the client keeps them in — so content meant for
 a slot that only appears in another state survives the round trip instead of vanishing from the HTML.
 A hydrating page reads all of it through `@verajs/renderer/hydrate-slots`
@@ -138,7 +138,7 @@ comparison or a property read at those points and nothing else.
   Ordinary bindings are unaffected — `<tbody>${rows}</tbody>` works, because the renderer's own
   anchor is a comment and table parsing permits comments where it rejects elements. So a table
   component takes its rows as data rather than as slotted content.
-- **A node no slot takes waits in an extra host child** — `<vm-unassigned hidden>`, the host's first
+- **A node no slot takes waits in an extra host child** — `<ins hidden data-vm-unassigned>`, the host's first
   child, present only while it holds something. That is how it stays connected and unrendered, as
   native leaves it (a component in it keeps running; assigning it later is a move it is kept
   through), and the price is a child your host's structural selectors can see: `:scope > *`,

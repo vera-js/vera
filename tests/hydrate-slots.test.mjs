@@ -110,14 +110,14 @@ test('re-render after hydration keeps user nodes in place', async () => {
 
 test('AUDIT — hydration recovers server-parked unassigned content into the capture map', async () => {
   const serverHtml = server('<h2 slot="header">Hi</h2><p slot="nowhere">Recovered</p>');
-  assert.match(serverHtml, /<vm-unassigned hidden="">/, 'the server parked it, in the client\'s own container');
+  assert.match(serverHtml, /<ins hidden="" data-vm-unassigned="">/, 'the server parked it, in the client\'s own container');
   const host = hostFromServer(serverHtml);
-  const carrier = host.querySelector('vm-unassigned');
+  const carrier = host.querySelector('[data-vm-unassigned]');
   const p = carrier.querySelector('p');
   renderInto(card(), host);
   await settle();
   /** Unassigned content stays CONNECTED, as under native slots: the carrier IS the client's holding, adopted. */
-  assert.equal(host.querySelector('vm-unassigned'), carrier, 'the carrier is adopted as the holding, by identity');
+  assert.equal(host.querySelector('[data-vm-unassigned]'), carrier, 'the carrier is adopted as the holding, by identity');
   assert.equal(carrier.style.getPropertyValue('display'), 'none', 'and hidden as a client-made one is (inline, important)');
   assert.equal(p.parentNode, carrier, 'its content stays in it, by identity');
   assert.equal(slotted(host, 'nowhere').length, 1, 'and is captured, ready for its slot');
@@ -233,14 +233,14 @@ test('AUDIT — nested light-slot components hydrate in place, both levels', asy
 /**
  * **The rescue walks the SERVER's subtree, which is full of the user's own markup**, so it may not
  * assume anything about what it finds there. (Originally: `data-vm-unassigned` on a non-`<template>`
- * reached `.content` and threw out of `renderInto`.) The carrier's reserved name today is the
- * `<vm-unassigned>` element, looked for as the host's FIRST child; one anywhere else is ordinary markup.
+ * reached `.content` and threw out of `renderInto`.) The carrier today is `<ins data-vm-unassigned>`,
+ * looked for as the host's FIRST child; one anywhere else is ordinary markup.
  */
 test('AUDIT — a reserved element out of the carrier\'s place does not break the render', async () => {
-  /** Server-shaped (the host states its light tree), with a `<vm-unassigned>` the server never wrote, NOT first. */
+  /** Server-shaped (the host states its light tree), with an `<ins data-vm-unassigned>` the server never wrote, NOT first. */
   const host = hostFromServer(
     '<my-host data-vm-light="1:0"><article><header><!--[--><h2 slot="h">KEEP</h2><!--]--></header></article>' +
-      '<vm-unassigned>USER DIV</vm-unassigned></my-host>'
+      '<ins data-vm-unassigned>USER DIV</ins></my-host>'
   );
   /** Disagrees at the root, so the rescue runs over that subtree. */
   renderInto(html`<section><header><slot name="h">fb</slot></header></section>`, host);
@@ -639,8 +639,8 @@ test('adopted content survives a branch-away and returns on branch-back', async 
   renderInto(html`<p>away</p>`, host);
   await settle();
   /** Parked content stays CONNECTED, in the hidden holding, as under native slots (option 4). */
-  assert.equal(item.parentNode, host.querySelector('vm-unassigned'), 'branched away: the node is parked in the holding');
-  assert.equal(host.querySelector('vm-unassigned').style.getPropertyValue('display'), 'none', 'which is hidden');
+  assert.equal(item.parentNode, host.querySelector('[data-vm-unassigned]'), 'branched away: the node is parked in the holding');
+  assert.equal(host.querySelector('[data-vm-unassigned]').style.getPropertyValue('display'), 'none', 'which is hidden');
   assert.equal(host.querySelector('p').textContent, 'away', 'and the branch actually rendered');
 
   renderInto(card(), host);

@@ -201,15 +201,16 @@ test('slots + hold: a held subtree keeps its slot binding and the node inside it
 });
 
 /**
- * autoloader + slots: a lazy tag that enters the world inside DISPLACED slot content. Parking
- * moves the user's nodes into a detached fragment outside every observed tree, so nothing may
- * load while displaced — and the restore re-enters the autoloader's subtree, where discovery MUST
- * fire or a lazy component in a toggled-away branch never appears. Discovery in jsdom needs the
- * suite-standard `:not(:defined)` emulation (jsdom lacks the selector; the browser autoloader
- * suite owns real discovery) and the `data-autoload` attribute on the host (`watch()` returns early
- * without it — both are the recorded probe traps, walked into again finding this).
+ * autoloader + slots: a lazy tag that enters the world inside UNASSIGNED slot content. As under native slots, content no
+ * slot takes waits CONNECTED — in the host's hidden `<ins data-vm-unassigned>` — so a lazy component in it is discovered
+ * and loads, and a restore MOVES it (no reload). The carrier itself is a standard element, `:defined`, so discovery never
+ * mistakes it for a lazy component (the old `<vm-unassigned>` — a dashed name nothing defined — was imported as
+ * `components/vm-unassigned.js` on every such host; found migrating this row, 2026-10-08). (The row once asserted the
+ * retired model: parked content detached, nothing loading.) Discovery in jsdom needs the suite-standard
+ * `:not(:defined)` emulation (jsdom lacks the selector; the browser autoloader suite owns real discovery) and the
+ * `data-autoload` attribute on the host (`watch()` returns early without it — both recorded probe traps).
  */
-test('autoloader + slots: parked content stays dormant, restored content loads', async () => {
+test('autoloader + slots: unassigned content stays connected and loads; the carrier never does; a restore moves it', async () => {
   const origQSA = dom.window.Element.prototype.querySelectorAll;
   dom.window.Element.prototype.querySelectorAll = function (sel) {
     if (sel === ':not(:defined)')
@@ -218,6 +219,10 @@ test('autoloader + slots: parked content stays dormant, restored content loads',
       );
     return origQSA.call(this, sel);
   };
+  /** Captured for the WHOLE row: a carrier taken for a lazy component fails its import whenever it is first observed. */
+  const said = [];
+  const warn = console.warn, error = console.error;
+  console.warn = console.error = (...args) => said.push(args.join(' '));
   try {
     const { autoloader } = await load('autoloader');
     const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
@@ -246,17 +251,22 @@ test('autoloader + slots: parked content stays dormant, restored content loads',
     holder.innerHTML = '<lazy-widget></lazy-widget>';
     early.append(holder);
     await tick();
-    assert.equal(early.isConnected, false, 'CONTROL: the content is genuinely parked');
-    assert.equal(globalThis.__lazyLoads ?? 0, 0, 'nothing may load from a detached fragment');
+    await tick();
+    assert.equal(early.isConnected && early.parentElement.hasAttribute('data-vm-unassigned') && early.parentElement.hidden, true,
+      'CONTROL: unassigned, the content waits connected in the hidden carrier');
+    assert.equal(globalThis.__lazyLoads, 1, 'connected, as native unassigned content is: discovered and loaded once');
+    assert.equal(holder.querySelector('lazy-widget').textContent, 'lazy-loaded', 'defined and upgraded while unassigned');
+    const widget = holder.querySelector('lazy-widget');
 
     renderInto(drawSlot(), host);
     await tick();
-    await tick();
-    assert.equal(globalThis.__lazyLoads, 1, 'the restore was discovered and loaded exactly once');
-    assert.equal(host.querySelector('lazy-widget')?.textContent, 'lazy-loaded',
-      'defined, upgraded, and rendered after the roundtrip');
+    assert.equal(host.querySelector('div lazy-widget'), widget, 'the restore MOVED it into the slot — the same node');
+    assert.equal(globalThis.__lazyLoads, 1, 'and nothing reloaded');
+    assert.deepEqual(said.filter((line) => line.includes('autoloader')), [], 'the carrier was never taken for a lazy component');
     host.remove();
   } finally {
+    console.warn = warn;
+    console.error = error;
     dom.window.Element.prototype.querySelectorAll = origQSA;
   }
 });

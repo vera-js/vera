@@ -374,7 +374,7 @@ test('a server-rendered component with NO slot in its template hydrates on a slo
   assert.equal(host.querySelector('section'), section, 'the server node kept, by identity');
   assert.equal(host.querySelector('input'), input, 'and the input');
   assert.equal(input.value, 'typed before hydration', 'with the state typed before hydration');
-  assert.equal(host.querySelector('vm-unassigned'), null, 'nothing parked as unassigned');
+  assert.equal(host.querySelector('[data-vm-unassigned]'), null, 'nothing parked as unassigned');
   assert.equal(host.hasAttribute('data-vm-light'), false, 'the statement consumed');
   host.remove();
 });
@@ -385,7 +385,7 @@ test('the same markup with NO statement (a server without slots) is rendered on 
   const section = host.querySelector('section');
   renderInto(html`<section><h1>Plain</h1><input value="server"><button>go</button></section>`, host);
   await settle();
-  assert.notEqual(host.querySelector('section:not(vm-unassigned section)'), section, 'not adopted: a client render');
-  assert.equal(section.closest('vm-unassigned') !== null, true, 'the server node kept, held as unassigned light content');
+  assert.notEqual(host.querySelector('section:not([data-vm-unassigned] section)'), section, 'not adopted: a client render');
+  assert.equal(section.closest('[data-vm-unassigned]') !== null, true, 'the server node kept, held as unassigned light content');
   host.remove();
 });

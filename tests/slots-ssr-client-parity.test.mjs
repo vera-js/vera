@@ -53,11 +53,11 @@ const SHAPES = {
  * as-is; the client's anchors are empty comments the server never writes. And the client's unassigned container carries an inline `display: none !important`
  * beside `hidden` — written through CSSOM, so an author stylesheet cannot make unassigned content render — which the
  * server deliberately does not emit (a strict CSP blocks a `style=` attribute in served markup; hydration sets it on
- * adoption). Everything else about `<vm-unassigned hidden>` — that it exists, where, and what it holds — is compared:
+ * adoption). Everything else about `<ins hidden data-vm-unassigned>` — that it exists, where, and what it holds — is compared:
  * since connected parking (2026-10-02) both sides emit the same element in the same place.
  */
 /** The container's inline style, however a serializer writes it (jsdom drops the `!important` it holds) — and nowhere else. */
-const CLIENT_HIDING = /(<vm-unassigned hidden(?:="")?) style="[^"]*"/g;
+const CLIENT_HIDING = /(<ins hidden="" data-vm-unassigned="") style="[^"]*"/g;
 const normalize = (markup) =>
   markup
     .replace(CLIENT_HIDING, '$1')
@@ -65,8 +65,8 @@ const normalize = (markup) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-/** What the server parked: the content of its `<vm-unassigned hidden>`. */
-const CARRIER = /<vm-unassigned hidden="?"?>([\s\S]*?)<\/vm-unassigned>/g;
+/** What the server parked: the content of its `<ins hidden data-vm-unassigned>`. */
+const CARRIER = /<ins hidden="" data-vm-unassigned="">([\s\S]*?)<\/ins>/g;
 const parked = (markup) =>
   [...markup.matchAll(CARRIER)].map(([, inner]) => inner).join('').replace(/\s+/g, ' ').trim();
 

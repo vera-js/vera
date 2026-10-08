@@ -1,6 +1,6 @@
 /**
  * **Unassigned light content is not rendered — measured by LAYOUT, on three engines** (vera-5a, 2026-10-02). Light
- * slots keep unassigned content connected in the host's `<vm-unassigned hidden>` container, with an inline
+ * slots keep unassigned content connected in the host's `<ins hidden data-vm-unassigned>` container, with an inline
  * `display: none !important` beside `hidden`, so an author stylesheet that overrides `[hidden]` (or styles the element
  * by name) cannot make it render. jsdom has no layout and a partial cascade; this is the proof. It also checks the
  * jsdom suites' `shown()` (tests/rendered-text.mjs) against the platform's own `innerText`.
@@ -35,10 +35,10 @@ describe('unassigned light content', () => {
 
   it('stays unrendered when an author stylesheet overrides [hidden] and the element by name', () => {
     const sheet = document.createElement('style');
-    sheet.textContent = 'vm-unassigned, [hidden], :where(*) { display: block !important }';
+    sheet.textContent = 'ins, [data-vm-unassigned], [hidden], :where(*) { display: block !important }';
     document.head.append(sheet);
     const host = make('<p slot="nowhere">waiting</p>');
-    const box = host.querySelector('vm-unassigned');
+    const box = host.querySelector('[data-vm-unassigned]');
     expect(box === null).to.equal(false, 'CONTROL: the container exists');
     expect(getComputedStyle(box).display).to.equal('none');
     expect(host.querySelector('p').getClientRects().length).to.equal(0);

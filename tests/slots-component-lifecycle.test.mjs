@@ -89,7 +89,7 @@ test('the park roundtrip: unassigned and back, connected throughout — state ke
   /** Unassigned content waits CONNECTED, in the host's hidden container (Brian, 2026-10-02) — as native leaves it. */
   renderInto(drawAway(), host); await frame();
   assert.equal(item.isConnected, true, 'unassigned content stays connected, as under native slots');
-  assert.equal(item.parentNode.localName, 'vm-unassigned', 'in the hidden container');
+  assert.equal(item.parentNode.hasAttribute('data-vm-unassigned'), true, 'in the hidden container');
   assert.equal(live(), 1, 'and its effect keeps running — nothing was torn down');
 
   renderInto(drawSlot(), host); await frame();

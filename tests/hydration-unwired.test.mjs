@@ -72,7 +72,7 @@ test('a served host stated EMPTY is cleared and rendered once: no duplicate, the
 test('light content no slot took is stated as a run, so an unwired client leaves it standing', () => {
   const served = serve('slot-free-ssr', '<b slot="later">L</b>');
   assert.match(served, /data-vm-light="1:0"/, 'CONTROL: the carrier is a range — stated with a run, not empty');
-  assert.match(served, /<vm-unassigned hidden="">\s*<b slot="later">L<\/b>/, 'and the content waits in it');
+  assert.match(served, /<ins hidden="" data-vm-unassigned="">\s*<b slot="later">L<\/b>/, 'and the content waits in it');
   const host = mount(served);
   const before = host.outerHTML;
   assert.throws(() => renderInto(plain(), host), /hydration-unwired/);

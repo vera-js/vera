@@ -405,7 +405,7 @@ test('an unassigned node waits invisibly and appears when its slot mounts later'
   const draw = (ready) => html`<div>${hold(ready ? html`<slot name="later"></slot>` : null)}</div>`;
   renderInto(draw(false), h);
   /** Native: unassigned is in the light tree (findable) but not rendered — here, the hidden container. */
-  assert.ok(h.querySelector('s')?.closest('vm-unassigned[hidden]'), 'not rendered: it waits in the hidden container');
+  assert.ok(h.querySelector('s')?.closest('[data-vm-unassigned][hidden]'), 'not rendered: it waits in the hidden container');
   assert.equal(slotted(h, 'later').length, 1, 'but still captured');
   renderInto(draw(true), h);
   assert.equal(h.querySelector('s')?.textContent, 'patience', 'appeared when its slot arrived');
@@ -1295,11 +1295,11 @@ test('a held light child, hidden then shown, is distributed again — through a 
  */
 test('the unassigned container stays display:none against an author !important rule', () => {
   const sheet = doc.createElement('style');
-  sheet.textContent = 'vm-unassigned, [hidden] { display: block !important }';
+  sheet.textContent = 'ins, [data-vm-unassigned], [hidden] { display: block !important }';
   doc.head.append(sheet);
   const h = host('<p slot="nowhere">hidden</p>');
   renderInto(html`<div>shown</div>`, h);
-  const box = h.querySelector('vm-unassigned');
+  const box = h.querySelector('[data-vm-unassigned]');
   assert.ok(box, 'CONTROL: the container exists');
   assert.equal(box.style.getPropertyPriority('display'), 'important');
   assert.equal(doc.defaultView.getComputedStyle(box).display, 'none', 'the author rule did not win');

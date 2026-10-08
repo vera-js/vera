@@ -76,7 +76,7 @@ it('recovers the content the server parked for a slot this template does not hav
 
   /** Unassigned content stays CONNECTED, as native slots keep it — in the hidden holding, rendering nothing. */
   const parked = [...host.querySelectorAll('p')].find((p) => p.textContent === 'parked');
-  expect(parked.parentNode.localName).to.equal('vm-unassigned', 'unassigned content is held in the holding');
+  expect(parked.parentNode.hasAttribute('data-vm-unassigned')).to.equal(true, 'unassigned content is held in the holding');
   expect(parked.getClientRects().length).to.equal(0, 'and not rendered');
   expect(host.innerText).to.not.contain('parked', 'nothing of it on the page');
   expect(slotted(host, 'nowhere').map((n) => n.textContent)).to.deep.equal(['parked'],
@@ -114,7 +114,7 @@ it('adopted content parks on branch-away and returns on branch-back, state intac
   renderInto(html`<p>away</p>`, host);
   await settle();
   /** Unassigned once its slot is gone: held, connected, rendering nothing — as native slots keep it. */
-  expect(header.parentNode.localName).to.equal('vm-unassigned', 'branched away: the server node waits in the holding');
+  expect(header.parentNode.hasAttribute('data-vm-unassigned')).to.equal(true, 'branched away: the server node waits in the holding');
   expect(header.getClientRects().length).to.equal(0, 'not rendered');
   expect(host.innerText.trim()).to.equal('away');
 

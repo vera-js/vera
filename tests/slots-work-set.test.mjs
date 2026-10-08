@@ -100,7 +100,7 @@ test('a host removed before its first render ends, flushed while detached, then 
   assert.deepEqual(shows(h), shows(control), 'the same as a host that never left');
   assert.deepEqual(shows(h), ['H', 'body'], 'CONTROL: and that is the content');
   assert.equal(h.innerHTML, control.innerHTML, 'the same DOM: what no slot takes is parked, as on the control');
-  assert.equal(control.querySelector('s').parentNode.localName, 'vm-unassigned', 'CONTROL: parked there');
+  assert.equal(control.querySelector('s').parentNode.hasAttribute('data-vm-unassigned'), true, 'CONTROL: parked there');
   doc.body.replaceChildren();
 });
 

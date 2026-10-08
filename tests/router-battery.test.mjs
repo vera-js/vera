@@ -278,7 +278,7 @@ test('outlet children slot into routes, park across slotless ones, and return by
   assert.deepEqual([...outlet.children].filter((el) => !el.hidden).map((el) => el.outerHTML), ['<p>just B</p>'],
     'the slotless route shows only itself');
   /** As under native slots: content no slot takes waits CONNECTED and unrendered, in the host's hidden carrier. */
-  assert.equal(badge.parentElement?.localName, 'vm-unassigned', 'the badge waits in the carrier rather than being destroyed');
+  assert.equal(badge.parentElement?.hasAttribute('data-vm-unassigned'), true, 'the badge waits in the carrier rather than being destroyed');
   assert.equal(badge.parentElement.hidden, true, 'unrendered');
 
   await navigate('/with-slot', 'navigate'); await settle();

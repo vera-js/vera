@@ -477,9 +477,9 @@ The differences worth knowing, all deliberate:
   down by it**: core treats a one-operation move of a component (an element that called `init()`)
   as a move — no `disconnectedCallback`, no second `connectedCallback`, effects and state kept. The
   same holds for a keyed reorder. A node NO slot takes stays CONNECTED and unrendered, as native
-  leaves it: it waits in `<vm-unassigned hidden>`, the host's FIRST child, present only while it
+  leaves it: it waits in `<ins hidden data-vm-unassigned>`, the host's FIRST child, present only while it
   holds something — so `host.children`, `:scope > *`, `:first-child`, `:nth-child()` and `:empty` see one extra child
-  then (`:scope > :not(vm-unassigned)` where that matters), and a component in it keeps running and
+  then (`:scope > :not([data-vm-unassigned])` where that matters), and a component in it keeps running and
   is kept when a slot for it appears.
 - **A `<slot>` carries presentation only while it shows its fallback** — `class`, `style`, `id`.
   Once it has content it steps out of the page and its attributes go with it; in a shadow root they
@@ -733,7 +733,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   (`import { hydration } from '@verajs/renderer/hydration'`; on a CDN page, `vera-renderer-hydration.min.js`) — and the
   first render ADOPTS server-rendered children — no per-part marker comments in server HTML
   (with light slots, each filled slot's content sits between two `<!--[-->`/`<!--]-->` comments, the host
-  states its light tree in `data-vm-light` and keeps content no slot took in `<vm-unassigned hidden>` —
+  states its light tree in `data-vm-light` and keeps content no slot took in `<ins hidden data-vm-unassigned>` —
   read by `hydrateSlots`, each consumed on adoption), node identity preserved, listeners attached, keyed updates
   move adopted nodes. An attribute is READ and written only on a difference (a wrong one is
   repaired, a right one costs no write); any other disagreement discards that ONE container's

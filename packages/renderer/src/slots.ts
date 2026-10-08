@@ -42,13 +42,20 @@ type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
 type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: Pair };
 
 /**
- * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<vm-unassigned hidden>`, the host's first
- * child, rather than out of the page: a component in it keeps running, and assigning or unassigning it is a one-op
- * connected move, which core keeps alive. The container is in the host exactly while it holds a light node — runs'
- * markers and stand-ins are comments, which need no connection — so a host with nothing unassigned has no extra child,
- * and the server, which knows only nodes, emits the same element in the same place. `vm-` is the machine's namespace.
+ * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<ins hidden data-vm-unassigned>`, the
+ * host's first child, rather than out of the page: a component in it keeps running, and assigning or unassigning it is a
+ * one-op connected move, which core keeps alive. The container is in the host exactly while it holds a light node —
+ * runs' markers and stand-ins are comments, which need no connection — so a host with nothing unassigned has no extra
+ * child, and the server, which knows only nodes, emits the same element in the same place.
+ *
+ * **Why `<ins>`** (Brian, 2026-10-08), measured in all three engines: a standard element, so it is valid HTML and
+ * `:defined` (the carrier was `<vm-unassigned>`, a dashed name nothing defined, which discovery loaders tried to import
+ * and "wait until everything is defined" checks waited on forever); its content model is TRANSPARENT, so it is valid
+ * around whatever it holds (a `<span>` holding a `<section>` is not); and it parses inside a `<p>` where a `<div>` would
+ * close the paragraph and eject the host's content. It is known by its attribute: a user's own `<ins>` is light content
+ * like any other.
  */
-const UNASSIGNED = 'vm-unassigned';
+const UNASSIGNED = 'data-vm-unassigned';
 /** Into the page before a light node moves in, so the move is connected → connected. */
 const park = (light: Light) => {
   if (light.holding.parentNode !== light.host) light.host.insertBefore(light.holding, light.host.firstChild);
@@ -678,8 +685,9 @@ const release = (light: Light) => {
 const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = null): Light => {
   const doc = host.ownerDocument;
   /** The server's carrier, adopted, is the same element a client render makes: given the same style and anchors. */
-  const holding = carrier ?? (doc.createElement(UNASSIGNED) as HTMLElement);
+  const holding = carrier ?? (doc.createElement('ins') as HTMLElement);
   holding.setAttribute('hidden', '');
+  holding.setAttribute(UNASSIGNED, '');
   /**
    * `hidden` is only the UA's `display: none`, and any author rule that sets `display` beats it — a reset, a design
    * system's `:where(*)`, a `[hidden]` override — and unassigned content would RENDER. An inline `!important` beats every

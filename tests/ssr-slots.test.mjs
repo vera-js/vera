@@ -85,7 +85,7 @@ test('a component WITHOUT the module wired is unaffected (literal <slot> stays â
 test('AUDIT â€” unassigned slot content is PRESERVED in the hidden container, never dropped', async () => {
   const html = await render('<h2 slot="header">Kept</h2><p slot="nowhere">Survives</p>');
   assert.match(bare(html), /<header><h2 slot="header">Kept<\/h2><\/header>/, 'the assigned one distributes');
-  assert.match(html, /<[\w-]+-ssr[^>]*><vm-unassigned hidden=""><p slot="nowhere">Survives<\/p><\/vm-unassigned>/,
+  assert.match(html, /<[\w-]+-ssr[^>]*><ins hidden="" data-vm-unassigned=""><p slot="nowhere">Survives<\/p><\/ins>/,
     'the unassigned one waits in the host\'s first child, as the client keeps it (native leaves unassigned light children in the DOM; dropping them lost content forever)');
   assert.doesNotMatch(bare(html), /<main>[^<]*Survives/, 'and is not rendered anywhere');
 });
@@ -278,8 +278,8 @@ test('CONTROL: text beside an element in a range needs no separator', async () =
 
 test('the unassigned carrier keeps two text children apart too', async () => {
   const html = (await renderToString(new URL('./fixtures/ssr/slot-named-only-ssr.js', import.meta.url), { children: 't1<b slot="h">H</b>t2' })).html;
-  assert.match(html, /<vm-unassigned hidden="">t1<!---->t2<\/vm-unassigned>/, 'an empty comment between the two texts in the carrier');
+  assert.match(html, /<ins hidden="" data-vm-unassigned="">t1<!---->t2<\/ins>/, 'an empty comment between the two texts in the carrier');
   const { JSDOM } = await import('jsdom');
-  const carrier = new JSDOM(html).window.document.querySelector('vm-unassigned');
+  const carrier = new JSDOM(html).window.document.querySelector('[data-vm-unassigned]');
   assert.deepEqual([...carrier.childNodes].filter((node) => node.nodeType === 3).map((node) => node.data), ['t1', 't2'], 'two text nodes, as the statement counts');
 });

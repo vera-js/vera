@@ -144,7 +144,7 @@ test('slots moves every slotted component in ONE operation: two named slots + un
   /** Unassigned content waits CONNECTED, in the host's hidden container (Brian, 2026-10-02) — a kept move too. */
   assert.equal(count('setup u1'), 1, 'u1: set up once');
   assert.equal(count('cleanup u1'), 0, 'u1: unassigned, and still running — as under native slots');
-  assert.ok(page.querySelector('vm-unassigned[hidden] > ka-kid#u1'), 'CONTROL: u1 waits in the hidden container');
+  assert.ok(page.querySelector('[data-vm-unassigned][hidden] > ka-kid#u1'), 'CONTROL: u1 waits in the hidden container');
   assert.equal(page.querySelector('footer ka-kid')?.id, 'b1', 'CONTROL: b1 is in the second slot');
 });
 
@@ -235,12 +235,12 @@ test('an unassigned component stays connected, is kept when a slot for it appear
   host.append(kid); page.append(host);
   await frame(); await tick();
   assert.equal(kid.isConnected, true, 'unassigned, and connected');
-  assert.ok(kid.parentNode.localName === 'vm-unassigned' && kid.parentNode.hidden, 'waiting in the hidden container');
+  assert.ok(kid.parentNode.hasAttribute('data-vm-unassigned') && kid.parentNode.hidden, 'waiting in the hidden container');
   assert.deepEqual(log, ['setup w'], 'set up once, never torn down');
   renderInto(draw(true), host);
   await frame(); await tick();
   assert.equal(kid.parentNode.localName, 'header', 'CONTROL: assigned now');
-  assert.equal(host.querySelector('vm-unassigned'), null, 'the container left with its last light node');
+  assert.equal(host.querySelector('[data-vm-unassigned]'), null, 'the container left with its last light node');
   assert.deepEqual(log, ['setup w'], 'assigning it later is a kept move');
   host.remove(); await tick();
   assert.equal(count('cleanup w'), 1, 'removing the host tears it down once');

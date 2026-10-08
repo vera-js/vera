@@ -689,14 +689,16 @@ render(() => html`<header>
   then `connectedCallback`.
 - **A node no slot takes stays connected, and is not rendered — as under native slots.** A light
   host has no second tree to hide it in, so it waits in a hidden container the host is given for
-  the purpose, `<vm-unassigned hidden>`, its FIRST child: a component in it keeps running (its
+  the purpose, `<ins hidden data-vm-unassigned>`, its FIRST child: a component in it keeps running (its
   effects stay live), it is still in the host's tree for `querySelector`, as a native unassigned
   light child is, and when a
   slot for it appears it moves there in one operation and is kept. The container is there only
   while it holds something, so a host whose content is all assigned has no extra child. When it is
   there, it is a child of your host like any other: `host.children`, `:scope > *`, `:first-child`,
-  `:nth-child()` and `:empty` see it — write `:scope > :not(vm-unassigned)` where that matters. It
-  stays hidden whatever a stylesheet says (an inline `display: none !important` beside `hidden`).
+  `:nth-child()` and `:empty` see it — write `:scope > :not([data-vm-unassigned])` where that matters.
+  It stays hidden whatever a stylesheet says (an inline `display: none !important` beside `hidden`).
+  It is a standard element, so it is valid HTML around any content, and `:defined`: a lazy loader
+  or a "wait until every element is defined" check never waits on it.
 - **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
   re-routes if it changes between renders.
 
