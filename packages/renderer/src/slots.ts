@@ -503,8 +503,8 @@ const watch = (node: Node, light: Light) => {
   set.add(light);
   const [children, attributes] = observersOf(light);
   children.observe(node, { childList: true });
-  /** A kept slot's own `name` too: renaming it re-routes. */
-  attributes.observe(node, { attributes: true, attributeFilter: (node as Kept).$rec === undefined ? ['slot'] : ['slot', 'name'], subtree: true });
+  /** A slot steps OUT of the page while it has content, out of its host's subtree: its own name (and its fallback's slots) are watched on it. */
+  if ((node as Kept).$rec !== undefined) attributes.observe(node, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
 };
 
 /**
@@ -674,7 +674,10 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
   watch(holding, light);
-  observersOf(light)[0].observe(host, { childList: true });
+  const [children, attributes] = observersOf(light);
+  children.observe(host, { childList: true });
+  /** PROTOTYPE: one attribute registration per host, over its whole subtree — holding, regions and slots are inside it. */
+  attributes.observe(host, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
   return light;
 };
 
