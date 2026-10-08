@@ -4,8 +4,11 @@
  * it leaves, plus the one thing the DOM alone cannot say, and hydration (`@verajs/renderer/hydration`) adopts it in place.
  *
  * Each filled slot is written exactly as the client leaves it: its region's two markers around the assigned content, the
- * `<slot>` stepped out; an unfilled slot stays, showing its fallback. The markers also keep text from merging across a
- * range's edge, so no separator is needed and nothing is counted.
+ * `<slot>` stepped out; an unfilled slot stays, showing its fallback. The markers keep text from merging across a
+ * range's edge; INSIDE a range (or the carrier) two text light children written side by side would merge in the
+ * browser's parser — `<b slot="h">H1</b>t1<b slot="h">H2</b>t2` puts `t1t2` in the default range, one node where the
+ * statement counts two — so an empty comment goes between them (`separate`). Hydration needs no rule for it: a range's
+ * comments are never light content.
  *
  * What the DOM alone cannot say is written once, on the host: `data-vm-light`, `FORMAT:runs` — for each light child in
  * light-tree order, the index of the range it went into (ranges numbered in document order, the unassigned carrier
@@ -27,6 +30,12 @@ const UNASSIGNED = 'vm-unassigned';
 const LIGHT_ATTR = 'data-vm-light';
 
 type Child = ElementShim['childNodes'][number];
+
+/** Inserts `node` before `ref`, after an empty comment if the node before it there is text too — or they would merge. */
+const separate = (parent: ElementShim, node: Child, ref: Child | null) => {
+  if (node.nodeType === 3 && (ref === null ? parent.lastChild : ref.previousSibling)?.nodeType === 3) parent.insertBefore(new CommentShim(''), ref);
+  parent.insertBefore(node, ref);
+};
 
 /** Distributes `source` — the host's light children, held out of its render — into the host's rendered slots. */
 export const distributeLight = (host: ElementShim, source: Child[]): void => {
@@ -56,7 +65,7 @@ export const distributeLight = (host: ElementShim, source: Child[]): void => {
       /** The client's own region, exactly: its two markers around the content, the slot stepped out. */
       parent.insertBefore(new CommentShim(RANGE_START), slot);
       for (const node of assigned) {
-        parent.insertBefore(node, slot);
+        separate(parent as ElementShim, node, slot);
         rangeOf.set(node, ranges);
       }
       ranges++;
@@ -77,7 +86,7 @@ export const distributeLight = (host: ElementShim, source: Child[]): void => {
         carrier = createElement(UNASSIGNED);
         carrier.setAttribute('hidden', '');
       }
-      carrier.appendChild(node);
+      separate(carrier, node, null);
       rangeOf.set(node, ranges);
     }
   if (carrier !== null) host.insertBefore(carrier, host.firstChild);

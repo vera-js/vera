@@ -13,9 +13,10 @@
 import { expect } from '@esm-bundle/chai';
 import { COMPONENT_PROPS_HTML } from './fixtures/hello-ssr.html.js';
 import { wire } from '../../packages/core/dist/development/vera.js';
-import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
-wire({ on: 'render', fn: hydratingRender, priority: 50 });
+wire([renderer, hydration]);
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 /** The rows live inside the parent's (declarative) shadow root, so every query goes through it. */

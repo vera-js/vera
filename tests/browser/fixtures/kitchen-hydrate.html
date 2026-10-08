@@ -375,8 +375,9 @@ hello &#38; &#60;world&#62;</textarea>
       </div></template></sink-shell>
     <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import { renderer as mod } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
-      await start(mod);
+      import { renderer } from '/packages/renderer/dist/development/vera-renderer.js';
+      import { hydration } from '/packages/renderer/dist/development/vera-renderer-hydration.js';
+      await start([renderer, hydration]);
       document.documentElement.dataset.sinkMode = 'hydrate';
     </script>
   </body>

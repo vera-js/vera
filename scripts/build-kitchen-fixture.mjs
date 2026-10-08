@@ -44,17 +44,19 @@ ${script}
 </html>
 `;
 
-const boot = (renderer, mode) => `    <script type="module">
+/** The client boot: the renderer, and — hydrating — `hydration` wired beside it (`wire([renderer, hydration])`). */
+const boot = (hydrating, mode) => `    <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import { renderer as mod } from '/packages/renderer/dist/development/${renderer}';
-      await start(mod);
+      import { renderer } from '/packages/renderer/dist/development/vera-renderer.js';${hydrating ? `
+      import { hydration } from '/packages/renderer/dist/development/vera-renderer-hydration.js';` : ''}
+      await start(${hydrating ? '[renderer, hydration]' : 'renderer'});
       document.documentElement.dataset.sinkMode = '${mode}';
     </script>`;
 
 const FILES = {
   'kitchen-ssr.html': page(html, ''),
-  'kitchen-hydrate.html': page(html, boot('vera-renderer-hydrate.js', 'hydrate')),
-  'kitchen-csr.html': page('    <sink-shell></sink-shell>', boot('vera-renderer.js', 'csr')),
+  'kitchen-hydrate.html': page(html, boot(true, 'hydrate')),
+  'kitchen-csr.html': page('    <sink-shell></sink-shell>', boot(false, 'csr')),
 };
 
 if (check) {

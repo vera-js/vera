@@ -73,7 +73,8 @@ test('without slots or hydrateSlots: refused before anything is touched — the 
  */
 test('a page of three components, the middle one served with slots: the others hydrate and work, it stands, one report', async () => {
   const clicked = [];
-  const plain = (tag) => `<${tag}><button>${tag}</button></${tag}>`;
+  /** As a server with slots wired writes EVERY component host: a statement, here of no light content (`1:`). */
+  const plain = (tag) => `<${tag} data-vm-light="1:"><button>${tag}</button></${tag}>`;
   root.innerHTML = plain('blast-a') + served.replace(/slot-card-ssr/g, 'blast-b') + plain('blast-c');
   const [a, b, c] = [...root.children];
   const buttons = [a.querySelector('button'), c.querySelector('button')];
@@ -99,7 +100,8 @@ test('a page of three components, the middle one served with slots: the others h
   await settle();
   await new Promise((r) => dom.window.requestAnimationFrame(r));
   console.error = original;
-  assert.equal(a.querySelector('button'), buttons[0], 'the first component adopted its server button');
+  assert.equal(a.querySelector('button'), buttons[0], 'the first component adopted its server button — a statement of no light content needs no hydrateSlots');
+  assert.equal(a.hasAttribute('data-vm-light'), false, 'and its statement is consumed, as the piece consumes one');
   assert.equal(c.querySelector('button'), buttons[1], 'and the third');
   buttons[0].click();
   buttons[1].click();

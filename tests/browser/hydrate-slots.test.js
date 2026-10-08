@@ -14,11 +14,13 @@ import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
 import { SLOTS_HTML } from './fixtures/hello-ssr.html.js';
-import { renderInto, renderer } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderInto, renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
+import { hydrateSlots } from '../../packages/renderer/dist/development/vera-renderer-hydrate-slots.js';
 import { slots, slotted } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
 import { html, wire } from '../../packages/core/dist/development/vera.js';
 
-wire([renderer, slots]);
+wire([renderer, hydration, slots, hydrateSlots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 /** The SAME template the fixture's component renders. */
 const card = () => html`<article><header><slot name="header"><em>fallback header</em></slot></header><main><slot>default fallback</slot></main></article>`;
@@ -32,10 +34,7 @@ const mount = () => {
 
 it('adopts the server\'s distributed markup in place, keeping every node', async () => {
   const host = mount();
-  expect(host.getAttribute('data-vm-slotted') ?? host.querySelector('[data-vm-slotted]')).to.not.equal(
-    null,
-    'CONTROL: the fixture really carries the server marker'
-  );
+  expect(host.hasAttribute('data-vm-light')).to.equal(true, 'CONTROL: the fixture really carries the server\'s light-tree statement');
   const header = host.querySelector('h2');
   const bold = host.querySelector('b');
 
@@ -75,8 +74,11 @@ it('recovers the content the server parked for a slot this template does not hav
   renderInto(card(), host);
   await settle();
 
-  expect(host.textContent).to.not.contain('parked', 'unassigned content is held, not rendered');
-  expect(host.querySelector('template[data-vm-unassigned]')).to.equal(null, 'the carrier is consumed');
+  /** Unassigned content stays CONNECTED, as native slots keep it — in the hidden holding, rendering nothing. */
+  const parked = [...host.querySelectorAll('p')].find((p) => p.textContent === 'parked');
+  expect(parked.parentNode.localName).to.equal('vm-unassigned', 'unassigned content is held in the holding');
+  expect(parked.getClientRects().length).to.equal(0, 'and not rendered');
+  expect(host.innerText).to.not.contain('parked', 'nothing of it on the page');
   expect(slotted(host, 'nowhere').map((n) => n.textContent)).to.deep.equal(['parked'],
     'and it is captured, ready for a state that has that slot');
 
@@ -111,8 +113,10 @@ it('adopted content parks on branch-away and returns on branch-back, state intac
 
   renderInto(html`<p>away</p>`, host);
   await settle();
-  expect(header.isConnected).to.equal(false, 'branched away: parked, not on the page');
-  expect(host.textContent).to.equal('away');
+  /** Unassigned once its slot is gone: held, connected, rendering nothing — as native slots keep it. */
+  expect(header.parentNode.localName).to.equal('vm-unassigned', 'branched away: the server node waits in the holding');
+  expect(header.getClientRects().length).to.equal(0, 'not rendered');
+  expect(host.innerText.trim()).to.equal('away');
 
   renderInto(card(), host);
   await settle();
