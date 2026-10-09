@@ -6,13 +6,14 @@
  * (`_$at$`), an instance hook (`_$inst$`), a variant's namespace (`_$ns$`) — so it cannot disagree with them, and the
  * public insert keeps its contract: a hook returns nothing.
  *
- * Read through a spy hook that keeps each template the renderer builds. `_x` is mangled in production, so the mark
- * itself is asserted in development; both builds assert that claims still mount.
+ * Read through a spy hook that keeps each template the renderer builds. The mark is `$X` (it was `_x` until hydration
+ * step 1, 2026-10-02, which renamed it so the hand-off can read it across bundles): `$`-named, it survives mangling,
+ * so BOTH builds assert the mark itself, not only that claims still mount.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load, isProduction } from './dist.mjs';
+import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'requestAnimationFrame', 'cancelAnimationFrame'])
@@ -36,9 +37,8 @@ test('with elements wired, only a template something CLAIMED is marked', () => {
   renderInto(html`<p>claimed <mark>here</mark></p>`, host);
   renderInto(html`<p>nothing claimed</p>`, host);
   assert.deepEqual(mounted, ['mark'], 'CONTROL: the claim mounted');
-  if (isProduction) return;
-  assert.equal(built.get('<p>claimed <mark>here</mark></p>')?._x, true, 'a claimed template takes the marked path');
-  assert.equal(built.get('<p>nothing claimed</p>')?._x, false, 'an unclaimed one keeps the plain path');
+  assert.equal(built.get('<p>claimed <mark>here</mark></p>')?.$X, true, 'a claimed template takes the marked path');
+  assert.equal(built.get('<p>nothing claimed</p>')?.$X, false, 'an unclaimed one keeps the plain path');
   host.remove();
 });
 
@@ -48,11 +48,10 @@ test('with namespaces wired, an html template (its resolver) and an svg variant 
   document.body.append(host);
   renderInto(html`<svg>${svg`<circle r="1"></circle>`}</svg>`, host);
   assert.ok(host.querySelector('circle') instanceof dom.window.SVGElement, 'CONTROL: the circle is an SVG element');
-  if (isProduction) return;
   const variant = built.get('<circle r="1"></circle>');
   assert.ok(variant?._$ns$, 'the svg template carries its namespace');
   assert.equal(variant._$at$ === undefined && variant._$inst$ === undefined, true, 'and nothing else — the _$ns$-only row');
-  assert.equal(variant._x, true, 'still marked: its instances must set the create scope');
-  assert.equal(built.get('<svg>')?._x, true, 'an html template with a resolver is marked');
+  assert.equal(variant.$X, true, 'still marked: its instances must set the create scope');
+  assert.equal(built.get('<svg>')?.$X, true, 'an html template with a resolver is marked');
   host.remove();
 });
