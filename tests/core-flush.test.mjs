@@ -392,3 +392,34 @@ test('createHook, the raw primitive, runs inside every write it hears — unbatc
   assert.deepEqual(runs, [1, 2], 'synchronous, once per write');
   el.remove();
 });
+
+test('useHook and createHook take `element` alike: outside setup, the element given owns the hook and its cleanup', async () => {
+  const state = core.createStore({ n: 0 });
+  const log = [];
+  /** A custom element: a plain `div` never hears its own removal (no `disconnectedCallback`), so cleanup would not run. */
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.mount();
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  /**
+   * Called after setup: with no element being set up, only the one passed owns each hook — and nothing runs a first
+   * pass for a hook made after `mount()`, so both return the hook and the caller runs it, which subscribes it.
+   */
+  const scheduled = core.useHook(() => { const n = state.n; log.push(`scheduled ${n}`); return () => log.push(`clean ${n}`); }, 65, el);
+  const raw = core.createHook({ element: el, priority: 65, callback: () => { log.push(`raw ${state.n}`); } });
+  assert.ok(typeof scheduled === 'function' && typeof raw === 'function', 'CONTROL: both accepted the element as owner');
+  scheduled(undefined, true);
+  raw(undefined, true);
+  log.length = 0;
+  state.n = 1;
+  assert.deepEqual(log, ['raw 1'], 'the raw hook ran inside the write');
+  await Promise.resolve();
+  assert.deepEqual(log, ['raw 1', 'clean 0', 'scheduled 1'], 'the scheduled one ran in the flush, owned by `el`');
+  el.remove();
+  assert.deepEqual(log.at(-1), 'clean 1', 'and removing its owner ran its cleanup');
+});
