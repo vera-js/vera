@@ -299,7 +299,7 @@ per write, so it sees every one.
 | `mount()` | commit the setup for a component that draws nothing |
 | `useRender(template, element, ...args)` | the lower-level half of `render`: registers a render on the component being set up that draws into `element` — which may be a different element |
 | `wire([renderer])` | choose what writes to the DOM |
-| `flush()` | run every queued render and effect now, synchronously — a test, or work that must see the DOM settled (a View Transition's callback) |
+| `flush()` | run every queued render and effect now, synchronously — a test, or work that must see the DOM settled (a View Transition's callback). Inside a running flush (a hook, a render, or an event one of them fired) it does nothing — the DOM updates when that flush ends; development says so once. To read what a render made from a hook, use `useLayoutEffect` |
 | `setRenderScheduler(fn)` | when a FLUSH runs. The default, `microtask`, runs every flush at once. `frameBudget` opts into merging bursts of data: a microtask within about 4 ms of flush work per frame, and past it the **element's own window's** next frame (a component in a popped-out window or an iframe waits on that window's frames). A scheduler receives `(run, element)` and returns the one it replaced |
 
 ```js

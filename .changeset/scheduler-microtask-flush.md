@@ -23,7 +23,9 @@ and its effects are current, on every device; `flush()` drains at once without a
 - **Loops:** a hook may run twice in one flush — so an effect that measures what was just rendered and stores it lands
   before paint — and a third run waits for the next frame. A self-feeding effect never freezes the page; development
   warns after 50 consecutive frames, naming the hook that writes. `allowRenderLoop(element)` silences it.
-- **`flush()`** runs everything queued, synchronously — replacing the swap-the-scheduler `flushSync` recipe.
+- **`flush()`** runs everything queued, synchronously — replacing the swap-the-scheduler `flushSync` recipe. Inside a
+  running flush (a hook, a render, an event one of them fired) it does nothing — the DOM updates when that flush ends —
+  and development says so once (React's `flushSync` makes the same choice).
 - **`setRenderScheduler(fn)`** now decides when a FLUSH runs; `microtask` is the same timing without the budget.
 - **Effects run before paint**, after their flush's renders: a slow `useEffect` delays its own update's paint.
 - A window with no animation frames updates after a microtask, like every other, rather than synchronously.

@@ -136,7 +136,7 @@ the right tool.
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | What you use. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
-| `flush` | `() => void` | Runs every queued render and effect now, synchronously — tests, or a View Transition's callback. |
+| `flush` | `() => void` | Runs every queued render and effect now, synchronously — tests, or a View Transition's callback. Inside a running flush (a hook, a render, an event one fired) it does nothing; the DOM updates when that flush ends (development warns once). |
 | `setRenderScheduler` | `(scheduler) => previous` | When a FLUSH runs. Default: `microtask`. A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | THE DEFAULT: every flush as a microtask. |
 | `frameBudget` | `RenderScheduler` | Opt-in, for bursts of data: a microtask within ~4 ms of flush work per frame; past it the element's own window's next frame (or a short timer where there are none). After `await` the DOM may not be current yet — `flush()` first. |
