@@ -20,8 +20,8 @@ customElements.define('deep-b', DeepB);
 export class DeepA extends HTMLElement {
   /** Async on purpose: the awaited chain has to reach the same answer as the synchronous one. */
   async connectedCallback() {
+    await Promise.resolve(); // before init(): setup is synchronous (no-owner after an await)
     init(this);
-    await Promise.resolve();
     render(() => html`<a1><slot name="x">no-a</slot></a1><a2><slot>no-a-default</slot></a2>`);
   }
 }

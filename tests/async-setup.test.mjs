@@ -4,18 +4,13 @@
  * `@verajs/ssr` treats this as an expected shape — `renderToStringAsync` exists to await it, and
  * three fixtures and two suites cover it. **The client side had no test at all.**
  *
- * ## The constraint, which is real and cheap
+ * ## The constraint, and since 2026-10-09 a deterministic one
  *
- * `currentInstance` is a single slot, not a stack: `init()` sets it and the `render()`/`mount()` that
- * closes setup clears it. So a second component calling `init()` overwrites the first's slot — and it
- * does that immediately, not at commit. An `await` between `init()` and `render()` therefore loses the
- * component whenever anything else initializes while it is suspended, which on a page of async cards
- * is every time.
- *
- * That is deliberate and the framework says so in the diagnostic itself: *"it runs once,
- * synchronously, inside connectedCallback. Calling it twice, after an `await`, or from a handler finds
- * nothing to close."* This suite pins the behavior and both diagnostics, since the rule was stated
- * only in a runtime warning and only where someone had already hit it.
+ * Setup is one synchronous block: `init()` starts it and it ends at the end of that microtask turn. A hook,
+ * `render()` or `mount()` after an `await` in setup therefore finds no component and THROWS (`no-owner`, every
+ * build) — the same way whether or not another component connected meanwhile. Before, the outcome depended on
+ * what else initialized during the suspension: alone it worked, overtaken it rendered nothing (Brian: async must be
+ * predictable without reading docs).
  *
  * ## The rule
  *
@@ -79,60 +74,40 @@ test('awaiting before init lets concurrent async components both render', async 
   assert.deepEqual(said, [], 'with nothing to warn about');
 });
 
-test('and a single component may still await between init and render', async () => {
+test('a single component awaiting between init and render now throws — it no longer works by luck', async () => {
   customElements.define('await-solo', class extends dom.window.HTMLElement {
-    async connectedCallback() {
-      core.init(this, { mode: 'open' });
-      await Promise.resolve();
-      const store = core.createStore({ n: 1 });
-      core.render(() => html`<p>${store.n}</p>`);
-      this._store = store;
+    connectedCallback() {
+      this.ready = (async () => {
+        core.init(this, { mode: 'open' });
+        await Promise.resolve();
+        core.render(() => html`<p>1</p>`);
+      })();
     }
   });
   const element = dom.window.document.createElement('await-solo');
-  const said = await quietly(async () => { app.appendChild(element); await settle(); });
-
-  assert.equal(element.shadowRoot?.textContent.trim(), '1', 'nothing else claimed the slot');
-  assert.deepEqual(said, [], 'so there is nothing to report');
-  element._store.n = 2;
-  await settle();
-  assert.equal(element.shadowRoot?.textContent.trim(), '2', 'and it is reactive');
+  app.appendChild(element);
+  await assert.rejects(element.ready, /no-owner|no component being set up/, 'alone, it throws — as it would if overtaken');
+  assert.equal(element.shadowRoot?.textContent.trim(), '', 'and renders nothing');
 });
 
-/**
- * The failing shape, pinned so the diagnostics keep describing it. Nothing here is a defect: a single
- * slot is the cheap design, and the warning names the cause. What must not happen is this becoming
- * silent.
- */
-test('but awaiting between init and render loses whichever component is overtaken', async () => {
-  const build = (value, delay) =>
+/** Two of them, interleaving: BOTH throw — the outcome no longer depends on which resumed first. */
+test('two components awaiting between init and render both throw, whichever resumes first', async () => {
+  const build = (delay) =>
     class extends dom.window.HTMLElement {
-      async connectedCallback() {
-        core.init(this, { mode: 'open' });
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        const store = core.createStore({ v: value });
-        core.useEffect(() => { void store.v; });
-        core.render(() => html`<p>${store.v}</p>`);
+      connectedCallback() {
+        this.ready = (async () => {
+          core.init(this, { mode: 'open' });
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          core.render(() => html`<p>x</p>`);
+        })();
       }
     };
-  customElements.define('await-mid-a', build('A', 20));
-  customElements.define('await-mid-b', build('B', 5));
-
+  customElements.define('await-mid-a', build(20));
+  customElements.define('await-mid-b', build(5));
   const a = dom.window.document.createElement('await-mid-a');
   const b = dom.window.document.createElement('await-mid-b');
-  const said = await quietly(async () => {
-    app.appendChild(a);
-    app.appendChild(b);
-    await settle();
-  });
-
-  assert.equal(b.shadowRoot?.textContent.trim(), 'B', 'the one that resumed first still has its slot');
-  assert.equal(a.shadowRoot?.textContent.trim(), '', 'the one it overtook rendered nothing');
-
-  if (isProduction) return;
-  assert.ok(said.some((line) => /hook ignored/.test(line)), 'its hook was refused');
-  assert.ok(
-    said.some((line) => /no component is being set up/.test(line) && /after an `await`/.test(line)),
-    'and its render named the await as the cause'
-  );
+  app.appendChild(a);
+  app.appendChild(b);
+  await assert.rejects(b.ready, /no-owner|no component being set up/, 'the one that resumed first');
+  await assert.rejects(a.ready, /no-owner|no component being set up/, 'and the one it would have overtaken');
 });

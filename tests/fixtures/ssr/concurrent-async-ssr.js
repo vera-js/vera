@@ -12,12 +12,15 @@ import { init, createStore, render, html } from '@verajs/core';
 
 export default class ConcurrentProbe extends HTMLElement {
   async connectedCallback() {
-    init(this, { mode: 'open' });
     const marker = this.getAttribute('marker') ?? 'none';
     const depth = Number(this.getAttribute('depth') ?? '1');
 
-    /** Suspends, giving any other render in flight a window to interleave. */
+    /**
+     * Suspends, giving any other render in flight a window to interleave — BEFORE `init()`, because setup is
+     * synchronous (a render() after an await in setup throws, no-owner); the render still pauses mid-lifecycle.
+     */
     await new Promise((resolve) => setTimeout(resolve, depth % 3));
+    init(this, { mode: 'open' });
 
     const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
 

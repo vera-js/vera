@@ -347,10 +347,9 @@ connected when its `disconnectedCallback` runs. Taking the element out first (`r
 both. This applies to components — elements that have called `init()`; any other custom element
 gets the platform's callbacks untouched.
 
-**Setup is one synchronous block, which matters for `async connectedCallback()`.** Only one component
-is being set up at a time, so a second component's `init()` takes the slot from the first — and an
-`await` between `init()` and `render()` hands it over. One component alone is fine; two on a page,
-each fetching, and whichever resumes second renders nothing. Await *before* `init()`:
+**Setup is one synchronous block, which matters for `async connectedCallback()`.** It starts at `init()` and ends
+at the end of that microtask turn, so a hook, `render()` or `mount()` after an `await` in setup finds no component
+and **throws** (`no-owner`) — every time, whatever else is on the page. Await *before* `init()`:
 
 ```js
 async connectedCallback() {
@@ -361,7 +360,9 @@ async connectedCallback() {
 }
 ```
 
-Server-side this is already handled for you: `renderToStringAsync` awaits `connectedCallback`.
+Or set up first and write what arrives into state: `init(this)`, `const state = createStore({ data: null })`,
+`render(…)`, then `state.data = await load()`. A hook created later can still be given its element explicitly
+(`useEffect(fn, this)`). Server-side, `renderToStringAsync` awaits `connectedCallback` either way.
 
 **Taking input from an attribute.** Attributes are the other half of how a web component receives
 anything — [Props](#props--what-a-parent-passes-in) is the half that carries *values*, and an

@@ -199,8 +199,10 @@ const define = (setup) => {
   }
   body.removeChild(legacy);
 
-  check('a bare render() outside a component does nothing', (core.render(), true));
-  check('mount() outside a component does nothing', (core.mount(), true));
+  /** Since 2026-10-09 (Brian): no component being set up THROWS, in every build — it used to do nothing, silently. */
+  const throwsNoOwner = (call) => { try { call(); return false; } catch (error) { return /no-owner/.test(String(error)); } };
+  check('a bare render() outside a component throws no-owner', throwsNoOwner(() => core.render()));
+  check('mount() outside a component throws no-owner', throwsNoOwner(() => core.mount()));
 }
 
 /* ── the silent case: the setup is never committed ──────────────────────────────────────────── */
@@ -621,8 +623,8 @@ const define = (setup) => {
  * is the natural way to extend a component, and it does not work: `super.connectedCallback()` ends
  * with `render()`, which *commits* the setup, so anything registered after it is past the boundary.
  *
- * That boundary is documented and the hook is refused rather than half-registered -- but nothing
- * asserted the warning, and no test in the repo called `super.connectedCallback()` at all, so the
+ * That boundary is documented and the hook is refused rather than half-registered -- since 2026-10-09 by
+ * THROWING `no-owner`, in every build (it was a development warning) -- but nothing asserted the warning, and no test in the repo called `super.connectedCallback()` at all, so the
  * shape a subclass author actually writes was unexercised. Found while auditing what the styles
  * hoisting fuzzer's generator could not build, which is the same blind spot in a different file.
  *
@@ -631,9 +633,10 @@ const define = (setup) => {
  */
 {
   const runs = { base: 0, child: 0 };
-  const said = [];
-  const original = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
+  /** An exception from a lifecycle callback reaches the window's `error` event, not the caller. */
+  const thrown = [];
+  const onError = (event) => { thrown.push(String(event.error)); event.preventDefault(); };
+  dom.window.addEventListener('error', onError);
 
   const baseTag = `sub-base-${Date.now().toString(36)}`;
   class SubBase extends dom.window.HTMLElement {
@@ -655,17 +658,12 @@ const define = (setup) => {
   const child = dom.window.document.createElement(`${baseTag}-child`);
   body.appendChild(child);
   await frame();
-  console.warn = original;
+  dom.window.removeEventListener('error', onError);
 
   check('the subclass still renders', child.shadowRoot?.textContent.trim() === `${baseTag}-child`, child.shadowRoot?.textContent);
   check("and the base's own hook still ran", runs.base === 1, `${runs.base}`);
   check('the late hook did not run', runs.child === 0, `${runs.child}`);
-  if (isProduction) {
-    check('production still refuses it rather than half-registering', runs.child === 0);
-  } else {
-    check('and it was reported rather than dropped silently', said.length === 1, said.join(' | '));
-    check('naming the boundary it missed', /between init\(\) and the render\(\)/.test(said[0] ?? ''), said[0]);
-  }
+  check('and the late hook THREW no-owner, in every build, rather than vanishing', thrown.length === 1 && /no-owner/.test(thrown[0]), thrown.join(' | '));
   child.remove();
   await frame();
 }

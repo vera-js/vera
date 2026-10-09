@@ -9,8 +9,8 @@ import { init, render, html } from '@verajs/core';
 
 export default class SlowLifecycleSsr extends HTMLElement {
   async connectedCallback() {
+    await new Promise((resolve) => setTimeout(resolve, 25)); // before init(): setup is synchronous (no-owner)
     init(this, { mode: 'open' });
-    await new Promise((resolve) => setTimeout(resolve, 25));
     render(() => html`<p>slow, and complete</p>`);
   }
 }
