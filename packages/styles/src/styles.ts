@@ -143,3 +143,6 @@ export const styles = {
   fn: adoptStyles as never,
   priority: 50,
 };
+
+/** Development: `adoptStyles` is not the module — `wire` names `styles` instead (see the renderer's `renderInto` mark). */
+if (__DEV__) (adoptStyles as unknown as { $module?: string }).$module = 'styles';

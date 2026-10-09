@@ -1789,3 +1789,10 @@ export const renderer = {
     ];
   },
 };
+
+/**
+ * Development: `renderInto` is the draw, not the module — `wire([renderInto])` would be taken as a connector and
+ * register nothing, silently. `wire` reads this mark and names `renderer` instead (main had it; the lean rebuild
+ * dropped the mark while `wire` kept the check). Production carries neither.
+ */
+if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
