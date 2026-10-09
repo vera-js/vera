@@ -21,6 +21,32 @@ import type { ComponentElement } from '../types.js';
  * the fix), whatever connected in between; before, it attached to whichever component was set up last, or was dropped.
  */
 let ending = false;
+
+/**
+ * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once (main had
+ * this; the lean rebuild dropped the reading half — `@verajs/directives` still claims `data-vd-` from both its doors).
+ * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
+ * where every caller folds away — drops it whole (a top-level one survives: a call with effects terser cannot prove).
+ */
+let warnedAboutClaims = false;
+const claimed = (prefix: string): boolean =>
+  ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
+const unclaimedMarkup = (element: ComponentElement) => {
+  if (warnedAboutClaims || claimed('data-vd-')) return;
+  const root = element.shadowRoot ?? element._root ?? element;
+  for (const node of (root as ParentNode).querySelectorAll('*')) {
+    const hit = [...node.attributes].find((a) => a.name.startsWith('data-vd-'));
+    if (!hit) continue;
+    warnedAboutClaims = true;
+    console.warn(
+      `[vera] <${element.localName}> renders \`${hit.name}\`, but no directives engine is wired, so that attribute does ` +
+        `nothing.\n\`@verajs/directives\` is NOT PUBLISHED YET — \`npm i\` will 404 — so if this markup came from a demo, ` +
+        `remove the attribute or write the behavior yourself for now. When it ships, it is wired once at your app entry:\n\n` +
+        `  import { directives } from '@verajs/directives';\n  wire([renderer, directives]);\n`
+    );
+    return;
+  }
+};
 const endSetup = () => {
   ending = false;
   currentInstance.element = null;
@@ -28,6 +54,8 @@ const endSetup = () => {
 
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
   currentInstance.element = element;
+  /** After the synchronous setup, so the first render has committed and there is a subtree to look at. */
+  if (__DEV__) queueMicrotask(() => unclaimedMarkup(element));
   if (!ending) {
     ending = true;
     queueMicrotask(endSetup);
