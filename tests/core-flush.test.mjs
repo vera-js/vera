@@ -142,7 +142,8 @@ test('`flush()` drains every queued pass, synchronously', () => {
   el.remove();
 });
 
-test('past the budget, the next flush waits for a frame — driven by an injected clock', async () => {
+test('frameBudget, opted in: past its budget the next flush waits for a frame — driven by an injected clock', async () => {
+  const previous = core.setRenderScheduler(core.frameBudget);
   const state = core.createStore({ n: 0 });
   const name = tag();
   customElements.define(name, class extends HTMLElement {
@@ -192,6 +193,48 @@ test('past the budget, the next flush waits for a frame — driven by an injecte
     assert.equal(el.textContent, '1', 'CONTROL: still within the spent window, the next write waits again');
     await frame();
     assert.equal(el.textContent, '2', 'and lands on the frame');
+    s.remove();
+  } finally {
+    performance.now = real;
+    core.setRenderScheduler(previous);
+  }
+  el.remove();
+});
+
+test('THE DEFAULT: after a heavy flush in the same frame, a write and an `await` still leave the DOM current', async () => {
+  const state = core.createStore({ n: 0 });
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.render(() => html`<p>${state.n}</p>`);
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await frame();
+  const real = performance.now.bind(performance);
+  let now = real() + 20;
+  performance.now = () => Math.max(now, real());
+  try {
+    /** The case that failed under the budget: another component's flush "takes" 30 ms in this frame. */
+    const slow = core.createStore({ go: 0 });
+    const spender = tag();
+    customElements.define(spender, class extends HTMLElement {
+      connectedCallback() {
+        core.init(this);
+        core.useEffect(() => { if (slow.go) now += 30; });
+        core.mount();
+      }
+    });
+    const s = doc.createElement(spender);
+    doc.body.append(s);
+    slow.go = 1;
+    await Promise.resolve();
+    assert.ok(now - real() >= 29, 'CONTROL: the heavy flush ran and advanced the clock');
+    state.n = 1;
+    await Promise.resolve();
+    assert.equal(el.textContent, '1', 'after `await` the DOM is current — whatever ran before it in the frame');
     s.remove();
   } finally {
     performance.now = real;

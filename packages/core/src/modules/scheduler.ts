@@ -33,39 +33,43 @@ const frameOrTimer = (run: () => void, element?: Element) => {
   const frame = view.requestAnimationFrame?.(go);
 };
 
+/** A plain microtask — every flush at once, however many land in a frame. THE DEFAULT (Brian, 2026-10-09). */
+export const microtask: RenderScheduler = (run) => queueMicrotask(run);
+
 /**
- * **The budget: ~4 ms of flush work per 16 ms, by the clock.** Within it a flush runs as a microtask — the DOM, and
- * effects, are current as soon as the writing code yields; past it, the next flush waits for a frame. Measured on
- * three engines: one write reaches the DOM in 1–5 ms instead of 19–24, and fifty events landing in one frame still
- * render as they did on frames (a plain microtask rendered once per event: 4–7× slower). Reset by the CLOCK, never by
- * frames, so a hidden window, which has none, is never left with a spent budget. React's scheduler yields at 5 ms.
+ * **The opt-in flood scheduler: ~4 ms of flush work per 16 ms, by the clock.** Within it a flush runs as a microtask;
+ * past it, the next flush waits for the element window's frame (or a timer), so a burst of data arriving as many tasks
+ * in one frame renders about once per frame. Measured 2026-10-09: it buys nothing on user input (the browser already
+ * merges it — 300 raw mouse moves reached the page as 2 events) and 2–4× on a data burst — 50 messages as 50 tasks,
+ * time to final DOM: Chrome 18 vs 61 ms, Firefox 19 vs 142, WebKit 32 vs 115 — the only scheduler that merges the burst
+ * on all three engines. The trade, and why it is not the default: past the budget, `await` resolves before the DOM is
+ * current; code reading it then calls `flush()`. Its accounting lives HERE, so the default pays nothing for it.
+ *
+ * The CLOCK is the one deliberate exception to "always the element's own window": one budget for the one event loop
+ * every same-origin window shares, and each window's `performance.now()` counts from its own origin — a start read in
+ * the opener and a "now" read in a pop-out would subtract to an offset, not a duration.
  */
 const BUDGET = 4;
 const WINDOW = 16;
 let windowStart = -Infinity;
 let spent = 0;
-
-/**
- * The default: a microtask within the budget, the element window's frame (or a timer) past it. The CLOCK is the one
- * deliberate exception to "always the element's own window": the budget is one budget for the one event loop every
- * same-origin window shares, and each window's `performance.now()` counts from its own origin — a window start read in
- * the opener and a "now" read in a pop-out would subtract to an offset, not a duration.
- */
-const budgeted: RenderScheduler = (run, element) => {
+export const frameBudget: RenderScheduler = (run, element) => {
   const now = performance.now();
   if (now - windowStart >= WINDOW) {
     windowStart = now;
     spent = 0;
   }
-  if (spent < BUDGET) queueMicrotask(run);
-  else frameOrTimer(run, element);
+  const timed = () => {
+    const start = performance.now();
+    run();
+    spent += performance.now() - start;
+  };
+  if (spent < BUDGET) queueMicrotask(timed);
+  else frameOrTimer(timed, element);
 };
 
-/** A plain microtask — every flush at once, however many land in a frame (no budget). */
-export const microtask: RenderScheduler = (run) => queueMicrotask(run);
-
 /** When flushes run. A live binding, read whenever one is scheduled. */
-let renderScheduler: RenderScheduler = budgeted;
+let renderScheduler: RenderScheduler = microtask;
 
 let scheduled = false;
 let flushing = false;
@@ -123,7 +127,6 @@ export const flush = () => {
   scheduled = false;
   flushing = true;
   const flushId = ++flushes;
-  const start = performance.now();
   try {
     while (next < queue.length) {
       if (unsorted) {
@@ -147,7 +150,6 @@ export const flush = () => {
     queue = [];
     next = 0;
     flushing = false;
-    spent += performance.now() - start;
   }
 };
 
@@ -156,7 +158,7 @@ export const flush = () => {
  * new one, so a scheduler that dropped it strands nothing (a second run finds the queue empty).
  *
  * @param scheduler Receives the flush, and the element whose pass asked for it, and decides when to run it — never
- *   whether. The default runs it as a microtask within a per-frame budget, and on the next frame past it.
+ *   whether. The default, `microtask`, runs every flush at once; `frameBudget` opts into merging floods of data.
  */
 export const setRenderScheduler = (scheduler: RenderScheduler) => {
   const previous = renderScheduler;

@@ -1,6 +1,6 @@
 /**
- * **A light host changed by page code is redistributed by the next microtask — even when the scheduler's budget is
- * spent.** Slots redistributes from its own observer, not through core's flush queue, so the budget that moves a
+ * **A light host changed by page code is redistributed by the next microtask — even when the opt-in `frameBudget`
+ * scheduler's budget is spent.** Slots redistributes from its own observer, not through core's flush queue, so the budget that moves a
  * RENDER to the next frame never delays it (measured 2026-10-08 beside the render it does delay: after `await`, the
  * render stale, the slot current). The docs say "read it after `await`" for this case; this row keeps that true.
  */
@@ -20,7 +20,8 @@ const { slots } = await load('renderer/slots');
 core.wire([renderer, slots]);
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-test('with the budget spent, a render waits for the frame while a slot redistributes after `await`', async () => {
+test('with frameBudget opted in and spent, a render waits for the frame while a slot redistributes after `await`', async () => {
+  const previous = core.setRenderScheduler(core.frameBudget);
   customElements.define('sb-host', class extends HTMLElement { connectedCallback() { core.init(this); core.render(() => core.html`<div><slot></slot></div>`); } });
   const spend = core.createStore({ go: 0 });
   const state = core.createStore({ n: 0 });
@@ -50,6 +51,7 @@ test('with the budget spent, a render waits for the frame while a slot redistrib
     assert.equal(n.textContent, '1', 'and the render landed on the frame');
   } finally {
     performance.now = real;
+    core.setRenderScheduler(previous);
   }
 });
 
