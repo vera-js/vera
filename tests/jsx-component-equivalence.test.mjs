@@ -171,4 +171,6 @@ test('what a tag component cannot honor, it says out loud', { skip: isProduction
   /** A refusal that does not name the alternative leaves the author exactly where they started. */
   assert.match(warned[0], /keyed\(id, Row/, 'the key warning names the working spelling');
   assert.match(warned[1], /\.innerHTML=/, 'the innerHTML warning names the working spelling');
+  assert.match(warned[0], /^\[vera\] tag: <[a-z0-9-]+> — [\s\S]*\(tag-key\)$/, 'by its code');
+  assert.match(warned[1], /^\[vera\] tag: <[a-z0-9-]+> — [\s\S]*\(tag-inner-html\)$/, 'by its code');
 });

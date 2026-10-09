@@ -67,7 +67,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 50;
+const PENDING_MAX = 48;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -104,7 +104,7 @@ const CLAIMS = new Map([
   ['llms.txt#df3b9dfe11', 'not a promise: attribute carve-outs, no diagnostic'], // The exceptions are derivations, not a vocabulary: names that cannot be JS identifiers (`da
   ['llms.txt#347dad05df', 'attribute-value'], // On an HTML tag, `rows={data}` is still an attribute, and the renderer names any non-primit
   ['llms.txt#461d362f95', PENDING], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
-  ['llms.txt#c23d8dc6f5', PENDING], // **`key` and `ref` work on a runtime `tag` component exactly as on a written element** (`<H
+  ['llms.txt#c23d8dc6f5', 'tag-inner-html'], // **`key` and `ref` work on a runtime `tag` component exactly as on a written element** (`<H
   ['llms.txt#8a42e4218c', 'no-renderer'], // Defining a component before `wire([renderer])` → with nothing on the `'render'` chain, `re
   ['llms.txt#b9de104cbe', PENDING], // Registering at an **occupied** priority replaces that entry (this is how a renderer is swa
   ['llms.txt#7cdcce9c98', 'setup-uncommitted'], // Development warns if neither happens, and names both. 7.
@@ -173,7 +173,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#5a81e4d78c', 'upgrade-clobber'], // Elements that never call `init()` keep the development warning and the `declare` advice in
   ['packages/renderer/README.md#f8471d54c4', 'forged-template'], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
   ['packages/renderer/README.md#9716e1f324', PENDING], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
-  ['packages/renderer/README.md#5ae4ff86c0', PENDING], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
+  ['packages/renderer/README.md#5ae4ff86c0', 'tag-key'], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
   ['packages/renderer/README.md#57d42dee7e', 'not a promise: a size'], // <!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the f
   ['packages/router/README.md#fa48cfe868', PENDING], // **A path that matches nothing does nothing, and development says so.** `navigate` returns 
   ['packages/router/README.md#7fc72a994a', PENDING], // The warning names the path.
