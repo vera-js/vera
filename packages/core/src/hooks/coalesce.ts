@@ -34,7 +34,7 @@ let created = 0;
  * rather than into a set nothing will drain again.
  *
  * @param callback The effect, or a render pass (which returns nothing)
- * @param priority Where it runs: among its owner's hooks, and in the flush (layout 25 → render 50 → effect 75)
+ * @param priority Where it runs: among its owner's hooks, and in the flush (render 50 → layout 60 → effect 75)
  * @param sync Runs the pass at once on every change instead of queueing it (`useSyncEffect`)
  * @param element The owner, instead of the element being set up
  * @return The hook, as `createHook` returns it

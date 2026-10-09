@@ -9,8 +9,13 @@ One queue, one flush: renders and effects run as a microtask, within a per-frame
 and Vue — instead of on the element's next animation frame. After `await`, the DOM and its effects are current; a
 write reaches the DOM in about 1–5 ms instead of 19–24.
 
-- **Order:** layout effects, then renders, then effects — and parents before children, so a child re-rendered by its
+- **Order:** renders, then layout effects, then effects — and parents before children, so a child re-rendered by its
   parent's new props renders once.
+- **`useLayoutEffect` now means what it means in React:** it runs right after the render, so it measures the DOM that
+  render made, and a write it makes re-renders in the same flush, before paint. It used to run BEFORE the render and
+  see the previous render's DOM — a measurement ported from React measured stale layout. A layout effect now also runs
+  after `@verajs/directives` has applied an element's directives. A hook of your own made with `createHook` at a
+  priority between 25 and 60 that relied on running after layout effects on the first pass now runs before them.
 - **The budget:** past about 4 ms of flush work in a frame, the next flush waits for the element window's frame (or a
   short timer where there are no frames — a hidden tab, a test, a server). Fifty events landing in one frame render
   about once, as they did on frames; a plain microtask rendered them fifty times.

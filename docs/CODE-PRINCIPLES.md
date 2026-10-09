@@ -231,7 +231,7 @@ fast are a pair**; VeraJS only displaces React if it wins on both. Neither may b
   asserting an improvement.
 - **Cheap guards over redundant work:** bail on unchanged values before doing any work, fast-path the
   common case, batch one write instead of N.
-- **Effects are scheduled, not immediate** — `useLayoutEffect` → render → `useEffect` is a deliberate
+- **Effects are scheduled, not immediate** — render → `useLayoutEffect` → `useEffect` is a deliberate
   ordering. Do not force synchronous work into a phase that does not need it.
 - **Build cost matters too.** wireit caching depends on each script's `files`/`output` globs being
   *accurate*; a wrong glob silently disables caching or breaks `clean`. Verify globs against what the

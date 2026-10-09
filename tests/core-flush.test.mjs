@@ -46,7 +46,7 @@ test('after `await`, the DOM and its effects are done — one write, one microta
   el.remove();
 });
 
-test('order within a flush: layout effects, then renders, then effects — and a hundred writes are one flush', async () => {
+test('order within a flush: renders, then layout effects, then effects (React\'s order) — and a hundred writes are one flush', async () => {
   const state = core.createStore({ n: 0 });
   const order = [];
   const name = tag();
@@ -63,7 +63,7 @@ test('order within a flush: layout effects, then renders, then effects — and a
   order.length = 0;
   for (let i = 0; i < 100; i++) state.n++;
   await Promise.resolve();
-  assert.deepEqual(order, ['layout', 'render', 'effect'], 'each once, in that order');
+  assert.deepEqual(order, ['render', 'layout', 'effect'], 'each once, in that order');
   el.remove();
 });
 
@@ -252,4 +252,74 @@ test('an element whose window has gone (a closed pop-out) still settles a held l
   assert.equal(state.n, 3, 'CONTROL: two runs in the flush, then held');
   await new Promise((resolve) => setTimeout(resolve, 350));
   assert.equal(state.n, 5, 'the held runs came back on the global frame or the timer');
+});
+
+test('on MOUNT, the first useLayoutEffect sees the DOM the first render made — React\'s guarantee', async () => {
+  const seen = [];
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.useLayoutEffect(() => { seen.push(this.querySelector('p')?.textContent ?? 'no DOM yet'); });
+      core.render(() => html`<p>first</p>`);
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await Promise.resolve();
+  assert.equal(el.textContent, 'first', 'CONTROL: the first render landed');
+  assert.deepEqual(seen, ['first'], 'the layout effect ran once, after the render, and saw its DOM');
+  el.remove();
+});
+
+test('a useLayoutEffect measuring the NEW DOM and storing it settles within one flush — no frame between', async () => {
+  const state = core.createStore({ text: 'hi', width: 0 });
+  let frames = 0;
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      /** Its text length stands in for a layout read: what a tooltip ported from React does. */
+      core.useLayoutEffect(() => { void state.text; state.width = this.querySelector('span').textContent.length; });
+      core.render(() => html`<span>${state.text}</span><b>${state.width}</b>`);
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await frame();
+  assert.equal(el.querySelector('b').textContent, '2', 'CONTROL: the mount measured the first render');
+  const id = dom.window.requestAnimationFrame(() => { frames++; });
+  const before = frames;
+  state.text = 'hello';
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(el.querySelector('b').textContent, '5', 'it measured THIS render (5), not the previous one (2)');
+  assert.equal(frames, before, 'and the measured value landed with no frame in between');
+  dom.window.cancelAnimationFrame(id);
+  el.remove();
+});
+
+test('hooks of one priority on one component run in the order it registered them', async () => {
+  const state = core.createStore({ n: 0 });
+  const order = [];
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.useLayoutEffect(() => { void state.n; order.push('a'); });
+      core.useLayoutEffect(() => { void state.n; order.push('b'); });
+      core.useEffect(() => { void state.n; order.push('c'); });
+      core.useEffect(() => { void state.n; order.push('d'); });
+      core.mount();
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await Promise.resolve();
+  assert.deepEqual(order, ['a', 'b', 'c', 'd'], 'CONTROL: the first pass ran all four, in order');
+  order.length = 0;
+  state.n = 1;
+  await Promise.resolve();
+  assert.deepEqual(order, ['a', 'b', 'c', 'd'], 'and an update keeps registration order within each priority');
+  el.remove();
 });

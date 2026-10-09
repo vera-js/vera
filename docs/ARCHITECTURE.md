@@ -118,12 +118,13 @@ Hooks carry a priority, and lower runs first:
 
 | Priority | Hook |
 | ---: | --- |
-| 25 | `useLayoutEffect` |
 | 50 | `useRender` |
+| 60 | `useLayoutEffect` |
 | 75 | `useEffect` |
 
-So the order is **layout effects → render → effects**, which is why `useLayoutEffect` can read state
-before paint and `useEffect` observes the rendered result.
+So the order is **render → layout effects → effects** — React's: `useLayoutEffect` measures the DOM the render just
+made, and a write it makes re-renders in the same flush, before paint; `useEffect` runs after every layout effect.
+(Until 2026-10-08 layout effects ran BEFORE the render and saw the previous render's DOM.)
 
 ---
 

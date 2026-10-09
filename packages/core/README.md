@@ -191,12 +191,12 @@ store has since outgrown). When rows are replaced rather than mutated — which 
 
 | | Runs | Batching |
 | --- | --- | --- |
-| `useLayoutEffect` | first in each flush, before the render — it sees the DOM the last render left | coalesced, one flush |
+| `useLayoutEffect` | right after the render, before every `useEffect` — it sees the DOM the render just made, as in React | coalesced, one flush |
 | `useEffect` | after the render, in the same flush — before the browser paints | coalesced, one flush |
 | `useSyncEffect` | immediately on every change | **not** batched |
 
 **Every queued render, layout effect and effect runs in one flush** — a microtask, so after `await` the DOM and its
-effects are current. In a flush, layout effects run first, then renders, then effects, and parents before their
+effects are current. In a flush, renders run first, then layout effects, then effects, and parents before their
 children: a child re-rendered by its parent's new props renders once. A hook may run **twice** in one flush — so an
 effect that measures what was just rendered and stores it lands before paint — and a third run waits for the next
 frame. Past a budget of about 4 ms of flush work per frame, the next flush also waits for a frame (or, where there are
@@ -217,7 +217,7 @@ useEffect(() => {
 });
 
 useLayoutEffect(() => {
-  // runs before the render pass commits — measure here, and writes cannot cause a visible flash
+  // runs right after the render — measure here; a write re-renders in the same flush, before paint (no flash)
   height = list.getBoundingClientRect().height;
 });
 ```
@@ -409,9 +409,9 @@ wire({ on: 'error', fn: (error, element) => report(error, element?.localName), p
 
 const errorChain = inserts.get('error');            // the registry itself: name -> ordered chain
 
-createHook({                                        // your own hook type, scheduled like the rest
+createHook({                                        // your own hook type: runs at every write it hears, unbatched
   callback: (change, first) => { if (!first) log(change); },
-  priority: 60,                                     // after render (50), before useEffect (75)
+  priority: 65,                                     // its first pass: after useLayoutEffect (60), before useEffect (75)
 });
 ```
 

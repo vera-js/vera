@@ -181,7 +181,7 @@ is the platform's own and untouched by any of this.
 
 | Export | When it runs | Batching |
 | --- | --- | --- |
-| `useLayoutEffect` | first in each flush, before the render (priority 25) | coalesced, one flush |
+| `useLayoutEffect` | right after the render, before every `useEffect` — sees the new DOM, as in React (priority 60) | coalesced, one flush |
 | `useEffect` | after the render, same flush, before paint (priority 75) | coalesced, one flush |
 | `useSyncEffect` | immediately on every change (priority 75) | **not** batched |
 
@@ -197,8 +197,8 @@ useEffect(() => {
 ```
 
 **Coalesced vs sync.** `useEffect` runs once per flush no matter how many writes landed, so it only
-ever observes final state. Order in a flush: layout effects, renders, effects — parents before
-children. A hook may run twice in one flush (a measure-then-set lands before paint); a third run
+ever observes final state. Order in a flush: renders, layout effects, effects (React's order) — parents
+before children. A hook may run twice in one flush (a measure-then-set lands before paint); a third run
 waits for the next frame. `useSyncEffect` runs once per individual write and observes every
 intermediate value — the Solid/Preact model.
 

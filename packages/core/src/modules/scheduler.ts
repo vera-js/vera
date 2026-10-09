@@ -3,8 +3,8 @@ import type { ComponentElement, HookPass, RenderScheduler } from '../types.js';
 /**
  * **One queue, drained by one flush.** Every deferred hook pass — a layout effect, a render, an effect — joins ONE
  * queue, and ONE scheduled flush runs it all; a scheduler decides only when a flush runs (Brian, 2026-10-08, after the
- * flood probe in the scheduler plan). The queue runs in KEY order: a pass's PRIORITY (layout 25 → render 50 → effect
- * 75), then its hook's CREATION — a parent's hooks are created before the children its render makes, so a child
+ * flood probe in the scheduler plan). The queue runs in KEY order: a pass's PRIORITY (render 50 → layout
+ * 60 → effect 75), then its hook's CREATION — a parent's hooks are created before the children its render makes, so a child
  * re-rendered by its parent's new props runs once, after the parent; and one component's hooks run in the order it
  * registered them. A pass that arrives OUT of key order marks the queue, and the rest of it is sorted again before the
  * next pass is taken — the built-in sort, which merges a sorted run and a few new passes in linear time (smaller than
@@ -175,7 +175,7 @@ const exempt = /* @__PURE__ */ new WeakSet<Element>();
 const warned = /* @__PURE__ */ new WeakSet<Element>();
 
 /** Which hook a priority is — the warning names the one that loops. */
-const LABELS: Record<number, string> = { 25: 'useLayoutEffect', 50: 'render', 75: 'useEffect' };
+const LABELS: Record<number, string> = { 50: 'render', 60: 'useLayoutEffect', 75: 'useEffect' };
 
 const loopWarning = (pass: HookPass) => {
   /** Held again after a run its last hold queued: one more consecutive frame. Anything else starts a new count. */

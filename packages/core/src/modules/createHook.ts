@@ -22,8 +22,8 @@ export const reportHookError = (error: unknown, element?: ComponentElement) => {
 };
 
 /**
- * The priority `useRender` registers at — between `useLayoutEffect` (25) and the effects (75), so a
- * component's first pass draws after its layout effects and before its effects.
+ * The priority `useRender` registers at — before `useLayoutEffect` (60) and the effects (75), so a component's first
+ * pass draws before its layout effects measure it.
  */
 export const RENDER_PRIORITY = 50;
 
