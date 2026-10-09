@@ -6,6 +6,12 @@
       "params": [],
       "message": "there is no component being set up. Hooks, `render()` and `mount()` belong to a component's setup, which runs synchronously from `init(this)` and ends at the first `await` — so after an `await` in setup, or later in a handler, there is no component to attach them to.",
       "fix": "Await BEFORE `init(this)`; or create hooks and call `render()` before the first `await` and write what you await into state; or pass the element explicitly: `useEffect(fn, this)`."
+    },
+    {
+      "code": "sync-loop",
+      "params": [],
+      "message": "re-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, so an unguarded write feeds itself.",
+      "fix": "Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces."
     }
   ]
 }

@@ -1,6 +1,8 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
 import { enqueue } from '../modules/scheduler.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import type { ComponentElement, HookCallback, HookCleanup, HookPass } from '../types.js';
 
 /**
@@ -45,6 +47,8 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
   let cleanup: void | HookCleanup;
   /** Development: an async callback is named once per hook, not on every run. */
   let warnedAsync = false;
+  /** Development: how deep a SYNC hook's own writes have re-entered it (`useSyncEffect`). */
+  let depth = 0;
   /** The signal of the first write since the last run — what the queued run is handed. */
   let queuedSignal: Parameters<HookCallback>[0] | undefined;
   /**
@@ -96,7 +100,27 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
         return;
       }
       queuedSignal ??= signal;
-      if (sync) run();
+      if (sync) {
+        /**
+         * **A self-feeding `useSyncEffect` is stopped and named at depth 50, in development** — it runs inside every
+         * write, so an unguarded write to what it reads recursed to a stack overflow, which names the trap and not the
+         * cause (main had this guard; the lean rebuild dropped it while README and llms.txt still promised it).
+         * Production carries neither the counter nor the check.
+         */
+        if (__DEV__) {
+          if (depth >= 50) {
+            queuedSignal = undefined;
+            console.error(diagnostic('core', 'useSyncEffect', 'sync-loop', __DEV__ && PROSE['sync-loop']()));
+            return;
+          }
+          depth++;
+          try {
+            run();
+          } finally {
+            depth--;
+          }
+        } else run();
+      }
       else enqueue(run);
     },
   });

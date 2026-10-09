@@ -7,6 +7,11 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'sync-loop': () => [
+    're-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, ' +
+      'so an unguarded write feeds itself.',
+    'Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces.',
+  ],
   'no-owner': () => [
     `there is no component being set up. Hooks, \`render()\` and \`mount()\` belong to a component's setup, which runs ` +
       `synchronously from \`init(this)\` and ends at the first \`await\` — so after an \`await\` in setup, or later in ` +
