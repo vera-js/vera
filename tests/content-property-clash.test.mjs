@@ -16,7 +16,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
 const { html } = await load('core');
 const { renderInto } = await load('renderer');
 const { spread } = await load('renderer/spread');
-const CLASH = /binds `\.(textContent|innerHTML|innerText|outerHTML)`, which replaces the element's content/;
+const CLASH = /^(?:Error: )?(renderer|spread): <[a-z-]+> binds `\.(textContent|innerHTML|innerText|outerHTML)`, which replaces the element's content[\s\S]*\(content-clash\)$/;
 const into = () => document.body.appendChild(document.createElement('div'));
 
 test('a written content property beside a child binding or markup is refused in development', { skip: isProduction && 'a development check' }, () => {
@@ -27,6 +27,9 @@ test('a written content property beside a child binding or markup is refused in 
 
 test('a spread content key beside content is refused in development — the tag-component path', { skip: isProduction && 'a development check' }, () => {
   assert.throws(() => renderInto(html`<my-el ${spread({ '.textContent': 'V' })}>${'kid'}</my-el>`, into()), CLASH);
+  /** The module the user wired names it: a spread key says `spread:`, a template binding `renderer:`. */
+  assert.throws(() => renderInto(html`<my-el ${spread({ '.textContent': 'V' })}>${'kid'}</my-el>`, into()), /^(?:Error: )?spread: /);
+  assert.throws(() => renderInto(html`<my-el .textContent=${'V'}>${'kid'}</my-el>`, into()), /^(?:Error: )?renderer: /);
 });
 
 test('a spread content key on an element whose only content is a binding is refused too — it leaves no node until it commits', { skip: isProduction && 'a development check' }, () => {

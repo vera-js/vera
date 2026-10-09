@@ -102,9 +102,17 @@ export const call: Untracked = (fn, a, b, c) => fn(a!, b!, c!);
  */
 export const isSelection = (element: Element, name: unknown) => {
   if ((name !== 'value' && name !== 'selectedIndex') || element.localName !== 'select') return false;
-  if (__DEV__ && element.hasAttribute('multiple'))
-    console.warn(diagnostic('renderer', '<select multiple>', 'select-multiple', __DEV__ && SHARED.selectMultiple(String(name))));
   return true;
+};
+
+/**
+ * Development: the one shape a selection binding cannot serve, named by the module the user wired (`side`). Called only
+ * behind `__DEV__` at each call site, so production keeps `isSelection` exactly as small as it was (a `side` argument on
+ * it measured +1 B, a default +9 B on vera-renderer.min.js — 2026-10-09).
+ */
+export const saySelectMultiple = (element: Element, name: unknown, side: string) => {
+  if (element.hasAttribute('multiple'))
+    console.warn(diagnostic(side, '<select multiple>', 'select-multiple', __DEV__ && SHARED.selectMultiple(String(name))));
 };
 
 /**

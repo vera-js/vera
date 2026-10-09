@@ -223,9 +223,12 @@ test('a selection binding on a <select multiple> is named in development — tem
   } finally {
     console.warn = warn;
   }
-  for (const name of ['value', 'selectedIndex'])
-    assert.ok(said.some((m) => m.startsWith(`[vera] \`${name}\` on a <select multiple>`)), `${name}: ${said.join('\n')}`);
-  assert.equal(said.filter((m) => m.startsWith('[vera] `value` on a <select multiple>')).length, 2, 'the spread key was named too');
+  const ours = said.filter((m) => m.endsWith('(select-multiple)'));
+  assert.equal(ours.length, 3, `one line per binding, by code: ${said.join('\n')}`);
+  /** The area is the module the user wired: a template binding says `renderer:`, a spread key `spread:`. */
+  assert.match(ours[0], /^\[vera\] renderer: <select multiple> — `value` controls only ONE selection/);
+  assert.match(ours[1], /^\[vera\] renderer: <select multiple> — `selectedIndex` controls only ONE selection/);
+  assert.match(ours[2], /^\[vera\] spread: <select multiple> — `value` controls only ONE selection/);
 });
 
 /**

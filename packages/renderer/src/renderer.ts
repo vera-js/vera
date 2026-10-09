@@ -26,6 +26,7 @@ import {
   tagHole,
   INLINE_HANDLER,
   isSelection,
+  saySelectMultiple,
   read,
   reportTo,
   hostOf,
@@ -446,7 +447,10 @@ class Template {
          * its options can be replaced under an unchanged value, which drops the selection. It is written when the
          * pass ends, once its options exist — see `flush`.
          */
-        if ((kind === PROPERTY || kind === LIVE) && isSelection(el, real)) kind = real === 'value' ? SELECT : SELECT_INDEX;
+        if ((kind === PROPERTY || kind === LIVE) && isSelection(el, real)) {
+          if (__DEV__) saySelectMultiple(el, real, 'renderer');
+          kind = real === 'value' ? SELECT : SELECT_INDEX;
+        }
         /**
          * `el.__proto__ = v` is not a property write: it replaces the element's prototype and destroys it.
          * No use is legitimate, so the binding is refused — the deliberate twin of spread's `refusedSink`

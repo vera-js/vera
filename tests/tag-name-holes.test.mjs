@@ -45,6 +45,8 @@ test('the server refuses exactly the tag-name rows, in every build', () => {
 test('the client refuses exactly the same rows in development, with the same message', { skip: isProduction && 'a development check' }, () => {
   const wrong = ROWS.filter((row) => REFUSAL.test(clientSays(row)) !== row.refused).map((row) => `${row.label}: ${clientSays(row)}`);
   assert.deepEqual(wrong, []);
+  const uncoded = ROWS.filter((row) => row.refused && !/^renderer: [\s\S]*\(tag-hole\)$/.test(clientSays(row))).map((row) => row.label);
+  assert.deepEqual(uncoded, [], 'every client refusal is `renderer:` and carries its code');
 });
 
 test('in production the client renders every row without throwing — the check is development-only', { skip: !isProduction && 'production only' }, () => {
