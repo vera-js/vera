@@ -201,7 +201,10 @@ children: a child re-rendered by its parent's new props renders once. A hook may
 effect that measures what was just rendered and stores it lands before paint — and a third run waits for the next
 frame. Past a budget of about 4 ms of flush work per frame, the next flush also waits for a frame (or, where there are
 no frames — a hidden tab, a test, a server — a short timer): fifty events landing in one frame render about once, not
-fifty times. One caveat: an effect runs before the browser paints its update, so a slow one delays that paint.
+fifty times. Two caveats: an effect runs before the browser paints its update, so a slow one delays that paint; and
+one event whose several listeners each write state renders once per listener (the browser runs microtasks after each
+one) — measured, the click still paints a frame sooner than frame scheduling did, but the work is repeated, so a hot
+event is best handled by one listener making one write.
 
 All three take `(callback, element?)` and treat a returned function as cleanup — run before the next
 pass, **and on element removal**. No `disconnectedCallback` is needed for it; if the component has
