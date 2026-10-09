@@ -43,6 +43,8 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
   const owner = element ?? currentInstance.element;
   let now = false;
   let cleanup: void | HookCleanup;
+  /** Development: an async callback is named once per hook, not on every run. */
+  let warnedAsync = false;
   /** The signal of the first write since the last run — what the queued run is handed. */
   let queuedSignal: Parameters<HookCallback>[0] | undefined;
   /**
@@ -71,7 +73,22 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
           cleanup = undefined;
           runCleanup(spent, owner);
         }
-        cleanup = callback(signal, init);
+        const out = callback(signal, init);
+        /**
+         * Only a FUNCTION is a cleanup. An `async` callback returns a promise, which was called as one on the next run
+         * and on removal — `[vera] a hook threw:` twice (measured 2026-10-09). Now an async effect just runs.
+         */
+        cleanup = typeof out === 'function' ? out : undefined;
+        if (__DEV__ && !warnedAsync && typeof (out as { then?: unknown } | undefined)?.then === 'function') {
+          warnedAsync = true;
+          console.warn(
+            `[vera] ${priority === 60 ? 'useLayoutEffect' : priority === 75 ? (sync ? 'useSyncEffect' : 'useEffect') : 'useHook'}` +
+              `${owner?.localName ? ` on <${owner.localName}>` : ''} returned a promise — an async callback runs, but ` +
+              `it cannot return a cleanup, and what it awaits may arrive after the component re-ran or was removed.\n` +
+              `To cancel it, write the effect as a plain function that starts the async work and returns a cleanup ` +
+              `that stops it — for a fetch, \`const c = new AbortController(); load(c.signal); return () => c.abort();\`.`
+          );
+        }
         if (cleanup) {
           if (owner?._removed) runCleanup(cleanup, owner);
           else owner?._cleanups?.add(cleanup);

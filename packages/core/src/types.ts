@@ -61,7 +61,11 @@ export type Hook = {
 export type HookCleanup = () => void;
 
 /** A hook's callback: handed the signal that woke it, and `init` on the first pass. */
-export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup;
+/**
+ * Returns nothing, a cleanup, or — an `async` callback — a promise, which runs but is never a cleanup (only a function
+ * is; development names an async callback once).
+ */
+export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
 
 /** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
 export type Hooks = Set<HookCallback>[];
