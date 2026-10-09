@@ -692,7 +692,7 @@
         "key"
       ],
       "message": "{key} is a property, and properties are written inside keyframes.",
-      "fix": "Move it: keyframes: { {key}: … }. The top level holds settings — start, end, ease, anchor."
+      "fix": "Move it: keyframes: { {key}: … }. The top level holds settings — ease, anchor, scroll, play."
     },
     {
       "code": "motion-property-writes-nothing",

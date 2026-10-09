@@ -192,7 +192,7 @@ export const PROSE: Record<string, Prose> = {
   ],
   'motion-property-at-top-level': (key) => [
     `${key} is a property, and properties are written inside keyframes.`,
-    `Move it: keyframes: { ${key}: … }. The top level holds settings — start, end, ease, anchor.`,
+    `Move it: keyframes: { ${key}: … }. The top level holds settings — ease, anchor, scroll, play.`,
   ],
   'motion-setting-in-keyframes': (key) => [
     `${key} is a setting, and settings are written outside keyframes.`,

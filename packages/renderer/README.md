@@ -436,8 +436,9 @@ What a claimant can rely on:
   teardown**: a parked instance keeps its mount and is not mounted again when it returns.
 - **Several claimants may claim one element**; each gets its own `create`/`mount`/`unmount`, in wire order.
 - **No updates.** A behavior that must react to values is a binding or an applier (`_$apply$`), not a
-  claim — which is what keeps claims off the hot path. A throwing `mount` propagates, as a throwing
-  `&ref` does.
+  claim — which is what keeps claims off the hot path. A throwing `mount` propagates, and the
+  claims after it in that template do not mount — unlike a throwing `&ref`, which is reported and
+  skipped so the render completes.
 - **Wire it before anything renders**, like `slots`: a template asks its claimants when it is first
   used, and a claimant wired later never hears about templates already built — development says so
   at `wire`, for this module and every other that decides per template (`namespaces`, `slots`). An app that wires no

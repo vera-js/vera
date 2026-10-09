@@ -267,7 +267,7 @@ Two consequences worth knowing:
   booleans, not falsiness.
 - **A boolean *inside an array* still renders** — the filter sees the array, not its items, so
   `{rows.map((r) => r.ok && <li/>)}` puts "false" on the page for each failing row. Development
-  names it, and `{rows.filter((r) => r.ok).map(…)}` is the fix. **This is where vera and React
+  names each one, and `{rows.filter((r) => r.ok).map(…)}` is the fix. **This is where vera and React
   deliberately part**, and the reason is measured: React filters children recursively, and doing
   the same here costs ~135 ns against ~15 ns per list child *even when the array holds no
   booleans at all* — roughly doubling the commit of every list to correct a case the development
