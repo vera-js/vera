@@ -755,8 +755,10 @@ and renders fresh, so correctness never depends on the server output being right
 child position is the one thing the server cannot have rendered; it is inserted without giving up
 adoption of everything around it.
 
-**A fallback warns in development, naming the first place the two renders disagreed** — *"expected
-`<p>` and found `<div>`"*, *"`<ul>` contains `<li>`, which the template does not describe"*. The page
+**A fallback warns in every build, naming the first place the two renders disagreed** — development
+spells it out, *"expected `<p>` and found `<div>`"*, *"`<ul>` contains `<li>`, which the template does
+not describe"*; production prints the kind and the node it found. It is said once per kind of
+disagreement per hydration pass, so a list whose every row disagrees the same way is one line. The page
 is correct either way, which is the point of the fallback and also why it needs saying: that
 container's markup was just thrown away, and with nothing observable to notice, the only symptom is
 a first paint that is slower than the one you paid a server render for. An attribute is **read** during
@@ -1034,8 +1036,8 @@ never runs and a `<template shadowrootmode>` never attaches, on either side.
 **Only a tagged template is a template.** A value renders as markup only when its strings came from a tagged
 template literal — an array owning `raw`, which nothing from `JSON.parse` can be. Data shaped like a template (an
 API field an attacker turned into `{"strings": [...]}`, a real template sent through JSON, or a hand-built
-`html([markup])`) renders as the text any object does, `[object Object]`, here and in `@verajs/ssr` alike, with a
-development warning. Never a throw: the value is attacker-controlled, and a throw would hand over the subtree. The
+`html([markup])`) renders as the text any object does, `[object Object]`, here and in `@verajs/ssr` alike — and here,
+in development, with a warning on every render (a forgery is never cached). Never a throw: the value is attacker-controlled, and a throw would hand over the subtree. The
 check runs where a template is first built, so a cached template pays nothing. (An ordinary object interpolated
 as a child renders as `String(object)`, as before; one that cannot convert — a parsed `"toString"` key — throws,
 as it does in React. Render a field, not a raw API object.)
@@ -1046,8 +1048,10 @@ expression, below; a value in TAG position, `<${x}>`, which needs a tag value fr
 `renderInto` without a container; `keyed` without a template; a template ending inside a tag; a binding beside or
 inside an element in an SVG/MathML `<title>` or `<style>`, which this renderer reads as text, or inside the obsolete
 `<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>`, which the parser does), and a mistake that still renders
-but not as meant is a `[vera]` warning, said once (a self-closed `<div />`, a boolean child, a value that cannot
-listen, `@clik`, a binding on an element the parser drops, content in the wrong namespace, a repeated key). None of
+but not as meant is a `[vera]` warning (a self-closed `<div />`, a boolean child, a value that cannot
+listen, `@clik`, a binding on an element the parser drops, content in the wrong namespace, a repeated key) — said
+once where the mistake is in the template's source, and each time it happens where it is in a value (a boolean
+child, a value that cannot listen, a repeated key). None of
 it exists in the production build — those bundles are byte-for-byte what they would be without it.
 
 **An attribute name cannot be an expression.** `<p data-${key}="1">` (or `<b ${name}="x">`, or
