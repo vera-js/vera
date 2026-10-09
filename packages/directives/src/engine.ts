@@ -12,7 +12,7 @@
  * listener per event type, matching by attribute at dispatch time (which is why a swapped-in
  * region's buttons work the instant the HTML lands). See DESIGN-DIRECTIVES §3/§6.
  */
-import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts as bakedInserts } from '@verajs/core';
+import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts as bakedInserts, untrack as bakedUntrack } from '@verajs/core';
 import { parseValue, parseLiteral, isPath, isObject, sameValue } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
@@ -43,6 +43,8 @@ type LoaderFn = (name: string, element: Element) => boolean | Promise<unknown> |
 type Substrate = {
   createStore: typeof bakedCreateStore;
   createHook: typeof bakedCreateHook;
+  /** Its `untrack`, when the substrate provides one — the core whose stores the engine created and whose hooks run. */
+  untrack?: typeof bakedUntrack;
   /** The PAGE's insert registry, when adopted — where the `'loader'` chain lives. */
   inserts?: Map<string, unknown[]>;
 };
@@ -52,7 +54,7 @@ const core = (): Substrate => {
   const stamp = (globalThis as Record<symbol, unknown>)[Symbol.for('vera.core')] as Substrate | undefined;
   if (stamp && typeof stamp.createStore === 'function' && typeof stamp.createHook === 'function') return (substrate = stamp);
   if (__DEV__ && stamp) console.warn('[vera] the vera.core stamp is not a usable substrate — the engine is using its own copy.');
-  return (substrate = { createStore: bakedCreateStore, createHook: bakedCreateHook, inserts: bakedInserts as unknown as Map<string, unknown[]> });
+  return (substrate = { createStore: bakedCreateStore, createHook: bakedCreateHook, untrack: bakedUntrack, inserts: bakedInserts as unknown as Map<string, unknown[]> });
 };
 
 /* ── discovery: the 'loader' seam (design §7) ─────────────────────────────────────────────── */
@@ -522,9 +524,16 @@ const evaluateDeep = (el: Element, v: Parsed): unknown => {
 };
 
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
-const runAssignments = (el: Element, obj: ParsedObject) => {
-  for (const key of Object.keys(obj)) writeKey(el, key, evaluateDeep(el, obj[key]));
-};
+/**
+ * Runs an `on-*` (or `init`) object's assignments UNTRACKED — the one place every `data-vd-on-*` handler, delegated or
+ * direct, ends (2026-10-09). An effect that fires an event synchronously (`el.click()`) runs the handler inside itself,
+ * and the handler's reads subscribed that effect: a self-feeding loop when it reads what it writes. Deliberate
+ * duplicate of the renderer's `dispatch` (renderer.ts, spread.ts), which explains why.
+ */
+const runAssignments = (el: Element, obj: ParsedObject) =>
+  (core().untrack ?? bakedUntrack)(() => {
+    for (const key of Object.keys(obj)) writeKey(el, key, evaluateDeep(el, obj[key]));
+  });
 
 /* ── actions: the named escape hatch (design §17.4) ───────────────────────────────────────── */
 

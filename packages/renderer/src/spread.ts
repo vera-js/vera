@@ -128,7 +128,8 @@ class Binding {
     this._name = name as string;
     this._element = element;
     const custom = element.localName.includes('-');
-    this._read = custom ? untracked : null;
+    /** Core's `untracked` for a custom element's getter reads, and for an event key's handler (`dispatch`). */
+    this._read = custom || kind === EVENT ? untracked : null;
     this._url = urlRule(kind, name as string, custom);
     /** A content-replacing property beside content of the element's own: development refuses it, as a template does. */
     if (__DEV__ && (kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(name as string) && ownsContent(element))
@@ -148,13 +149,22 @@ class Binding {
       this._initial = custom ? untracked(read, element, name as string) : (element as unknown as Record<string, unknown>)[name as string];
     if (kind === PROPERTY && custom) this._state = 0;
   }
-  /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
+  /** Runs the handler UNTRACKED — see `dispatch`. */
   handleEvent(event: Event) {
-    const handler = this._handler as EventListener | EventListenerObject | null;
-    if (typeof handler === 'function') handler.call(this._element as never, event);
-    else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
+    (this._read ?? call)(dispatch, this, event);
   }
 }
+
+/**
+ * **A bound handler never subscribes the hook that happens to be running** — deliberate duplicate of the renderer's
+ * `dispatch` (renderer.ts), which explains why; the directives engine's `listen` makes the same choice. `_read` holds
+ * core's `untracked` for an event key too (see the constructor).
+ */
+const dispatch = (binding: Binding, event: Event) => {
+  const handler = binding._handler as EventListener | EventListenerObject | null;
+  if (typeof handler === 'function') handler.call(binding._element as never, event);
+  else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
+};
 
 const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   const kind = binding._kind;

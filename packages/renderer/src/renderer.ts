@@ -668,13 +668,25 @@ class Slot {
   constructor(element: Element) {
     this._element = element;
   }
-  /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
+  /** Runs the handler UNTRACKED — see `dispatch`. */
   handleEvent(event: Event) {
-    const handler = this._handler as EventListener | EventListenerObject | null;
-    if (typeof handler === 'function') handler.call(this._element as never, event);
-    else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
+    untracked(dispatch, this, event);
   }
 }
+
+/**
+ * **A bound handler never subscribes the hook that happens to be running** (2026-10-09). An effect that fires an event
+ * synchronously (`el.click()`, `focus()`, `dispatchEvent`) runs the handler INSIDE itself, and the handler's reads
+ * subscribed the effect: a handler doing `state.n++` made the effect re-run on every click — a self-feeding loop, held
+ * to one round per frame, forever (measured). A handler's reads are event-time decisions, never a hook's inputs.
+ * A function is called with the element as `this`; an object through its `handleEvent`. Deliberate duplicate: spread's
+ * `dispatch` (spread.ts) and the directives engine's `listen` make the same choice.
+ */
+const dispatch = (slot: Slot, event: Event) => {
+  const handler = slot._handler as EventListener | EventListenerObject | null;
+  if (typeof handler === 'function') handler.call(slot._element as never, event);
+  else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
+};
 
 /**
  * Calls an element ref, and survives one that throws — it runs mid-commit, and an unguarded throw left
