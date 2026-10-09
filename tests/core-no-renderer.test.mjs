@@ -64,6 +64,7 @@ test('rendering with no renderer wired says so, in every build', () => {
   assert.equal(said.length, 1, `warned ${said.length} times; expected exactly once per process`);
   assert.match(said[0], /^\[vera\]/, 'carries the framework prefix');
   assert.match(said[0], /renderer/, 'and names what is missing');
+  assert.match(said[0], /no-renderer/, 'by its code, which production prints too');
   if (!isProduction)
     assert.match(said[0], /wire\(\[renderer\]\)/, 'development shows the two lines that fix it');
 });

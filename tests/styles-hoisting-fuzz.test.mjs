@@ -189,6 +189,7 @@ test('a light host is told about ::slotted(), and NOT about :host', { skip: isPr
     'and teaches the light-DOM equivalent rather than only naming the problem');
   assert.match(warning, /::slotted\(img\), \[part="body"\] img/,
     'including the dual spelling for a component that renders both ways');
+  assert.match(warning, /\(slotted-light\)$/, 'by its code');
 });
 
 /**

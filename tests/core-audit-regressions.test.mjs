@@ -148,8 +148,8 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
 
   if (isProduction) return;
   assert.ok(
-    errors.some((m) => m.includes('re-entered') && m.includes('useEffect')),
-    'it must name the hook, the cause and the alternative'
+    errors.some((m) => m.includes('re-entered') && m.includes('useEffect') && m.includes('(sync-loop)')),
+    'it must name the hook, the cause and the alternative, by its code'
   );
 });
 
@@ -280,4 +280,5 @@ test('the missing-collections error is raised once, and by a size read too', asy
   const ours = errors.filter((m) => m.includes('@verajs/store/collections'));
   assert.equal(ours.length, 1, 'ten reads, one error');
   assert.match(ours[0], /Map/, 'and it names the kind it found');
+  assert.match(ours[0], /\(no-collections\)$/, 'by its code');
 });

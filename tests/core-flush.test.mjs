@@ -514,7 +514,10 @@ test('flush() inside a running flush does nothing — no nested drain, the write
   assert.equal(state.seen, 'b', 'inside the effect, flush() ran nothing — the renderer was not re-entered');
   assert.equal(el.querySelector('p').textContent, 'c', 'and the write landed when the flush ended — current after `await`');
   if (isProductionBuild) assert.deepEqual(said, [], 'production is silent');
-  else assert.equal(said.length, 1, `development said so ONCE for two calls: ${said.join(' | ')}`);
+  else {
+    assert.equal(said.length, 1, `development said so ONCE for two calls: ${said.join(' | ')}`);
+    assert.match(said[0], /\(nested-flush\)$/, 'by its code');
+  }
   el.remove();
 });
 

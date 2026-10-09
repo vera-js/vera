@@ -253,7 +253,7 @@ const watch = async (read) => {
    * what keeps this a diagnostic rather than a divergence.
    */
   const refusals = [
-    ['a frozen object refuses a write', () => { const s = core.createStore(Object.freeze({ n: 1 })); s.n = 2; }, /the object is frozen, so `n` cannot be changed/],
+    ['a frozen object refuses a write', () => { const s = core.createStore(Object.freeze({ n: 1 })); s.n = 2; }, /the object is frozen, so `n` cannot be changed[\s\S]*\(store-refused\)/],
     ['a frozen object refuses a new key', () => { const s = core.createStore(Object.freeze({ n: 1 })); s.z = 9; }, /the object is frozen, so `z` cannot be added/],
     ['a frozen object refuses a delete', () => { const s = core.createStore(Object.freeze({ n: 1 })); delete s.n; }, /refused the delete — the object is frozen/],
     ['a sealed object refuses a new key', () => { const s = core.createStore(Object.seal({ n: 1 })); s.z = 9; }, /the object is sealed, so `z` cannot be added/],

@@ -230,6 +230,7 @@ const define = (setup) => {
     check('and names render() for a component with markup', warned[0]?.includes('render(()'));
     check('and mount() for one without', warned[0]?.includes('mount();'));
     check('and names the component', warned[0]?.includes(el.localName));
+    check('by its code', warned[0]?.endsWith('(setup-uncommitted)'));
   }
   body.removeChild(el);
 }
