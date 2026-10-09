@@ -1,5 +1,7 @@
 /**
- * `render()` with no component being set up did nothing, and said nothing.
+ * `render()` with no component being set up did nothing, and said nothing. **Since 2026-10-09 it THROWS `no-owner`, in
+ * every build** (Brian: one rule for every "no owner" case) — the rows below assert the throw, and that its message
+ * names what to do instead (write to a store). The silent-path rows still assert silence.
  *
  * It ends the setup started by `init()` — it runs the first pass of every hook registered since,
  * then clears the current instance. So a *second* call has no instance to find, and returned in
@@ -34,9 +36,18 @@ const captureWarnings = async (run) => {
 
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
-test('a second render() in one setup is reported', { skip: isProduction && 'the guard is __DEV__' }, async () => {
+/** Collects what a lifecycle callback threw — it reaches the window's `error` event, not the caller. */
+const captureThrown = async (run) => {
+  const thrown = [];
+  const onError = (event) => { thrown.push(String(event.error)); event.preventDefault(); };
+  dom.window.addEventListener('error', onError);
+  try { await run(); } finally { dom.window.removeEventListener('error', onError); }
+  return thrown;
+};
+
+test('a second render() in one setup throws no-owner, naming the store', async () => {
   let host;
-  const warnings = await captureWarnings(async () => {
+  const thrown = await captureThrown(async () => {
     class Twice extends HTMLElement {
       connectedCallback() {
         core.init(this, { mode: 'open' });
@@ -50,9 +61,9 @@ test('a second render() in one setup is reported', { skip: isProduction && 'the 
     document.body.append(host);
     await frame();
   });
-
-  assert.equal(warnings.length, 1, 'exactly one warning, for the second call');
-  assert.match(warnings[0], /write to a store/, 'and it must name what to do instead');
+  assert.equal(thrown.length, 1, `exactly one throw, for the second call: ${thrown.join(' | ')}`);
+  assert.match(thrown[0], /no-owner/, 'the no-owner code');
+  if (!isProduction) assert.match(thrown[0], /write to a store/, 'and development names what to do instead');
   assert.match(host._root.textContent, /first/, 'the first call is the one that drew');
 });
 
@@ -61,12 +72,10 @@ test('a second render() in one setup is reported', { skip: isProduction && 'the 
  * message is really for: re-rendering is what the store is for, and calling `render()` again is
  * neither necessary nor sufficient.
  *
- * Deliberately *not* tested: `render()` after an `await` inside `connectedCallback`. That one is a
- * race rather than a rule — if nothing else has mounted in between, the instance is still current
- * and it succeeds. `init()`'s own warning documents the same asymmetry: a later mount moves the
- * pointer, so a check can miss a case but cannot invent one.
+ * `render()` after an `await` inside `connectedCallback` is no longer a race: setup ends at the end of `init()`'s
+ * microtask turn, so it throws the same way every time (tests/core-no-owner.test.mjs).
  */
-test('render() from a handler after setup is reported', { skip: isProduction && 'the guard is __DEV__' }, async () => {
+test('render() from a handler after setup throws no-owner', async () => {
   class Handler extends HTMLElement {
     connectedCallback() {
       core.init(this, { mode: 'open' });
@@ -80,10 +89,7 @@ test('render() from a handler after setup is reported', { skip: isProduction && 
   document.body.append(host);
   await frame();
 
-  const warnings = await captureWarnings(async () => {
-    host.later();
-  });
-  assert.equal(warnings.length, 1, 'the handler found no instance to render into');
+  assert.throws(() => host.later(), /no-owner/, 'the handler found no instance to render into');
 });
 
 /** The ordinary path must stay silent, or the warning is noise. */

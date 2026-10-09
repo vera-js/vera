@@ -24,7 +24,8 @@ export const PROSE: Record<string, Prose> = {
     `there is no component being set up. Hooks, \`render()\` and \`mount()\` belong to a component's setup, which runs ` +
       `synchronously from \`init(this)\` and ends at the first \`await\` — so after an \`await\` in setup, or later in ` +
       `a handler, there is no component to attach them to.`,
-    'Await BEFORE `init(this)`; or create hooks and call `render()` before the first `await` and write what you await ' +
-      'into state; or pass the element explicitly: `useEffect(fn, this)`.',
+    'Setup ends at the first `render()` — to change what is shown later, write to a store, never render() again. ' +
+      'Await BEFORE `init(this)`; or create hooks and call `render()` before the first `await` and write what you ' +
+      'await into state; or pass the element explicitly: `useEffect(fn, this)`.',
   ],
 };
