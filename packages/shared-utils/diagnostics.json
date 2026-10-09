@@ -42,7 +42,7 @@
         "event"
       ],
       "message": "binds the `{name}` attribute, which runs its value as code — refused.",
-      "fix": "Bind a function as an event instead: `{event}`."
+      "fix": "Bind a function as an event instead: {event}."
     },
     {
       "code": "late-template-module",

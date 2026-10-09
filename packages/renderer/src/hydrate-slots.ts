@@ -11,6 +11,8 @@
  * served, and a component boundary reports it once.
  */
 import { PROTOCOL } from './kinds.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './hydrate-slots-diagnostics.js';
 import type { CaptureSeam, HydrateSlots, HydrationCursor, HydrationFail, LightCapture, ServedHost } from './types.js';
 
 /** The registry as this module uses it — `get` named so `wire`'s registry is assignable (a type of optional members alone is "weak"). */
@@ -101,7 +103,11 @@ let fail: HydrationFail;
 const open = (host: Element, failWith: HydrationFail): Served => {
   fail = failWith;
   const seam = registry._$capture$;
-  if (seam === undefined) throw new Error(__DEV__ ? '[vera] hydrate-slots: wire `slots` beside it' : '[vera] hydrate-slots: no slots');
+  /** A wiring state (the diagnostic shape). Production keeps its short line: the code-and-link shape measured +14 B (Brian's byte rule, 2026-10-09). */
+  if (seam === undefined)
+    throw new Error(
+      __DEV__ ? diagnostic('hydrate-slots', `<${host.localName}>`, 'hydrate-slots-unwired', __DEV__ && PROSE['hydrate-slots-unwired']()) : '[vera] hydrate-slots: no slots'
+    );
   const spec = host.getAttribute(LIGHT_ATTR)!;
   host.removeAttribute(LIGHT_ATTR);
   SERVED.add(host);

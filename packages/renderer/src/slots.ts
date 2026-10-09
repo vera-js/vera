@@ -14,7 +14,8 @@
  * fallback. What the page's template later does inside a unit is seen by a `MutationObserver` and re-distributed —
  * synchronously after every component render (core's `'render'` insert), and at the latest by the next microtask.
  */
-import { isCustomElementName } from '@verajs/shared-utils';
+import { diagnostic, isCustomElementName } from '@verajs/shared-utils';
+import { PROSE } from './slots-diagnostics.js';
 import { elements } from './elements.js';
 import { PROTOCOL } from './kinds.js';
 
@@ -843,9 +844,8 @@ const slotBehavior = {
       const inert = [...slot.attributes].map((attribute) => attribute.name).filter((name) => name !== 'name');
       if (inert.length > 0)
         console.warn(
-          `[vera] slots: <slot${slot.hasAttribute('name') ? ` name="${slot.getAttribute('name')}"` : ''}> carries ` +
-            `${inert.map((name) => `\`${name}\``).join(', ')}, which does nothing in a light-DOM component: the slot element ` +
-            `steps out of the page while it has content. Events, \`name\` and \`&ref\` all work here.`
+          diagnostic('slots', `<${(root as Element).localName}>`, 'slot-attributes',
+            __DEV__ && PROSE['slot-attributes'](`<slot${slot.hasAttribute('name') ? ` name="${slot.getAttribute('name')}"` : ''}>`, inert.map((name) => `\`${name}\``).join(', ')))
         );
     }
     /** A host `init` never saw has no captured children: what it holds now is its own render, never light content. */
@@ -899,7 +899,18 @@ let warnedUnadopted = false;
 const unadopted = (container: Node) => {
   const spec = container.nodeType === 1 ? (container as Element).getAttribute(LIGHT_ATTR) : null;
   if (spec === null) return;
-  if (!spec.endsWith(':')) throw new Error(__DEV__ ? `[vera] slots: a server-rendered light host holds the page's content, and nothing hydrates it — it stands as served. Wire \`wire([renderer, hydration, slots, hydrateSlots])\`. (hydration-unwired)` : '[vera] hydration-unwired');
+  if (!spec.endsWith(':'))
+    /**
+     * A WIRING state, not a misused argument, so the diagnostic shape (`[vera] slots: <host> — …`), not `misuse()`'s.
+     * Production keeps its own short line, which already carries the code: the code-and-link shape measured +18 B on
+     * vera-renderer-slots.min.js (Brian's byte rule, 2026-10-09 — a production message converts only where its bundle
+     * is not larger). Development's text is the table's.
+     */
+    throw new Error(
+      __DEV__
+        ? diagnostic('slots', `<${(container as Element).localName}>`, 'hydration-unwired', __DEV__ && PROSE['hydration-unwired']("this light host, holding the page's content, stands as served"))
+        : '[vera] hydration-unwired'
+    );
   for (let node = container.firstChild; node !== null; ) {
     const next: ChildNode | null = node.nextSibling;
     if (node.nodeType !== 1 || !(node as Element).hasAttribute('data-vm-sheet')) container.removeChild(node);
@@ -908,7 +919,7 @@ const unadopted = (container: Node) => {
   (container as Element).removeAttribute(LIGHT_ATTR);
   if (__DEV__ && !warnedUnadopted) {
     warnedUnadopted = true;
-    console.warn('[vera] slots: this page was server-rendered and nothing hydrates it, so its components re-render on the client instead of adopting the server markup. Wire `hydration` beside the renderer: `wire([renderer, hydration])`. (hydration-unwired)');
+    console.warn(diagnostic('slots', 'the page', 'hydration-unwired', __DEV__ && PROSE['hydration-unwired']('its components re-render on the client instead of adopting the server markup')));
   }
 };
 

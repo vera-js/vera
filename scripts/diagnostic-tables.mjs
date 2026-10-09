@@ -22,8 +22,8 @@ export const TABLES = [
   { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: ['src/adopt-property.ts', 'src/utils.ts', 'src/markup-grammar.ts'] },
   {
     name: 'renderer',
-    tables: ['src/hydration-diagnostics.ts', 'src/renderer-diagnostics.ts', 'src/spread-diagnostics.ts', 'src/tag-diagnostics.ts', 'src/keyed-diagnostics.ts', 'src/elements-diagnostics.ts'],
-    sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts', 'src/tag.ts', 'src/keyed.ts', 'src/elements.ts'],
+    tables: ['src/hydration-diagnostics.ts', 'src/renderer-diagnostics.ts', 'src/spread-diagnostics.ts', 'src/tag-diagnostics.ts', 'src/keyed-diagnostics.ts', 'src/elements-diagnostics.ts', 'src/slots-diagnostics.ts', 'src/hydrate-slots-diagnostics.ts'],
+    sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts', 'src/tag.ts', 'src/keyed.ts', 'src/elements.ts', 'src/slots.ts', 'src/hydrate-slots.ts'],
   },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },

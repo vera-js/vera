@@ -16,10 +16,22 @@ import { fileURLToPath } from 'node:url';
 import { TABLES, proseOf } from '../scripts/diagnostic-tables.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+/**
+ * `[package, a production bundle that carries its code]`. shared-utils is private and inlined: its own min bundle
+ * exports every shared text and never ships, so it is checked through the renderer's, which inlines it.
+ */
 const MIGRATED = [
   ['core', 'dist/vera.min.js'],
   ['styles', 'dist/vera-styles.min.js'],
+  /** Every renderer entry ships its own bundle — tag, keyed, slots… — so every one is checked. */
+  ['renderer', 'dist/*.min.js'],
+  ['shared-utils', '../renderer/dist/vera-renderer.min.js'],
 ];
+/**
+ * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
+ * error it forwards. Counted, so a second inline call in the file is a deliberate edit, not a free pass.
+ */
+const ROUTING = new Map([['packages/shared-utils/src/utils.ts', 2]]);
 const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*[`'"]/g;
 
 for (const [name, bundle] of MIGRATED) {
@@ -29,7 +41,9 @@ for (const [name, bundle] of MIGRATED) {
     const inline = [];
     for (const file of files) {
       const text = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-      for (const match of text.matchAll(INLINE)) inline.push(`${file}:${text.slice(0, match.index).split('\n').length}`);
+      const found = [...text.matchAll(INLINE)].map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
+      if (ROUTING.get(file) === found.length) continue;
+      inline.push(...found);
     }
     assert.deepEqual(inline, [], 'a message written inline — put its text in the package table and raise it by code');
   });
@@ -40,7 +54,9 @@ for (const [name, bundle] of MIGRATED) {
     const entries = [];
     for (const [owner, files] of [[name, tables], ['shared-utils', ['src/diagnostics.ts']]])
       for (const file of files) entries.push(...Object.entries(proseOf(await import(new URL(`../packages/${owner}/${file}`, import.meta.url).href))));
-    const min = readFileSync(join(root, 'packages', name, bundle), 'utf8');
+    const bundles = globSync(join('packages', name, bundle), { cwd: root });
+    assert.ok(bundles.length > 0, `CONTROL: ${bundle} matched a bundle`);
+    const min = bundles.map((file) => readFileSync(join(root, file), 'utf8')).join('\n');
     assert.ok(entries.length > 0, 'CONTROL: the table has entries');
     const leaked = [];
     let checked = 0;

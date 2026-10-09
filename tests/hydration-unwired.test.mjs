@@ -49,7 +49,8 @@ test('a served host holding the page\'s light content stands exactly as served, 
   assert.match(served, /data-vm-light="1:0,1"/, 'CONTROL: stated WITH light content');
   const host = mount(served);
   const before = host.outerHTML;
-  assert.throws(() => renderInto(card(), host), /hydration-unwired/);
+  assert.throws(() => renderInto(card(), host),
+    isProduction ? /^Error: \[vera\] hydration-unwired$/ : /^Error: \[vera\] slots: <[a-z0-9-]+> — this page was server-rendered and nothing hydrates it, so this light host[\s\S]*wire\(\[renderer, hydration, slots, hydrateSlots\]\)[\s\S]*\(hydration-unwired\)$/);
   assert.equal(host.outerHTML, before, 'not one node touched — the user\'s content is all still there');
 });
 
@@ -91,6 +92,7 @@ test('development warns ONCE per page, however many hosts it re-rendered', { ski
   const ours = said.filter((line) => line.includes('hydration-unwired'));
   assert.equal(ours.length, 1, `one warning for every host above: ${ours.join(' | ')}`);
   assert.match(ours[0], /wire\(\[renderer, hydration\]\)/, 'and it names the fix');
+  assert.match(ours[0], /^\[vera\] slots: the page — this page was server-rendered and nothing hydrates it, so its components re-render[\s\S]*\(hydration-unwired\)$/, 'the same code, the other outcome');
 });
 
 test('production prints nothing for the empty case', { skip: !isProduction && 'production only' }, () => {

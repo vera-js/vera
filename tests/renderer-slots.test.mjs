@@ -1023,6 +1023,7 @@ test('a binding that cannot work on a light-DOM slot is diagnosed', { skip: isPr
     'the inert list is exactly the attribute that will not work — the bindings that DO work here ' +
     'are events and `&ref`, which never appear as attributes, and `name`, which is excluded');
   assert.match(said, /`&ref` all work here/, 'and it says what to reach for instead');
+  assert.match(said, /^\[vera\] slots: <[a-z0-9-]+> — <slot[^>]*> carries [\s\S]*\(slot-attributes\)$/, 'by its code');
 });
 
 /**

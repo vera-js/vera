@@ -67,7 +67,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 32;
+const PENDING_MAX = 29;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -84,7 +84,7 @@ const CLAIMS = new Map([
   ['llms.txt#18c739df33', 'wrong-namespace'], // A HAND-WRITTEN template without the module wired is the same story: ``Frame(html`<path/>`)
   ['llms.txt#7e56270521', 'no-scope'], // **Light DOM:** hoisted to the document once per class, inside `@scope (tag-name) { … }`, w
   ['llms.txt#bc2964b69a', 'unwired-styles'], // Omit the wiring and a component with `static styles` renders unstyled — core warns once, i
-  ['llms.txt#08c76e5a7f', PENDING], // Development builds warn, naming the attribute. - A node added AFTER the first render joins
+  ['llms.txt#08c76e5a7f', 'slot-attributes'], // Development builds warn, naming the attribute. - A node added AFTER the first render joins
   ['llms.txt#e425a4f952', 'not a promise: points back to the insertBefore warning, which is entered where it is promised'], // What light has fewer of is POSITIONS you can name (a distributed child is no longer a dire
   ['llms.txt#fceb605423', 'not a promise: says no warning is possible'], // Wire `slots` on the SERVER too: without it the server states no light tree, and every comp
   ['llms.txt#807497a5bc', 'not a promise: says there is no warning'], // No error, no warning, no accessible name.
@@ -163,7 +163,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#62e6dacab5', 'late-template-module'], // Development names it when it happens, but the rule is cheaper than the diagnostic: wire it
   ['packages/renderer/README.md#36df9b936f', 'not a promise: says no warning is possible'], // **Wire `slots` on the server too:** a server without it writes no light-tree statement, so
   ['packages/renderer/README.md#0ea1b3bb42', 'hydration-protocol'], // The light-tree statement carries a format number, so render and hydrate with matching rele
-  ['packages/renderer/README.md#b10dc389a5', PENDING], // The one case that can be: with slots wired, the server states every component host it rend
+  ['packages/renderer/README.md#d30b698f07', 'hydration-unwired'], // The one case that can be: with slots wired, the server states every component host it rend
   ['packages/renderer/README.md#a7973b11a7', 'hydration-fallback'], // **A fallback warns in every build, naming the first place the two renders disagreed** — de
   ['packages/renderer/README.md#149cd7ec21', 'hydration-fallback'], // It is said once per kind of disagreement per hydration pass, so a list whose every row dis
   ['packages/renderer/README.md#53e2a71297', 'hydration-fallback'], // **A fallback costs one container, not the page.** Adoption is decided per container, so co
@@ -172,7 +172,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#40e8320f1f', 'spread-unsafe-name'], // **A key that cannot be written into markup is skipped**, with a warning in development.
   ['packages/renderer/README.md#5a81e4d78c', 'upgrade-clobber'], // Elements that never call `init()` keep the development warning and the `declare` advice in
   ['packages/renderer/README.md#f8471d54c4', 'forged-template'], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
-  ['packages/renderer/README.md#9716e1f324', PENDING], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
+  ['packages/renderer/README.md#9716e1f324', 'pinned by tests/api-misuse-sweep.test.mjs: a catalog of a dozen messages — every refusal it lists is thrown by the sweep, every warning has its own coded claim'], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
   ['packages/renderer/README.md#5ae4ff86c0', 'tag-key'], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
   ['packages/renderer/README.md#57d42dee7e', 'not a promise: a size'], // <!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the f
   ['packages/router/README.md#fa48cfe868', PENDING], // **A path that matches nothing does nothing, and development says so.** `navigate` returns 

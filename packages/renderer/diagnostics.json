@@ -232,6 +232,29 @@
       "params": [],
       "message": "a 'template' hook set an instance hook before `elements` (priority 10) and is replaced.",
       "fix": "Claim elements through the `element` insert instead of a second instance hook."
+    },
+    {
+      "code": "hydration-unwired",
+      "params": [
+        "outcome"
+      ],
+      "message": "this page was server-rendered and nothing hydrates it, so {outcome}.",
+      "fix": "Wire `hydration` beside the renderer — `wire([renderer, hydration])` — and, where a light host holds the page's content, `hydrateSlots` with `slots`: `wire([renderer, hydration, slots, hydrateSlots])`."
+    },
+    {
+      "code": "slot-attributes",
+      "params": [
+        "slot",
+        "attributes"
+      ],
+      "message": "{slot} carries {attributes}, which does nothing in a light-DOM component: the slot element steps out of the page while it has content.",
+      "fix": "Events, `name` and `&ref` all work here."
+    },
+    {
+      "code": "hydrate-slots-unwired",
+      "params": [],
+      "message": "reads the light-DOM statement through `slots`, which is not wired.",
+      "fix": "Wire `slots` beside it: `wire([renderer, hydration, slots, hydrateSlots])`."
     }
   ]
 }
