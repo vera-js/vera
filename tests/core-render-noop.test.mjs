@@ -1,7 +1,7 @@
 /**
  * `render()` with no component being set up did nothing, and said nothing. **Since 2026-10-09 it THROWS `no-owner`, in
  * every build** (Brian: one rule for every "no owner" case) — the rows below assert the throw, and that its message
- * names what to do instead (write to a store). The silent-path rows still assert silence.
+ * names what to do instead (write to a store). The ordinary path is silent; a bare `render()` names `mount()`.
  *
  * It ends the setup started by `init()` — it runs the first pass of every hook registered since,
  * then clears the current instance. So a *second* call has no instance to find, and returned in
@@ -31,7 +31,11 @@ const captureWarnings = async (run) => {
   } finally {
     console.warn = native;
   }
-  return warnings.filter((message) => message.includes('render() did nothing'));
+  /**
+   * Every framework warning, not one message: this filter once kept only the retired "render() did nothing", so the
+   * rows below could hear nothing at all — and one asserted silence for a call development names (2026-10-09).
+   */
+  return warnings.filter((message) => message.startsWith('[vera]'));
 };
 
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
@@ -93,7 +97,8 @@ test('render() from a handler after setup throws no-owner', async () => {
 });
 
 /** The ordinary path must stay silent, or the warning is noise. */
-test('one render() in setup warns about nothing', { skip: isProduction && 'the guard is __DEV__' }, async () => {
+test('one render() in setup warns about nothing', async () => {
+  let host;
   const warnings = await captureWarnings(async () => {
     class Fine extends HTMLElement {
       connectedCallback() {
@@ -103,25 +108,44 @@ test('one render() in setup warns about nothing', { skip: isProduction && 'the g
       }
     }
     customElements.define('x-render-fine', Fine);
-    document.body.append(new Fine());
+    host = new Fine();
+    document.body.append(host);
     await frame();
   });
+  assert.equal(host._root.textContent, '0', 'the control: it rendered');
   assert.deepEqual(warnings, []);
 });
 
-/** And a bare `render()`, which commits setup for a component that draws nothing. */
-test('a bare render() in setup warns about nothing', { skip: isProduction && 'the guard is __DEV__' }, async () => {
+/**
+ * A bare `render()` commits the setup for a component that draws nothing: it works, draws nothing over the root, and
+ * development names `mount()`, the word for it — once per call site that runs, every build's behavior otherwise equal.
+ * `mount()` itself is silent.
+ */
+test('a bare render() commits the setup, draws nothing, and development names mount()', async () => {
+  const ran = [];
+  let bare;
+  let mounted;
   const warnings = await captureWarnings(async () => {
     class SideEffect extends HTMLElement {
       connectedCallback() {
         core.init(this, { mode: 'open' });
-        core.useEffect(() => {});
-        core.render();
+        core.useEffect(() => { ran.push(this.localName); });
+        if (this.localName === 'x-render-bare') core.render();
+        else core.mount();
       }
     }
-    customElements.define('x-render-bare', SideEffect);
-    document.body.append(new SideEffect());
+    customElements.define('x-render-bare', class extends SideEffect {});
+    customElements.define('x-render-mount', class extends SideEffect {});
+    bare = document.createElement('x-render-bare');
+    mounted = document.createElement('x-render-mount');
+    document.body.append(bare, mounted);
     await frame();
   });
-  assert.deepEqual(warnings, []);
+  assert.deepEqual(ran, ['x-render-bare', 'x-render-mount'], 'both committed: their effects ran');
+  assert.equal(bare._root.textContent, '', 'nothing was drawn over the root — no `undefined`');
+  if (isProduction) assert.deepEqual(warnings, [], 'production carries no guard');
+  else {
+    assert.equal(warnings.length, 1, `one warning, for render() alone — mount() is silent: ${warnings.join(' | ')}`);
+    assert.match(warnings[0], /^\[vera\] core: render\(\) — render\(\) was called with no template[\s\S]*mount\(\);[\s\S]*\(bare-render\)$/);
+  }
 });
