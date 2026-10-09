@@ -46,7 +46,7 @@ const FILES = ['README.md', 'llms.txt', ...globSync('packages/*/README.md', { cw
  * page — it matches too (2026-10-09), and is pinned by the test that holds the pages' content.
  */
 const PATTERN =
-  /\b(?:warns?|warned|warning|says so|is named|names (?:it|the|both|which|any|one)|refused by name|reported|reports it|development (?:only )?(?:says|names|warns|throws|reports|catches|flags|tells)|(?:vera|it|the (?:framework|renderer|runtime|engine|router|compiler))\s+(?:names?|reports?|throws a \w*Error|refuses)|is (?:refused by name|said once)|names the (?:mistake|cause|binding|component|attribute))\b|verajs\.dev\/e\//i;
+  /\b(?:warns?|warned|warning|says so|is named|names (?:it|the|both|which|any|one)|refused by name|reported|reports it|development (?:only )?(?:says|names|warns|throws|reports|catches|flags|tells)|(?:vera|it|the (?:framework|renderer|runtime|engine|router|compiler))\s+(?:names?|reports?|throws a \w*Error|refuses)|is (?:refused by name|said once)|names the (?:mistake|cause|binding|component|attribute)|give every line a code)\b|verajs\.dev\/e\//i;
 
 /** Sentences, block-aware: a blank line, a heading or a table row ends a block, and code fences are not prose. */
 const sentences = (text) =>
@@ -72,6 +72,8 @@ const PENDING_MAX = 19;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
+  ['llms.txt#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // Core, styles, the renderer and the router also give every line a code …
+  ['packages/core/README.md#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // the same sentence
   ['llms.txt#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead — the subject and a link …
   ['llms.txt#abc9affc7d', 'pinned by tests/diagnostics-docs-pages.test.mjs: every code has a page to generate at that address (the hosting is the docs-site release item)'], // Whichever form you hold, the full explanation of a code is at …
   ['packages/core/README.md#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead …

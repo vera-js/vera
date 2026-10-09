@@ -510,7 +510,8 @@ html`<section>
 
 ## Diagnostics — reading a `[vera]` line
 
-Every line the framework prints starts `[vera]`, so one console filter finds them all, and every one carries a code.
+Every line the framework prints starts `[vera]`, so one console filter finds them all. Core, styles, the renderer and
+the router also give every line a code; the other packages carry codes before release.
 Development prints the explanation and the fix, ending with the code in parentheses:
 `[vera] core: <x-card> — registered 2 hook(s) but its setup was never committed, so none of them will ever run. … (setup-uncommitted)`.
 Production prints a short line instead — the subject and a link, `[vera] core: <x-card> — https://verajs.dev/e/setup-uncommitted`,

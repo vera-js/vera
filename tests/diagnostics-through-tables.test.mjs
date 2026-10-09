@@ -123,3 +123,38 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
   assert.ok(lines.length >= 6, `CONTROL: the six known bare lines were found — ${lines.join(' | ')}`);
   assert.deepEqual(malformed, [], 'a bare code line in another shape — `[vera] <code>: <subject>` or `[vera] <code>`, `name: <code>`');
 });
+
+/**
+ * **"Every line the framework prints carries a code" is true package by package, and this says which** (vera-5a,
+ * 2026-10-09). A package whose sources print or throw is either MIGRATED above (its messages come from its table) or
+ * listed here with the phase that moves it. The list only SHRINKS — `NOT_YET_MAX` — and phase 5 leaves cms's named
+ * exclusions (programmer API contracts, kept as named throws). The README and llms.txt name the migrated packages by
+ * this list, so the sentence cannot run ahead of the code.
+ */
+const NOT_YET = new Map([
+  ['jsx', 'phase 3'],
+  ['autoloader', 'phase 3'],
+  ['inserts', 'phase 3'],
+  ['store', 'phase 3'],
+  ['ui', 'phase 3'],
+  ['motion', 'phase 4 (its own table, omni parity)'],
+  ['directives', "phase 4 (its remainder — its table exists, a few inline lines don't use it)"],
+  ['ssr', 'phase 4'],
+  ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
+]);
+const NOT_YET_MAX = 9;
+
+test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
+  const printing = globSync('packages/*/src', { cwd: root })
+    .map((dir) => dir.split('/')[1])
+    .filter((name) =>
+      globSync(`packages/${name}/src/**/*.ts`, { cwd: root }).some((file) =>
+        /console\.(?:warn|error)\(|throw new \w*Error\(/.test(readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''))
+      )
+    );
+  assert.ok(printing.length >= 10, `CONTROL: ${printing.length} packages print`);
+  const migrated = new Set(MIGRATED.map(([name]) => name));
+  assert.deepEqual(printing.filter((name) => !migrated.has(name) && !NOT_YET.has(name)), [], 'a package prints uncoded and is on neither list');
+  assert.deepEqual([...NOT_YET.keys()].filter((name) => migrated.has(name)), [], 'migrated — delete its NOT_YET row');
+  assert.ok(NOT_YET.size <= NOT_YET_MAX, `${NOT_YET.size} not yet migrated, more than ${NOT_YET_MAX}: the list only shrinks`);
+});
