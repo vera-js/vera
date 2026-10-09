@@ -94,3 +94,14 @@ test('with the element given explicitly, a hook works anywhere — after an `awa
   assert.deepEqual(runs, [0, 1], 'it ran its first pass and heard the change');
   el.remove();
 });
+
+test('an element from ANOTHER window is a component element — init and allowRenderLoop accept it (nodeType, not instanceof)', () => {
+  /** A second window: its elements fail this window's `instanceof Element` — what a popped-out window's component is. */
+  const other = new JSDOM('<!doctype html><body></body>');
+  const el = other.window.document.createElement('div');
+  other.window.document.body.append(el);
+  assert.equal(el instanceof dom.window.Element, false, 'CONTROL: it is not an instance of this window\'s Element');
+  assert.doesNotThrow(() => core.init(el), 'init accepts it');
+  assert.doesNotThrow(() => core.allowRenderLoop(el), 'and allowRenderLoop');
+  core.mount();
+});
