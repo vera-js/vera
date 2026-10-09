@@ -76,8 +76,8 @@ import { renderer } from '@verajs/renderer';
 wire([renderer]);       // what writes to the DOM. Core's `html` already produces what it accepts.
 ```
 
-**Core ships no renderer.** `render()` with none registered paints nothing and warns once in
-development, naming the two lines to add. Wire one at your app entry:
+**Core ships no renderer.** `render()` with none registered paints nothing and warns once — in
+every build, since a CDN page never runs development — naming the two lines to add. Wire one at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
@@ -89,7 +89,7 @@ Core's `html` already produces the shape `@verajs/renderer` accepts, so the one 
 whole of the setup.
 
 **Order matters.** A component that defines itself before `wire([renderer])` renders with nothing on
-the `'render'` chain — `render()` warns once in development and draws nothing. Static
+the `'render'` chain — `render()` warns once (in every build) and draws nothing. Static
 `import` declarations are **hoisted**, so this is wrong:
 
 ```js
@@ -1690,7 +1690,7 @@ Say so rather than inventing an API:
 ## Common mistakes
 
 1. Defining a component before `wire([renderer])` → with nothing on the `'render'`
-   chain, `render()` warns once in development and draws nothing. (`mount()` is unaffected — it
+   chain, `render()` warns once (in every build) and draws nothing. (`mount()` is unaffected — it
    commits the setup and never reaches a renderer.)
 2. Static `import` for components in the entry file → hoisted, same failure.
 3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
@@ -1702,8 +1702,9 @@ Say so rather than inventing an API:
    component's setup and one of two calls closes it: `render(template)` for a component with markup,
    `mount()` for one whose whole job is a side effect. Both run the first pass of every hook
    registered since `init()`. Development warns if neither happens, and names both.
-7. Hooks after the setup is committed → ignored with a console warning. Register hooks between
-   `init()` and the `render()` or `mount()` that closes it, or pass the element explicitly.
+7. A hook, `render()` or `mount()` after the setup has closed (after an `await`, or from a handler) →
+   throws `no-owner`, in every build. Register hooks between `init()` and the `render()` or `mount()`
+   that closes it, await before `init()`, or pass the element explicitly.
 8. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
 9. An autoloaded file that loads and defines a different tag than its name → reported via
    `vera:autoload-error` and the console; the module must define the element it is named for.

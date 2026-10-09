@@ -37,7 +37,7 @@ customElements.define(
 document.body.append(document.createElement('click-counter'));
 ```
 
-Without it, core has no renderer at all: `render()` warns once in development and puts
+Without it, core has no renderer at all: `render()` warns once (in every build) and puts
 nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
 
 ### `renderInto(result, container)`

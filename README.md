@@ -43,7 +43,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->7.2 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
-`@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
+`@verajs/core` ships **no renderer of its own** — `render()` without one warns (in every build) and
 displays nothing. A renderer is the one module every app needs, which is why
 <!--size:app.kb-->7.2 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
