@@ -18,24 +18,24 @@ code, so they are not re-litigated.
   conditionally — template identity holds, so values update in place instead of the subtree being
   torn down and rebuilt. (This was also a correctness issue before 0.1.2; see
   `tests/renderer-sibling-parts.test.mjs`.)
-- **Testing a component without a browser:** compile with `transformJsx`, run under jsdom with
-  `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
-  `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
+- **Testing a component without a browser:** compile with `transformJsx`, run under jsdom, and await a
+  microtask or call core's `flush()` — the scheduler flushes every queued render and effect as ONE
+  microtask. **Seed `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
-- **A probe needs `pretendToBeVisual: true`, or the scheduler runs synchronously.** The default
-  scheduler uses the ELEMENT's window's `requestAnimationFrame` (since 2026-09-27, so a component in a
-  popped-out window runs on that window's frames), and jsdom only has one with `pretendToBeVisual`.
-  Without it `animationFrame` falls back to `run()`, so every write flushes immediately and
-  **coalescing cannot happen** — a probe missing it reports `useEffect` running 100 times for 100
-  writes and looks like a broken batch (measured: 1 run with it, 100 without, whether or not
-  `globalThis` has the function; `.probe/raf-realm/`). Copy `requestAnimationFrame` onto `globalThis`
-  too — it is still the fallback for a pass with no element. **A harness that REPLACES the global
-  for fast frames is bypassed** whenever the element's window has its own: replace
-  `dom.window.requestAnimationFrame` as well (`ssr-collections-roundtrip` waited 10 ms on a 16 ms
-  clock after this changed). The full list a probe needs is
-  `window document HTMLElement customElements CSSStyleSheet Node Element DocumentFragment
-  requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent` for anything
-  dispatching, and `location`/`history` for the router.
+- **A probe drives the scheduler with `flush()`, not frames.** Core flushes every queued render, layout
+  effect and effect as one microtask, within a budget of ~4 ms of flush work per 16 ms (by the clock).
+  Past the budget, and for a hook's THIRD run in one flush (a self-feeding loop), it waits for the
+  ELEMENT's window's next frame or a 100 ms timer, whichever comes first. So writes in one task coalesce
+  into one flush in any jsdom, with or without `pretendToBeVisual` (measured 2026-10-08: 100 writes → 0
+  runs synchronously and 1 after a microtask, both ways, `.probe/coalesce/` — the old "1 with it, 100
+  without" was the frame scheduler's), and a probe awaits a microtask or
+  calls `flush()`. Frames matter only on the held path: without `pretendToBeVisual` that path takes the
+  100 ms timer, so a probe exercising a loop or the budget gives jsdom frames, or calls `flush()` and
+  waits out the timer deliberately. **Never drive the budget with real time** — `performance.now()` is
+  coarse on Firefox and WebKit; a test crossing the budget by elapsed milliseconds is flaky on CI. The
+  full list a probe needs is `window document HTMLElement customElements CSSStyleSheet Node Element
+  DocumentFragment requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent`
+  for anything dispatching, and `location`/`history` for the router.
 - **jsdom is stricter than a browser about `setAttribute`, and that difference has already produced
   one false finding.** jsdom implements the XML Name production and throws on `a(b)`, `a|b`, `a?b`
   and about fifty other shapes; **every real engine accepts them**, rejecting exactly `a b`, `a>b`,
@@ -103,6 +103,13 @@ code, so they are not re-litigated.
   ≈ 44% (2026-10-02; paired deltas held). The race harnesses wait on exactly that check. **And leave it time to cool** (Brian, 2026-09-27): a few
   minutes after the last build, gate or race before any timing run, and between consecutive races —
   it is a fanless laptop, and correctness suites are the only thing that can run back to back.
+- **Timing deferred work, "see the DOM, then wait for the next paint" charges deferral a frame it never cost.** A
+  flush deferred to a frame writes the DOM INSIDE that frame's callbacks, and that frame paints it; a probe that
+  notices the DOM and only then requests a frame waits for the NEXT one. Measured 2026-10-08: it made the scheduler's
+  4 ms budget look a frame slower than plain microtasks on cheap floods (33 vs 18 ms) when, measured fairly, the two
+  tie. Fair: start a frame chain BEFORE the work, and from each frame's callback queue a task (which runs after that
+  frame's rendering) that asks whether the DOM was final when it painted. For a real interaction, the browser's own
+  Event Timing (`PerformanceObserver({ type: 'event' })`, the INP measure) is the ground truth.
 - **An async timing loop is ONE job, and a short window's median measures the GC schedule, not the
   code.** Two traps, both of which produced a wrong conclusion here (2026-09-28). (1) `for (…) await
   render()` never yields a macrotask, and the platform keeps every `WeakRef` target alive until the job
