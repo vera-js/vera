@@ -108,3 +108,18 @@ test('shaking: naming only the engine and interaction drops the expression tier 
   assert.ok(!lean.includes('vd:motion'), 'and costs nothing when it is not');
   assert.ok(lean.includes('data-vd-'), 'and the engine itself was retained');
 });
+
+test('a core of ANOTHER protocol is declined, with one warning, and the engine keeps its own copy', async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(String(args[0]));
+  try {
+    /** A registry as a different release's core would hand it: `$s` with another protocol number. */
+    const foreign = new Map();
+    foreign.$s = [999, () => { throw new Error('a foreign createStore must never be called'); }, () => {}, (fn) => fn()];
+    directives.connect(foreign);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(said.filter((line) => line.includes('different releases')).length, 1, `one warning: ${said.join(' | ')}`);
+});

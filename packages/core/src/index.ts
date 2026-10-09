@@ -53,9 +53,11 @@ import { createHook as createHookFn } from './modules/createHook.js';
  * Core's store machinery, handed the same way to a module that keeps stores of its own (`@verajs/directives`): a
  * production directives bundle inlines its own copy of core, and without this its stores and the page's hooks lived in
  * two registries — a directive write never woke a component (vera-5a, 2026-10-09: by `connect`, not a page-global
- * stamp — the side channel 0.2.0 removed by construction).
+ * stamp — the side channel 0.2.0 removed by construction). Position 0 is its PROTOCOL, as every cross-bundle seam
+ * carries one: a module from another release declines it and keeps its own copy, rather than calling these with
+ * signatures it does not know. Bump it whenever a signature here changes.
  */
-(inserts as unknown as { $s: object }).$s = { createStore: createStoreFn, createHook: createHookFn, untrack: untrackFn };
+(inserts as unknown as { $s: unknown[] }).$s = [1, createStoreFn, createHookFn, untrackFn];
 export { useRender } from './hooks/useRender.js';
 export { allowRenderLoop, flush, setRenderScheduler, microtask, frameBudget } from './modules/scheduler.js';
 export { html, mathml, svg } from './store/store.js';
