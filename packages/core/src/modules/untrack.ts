@@ -17,7 +17,14 @@ import type { Untracked } from '@verajs/shared-utils';
  * @param fn Function to run without tracking
  * @return Whatever `fn` returns
  */
-export const untrack = <T>(fn: () => T): T => untracked(fn);
+export const untrack = <T>(fn: () => T): T => {
+  if (__DEV__ && typeof fn !== 'function')
+    throw new TypeError(
+      `untrack: expected a function and received ${String(fn)}. It runs the function without subscribing — ` +
+        `\`untrack(() => state.a)\`, not \`untrack(state.a)\`, which reads the property before untrack can do anything about it.`
+    );
+  return untracked(fn);
+};
 
 /**
  * `fn(a, b, c)` with nothing on top of the tracking stack — `untrack` with its arguments passed through, so a hot

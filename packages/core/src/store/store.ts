@@ -21,14 +21,26 @@ export const hooksQueue: (WeakRef<HookCallback> | undefined)[] = [];
  */
 export const proxyCallbacks = new WeakMap<object, Map<unknown, Set<WeakRef<HookCallback>>>>();
 
-/** One tag per template kind: the strings and values, marked with the kind for a renderer to consume. */
+/**
+ * One tag per template kind: the strings and values, marked with the kind for a renderer to consume.
+ *
+ * **Called with a string instead of tagged, development names it** (main had this; the lean rebuild dropped it):
+ * `html('<p>x</p>')` puts a string where the strings array goes, passes every shape check, and fails much later inside
+ * the renderer with "Invalid value used as weak map key", naming nothing. `Array.isArray`, not `raw`: a hand-built
+ * `html([markup])` works and is allowed. The name comes from the kind, so production carries no string.
+ */
 const tag =
   <T extends ResultType>(type: T) =>
-  (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => ({
-    ['_$litType$']: type,
-    strings,
-    values,
-  });
+  (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
+    if (__DEV__ && !Array.isArray(strings)) {
+      const name = ['html', 'svg', 'mathml'][type - 1];
+      throw new TypeError(
+        `${name}: expected a template literal and received ${typeof strings === 'string' ? JSON.stringify(strings) : String(strings)}. ` +
+          `It is a tagged template — write ${name}\`<p>hi</p>\`, not ${name}('<p>hi</p>').`
+      );
+    }
+    return { ['_$litType$']: type, strings, values };
+  };
 
 /** The `html` tagged template. */
 export const html = tag(1);

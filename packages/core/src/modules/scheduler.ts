@@ -182,6 +182,11 @@ export const flush = __DEV__
  *   whether. The default, `microtask`, runs every flush at once; `frameBudget` opts into merging floods of data.
  */
 export const setRenderScheduler = (scheduler: RenderScheduler) => {
+  if (__DEV__ && typeof scheduler !== 'function')
+    throw new TypeError(
+      `setRenderScheduler: expected a function and received ${String(scheduler)}. It receives the flush and decides ` +
+        `when to run it — \`microtask\` (the default) and \`frameBudget\` are exported for that.`
+    );
   const previous = renderScheduler;
   renderScheduler = scheduler;
   scheduled = next < queue.length;
@@ -235,7 +240,10 @@ const loopWarning = (pass: HookPass) => {
 export const allowRenderLoop = (element: ComponentElement) => {
   if (__DEV__) {
     if (!(element instanceof Element))
-      throw new TypeError(`allowRenderLoop: expected the component element (\`this\`), received ${String(element)}.`);
+      throw new TypeError(
+        `allowRenderLoop: expected a component element and received ${String(element)}. Pass the element whose loop ` +
+          `is intentional — \`allowRenderLoop(this)\` inside the component.`
+      );
     exempt.add(element);
   }
 };
