@@ -1,5 +1,7 @@
 import type { RouteSnapshot, RouteEvent, RouteEventHandler } from './types.js';
 import { getOrCreate, handlers } from './state.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 
 /**
  * Development: a guard returned a path — the Vue Router habit, which does not redirect here. A string is truthy, so
@@ -9,13 +11,16 @@ import { getOrCreate, handlers } from './state.js';
  */
 export const saidString = (guard: string, path: RouteSnapshot['path'] | undefined, verdict: string, redirectable: boolean) =>
   console.warn(
-    `[vera] router: ${guard} on "${path}" returned the string "${verdict}", which is truthy, so the route was ` +
-      `allowed. Only \`false\` cancels.\nTo send someone elsewhere, ` +
-      (redirectable
-        ? `either set \`redirect: "${verdict}"\` on the route — which settles inside the promise \`navigate()\` ` +
-          `returns — or call`
-        : 'call') +
-      ` \`navigate("${verdict}")\` and return \`false\`, which starts a separate navigation that promise does not cover.`
+    diagnostic('router', `${guard} on "${path}"`, 'router-string-guard',
+      __DEV__ &&
+        PROSE['router-string-guard'](
+          verdict,
+          'To send someone elsewhere, ' +
+            (redirectable
+              ? `either set \`redirect: "${verdict}"\` on the route — which settles inside the promise \`navigate()\` returns — or call`
+              : 'call') +
+            ` \`navigate("${verdict}")\` and return \`false\`, which starts a separate navigation that promise does not cover.`
+        ))
   );
 
 /**
@@ -51,7 +56,7 @@ export const emit = async (
         saidString(`a \`${event}\` handler`, to.path, verdict, false);
     } catch (error) {
       interrupted = true;
-      console.error(`[vera] ${event} handler threw`, error);
+      console.error(diagnostic('router', `a ${event} handler`, 'router-handler-threw', __DEV__ && PROSE['router-handler-threw']()), error);
     }
   }
 

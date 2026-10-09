@@ -5,7 +5,8 @@ import type { Inserts } from '@verajs/inserts';
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
 import { saidString } from './events.js';
-import { stripTrailingSlash } from '@verajs/shared-utils';
+import { diagnostic, misuse, stripTrailingSlash } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 import type { Renderer } from '@verajs/shared-types';
 
 /**
@@ -58,7 +59,7 @@ export const router = (given: Inserts | { animate?: boolean; base?: string }): v
   if (__DEV__) {
     for (const key of Object.keys(options))
       if (key !== 'animate' && key !== 'base')
-        console.warn(`[vera] router: \`${key}\` is not a router option, so it was ignored. The options are animate, base.`);
+        console.warn(diagnostic('router', 'router()', 'router-option', __DEV__ && PROSE['router-option'](key)));
   }
   /** Applied immediately, not in the returned connector: the no-core path (`setRouterRenderer`)
    *  never wires the connector and must still be able to opt in. */
@@ -112,11 +113,7 @@ export const setRouterRenderer = (renderer: Renderer) => {
    * `__DEV__`-only: production carries neither the check nor the text.
    */
   if (__DEV__ && typeof renderer !== 'function')
-    throw new Error(
-      `setRouterRenderer: expected a function and received ${String(renderer)}. ` +
-        `\`@verajs/renderer\` exports it as \`renderInto\` — or pass the module to \`wire\` instead, ` +
-        `which is what \`wire([renderer, router])\` does.`
-    );
+    throw new Error(misuse('setRouterRenderer', 'router-renderer-not-function', __DEV__ && PROSE['router-renderer-not-function'](String(renderer))));
   direct = [renderer];
 };
 
@@ -135,10 +132,7 @@ export const setMatchFunction = (matchFunction: <P extends ParamData>(routePatte
   /** Throws at the next `addRoutes` otherwise — *"routerSettings.match is not a function"*, which
    *  names an internal and not the call that broke it. `__DEV__`-only. */
   if (__DEV__ && typeof matchFunction !== 'function')
-    throw new Error(
-      `setMatchFunction: expected a function and received ${String(matchFunction)}. It is called ` +
-        `once per route pattern and must return a matcher — this is the seam for path-to-regexp.`
-    );
+    throw new Error(misuse('setMatchFunction', 'router-match-not-function', __DEV__ && PROSE['router-match-not-function'](String(matchFunction))));
   routerSettings.match = matchFunction;
 };
 
@@ -169,10 +163,7 @@ let explicitBase: string | null = null;
  */
 export const setBasePath = (path: string | null) => {
   if (__DEV__ && path !== null && typeof path !== 'string')
-    throw new Error(
-      `setBasePath: expected a string or null and received ${String(path)}. It is the path prefix ` +
-        `the app is served under, such as '/app'.`
-    );
+    throw new Error(misuse('setBasePath', 'router-base-not-string', __DEV__ && PROSE['router-base-not-string'](String(path))));
   explicitBase = path === null ? null : normalizeBase(path);
 };
 
@@ -348,7 +339,7 @@ export const forward = () => go(1);
 export const resolve = (name: string, params: RouteParams = {}) => {
   const pattern = names.get(name);
   if (pattern === undefined) {
-    if (__DEV__) console.warn(`[vera] no route is named "${name}"`);
+    if (__DEV__) console.warn(diagnostic('router', 'resolve()', 'router-unknown-name', __DEV__ && PROSE['router-unknown-name'](name)));
     return '';
   }
   return addBase(pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
@@ -502,9 +493,7 @@ export const navigate = async (
    * The two shapes it does accept are worth naming, since the object form is the less obvious one.
    */
   if (__DEV__ && (target === null || (typeof target !== 'string' && typeof target !== 'object')))
-    throw new TypeError(
-      `navigate: expected a path or a { name, params } object and received ${String(target)}.`
-    );
+    throw new TypeError(misuse('navigate', 'router-navigate-target', __DEV__ && PROSE['router-navigate-target'](String(target))));
   /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
   let path = typeof target === 'string' ? target : resolve(target.name, target.params);
   /**
@@ -592,16 +581,16 @@ export const navigate = async (
     if (!resolved && path.startsWith('//')) {
       if (__DEV__)
         console.warn(
-          `[vera] navigate() refused "${path}" — it names an origin, and this document's base ` +
-            `(${window.location.href}) cannot resolve one. Use location.assign() to leave the site.`
+          diagnostic('router', 'navigate()', 'router-cross-origin',
+            __DEV__ && PROSE['router-cross-origin'](path, `it names an origin, and this document's base (${window.location.href}) cannot resolve one`))
         );
       return false;
     }
     if (resolved && resolved.origin !== window.location.origin) {
       if (__DEV__)
         console.warn(
-          `[vera] navigate() refused "${path}" — it resolves to ${resolved.origin}, and this ` +
-            `router only moves within ${window.location.origin}. Use location.assign() to leave the site.`
+          diagnostic('router', 'navigate()', 'router-cross-origin',
+            __DEV__ && PROSE['router-cross-origin'](path, `it resolves to ${resolved.origin}, and this router only moves within ${window.location.origin}`))
         );
       return false;
     }
@@ -628,13 +617,7 @@ export const navigate = async (
         Object.values(state.params).some((value) => value === last)
       ) {
         warnedSwallow.add(target);
-        console.warn(
-          `[vera] router: navigate("${target}") from "${prior}" resolved to "${bare}" — a relative ` +
-            `path replaces the last segment, like a relative href, and here that segment was a route ` +
-            `param ("${last}"). For the SIBLING "${bare}" this is right. For the child ` +
-            `"${prior}/${target}", use a named route — \`navigate({ name })\` fills params from the ` +
-            `current route — or the absolute path.`
-        );
+        console.warn(diagnostic('router', 'navigate()', 'router-relative-param', __DEV__ && PROSE['router-relative-param'](target, prior, bare, last)));
       }
     }
   }
@@ -717,7 +700,7 @@ export const navigate = async (
     const redirect = match?.route.redirect;
     if (redirect) {
       if (redirectDepth >= 10) {
-        console.error(`[vera] redirect loop at ${path}`);
+        console.error(diagnostic('router', `"${path}"`, 'router-redirect-loop', __DEV__ && PROSE['router-redirect-loop'](path)));
         return false;
       }
       const target =
@@ -795,11 +778,7 @@ export const navigate = async (
    * `__DEV__`-only, so a production bundle carries neither the check nor the text.
    */
   if (__DEV__ && matches.length === 0)
-    console.warn(
-      `[vera] router: nothing matched "${matchPath}", so the navigation did nothing. ` +
-        `A link with \`route\` has already had its click canceled by then — add the route, or a ` +
-        `catch-all \`/*rest\`, which sorts last however it is declared.`
-    );
+    console.warn(diagnostic('router', 'navigate()', 'router-no-match', __DEV__ && PROSE['router-no-match'](matchPath)));
   if (!routed) return false;
 
   /**
@@ -1009,15 +988,8 @@ const routeChange = async (
     if (!levelView) {
       if (__DEV__ && link.parent)
         console.warn(
-          processedView === undefined
-            ? `[vera] the route "${link.path}" is nested, and this router was given its root outlet as ` +
-              `an element — which is one node, so a child cannot inherit it without overwriting its ` +
-              `parent. Its view is looked for inside the one its parent rendered into, and no [view] ` +
-              `was found there. Give the child a \`view\` name and have the parent's template render ` +
-              `an outlet with it, or initialize the router with a name instead of an element.`
-            : `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
-              `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
-              `parent's template has to render the outlet its children route into.`
+          diagnostic('router', 'navigate()', 'router-no-outlet',
+            __DEV__ && PROSE['router-no-outlet'](String(link.path), processedView === undefined ? 'element' : String(processedView)))
         );
       return false;
     }
@@ -1047,11 +1019,7 @@ const routeChange = async (
      */
     if (__DEV__ && chain.length === 0 && !warnedAboutRenderer) {
       warnedAboutRenderer = true;
-      console.warn(
-        `[vera] router: nothing is wired to render a route, so navigation changes the URL and ` +
-          `paints nothing. Wire the router itself alongside the renderer — \`wire([renderer, router])\` ` +
-          `— or hand it one directly with \`setRouterRenderer(render)\`.`
-      );
+      console.warn(diagnostic('router', 'navigate()', 'router-no-renderer', __DEV__ && PROSE['router-no-renderer']()));
     }
     chain.forEach((callback) => {
       callback?.(template, levelView);

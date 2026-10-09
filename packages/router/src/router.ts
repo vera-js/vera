@@ -1,4 +1,6 @@
 import type { AddRoutes, RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptions } from './types.js';
+import { diagnostic, misuse } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 import { on, off } from './events.js';
 import { elements, elementsData, routerSettings } from './state.js';
 import { attachWindowListeners, navigate, stripBase } from './services.js';
@@ -20,7 +22,7 @@ export const initRouter = (
    * Thrown rather than warned: without a view there is no outlet, so every navigation would return
    * false and the router would look inert with nothing to explain it.
    */
-  if (!element || !view) throw new Error('Set an element and view');
+  if (!element || !view) throw new Error(misuse('initRouter', 'router-no-view', __DEV__ && PROSE['router-no-view']()));
 
   /**
    * **An option this router does not have is a mistake, and silence about it is the bug.**
@@ -38,12 +40,7 @@ export const initRouter = (
     const known = ['view', 'focusView', 'handleInitial', 'hashChangeFunction', 'pushHash', 'scrollBehavior'];
     for (const option of Object.keys(routerOptions))
       if (!known.includes(option))
-        console.warn(
-          `[vera] router: \`${option}\` is not an initRouter option, so it was ignored.` +
-            (option === 'routes'
-              ? ' Routes are registered separately: `const { addRoutes } = initRouter(el, { view }); addRoutes(routes)`.'
-              : ` The options are ${known.join(', ')}.`)
-        );
+        console.warn(diagnostic('router', 'initRouter', 'router-init-option', __DEV__ && PROSE['router-init-option'](option, known.join(', '))));
   }
 
   /** Deferred to first init so importing the router stays side-effect-free (and Node-safe). */

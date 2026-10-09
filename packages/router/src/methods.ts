@@ -1,4 +1,6 @@
 import type { Route, RouteOptions } from './types.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 import { routerSettings } from './state.js';
 
 /** Hrefs already reported by the base diagnostic below — one word each, not one per click. */
@@ -76,13 +78,7 @@ const addLinkListener = (element: HTMLElement) => {
       const base = currentBase();
       if (base !== '' && !url.pathname.startsWith(base) && !warnedOutside.has(href)) {
         warnedOutside.add(href);
-        console.warn(
-          `[vera] router: <a route href="${href}"> points outside the app's base ("${base}"). ` +
-            `Clicking it works, because the router re-bases the URL it writes — but the href itself ` +
-            `is wrong anywhere the router is not involved: a new tab, a copied link, a crawler. ` +
-            `Write it as "${base}${url.pathname}" or relative to the <base>. \`resolve()\` already ` +
-            `returns the mounted path.`
-        );
+        console.warn(diagnostic('router', '<a route>', 'router-href-base', __DEV__ && PROSE['router-href-base'](href, base, url.pathname)));
       }
     }
     const path = stripBase(url.pathname) + url.search + url.hash;
@@ -110,7 +106,7 @@ const addLinkListener = (element: HTMLElement) => {
           detail: { path, error, element },
         })
       );
-      console.error(`[vera] router: navigating to ${path} threw, so the view was left as it was:`, error);
+      console.error(diagnostic('router', `"${path}"`, 'router-navigate-threw', __DEV__ && PROSE['router-navigate-threw'](path)), error);
     }
   };
 
@@ -208,21 +204,14 @@ export const addRoutes = (
     if (__DEV__ && !aliased)
       for (const key of Object.keys(routes[i]))
         if (!ROUTE_KEYS.includes(key))
-          console.warn(
-            `[vera] router: \`${key}\` is not a route option, so it was ignored on ` +
-              `"${String(routes[i].path)}". The options are ${ROUTE_KEYS.join(', ')} — anything else ` +
-              `belongs in \`meta\`, which every guard and action reads off the snapshot.`
-          );
+          console.warn(diagnostic('router', 'addRoutes', 'router-route-option', __DEV__ && PROSE['router-route-option'](key, String(routes[i].path), ROUTE_KEYS.join(', '))));
     const { path } = routes[i];
     const completePath = typeof path === 'function' ? path : join(parentRoute, path);
 
     const route: Route = { ...routes[i], parent };
     if (!aliased && route.name !== undefined && typeof completePath === 'string') {
       if (__DEV__ && names.has(route.name) && names.get(route.name) !== completePath)
-        console.warn(
-          `[vera] two routes are named "${route.name}" — "${names.get(route.name)}" and ` +
-            `"${completePath}". The last one registered is the one \`resolve\` will build.`
-        );
+        console.warn(diagnostic('router', 'addRoutes', 'router-duplicate-name', __DEV__ && PROSE['router-duplicate-name'](route.name, String(names.get(route.name)), completePath)));
       names.set(route.name, completePath);
     }
     if (typeof path !== 'function') {
