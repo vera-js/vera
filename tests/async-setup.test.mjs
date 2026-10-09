@@ -21,7 +21,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { isProduction, load } from './dist.mjs';
+import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body><div id="app"></div></body>', { url: 'https://x.test/', pretendToBeVisual: true });
 for (const key of [
