@@ -147,6 +147,32 @@ const settle = (tags: string[]) => {
 };
 
 /**
+ * **A write or delete the LANGUAGE refused, explained — development only** (main had this; the lean rebuild dropped it).
+ * A proxy reports a refused write by returning `false`, and the engine turns that into "'set' on proxy: trap returned
+ * falsish" — a message about the trap, framework internals the reader never wrote. `createStore(Object.freeze(x))` is
+ * an ordinary thing to write. Every case is one of the language's own invariants (frozen; sealed or non-extensible with
+ * a new key; a non-writable property; a getter with no setter), derived from the target. It throws either way, so the
+ * two builds agree on what the program does; production folds the check out of the hot write path.
+ */
+const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
+  const key = `\`${String(prop)}\``;
+  const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+  const state = Object.isFrozen(obj) ? 'frozen' : Object.isSealed(obj) ? 'sealed' : null;
+  const why = !own
+    ? `the object is ${state ?? 'not extensible'}, so ${key} cannot be added`
+    : own.get && !own.set
+      ? `${key} has a getter and no setter`
+      : state
+        ? `the object is ${state}, so ${key} cannot be ${verb}`
+        : `${key} is not ${verb === 'deleted' ? 'configurable' : 'writable'}`;
+  return new TypeError(
+    `[vera] createStore: this store's source object refused the ${verb === 'deleted' ? 'delete' : 'write'} — ${why}. A ` +
+      `store proxies the object it was given and cannot override what JavaScript declines. Pass a mutable object to ` +
+      `createStore, or keep this one outside the store and read it directly.`
+  );
+};
+
+/**
  * **A collection in a store with nothing to make it reactive is said once, in development** (main had this; the lean
  * rebuild dropped it). A `Map`/`Set` no `'store'` module claims is handed back RAW — it works and never updates the
  * page, the worst failure mode there is: silent. Checked when its TYPE is first decided (once per page, so once), a
@@ -260,6 +286,7 @@ const handler: ProxyHandler<object> = {
     } finally {
       writingObj = null;
     }
+    if (__DEV__ && !written) throw refusedWrite(obj, prop, 'changed');
     if (written) {
       trigger(obj, prop, value, prevValue);
       if (added) trigger(obj, GLOBAL, value, prevValue);
@@ -296,6 +323,7 @@ const handler: ProxyHandler<object> = {
     const had = prop in obj;
     const prevValue = had ? Reflect.get(obj, prop) : undefined;
     const deleted = Reflect.deleteProperty(obj, prop);
+    if (__DEV__ && !deleted && had) throw refusedWrite(obj, prop, 'deleted');
     if (deleted && had) {
       trigger(obj, prop, undefined, prevValue);
       trigger(obj, GLOBAL, undefined, prevValue);
