@@ -30,14 +30,10 @@ import type { Payload } from './payload-defaults.js';
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
 /**
- * The engine never hard-binds to the copy of core it was bundled with. Core's `wire` stamps
- * `Symbol.for('vera.core')` with the copy the app actually uses — only a wired core can stamp,
- * so a baked copy inside this bundle can never impersonate it — and resolution here is LAZY and
- * SNAPSHOTS once, at the first store or hook this engine creates. On a vera page that means the
- * stamped core wins and components and directives share one store registry; on a page with no
- * vera at all nothing ever stamps, and the baked copy serves. A stamp missing either function is
- * not core's stamp and is ignored (with a dev note), which is also the forward seam for a
- * version gate when the release tooling can bake a compatible range in.
+ * The engine never hard-binds to the copy of core it was bundled with: `wire([directives])` hands it the page's core
+ * (`adoptCore`, below), so components and directives share one store registry — in a production bundle too, where the
+ * engine inlines its own copy. With no core on the page, the baked copy serves. Resolution is LAZY: the first store or
+ * hook the engine creates uses whatever is adopted by then.
  */
 type LoaderFn = (name: string, element: Element) => boolean | Promise<unknown> | void;
 type Substrate = {
@@ -49,12 +45,17 @@ type Substrate = {
   inserts?: Map<string, unknown[]>;
 };
 let substrate: Substrate | null = null;
-const core = (): Substrate => {
-  if (substrate) return substrate;
-  const stamp = (globalThis as Record<symbol, unknown>)[Symbol.for('vera.core')] as Substrate | undefined;
-  if (stamp && typeof stamp.createStore === 'function' && typeof stamp.createHook === 'function') return (substrate = stamp);
-  if (__DEV__ && stamp) console.warn('[vera] the vera.core stamp is not a usable substrate — the engine is using its own copy.');
-  return (substrate = { createStore: bakedCreateStore, createHook: bakedCreateHook, untrack: bakedUntrack, inserts: bakedInserts as unknown as Map<string, unknown[]> });
+/**
+ * **The page's core, handed by `wire([directives])`** — `connect` receives core's registry, which carries its store
+ * machinery (`$s`). Without it (a directives bundle used with no core, or packs wired only through `wireDirectives`)
+ * the engine runs on the copy it bakes. Replaced the page-global `Symbol.for('vera.core')` stamp (vera-5a, 2026-10-09):
+ * the side channel 0.2.0 removed by construction. Wire before the markup activates — stores made earlier stay baked.
+ */
+const core = (): Substrate =>
+  (substrate ??= { createStore: bakedCreateStore, createHook: bakedCreateHook, untrack: bakedUntrack, inserts: bakedInserts as unknown as Map<string, unknown[]> });
+const adoptCore = (registry: Map<string, unknown[]>) => {
+  const given = (registry as unknown as { $s?: Omit<Substrate, 'inserts'> }).$s;
+  if (given) substrate = { ...given, inserts: registry };
 };
 
 /* ── discovery: the 'loader' seam (design §7) ─────────────────────────────────────────────── */
@@ -1440,6 +1441,7 @@ export const directives = {
    */
   on: (onServer() ? 'settle' : 'init') as 'init',
   priority: 40,
+  connect: adoptCore,
   fn: (element: HTMLElement) => {
     claim();
     const el = element as unknown as Record<string, ShadowRoot | null | undefined>;

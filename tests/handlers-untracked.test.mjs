@@ -77,7 +77,7 @@ test('spread `@click`: the same', async () => {
  * the component's effect share ONE core — development (core stays external); a production bundle inlines its own
  * core into directives (the missing core stamp, group A), so there the effect could never track it at all.
  */
-test('directives `data-vd-on-click`: later clicks do not re-run the effect that once fired it', { skip: isProduction && 'production directives bundle carries its own core (group A stamp)' }, async () => {
+test('directives `data-vd-on-click`: later clicks do not re-run the effect that once fired it', async () => {
   const draw = () => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`;
   const { afterMount, effectRuns, probed } = await run('hu-directives', draw, (el) => stateOf(el.querySelector('[data-vd-state]'))?.count);
   assert.equal(probed, 4, 'CONTROL: the on-click assignment ran for the effect\'s click and three more — once each');
@@ -89,7 +89,7 @@ test('directives `data-vd-on-click`: later clicks do not re-run the effect that 
  * component ran `data-vd-on-click` TWICE (the document's root listener and the component's both handled it). Each
  * element now runs once per event. A plain page region is the control.
  */
-test('one click runs a light component\'s data-vd-on-click ONCE — not once per delegated root', { skip: isProduction && 'production directives bundle carries its own core' }, async () => {
+test('one click runs a light component\'s data-vd-on-click ONCE — not once per delegated root', async () => {
   customElements.define('hu-once', class extends HTMLElement {
     connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
   });
@@ -103,7 +103,7 @@ test('one click runs a light component\'s data-vd-on-click ONCE — not once per
   el.remove();
 });
 
-test('the SAME Event dispatched twice runs the handler twice — no per-event state (vera-5a)', { skip: isProduction && 'production directives bundle carries its own core' }, async () => {
+test('the SAME Event dispatched twice runs the handler twice — no per-event state (vera-5a)', async () => {
   customElements.define('hu-again', class extends HTMLElement {
     connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
   });

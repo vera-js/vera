@@ -40,13 +40,22 @@ export { mount } from './modules/mount.js';
 export { render } from './modules/render.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
-import { untracked } from './modules/untrack.js';
+import { untracked, untrack as untrackFn } from './modules/untrack.js';
+import { createStore as createStoreFn } from './modules/createStore.js';
+import { createHook as createHookFn } from './modules/createHook.js';
 /**
  * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
  * not an extension point — it is core's own tracking stack, and nothing wired later may replace it. `$`-named, so it
  * survives mangling.
  */
 (inserts as unknown as { $t: typeof untracked }).$t = untracked;
+/**
+ * Core's store machinery, handed the same way to a module that keeps stores of its own (`@verajs/directives`): a
+ * production directives bundle inlines its own copy of core, and without this its stores and the page's hooks lived in
+ * two registries — a directive write never woke a component (vera-5a, 2026-10-09: by `connect`, not a page-global
+ * stamp — the side channel 0.2.0 removed by construction).
+ */
+(inserts as unknown as { $s: object }).$s = { createStore: createStoreFn, createHook: createHookFn, untrack: untrackFn };
 export { useRender } from './hooks/useRender.js';
 export { allowRenderLoop, flush, setRenderScheduler, microtask, frameBudget } from './modules/scheduler.js';
 export { html, mathml, svg } from './store/store.js';

@@ -51,7 +51,7 @@ test('after a write, a useLayoutEffect sees the class a directive applied to wha
  * read properties of undefined (reading 'forEach')` when such a component is removed; development is clean. Suspected:
  * the missing core stamp (directives-packaging). A `todo` row until fixed — the fix proves itself by turning it green.
  */
-test('removing a component that renders directives throws nothing', { todo: isProduction && 'directives teardown throws in production' }, async () => {
+test('removing a component that renders directives throws nothing', async () => {
   customElements.define('x-le-teardown', class extends HTMLElement {
     connectedCallback() {
       core.init(this);

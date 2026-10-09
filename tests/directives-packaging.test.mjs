@@ -4,8 +4,9 @@
  * **Substrate adoption** is the page-B scenario promoted to a feature: `vera.min.js` and
  * `vera-directives.min.js` (which bakes its own copy of core's store machinery) loaded together
  * used to mean two store registries — a component and a directive writing the "same" key and
- * never notifying each other. Core's `wire()` now stamps `Symbol.for('vera.core')` with the copy
- * the app actually uses, and the engine adopts it at first activation. The production run of
+ * never notifying each other. `wire([directives])` now hands the engine the page's core through `connect` (a page-global
+ * `Symbol.for('vera.core')` stamp did this until 2026-10-09 — the side channel 0.2.0 removed by construction). The
+ * production run of
  * this file is the real test — that is the only build where two copies exist to reconcile; the
  * development run holds one shared core and passes structurally.
  *
@@ -27,18 +28,16 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-/** ORDER IS THE POINT: core wires (and stamps) BEFORE the engine's first activation snapshot. */
+/** ORDER IS THE POINT: `wire([directives])` hands the engine the page's core BEFORE its first activation. */
 const { wire, createHook } = await load('core');
-wire([]);
-const { wireDirectives, interactions, expressions, settled, stateOf } = await load('directives');
+const { directives, wireDirectives, interactions, expressions, settled, stateOf } = await load('directives');
+wire([directives]);
 wireDirectives([expressions, ...interactions]);
 
 const doc = dom.window.document;
 
-test('adoption: a directive write notifies a hook made by the PAGE core (one registry)', async () => {
-  const stamp = globalThis[Symbol.for('vera.core')];
-  assert.equal(typeof stamp?.createStore, 'function', 'wire() stamped the substrate');
-  assert.equal(typeof stamp?.createHook, 'function');
+test('adoption: wire([directives]) hands the engine the PAGE core — a directive write notifies a page-core hook (one registry)', async () => {
+  assert.equal(globalThis[Symbol.for('vera.core')], undefined, 'no page-global stamp — the hand-off is wire\'s connect');
 
   const host = doc.createElement('div');
   host.innerHTML = `

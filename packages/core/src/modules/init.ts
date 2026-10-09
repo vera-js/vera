@@ -75,6 +75,7 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
         `component itself — \`init(this)\`.`
     );
   currentInstance.element = element;
+  mine.add(element);
   /**
    * **Development: a second `init()` in one setup discards the hooks registered since the first**, silently — correct
    * on a reconnect (a fresh generation is what stops effects doubling), a mistake within one setup (main had this).
@@ -135,6 +136,14 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
  * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
 type Moving = ComponentElement & { _moved?: boolean; _doc?: Document };
+/**
+ * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down. A page can
+ * hold two copies (a production bundle that inlines core, as `@verajs/directives` does for its standalone fallback): each
+ * copy installs a wrapper, and each mangles its internal fields differently, so a copy reading another's element read
+ * fields that were never set — removing a component that rendered directives threw `reading 'forEach'` in production
+ * (measured 2026-10-09). `_$adopt$` stays the cross-copy brand of "a component" for everything else; teardown is mine.
+ */
+const mine = new WeakSet<Element>();
 if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {
@@ -160,7 +169,7 @@ if (typeof customElements !== 'undefined') {
      * real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup.
      */
     proto.disconnectedCallback = function (this: Moving) {
-      if (this._$adopt$ === undefined) return own?.call(this);
+      if (!mine.has(this)) return own?.call(this);
       this._moved = this.isConnected;
       if (!this._moved) teardown(this);
     };
@@ -172,7 +181,7 @@ if (typeof customElements !== 'undefined') {
      * — and that is correct: a first connect has nothing to keep. Do not move `init` earlier to "fix" it.
      */
     proto.connectedCallback = function (this: Moving) {
-      if (this._$adopt$ !== undefined && this._moved) {
+      if (mine.has(this) && this._moved) {
         this._moved = false;
         if (this.ownerDocument === this._doc) return;
         teardown(this);
