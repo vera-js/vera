@@ -35,7 +35,8 @@ const run = async (name, draw, probe = () => undefined) => {
       core.useEffect(() => {
         void state.n;
         effectRuns++;
-        if (!this.clicked) { this.clicked = true; this.querySelector('button').click(); }
+        /** Clicks once, on a LATER change — after directives activated: a click during mount reached no handler. */
+        if (state.n === 1 && !this.clicked) { this.clicked = true; this.querySelector('button').click(); }
       });
       core.render(() => draw(state));
     }
@@ -44,6 +45,10 @@ const run = async (name, draw, probe = () => undefined) => {
   doc.body.append(el);
   await settled?.();
   await tick();
+  state.n = 1;
+  await tick();
+  /** CONTROL: the effect ran for n = 1 and fired the click from inside itself. */
+  if (!el.clicked) throw new Error(`${name}: the effect never fired its click`);
   const afterMount = effectRuns;
   for (let i = 0; i < 3; i++) { el.querySelector('button').click(); await tick(); }
   const probed = probe(el);
