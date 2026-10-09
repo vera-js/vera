@@ -4,7 +4,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
+
+/**
+ * A refusal, by build (code-system phase 3): development names the reason AND the code; production prints the code-only
+ * line (the byte rule). The refusal itself — nothing is requested — is the same in both.
+ */
+const refusal = (why) => (isProduction ? /— https:\/\/verajs\.dev\/e\/loader-url-refused$/ : new RegExp(`${why.source}[\\s\\S]*\\(loader-url-refused\\)$`));
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'https://x.test/app/index.html',
@@ -33,7 +39,7 @@ test('url() refuses a directory that escapes the base', () => {
   for (const dir of ['//evil.test', '../../evil', '..', '../', 'https://evil.test/x', 'HTTPS://evil.test/x']) {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
-      /resolves outside https:\/\/x\.test\/app\//,
+      refusal(/resolves outside https:\/\/x\.test\/app\//),
       `data-autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
@@ -48,7 +54,7 @@ test('backslash and encoded-dot traversals normalize into refusals', () => {
   for (const dir of ['a\\..\\..', '..\\', '\\evil.test', '%2e%2e/']) {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
-      /resolves outside/,
+      refusal(/resolves outside/),
       `data-autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
@@ -63,7 +69,7 @@ test('url() refuses an encoded path separator', () => {
   for (const dir of ['..%2F', '..%2f', '%2e%2e%2f', 'a/..%2F..', 'a%5Cb']) {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
-      /encoded path separator/,
+      refusal(/encoded path separator/),
       `data-autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
@@ -86,13 +92,13 @@ test('url() still builds the ordinary cases', () => {
  */
 test('a sibling directory with a shared prefix is not inside the base', () => {
   const sibling = autoloader('https://x.test/app/entry.js', '../appEVIL');
-  assert.throws(() => sibling.url('my-card'), /resolves outside/);
+  assert.throws(() => sibling.url('my-card'), refusal(/resolves outside/));
 });
 
 /** A custom `resolve` is covered by the same check — it used to be trusted until the fetch. */
 test('a custom resolve cannot escape either', () => {
   const custom = autoloader('https://x.test/app/entry.js', '.', { resolve: () => 'https://evil.test/x.js' });
-  assert.throws(() => custom.url('my-card'), /resolves outside/);
+  assert.throws(() => custom.url('my-card'), refusal(/resolves outside/));
 });
 
 /**
@@ -102,7 +108,7 @@ test('a custom resolve cannot escape either', () => {
  */
 test('a refused directory can be corrected and retried', () => {
   const element = withDir('../../evil');
-  assert.throws(() => instance.url('later-card', element), /resolves outside/);
+  assert.throws(() => instance.url('later-card', element), refusal(/resolves outside/));
   element.setAttribute('data-autoload-dir', 'components');
   assert.equal(instance.url('later-card', element), 'https://x.test/app/components/later-card.js');
 });
@@ -122,7 +128,7 @@ test('a refused directory can be corrected and retried', () => {
  */
 test('the containment boundary holds for every input that reaches it', () => {
   const base = 'https://x.test/app/entry.js';
-  const outside = /resolves outside https:\/\/x\.test\/app\//;
+  const outside = refusal(/resolves outside https:\/\/x\.test\/app\//);
 
   /** A tag name arrives from markup, so it gets the same treatment as `data-autoload-dir`. */
   for (const tag of ['../../../etc/passwd', '../../../../x', '../../etc/passwd'])
@@ -214,7 +220,7 @@ test('a custom resolve that stays inside is built as it asked', () => {
  * query string, so the component file is never requested at all.
  */
 test('a directory containing a query is refused, not silently misfetched', () => {
-  assert.throws(() => instance.url('my-card', withDir('components?v=2')), /contains \? or #/);
+  assert.throws(() => instance.url('my-card', withDir('components?v=2')), refusal(/contains \? or #/));
 
   /** The URL it would have built is inside the base, so containment cannot be what catches it. */
   const wrong = new URL('components?v=2/my-card.js', 'https://x.test/app/entry.js').href;
@@ -224,8 +230,8 @@ test('a directory containing a query is refused, not silently misfetched', () =>
 
 /** A fragment never reaches the network at all, so the wrong module is fetched outright. */
 test('and so is one containing a fragment', () => {
-  assert.throws(() => instance.url('my-card', withDir('components#2')), /contains \? or #/);
-  assert.throws(() => instance.url('my-card', withDir('#')), /contains \? or #/);
+  assert.throws(() => instance.url('my-card', withDir('components#2')), refusal(/contains \? or #/));
+  assert.throws(() => instance.url('my-card', withDir('#')), refusal(/contains \? or #/));
 });
 
 /**
@@ -233,7 +239,7 @@ test('and so is one containing a fragment', () => {
  * second time — the whole application re-imported from an attribute in markup.
  */
 test('and one that resolves to the entry module itself', () => {
-  assert.throws(() => instance.url('my-card', withDir('?')), /contains \? or #/);
+  assert.throws(() => instance.url('my-card', withDir('?')), refusal(/contains \? or #/));
   assert.equal(
     new URL('?/my-card.js', 'https://x.test/app/entry.js').pathname,
     '/app/entry.js',

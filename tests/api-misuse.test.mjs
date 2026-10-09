@@ -148,7 +148,7 @@ test('an alias does not repeat the warning for the same typo', { skip: isProduct
 test('the autoloader names an option it does not have', { skip: isProduction && 'development-only diagnostics' }, () => {
   const said = warnings(() => autoloader('http://localhost/app.js', 'components', { extensions: '.ts', resolve: (tag) => tag }));
   assert.equal(said.length, 1, JSON.stringify(said));
-  assert.match(said[0], /^\[vera\] autoloader: `extensions` is not an option/);
+  assert.match(said[0], /^\[vera\] autoloader: options — `extensions` is not an option[\s\S]*\(loader-option\)$/);
   /** And the two it does have stay quiet. */
   assert.deepEqual(warnings(() => autoloader('http://localhost/app.js', 'components', { extension: '.ts', resolve: (tag) => tag })), []);
 });

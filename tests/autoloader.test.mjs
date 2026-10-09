@@ -187,7 +187,7 @@ clearHosts();
 // has to be absolute — which is exactly why `import.meta.url` is the documented answer.
 {
   for (const [label, value, expected] of [
-    ['missing', '', /rootDir is required/],
+    ['missing', '', isProduction ? /^autoloader: https:\/\/verajs\.dev\/e\/loader-root-required$/ : /rootDir is required[\s\S]*\(loader-root-required\)$/],
     /**
      * The *message* is `__DEV__`-only — a production bundle carries neither the check nor the text,
      * so the platform's own `Invalid URL` surfaces instead. Both still throw, which is what
@@ -278,7 +278,7 @@ clearHosts();
     } catch (error) {
       crashed = error;
     }
-    check(`resolve throwing ${label}: reported by name, nothing escapes`, crashed === null && errs.join(' ').includes(`[vera] autoloader: <${tag}>: ${shown}`), errs.join(' '));
+    check(`resolve throwing ${label}: reported by name, nothing escapes`, crashed === null && errs.join(' ').includes(`[vera] autoloader: <${tag}>: ${shown} — `) && errs.join(' ').includes('loader-resolve-threw'), errs.join(' '));
   }
 }
 
@@ -311,7 +311,8 @@ clearHosts();
   await tick();
   check('a module that defines the wrong tag is reported, not silent', seen.length === 1 && seen[0] === 'typo-widget',
     JSON.stringify(seen));
-  check('and the message names the likely cause', errs.some((line) => /nothing defined <typo-widget>/.test(line)),
+  /** Development names the cause; production the code and the module's src (the byte rule — the linked page explains it). */
+  check('and the message names the likely cause', errs.some((line) => (isProduction ? /<typo-widget> from \S+typo-widget\.js — https:\/\/verajs\.dev\/e\/autoloader-not-defined/ : /nothing defined <typo-widget>[\s\S]*\(autoloader-not-defined\)/).test(line)),
     errs.join(' | '));
   check('while the element stays unupgraded', !customElements.get('typo-widget'));
 }

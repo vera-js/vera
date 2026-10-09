@@ -63,7 +63,8 @@ const DIAGNOSTIC_CALL = /console\.(warn|error)\(\s*diagnostic\(/g;
  * ternary branch check below stays, for the next one.
  */
 const NOT_A_LITERAL = new Map([
-  ['autoloader/src/autoloader.ts', [1, "forwards a caught error's own message"]],
+  ['autoloader/src/autoloader.ts', [1, 'forwards a refusal of its own, already coded (loader-url-refused) — routing']],
+  ['autoloader/src/loader.ts', [1, 'forwards a refusal of its own, already coded (directive-loader-name, loader-url-refused) — routing']],
   ['ssr/src/vera/shim.ts', [1, 'forwards a caught error object']],
   /** Hydration's once-per-kind helper: every caller hands it a `diagnostic(…)` line — asserted below. */
   ['renderer/src/hydration.ts', [2, 'prints a line diagnostic() built — every caller passes one']],

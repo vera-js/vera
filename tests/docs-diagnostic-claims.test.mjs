@@ -68,7 +68,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 17;
+const PENDING_MAX = 15;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -115,11 +115,11 @@ const CLAIMS = new Map([
   ['llms.txt#8a42e4218c', 'no-renderer'], // Defining a component before `wire([renderer])` → with nothing on the `'render'` chain, `re
   ['llms.txt#b9de104cbe', 'wire-replaced'], // Registering at an **occupied** priority replaces that entry (this is how a renderer is swa
   ['llms.txt#7cdcce9c98', 'setup-uncommitted'], // Development warns if neither happens, and names both. 7.
-  ['llms.txt#bf52103f92', PENDING], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
+  ['llms.txt#bf52103f92', 'autoloader-not-defined'], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
   ['llms.txt#7fae901481', 'boolean-child'], // Development names it.
   ['llms.txt#9d82b4cb6b', 'attribute-value'], // Development names any non-primitive that reaches an attribute sink. 13.
   ['llms.txt#ebf4968a15', 'upgrade-clobber'], // For an element that never calls `init()`, nothing drains the record either, so the clobber
-  ['packages/autoloader/README.md#2c0b84874a', PENDING], // Discovery catches the throw, reports it once and moves on, so a hostile attribute costs a 
+  ['packages/autoloader/README.md#2c0b84874a', 'loader-url-refused'], // Discovery catches the throw, reports it once and moves on, so a hostile attribute costs a 
   ['packages/core/README.md#bf064fe7d3', 'no-collections'], // Without it core says so the first time one is read.
   ['packages/core/README.md#7508f63a9f', 'not a promise: says there is no warning'], // There is no warning for this.
   ['packages/core/README.md#0182a20510', 'not a promise: explains why there is no warning'], // A `Date` read to format it is far more common than a `Date` read to mutate it, so a warnin

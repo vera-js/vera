@@ -1,0 +1,67 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "autoloader-not-defined",
+      "params": [
+        "tag"
+      ],
+      "message": "the module loaded but nothing defined <{tag}>.",
+      "fix": "Check the tag name in that file matches the one in the markup, and that its `customElements.define` actually runs."
+    },
+    {
+      "code": "directive-loader-name",
+      "params": [
+        "name"
+      ],
+      "message": "\"{name}\" is not a directive name this will resolve.",
+      "fix": "A directive name is lowercase letters, digits and dashes, starting with a letter."
+    },
+    {
+      "code": "loader-import-failed",
+      "params": [
+        "what",
+        "src"
+      ],
+      "message": "failed to load {what} from {src}.",
+      "fix": "The error is printed beside this line; the import itself failed."
+    },
+    {
+      "code": "loader-option",
+      "params": [
+        "key",
+        "known"
+      ],
+      "message": "`{key}` is not an option, so it was ignored.",
+      "fix": "The options are {known}."
+    },
+    {
+      "code": "loader-resolve-threw",
+      "params": [],
+      "message": "the `resolve` option threw.",
+      "fix": "The element was left unloaded; `resolve(name, dir)` must return a path and never throw."
+    },
+    {
+      "code": "loader-root-not-absolute",
+      "params": [
+        "rootDir"
+      ],
+      "message": "rootDir must be an absolute URL, and \"{rootDir}\" is not.",
+      "fix": "Pass import.meta.url — a relative path has nothing to resolve against."
+    },
+    {
+      "code": "loader-root-required",
+      "params": [],
+      "message": "rootDir is required — the directory every path resolves against.",
+      "fix": "Pass import.meta.url."
+    },
+    {
+      "code": "loader-url-refused",
+      "params": [
+        "why"
+      ],
+      "message": "refused — {why}.",
+      "fix": "Nothing was requested. Point the directory, or `resolve`, at a path inside rootDir."
+    }
+  ]
+}

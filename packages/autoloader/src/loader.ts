@@ -34,7 +34,16 @@
  * exactly the autoloader's posture with URLs; the ASKER memoizes refusals, this memoizes loads.
  */
 import type { DirectiveLoaderInstance, DirectiveLoaderOptions } from './types.js';
-import { thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, misuse, thrownMessage } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
+
+/** The refusals this loader throws itself — already coded, so `load` forwards them as they are (routing). */
+const ours = new WeakSet<object>();
+const refuse = (message: string) => {
+  const error = new Error(message);
+  ours.add(error);
+  return error;
+};
 
 /** The name grammar. An attribute tail that is not a plausible directive name is declined —
  *  which also means it never becomes a URL. */
@@ -45,23 +54,17 @@ export const directiveLoader = (
   directivesDir?: string,
   options?: DirectiveLoaderOptions
 ): DirectiveLoaderInstance => {
-  if (!rootDir) throw new Error('directiveLoader: rootDir is required (usually import.meta.url)');
+  if (!rootDir) throw new Error(misuse('directiveLoader', 'loader-root-required', __DEV__ && PROSE['loader-root-required']()));
   if (__DEV__) {
     try {
       new URL('.', rootDir);
     } catch {
-      throw new Error(
-        `directiveLoader: rootDir must be an absolute URL, and "${rootDir}" is not. ` +
-          `Pass import.meta.url — a relative path has nothing to resolve against.`
-      );
+      throw new Error(misuse('directiveLoader', 'loader-root-not-absolute', __DEV__ && PROSE['loader-root-not-absolute'](rootDir)));
     }
     if (options)
       for (const key of Object.keys(options))
         if (key !== 'extension' && key !== 'alias' && key !== 'resolve')
-          console.warn(
-            `[vera] directiveLoader: \`${key}\` is not an option, so it was ignored. ` +
-              `The options are extension, alias and resolve.`
-          );
+          console.warn(diagnostic('directiveLoader', 'options', 'loader-option', __DEV__ && PROSE['loader-option'](key, 'extension, alias and resolve')));
   }
   const base = new URL('.', rootDir).href;
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
@@ -80,7 +83,7 @@ export const directiveLoader = (
    */
   const url = (name: string): string => {
     if (!SAFE_NAME.test(name)) {
-      throw new Error(`directiveLoader: "${name}" is not a directive name this will resolve.`);
+      throw refuse(misuse('directiveLoader', 'directive-loader-name', __DEV__ && PROSE['directive-loader-name'](name)));
     }
     const target = alias?.[name] ?? (resolve ? resolve(name, dir) : `${dir}/${name}${extension}`);
     const href = new URL(target, rootDir).href;
@@ -92,7 +95,7 @@ export const directiveLoader = (
      * execution and the entry's directory is the stated bound.
      */
     if (!href.startsWith(base)) {
-      throw new Error(`directiveLoader: refused ${href} for "${name}" — resolves outside ${base}`);
+      throw refuse(diagnostic('directiveLoader', `"${name}" ${href}`, 'loader-url-refused', __DEV__ && PROSE['loader-url-refused'](`it resolves outside ${base}`)));
     }
     return href;
   };
@@ -106,7 +109,9 @@ export const directiveLoader = (
       src = url(name);
     } catch (error) {
       /** `url` runs the caller's `resolve`, which can throw any value at all: formatted by what never throws. */
-      console.error(`[vera] ${thrownMessage(error)}`);
+      /** Ours (already coded) is forwarded as it is — routing; anything else is the caller's `resolve` throwing. */
+      if (ours.has(error as object)) console.error((error as Error).message);
+      else console.error(diagnostic('directiveLoader', `"${name}": ${thrownMessage(error)}`, 'loader-resolve-threw', __DEV__ && PROSE['loader-resolve-threw']()));
       return false;
     }
     /**
@@ -116,7 +121,7 @@ export const directiveLoader = (
      * console line below.
      */
     const request = import(/* @vite-ignore */ src).catch((error) => {
-      console.error(`[vera] directiveLoader: failed to load "${name}" from ${src}:`, error);
+      console.error(diagnostic('directiveLoader', `"${name}"`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`"${name}"`, src)), error);
       throw error;
     });
     claimed.set(name, request);

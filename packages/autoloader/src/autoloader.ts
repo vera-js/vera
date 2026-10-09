@@ -1,5 +1,6 @@
 import type { AutoloaderInstance, AutoloaderOptions } from './types.js';
-import { thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, misuse, thrownMessage } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 
 /**
  * Inits an autoloader with the provided root directory, component directory and autoloader options.
@@ -35,7 +36,7 @@ export const autoloader = (
   options?: AutoloaderOptions
 ): AutoloaderInstance => {
   /** A configuration error fails at the misconfiguration, not once per element per render. */
-  if (!rootDir) throw new Error('autoloader: rootDir is required (usually import.meta.url)');
+  if (!rootDir) throw new Error(misuse('autoloader', 'loader-root-required', __DEV__ && PROSE['loader-root-required']()));
 
   /**
    * An option this autoloader does not have does nothing, and did so in silence — `extensions` or
@@ -47,10 +48,7 @@ export const autoloader = (
   if (__DEV__ && options)
     for (const key of Object.keys(options))
       if (key !== 'extension' && key !== 'resolve')
-        console.warn(
-          `[vera] autoloader: \`${key}\` is not an option, so it was ignored. ` +
-            `The options are extension and resolve.`
-        );
+        console.warn(diagnostic('autoloader', 'options', 'loader-option', __DEV__ && PROSE['loader-option'](key, 'extension and resolve')));
 
   /** Normalized so callers may pass either `ts` or `.ts` */
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
@@ -83,10 +81,7 @@ export const autoloader = (
     try {
       new URL('.', rootDir);
     } catch {
-      throw new Error(
-        `autoloader: rootDir must be an absolute URL, and "${rootDir}" is not. ` +
-          `Pass import.meta.url — a relative path has nothing to resolve against.`
-      );
+      throw new Error(misuse('autoloader', 'loader-root-not-absolute', __DEV__ && PROSE['loader-root-not-absolute'](rootDir)));
     }
   }
   const base = new URL('.', rootDir).href;
@@ -175,9 +170,8 @@ export const autoloader = (
     if (!resolve && /[?#]/.test(dir)) {
       const url = new URL(href);
       const refusal = new Error(
-        `[vera] autoloader: refused ${href} for <${tag}> — data-autoload-dir "${dir}" contains ? or #, ` +
-          `which ends the path, so <${tag}> lands in the query or fragment and ` +
-          `${url.origin}${url.pathname} would be fetched instead. Use \`resolve\` to add a query.`
+        diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused',
+          __DEV__ && PROSE['loader-url-refused'](`data-autoload-dir "${dir}" contains ? or #, which ends the path, so <${tag}> lands in the query or fragment and ${url.origin}${url.pathname} would be fetched instead; use \`resolve\` to add a query`))
       );
       (refusal as Error & { href: string }).href = href;
       refused.set(refusal, href);
@@ -199,7 +193,7 @@ export const autoloader = (
      * is legitimately its business.
      */
     if (!resolve && /%2f|%5c/i.test(dir)) {
-      const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — encoded path separator in "${dir}"`);
+      const refusal = new Error(diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused', __DEV__ && PROSE['loader-url-refused'](`an encoded path separator in "${dir}"`)));
       (refusal as Error & { href: string }).href = href;
       refused.set(refusal, href);
       throw refusal;
@@ -227,7 +221,7 @@ export const autoloader = (
        * precisely so it can be pointed somewhere else after a first attempt failed, and a tag
        * marked spent never looks again.
        */
-      const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
+      const refusal = new Error(diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused', __DEV__ && PROSE['loader-url-refused'](`it resolves outside ${base}`)));
       (refusal as Error & { href: string }).href = href;
       refused.set(refusal, href);
       throw refusal;
@@ -254,11 +248,12 @@ export const autoloader = (
       const href = refused.get(error as object);
       if (href === undefined) {
         /** Not a refusal of ours: the caller's `resolve` threw, and it can throw any value at all. */
-        console.error(`[vera] autoloader: <${tag}>: ${thrownMessage(error)}`);
+        console.error(diagnostic('autoloader', `<${tag}>: ${thrownMessage(error)}`, 'loader-resolve-threw', __DEV__ && PROSE['loader-resolve-threw']()));
         return;
       }
       if (attempted.has(href)) return;
       attempted.add(href);
+      /** Routing: a refusal of ours, already carrying its code (`loader-url-refused`). */
       console.error((error as Error).message);
       return;
     }
@@ -288,10 +283,7 @@ export const autoloader = (
       await Promise.resolve();
       await Promise.resolve();
       if (!customElements.get(tag)) {
-        throw new Error(
-          `imported ${src} but nothing defined <${tag}>. Check the tag name in that file matches ` +
-            `the one in the markup, and that its \`customElements.define\` actually runs.`
-        );
+        throw new Error(diagnostic('autoloader', `<${tag}> from ${src}`, 'autoloader-not-defined', __DEV__ && PROSE['autoloader-not-defined'](tag)));
       }
       await customElements.whenDefined(tag);
       failed.delete(tag);
@@ -312,7 +304,7 @@ export const autoloader = (
           detail: { tag, src, error, element },
         })
       );
-      console.error(`[vera] autoloader: failed to load <${tag}> from ${src}:`, error);
+      console.error(diagnostic('autoloader', `<${tag}>`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`<${tag}>`, src)), error);
     }
   };
 

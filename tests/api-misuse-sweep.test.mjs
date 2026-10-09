@@ -33,6 +33,7 @@ const { tag, html: tagHtml } = await load('renderer/tag');
 const routerModule = await load('router');
 const { navigate } = routerModule;
 const reactivity = await load('store');
+const { autoloader, directiveLoader } = await load('autoloader');
 const styleModule = await load('styles');
 
 const skip = isProduction && 'development-only diagnostics';
@@ -71,6 +72,9 @@ const CASES = [
    * guards do: `computed`'s was added during the 2026-08-26 sweep and never landed here, and `wire`
    * is the most-called function in the framework.
    */
+  ['autoloader with no rootDir', () => autoloader(''), /autoloader: rootDir is required/],
+  ['autoloader with a relative rootDir', () => autoloader('components/'), /autoloader: rootDir must be an absolute URL/],
+  ['directiveLoader url() of an unsafe name', () => directiveLoader('https://x.test/app/main.js').url('Bad Name'), /directiveLoader: "Bad Name" is not a directive name/],
   ['wire(notAModule)', () => core.wire(42), /wire: expected a module or an insert descriptor/],
   ['wire(a descriptor whose fn is undefined)', () => core.wire({ on: 'render', fn: undefined, priority: 50 }), /wire: that object is not an insert descriptor/],
   ['wire(renderInto) — a function named like a module', () => core.wire(renderInto), /wire: `renderInto` is not a module — did you mean `renderer`\?/],

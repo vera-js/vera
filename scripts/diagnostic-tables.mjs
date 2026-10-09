@@ -26,6 +26,7 @@ export const TABLES = [
     sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts', 'src/tag.ts', 'src/keyed.ts', 'src/elements.ts', 'src/slots.ts', 'src/hydrate-slots.ts'],
   },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
+  { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: ['src/autoloader.ts', 'src/loader.ts'] },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: ['src/inserts.ts'] },
   { name: 'store', tables: ['src/diagnostics.ts'], sources: ['src/computed.ts'] },
   { name: 'ui', tables: ['src/diagnostics.ts'], sources: ['src/register.ts', 'src/select/element.ts'] },
