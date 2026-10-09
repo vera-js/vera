@@ -22,6 +22,23 @@ import type { ComponentElement } from '../types.js';
  *
  * @param element The element `init()` is setting up
  */
+/**
+ * Development: a bound property met a GETTER-ONLY class member — refused, and said once per element and name (main
+ * had this; the lean rebuild dropped it, so the binding vanished silently). The renderer's eager path hands the value
+ * here (`_$adopt$`), so this is the one place both arrival orders end.
+ */
+const refused = /* @__PURE__ */ new WeakMap<Element, Set<string>>();
+const refuse = (element: Element, key: string) => {
+  const names = refused.get(element) ?? new Set<string>();
+  refused.set(element, names);
+  if (names.has(key)) return;
+  names.add(key);
+  console.warn(
+    `[vera] <${element.localName}> received a bound property \`.${key}\`, but its class declares \`${key}\` as a getter ` +
+      `with no setter — the value cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
+  );
+};
+
 export const adoptProps = (element: ComponentElement) => {
   if (element._$adopt$ === undefined) {
     let state: Record<string, unknown> | undefined;
@@ -46,6 +63,7 @@ export const adoptProps = (element: ComponentElement) => {
         if (desc.set || desc.get) {
           if (own) delete el[key];
           if (desc.set) el[key] = value;
+          else if (__DEV__) refuse(element, key);
           return;
         }
         break;
