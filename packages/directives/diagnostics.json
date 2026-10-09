@@ -67,6 +67,12 @@
       "message": "the Clipboard API is unavailable here."
     },
     {
+      "code": "core-protocol",
+      "params": [],
+      "message": "this @verajs/core and @verajs/directives are from different releases — directives keep their own store machinery, so a directive write will not wake a component.",
+      "fix": "Update both together."
+    },
+    {
       "code": "directive-threw",
       "params": [
         "detail"

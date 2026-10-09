@@ -50,6 +50,10 @@ const parseFailure: Prose = (raw, detail) => [
 ];
 
 export const PROSE: Record<string, Prose> = {
+  'core-protocol': () => [
+    'this @verajs/core and @verajs/directives are from different releases — directives keep their own store machinery, so a directive write will not wake a component.',
+    'Update both together.',
+  ],
   'array-not-literal': parseFailure,
   'value-bad': parseFailure,
   'number-bad': parseFailure,

@@ -19,7 +19,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element',
@@ -121,5 +121,9 @@ test('a core of ANOTHER protocol is declined, with one warning, and the engine k
   } finally {
     console.warn = warn;
   }
-  assert.equal(said.filter((line) => line.includes('different releases')).length, 1, `one warning: ${said.join(' | ')}`);
+  const ours = said.filter((line) => line.includes('core-protocol'));
+  assert.equal(ours.length, 1, `one warning, by code, in every build: ${said.join(' | ')}`);
+  if (!isProduction) assert.match(ours[0], /different releases[\s\S]*Update both together\.[\s\S]*\(core-protocol\)$/, 'development says why');
+  /** The one code-only shape every production diagnostic has (shared-utils `diagnostic`) — not a second format. */
+  else assert.equal(ours[0], '[vera] directives: wire — https://docs.verajs.dev/e/core-protocol', 'production: the code and its docs entry');
 });

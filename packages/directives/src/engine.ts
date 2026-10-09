@@ -59,7 +59,8 @@ const adoptCore = (registry: Map<string, unknown[]>) => {
   const given = (registry as unknown as { $s?: [number, Substrate['createStore'], Substrate['createHook'], Substrate['untrack']] }).$s;
   if (!given) return;
   if (given[0] !== SUBSTRATE_PROTOCOL) {
-    console.warn(`[vera] directives: this @verajs/core and @verajs/directives are from different releases — directives keep their own store machinery, so a directive write will not wake a component. Update both together.`);
+    /** Every build — a mismatch is a production page's problem — but the prose is development's (Brian, 2026-10-09: code-only). */
+    console.warn(diagnostic('directives', 'wire', 'core-protocol', __DEV__ && PROSE['core-protocol']()));
     return;
   }
   substrate = { createStore: given[1], createHook: given[2], untrack: given[3], inserts: registry };
