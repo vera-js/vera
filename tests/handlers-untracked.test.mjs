@@ -75,6 +75,26 @@ test('spread `@click`: the same', async () => {
 test('directives `data-vd-on-click`: later clicks do not re-run the effect that once fired it', { skip: isProduction && 'production directives bundle carries its own core (group A stamp)' }, async () => {
   const draw = () => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`;
   const { afterMount, effectRuns, probed } = await run('hu-directives', draw, (el) => stateOf(el.querySelector('[data-vd-state]'))?.count);
-  assert.equal(probed, 4, 'CONTROL: the on-click assignment ran for the effect\'s click and three more');
+  /** ≥ 3, not 4: one click currently runs `data-vd-on-click` TWICE (the todo row below) — the control only needs it ran. */
+  assert.ok(probed >= 3, `CONTROL: the on-click assignment ran on the later clicks (count ${probed})`);
   assert.equal(effectRuns - afterMount, 0, 'the effect never re-ran');
+});
+
+/**
+ * TODO (found 2026-10-09 writing the row above; predates it — the engine before the untracking change counts the same;
+ * jsdom only, a real browser unconfirmed): ONE click runs a light component's `data-vd-on-click` TWICE (count 2, 4,
+ * 6). Suspect: the delegated listener sits on two roots the click bubbles through. A `todo` row until fixed.
+ */
+test('one click runs data-vd-on-click once', { todo: 'one click runs it twice (delegated on two roots?)' }, async () => {
+  customElements.define('hu-once', class extends HTMLElement {
+    connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
+  });
+  const el = doc.createElement('hu-once');
+  doc.body.append(el);
+  await settled();
+  await tick();
+  el.querySelector('button').click();
+  await tick();
+  assert.equal(stateOf(el.querySelector('[data-vd-state]'))?.count, 1);
+  el.remove();
 });
