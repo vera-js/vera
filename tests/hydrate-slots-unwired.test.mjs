@@ -2,7 +2,7 @@
  * **`hydrateSlots` wired without `slots` is refused before anything is touched** (`hydrate-slots-unwired`, code-system
  * phase 1, 2026-10-09 — the guard had no test). It reads the server's light-DOM statement through slots' capture seam;
  * with no slots there is nothing to read it with. A wiring state, so the diagnostic shape in development
- * (`[vera] hydrate-slots: <host> — …`); production keeps its short line, which the byte rule measured smaller.
+ * (`[vera] hydrate-slots: <host> — …`); production prints the code alone (0 B; the link would cost 14 B).
  */
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
@@ -39,7 +39,7 @@ test('hydrateSlots without slots: refused by code, the served markup untouched',
     error = caught;
   }
   assert.ok(error, 'it refused');
-  if (isProduction) assert.equal(error.message, '[vera] hydrate-slots: no slots');
+  if (isProduction) assert.equal(error.message, '[vera] hydrate-slots-unwired', 'production: the code alone (0 B by the byte rule)');
   else assert.match(error.message, /^\[vera\] hydrate-slots: <slot-card-ssr> — reads the light-DOM statement through `slots`, which is not wired\.[\s\S]*\(hydrate-slots-unwired\)$/);
   assert.equal(host.outerHTML, before, 'not one node touched');
 });

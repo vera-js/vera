@@ -103,10 +103,13 @@ let fail: HydrationFail;
 const open = (host: Element, failWith: HydrationFail): Served => {
   fail = failWith;
   const seam = registry._$capture$;
-  /** A wiring state (the diagnostic shape). Production keeps its short line: the code-and-link shape measured +14 B (Brian's byte rule, 2026-10-09). */
+  /**
+   * A wiring state (the diagnostic shape). Production prints the code alone: the code-and-link shape measured +14 B, the
+   * bare code 0 B — Brian's byte rule (a production line carries its code where the bundle is not larger), 2026-10-09.
+   */
   if (seam === undefined)
     throw new Error(
-      __DEV__ ? diagnostic('hydrate-slots', `<${host.localName}>`, 'hydrate-slots-unwired', __DEV__ && PROSE['hydrate-slots-unwired']()) : '[vera] hydrate-slots: no slots'
+      __DEV__ ? diagnostic('hydrate-slots', `<${host.localName}>`, 'hydrate-slots-unwired', __DEV__ && PROSE['hydrate-slots-unwired']()) : '[vera] hydrate-slots-unwired'
     );
   const spec = host.getAttribute(LIGHT_ATTR)!;
   host.removeAttribute(LIGHT_ATTR);
