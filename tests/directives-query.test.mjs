@@ -545,8 +545,15 @@ test("the async-commit scope pin: a DEFERRED transition callback breaks nothing 
   url('/shop');
   /** The platform defers the mutation callback — directive scope is long gone when it runs.
    *  Omni's programs broke exactly here; ours must not, because commit closes over plain data. */
+  /**
+   * The deferral is the TEST's to release, not a timer's (vera-5a, 2026-10-09): a 60 ms timeout and a fixed 120 ms
+   * sleep flaked under a loaded full suite — `settled()` could outlast 60 ms (the commit already landed) or 120 ms could
+   * fall short. Now: assert "not yet", release, await the transition's own `finished`.
+   */
+  let release;
+  let finished;
   dom.window.document.startViewTransition = (callback) => {
-    const finished = new Promise((resolve) => setTimeout(() => { callback(); resolve(); }, 60));
+    finished = new Promise((resolve) => { release = () => { callback(); resolve(); }; });
     return { finished };
   };
   const host = await mount(`
@@ -561,8 +568,10 @@ test("the async-commit scope pin: a DEFERRED transition callback breaks nothing 
   await settled();
   assert.equal(host.querySelector('b').textContent, '2',
     'counts wrote SYNCHRONOUSLY — state never waits on the transition');
-  assert.deepEqual(shown(host), ['x', 'y'], 'DOM not yet committed (deferred)');
-  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(typeof release, 'function', 'CONTROL: the change asked for a transition');
+  assert.deepEqual(shown(host), ['x', 'y'], 'DOM not yet committed (deferred until released)');
+  release();
+  await finished;
   assert.deepEqual(shown(host), ['y', 'x'], 'the deferred commit landed, no scope needed');
   assert.equal(rejections().filter((r) => r.code === 'directive-threw').length, 0, 'nothing threw');
   delete dom.window.document.startViewTransition;
