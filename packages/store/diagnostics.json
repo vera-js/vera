@@ -1,0 +1,13 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "computed-not-function",
+      "params": [
+        "received"
+      ],
+      "message": "expected a function to derive the value from, and received {received}.",
+      "fix": "Pass the expression as a function — computed(() => a + b), not computed(a + b)."
+    }
+  ]
+}

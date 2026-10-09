@@ -1,0 +1,21 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "ui-defined-twice",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> is already defined by another copy or version of @verajs/ui — keeping the first.",
+      "fix": "Align the versions, or import @verajs/ui/elements and register under your own names."
+    },
+    {
+      "code": "ui-select-duplicate",
+      "params": [
+        "value"
+      ],
+      "message": "options contain duplicate value {value} — selection is by value, so these rows will mirror each other.",
+      "fix": "Give every option a value of its own."
+    }
+  ]
+}

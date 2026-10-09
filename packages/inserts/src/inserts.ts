@@ -1,4 +1,6 @@
 import type { InsertFunctionMap } from './types.js';
+import { diagnostic, misuse } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 
 export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof InsertFunctionMap][]>();
 
@@ -72,10 +74,7 @@ const apply = (item: Registerable) => {
     const descriptor = item as Partial<InsertDescriptor> | null | undefined;
     const shape = typeof item;
     if (item == null || (shape !== 'function' && shape !== 'object'))
-      throw new Error(
-        `wire: expected a module or an insert descriptor, and received ${String(item)}. ` +
-          `Check the import name — \`wire([renderer, router])\`.`
-      );
+      throw new Error(misuse('wire', 'wire-not-module', __DEV__ && PROSE['wire-not-module'](String(item))));
     /**
      * **Name the key that is wrong, not the shape that is right.**
      *
@@ -95,7 +94,7 @@ const apply = (item: Registerable) => {
               ? ', which is what an import that resolved to nothing looks like. Check the name: ' +
                 "`@verajs/renderer`'s draw is `renderInto`, and the module to wire is `renderer`."
               : '');
-      throw new Error(`wire: ${who} is not an insert descriptor. ${wrong}`);
+      throw new Error(misuse('wire', 'wire-bad-descriptor', __DEV__ && PROSE['wire-bad-descriptor'](who, wrong)));
     }
   }
   if (typeof item === 'function' && (item as Partial<InsertDescriptor>).on === undefined) {
@@ -109,11 +108,7 @@ const apply = (item: Registerable) => {
     if (__DEV__) {
       const meant = (item as { $module?: string }).$module;
       if (meant !== undefined)
-        throw new Error(
-          `wire: \`${item.name || 'that function'}\` is not a module — did you mean \`${meant}\`? ` +
-            `A bare function is wired as a connector and handed the registry, so this would have ` +
-            `registered nothing and thrown nothing.`
-        );
+        throw new Error(misuse('wire', 'wire-function-not-module', __DEV__ && PROSE['wire-function-not-module'](item.name || 'that function', meant)));
     }
     item(inserts);
   } else {
@@ -152,10 +147,7 @@ const register = <K extends keyof InsertFunctionMap>(
    * `@verajs/autoloader` makes for `rootDir`.
    */
   if (__DEV__ && !Number.isFinite(priority))
-    throw new Error(
-      `wire: priority must be a finite number, and "${String(priority)}" is not. ` +
-        `Lower runs first; a renderer registers at 50.`
-    );
+    throw new Error(misuse('wire', 'wire-priority', __DEV__ && PROSE['wire-priority'](String(priority))));
 
   let chain = inserts.get(insertName) as Chain | undefined;
   if (!chain) inserts.set(insertName, (chain = []));
@@ -198,9 +190,7 @@ const register = <K extends keyof InsertFunctionMap>(
      */
     if (__DEV__ && chain[existing] !== callback && !(replacing !== '' && chain._n?.[existing] === replacing))
       console.warn(
-        `[vera] two things were wired to '${insertName}' at priority ${priority}, so the second ` +
-          `replaced the first${replacing ? ` — ${replacing}` : ''}. If both are meant to run, give ` +
-          `them different priorities; lower runs first.`
+        diagnostic('wire', `'${insertName}'`, 'wire-replaced', __DEV__ && PROSE['wire-replaced'](insertName, String(priority), replacing ? ` — ${replacing}` : ''))
       );
     /** In place, so a reference to this chain held elsewhere stays correct. */
     chain[existing] = callback;

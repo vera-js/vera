@@ -26,6 +26,9 @@ export const TABLES = [
     sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts', 'src/tag.ts', 'src/keyed.ts', 'src/elements.ts', 'src/slots.ts', 'src/hydrate-slots.ts'],
   },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
+  { name: 'inserts', tables: ['src/diagnostics.ts'], sources: ['src/inserts.ts'] },
+  { name: 'store', tables: ['src/diagnostics.ts'], sources: ['src/computed.ts'] },
+  { name: 'ui', tables: ['src/diagnostics.ts'], sources: ['src/register.ts', 'src/select/element.ts'] },
   { name: 'router', tables: ['src/diagnostics.ts'], sources: ['src/events.ts', 'src/methods.ts', 'src/router.ts', 'src/services.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
 ];

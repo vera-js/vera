@@ -1,0 +1,49 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "wire-bad-descriptor",
+      "params": [
+        "who",
+        "wrong"
+      ],
+      "message": "{who} is not an insert descriptor. {wrong}.",
+      "fix": "An insert descriptor is `{ on, fn, priority }`."
+    },
+    {
+      "code": "wire-function-not-module",
+      "params": [
+        "name",
+        "meant"
+      ],
+      "message": "`{name}` is not a module — did you mean `{meant}`?",
+      "fix": "A bare function is wired as a connector and handed the registry, so this would have registered nothing and thrown nothing."
+    },
+    {
+      "code": "wire-not-module",
+      "params": [
+        "received"
+      ],
+      "message": "expected a module or an insert descriptor, and received {received}.",
+      "fix": "Check the import name — `wire([renderer, router])`."
+    },
+    {
+      "code": "wire-priority",
+      "params": [
+        "priority"
+      ],
+      "message": "priority must be a finite number, and \"{priority}\" is not.",
+      "fix": "Lower runs first; a renderer registers at 50."
+    },
+    {
+      "code": "wire-replaced",
+      "params": [
+        "insert",
+        "priority",
+        "replacing"
+      ],
+      "message": "two things were wired to '{insert}' at priority {priority}, so the second replaced the first{replacing}.",
+      "fix": "If both are meant to run, give them different priorities; lower runs first."
+    }
+  ]
+}

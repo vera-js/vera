@@ -32,6 +32,8 @@ import { keyed } from '@verajs/renderer/keyed';
 import { useSelect, type SelectOption } from '@verajs/hooks';
 import { slotted } from '@verajs/renderer/slots';
 import { SELECT_STYLES } from './styles.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { parseLightOptions } from './parse-options.js';
 
 /**
@@ -162,10 +164,7 @@ const warnDuplicates = (options: SelectOption[]) => {
   const seen = new Set<string>();
   for (const option of options) {
     if (seen.has(option.value))
-      console.warn(
-        `[vera] ui: <vera-select> options contain duplicate value ${JSON.stringify(option.value)} — ` +
-          `selection is by value, so these rows will mirror each other.`
-      );
+      console.warn(diagnostic('ui', '<vera-select>', 'ui-select-duplicate', __DEV__ && PROSE['ui-select-duplicate'](JSON.stringify(option.value))));
     seen.add(option.value);
   }
 };

@@ -68,7 +68,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 19;
+const PENDING_MAX = 17;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -113,7 +113,7 @@ const CLAIMS = new Map([
   ['llms.txt#461d362f95', 'boolean-child'], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
   ['llms.txt#c23d8dc6f5', 'tag-inner-html'], // **`key` and `ref` work on a runtime `tag` component exactly as on a written element** (`<H
   ['llms.txt#8a42e4218c', 'no-renderer'], // Defining a component before `wire([renderer])` → with nothing on the `'render'` chain, `re
-  ['llms.txt#b9de104cbe', PENDING], // Registering at an **occupied** priority replaces that entry (this is how a renderer is swa
+  ['llms.txt#b9de104cbe', 'wire-replaced'], // Registering at an **occupied** priority replaces that entry (this is how a renderer is swa
   ['llms.txt#7cdcce9c98', 'setup-uncommitted'], // Development warns if neither happens, and names both. 7.
   ['llms.txt#bf52103f92', PENDING], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
   ['llms.txt#7fae901481', 'boolean-child'], // Development names it.
@@ -204,7 +204,7 @@ const CLAIMS = new Map([
   ['packages/styles/README.md#ab7656278f', 'slotted-light'], // Development says so if a light component's sheet uses `::slotted()`.
   ['packages/styles/README.md#b5c13c2241', 'no-scope'], // Development says so, once.
   ['packages/styles/README.md#11305688d2', 'not a promise: the engine refuses, not vera'], // A constructed sheet can only be adopted by documents of its own window — the engine refuse
-  ['packages/ui/README.md#01a97ce183', PENDING], // Two library versions on one page warn instead of silently forking — and `@verajs/ui/elemen
+  ['packages/ui/README.md#01a97ce183', 'ui-defined-twice'], // Two library versions on one page warn instead of silently forking — and `@verajs/ui/elemen
 ]);
 
 const codes = new Set(

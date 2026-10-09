@@ -114,7 +114,7 @@ check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get
     said.length = 0;
     console.warn = (...args) => said.push(args.join(' '));
     try { run(); } finally { console.warn = originalWarn; }
-    return said.filter((line) => /two things were wired/.test(line)).length;
+    return said.filter((line) => /two things were wired[\s\S]*\(wire-replaced\)$/.test(line)).length;
   };
 
   const same = () => {};

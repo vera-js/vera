@@ -27,6 +27,9 @@ const MIGRATED = [
   ['renderer', 'dist/*.min.js'],
   ['shared-utils', '../renderer/dist/vera-renderer.min.js'],
   ['router', 'dist/vera-router.min.js'],
+  ['inserts', '../core/dist/vera.min.js'],
+  ['store', 'dist/*.min.js'],
+  ['ui', 'dist/*.min.js'],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -134,15 +137,12 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
 const NOT_YET = new Map([
   ['jsx', 'phase 3'],
   ['autoloader', 'phase 3'],
-  ['inserts', 'phase 3'],
-  ['store', 'phase 3'],
-  ['ui', 'phase 3'],
   ['motion', 'phase 4 (its own table, omni parity)'],
   ['directives', "phase 4 (its remainder — its table exists, a few inline lines don't use it)"],
   ['ssr', 'phase 4'],
   ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
 ]);
-const NOT_YET_MAX = 9;
+const NOT_YET_MAX = 6;
 
 test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
   const printing = globSync('packages/*/src', { cwd: root })

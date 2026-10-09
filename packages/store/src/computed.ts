@@ -1,4 +1,6 @@
 import { createHook, createStore } from '@verajs/core';
+import { misuse } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 
 /**
  * A memoized derived value.
@@ -56,11 +58,7 @@ export const computed = <T>(evaluate: () => T) => {
    * `__DEV__`-only, as diagnostics here are: production is a browser the author has already run.
    */
   if (__DEV__ && typeof evaluate !== 'function')
-    throw new TypeError(
-      `computed: expected a function to derive the value from, and received ${
-        evaluate === null ? 'null' : typeof evaluate
-      }. Pass the expression as a function — computed(() => a + b), not computed(a + b).`
-    );
+    throw new TypeError(misuse('computed', 'computed-not-function', __DEV__ && PROSE['computed-not-function'](evaluate === null ? 'null' : typeof evaluate)));
   /**
    * A plain object as the hook's owner, never a DOM element.
    *

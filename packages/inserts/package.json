@@ -49,6 +49,7 @@
       "files": [
         "src/**/*{.js,.ts}",
         "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
         "tsconfig.json",
         "../../tsconfig.json",
         "rollup.config.js",
@@ -68,6 +69,7 @@
       "files": [
         "src/**/*{.js,.ts}",
         "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
         "tsconfig.json",
         "../../tsconfig.json",
         "rollup.config.js",
@@ -86,6 +88,7 @@
       "files": [
         "src/**/*{.js,.ts}",
         "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
         "tsconfig.json",
         "../../tsconfig.json",
         "rollup.config.js",

@@ -4,6 +4,8 @@
  * (CODE-PRINCIPLES #1); the entry keeps its meaning through one side-effect import.
  */
 import { VeraSelect } from './select/element.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 
 
 /**
@@ -15,10 +17,7 @@ const define = (tag: string, constructor: CustomElementConstructor) => {
   const existing = customElements.get(tag);
   if (existing) {
     if (existing !== constructor && typeof console !== 'undefined')
-      console.warn(
-        `[vera] ui: <${tag}> is already defined by another copy or version of @verajs/ui — keeping the first. ` +
-          `Align the versions, or import @verajs/ui/elements and register under your own names.`
-      );
+      console.warn(diagnostic('ui', `<${tag}>`, 'ui-defined-twice', __DEV__ && PROSE['ui-defined-twice'](tag)));
     return;
   }
   customElements.define(tag, constructor);
