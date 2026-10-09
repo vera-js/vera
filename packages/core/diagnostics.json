@@ -2,6 +2,12 @@
   "url": "https://docs.verajs.dev/e/",
   "entries": [
     {
+      "code": "no-collections",
+      "params": [],
+      "message": "is handed back as it is — it works, but nothing that reads it updates when it changes.",
+      "fix": "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call."
+    },
+    {
       "code": "no-owner",
       "params": [],
       "message": "there is no component being set up. Hooks, `render()` and `mount()` belong to a component's setup, which runs synchronously from `init(this)` and ends at the first `await` — so after an `await` in setup, or later in a handler, there is no component to attach them to.",

@@ -7,6 +7,10 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'no-collections': () => [
+    'is handed back as it is — it works, but nothing that reads it updates when it changes.',
+    "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call.",
+  ],
   'no-renderer': () => [
     'no renderer is wired, so nothing will appear.',
     "Wire one once, at your app entry: `import { renderer } from '@verajs/renderer'; wire([renderer]);`",

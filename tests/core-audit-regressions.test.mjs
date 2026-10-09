@@ -270,6 +270,9 @@ test('the missing-collections error is raised once, and by a size read too', asy
     const state = core.createStore({ m: new Map([['a', 1]]) });
     for (let i = 0; i < 5; i++) void state.m.size;
     for (let i = 0; i < 5; i++) try { state.m.get('a'); } catch { /* inert without the package */ }
+    /** Said a microtask later, so a module wired right after a store was first read is not a false alarm. */
+    await Promise.resolve();
+    await Promise.resolve();
   } finally {
     console.error = nativeError;
   }

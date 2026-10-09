@@ -3,6 +3,8 @@ import { isWeakCollection } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
 import type { Signal } from '../types.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 
 /**
  * Records the running hook, if any, as depending on `obj[prop]`. A weak collection's subscriptions
@@ -144,6 +146,15 @@ const settle = (tags: string[]) => {
   if (errors.length) throw errors[0];
 };
 
+/**
+ * **A collection in a store with nothing to make it reactive is said once, in development** (main had this; the lean
+ * rebuild dropped it). A `Map`/`Set` no `'store'` module claims is handed back RAW — it works and never updates the
+ * page, the worst failure mode there is: silent. Checked when its TYPE is first decided (once per page, so once), a
+ * microtask later — a module wired after a store was first read (supported: `wire` re-decides) is not a false alarm.
+ */
+let warnedNoCollections = false;
+const COLLECTION = /^\[object (?:Weak)?(?:Map|Set)\]$/;
+
 /** The owned handler for `value`'s type, deciding the type the first time one is met. */
 const handlerFor = (value: object) => {
   const tag = TAG.call(value);
@@ -151,6 +162,12 @@ const handlerFor = (value: object) => {
   if (owned === undefined) {
     types.set(tag, (owned = {}));
     settle([tag]);
+    if (__DEV__ && COLLECTION.test(tag) && !warnedNoCollections)
+      queueMicrotask(() => {
+        if (warnedNoCollections || claimed.has(types.get(tag)!)) return;
+        warnedNoCollections = true;
+        console.error(diagnostic('core', `a ${tag.slice(8, -1)} in a store`, 'no-collections', __DEV__ && PROSE['no-collections']()));
+      });
   }
   return owned;
 };
