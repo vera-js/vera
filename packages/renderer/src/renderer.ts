@@ -27,7 +27,8 @@ import {
   INLINE_HANDLER,
   isSelection,
   read,
-  reportUncaught,
+  reportTo,
+  hostOf,
   SCRIPT_URL,
   SCRIPT_URL_ITEM,
   URL_SINK,
@@ -697,11 +698,7 @@ const applyRef = (callback: (element: Element | null) => void, element: Element 
   try {
     callback(element);
   } catch (error) {
-    const handlers = registry?.get('error') as ((error: unknown, element?: Element) => void)[] | undefined;
-    if (handlers?.length) {
-      const host = renderRoot?.nodeType === 11 ? (renderRoot as ShadowRoot).host : (renderRoot as Element | null);
-      for (const handler of handlers) handler(error, host ?? undefined);
-    } else reportUncaught(error, __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
+    reportTo(registry?.get('error'), error, hostOf(renderRoot), __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
   }
 };
 

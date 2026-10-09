@@ -96,7 +96,9 @@ export type InstanceHook = {
  * **What a claimant attaches to an element it claimed** — `@verajs/renderer/elements`. One shared
  * object for every claimed element of every instance of a template; plain method names, which
  * mangling leaves alone, so it crosses the bundle boundary. The `'element'` insert in
- * `@verajs/inserts` is declared with this same shape.
+ * `@verajs/inserts` is declared with this same shape. **A throw from any of the three is reported, never raised** —
+ * the ref rule: to the `'error'` chain with the component, else as uncaught; the render, the other claims and the
+ * teardown carry on. A claim whose `create` threw is dropped for that instance (never mounted or unmounted).
  */
 export type ElementBehavior = {
   /**

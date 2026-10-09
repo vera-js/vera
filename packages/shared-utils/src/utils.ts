@@ -67,6 +67,24 @@ export const reportUncaught = (error: unknown, sentence: string) => {
   }
 };
 
+/**
+ * **Reports what user code a render called threw — to the app's `'error'` chain, else as uncaught.** One rule for
+ * every callback the framework runs on the user's behalf and survives: a hook (core), an element ref, and an element
+ * claim's `create`/`mount`/`unmount` (the renderer). The caller catches at the call site and carries on, so one
+ * failing callback never stops its siblings or leaves a commit half applied. `element` is the component the error
+ * belongs to, handed to each handler. Every throw is reported — nothing is deduped, as a hook's never was.
+ * **Core keeps a deliberate twin** (`reportHookError`, the same rule as a `forEach`): routed through here it measured
+ * +11 B gzip on `vera.min.js` (2026-10-09). A change to the rule changes both.
+ */
+export const reportTo = (handlers: readonly unknown[] | undefined, error: unknown, element: Element | undefined, sentence: string) => {
+  if (handlers?.length) for (const handler of handlers) (handler as (error: unknown, element?: Element) => void)(error, element);
+  else reportUncaught(error, sentence);
+};
+
+/** The component a render root belongs to: a shadow root's host, or a light root itself. */
+export const hostOf = (root: Node | null | undefined): Element | undefined =>
+  root == null ? undefined : root.nodeType === 11 ? (root as ShadowRoot).host : (root as Element);
+
 /** `fn(a, b, c)`, tracked as the caller is — the stand-in for core's `untracked` when no core was wired. */
 export const call: Untracked = (fn, a, b, c) => fn(a!, b!, c!);
 

@@ -154,7 +154,9 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#bee0271268', PENDING], // It is silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<title>
   ['packages/renderer/README.md#af7465ba0c', 'not a promise: a measurement'], // **Never mix it with `@verajs/renderer` in one app** — that loads two renderers with two te
   ['packages/renderer/README.md#f3d555ed7b', PENDING], // `formatReport` says so when it observed nothing, because a zero report is otherwise indist
-  ['packages/renderer/README.md#cac3636db9', 'not a promise: what a throw does, no message promised'], // A throwing `mount` propagates, and the claims after it in that template do not mount — unl
+  ['packages/renderer/README.md#78e9e20a99', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // **`hold()` is not teardown** … A throwing `create`, `mount` or `unmount` is reported, never raised
+  ['packages/renderer/README.md#bf5ee4fc44', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // Every throw is reported.
+  ['packages/renderer/README.md#1b81f4a6ef', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // A claim whose `create` threw is dropped for that instance
   ['packages/renderer/README.md#0a3da5a8b5', 'late-template-module'], // - **`@verajs/jsx` wires it for you**, from every file it compiles — JSX cannot write `` sv
   ['packages/renderer/README.md#62e6dacab5', 'late-template-module'], // Development names it when it happens, but the rule is cheaper than the diagnostic: wire it
   ['packages/renderer/README.md#36df9b936f', 'not a promise: says no warning is possible'], // **Wire `slots` on the server too:** a server without it writes no light-tree statement, so

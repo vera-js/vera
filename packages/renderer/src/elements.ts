@@ -18,10 +18,19 @@
  * arrives through its connector. An app that does not wire it pays nothing.
  */
 import type { ElementBehavior, InstanceHook } from './types.js';
+import { hostOf, reportTo } from '@verajs/shared-utils';
 
 type Claim = (element: Element) => ElementBehavior | undefined;
 
 let registered: Map<string, unknown[]> | null = null;
+
+/**
+ * **A claim's callbacks follow the ref rule** (Brian, 2026-10-09): user code a render calls is caught AT ITS CALL SITE
+ * — so a template with no claims runs exactly the path it did — reported to the app's `'error'` chain with the
+ * component it belongs to (else as uncaught), and the render, the other claims and the teardown carry on. A mid-commit
+ * throw once left a component's root empty for good; `mount` propagating aborted every later claim's mount.
+ */
+const report = (error: unknown, root: Node | null, sentence: string) => reportTo(registered?.get('error'), error, hostOf(root), sentence);
 
 /**
  * **The next element of an instance in document pre-order, never leaving it.** A root is a fragment, or — for a
@@ -58,9 +67,18 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
     for (let k = 0; k < positions.length; k++) {
       if (listed) node = (instance as readonly Element[])[positions[k]];
       else for (; at < positions[k]; at++) node = nextIn(node!, instance as Node);
+      /**
+       * At creation — before the first update, and before the instance is connected anywhere. A claim whose `create`
+       * throws is reported and DROPPED for this instance (it never mounts or unmounts, being half made); the element
+       * stays as the template built it — a claim inserts nothing — and every other claim carries on. The ref rule.
+       */
+      try {
+        behaviors[k].create?.(node!, adopted);
+      } catch (error) {
+        report(error, root, __DEV__ ? 'an element claim threw in create; the render continued without it.' : 'claim threw');
+        continue;
+      }
       found.push(node!, behaviors[k]);
-      /** At creation — before the first update, and before the instance is connected anywhere. */
-      behaviors[k].create?.(node!, adopted);
     }
     return { f: found, r: root, a: adopted, k: undefined, d: false } as State;
   },
@@ -73,7 +91,13 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
     state.f = null;
     for (let i = 0; i < found.length; i += 2) {
       const behavior = found[i + 1] as ElementBehavior;
-      const value = behavior.mount?.(found[i] as Element, context);
+      let value;
+      try {
+        value = behavior.mount?.(found[i] as Element, context);
+      } catch (error) {
+        report(error, state.r, __DEV__ ? 'an element claim threw in mount; the others still mounted.' : 'claim threw');
+        continue;
+      }
       if (value !== undefined && behavior.unmount !== undefined) (state.k ??= []).push(found[i], behavior, value);
     }
   },
@@ -81,7 +105,13 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
     const state = given as State;
     state.d = true;
     const kept = state.k;
-    if (kept !== undefined) for (let i = 0; i < kept.length; i += 3) (kept[i + 1] as ElementBehavior).unmount!(kept[i + 2], kept[i] as Element);
+    if (kept !== undefined)
+      for (let i = 0; i < kept.length; i += 3)
+        try {
+          (kept[i + 1] as ElementBehavior).unmount!(kept[i + 2], kept[i] as Element);
+        } catch (error) {
+          report(error, state.r, __DEV__ ? 'an element claim threw in unmount; the rest of the teardown ran.' : 'claim threw');
+        }
   },
 });
 
