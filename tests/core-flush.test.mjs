@@ -112,7 +112,7 @@ test('a measure-then-set settles within ONE flush — before paint, no frame in 
   const el = doc.createElement(name);
   doc.body.append(el);
   await frame();
-  /** One frame request, cancelled after: a chain of them would keep the process alive forever. */
+  /** One frame request, canceled after: a chain of them would keep the process alive forever. */
   const id = dom.window.requestAnimationFrame(() => { frames++; });
   const before = frames;
   state.text = 'hello';
