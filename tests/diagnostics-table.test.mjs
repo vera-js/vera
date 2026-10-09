@@ -115,6 +115,8 @@ for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).
       at = end;
       if (seen.has(key)) continue;
       seen.add(key);
+      /** A raise explained by `SHARED.` is the shared table's (diagnostics-tables holds it), not directives'. */
+      if (args.some((arg) => arg.includes('SHARED.'))) continue;
       /** A runtime code (`ve.code ?? 'value-bad'`) contributes its literal fallback — the one the
        *  table has to cover, since the other branch is the parser's own vocabulary. */
       const literal = (args[index] ?? '').match(/'([a-z][a-z0-9-]*)'/);

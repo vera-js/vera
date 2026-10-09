@@ -50,6 +50,8 @@ const CASES = [
   ['css("text")', () => styleModule.css('p{}'), /css: expected a template literal/],
   ['renderInto(result) with no container', () => renderInto({}), /renderInto: expected a container node/],
   ['keyed(key) with no template', () => keyed('a'), /keyed: expected a template/],
+  ['a content property beside content', () => renderInto(core.html`<div .textContent=${'v'}><b>s</b></div>`, document.createElement('div')), /renderer: <div> binds `\.textContent`/],
+  ['an expression in tag-name position', () => renderInto(core.html`<${'p'}>x</${'p'}>`, document.createElement('div')), /renderer: an expression in tag position/],
   ['tag("h1") called, not tagged', () => tag('h1'), /tag: expected a template literal/],
   ['adoptStyles(nothing)', () => styleModule.adoptStyles(undefined), /adoptStyles: expected a component element/],
   ['applyStyles(sheet, nothing)', () => styleModule.applyStyles('p{}', undefined), /applyStyles: expected a component element/],

@@ -67,7 +67,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 58;
+const PENDING_MAX = 54;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -111,7 +111,7 @@ const CLAIMS = new Map([
   ['llms.txt#bf52103f92', PENDING], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
   ['llms.txt#7fae901481', PENDING], // Development names it.
   ['llms.txt#9d82b4cb6b', PENDING], // Development names any non-primitive that reaches an attribute sink. 13.
-  ['llms.txt#ebf4968a15', PENDING], // For an element that never calls `init()`, nothing drains the record either, so the clobber
+  ['llms.txt#ebf4968a15', 'upgrade-clobber'], // For an element that never calls `init()`, nothing drains the record either, so the clobber
   ['packages/autoloader/README.md#2c0b84874a', PENDING], // Discovery catches the throw, reports it once and moves on, so a hostile attribute costs a 
   ['packages/core/README.md#bf064fe7d3', 'no-collections'], // Without it core says so the first time one is read.
   ['packages/core/README.md#7508f63a9f', 'not a promise: says there is no warning'], // There is no warning for this.
@@ -124,7 +124,7 @@ const CLAIMS = new Map([
   ['packages/core/README.md#37e87470fe', 'setup-uncommitted'], // Hooks that are never committed never run: no error, no render, an effect that simply does 
   ['packages/core/README.md#e8129f5cea', 'not a promise: says nothing can warn'], // Without the guard the component still renders, because a custom-element reaction that thro
   ['packages/core/README.md#b9d5123713', 'not a promise: says there is no warning'], // **Every ID-based ARIA relationship resolves within a single tree, so a shadow root breaks 
-  ['packages/core/README.md#10b78df7ea', PENDING], // An element that never calls `init()` (a plain custom element a vera template binds) keeps 
+  ['packages/core/README.md#10b78df7ea', 'upgrade-clobber'], // An element that never calls `init()` (a plain custom element a vera template binds) keeps 
   ['packages/directives/README.md#bc8584566e', PENDING], // A feed shares a POSITION — an item fragment (`#id`), or a server cursor the establishment 
   ['packages/directives/README.md#4d20f0c981', 'motion-property-at-top-level'], // Put one in the wrong half and it is refused by name with the move spelled out, in both dir
   ['packages/directives/README.md#c54e2c0f10', 'motion-vocabulary-replaced'], // Keys **replace** with a `motion-vocabulary-replaced` warning; inserts (`preset`, `easing`,
@@ -147,7 +147,7 @@ const CLAIMS = new Map([
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.
   ['packages/renderer/README.md#2b44911726', 'no-renderer'], // Without it, core has no renderer at all: `render()` warns once (in every build) and puts n
   ['packages/renderer/README.md#24226b7ae7', PENDING], // Anything else that cannot listen — a string, a number, an object with no `handleEvent` — i
-  ['packages/renderer/README.md#c3769d8d67', PENDING], // Development says so.
+  ['packages/renderer/README.md#c3769d8d67', 'select-multiple'], // Development says so.
   ['packages/renderer/README.md#a75ef39c09', PENDING], // | `true`, `false` | as text — **and development says so**; see below |
   ['packages/renderer/README.md#53f8bf9cf7', PENDING], // The value is legitimate and nothing throws, so **development names it** at the binding rat
   ['packages/renderer/README.md#bc33e32558', PENDING], // That is the **one** value semantic on which JSX and a hand-written template differ, and th
@@ -170,7 +170,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#3c840615a5', 'hydration-fallback'], // Measured in `tests/hydrate-mismatch.test.mjs` — three containers, one mismatch, one warnin
   ['packages/renderer/README.md#731e71d32f', 'not a promise: history of the wording'], // Worth stating because the warning used to imply otherwise and sent the reader hunting for 
   ['packages/renderer/README.md#40e8320f1f', PENDING], // **A key that cannot be written into markup is skipped**, with a warning in development.
-  ['packages/renderer/README.md#5a81e4d78c', PENDING], // Elements that never call `init()` keep the development warning and the `declare` advice in
+  ['packages/renderer/README.md#5a81e4d78c', 'upgrade-clobber'], // Elements that never call `init()` keep the development warning and the `declare` advice in
   ['packages/renderer/README.md#c0e6e64c98', PENDING], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
   ['packages/renderer/README.md#9716e1f324', PENDING], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
   ['packages/renderer/README.md#5ae4ff86c0', PENDING], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
