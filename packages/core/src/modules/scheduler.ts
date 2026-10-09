@@ -45,7 +45,12 @@ const WINDOW = 16;
 let windowStart = -Infinity;
 let spent = 0;
 
-/** The default: a microtask within the budget, the element window's frame (or a timer) past it. */
+/**
+ * The default: a microtask within the budget, the element window's frame (or a timer) past it. The CLOCK is the one
+ * deliberate exception to "always the element's own window": the budget is one budget for the one event loop every
+ * same-origin window shares, and each window's `performance.now()` counts from its own origin — a window start read in
+ * the opener and a "now" read in a pop-out would subtract to an offset, not a duration.
+ */
 const budgeted: RenderScheduler = (run, element) => {
   const now = performance.now();
   if (now - windowStart >= WINDOW) {

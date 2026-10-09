@@ -236,3 +236,20 @@ test('a window with no frames still settles a held loop — through the timer', 
   await new Promise((resolve) => setTimeout(resolve, 350));
   assert.equal(state.n, 5, 'and the held runs came back on the timer, with no frame to wait for');
 });
+
+test('an element whose window has gone (a closed pop-out) still settles a held loop — and nothing throws', async () => {
+  /** A document with no window: `defaultView` is null, as it is for a closed pop-out's or a removed iframe's. */
+  const orphan = doc.implementation.createHTMLDocument('');
+  assert.equal(orphan.defaultView, null, 'CONTROL: no window here');
+  const el = orphan.createElement('div');
+  orphan.body.append(el);
+  const state = core.createStore({ n: 0 });
+  core.init(el);
+  core.useEffect(() => { if (state.n > 0 && state.n < 5) state.n++; });
+  core.mount();
+  state.n = 1;
+  await Promise.resolve();
+  assert.equal(state.n, 3, 'CONTROL: two runs in the flush, then held');
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(state.n, 5, 'the held runs came back on the global frame or the timer');
+});
