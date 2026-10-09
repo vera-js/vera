@@ -34,7 +34,7 @@ const refuse = (element: Element, key: string) => {
   refused.set(element, names);
   if (names.has(key)) return;
   names.add(key);
-  console.warn(diagnostic('core', `<${element.localName}>`, 'getter-only-prop', __DEV__ && SHARED['getter-only-prop'](key)));
+  console.warn(diagnostic('core', `<${element.localName}>`, 'getter-only-prop', __DEV__ && SHARED.getterOnlyProp(key)));
 };
 
 export const adoptProps = (element: ComponentElement) => {

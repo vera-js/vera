@@ -10,21 +10,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { TABLES } from '../scripts/diagnostic-tables.mjs';
+import { TABLES, codeOf, proseOf } from '../scripts/diagnostic-tables.mjs';
 
 const at = (name, file) => new URL(`../packages/${name}/${file}`, import.meta.url);
 
 /**
- * A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…` — or `SHARED['code']` for a code more than one
- * package prints (shared-utils' table). Captures the two spellings of the code and which table explains it.
+ * A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…` — or `SHARED.codeName(…` for a code more than one
+ * package prints (shared-utils' table, one export per code, the name IS the code). Captures the printed code and the
+ * explaining one, from either table.
  */
-const CALL = /(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (PROSE|SHARED)\['([a-z][a-z0-9-]*)'\]/g;
+const CALL = /(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
 
 /** A package's tables merged, as `sync-diagnostics` publishes them — a code in two of them is a failure here too. */
 const merged = async ({ name, tables }) => {
   const all = {};
   for (const table of tables)
-    for (const [code, prose] of Object.entries((await import(at(name, table).href)).PROSE)) {
+    for (const [code, prose] of Object.entries(proseOf(await import(at(name, table).href)))) {
       assert.ok(!(code in all), `${name}: "${code}" is in two of its tables`);
       all[code] = prose;
     }
@@ -40,10 +41,11 @@ for (const entry of TABLES) {
   const problems = [];
   for (const file of entry.sources) {
     const text = readFileSync(at(entry.name, file), 'utf8');
-    for (const [, printed, table, explained] of text.matchAll(CALL)) {
+    for (const [, printed, own, shared] of text.matchAll(CALL)) {
+      const explained = own ?? codeOf(shared);
       if (printed !== explained) problems.push(`${file}: one call prints "${printed}" and explains "${explained}"`);
-      if (table === 'SHARED') {
-        if (!(explained in SHARED)) problems.push(`${file}: SHARED['${explained}'] is not in shared-utils' table`);
+      if (shared !== undefined) {
+        if (!(explained in SHARED)) problems.push(`${file}: SHARED.${shared} is not in shared-utils' table`);
         raisedShared.add(explained);
       } else raised.add(printed);
     }

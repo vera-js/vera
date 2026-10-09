@@ -62,12 +62,12 @@ const entries = entriesOf(PROSE);
  * own `diagnostics.json` beside its package.json. Directives' carries more than its codes (payloads, above), which is
  * why it is not in that list; its codes still join the uniqueness check below.
  */
-const { TABLES: LISTED } = await import('./diagnostic-tables.mjs');
+const { TABLES: LISTED, proseOf } = await import('./diagnostic-tables.mjs');
 const TABLES = [];
 for (const { name, tables } of LISTED) {
   /** Several tables per package (one per bundle entry) merge into its one file; a code twice is caught below. */
   const tableEntries = [];
-  for (const table of tables) tableEntries.push(...entriesOf((await import(`../packages/${name}/${table}`)).PROSE));
+  for (const table of tables) tableEntries.push(...entriesOf(proseOf(await import(`../packages/${name}/${table}`))));
   TABLES.push({
     name,
     out: new URL(`../packages/${name}/diagnostics.json`, import.meta.url),

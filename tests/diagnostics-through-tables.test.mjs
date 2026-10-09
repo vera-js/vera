@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TABLES } from '../scripts/diagnostic-tables.mjs';
+import { TABLES, proseOf } from '../scripts/diagnostic-tables.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const MIGRATED = [
@@ -39,7 +39,7 @@ for (const [name, bundle] of MIGRATED) {
     const { tables } = TABLES.find((entry) => entry.name === name);
     const entries = [];
     for (const [owner, files] of [[name, tables], ['shared-utils', ['src/diagnostics.ts']]])
-      for (const file of files) entries.push(...Object.entries((await import(new URL(`../packages/${owner}/${file}`, import.meta.url).href)).PROSE));
+      for (const file of files) entries.push(...Object.entries(proseOf(await import(new URL(`../packages/${owner}/${file}`, import.meta.url).href))));
     const min = readFileSync(join(root, 'packages', name, bundle), 'utf8');
     assert.ok(entries.length > 0, 'CONTROL: the table has entries');
     const leaked = [];

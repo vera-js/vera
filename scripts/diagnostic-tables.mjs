@@ -9,6 +9,15 @@
  * own prose — and they are MERGED into its one `diagnostics.json`. `shared-utils` holds the codes more than one package
  * prints (raised as `SHARED['code']`, never re-entered in a second table); its `sources` are its own files that print.
  */
+/** `tagCalled` → `tag-called`: a shared table's export name IS its code (see shared-utils' diagnostics.ts). */
+export const codeOf = (name) => name.replace(/[A-Z0-9]/g, (c) => `-${c.toLowerCase()}`);
+/**
+ * A table module → `{ code: prose }`. A package table exports one `PROSE` object (its bundle owns every entry); the
+ * shared table exports one function per code, so a bundle keeps only those it raises — its map is derived here.
+ */
+export const proseOf = (module) =>
+  module.PROSE ?? Object.fromEntries(Object.entries(module).filter(([, fn]) => typeof fn === 'function').map(([name, fn]) => [codeOf(name), fn]));
+
 export const TABLES = [
   { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: [] },
   { name: 'renderer', tables: ['src/hydration-diagnostics.ts'], sources: ['src/hydration.ts'] },
