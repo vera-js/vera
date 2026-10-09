@@ -1010,7 +1010,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      */
     if (__DEV__ && value != null) {
       const kind = attributeValueKind(element.localName, name, parts === null ? values[i] : value);
-      if (kind !== null) console.warn(diagnostic('renderer', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind)));
+      if (kind !== null) console.warn(diagnostic('renderer', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind, `.${name}=\${value}`)));
     }
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */

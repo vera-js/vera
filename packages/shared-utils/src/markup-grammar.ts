@@ -172,7 +172,7 @@ export const ownsContent = (element: Element): boolean => {
 };
 /** `side` is the module the user wired — `renderer` for a template, `spread` for a spread. */
 export const contentClash = (side: string, tag: string, name: string): never => {
-  throw new Error(misuse(side, 'content-clash', __DEV__ && SHARED.contentClash(tag, name)));
+  throw new Error(misuse(side, 'content-clash', __DEV__ && SHARED.contentClash(tag, name, side === 'spread' ? `<${tag} \${spread({ '.${name}': … })}></${tag}>` : `<${tag} .${name}=\${…}></${tag}>`)));
 };
 
 /**

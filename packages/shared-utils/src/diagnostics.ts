@@ -16,10 +16,13 @@
  */
 import type { Prose } from './types.js';
 
-/** core's `html`/`svg`/`mathml` and the renderer's `tag` — a tagged template called as a function. */
-export const tagCalled: Prose = (tag, received) => [
+/**
+ * core's `html`/`svg`/`mathml` and the renderer's `tag` — a tagged template called as a function. The FACT is shared;
+ * the EXAMPLE is each emitter's (vera-5a): `html` writes markup, `tag` an element name — so the emitter passes it.
+ */
+export const tagCalled: Prose = (tag, received, example) => [
   `expected a template literal and received ${received}.`,
-  `It is a tagged template — write ${tag}\`<p>hi</p>\`, not ${tag}('<p>hi</p>').`,
+  `It is a tagged template — write ${tag}\`${example}\`, not ${tag}('${example}').`,
 ];
 /** core's props adoption on an `init()` element, and the renderer's on any other element. */
 export const getterOnlyProp: Prose = (key) => [
@@ -28,7 +31,7 @@ export const getterOnlyProp: Prose = (key) => [
 ];
 /** shared-utils' `adoptProperty` (renderer, spread): an element that never drains the record loses it at upgrade. */
 export const upgradeClobber: Prose = (name) => [
-  `the value bound by \`.${name}=\${…}\` was replaced while the element upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites whatever was set beforehand.`,
+  `the value bound to \`${name}\` was replaced while the element upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites whatever was set beforehand.`,
   `Write it \`declare ${name}?: …\` instead. A component that calls init() adopts bound properties automatically and never sees this; this element did not. Ignore this if the component replaced the value on purpose.`,
 ];
 /** shared-utils' `isSelection` (renderer, spread). */
@@ -37,9 +40,9 @@ export const selectMultiple: Prose = (name) => [
   'Bind `?selected=${…}` on each <option> to control every selection.',
 ];
 /** shared-utils' `contentClash` (renderer, spread): a content-replacing property beside content of the element's own. */
-export const contentClash: Prose = (tag, name) => [
+export const contentClash: Prose = (tag, name, alone) => [
   `<${tag}> binds \`.${name}\`, which replaces the element's content, and also has content of its own — markup or a child binding, which the write would strand.`,
-  `Bind one or the other: the property alone (\`<${tag} .${name}=\${…}></${tag}>\`), or the content alone.`,
+  `Bind one or the other: the property alone (\`${alone}\`), or the content alone.`,
 ];
 /** shared-utils' `tagHole` (renderer; @verajs/ssr keeps a twin, phase 4). */
 export const tagHole: Prose = () => [
@@ -56,10 +59,13 @@ export const scriptUrl: Prose = (name) => [
   `\`${name}\` was given a javascript: URL — refused, and the attribute removed.`,
   'A bound URL is data, and data must never become code.',
 ];
-/** The renderer and spread: `kind` is what the value was, from dev-values' `attributeValueKind`. */
-export const attributeValue: Prose = (name, kind) => [
+/**
+ * The renderer and spread: `kind` is what the value was (dev-values' `attributeValueKind`); `property` is the
+ * emitter's own spelling of a property binding — a template's `.name=${value}`, a spread's `'.name': value`.
+ */
+export const attributeValue: Prose = (name, kind, property) => [
   `the attribute \`${name}\` was given ${kind}. An attribute value is a string and nothing else.`,
-  `If the element is meant to RECEIVE this value, bind a property instead — \`.${name}=\${value}\` — which is how a custom element takes anything that is not text. If it is meant to be read as text, convert it where you know what it means: \`date.toISOString()\`, \`list.join(' ')\`. A Date in particular serializes with the SERVER's timezone on one side and the browser's on the other, so it will not survive hydration.`,
+  `If the element is meant to RECEIVE this value, bind a property instead — \`${property}\` — which is how a custom element takes anything that is not text. If it is meant to be read as text, convert it where you know what it means: \`date.toISOString()\`, \`list.join(' ')\`. A Date in particular serializes with the SERVER's timezone on one side and the browser's on the other, so it will not survive hydration.`,
 ];
 /** The renderer and spread: `type` is the value's `typeof`. */
 export const notAListener: Prose = (name, type) => [

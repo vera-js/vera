@@ -5,19 +5,21 @@
       "code": "attribute-value",
       "params": [
         "name",
-        "kind"
+        "kind",
+        "property"
       ],
       "message": "the attribute `{name}` was given {kind}. An attribute value is a string and nothing else.",
-      "fix": "If the element is meant to RECEIVE this value, bind a property instead — `.{name}=${value}` — which is how a custom element takes anything that is not text. If it is meant to be read as text, convert it where you know what it means: `date.toISOString()`, `list.join(' ')`. A Date in particular serializes with the SERVER's timezone on one side and the browser's on the other, so it will not survive hydration."
+      "fix": "If the element is meant to RECEIVE this value, bind a property instead — `{property}` — which is how a custom element takes anything that is not text. If it is meant to be read as text, convert it where you know what it means: `date.toISOString()`, `list.join(' ')`. A Date in particular serializes with the SERVER's timezone on one side and the browser's on the other, so it will not survive hydration."
     },
     {
       "code": "content-clash",
       "params": [
         "tag",
-        "name"
+        "name",
+        "alone"
       ],
       "message": "<{tag}> binds `.{name}`, which replaces the element's content, and also has content of its own — markup or a child binding, which the write would strand.",
-      "fix": "Bind one or the other: the property alone (`<{tag} .{name}=${…}></{tag}>`), or the content alone."
+      "fix": "Bind one or the other: the property alone (`{alone}`), or the content alone."
     },
     {
       "code": "forged-template",
@@ -77,10 +79,11 @@
       "code": "tag-called",
       "params": [
         "tag",
-        "received"
+        "received",
+        "example"
       ],
       "message": "expected a template literal and received {received}.",
-      "fix": "It is a tagged template — write {tag}`<p>hi</p>`, not {tag}('<p>hi</p>')."
+      "fix": "It is a tagged template — write {tag}`{example}`, not {tag}('{example}')."
     },
     {
       "code": "tag-hole",
@@ -93,7 +96,7 @@
       "params": [
         "name"
       ],
-      "message": "the value bound by `.{name}=${…}` was replaced while the element upgraded. A class field is the usual cause: at ES2022 `{name}?: …` emits `{name};`, which runs during upgrade and overwrites whatever was set beforehand.",
+      "message": "the value bound to `{name}` was replaced while the element upgraded. A class field is the usual cause: at ES2022 `{name}?: …` emits `{name};`, which runs during upgrade and overwrites whatever was set beforehand.",
       "fix": "Write it `declare {name}?: …` instead. A component that calls init() adopts bound properties automatically and never sees this; this element did not. Ignore this if the component replaced the value on purpose."
     }
   ]

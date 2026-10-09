@@ -28,7 +28,7 @@ test('a written content property beside a child binding or markup is refused in 
 test('a spread content key beside content is refused in development — the tag-component path', { skip: isProduction && 'a development check' }, () => {
   assert.throws(() => renderInto(html`<my-el ${spread({ '.textContent': 'V' })}>${'kid'}</my-el>`, into()), CLASH);
   /** The module the user wired names it: a spread key says `spread:`, a template binding `renderer:`. */
-  assert.throws(() => renderInto(html`<my-el ${spread({ '.textContent': 'V' })}>${'kid'}</my-el>`, into()), /^(?:Error: )?spread: /);
+  assert.throws(() => renderInto(html`<my-el ${spread({ '.textContent': 'V' })}>${'kid'}</my-el>`, into()), /^(?:Error: )?spread: [\s\S]*the property alone \(`<my-el \$\{spread\(\{ '\.textContent': … \}\)\}><\/my-el>`\)/);
   assert.throws(() => renderInto(html`<my-el .textContent=${'V'}>${'kid'}</my-el>`, into()), /^(?:Error: )?renderer: /);
 });
 

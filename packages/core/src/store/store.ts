@@ -35,7 +35,7 @@ const tag =
   (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
     if (__DEV__ && !Array.isArray(strings)) {
       const name = ['html', 'svg', 'mathml'][type - 1];
-      throw new TypeError(misuse(name, 'tag-called', __DEV__ && SHARED.tagCalled(name, typeof strings === 'string' ? JSON.stringify(strings) : String(strings))));
+      throw new TypeError(misuse(name, 'tag-called', __DEV__ && SHARED.tagCalled(name, typeof strings === 'string' ? JSON.stringify(strings) : String(strings), '<p>hi</p>')));
     }
     return { ['_$litType$']: type, strings, values };
   };

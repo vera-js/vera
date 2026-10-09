@@ -148,7 +148,7 @@ test('lazy, and the element never calls init(): the clobber is NAMED in developm
   assert.equal(host.querySelector('cp-lazy-plain').item, undefined, 'the control: the field really did clobber it');
   const named = warned.filter((w) => w.includes('was replaced while the element upgraded'));
   assert.equal(named.length, isProduction ? 0 : 1, named.join(' | '));
-  if (!isProduction) assert.match(named[0], /^\[vera\] renderer: <cp-lazy-plain> — the value bound by `\.item=\$\{…\}`[\s\S]*`declare item\?: …`[\s\S]*\(upgrade-clobber\)$/);
+  if (!isProduction) assert.match(named[0], /^\[vera\] renderer: <cp-lazy-plain> — the value bound to `item` was replaced while the element upgraded[\s\S]*`declare item\?: …`[\s\S]*\(upgrade-clobber\)$/);
 });
 
 test('a defined non-vera element is untouched: its own accessor receives, nothing is recorded', () => {

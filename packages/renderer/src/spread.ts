@@ -213,7 +213,7 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
     else {
       if (__DEV__) {
         const kind = attributeValueKind(element.localName, name, value);
-        if (kind !== null) console.warn(diagnostic('spread', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind)));
+        if (kind !== null) console.warn(diagnostic('spread', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind, `'.${name}': value`)));
       }
       element.setAttribute(name, `${value}`);
     }

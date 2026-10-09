@@ -47,8 +47,21 @@ for (const [code, draw] of ROWS)
       }
       assert.equal(lines.length, 1, `${side}: ${lines.join(' | ')}`);
       assert.match(lines[0], new RegExp(`^\\[vera\\] ${side}: <[a-z]+> — [\\s\\S]*\\(${code}\\)$`), `${side} names itself`);
+      /** The FACT is shared, the EXAMPLE is each emitter's: a property binding spelled the way this module spells one. */
+      if (code === 'attribute-value')
+        assert.ok(lines[0].includes(side === 'renderer' ? '`.title=${value}`' : "`'.title': value`"), `${side}'s own spelling: ${lines[0]}`);
     }
   });
+
+test("tag-called: one fact, each emitter's own example — html writes markup, tag an element name", { skip: isProduction && 'development prose' }, async () => {
+  const { tag } = await load('renderer/tag');
+  const message = (call) => { try { call(); } catch (error) { return error.message; } return ''; };
+  const fromTag = message(() => tag('h1'));
+  const fromHtml = message(() => html('<p>x</p>'));
+  assert.match(fromTag, /write tag`h1`, not tag\('h1'\)\. \(tag-called\)$/, fromTag);
+  assert.ok(!fromTag.includes('<p>hi</p>'), 'tag() never advises markup — tag`<p>hi</p>` is itself a refusal');
+  assert.match(fromHtml, /write html`<p>hi<\/p>`, not html\('<p>hi<\/p>'\)\. \(tag-called\)$/, fromHtml);
+});
 
 test('forged-template: a value shaped like a template renders as text and is named each time a new one arrives', () => {
   const forged = { _$litType$: 1, strings: ['<img src=x onerror=alert(1)>'], values: [] };

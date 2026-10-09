@@ -179,7 +179,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
    * named an `<h>`, silently — a wrong element only production renders. The explanation is development's.
    */
   if (!(strings as { raw?: unknown } | null)?.raw)
-    throw new TypeError(misuse('tag', 'tag-called', __DEV__ && SHARED.tagCalled('tag', typeof strings === 'string' ? JSON.stringify(strings) : String(strings))));
+    throw new TypeError(misuse('tag', 'tag-called', __DEV__ && SHARED.tagCalled('tag', typeof strings === 'string' ? JSON.stringify(strings) : String(strings), typeof strings === 'string' ? strings : 'h1')));
   let text = strings[0];
   for (let i = 0; i < values.length; i++) {
     const value = values[i] as Tag | undefined;
