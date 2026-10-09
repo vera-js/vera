@@ -184,6 +184,7 @@ is the platform's own and untouched by any of this.
 | `useLayoutEffect` | right after the render, before every `useEffect` — sees the new DOM, as in React (priority 60) | coalesced, one flush |
 | `useEffect` | after the render, same flush, before paint (priority 75) | coalesced, one flush |
 | `useSyncEffect` | immediately on every change (priority 75) | **not** batched |
+| `useHook` | `(callback, priority, element?)` — at the priority you give it; 25 runs before the render and sees the DOM the last render left | coalesced, one flush |
 
 All three accept `(callback, element?)` and **run a returned function as cleanup** — before the
 next pass, and **on element removal** (no `disconnectedCallback` code needed; an author's own
@@ -297,7 +298,7 @@ A coalesced run (`useEffect`, `useLayoutEffect`, a render) describes the write t
 | `wire` | `(descriptor \| connector \| array) => void` — arrays nest, so a module made of several descriptors is itself an array; a descriptor is `{ on, fn, priority, name? }`, **priority is required** |
 | `inserts` | the registry `Map` |
 | `connect` | optional on a descriptor — handed the registry before `fn` is registered, so a module that keeps none can be given core's |
-| `createHook` | `({ callback, priority, element? }) => run` — build your own hook type. Returns the wrapped callback so a standalone value can drive its own first pass (`run(undefined, true)`), or `undefined` if registration was refused |
+| `createHook` | `({ callback, priority, element? }) => run` — the raw hook primitive: it runs INSIDE every write it hears, unbatched (what a `computed` needs); for a scheduled hook use `useHook`. Returns the wrapped callback so a standalone value can drive its own first pass (`run(undefined, true)`), or `undefined` if registration was refused |
 
 There is no reconciliation step. A module that would otherwise carry its own registry is handed
 core's instead — `wire([router])` — which reads the same under a bundler and on a CDN page.

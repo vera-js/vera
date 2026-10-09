@@ -194,6 +194,7 @@ store has since outgrown). When rows are replaced rather than mutated — which 
 | `useLayoutEffect` | right after the render, before every `useEffect` — it sees the DOM the render just made, as in React | coalesced, one flush |
 | `useEffect` | after the render, in the same flush — before the browser paints | coalesced, one flush |
 | `useSyncEffect` | immediately on every change | **not** batched |
+| `useHook` | at the priority you give it — `25` runs before the render and sees the DOM the last render left; `65` between layout effects and effects | coalesced, one flush |
 
 **Every queued render, layout effect and effect runs in one flush** — a microtask, so after `await` the DOM and its
 effects are current. In a flush, renders run first, then layout effects, then effects, and parents before their
@@ -206,8 +207,10 @@ one event whose several listeners each write state renders once per listener (th
 one) — measured, the click still paints a frame sooner than frame scheduling did, but the work is repeated, so a hot
 event is best handled by one listener making one write.
 
-All three take `(callback, element?)` and treat a returned function as cleanup — run before the next
-pass, **and on element removal**. No `disconnectedCallback` is needed for it; if the component has
+`useLayoutEffect`, `useEffect` and `useSyncEffect` take `(callback, element?)`, and `useHook` takes
+`(callback, priority, element?)` — the same shape with the one thing it adds (`createHook`, the raw primitive under
+all of them, takes an options object instead: it is the building block for modules, not a hook to call in setup). All four treat a returned function as
+cleanup — run before the next pass, **and on element removal**. No `disconnectedCallback` is needed for it; if the component has
 one of its own, it still runs first.
 
 ```js
@@ -260,6 +263,18 @@ in one flush — a genuine loop — never to a measure-then-set, which settles i
 Every callback receives a signal describing the change: `signal.prop`, `signal.value` and
 `signal.prevValue`. A coalesced run describes the write that scheduled it; `useSyncEffect` runs once
 per write, so it sees every one.
+
+### Coming from React
+
+| In React | In Vera |
+| --- | --- |
+| `useLayoutEffect` runs after the DOM update, before paint | The same. |
+| `useEffect` usually runs after paint (before it, after a click or a key press) | Always before paint, in the same flush as the render — so an effect's write never flashes, and a slow effect delays its update's paint. |
+| An effect re-runs when its dependency array changes | There is no dependency array: an effect re-runs when a store value it **read** changes. |
+| The component function re-runs on every update | Setup runs once; only `render()` and the hooks re-run. State lives in `createStore`. |
+| Several handlers for one event render once (React routes events through the root) | Each listener that writes state renders on its own microtask — handle a hot event with one listener making one write. |
+| An update loop throws "Maximum update depth exceeded" | It never freezes the page: a self-feeding hook runs twice per flush, then once per frame, and development warns after 50 frames. |
+| React owns the DOM | A light host changed directly by page code is redistributed by the next microtask — read it after `await`. |
 
 ## Rendering
 
@@ -394,7 +409,7 @@ batching are all built this way, outside core, on the same public surface you ha
 | --- | --- |
 | `wire({ on: name, fn: callback, priority: priority })` | register on an extension point — **priority is required** |
 | `inserts` | the registry itself |
-| `createHook({ callback, priority, element? })` | build your own hook type |
+| `createHook({ callback, priority, element? })` | the raw hook primitive, for modules — it runs inside every write it hears, unbatched (what a `computed` needs). For a hook scheduled like the built-in ones, use `useHook` |
 
 The points are `'render'`, `'init'`, `'store'` (a store first using a value — returns the handler that
 makes it reactive: how `@verajs/store/collections` claims `Map`/`Set`, and how batching or devtools
@@ -409,7 +424,7 @@ wire({ on: 'error', fn: (error, element) => report(error, element?.localName), p
 
 const errorChain = inserts.get('error');            // the registry itself: name -> ordered chain
 
-createHook({                                        // your own hook type: runs at every write it hears, unbatched
+createHook({                                        // the raw primitive: runs INSIDE every write it hears, unbatched
   callback: (change, first) => { if (!first) log(change); },
   priority: 65,                                     // its first pass: after useLayoutEffect (60), before useEffect (75)
 });

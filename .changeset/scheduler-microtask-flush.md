@@ -26,6 +26,9 @@ write reaches the DOM in about 1–5 ms instead of 19–24.
 - **`setRenderScheduler(fn)`** now decides when a FLUSH runs; `microtask` is the same timing without the budget.
 - **Effects run before paint**, after their flush's renders: a slow `useEffect` delays its own update's paint.
 - A window with no animation frames updates after a microtask, like every other, rather than synchronously.
+- **`useHook(callback, priority, element?)`** is new: a hook of your own, scheduled as the built-in ones are, at a
+  priority you choose — `25` runs before the render and reads the DOM the last render left. `createHook` stays the
+  raw primitive, which runs inside every write it hears, unbatched.
 
 `@verajs/ssr`: each round of the server's drains runs core's flush first, so both `renderToString` and
 `renderToStringAsync` serialize the same settled markup — a `useLayoutEffect`'s state now reaches the markup through
