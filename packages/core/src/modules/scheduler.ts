@@ -239,7 +239,7 @@ const loopWarning = (pass: HookPass) => {
  */
 export const allowRenderLoop = (element: ComponentElement) => {
   if (__DEV__) {
-    if (!(element instanceof Element))
+    if ((element as Partial<Node> | null)?.nodeType !== 1)
       throw new TypeError(
         `allowRenderLoop: expected a component element and received ${String(element)}. Pass the element whose loop ` +
           `is intentional — \`allowRenderLoop(this)\` inside the component.`

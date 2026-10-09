@@ -53,6 +53,11 @@ const endSetup = () => {
 };
 
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
+  if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
+    throw new TypeError(
+      `init: expected a component element and received ${String(element)}. Call it in connectedCallback with the ` +
+        `component itself — \`init(this)\`.`
+    );
   currentInstance.element = element;
   /** After the synchronous setup, so the first render has committed and there is a subtree to look at. */
   if (__DEV__) queueMicrotask(() => unclaimedMarkup(element));

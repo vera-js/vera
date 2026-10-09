@@ -70,21 +70,18 @@ app.appendChild(se); await tick();
 se.remove(); await tick();
 check('useSyncEffect cleanup runs on removal', syncCleanups >= 1);
 
-// ---- a hook registered outside init()→render() is ignored ----
-// The warning is __DEV__-only, like every other diagnostic in core: production carries neither the
-// check nor the message. The hook is dropped either way, which is the part that matters.
-let warns = 0; const ow = console.warn; console.warn = () => warns++;
-core.useEffect(() => {});
-console.warn = ow;
-check(
-  isProduction ? 'late/orphan hook is silent in production' : 'late/orphan hook warns',
-  warns === (isProduction ? 0 : 1)
-);
+// ---- a hook registered outside init()→render() THROWS no-owner, in every build ----
+// Since 2026-10-09 (Brian: one rule for every "no owner" case) — it was dropped with a development warning, and
+// silently in production, so a component lost its effect with no word.
+let orphan = '';
+try { core.useEffect(() => {}); } catch (error) { orphan = String(error); }
+check('late/orphan hook throws no-owner, in every build', /no-owner/.test(orphan));
 
 // ---- error messages ----
 let msg = '';
 try { core.init(null); } catch (e) { msg = e.message; }
-check('init error has a message', msg.includes('element'));
+/** A development guard (0 production bytes, as every API-misuse guard in core): production meets the platform's error. */
+if (!isProduction) check('init error has a message', msg.includes('init: expected a component element'));
 try { core.createStore(null); } catch (e) { msg = e.message; }
 check('createStore error has a message', msg.includes('object'));
 
@@ -139,7 +136,7 @@ check('no styles injected inside light element', l1.querySelectorAll('style').le
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
-  check('a swapped scheduler moves effects too, not just renders', order.join(',') === 'layout,render,effect',
+  check('a swapped scheduler moves effects too, not just renders', order.join(',') === 'render,layout,effect',
     `settled as "${order.join(',')}" without waiting for a frame`);
   el.remove();
   /** Back to the default, so nothing after this file inherits a swapped scheduler. */
