@@ -18,7 +18,8 @@
  * arrives through its connector. An app that does not wire it pays nothing.
  */
 import type { ElementBehavior, InstanceHook } from './types.js';
-import { hostOf, reportTo } from '@verajs/shared-utils';
+import { diagnostic, hostOf, reportTo } from '@verajs/shared-utils';
+import { PROSE } from './elements-diagnostics.js';
 
 type Claim = (element: Element) => ElementBehavior | undefined;
 
@@ -124,10 +125,7 @@ const claimTemplate = (built: object, _result: unknown, _readScope: unknown, roo
   if (claims === undefined || claims.length === 0) return;
   const template = built as { _$inst$?: InstanceHook };
   if (__DEV__ && template._$inst$ !== undefined)
-    console.warn(
-      "[vera] elements: a 'template' hook set an instance hook before `elements` (priority 10) and is " +
-        'replaced. Claim elements through the `element` insert instead of a second instance hook.'
-    );
+    console.warn(diagnostic('elements', 'template', 'elements-hook-replaced', __DEV__ && PROSE['elements-hook-replaced']()));
   const positions: number[] = [];
   const behaviors: ElementBehavior[] = [];
   let at = 0;

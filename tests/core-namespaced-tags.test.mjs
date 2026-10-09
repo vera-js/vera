@@ -120,6 +120,7 @@ test('an html template committed into <svg> or <math> is named in development', 
     assert.equal(svgWarnings.length, 1, 'the mistake is named exactly once');
     assert.ok(svgWarnings[0].startsWith('[vera] renderer:'), 'and carries the prefix every diagnostic has');
     assert.ok(svgWarnings[0].includes('<path>'), 'naming the element, so it is found without a bisect');
+    assert.ok(svgWarnings[0].endsWith('(wrong-namespace)'), 'by its code');
     assert.equal(named(html`<math>${html`<mi>x</mi>`}</math>`).length, 1, 'MathML is the same mistake');
 
     /** CONTROLS: correct usage, and the integration points where HTML content is RIGHT. */

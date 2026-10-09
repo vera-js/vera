@@ -87,7 +87,7 @@ export const attributeValueKind = (tag: string, name: string, value: unknown): s
 /** Marked pure: a bare module-level `new Set()` is kept by the bundler even when nothing reads it, and
  *  was the only trace this dev-only check left in production (8 B raw, measured). */
 const saidEvents = /* @__PURE__ */ new Set<string>();
-export const eventNameComplaint = (element: Element, name: string): string | null => {
+export const eventNameGuess = (element: Element, name: string): string | null => {
   if ('on' + name in element) return null;
   const said = element.localName + ' ' + name;
   if (saidEvents.has(said)) return null;
@@ -105,11 +105,8 @@ export const eventNameComplaint = (element: Element, name: string): string | nul
   }
   if (best === null) return null;
   saidEvents.add(said);
-  return (
-    `@${name} on <${element.localName}> is not an event <${element.localName}> fires — did you mean ` +
-    `@${best}? (In JSX, on${name[0].toUpperCase()}${name.slice(1)} compiles to @${name}.) A custom event by ` +
-    `this name is fine, and this is said only in development.`
-  );
+  /** The GUESS only: the sentence is the renderer table's `event-name-typo`. */
+  return best;
 };
 
 /** Optimal-string-alignment distance, stopping early once it cannot come in under `limit`. */

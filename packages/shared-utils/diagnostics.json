@@ -36,6 +36,15 @@
       "fix": "Add a setter, or stop binding it."
     },
     {
+      "code": "handler-attribute",
+      "params": [
+        "name",
+        "event"
+      ],
+      "message": "binds the `{name}` attribute, which runs its value as code — refused.",
+      "fix": "Bind a function as an event instead: `{event}`."
+    },
+    {
       "code": "late-template-module",
       "params": [],
       "message": "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
@@ -60,6 +69,14 @@
       "fix": "Pass a function, or an object with a handleEvent method. A missing handler is `undefined` or `false`, both of which are fine; this is neither."
     },
     {
+      "code": "proto-binding",
+      "params": [
+        "written"
+      ],
+      "message": "binds `{written}`, which would replace the element's own prototype and destroy it — no property write does this, and no use of it is legitimate.",
+      "fix": "The binding is ignored."
+    },
+    {
       "code": "script-url",
       "params": [
         "name"
@@ -74,6 +91,14 @@
       ],
       "message": "`{name}` controls only ONE selection here, and a selection the user adds is kept — it is not controlled.",
       "fix": "Bind `?selected=${…}` on each <option> to control every selection."
+    },
+    {
+      "code": "srcdoc-attribute",
+      "params": [
+        "property"
+      ],
+      "message": "binds the `srcdoc` attribute, which renders its value as an HTML document — refused.",
+      "fix": "If the markup is trusted and sanitized, bind the property: `{property}`."
     },
     {
       "code": "tag-called",

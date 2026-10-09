@@ -37,7 +37,8 @@ import {
   misuse,
   SHARED,
 } from '@verajs/shared-utils';
-import { attributeValueKind, eventNameComplaint } from './dev-values.js';
+import { attributeValueKind, eventNameGuess } from './dev-values.js';
+import { PROSE } from './renderer-diagnostics.js';
 import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
@@ -135,14 +136,15 @@ const UPGRADED = {};
 const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 /** The obsolete elements a parser reads as text whole, which the scanner does not list (production pays nothing for them). */
 const OBSOLETE_RAW = /^(?:xmp|noembed|noframes|plaintext)$/i;
-const tagShape = (strings: TemplateStringsArray, type: number): string[] | undefined => {
+const tagShape = (strings: TemplateStringsArray, type: number): [string, string][] | undefined => {
   const markup = strings.join('');
   /** Where each binding sits in `markup`, so a refusal can ask whether one falls inside an element's content. */
   const holes: number[] = [];
   for (let i = 0, at = 0; i < strings.length - 1; i++) holes.push((at += strings[i].length));
   const bound = (from: number, to: number) => holes.some((at) => at >= from && at <= to);
   let foreign = type === 1 ? 0 : 1;
-  let found: string[] | undefined;
+  /** `[code, tag]` — printed through the table by `sayShape` when the template first renders. */
+  let found: [string, string][] | undefined;
   SHAPE.lastIndex = 0;
   for (let m: RegExpExecArray | null; (m = SHAPE.exec(markup)) !== null; ) {
     if (m[2] === undefined) continue;
@@ -164,30 +166,16 @@ const tagShape = (strings: TemplateStringsArray, type: number): string[] | undef
        * elements are text to the parser whole, which the scanner does not know, so a binding there never renders.
        */
       if (foreign > 0 && RAW_TEXT_TAGS.test(tag) && bound(SHAPE.lastIndex, stop) && /<[a-zA-Z]/.test(markup.slice(SHAPE.lastIndex, stop)))
-        throw new Error(
-          `renderer: a binding inside <${tag}> in SVG or MathML cannot sit beside an element there — the renderer reads ` +
-            `<${tag}> as text and rebuilds it around its bindings, which destroys the elements in it. Bind text ` +
-            `directly in the <${tag}> (no elements), or move the element out of it.`
-        );
+        throw new Error(misuse('renderer', 'foreign-raw-text', __DEV__ && PROSE['foreign-raw-text'](tag)));
       if (foreign === 0 && OBSOLETE_RAW.test(tag) && bound(SHAPE.lastIndex, stop))
-        throw new Error(
-          `renderer: a binding inside <${tag}> is never rendered — the parser reads its content as text whole, and ` +
-            `<${tag}> is obsolete. Use <pre> for preformatted text.`
-        );
+        throw new Error(misuse('renderer', 'obsolete-raw-text', __DEV__ && PROSE['obsolete-raw-text'](tag)));
       SHAPE.lastIndex = stop;
     }
     if (foreign > 0) continue;
     if (selfClosed && !VOID_TAGS.test(tag))
-      (found ??= []).push(
-        `<${tag}> is left OPEN by this template, so everything after it becomes its child rather than its sibling. HTML ` +
-          `has no self-closing syntax outside <svg> and <math> — \`<${tag} />\` is an open tag, not an empty element. ` +
-          `Write \`<${tag}></${tag}>\`. (@verajs/jsx rewrites this for you; a hand-written template has to say it.)`
-      );
+      (found ??= []).push(['self-closed-tag', tag]);
     else if (closing && VOID_TAGS.test(tag))
-      (found ??= []).push(
-        `\`</${tag}>\` is read by the parser as ANOTHER <${tag}>, so this template renders two where it describes one. A ` +
-          `void element has no end tag — write \`<${tag}>\` alone.`
-      );
+      (found ??= []).push(['void-end-tag', tag]);
   }
   return found;
 };
@@ -210,16 +198,16 @@ const saySlotless = () => {
   /** Late: the same fact core says at wire time (`late-template-module`), seen here at the host it bit. */
   if (late) console.warn(diagnostic('renderer', `<${tag}>`, 'late-template-module', __DEV__ && SHARED.lateTemplateModule()));
   else
-    console.warn(
-      `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but @verajs/renderer/slots is not wired, so ` +
-        `nothing is distributed. Wire it BEFORE anything renders: wire([renderer, slots]).`
-    );
+    console.warn(diagnostic('renderer', `<${tag}>`, 'slots-unwired', __DEV__ && PROSE['slots-unwired']()));
 };
 export const sayShape = (template: Template) => {
   const shape = template._shape;
   if (shape !== undefined) {
     template._shape = undefined;
-    for (let i = 0; i < shape.length; i++) console.warn(`[vera] renderer: ${shape[i]}`);
+    /** Each code written out, so the manifest (`diagnostics-tables`) reads every raise from the source. */
+    for (const [code, tag] of shape)
+      if (code === 'self-closed-tag') console.warn(diagnostic('renderer', `<${tag}>`, 'self-closed-tag', __DEV__ && PROSE['self-closed-tag'](tag)));
+      else console.warn(diagnostic('renderer', `<${tag}>`, 'void-end-tag', __DEV__ && PROSE['void-end-tag'](tag)));
   }
 };
 
@@ -253,7 +241,7 @@ class Template {
   /** The instance hook — elements (and slots): claim at creation, mount at the render's end, unmount at teardown. */
   declare _$inst$?: InstanceHook;
   /** Development only: tag-shape mistakes found at construction, said at the template's FIRST instance (`sayShape`). */
-  declare _shape?: string[];
+  declare _shape?: [string, string][];
   /**
    * Development only: element positions on an element a SOLE binding owns — see `ownsContent`. Marked per instance in
    * `instantiate`; hydration needs no mark, because the server's output carries the content or its empty anchor.
@@ -342,7 +330,7 @@ class Template {
        */
       if (__DEV__ && i === count) {
         if (regex !== TEXT_END && regex !== rawEnd && regex !== COMMENT_END && regex !== COMMENT2_END)
-          throw new Error('renderer: a template cannot end inside a tag — the parser drops an unfinished tag. Close the tag inside the template.');
+          throw new Error(misuse('renderer', 'unfinished-tag', __DEV__ && PROSE['unfinished-tag']()));
         break;
       }
       if (regex === TEXT_END) {
@@ -454,25 +442,19 @@ class Template {
         if ((kind === PROPERTY || kind === LIVE) && real === '__proto__') {
           kind = REFUSED;
           if (__DEV__)
-            console.warn(
-              `[vera] <${el.localName}> binds \`${written}\`, which would replace the element's own prototype ` +
-                `and destroy it — no property write does this, and no use of it is legitimate. The binding is ignored.`
-            );
+            console.warn(diagnostic('renderer', `<${el.localName}>`, 'proto-binding', __DEV__ && SHARED.protoBinding(written)));
         } else if (kind === ATTR && real.toLowerCase() === 'srcdoc') {
           /** A bound `srcdoc` ATTRIBUTE renders its value as an HTML document: markup injection by construction. */
           kind = REFUSED;
           if (__DEV__)
-            console.warn(
-              `[vera] <${el.localName}> binds the \`srcdoc\` attribute, which renders its value as an HTML ` +
-                `document — refused. If the markup is trusted and sanitized, bind the property: \`.srcdoc=\${…}\`.`
-            );
+            console.warn(diagnostic('renderer', `<${el.localName}>`, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute('.srcdoc=${…}')));
         } else if (kind === ATTR && INLINE_HANDLER.test(real)) {
           /** A bound inline handler runs its value as code: refused, as spread and the server refuse it. */
           kind = REFUSED;
           if (__DEV__)
             console.warn(
-              `[vera] <${el.localName}> binds the \`${real}\` attribute, which runs its value as code — refused. ` +
-                `Bind a function as an event instead: \`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`).`
+              diagnostic('renderer', `<${el.localName}>`, 'handler-attribute',
+                __DEV__ && SHARED.handlerAttribute(real, `\`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`)`))
             );
         } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
         else if (kind === LIVE && el.localName.includes('-')) kind = LIVE_CUSTOM;
@@ -525,34 +507,20 @@ class Template {
       if (at === null) {
         if (__DEV__ && (kinds[i] === CHILD || names[i] !== '' || refs![i])) {
           if (inert!.has(i))
-            console.warn(
-              `[vera] renderer: the value at position ${i} sits inside a nested <template>'s content — inert markup that is ` +
-                `never rendered — so it is ignored (and the server ignores it too). Render into the live tree instead.`
-            );
+            console.warn(diagnostic('renderer', 'a nested <template>', 'inert-binding', __DEV__ && PROSE['inert-binding'](String(i))));
           /** A run of consecutive casualties is one dropped element: said once, naming the first. */
           else if (i === 0 || nodes[i - 1] !== null || inert!.has(i - 1) || !(kinds[i - 1] === CHILD || names[i - 1] !== '' || refs![i - 1])) {
             let lost = 1;
             while (i + lost < count && nodes[i + lost] === null && !inert!.has(i + lost)) lost++;
             const where = tags![i] ? `\`${names[i] !== '' ? `${names[i]}=` : refs![i] ? '&=' : ''}\` on <${tags![i]}>` : 'a binding';
-            console.warn(
-              `[vera] renderer: ${where} never reached the parsed tree — the HTML parser DROPPED the element it was written ` +
-                `on, because its parent's content model forbids it (\`<select>\` takes only options, \`<form>\` cannot nest, ` +
-                `and so on).\n${lost} binding(s) lost. The element is gone from the DOM and its binding does nothing; the ` +
-                `bindings AFTER it are unaffected, because each marker carries its own index.\nMove the element out of its ` +
-                `parent, or use one the parent can hold.`
-            );
+            console.warn(diagnostic('renderer', 'a dropped element', 'dropped-binding', __DEV__ && PROSE['dropped-binding'](where, String(lost))));
           }
         }
         kinds[i] = IGNORED;
       } else if (kinds[i] === CHILD) {
         const parent = at!.parentNode!;
         if (__DEV__ && (parent as Element).localName === 'table')
-          console.warn(
-            '[vera] renderer: a binding sits directly inside <table>, where the HTML parser inserts a <tbody> that a ' +
-              'client render does not. The same template then renders as `table > tr` and parses as `table > tbody > tr`, ' +
-              'so `table > tr` selectors match on only one path and hydration rebuilds this container instead of adopting ' +
-              'it. Write the section explicitly — `<table><tbody>${rows}</tbody></table>` — and every path agrees.'
-          );
+          console.warn(diagnostic('renderer', '<table>', 'table-binding', __DEV__ && PROSE['table-binding']()));
         /**
          * Only on a PLAIN element (no dash, no `is`): a light-DOM component renders into its own children, and the part
          * this position may become owns its element's whole content — so there it keeps its anchor, bounded by markers.
@@ -806,12 +774,7 @@ const update = (instance: Instance, values: unknown[]) => {
  * producing `false` speaks once, and one that flips to `true` speaks again.
  */
 const warnBooleanChild = (value: boolean) =>
-  console.warn(
-    `[vera] renderer: a child position was given \`${value}\`, which renders as the word "${value}" — the usual cause ` +
-      `is \`\${cond && …}\` with a false \`cond\`.\nWrite \`\${cond ? … : null}\`, or \`\${(cond && …) || null}\`; \`null\` ` +
-      `and \`undefined\` are the values that render nothing. If you meant to display the boolean, say so with ` +
-      `\`\${String(value)}\` and this goes quiet.`
-  );
+  console.warn(diagnostic('renderer', 'a child position', 'boolean-child', __DEV__ && PROSE['boolean-child'](String(value))));
 
 /**
  * **Content in the wrong namespace does not render** — `` html`<path/>` `` handed into an `<svg>` builds an HTML
@@ -873,7 +836,7 @@ const checkForeign = (parent: Node, nodes: Node[]) => {
           `element only upgrades in the HTML namespace.`
         : `The template's tag is already right — these two namespaces cannot nest directly. Put the ` +
           `${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}.`;
-    console.warn(`[vera] renderer: <${tag}> was built as ${built} and placed inside <${host}>, where it will not render. ${advice}`);
+    console.warn(diagnostic('renderer', `<${tag}>`, 'wrong-namespace', __DEV__ && PROSE['wrong-namespace'](tag, built, host, advice)));
   }
 };
 
@@ -1025,8 +988,9 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
         console.warn(diagnostic('renderer', `<${element.localName}>`, 'not-a-listener', __DEV__ && SHARED.notAListener(name, typeof value)));
       /** A misspelled event name (`@clik`), asked at the first attachment, once per tag and name. */
       if (listener._handler === null) {
-        const complaint = eventNameComplaint(element, name);
-        if (complaint !== null) console.warn('[vera] ' + complaint);
+        const best = eventNameGuess(element, name);
+        if (best !== null)
+          console.warn(diagnostic('renderer', `<${element.localName}>`, 'event-name-typo', __DEV__ && PROSE['event-name-typo'](name, element.localName, best)));
       }
     }
     /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */
@@ -1366,12 +1330,7 @@ class ChildPart {
         const swaps = (applierSwaps.get(this) ?? 0) + 1;
         applierSwaps.set(this, swaps);
         if (swaps === 3)
-          console.warn(
-            `[vera] a child applier changed identity ${swaps} times at one part, so \`previous\` is always undefined ` +
-              `and it restarts every render.\nHoist the applier — written as an object-literal method it is a new ` +
-              `function per call:\n\n  function applyThing(part, previous) { … }            // once, at module scope\n` +
-              `  const thing = (x) => ({ _$child$: applyThing, x });  // state on the object\n`
-          );
+          console.warn(diagnostic('renderer', 'a child applier', 'applier-identity', __DEV__ && PROSE['applier-identity'](String(swaps))));
       }
       this.$a = applyChild;
       this.$R = renderRoot;
@@ -1691,10 +1650,7 @@ let adopt: ((result: unknown, container: Node) => boolean) | undefined;
  */
 export const expectContainer = (container: unknown) => {
   if (!container || typeof (container as Node).appendChild !== 'function')
-    throw new TypeError(
-      `renderInto: expected a container node as the second argument and received ${String(container)}. ` +
-        `It renders *into* something — \`renderInto(html\`…\`, document.body)\`.`
-    );
+    throw new TypeError(misuse('renderInto', 'no-container', __DEV__ && PROSE['no-container'](String(container))));
 };
 
 /**

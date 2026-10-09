@@ -73,6 +73,7 @@ test('a light <slot> with slots unwired is diagnosed, not left silent', { skip: 
   assert.match(said[0], /^\[vera\] /, 'findable with one filter, like every diagnostic here');
   assert.match(said[0], /wire\(\[renderer, slots\]\)/, 'and it says exactly what to write');
   assert.match(said[0], /BEFORE anything renders/, 'including the ordering, which is the second trap');
+  assert.match(said[0], /\(slots-unwired\)$/, 'by its code');
   element.remove();
 });
 

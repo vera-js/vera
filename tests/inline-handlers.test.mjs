@@ -36,7 +36,7 @@ test('the client refuses a bound inline handler, whatever its case, and says so 
     const host = dom.window.document.createElement('div');
     const said = quietly(() => renderInto(raw([`<button ${name}=`, '>b</button>'], 'alert(1)'), host));
     assert.equal(host.querySelector('button').getAttribute(name), null, `${name} was not written`);
-    if (!isProduction) assert.ok(said.some((m) => m.startsWith(`[vera] <button> binds the \`${name}\``)), said.join('\n'));
+    if (!isProduction) assert.ok(said.some((m) => m.startsWith(`[vera] renderer: <button> — binds the \`${name}\``) && m.endsWith('`). (handler-attribute)')), said.join('\n'));
   }
 });
 

@@ -21,6 +21,7 @@
 import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, diagnostic, SHARED } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueKind } from './dev-values.js';
+import { PROSE } from './spread-diagnostics.js';
 
 const ATTR = 0;
 const PROPERTY = 1;
@@ -40,16 +41,6 @@ const REFUSED = 6;
 const UNSAFE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
 /** Development only: why a key was refused, by refusal code. */
-const WHY = __DEV__
-  ? [
-      '',
-      'an attribute name cannot contain whitespace, a quote, `<`, `>`, `/`, `=` or a control character, and one that cannot be written into markup would not survive server rendering',
-      'write it in the template — html`<div .innerHTML=${trusted}>` — sanitized first (renderer README, security note)',
-      "assigning __proto__ replaces the element's own prototype and destroys it — no property write does this, and no use of it is legitimate",
-      'an inline iframe document is markup injection by definition — bind the property in the template (`.srcdoc=${trusted}`) if you truly mean it',
-      'an inline handler attribute is code from data — pass a function as `on` + Capital (onClick) or `@click` instead',
-    ]
-  : [];
 
 /**
  * A key's kind and name, and — for a refused key — why (`[REFUSED, code]`). The twin of the renderer's
@@ -136,11 +127,21 @@ class Binding {
     if (__DEV__ && (kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(name as string) && ownsContent(element))
       contentClash('spread', element.localName, name as string);
     if (kind === REFUSED) {
-      if (__DEV__)
-        console.warn(
-          `[vera] spread: refusing ${JSON.stringify(key)} — spread names arrive at runtime, which is exactly ` +
-            `the property that makes this sink unreviewable; ${WHY[name as number]}.`
-        );
+      if (__DEV__) {
+        /** Each refusal written out, so the manifest (`diagnostics-tables`) reads every raise from the source. */
+        const at = `<${element.localName}>`;
+        const written = JSON.stringify(key);
+        const why = name as number;
+        if (why === 1) console.warn(diagnostic('spread', at, 'spread-unsafe-name', __DEV__ && PROSE['spread-unsafe-name'](written)));
+        else if (why === 2) console.warn(diagnostic('spread', at, 'spread-inner-html', __DEV__ && PROSE['spread-inner-html'](written)));
+        else if (why === 3) console.warn(diagnostic('spread', at, 'proto-binding', __DEV__ && SHARED.protoBinding(written)));
+        else if (why === 4) console.warn(diagnostic('spread', at, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute("'.srcdoc': trusted")));
+        else
+          console.warn(
+            diagnostic('spread', at, 'handler-attribute',
+              __DEV__ && SHARED.handlerAttribute(key, `\`'@${key.slice(2).toLowerCase()}': fn\` (or \`on${key.slice(2, 3).toUpperCase()}${key.slice(3)}\`)`))
+          );
+      }
       return;
     }
     if (kind === ATTR) this._initial = element.getAttribute(name as string);
@@ -301,11 +302,8 @@ export const spread = (props: object | null | undefined): SpreadResult => {
   if (props === null || typeof props !== 'object' || Array.isArray(props)) {
     if (__DEV__)
       console.warn(
-        `[vera] spread: ignoring a props bag that is not a plain object — received ` +
-          `${Array.isArray(props) ? 'an array' : typeof props === 'object' ? 'null' : `a ${typeof props}`}. ` +
-          `A string is iterated by character index, so \`spread('text')\` would set attributes named ` +
-          `0, 1, 2 and 3; anything else applies nothing at all. This is usually an import or a ` +
-          `property that resolved to something unexpected.`
+        diagnostic('spread', 'spread()', 'spread-not-object',
+          __DEV__ && PROSE['spread-not-object'](Array.isArray(props) ? 'an array' : typeof props === 'object' ? 'null' : `a ${typeof props}`))
       );
     props = {};
   }

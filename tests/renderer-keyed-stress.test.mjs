@@ -234,7 +234,7 @@ const step = (label, container, before, next) => {
 
   /** Undefined behavior is worth saying out loud, since it behaves correctly most of the time. */
   if (!isProduction) {
-    if (said.some((line) => /^\[vera\] keyed: the key /.test(line))) pass++;
+    if (said.some((line) => /^\[vera\] keyed: a keyed list — the key [\s\S]*\(keyed-duplicate-key\)$/.test(line))) pass++;
     else failures.push('a duplicate key produced no warning in development');
   }
 }

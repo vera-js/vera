@@ -67,12 +67,12 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 48;
+const PENDING_MAX = 32;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
   ['README.md#bfb75ca50a', 'no-renderer'], // `@verajs/core` ships **no renderer of its own** — `render()` without one warns (in every b
-  ['README.md#b0878705a3', PENDING], // It is <!--size:module.renderer-slots.kb-->4.08 KB<!--/size:module.renderer-slots.kb--> gzi
+  ['README.md#b0878705a3', 'slots-unwired'], // It is <!--size:module.renderer-slots.kb-->4.08 KB<!--/size:module.renderer-slots.kb--> gzi
   ['llms.txt#460739a32e', 'no-renderer'], // **Core ships no renderer.** `render()` with none registered paints nothing and warns once 
   ['llms.txt#279a321f77', 'no-renderer'], // **Order matters.** A component that defines itself before `wire([renderer])` renders with 
   ['llms.txt#b927ee73a9', 'bare-render'], // Calling `render()` bare still works and warns. |
@@ -80,8 +80,8 @@ const CLAIMS = new Map([
   ['llms.txt#039251dcd1', 'sync-loop'], // Development stops and names the recursion at depth 50.
   ['llms.txt#bef8ab79bd', 'render-loop'], // Development **warns without stopping it** after 50 consecutive held frames, naming the hoo
   ['llms.txt#01566eba01', 'render-loop'], // | `allowRenderLoop` | `(element) => void` | Marks a component's self-feeding loop as delib
-  ['llms.txt#e6ce0bc198', PENDING], // It stays silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<tit
-  ['llms.txt#18c739df33', PENDING], // A HAND-WRITTEN template without the module wired is the same story: ``Frame(html`<path/>`)
+  ['llms.txt#e6ce0bc198', 'wrong-namespace'], // It stays silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<tit
+  ['llms.txt#18c739df33', 'wrong-namespace'], // A HAND-WRITTEN template without the module wired is the same story: ``Frame(html`<path/>`)
   ['llms.txt#7e56270521', 'no-scope'], // **Light DOM:** hoisted to the document once per class, inside `@scope (tag-name) { … }`, w
   ['llms.txt#bc2964b69a', 'unwired-styles'], // Omit the wiring and a component with `static styles` renders unstyled — core warns once, i
   ['llms.txt#08c76e5a7f', PENDING], // Development builds warn, naming the attribute. - A node added AFTER the first render joins
@@ -89,7 +89,7 @@ const CLAIMS = new Map([
   ['llms.txt#fceb605423', 'not a promise: says no warning is possible'], // Wire `slots` on the SERVER too: without it the server states no light tree, and every comp
   ['llms.txt#807497a5bc', 'not a promise: says there is no warning'], // No error, no warning, no accessible name.
   ['llms.txt#a9a4b2f023', 'hydration-fallback'], // An attribute is READ and written only on a difference (a wrong one is repaired, a right on
-  ['llms.txt#c11efabddf', PENDING], // Every other prop is permissive (every element accepts it), so `key` and bare props type-ch
+  ['llms.txt#c11efabddf', 'event-name-typo'], // Every other prop is permissive (every element accepts it), so `key` and bare props type-ch
   ['llms.txt#7aa6d345c0', PENDING], // `onWarning` hears what compiles but is probably a mistake (`file:line:col — message`; the 
   ['llms.txt#0ddf816771', 'not a promise: attribute carve-outs, no diagnostic'], // Carve-outs, both derivations rather than a list: a name that cannot be a JS identifier (`d
   ['llms.txt#006492a483', PENDING], // The one surprise — a relative word from a path ENDING in a param replaces it (`navigate('e
@@ -103,13 +103,13 @@ const CLAIMS = new Map([
   ['llms.txt#52f6fe43e7', PENDING], // Keep a FEED's depth out of `data-vd-query` — an accumulating view's middle pages are DOM, 
   ['llms.txt#df3b9dfe11', 'not a promise: attribute carve-outs, no diagnostic'], // The exceptions are derivations, not a vocabulary: names that cannot be JS identifiers (`da
   ['llms.txt#347dad05df', 'attribute-value'], // On an HTML tag, `rows={data}` is still an attribute, and the renderer names any non-primit
-  ['llms.txt#461d362f95', PENDING], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
+  ['llms.txt#461d362f95', 'boolean-child'], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
   ['llms.txt#c23d8dc6f5', 'tag-inner-html'], // **`key` and `ref` work on a runtime `tag` component exactly as on a written element** (`<H
   ['llms.txt#8a42e4218c', 'no-renderer'], // Defining a component before `wire([renderer])` → with nothing on the `'render'` chain, `re
   ['llms.txt#b9de104cbe', PENDING], // Registering at an **occupied** priority replaces that entry (this is how a renderer is swa
   ['llms.txt#7cdcce9c98', 'setup-uncommitted'], // Development warns if neither happens, and names both. 7.
   ['llms.txt#bf52103f92', PENDING], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
-  ['llms.txt#7fae901481', PENDING], // Development names it.
+  ['llms.txt#7fae901481', 'boolean-child'], // Development names it.
   ['llms.txt#9d82b4cb6b', 'attribute-value'], // Development names any non-primitive that reaches an attribute sink. 13.
   ['llms.txt#ebf4968a15', 'upgrade-clobber'], // For an element that never calls `init()`, nothing drains the record either, so the clobber
   ['packages/autoloader/README.md#2c0b84874a', PENDING], // Discovery catches the throw, reports it once and moves on, so a hostile attribute costs a 
@@ -136,24 +136,24 @@ const CLAIMS = new Map([
   ['packages/jsx/README.md#5f9c8908e7', PENDING], // **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vit
   ['packages/jsx/README.md#039bf7676f', PENDING], // | `value` / `checked` | `!value=` / `!checked=` | controlled, as React's are: compared wit
   ['packages/jsx/README.md#549f696ea7', 'not a promise: attribute carve-outs, no diagnostic'], // Two derivations carve out the attributes: a **name that cannot be a JS identifier** (`data
-  ['packages/jsx/README.md#63768c1671', PENDING], // A **hand-written** template has the same hazard and no compiler to fix it, so `@verajs/ren
-  ['packages/jsx/README.md#83e11d96f6', PENDING], // A hand-written template renders the word **"false"** there, matching lit — and `@verajs/re
-  ['packages/jsx/README.md#c448649b3c', PENDING], // Development names each one, and `{rows.filter((r) => r.ok).map(…)}` is the fix.
+  ['packages/jsx/README.md#63768c1671', 'boolean-child'], // A **hand-written** template has the same hazard and no compiler to fix it, so `@verajs/ren
+  ['packages/jsx/README.md#83e11d96f6', 'boolean-child'], // A hand-written template renders the word **"false"** there, matching lit — and `@verajs/re
+  ['packages/jsx/README.md#c448649b3c', 'boolean-child'], // Development names each one, and `{rows.filter((r) => r.ok).map(…)}` is the fix.
   ['packages/jsx/README.md#2331fe9023', 'not a promise: design rationale'], // **This is where vera and React deliberately part**, and the reason is measured: React filt
   ['packages/jsx/README.md#47c79cbe8e', 'not a promise: a heading; the sentences under it are entered'], // ## What it refuses, and where
   ['packages/jsx/README.md#c2f0e8228c', PENDING], // Every mistake below is reported with the file, line and column — not left for the next too
   ['packages/jsx/README.md#724b1c3ce0', 'not a promise: says the bundler reports it, not vera'], // The cost is that a genuinely unclosed element (`<p>x` with no `</p>`) reaches your bundler
-  ['packages/jsx/README.md#f816cb75b4', PENDING], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
+  ['packages/jsx/README.md#f816cb75b4', 'event-name-typo'], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.
   ['packages/renderer/README.md#2b44911726', 'no-renderer'], // Without it, core has no renderer at all: `render()` warns once (in every build) and puts n
   ['packages/renderer/README.md#24226b7ae7', 'not-a-listener'], // Anything else that cannot listen — a string, a number, an object with no `handleEvent` — i
   ['packages/renderer/README.md#c3769d8d67', 'select-multiple'], // Development says so.
-  ['packages/renderer/README.md#a75ef39c09', PENDING], // | `true`, `false` | as text — **and development says so**; see below |
-  ['packages/renderer/README.md#53f8bf9cf7', PENDING], // The value is legitimate and nothing throws, so **development names it** at the binding rat
-  ['packages/renderer/README.md#bc33e32558', PENDING], // That is the **one** value semantic on which JSX and a hand-written template differ, and th
+  ['packages/renderer/README.md#a75ef39c09', 'boolean-child'], // | `true`, `false` | as text — **and development says so**; see below |
+  ['packages/renderer/README.md#53f8bf9cf7', 'boolean-child'], // The value is legitimate and nothing throws, so **development names it** at the binding rat
+  ['packages/renderer/README.md#bc33e32558', 'boolean-child'], // That is the **one** value semantic on which JSX and a hand-written template differ, and th
   ['packages/renderer/README.md#084ad57ff0', 'not a promise: a heading; the next sentence is entered'], // ### A template committed into the wrong namespace is named
-  ['packages/renderer/README.md#e10a13490e', PENDING], // Without it, **development names it**, once per host namespace, host name, content namespac
-  ['packages/renderer/README.md#bee0271268', PENDING], // It is silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<title>
+  ['packages/renderer/README.md#e10a13490e', 'wrong-namespace'], // Without it, **development names it**, once per host namespace, host name, content namespac
+  ['packages/renderer/README.md#bee0271268', 'wrong-namespace'], // It is silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<title>
   ['packages/renderer/README.md#af7465ba0c', 'not a promise: a measurement'], // **Never mix it with `@verajs/renderer` in one app** — that loads two renderers with two te
   ['packages/renderer/README.md#f3d555ed7b', 'pinned by tests/renderer-profiler.test.mjs: the report\'s own text, not a diagnostic'], // `formatReport` says so when it observed nothing, because a zero report is otherwise indist
   ['packages/renderer/README.md#78e9e20a99', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // **`hold()` is not teardown** … A throwing `create`, `mount` or `unmount` is reported, never raised
@@ -169,7 +169,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#53e2a71297', 'hydration-fallback'], // **A fallback costs one container, not the page.** Adoption is decided per container, so co
   ['packages/renderer/README.md#3c840615a5', 'hydration-fallback'], // Measured in `tests/hydrate-mismatch.test.mjs` — three containers, one mismatch, one warnin
   ['packages/renderer/README.md#731e71d32f', 'not a promise: history of the wording'], // Worth stating because the warning used to imply otherwise and sent the reader hunting for 
-  ['packages/renderer/README.md#40e8320f1f', PENDING], // **A key that cannot be written into markup is skipped**, with a warning in development.
+  ['packages/renderer/README.md#40e8320f1f', 'spread-unsafe-name'], // **A key that cannot be written into markup is skipped**, with a warning in development.
   ['packages/renderer/README.md#5a81e4d78c', 'upgrade-clobber'], // Elements that never call `init()` keep the development warning and the `declare` advice in
   ['packages/renderer/README.md#f8471d54c4', 'forged-template'], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
   ['packages/renderer/README.md#9716e1f324', PENDING], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ

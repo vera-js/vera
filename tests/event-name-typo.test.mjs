@@ -41,9 +41,9 @@ test('CONTROL: the element really does expose its events to the check', () => {
 test('@clik and @keydwon are named, with the event meant', { skip: isProduction && 'production carries no check' }, () => {
   const said = warnings((host) => renderInto(html`<button @clik=${handler}></button><input @keydwon=${handler}>`, host));
   assert.equal(said.length, 2, said.join('\n'));
-  assert.match(said[0], /^\[vera\] @clik on <button> .*did you mean @click\?/);
+  assert.match(said[0], /^\[vera\] renderer: <button> — @clik is not an event <button> fires — did you mean @click\?[\s\S]*\(event-name-typo\)$/);
   assert.match(said[0], /onClik compiles to @clik/);
-  assert.match(said[1], /@keydwon on <input> .*did you mean @keydown\?/, 'a transposition counts as one edit');
+  assert.match(said[1], /<input> — @keydwon is not an event <input> fires — did you mean @keydown\?/, 'a transposition counts as one edit');
 });
 
 test('real events, custom events and far-off names are left alone', { skip: isProduction && 'production carries no check' }, () => {

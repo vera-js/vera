@@ -28,6 +28,142 @@
       "fix": "Wire it: `wire([renderer, hydration, slots, hydrateSlots])`."
     },
     {
+      "code": "applier-identity",
+      "params": [
+        "swaps"
+      ],
+      "message": "a child applier changed identity {swaps} times at one part, so `previous` is always undefined and it restarts every render.",
+      "fix": "Hoist the applier — written as an object-literal method it is a new function per call: `function applyThing(part, previous) { … }` once at module scope, and `const thing = (x) => ({ _$child$: applyThing, x })` with the state on the object."
+    },
+    {
+      "code": "boolean-child",
+      "params": [
+        "value"
+      ],
+      "message": "a child position was given `{value}`, which renders as the word \"{value}\" — the usual cause is `${cond && …}` with a false `cond`.",
+      "fix": "Write `${cond ? … : null}`, or `${(cond && …) || null}`; `null` and `undefined` are the values that render nothing. If you meant to display the boolean, say so with `${String(value)}` and this goes quiet."
+    },
+    {
+      "code": "dropped-binding",
+      "params": [
+        "where",
+        "lost"
+      ],
+      "message": "{where} never reached the parsed tree — the HTML parser DROPPED the element it was written on, because its parent's content model forbids it (`<select>` takes only options, `<form>` cannot nest, and so on). {lost} binding(s) lost; the bindings AFTER it are unaffected, because each marker carries its own index.",
+      "fix": "Move the element out of its parent, or use one the parent can hold."
+    },
+    {
+      "code": "event-name-typo",
+      "params": [
+        "name",
+        "tag",
+        "best"
+      ],
+      "message": "@{name} is not an event <{tag}> fires — did you mean @{best}? (In JSX, on{name} compiles to @{name}.)",
+      "fix": "A custom event by this name is fine, and this is said only in development."
+    },
+    {
+      "code": "foreign-raw-text",
+      "params": [
+        "tag"
+      ],
+      "message": "a binding inside <{tag}> in SVG or MathML cannot sit beside an element there — the renderer reads <{tag}> as text and rebuilds it around its bindings, which destroys the elements in it.",
+      "fix": "Bind text directly in the <{tag}> (no elements), or move the element out of it."
+    },
+    {
+      "code": "inert-binding",
+      "params": [
+        "position"
+      ],
+      "message": "the value at position {position} sits inside a nested <template>'s content — inert markup that is never rendered — so it is ignored (and the server ignores it too).",
+      "fix": "Render into the live tree instead."
+    },
+    {
+      "code": "no-container",
+      "params": [
+        "received"
+      ],
+      "message": "expected a container node as the second argument and received {received}.",
+      "fix": "It renders *into* something — `renderInto(html`…`, document.body)`."
+    },
+    {
+      "code": "obsolete-raw-text",
+      "params": [
+        "tag"
+      ],
+      "message": "a binding inside <{tag}> is never rendered — the parser reads its content as text whole, and <{tag}> is obsolete.",
+      "fix": "Use <pre> for preformatted text."
+    },
+    {
+      "code": "self-closed-tag",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> is left OPEN by this template, so everything after it becomes its child rather than its sibling. HTML has no self-closing syntax outside <svg> and <math> — `<{tag} />` is an open tag, not an empty element.",
+      "fix": "Write `<{tag}></{tag}>`. (@verajs/jsx rewrites this for you; a hand-written template has to say it.)"
+    },
+    {
+      "code": "slots-unwired",
+      "params": [],
+      "message": "renders a `<slot>` into LIGHT DOM, but @verajs/renderer/slots is not wired, so nothing is distributed.",
+      "fix": "Wire it BEFORE anything renders: wire([renderer, slots])."
+    },
+    {
+      "code": "table-binding",
+      "params": [],
+      "message": "a binding sits directly inside <table>, where the HTML parser inserts a <tbody> that a client render does not. The same template then renders as `table > tr` and parses as `table > tbody > tr`, so `table > tr` selectors match on only one path and hydration rebuilds this container instead of adopting it.",
+      "fix": "Write the section explicitly — `<table><tbody>${rows}</tbody></table>` — and every path agrees."
+    },
+    {
+      "code": "unfinished-tag",
+      "params": [],
+      "message": "a template cannot end inside a tag — the parser drops an unfinished tag.",
+      "fix": "Close the tag inside the template."
+    },
+    {
+      "code": "void-end-tag",
+      "params": [
+        "tag"
+      ],
+      "message": "`</{tag}>` is read by the parser as ANOTHER <{tag}>, so this template renders two where it describes one.",
+      "fix": "A void element has no end tag — write `<{tag}>` alone."
+    },
+    {
+      "code": "wrong-namespace",
+      "params": [
+        "tag",
+        "built",
+        "host",
+        "advice"
+      ],
+      "message": "<{tag}> was built as {built} and placed inside <{host}>, where it will not render.",
+      "fix": "{advice}"
+    },
+    {
+      "code": "spread-inner-html",
+      "params": [
+        "key"
+      ],
+      "message": "refusing {key} — spread names arrive at runtime, which is exactly the property that makes an HTML sink unreviewable.",
+      "fix": "Write it in the template — html`<div .innerHTML=${trusted}>` — sanitized first (renderer README, security note)."
+    },
+    {
+      "code": "spread-not-object",
+      "params": [
+        "received"
+      ],
+      "message": "ignoring a props bag that is not a plain object — received {received}. A string is iterated by character index, so `spread('text')` would set attributes named 0, 1, 2 and 3; anything else applies nothing at all.",
+      "fix": "This is usually an import or a property that resolved to something unexpected."
+    },
+    {
+      "code": "spread-unsafe-name",
+      "params": [
+        "key"
+      ],
+      "message": "refusing {key} — an attribute name cannot contain whitespace, a quote, `<`, `>`, `/`, `=` or a control character, and one that cannot be written into markup would not survive server rendering.",
+      "fix": "Spread names arrive at runtime; check where this key came from."
+    },
+    {
       "code": "tag-inner-html",
       "params": [],
       "message": "`dangerouslySetInnerHTML` is not available on a tag component and has been dropped. A tag binds through `spread`, whose names are only known at runtime — so it refuses `.innerHTML` outright rather than open an unreviewable HTML sink.",
@@ -74,6 +210,28 @@
       ],
       "message": "<{tag}> is a void element — it takes no children, and these would be dropped.",
       "fix": "Remove the children, or use an element that takes content."
+    },
+    {
+      "code": "keyed-duplicate-key",
+      "params": [
+        "key"
+      ],
+      "message": "the key {key} is used by more than one item in this list. A key identifies one item, so which of them keeps the existing DOM is not defined — the list still renders, but nothing about which node ends up where can be relied on.",
+      "fix": "Give every item a key of its own — an id, not an index or a value two items share."
+    },
+    {
+      "code": "keyed-not-template",
+      "params": [
+        "received"
+      ],
+      "message": "expected a template as the second argument and received {received}.",
+      "fix": "It marks a template with a key — `keyed(row.id, html`<li>…</li>`)`."
+    },
+    {
+      "code": "elements-hook-replaced",
+      "params": [],
+      "message": "a 'template' hook set an instance hook before `elements` (priority 10) and is replaced.",
+      "fix": "Claim elements through the `element` insert instead of a second instance hook."
     }
   ]
 }

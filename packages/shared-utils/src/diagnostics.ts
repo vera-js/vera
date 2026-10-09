@@ -82,3 +82,18 @@ export const forgedTemplate: Prose = () => [
   'is shaped like a template but was not made by html`` — rendered as text.',
   'A template from data (JSON, or html([markup])) is never markup; for trusted markup, bind it: <div .innerHTML=${markup}>.',
 ];
+/** The renderer and spread (two bundles; @verajs/ssr refuses the same, phase 4): binding `__proto__`. */
+export const protoBinding: Prose = (written) => [
+  `binds \`${written}\`, which would replace the element's own prototype and destroy it — no property write does this, and no use of it is legitimate.`,
+  'The binding is ignored.',
+];
+/** The renderer and spread: a bound `srcdoc` ATTRIBUTE. `property` is the emitter's spelling of the property binding. */
+export const srcdocAttribute: Prose = (property) => [
+  'binds the `srcdoc` attribute, which renders its value as an HTML document — refused.',
+  `If the markup is trusted and sanitized, bind the property: \`${property}\`.`,
+];
+/** The renderer and spread: a bound inline-handler attribute (`onclick`). `event` is the emitter's event spelling(s). */
+export const handlerAttribute: Prose = (name, event) => [
+  `binds the \`${name}\` attribute, which runs its value as code — refused.`,
+  `Bind a function as an event instead: ${event}.`,
+];

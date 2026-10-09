@@ -1,3 +1,5 @@
+import { diagnostic, misuse } from '@verajs/shared-utils';
+import { PROSE } from './keyed-diagnostics.js';
 /**
  * @verajs/renderer/keyed — key-based list reconciliation, loaded by the values that need it.
  *
@@ -9,6 +11,8 @@
  */
 import type { Item, KeyedResult, ListStrategy } from './renderer.js';
 
+/** Development: the duplicate keys already said, per list part. */
+let saidKeys: WeakMap<object, Set<unknown>> | undefined;
 const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const count = values.length;
   /** A `null` item is unkeyed, as the renderer's `$c` already treats it — never a throw on the second render. */
@@ -42,11 +46,13 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
     for (let i = 0; i < count; i++) {
       const k = key(i);
       if (seen.has(k)) {
-        console.warn(
-          `[vera] keyed: the key ${String(k)} is used by more than one item in this list. ` +
-            `A key identifies one item, so which of them keeps the existing DOM is not defined — ` +
-            `the list still renders, but nothing about which node ends up where can be relied on.`
-        );
+        /** Once per (list, key): the same duplicate on every reconcile is noise; a NEW duplicate key is news. */
+        const said = (saidKeys ??= new WeakMap()).get(part) ?? new Set();
+        saidKeys.set(part, said);
+        if (!said.has(k)) {
+          said.add(k);
+          console.warn(diagnostic('keyed', 'a keyed list', 'keyed-duplicate-key', __DEV__ && PROSE['keyed-duplicate-key'](String(k))));
+        }
         break;
       }
       seen.add(k);
@@ -142,10 +148,7 @@ export const keyed = <T>(key: unknown, result: T): T => {
    * undefined (setting 'key')`, which names this function's internals and not the call.
    */
   if (__DEV__ && (result === null || typeof result !== 'object'))
-    throw new TypeError(
-      `keyed: expected a template as the second argument and received ${String(result)}. ` +
-        `It marks a template with a key — \`keyed(row.id, html\`<li>…</li>\`)\`.`
-    );
+    throw new TypeError(misuse('keyed', 'keyed-not-template', __DEV__ && PROSE['keyed-not-template'](String(result))));
   (result as KeyedResult).key = key;
   (result as KeyedResult).$r = reconcile;
   return result;

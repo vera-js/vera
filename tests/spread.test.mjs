@@ -377,7 +377,7 @@ test('a props bag that is not a plain object is refused, not iterated', { skip: 
     const names = [...host.querySelector('input').attributes].map((a) => a.name);
     assert.deepEqual(names, [], `spread(${String(value)}) must apply nothing`);
     assert.equal(said.length, 1, `spread(${String(value)}) must say so`);
-    assert.match(said[0], /^\[vera\] spread: ignoring a props bag/);
+    assert.match(said[0], /^\[vera\] spread: spread\(\) — ignoring a props bag[\s\S]*\(spread-not-object\)$/);
   }
 });
 
@@ -457,8 +457,9 @@ test('spread refuses the injection sinks: .innerHTML, srcdoc, inline on* attribu
     'srcdoc and inline handlers, any casing, never became attributes — the benign key survived as the control'
   );
   if (!isProduction) {
-    assert.equal(said.filter((t) => t.includes('refusing')).length, 6, 'each refused key was named once');
-    assert.ok(said.every((t) => !t.includes('refusing') || t.includes('[vera]')), 'house prefix');
+    /** By code: the two only a spread meets, and the shared ones a template refuses too — each key named once. */
+    const codes = said.map((t) => /^\[vera\] spread: <div> — [\s\S]*\(([a-z-]+)\)$/.exec(t)?.[1]).filter(Boolean).sort();
+    assert.deepEqual(codes, ['handler-attribute', 'handler-attribute', 'spread-inner-html', 'spread-inner-html', 'srcdoc-attribute', 'srcdoc-attribute'], said.join('\n'));
   }
 });
 
