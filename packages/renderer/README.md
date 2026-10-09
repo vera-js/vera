@@ -110,6 +110,13 @@ object with no `handleEvent` — is inert, and **development names it at the bin
 only ever called when a user clicks, so left unchecked the mistake surfaces at a point where nothing
 on the stack says where the value came from.
 
+**A handler never subscribes the hook that happens to be running.** An effect that fires an event
+synchronously — `button.click()`, `input.focus()`, `dispatchEvent` — runs the handler inside itself, and
+the handler's reads used to subscribe that effect: a handler doing `state.count++` re-ran the effect on
+every later click. Every listener Vera binds — `@event`, spread's `@event` key, `data-vd-on-*` — runs
+untracked. A listener you add yourself with `addEventListener` is outside Vera: fired synchronously from
+inside a hook it still tracks, so read through `untrack()` there.
+
 ### `!name` — a live property
 
 Every other binding skips a write when the value matches what it last wrote. That is what keeps a

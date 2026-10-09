@@ -119,7 +119,7 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 | `createStore` | `<T extends object>(obj: T) => Store<T>` | Deep reactive proxy. Nested objects are tracked too. Throws on a primitive — hold one value with `ref()`. |
 | `ref` | `<T>(value: T) => { value: T }` | Deep reactive box for a single value. |
 | `shallowRef` | `<T>(value: T) => { value: T }` | `.value` is tracked; **contents are NOT proxied**. Use for large immutable data such as list rows. |
-| `untrack` | `<T>(fn: () => T) => T` | Read current state without subscribing. |
+| `untrack` | `<T>(fn: () => T) => T` | Read current state without subscribing. Every handler Vera binds (`@event`, spread `@event`, `data-vd-on-*`) already runs untracked; a listener added with `addEventListener` and fired synchronously inside a hook does not — read through `untrack` there. |
 
 **Use `shallowRef` for lists.** Putting 1 000 row objects in `createStore` proxies all of them and
 reading them back measures 20-30x the cost of a plain array (measured 2026-09-05; an earlier pass
