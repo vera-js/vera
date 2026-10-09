@@ -16,6 +16,8 @@
  * - PENDING: the package has not moved its messages to codes yet. Verified by hand when the entry was written. This
  *   list only ever SHRINKS (`PENDING_MAX`) — it is the code-system migration's to-do list, not a place to park new
  *   promises;
+ * - `pinned by tests/<file>: …` — a promise of BEHAVIOR, not of a message (an error routed through the `'error'`
+ *   chain, a report's own text): no code can keep it, so the named test does, and that file must exist;
  * - a reason starting `not a promise:` — the pattern matched a sentence that promises nothing (it says there is NO
  *   warning, or names one in passing).
  *
@@ -28,7 +30,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { globSync, readFileSync } from 'node:fs';
+import { existsSync, globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -65,7 +67,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 60;
+const PENDING_MAX = 58;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -153,7 +155,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#e10a13490e', PENDING], // Without it, **development names it**, once per host namespace, host name, content namespac
   ['packages/renderer/README.md#bee0271268', PENDING], // It is silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<title>
   ['packages/renderer/README.md#af7465ba0c', 'not a promise: a measurement'], // **Never mix it with `@verajs/renderer` in one app** — that loads two renderers with two te
-  ['packages/renderer/README.md#f3d555ed7b', PENDING], // `formatReport` says so when it observed nothing, because a zero report is otherwise indist
+  ['packages/renderer/README.md#f3d555ed7b', 'pinned by tests/renderer-profiler.test.mjs: the report\'s own text, not a diagnostic'], // `formatReport` says so when it observed nothing, because a zero report is otherwise indist
   ['packages/renderer/README.md#78e9e20a99', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // **`hold()` is not teardown** … A throwing `create`, `mount` or `unmount` is reported, never raised
   ['packages/renderer/README.md#bf5ee4fc44', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // Every throw is reported.
   ['packages/renderer/README.md#1b81f4a6ef', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // A claim whose `create` threw is dropped for that instance
@@ -190,7 +192,7 @@ const CLAIMS = new Map([
   ['packages/ssr/README.md#b7dd238da1', 'not a promise: says it prints no warning'], // That serves the component's state from before the wait, which is exactly what the browser 
   ['packages/ssr/README.md#1e3a0a07fa', PENDING], // **It only ever produces the component it was written for**: a copy of it on another tag is
   ['packages/ssr/README.md#777bd846a5', PENDING], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
-  ['packages/store/README.md#1bca1504c8', PENDING], // An evaluation that throws is reported through the `'error'` insert rather than escaping, e
+  ['packages/store/README.md#1bca1504c8', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // An evaluation that throws is reported through the `'error'` insert rather than escaping, e
   ['packages/styles/README.md#48e9ab9c5a', 'unwired-styles'], // Forget the wiring and a component with `static styles` renders unstyled — development says
   ['packages/styles/README.md#ab7656278f', 'slotted-light'], // Development says so if a light component's sheet uses `::slotted()`.
   ['packages/styles/README.md#b5c13c2241', 'no-scope'], // Development says so, once.
@@ -228,9 +230,15 @@ test('every entry still has its sentence', () => {
   assert.deepEqual([...CLAIMS.keys()].filter((k) => !found.has(k)), [], 'a sentence was reworded or removed: re-enter it under its new key');
 });
 
-test('every cited code exists in a diagnostics table, and some test asserts it', () => {
+test('every cited code exists in a diagnostics table and some test asserts it; every pinning test exists', () => {
   for (const [k, value] of CLAIMS) {
     if (value === PENDING || value.startsWith('not a promise:')) continue;
+    const pinned = value.match(/^pinned by (tests\/[\w.-]+): ./);
+    if (pinned) {
+      assert.ok(existsSync(root + pinned[1]), `${k} is pinned by ${pinned[1]}, which does not exist`);
+      continue;
+    }
+    if (value.startsWith('pinned by')) assert.fail(`${k}: "pinned by tests/<file>: why" — ${value}`);
     assert.ok(codes.has(value), `${k} cites \`${value}\`, which no diagnostics.json defines`);
     assert.ok(testSources.includes(value), `${k} cites \`${value}\`, which no test names — a promise nothing checks`);
   }
