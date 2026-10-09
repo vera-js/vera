@@ -8,10 +8,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { JSDOM, VirtualConsole } from 'jsdom';
+import { isProduction, load } from './dist.mjs';
 
-const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
+/** jsdom reports an exception thrown from a lifecycle callback here, never to the caller: recorded, so a row can see it. */
+const thrown = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', (error) => thrown.push(error.cause ?? error));
+const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, virtualConsole });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'MouseEvent', 'MutationObserver', 'CSSStyleSheet', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
@@ -40,4 +44,26 @@ test('after a write, a useLayoutEffect sees the class a directive applied to wha
   await settled();
   assert.deepEqual(seen.at(-1), [1, true], 'the update\'s layout effect saw the directive\'s class');
   el.remove();
+});
+
+/**
+ * TODO (production only, found 2026-10-08): the directives engine's `disconnectedCallback` throws `TypeError: Cannot
+ * read properties of undefined (reading 'forEach')` when such a component is removed; development is clean. Suspected:
+ * the missing core stamp (directives-packaging). A `todo` row until fixed — the fix proves itself by turning it green.
+ */
+test('removing a component that renders directives throws nothing', { todo: isProduction && 'directives teardown throws in production' }, async () => {
+  customElements.define('x-le-teardown', class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.render(() => core.html`<div data-vd-state="{ count: 5 }"><nav data-vd-class="{ busy: count > 3 }">x</nav></div>`);
+    }
+  });
+  const el = document.createElement('x-le-teardown');
+  document.body.append(el);
+  await settled();
+  assert.equal(el.querySelector('nav')?.classList.contains('busy'), true, 'CONTROL: the directive applied');
+  thrown.length = 0;
+  el.remove();
+  await settled();
+  assert.deepEqual(thrown.map(String), [], 'nothing thrown out of teardown');
 });
