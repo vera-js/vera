@@ -318,8 +318,13 @@ export const reject = (
     list.push(entry);
   }
   if (__DEV__) {
-    /** Once per (code × directive) — the registry keeps every instance, the console keeps signal. */
-    const key = `${code}:${directive}`;
+    /**
+     * Once per (code × directive) — the registry keeps every instance, the console keeps signal. A PAGE problem (no
+     * element) also keys on its arguments (Brian, 2026-10-09): each is a distinct fact — a second vocabulary key
+     * replaced is a second mistake, which went unseen — and with no element there are no repeats to flood with.
+     * Production stays once per code: its line carries no arguments, so a repeat would say nothing new.
+     */
+    const key = element ? `${code}:${directive}` : `${code}:${directive}:${String(messageOrArgs)}`;
     if (!warned.has(key)) {
       warned.add(key);
       console.warn(diagnostic('directives', directive, code, [message, fix]));

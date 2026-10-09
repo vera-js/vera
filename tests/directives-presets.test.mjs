@@ -165,6 +165,23 @@ test('wiring a key that is already registered is reported by code; the same desc
     assert.equal(first.length, 1, `a different descriptor for "opacity" is reported once: ${said.join(' | ')}`);
     if (!isProduction) assert.match(first[0], /opacity/, 'development names the key (production: the code alone)');
     assert.equal(second.length, 1, 'the same descriptor wired again is idempotent: nothing new');
+
+    /**
+     * A DIFFERENT key replaced later is a second mistake: development says so too (a page problem keys on its
+     * arguments). The same key replaced again — a new object, so a real replacement — is not a new fact: no new line.
+     * Production stays once per code (its line has no arguments to tell them apart). Keys no other row touches, so
+     * the page-wide dedupe cannot make this order-dependent.
+     */
+    wireDirectives([motionExtension({ key: 'grayscale', category: 'filter', cssFunction: 'grayscale', defaultUnit: '', units: [''], min: 0, max: 1, initial: 0 })]);
+    const third = said.filter((line) => line.includes('motion-vocabulary-replaced'));
+    wireDirectives([motionExtension({ ...descriptor })]);
+    const fourth = said.filter((line) => line.includes('motion-vocabulary-replaced'));
+    if (isProduction) assert.equal(fourth.length, 1, `production: once per code: ${fourth.join(' | ')}`);
+    else {
+      assert.equal(third.length, 2, `a second key is a second line: ${third.join(' | ')}`);
+      assert.match(third[1], /grayscale/);
+      assert.equal(fourth.length, 2, 'the same key replaced again: nothing new');
+    }
   } finally {
     console.warn = original;
   }
