@@ -80,7 +80,7 @@ export type {
   _valuedRefStaysNarrow,
   _storeKeepsPropertyTypes,
 };
-export type { _storeKeepsNestedTypes, _deleteIsOptional, _untrackPreservesReturn };
+export type { _storeKeepsNestedTypes, _untrackPreservesReturn };
 
 /* ── typed route params ──────────────────────────────────────────────────────────────────────────
  * `addRoutes` reads each route's params off its own `path` literal, so a component gets
