@@ -1,4 +1,6 @@
 import type { CSSResultGroup, StyledElement } from './types.js';
+import { diagnostic, misuse } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 
 /**
  * The `css` tagged template: a constructed stylesheet and its source text, for `static styles`.
@@ -14,10 +16,7 @@ import type { CSSResultGroup, StyledElement } from './types.js';
 export const css = (strings: TemplateStringsArray, ...values: (string | number)[]): CSSResultGroup => {
   /** Development: called, not tagged — a string where the strings array goes fails at `reduce` naming nothing. */
   if (__DEV__ && !Array.isArray(strings))
-    throw new TypeError(
-      `css: expected a template literal and received ${typeof strings === 'string' ? JSON.stringify(strings) : String(strings)}. ` +
-        `It is a tagged template — write css\`p { color: red }\`, not css('p { color: red }').`
-    );
+    throw new TypeError(misuse('css', 'css-called', __DEV__ && PROSE['css-called'](typeof strings === 'string' ? JSON.stringify(strings) : String(strings))));
   const cssText = strings.reduce((text, part, i) => text + part + (values[i] ?? ''), '');
   const styleSheet = new CSSStyleSheet();
   styleSheet.replaceSync?.(cssText);
@@ -84,10 +83,7 @@ const HOISTED = '_$veraStyles$';
  */
 export const adoptStyles = (element: StyledElement) => {
   if (__DEV__ && notAnElement(element))
-    throw new TypeError(
-      `adoptStyles: expected a component element and received ${String(element)}. It adopts the element's own class ` +
-        `\`static styles\` — \`adoptStyles(this)\`.`
-    );
+    throw new TypeError(misuse('adoptStyles', 'adopt-not-element', __DEV__ && PROSE['adopt-not-element'](String(element))));
   return applyStyles((element.constructor as unknown as { styles: CSSResultGroup | CSSResultGroup[] }).styles, element);
 };
 
@@ -115,10 +111,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   if (!styles) return;
   /** Development: styles first, the element second — `applyStyles(this, sheet)` reads naturally and is backwards. */
   if (__DEV__ && notAnElement(element))
-    throw new TypeError(
-      `applyStyles: expected a component element as the *second* argument and received ${String(element)}. The order ` +
-        `is styles first — \`applyStyles(sheet, this)\`.`
-    );
+    throw new TypeError(misuse('applyStyles', 'apply-not-element', __DEV__ && PROSE['apply-not-element'](String(element))));
   const doc = element.ownerDocument;
   const view = doc.defaultView;
   /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
@@ -129,9 +122,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     for (const style of list)
       if (typeof style !== 'string' && !(style as CSSResultGroup).cssText && !(style as CSSResultGroup).styleSheet)
         throw new TypeError(
-          `applyStyles: expected CSS and received ${typeof style === 'object' ? 'an object with neither cssText nor styleSheet' : `a ${typeof style}`}. ` +
-            `Pass a css\`…\` result, a string of CSS, or an array of those — a falsy entry is fine and is skipped, so ` +
-            `\`[base, dark && darkSheet]\` works.`
+          misuse('applyStyles', 'apply-not-css', __DEV__ && PROSE['apply-not-css'](typeof style === 'object' ? 'an object with neither cssText nor styleSheet' : `a ${typeof style}`))
         );
 
   if (shadowRoot) {
@@ -167,20 +158,11 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   const supported = !!view && typeof view.CSSScopeRule === 'function';
   if (__DEV__ && !supported && !warnedAboutScope) {
     warnedAboutScope = true;
-    console.warn(
-      `[vera] styles: this engine has no \`@scope\`, so light-DOM \`static styles\` are hoisted to the document ` +
-        `**unscoped** — every rule applies page-wide here and only to <${element.localName}> elsewhere. Attach a shadow ` +
-        `root to scope them everywhere, or write selectors that carry the tag.`
-    );
+    console.warn(diagnostic('styles', `<${element.localName}>`, 'no-scope', __DEV__ && PROSE['no-scope'](element.localName)));
   }
   /** Development: `::slotted()` only ever matches inside a shadow root — in light DOM an ordinary selector reaches it. */
   if (__DEV__ && /::slotted\s*\(/.test(withoutText(raw)))
-    console.warn(
-      `[vera] styles: <${element.localName}> has no shadow root, and \`::slotted()\` only ever matches inside one — ` +
-        `those rules do nothing here. In light DOM you do not need it: slotted content is in the same tree, so an ` +
-        `ordinary descendant selector reaches it. For a component that renders BOTH ways, write both — ` +
-        `\`::slotted(img), [part="body"] img\`.`
-    );
+    console.warn(diagnostic('styles', `<${element.localName}>`, 'slotted-light', __DEV__ && PROSE['slotted-light']()));
   const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
   if (doc.adoptedStyleSheets && view) {
     const sheet = new view.CSSStyleSheet();

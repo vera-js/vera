@@ -1,0 +1,51 @@
+{
+  "url": "https://docs.verajs.dev/e/",
+  "entries": [
+    {
+      "code": "adopt-not-element",
+      "params": [
+        "received"
+      ],
+      "message": "expected a component element and received {received}.",
+      "fix": "It adopts the element's own class `static styles` — `adoptStyles(this)`."
+    },
+    {
+      "code": "apply-not-css",
+      "params": [
+        "received"
+      ],
+      "message": "expected CSS and received {received}.",
+      "fix": "Pass a css`…` result, a string of CSS, or an array of those — a falsy entry is fine and is skipped, so `[base, dark && darkSheet]` works."
+    },
+    {
+      "code": "apply-not-element",
+      "params": [
+        "received"
+      ],
+      "message": "expected a component element as the *second* argument and received {received}.",
+      "fix": "The order is styles first — `applyStyles(sheet, this)`."
+    },
+    {
+      "code": "css-called",
+      "params": [
+        "received"
+      ],
+      "message": "expected a template literal and received {received}.",
+      "fix": "It is a tagged template — write css`p { color: red }`, not css('p { color: red }')."
+    },
+    {
+      "code": "no-scope",
+      "params": [
+        "tag"
+      ],
+      "message": "this engine has no `@scope`, so light-DOM `static styles` are hoisted to the document **unscoped** — every rule applies page-wide here and only to <{tag}> elsewhere.",
+      "fix": "Attach a shadow root to scope them everywhere, or write selectors that carry the tag."
+    },
+    {
+      "code": "slotted-light",
+      "params": [],
+      "message": "has no shadow root, and `::slotted()` only ever matches inside one — those rules do nothing here.",
+      "fix": "In light DOM you do not need it: slotted content is in the same tree, so an ordinary descendant selector reaches it. For a component that renders BOTH ways, write both — `::slotted(img), [part=\"body\"] img`."
+    }
+  ]
+}

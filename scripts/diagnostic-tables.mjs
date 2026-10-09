@@ -7,5 +7,6 @@
  */
 export const TABLES = [
   { name: 'renderer', table: 'src/hydration-diagnostics.ts', sources: ['src/hydration.ts'] },
-  { name: 'core', table: 'src/diagnostics.ts', sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts'] },
+  { name: 'styles', table: 'src/diagnostics.ts', sources: ['src/styles.ts'] },
+  { name: 'core', table: 'src/diagnostics.ts', sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
 ];

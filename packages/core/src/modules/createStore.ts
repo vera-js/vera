@@ -1,3 +1,5 @@
+import { misuse } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { createProxy } from '../services/createProxy.js';
 import type { Store } from '../types.js';
 
@@ -13,9 +15,13 @@ import type { Store } from '../types.js';
 export const createStore = <T extends object>(initialStore: T) => {
   if (initialStore === null || (typeof initialStore !== 'object' && typeof initialStore !== 'function'))
     /** The throw is unconditional; only the explanation folds away in production. */
+    /**
+     * Production keeps its own short text: the coded form (`createStore: <docs>store-not-object`) measured 1 B LONGER,
+     * and a package converts only where its bundle measures smaller (Brian, 2026-10-02).
+     */
     throw new TypeError(
       __DEV__
-        ? `createStore: expected an object and received ${String(initialStore)}. To hold one value, use ref(value).`
+        ? misuse('createStore', 'store-not-object', __DEV__ && PROSE['store-not-object'](String(initialStore)))
         : 'createStore: object required — use ref()'
     );
   return createProxy(initialStore) as Store<T>;

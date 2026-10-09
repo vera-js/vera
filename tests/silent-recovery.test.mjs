@@ -104,7 +104,7 @@ test('static styles without @scope report that they went global', { skip }, asyn
     });
     assert.equal(n, 2, 'both components initialized');
     assert.equal(said.length, 1, `one warning per page, not per class — ${JSON.stringify(said)}`);
-    assert.match(said[0], /^\[vera\] styles: this engine has no/);
+    assert.match(said[0], /^\[vera\] styles: <[a-z-]+> — this engine has no `@scope`[\s\S]*\(no-scope\)$/);
     assert.match(said[0], /unscoped/);
   } finally {
     if (present !== undefined) globalThis.CSSScopeRule = present;

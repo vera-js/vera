@@ -1,3 +1,5 @@
+import { misuse } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { hooksQueue } from '../store/store.js';
 import type { Untracked } from '@verajs/shared-utils';
 
@@ -19,10 +21,7 @@ import type { Untracked } from '@verajs/shared-utils';
  */
 export const untrack = <T>(fn: () => T): T => {
   if (__DEV__ && typeof fn !== 'function')
-    throw new TypeError(
-      `untrack: expected a function and received ${String(fn)}. It runs the function without subscribing — ` +
-        `\`untrack(() => state.a)\`, not \`untrack(state.a)\`, which reads the property before untrack can do anything about it.`
-    );
+    throw new TypeError(misuse('untrack', 'untrack-not-function', __DEV__ && PROSE['untrack-not-function'](String(fn))));
   return untracked(fn);
 };
 

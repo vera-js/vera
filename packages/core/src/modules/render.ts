@@ -1,3 +1,5 @@
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { useRender } from '../hooks/useRender.js';
 import { currentInstance } from '../store/store.js';
 import { commit } from './mount.js';
@@ -27,12 +29,7 @@ export const render = (template: unknown, ...args: unknown[]) => {
    * word for it (main had this). It registers no render: a template of `undefined` would replace the root's content.
    */
   if (template === undefined) {
-    if (__DEV__)
-      console.warn(
-        `[vera] render() was called with no template. That works — the setup is committed and the hooks run, exactly ` +
-          `as with a template — but mount() is the name for it, and says so at the call site.\n\n` +
-          `  import { mount } from '@verajs/core';\n  mount();\n`
-      );
+    if (__DEV__) console.warn(diagnostic('core', 'render()', 'bare-render', __DEV__ && PROSE['bare-render']()));
   } else useRender(template, element, ...args);
   commit(element);
 };

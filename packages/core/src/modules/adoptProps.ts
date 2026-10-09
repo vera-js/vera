@@ -1,3 +1,5 @@
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { RENDER_PRIORITY } from './createHook.js';
 import { createStore } from './createStore.js';
 import type { ComponentElement } from '../types.js';
@@ -33,10 +35,7 @@ const refuse = (element: Element, key: string) => {
   refused.set(element, names);
   if (names.has(key)) return;
   names.add(key);
-  console.warn(
-    `[vera] <${element.localName}> received a bound property \`.${key}\`, but its class declares \`${key}\` as a getter ` +
-      `with no setter — the value cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
-  );
+  console.warn(diagnostic('core', `<${element.localName}>`, 'getter-only-prop', __DEV__ && PROSE['getter-only-prop'](key)));
 };
 
 export const adoptProps = (element: ComponentElement) => {

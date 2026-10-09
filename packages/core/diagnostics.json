@@ -2,6 +2,62 @@
   "url": "https://docs.verajs.dev/e/",
   "entries": [
     {
+      "code": "allow-loop-not-element",
+      "params": [
+        "received"
+      ],
+      "message": "expected a component element and received {received}.",
+      "fix": "Pass the element whose loop is intentional — `allowRenderLoop(this)` inside the component."
+    },
+    {
+      "code": "async-callback",
+      "params": [],
+      "message": "returned a promise — an async callback runs, but it cannot return a cleanup, and what it awaits may arrive after the component re-ran or was removed.",
+      "fix": "To cancel it, write the effect as a plain function that starts the async work and returns a cleanup that stops it — for a fetch, `const c = new AbortController(); load(c.signal); return () => c.abort();`."
+    },
+    {
+      "code": "bare-render",
+      "params": [],
+      "message": "render() was called with no template. That works — the setup is committed and the hooks run, exactly as with a template — but mount() is the name for it, and says so at the call site.",
+      "fix": "`import { mount } from '@verajs/core'; mount();`"
+    },
+    {
+      "code": "getter-only-prop",
+      "params": [
+        "key"
+      ],
+      "message": "received a bound property `.{key}`, but its class declares `{key}` as a getter with no setter — the value cannot be delivered and the binding is ignored.",
+      "fix": "Add a setter, or stop binding it."
+    },
+    {
+      "code": "init-not-element",
+      "params": [
+        "received"
+      ],
+      "message": "expected a component element and received {received}.",
+      "fix": "Call it in connectedCallback with the component itself — `init(this)`."
+    },
+    {
+      "code": "init-twice",
+      "params": [
+        "hooks"
+      ],
+      "message": "called init() twice in one setup, so the {hooks} hook(s) registered since the first call were discarded and will never run.",
+      "fix": "init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount()."
+    },
+    {
+      "code": "late-template-module",
+      "params": [],
+      "message": "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
+      "fix": "Wire it beside the renderer, before the first render."
+    },
+    {
+      "code": "nested-flush",
+      "params": [],
+      "message": "flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.",
+      "fix": "To read the DOM a render made, read it in useLayoutEffect, which runs right after the render."
+    },
+    {
       "code": "no-collections",
       "params": [],
       "message": "is handed back as it is — it works, but nothing that reads it updates when it changes.",
@@ -20,10 +76,76 @@
       "fix": "Wire one once, at your app entry: `import { renderer } from '@verajs/renderer'; wire([renderer]);`"
     },
     {
+      "code": "render-loop",
+      "params": [
+        "frames"
+      ],
+      "message": "has re-run for {frames} consecutive frames because it writes state it also reads — this will keep running for as long as the page is open.",
+      "fix": "Guard the write (`if (next !== state.x) state.x = next`), or move it out of the pass. More than one hook may be involved: a template reading what an effect writes is caught here too. If it is deliberate — an animation driven by one store write per frame — silence it with `allowRenderLoop(this)` from @verajs/core, or drive it with `requestAnimationFrame`."
+    },
+    {
+      "code": "scheduler-not-function",
+      "params": [
+        "received"
+      ],
+      "message": "expected a function and received {received}.",
+      "fix": "It receives the flush and decides when to run it — `microtask` (the default) and `frameBudget` are exported for that."
+    },
+    {
+      "code": "setup-uncommitted",
+      "params": [
+        "hooks"
+      ],
+      "message": "registered {hooks} hook(s) but its setup was never committed, so none of them will ever run.",
+      "fix": "init() opens the setup and one of these closes it: `render(() => html`…`)` for a component with markup, `mount();` for one with none."
+    },
+    {
+      "code": "store-not-object",
+      "params": [
+        "received"
+      ],
+      "message": "expected an object and received {received}.",
+      "fix": "To hold one value, use ref(value)."
+    },
+    {
+      "code": "store-refused",
+      "params": [
+        "operation",
+        "why"
+      ],
+      "message": "this store's source object refused the {operation} — {why}.",
+      "fix": "A store proxies the object it was given and cannot override what JavaScript declines. Pass a mutable object to createStore, or keep this one outside the store and read it directly."
+    },
+    {
       "code": "sync-loop",
       "params": [],
       "message": "re-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, so an unguarded write feeds itself.",
       "fix": "Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces."
+    },
+    {
+      "code": "tag-called",
+      "params": [
+        "tag",
+        "received"
+      ],
+      "message": "expected a template literal and received {received}.",
+      "fix": "It is a tagged template — write {tag}`<p>hi</p>`, not {tag}('<p>hi</p>')."
+    },
+    {
+      "code": "untrack-not-function",
+      "params": [
+        "received"
+      ],
+      "message": "expected a function and received {received}.",
+      "fix": "It runs the function without subscribing — `untrack(() => state.a)`, not `untrack(state.a)`, which reads the property before untrack can do anything about it."
+    },
+    {
+      "code": "unwired-directives",
+      "params": [
+        "attribute"
+      ],
+      "message": "renders `{attribute}`, but no directives engine is wired, so that attribute does nothing.",
+      "fix": "`@verajs/directives` is NOT PUBLISHED YET — `npm i` will 404 — so if this markup came from a demo, remove the attribute or write the behavior yourself for now. When it ships, it is wired once at your app entry: `import { directives } from '@verajs/directives'; wire([renderer, directives]);`"
     }
   ]
 }

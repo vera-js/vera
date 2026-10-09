@@ -15,7 +15,7 @@ import { TABLES } from '../scripts/diagnostic-tables.mjs';
 const at = (name, file) => new URL(`../packages/${name}/${file}`, import.meta.url);
 
 /** A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…`. Captures the two spellings of the code. */
-const CALL = /diagnostic\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && PROSE\['([a-z][a-z0-9-]*)'\]/g;
+const CALL = /(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && PROSE\['([a-z][a-z0-9-]*)'\]/g;
 
 for (const { name, table, sources } of TABLES)
   test(`${name}: every code raised has an entry, every entry is raised, and each call names one code`, async () => {

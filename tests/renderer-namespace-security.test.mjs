@@ -70,5 +70,5 @@ test('wiring a template module after the renderer built templates is named in de
   } finally {
     console.warn = warn;
   }
-  assert.ok(said.some((m) => m.startsWith("[vera] wire: a 'template' or 'element' module")), said.join('\n'));
+  assert.ok(said.some((m) => m.startsWith("[vera] core: wire — a 'template' or 'element' module") && m.endsWith('(late-template-module)')), said.join('\n'));
 });

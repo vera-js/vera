@@ -1,3 +1,5 @@
+import { diagnostic, misuse } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { InitInsert } from '@verajs/inserts';
 import { currentInstance } from '../store/store.js';
@@ -39,11 +41,7 @@ const claimed = (prefix: string): boolean =>
 const afterSetup = (element: ComponentElement) => {
   const hooks = element._hooks?.reduce((n, set) => n + set.size, 0) ?? 0;
   if (hooks && (element as { _committed?: number })._committed !== element._gen)
-    console.warn(
-      `[vera] <${element.localName}> registered ${hooks} hook(s) but its setup was never committed, so none of them ` +
-        `will ever run.\ninit() opens the setup and one of these closes it:\n\n` +
-        `  render(() => html\`…\`);   // a component with markup\n  mount();                  // a component with none\n`
-    );
+    console.warn(diagnostic('core', `<${element.localName}>`, 'setup-uncommitted', __DEV__ && PROSE['setup-uncommitted'](String(hooks))));
   unclaimedMarkup(element);
 };
 const unclaimedMarkup = (element: ComponentElement) => {
@@ -53,12 +51,7 @@ const unclaimedMarkup = (element: ComponentElement) => {
     const hit = [...node.attributes].find((a) => a.name.startsWith('data-vd-'));
     if (!hit) continue;
     warnedAboutClaims = true;
-    console.warn(
-      `[vera] <${element.localName}> renders \`${hit.name}\`, but no directives engine is wired, so that attribute does ` +
-        `nothing.\n\`@verajs/directives\` is NOT PUBLISHED YET — \`npm i\` will 404 — so if this markup came from a demo, ` +
-        `remove the attribute or write the behavior yourself for now. When it ships, it is wired once at your app entry:\n\n` +
-        `  import { directives } from '@verajs/directives';\n  wire([renderer, directives]);\n`
-    );
+    console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-directives', __DEV__ && PROSE['unwired-directives'](hit.name)));
     return;
   }
 };
@@ -70,10 +63,7 @@ const endSetup = () => {
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
   const current = currentInstance.element;
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
-    throw new TypeError(
-      `init: expected a component element and received ${String(element)}. Call it in connectedCallback with the ` +
-        `component itself — \`init(this)\`.`
-    );
+    throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
   currentInstance.element = element;
   mine.add(element);
   /**
@@ -82,12 +72,7 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
    */
   if (__DEV__ && current === element && element._hooks?.length) {
     const count = element._hooks.reduce((n, set) => n + set.size, 0);
-    console.warn(
-      `[vera] <${element.localName}> called init() twice in one setup, so the ${count} hook(s) registered since the ` +
-        `first call were discarded and will never run.\ninit() starts a fresh generation of hooks — which is what makes ` +
-        `it safe when a component reconnects — so anything registered before a second call is dropped. Call init() ` +
-        `once, then register hooks, then render() or mount().`
-    );
+    console.warn(diagnostic('core', `<${element.localName}>`, 'init-twice', __DEV__ && PROSE['init-twice'](String(count))));
   }
   /** After the synchronous setup, so the first render has committed and there is a subtree to look at. */
   if (__DEV__) queueMicrotask(() => afterSetup(element));

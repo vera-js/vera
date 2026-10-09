@@ -1,3 +1,5 @@
+import { misuse } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import type { ComponentElement, HookCallback, ResultType, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
@@ -34,10 +36,7 @@ const tag =
   (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
     if (__DEV__ && !Array.isArray(strings)) {
       const name = ['html', 'svg', 'mathml'][type - 1];
-      throw new TypeError(
-        `${name}: expected a template literal and received ${typeof strings === 'string' ? JSON.stringify(strings) : String(strings)}. ` +
-          `It is a tagged template — write ${name}\`<p>hi</p>\`, not ${name}('<p>hi</p>').`
-      );
+      throw new TypeError(misuse(name, 'tag-called', __DEV__ && PROSE['tag-called'](name, typeof strings === 'string' ? JSON.stringify(strings) : String(strings))));
     }
     return { ['_$litType$']: type, strings, values };
   };

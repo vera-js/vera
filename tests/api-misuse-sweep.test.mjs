@@ -42,6 +42,8 @@ const CASES = [
   ['untrack(nonFunction)', () => core.untrack(42), /untrack: expected a function/],
   ['init(notAnElement)', () => core.init(null), /init: expected a component element/],
   ['createStore(notAnObject)', () => core.createStore(42), /createStore: expected an object/],
+  ['applyStyles([notCSS], element)', () => styleModule.applyStyles([42], document.createElement('div')), /applyStyles: expected CSS/],
+  ['a frozen store refusing a write', () => { const store = core.createStore(Object.freeze({ n: 1 })); store.n = 2; }, /createStore: this store's source object refused the write/],
   ['html("markup")', () => core.html('<p>x</p>'), /html: expected a template literal/],
   ['svg("markup")', () => core.svg('<c/>'), /svg: expected a template literal/],
   ['mathml("markup")', () => core.mathml('<m/>'), /mathml: expected a template literal/],
@@ -166,20 +168,35 @@ test('no guard refuses a legitimate input', async () => {
  * instead of leaving a diagnostic nobody has ever executed.
  */
 test('every by-name guard in the source is exercised above', () => {
+  /**
+   * Two kinds of guard, both enumerated from the SOURCE: a literal `name: expected …` (packages not yet on the code
+   * system) and a `misuse(…, 'code', …)` call (core and styles since 2026-10-09 — their prose lives in a table). A code is
+   * exercised when some case THROWS a message ending in it: `(code)` in development, `…/e/code` in production.
+   */
   const guards = new Set();
+  const codes = new Set();
   for (const file of globSync('packages/*/src/**/*.{ts,js}', { cwd: root })) {
     if (file.endsWith('.d.ts')) continue;
-    for (const match of readFileSync(join(root, file), 'utf8').matchAll(/`([a-zA-Z]+): expected /g))
-      guards.add(match[1]);
+    const text = readFileSync(join(root, file), 'utf8');
+    for (const match of text.matchAll(/`([a-zA-Z]+): expected /g)) guards.add(match[1]);
+    for (const match of text.matchAll(/misuse\([^,]+,\s*'([a-z][a-z0-9-]*)'/g)) codes.add(match[1]);
   }
-  assert.ok(guards.size >= 15, `only found ${guards.size} guards — has the message shape changed?`);
+  assert.ok(guards.size + codes.size >= 15, `only found ${guards.size} literal guards and ${codes.size} coded ones — has the message shape changed?`);
 
   const exercised = new Set(CASES.map(([, , pattern]) => /\/?\^?([a-zA-Z]+): expected/.exec(String(pattern))?.[1]).filter(Boolean));
   exercised.add('navigate');
+  const thrownCodes = new Set();
+  for (const [, call] of CASES) {
+    try { call(); } catch (error) {
+      const code = /\(([a-z][a-z0-9-]*)\)$|\/e\/([a-z][a-z0-9-]*)$/.exec(String(error?.message ?? ''));
+      if (code) thrownCodes.add(code[1] ?? code[2]);
+    }
+  }
   const missing = [...guards].filter((name) => !exercised.has(name)).sort();
+  const missingCodes = isProduction ? [] : [...codes].filter((code) => !thrownCodes.has(code)).sort();
   assert.deepEqual(
-    missing,
+    [...missing, ...missingCodes],
     [],
-    `guards with no misuse case: ${missing.join(', ')} — add one to CASES above`
+    `guards with no misuse case: ${[...missing, ...missingCodes].join(', ')} — add one to CASES above`
   );
 });

@@ -86,13 +86,8 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
         cleanup = typeof out === 'function' ? out : undefined;
         if (__DEV__ && !warnedAsync && typeof (out as { then?: unknown } | undefined)?.then === 'function') {
           warnedAsync = true;
-          console.warn(
-            `[vera] ${priority === 60 ? 'useLayoutEffect' : priority === 75 ? (sync ? 'useSyncEffect' : 'useEffect') : 'useHook'}` +
-              `${owner?.localName ? ` on <${owner.localName}>` : ''} returned a promise — an async callback runs, but ` +
-              `it cannot return a cleanup, and what it awaits may arrive after the component re-ran or was removed.\n` +
-              `To cancel it, write the effect as a plain function that starts the async work and returns a cleanup ` +
-              `that stops it — for a fetch, \`const c = new AbortController(); load(c.signal); return () => c.abort();\`.`
-          );
+          const hook = priority === 60 ? 'useLayoutEffect' : priority === 75 ? (sync ? 'useSyncEffect' : 'useEffect') : 'useHook';
+          console.warn(diagnostic('core', `${hook}${owner?.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
         }
         if (cleanup) {
           if (owner?._removed) runCleanup(cleanup, owner);

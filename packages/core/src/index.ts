@@ -1,4 +1,6 @@
 import { wire as register, inserts } from '@verajs/inserts';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 import { redecideStores } from './services/createProxy.js';
 export { inserts };
 
@@ -24,11 +26,7 @@ export const wire: typeof register = (item) => {
     (inserts as unknown as { $b?: boolean }).$b === true &&
     (inserts.get('template')?.length ?? 0) + (inserts.get('element')?.length ?? 0) > decided
   )
-    console.warn(
-      "[vera] wire: a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had " +
-        'already built templates — those never ask it, and keep rendering without it. Wire it beside the renderer, ' +
-        'before the first render.'
-    );
+    console.warn(diagnostic('core', 'wire', 'late-template-module', __DEV__ && PROSE['late-template-module']()));
 };
 export type * from '@verajs/inserts';
 export type * from './types.js';

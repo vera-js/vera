@@ -1,5 +1,5 @@
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
-import { isWeakCollection } from '@verajs/shared-utils';
+import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
 import type { Signal } from '../types.js';
@@ -165,11 +165,7 @@ const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted
       : state
         ? `the object is ${state}, so ${key} cannot be ${verb}`
         : `${key} is not ${verb === 'deleted' ? 'configurable' : 'writable'}`;
-  return new TypeError(
-    `[vera] createStore: this store's source object refused the ${verb === 'deleted' ? 'delete' : 'write'} — ${why}. A ` +
-      `store proxies the object it was given and cannot override what JavaScript declines. Pass a mutable object to ` +
-      `createStore, or keep this one outside the store and read it directly.`
-  );
+  return new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', why)));
 };
 
 /**

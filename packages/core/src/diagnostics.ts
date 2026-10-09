@@ -7,6 +7,69 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  /* ── misused APIs (thrown, development only — `misuse()`) ── */
+  'untrack-not-function': (received) => [
+    `expected a function and received ${received}.`,
+    'It runs the function without subscribing — `untrack(() => state.a)`, not `untrack(state.a)`, which reads the property before untrack can do anything about it.',
+  ],
+  'init-not-element': (received) => [
+    `expected a component element and received ${received}.`,
+    'Call it in connectedCallback with the component itself — `init(this)`.',
+  ],
+  'scheduler-not-function': (received) => [
+    `expected a function and received ${received}.`,
+    'It receives the flush and decides when to run it — `microtask` (the default) and `frameBudget` are exported for that.',
+  ],
+  'allow-loop-not-element': (received) => [
+    `expected a component element and received ${received}.`,
+    'Pass the element whose loop is intentional — `allowRenderLoop(this)` inside the component.',
+  ],
+  'tag-called': (tag, received) => [
+    `expected a template literal and received ${received}.`,
+    `It is a tagged template — write ${tag}\`<p>hi</p>\`, not ${tag}('<p>hi</p>').`,
+  ],
+  'store-not-object': (received) => [`expected an object and received ${received}.`, 'To hold one value, use ref(value).'],
+  'store-refused': (operation, why) => [
+    `this store's source object refused the ${operation} — ${why}.`,
+    'A store proxies the object it was given and cannot override what JavaScript declines. Pass a mutable object to createStore, or keep this one outside the store and read it directly.',
+  ],
+  /* ── development warnings (`diagnostic()`) ── */
+  'async-callback': () => [
+    'returned a promise — an async callback runs, but it cannot return a cleanup, and what it awaits may arrive after the component re-ran or was removed.',
+    'To cancel it, write the effect as a plain function that starts the async work and returns a cleanup that stops it — for a fetch, `const c = new AbortController(); load(c.signal); return () => c.abort();`.',
+  ],
+  'setup-uncommitted': (hooks) => [
+    `registered ${hooks} hook(s) but its setup was never committed, so none of them will ever run.`,
+    'init() opens the setup and one of these closes it: `render(() => html`…`)` for a component with markup, `mount();` for one with none.',
+  ],
+  'init-twice': (hooks) => [
+    `called init() twice in one setup, so the ${hooks} hook(s) registered since the first call were discarded and will never run.`,
+    'init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount().',
+  ],
+  'unwired-directives': (attribute) => [
+    `renders \`${attribute}\`, but no directives engine is wired, so that attribute does nothing.`,
+    "`@verajs/directives` is NOT PUBLISHED YET — `npm i` will 404 — so if this markup came from a demo, remove the attribute or write the behavior yourself for now. When it ships, it is wired once at your app entry: `import { directives } from '@verajs/directives'; wire([renderer, directives]);`",
+  ],
+  'getter-only-prop': (key) => [
+    `received a bound property \`.${key}\`, but its class declares \`${key}\` as a getter with no setter — the value cannot be delivered and the binding is ignored.`,
+    'Add a setter, or stop binding it.',
+  ],
+  'nested-flush': () => [
+    'flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.',
+    'To read the DOM a render made, read it in useLayoutEffect, which runs right after the render.',
+  ],
+  'render-loop': (frames) => [
+    `has re-run for ${frames} consecutive frames because it writes state it also reads — this will keep running for as long as the page is open.`,
+    'Guard the write (`if (next !== state.x) state.x = next`), or move it out of the pass. More than one hook may be involved: a template reading what an effect writes is caught here too. If it is deliberate — an animation driven by one store write per frame — silence it with `allowRenderLoop(this)` from @verajs/core, or drive it with `requestAnimationFrame`.',
+  ],
+  'bare-render': () => [
+    'render() was called with no template. That works — the setup is committed and the hooks run, exactly as with a template — but mount() is the name for it, and says so at the call site.',
+    "`import { mount } from '@verajs/core'; mount();`",
+  ],
+  'late-template-module': () => [
+    "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
+    'Wire it beside the renderer, before the first render.',
+  ],
   'no-collections': () => [
     'is handed back as it is — it works, but nothing that reads it updates when it changes.',
     "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call.",

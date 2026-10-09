@@ -60,7 +60,7 @@ for (const [hook, register] of [
   if (isProduction) assert.deepEqual(said, [], 'production is silent');
   else {
     assert.equal(said.length, 1, `development names it ONCE, not per run: ${said.join(' | ')}`);
-    assert.match(said[0], new RegExp(`^warn \\[vera\\] ${hook} on <${name}> returned a promise`), 'naming the hook and the component');
+    assert.match(said[0], new RegExp(`^warn \\[vera\\] core: ${hook} on <${name}> — returned a promise[\\s\\S]*\\(async-callback\\)$`), 'naming the hook, the component and the code');
   }
 });
 

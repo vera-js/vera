@@ -1,3 +1,5 @@
+import { diagnostic, misuse } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import type { ComponentElement, HookPass, RenderScheduler } from '../types.js';
 
 /**
@@ -164,11 +166,7 @@ export const flush = __DEV__
   ? () => {
       if (flushing && !warnedNested) {
         warnedNested = true;
-        console.warn(
-          `[vera] flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: ` +
-            `the DOM updates when this flush ends — nothing failed.\nTo read the DOM a render made, read it in ` +
-            `useLayoutEffect, which runs right after the render.`
-        );
+        console.warn(diagnostic('core', 'flush()', 'nested-flush', __DEV__ && PROSE['nested-flush']()));
       }
       drain();
     }
@@ -183,10 +181,7 @@ export const flush = __DEV__
  */
 export const setRenderScheduler = (scheduler: RenderScheduler) => {
   if (__DEV__ && typeof scheduler !== 'function')
-    throw new TypeError(
-      `setRenderScheduler: expected a function and received ${String(scheduler)}. It receives the flush and decides ` +
-        `when to run it — \`microtask\` (the default) and \`frameBudget\` are exported for that.`
-    );
+    throw new TypeError(misuse('setRenderScheduler', 'scheduler-not-function', __DEV__ && PROSE['scheduler-not-function'](String(scheduler))));
   const previous = renderScheduler;
   renderScheduler = scheduler;
   scheduled = next < queue.length;
@@ -214,12 +209,7 @@ const loopWarning = (pass: HookPass) => {
   warned.add(element);
   const writer = pass._b ?? pass;
   console.warn(
-    `[vera] ${LABELS[Math.floor(writer._k / 1e9)] ?? 'a hook'} on <${element.localName}> has re-run for ${LIMIT} ` +
-      `consecutive frames because it writes state it also reads — this will keep running for as long as the page ` +
-      `is open.\nGuard the write (\`if (next !== state.x) state.x = next\`), or move it out of the pass. More than ` +
-      `one hook may be involved: a template reading what an effect writes is caught here too.\nIf it is deliberate ` +
-      `— an animation driven by one store write per frame — silence it with \`allowRenderLoop(this)\` from ` +
-      `@verajs/core, or drive it with \`requestAnimationFrame\`.`
+    diagnostic('core', `${LABELS[Math.floor(writer._k / 1e9)] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && PROSE['render-loop'](String(LIMIT)))
   );
 };
 
@@ -240,10 +230,7 @@ const loopWarning = (pass: HookPass) => {
 export const allowRenderLoop = (element: ComponentElement) => {
   if (__DEV__) {
     if ((element as Partial<Node> | null)?.nodeType !== 1)
-      throw new TypeError(
-        `allowRenderLoop: expected a component element and received ${String(element)}. Pass the element whose loop ` +
-          `is intentional — \`allowRenderLoop(this)\` inside the component.`
-      );
+      throw new TypeError(misuse('allowRenderLoop', 'allow-loop-not-element', __DEV__ && PROSE['allow-loop-not-element'](String(element))));
     exempt.add(element);
   }
 };

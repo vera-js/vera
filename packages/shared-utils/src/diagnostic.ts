@@ -26,6 +26,16 @@ export const DOCS = 'https://docs.verajs.dev/e/';
  * parameter shadows a name at the call site (measured 2026-10-02 — directives passes its own `code`, and a parameter
  * called `code` left `((e,t,n)=>`…`)(0,t,n)` in its bundle, +8 B; renamed, the call folds to the bare template).
  */
+/**
+ * **A misused API, named by its function** — the thrown-error twin of `diagnostic()`: `untrack: expected a function …
+ * (untrack-not-function)`, function-first because a stack already names the source and the sweep reads that shape. The
+ * prose comes from a package's table, behind `__DEV__`, so a development-only guard costs production nothing.
+ */
+export const misuse = (forName: string, withCode: string, andProse?: false | readonly [string, string?]) =>
+  __DEV__ && andProse
+    ? `${forName}: ${andProse[0]}${andProse[1] ? ` ${andProse[1]}` : ''} (${withCode})`
+    : `${forName}: ${DOCS}${withCode}`;
+
 export const diagnostic = (
   inArea: string,
   bySubject: string,
