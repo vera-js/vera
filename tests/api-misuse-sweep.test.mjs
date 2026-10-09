@@ -41,6 +41,7 @@ const skip = isProduction && 'development-only diagnostics';
 const CASES = [
   ['untrack(nonFunction)', () => core.untrack(42), /untrack: expected a function/],
   ['init(notAnElement)', () => core.init(null), /init: expected a component element/],
+  ['createStore(notAnObject)', () => core.createStore(42), /createStore: expected an object/],
   ['html("markup")', () => core.html('<p>x</p>'), /html: expected a template literal/],
   ['svg("markup")', () => core.svg('<c/>'), /svg: expected a template literal/],
   ['mathml("markup")', () => core.mathml('<m/>'), /mathml: expected a template literal/],

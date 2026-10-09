@@ -12,6 +12,12 @@ import type { CSSResultGroup, StyledElement } from './types.js';
  * @returns The constructed stylesheet and its CSS text.
  */
 export const css = (strings: TemplateStringsArray, ...values: (string | number)[]): CSSResultGroup => {
+  /** Development: called, not tagged — a string where the strings array goes fails at `reduce` naming nothing. */
+  if (__DEV__ && !Array.isArray(strings))
+    throw new TypeError(
+      `css: expected a template literal and received ${typeof strings === 'string' ? JSON.stringify(strings) : String(strings)}. ` +
+        `It is a tagged template — write css\`p { color: red }\`, not css('p { color: red }').`
+    );
   const cssText = strings.reduce((text, part, i) => text + part + (values[i] ?? ''), '');
   const styleSheet = new CSSStyleSheet();
   styleSheet.replaceSync?.(cssText);
@@ -26,6 +32,18 @@ export const css = (strings: TemplateStringsArray, ...values: (string | number)[
  * `@verajs/ssr`** — the packages may not import each other at runtime (CODE-PRINCIPLES #6); a
  * hardening of one needs the other.
  */
+/**
+ * The CSS with its comments and quoted strings removed — they are text, not selectors, so a sheet that merely MENTIONS
+ * `::slotted()` (a documented one does) is not warned about. Not a parser: stripping too much only silences a warning.
+ */
+const withoutText = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, '');
+
+/** Development: a light-DOM component's styles went global for want of `@scope` — said once per page. */
+let warnedAboutScope = false;
+
+/** Development: `element` is a component element (realm-safe — a popped-out window's fails `instanceof`). */
+const notAnElement = (element: unknown) => (element as Partial<Node> | null)?.nodeType !== 1;
+
 const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
@@ -64,8 +82,14 @@ const HOISTED = '_$veraStyles$';
  * Adopts a component's `static styles` — the `'init'` insert `styles` registers, so a component never
  * calls it and core never knows about styling.
  */
-export const adoptStyles = (element: StyledElement) =>
-  applyStyles((element.constructor as unknown as { styles: CSSResultGroup | CSSResultGroup[] }).styles, element);
+export const adoptStyles = (element: StyledElement) => {
+  if (__DEV__ && notAnElement(element))
+    throw new TypeError(
+      `adoptStyles: expected a component element and received ${String(element)}. It adopts the element's own class ` +
+        `\`static styles\` — \`adoptStyles(this)\`.`
+    );
+  return applyStyles((element.constructor as unknown as { styles: CSSResultGroup | CSSResultGroup[] }).styles, element);
+};
 
 /**
  * Applies styles to a component, in the component's OWN document and window — never the global
@@ -89,11 +113,26 @@ export const adoptStyles = (element: StyledElement) =>
  */
 export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, element: StyledElement) => {
   if (!styles) return;
+  /** Development: styles first, the element second — `applyStyles(this, sheet)` reads naturally and is backwards. */
+  if (__DEV__ && notAnElement(element))
+    throw new TypeError(
+      `applyStyles: expected a component element as the *second* argument and received ${String(element)}. The order ` +
+        `is styles first — \`applyStyles(sheet, this)\`.`
+    );
   const doc = element.ownerDocument;
   const view = doc.defaultView;
   /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
   const shadowRoot = (element as StyledElement & { _root?: ShadowRoot })._root ?? element.shadowRoot;
   const list = (Array.isArray(styles) ? styles : [styles]).filter(Boolean);
+  /** Development: an entry that is neither CSS text nor a sheet is named, not met as `value.replace is not a function`. */
+  if (__DEV__)
+    for (const style of list)
+      if (typeof style !== 'string' && !(style as CSSResultGroup).cssText && !(style as CSSResultGroup).styleSheet)
+        throw new TypeError(
+          `applyStyles: expected CSS and received ${typeof style === 'object' ? 'an object with neither cssText nor styleSheet' : `a ${typeof style}`}. ` +
+            `Pass a css\`…\` result, a string of CSS, or an array of those — a falsy entry is fine and is skipped, so ` +
+            `\`[base, dark && darkSheet]\` works.`
+        );
 
   if (shadowRoot) {
     const sheets: CSSStyleSheet[] = [];
@@ -123,8 +162,26 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   if (owner[HOISTED].has(doc)) return;
   owner[HOISTED].add(doc);
 
-  const cssText = forLightDom(list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n'));
-  const scoped = view && typeof view.CSSScopeRule === 'function' ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
+  const raw = list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n');
+  const cssText = forLightDom(raw);
+  const supported = !!view && typeof view.CSSScopeRule === 'function';
+  if (__DEV__ && !supported && !warnedAboutScope) {
+    warnedAboutScope = true;
+    console.warn(
+      `[vera] styles: this engine has no \`@scope\`, so light-DOM \`static styles\` are hoisted to the document ` +
+        `**unscoped** — every rule applies page-wide here and only to <${element.localName}> elsewhere. Attach a shadow ` +
+        `root to scope them everywhere, or write selectors that carry the tag.`
+    );
+  }
+  /** Development: `::slotted()` only ever matches inside a shadow root — in light DOM an ordinary selector reaches it. */
+  if (__DEV__ && /::slotted\s*\(/.test(withoutText(raw)))
+    console.warn(
+      `[vera] styles: <${element.localName}> has no shadow root, and \`::slotted()\` only ever matches inside one — ` +
+        `those rules do nothing here. In light DOM you do not need it: slotted content is in the same tree, so an ` +
+        `ordinary descendant selector reaches it. For a component that renders BOTH ways, write both — ` +
+        `\`::slotted(img), [part="body"] img\`.`
+    );
+  const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
   if (doc.adoptedStyleSheets && view) {
     const sheet = new view.CSSStyleSheet();
     sheet.replaceSync(scoped);
