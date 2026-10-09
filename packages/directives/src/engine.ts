@@ -524,16 +524,19 @@ const evaluateDeep = (el: Element, v: Parsed): unknown => {
 };
 
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
+const runAssignments = (el: Element, obj: ParsedObject) => {
+  for (const key of Object.keys(obj)) writeKey(el, key, evaluateDeep(el, obj[key]));
+};
+
 /**
- * Runs an `on-*` (or `init`) object's assignments UNTRACKED — the one place every `data-vd-on-*` handler, delegated or
- * direct, ends (2026-10-09). An effect that fires an event synchronously (`el.click()`) runs the handler inside itself,
- * and the handler's reads subscribed that effect: a self-feeding loop when it reads what it writes. Deliberate
- * duplicate of the renderer's `dispatch` (renderer.ts, spread.ts), which explains why.
+ * **An EVENT's assignments run UNTRACKED** — the delegated `dispatch` and `runAttrAssignments` (direct `on-*`, `init`),
+ * never `runAssignments` itself (2026-10-09). An effect that fires an event synchronously (`el.click()`) runs the
+ * handler inside itself, and the handler's reads subscribed that effect: a self-feeding loop when it reads what it
+ * writes. NOT `runAssignments`: `watch` runs its assignments from its own hook, and its loop cap resets on the re-run
+ * its own reads cause (measured: untracking every assignment silenced a watch after 10 changes). Deliberate duplicate of
+ * the renderer's `dispatch` (renderer.ts, spread.ts), which explains why.
  */
-const runAssignments = (el: Element, obj: ParsedObject) =>
-  (core().untrack ?? bakedUntrack)(() => {
-    for (const key of Object.keys(obj)) writeKey(el, key, evaluateDeep(el, obj[key]));
-  });
+const runEvent = (el: Element, obj: ParsedObject) => (core().untrack ?? bakedUntrack)(() => runAssignments(el, obj));
 
 /* ── actions: the named escape hatch (design §17.4) ───────────────────────────────────────── */
 
@@ -784,7 +787,7 @@ export const runAttrAssignments = (el: Element, attr: string): void => {
   if (raw === null) return;
   try {
     const parsed = parseAttr(raw);
-    if (isObject(parsed)) runAssignments(el, parsed);
+    if (isObject(parsed)) runEvent(el, parsed);
     else reject(el, attr, 'handler-not-object');
   } catch (error) {
     reject(el, attr, (error as ValueError).code ?? 'value-bad', [raw, (error as ValueError).message]);
@@ -1002,7 +1005,7 @@ const dispatch = (root: Node, event: Event) => {
         const outer = firing;
         firing = event;
         try {
-          runAssignments(el, parsed);
+          runEvent(el, parsed);
         } finally {
           firing = outer;
         }
