@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction as isProductionBuild, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'cancelAnimationFrame'])
@@ -475,4 +475,71 @@ test('useHook and createHook take `element` alike: outside setup, the element gi
   assert.deepEqual(log, ['raw 1', 'clean 0', 'scheduled 1'], 'the scheduled one ran in the flush, owned by `el`');
   el.remove();
   assert.deepEqual(log.at(-1), 'clean 1', 'and removing its owner ran its cleanup');
+});
+
+/** Development's one warning for a nested flush(), collected — production has none. */
+const nestedWarnings = async (run) => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...a) => { if (String(a[0]).includes('flush() inside a running flush')) said.push(String(a[0])); };
+  try { await run(); } finally { console.warn = warn; }
+  return said;
+};
+
+test('flush() inside a running flush does nothing — no nested drain, the write lands when the flush ends, said once', async () => {
+  const state = core.createStore({ text: 'a', seen: '' });
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.useEffect(() => {
+        if (state.text !== 'b') return;
+        state.text = 'c';
+        core.flush();
+        core.flush();
+        /** No nested drain: the render of 'c' has not run yet, inside this effect. */
+        state.seen = this.querySelector('p').textContent;
+      });
+      core.render(() => html`<p>${state.text}</p>`);
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await Promise.resolve();
+  const said = await nestedWarnings(async () => {
+    state.text = 'b';
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  assert.equal(state.seen, 'b', 'inside the effect, flush() ran nothing — the renderer was not re-entered');
+  assert.equal(el.querySelector('p').textContent, 'c', 'and the write landed when the flush ended — current after `await`');
+  if (isProductionBuild) assert.deepEqual(said, [], 'production is silent');
+  else assert.equal(said.length, 1, `development said so ONCE for two calls: ${said.join(' | ')}`);
+  el.remove();
+});
+
+test('an event an effect fires synchronously, whose handler writes and calls flush(): a no-op, the DOM current after `await`', async () => {
+  const state = core.createStore({ n: 0, clicked: 0 });
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      /**
+       * Clicks ONCE: a handler run synchronously inside an effect is tracked BY that effect (its `clicked++` reads
+       * `clicked`), so an unguarded click re-ran the effect on every click — a self-feeding loop the loop rule held to
+       * one round per frame, forever (found writing this row).
+       */
+      core.useEffect(() => { if (state.n === 1 && !this.clickedOnce) { this.clickedOnce = true; this.querySelector('button').click(); } });
+      core.render(() => html`<button @click=${() => { state.clicked++; core.flush(); }}>x</button><b>${state.clicked}</b>`);
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await Promise.resolve();
+  state.n = 1;
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(state.clicked, 1, 'CONTROL: the effect fired the click synchronously and the handler ran');
+  assert.equal(el.querySelector('b').textContent, '1', 'the handler\'s write landed before the flush ended');
+  el.remove();
 });

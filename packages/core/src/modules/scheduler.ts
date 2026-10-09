@@ -94,7 +94,7 @@ export const enqueue = (pass: HookPass) => {
   if (scheduled || flushing) return;
   scheduled = true;
   try {
-    renderScheduler(flush, pass._o ?? undefined);
+    renderScheduler(drain, pass._o ?? undefined);
   } catch (error) {
     scheduled = false;
     throw error;
@@ -118,11 +118,11 @@ const hold = (pass: HookPass) => {
 };
 
 /**
- * **Runs every queued pass, now** — the scheduled flush, and an export: a test, or work that must see the DOM settled
- * (a View Transition's callback), calls it to drain synchronously. A call from inside a running flush does nothing:
- * that flush is already draining.
+ * **Runs every queued pass, now** — what a scheduler runs. A call from inside a running flush does nothing: that flush
+ * is already draining, and draining again from inside a hook would re-enter the renderer mid-commit (React's
+ * `flushSync` makes the same choice).
  */
-export const flush = () => {
+const drain = () => {
   if (flushing) return;
   scheduled = false;
   flushing = true;
@@ -154,6 +154,27 @@ export const flush = () => {
 };
 
 /**
+ * **`flush()`, as core exports it: runs everything queued, synchronously** — a test, or work that must see the DOM now.
+ * Called from inside a running flush (a hook, a render) it does nothing, and development says so once (Brian,
+ * 2026-10-09): everything queued still runs before that flush ends — to read what a render made, read it in
+ * `useLayoutEffect`, which runs right after the render. In production this IS `drain`: zero bytes for the warning.
+ */
+let warnedNested = false;
+export const flush = __DEV__
+  ? () => {
+      if (flushing && !warnedNested) {
+        warnedNested = true;
+        console.warn(
+          `[vera] flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: ` +
+            `the DOM updates when this flush ends — nothing failed.\nTo read the DOM a render made, read it in ` +
+            `useLayoutEffect, which runs right after the render.`
+        );
+      }
+      drain();
+    }
+  : drain;
+
+/**
  * Replaces the scheduler of FLUSHES and returns the one it replaced. A flush the old one was holding is asked of the
  * new one, so a scheduler that dropped it strands nothing (a second run finds the queue empty).
  *
@@ -164,7 +185,7 @@ export const setRenderScheduler = (scheduler: RenderScheduler) => {
   const previous = renderScheduler;
   renderScheduler = scheduler;
   scheduled = next < queue.length;
-  if (scheduled) scheduler(flush);
+  if (scheduled) scheduler(drain);
   return previous;
 };
 
