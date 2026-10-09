@@ -7,7 +7,7 @@ import { getOrCreate, handlers } from './state.js';
  * `beforeEnter` and the `before-leave`/`before-route` handlers — because the README promises it of "a guard", and only
  * `beforeEnter` said it until 2026-10-09. `redirect` is offered only where a route can carry one.
  */
-export const saidString = (guard: string, path: string | undefined, verdict: string, redirectable: boolean) =>
+export const saidString = (guard: string, path: RouteSnapshot['path'] | undefined, verdict: string, redirectable: boolean) =>
   console.warn(
     `[vera] router: ${guard} on "${path}" returned the string "${verdict}", which is truthy, so the route was ` +
       `allowed. Only \`false\` cancels.\nTo send someone elsewhere, ` +
