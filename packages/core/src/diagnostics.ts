@@ -62,10 +62,6 @@ export const PROSE: Record<string, Prose> = {
     'declares `static styles`, but nothing is adopting them, so it renders unstyled.',
     "Style adoption lives in `@verajs/styles`. Wire it once at your app entry: `import { styles } from '@verajs/styles'; wire([styles]);`",
   ],
-  'late-template-module': () => [
-    "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
-    'Wire it beside the renderer, before the first render.',
-  ],
   'no-collections': () => [
     'is handed back as it is — it works, but nothing that reads it updates when it changes.',
     "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call.",

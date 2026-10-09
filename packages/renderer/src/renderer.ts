@@ -33,8 +33,11 @@ import {
   SCRIPT_URL,
   SCRIPT_URL_ITEM,
   URL_SINK,
+  diagnostic,
+  misuse,
+  SHARED,
 } from '@verajs/shared-utils';
-import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
+import { attributeValueKind, eventNameComplaint } from './dev-values.js';
 import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
@@ -97,11 +100,7 @@ const nameHole = (before: string, after: string): never => {
   /** The value as spread takes it: a closed static is that string, an open one (or none written) is a binding. */
   const given =
     value === null ? "''" : value[2] === '"' ? JSON.stringify(value[1]) : value[4] === "'" ? JSON.stringify(value[3]) : value[5] ? JSON.stringify(value[5]) : '…';
-  throw new Error(
-    `renderer: an attribute name cannot be an expression — \`${prefix}\${…}${suffix}\` is read by the parser before any ` +
-      `value exists. A name known only at runtime is a spread: \`\${spread({ [\`${prefix}\${…}${suffix}\`]: ${given} })}\` ` +
-      `(from @verajs/renderer/spread).`
-  );
+  throw new Error(misuse('renderer', 'name-expression', __DEV__ && SHARED.nameExpression(`${prefix}\${…}${suffix}`, given)));
 };
 const SINGLE_QUOTE_END = /'/g;
 /**
@@ -208,12 +207,8 @@ const saySlotless = () => {
   const late = (registry as { _$done$?: unknown } | null)?._$done$ !== undefined;
   if (warnedSlotless.has(tag + late)) return;
   warnedSlotless.add(tag + late);
-  if (late)
-    console.warn(
-      `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM from a template built before @verajs/renderer/slots ` +
-        `was wired — slots was wired after this template first rendered, so it stays slotless. Wire it BEFORE anything ` +
-        `renders: wire([renderer, slots]).`
-    );
+  /** Late: the same fact core says at wire time (`late-template-module`), seen here at the host it bit. */
+  if (late) console.warn(diagnostic('renderer', `<${tag}>`, 'late-template-module', __DEV__ && SHARED.lateTemplateModule()));
   else
     console.warn(
       `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but @verajs/renderer/slots is not wired, so ` +
@@ -644,11 +639,7 @@ const getTemplate = (result: TemplateResult) => {
   if (template === undefined) {
     const strings = result.strings;
     if (!(Array.isArray(strings) && Object.hasOwn(strings, 'raw'))) {
-      if (__DEV__)
-        console.warn(
-          '[vera] renderer: a value shaped like a template was not made by html`` — rendered as text. A template from ' +
-            'data (JSON, or html([markup])) is never markup; for trusted markup, bind it: <div .innerHTML=${markup}>.'
-        );
+      if (__DEV__) console.warn(diagnostic('renderer', 'a child value', 'forged-template', __DEV__ && SHARED.forgedTemplate()));
       return (forged ??= new Template({ strings: [`${{}}`] } as unknown as TemplateResult));
     }
     templateCache.set(strings, (template = new Template(result)));
@@ -982,10 +973,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
   if (url > 1 && value != null && typeof value !== 'string') value = `${value}`;
   if (url !== 0 && typeof value === 'string' && (url === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(value)) {
     if (__DEV__ && value !== committed)
-      console.warn(
-        `[vera] renderer: \`${name}\` was given a javascript: URL — refused, and the attribute removed. A bound ` +
-          `URL is data, and data must never become code.`
-      );
+      console.warn(diagnostic('renderer', `<${element.localName}>`, 'script-url', __DEV__ && SHARED.scriptUrl(name)));
     bindings[slot + 1] = value;
     element.removeAttribute(name);
     return;
@@ -1021,8 +1009,8 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
      * element, name and kind of value (`dev-values`), so fixing one mistake never hides the next.
      */
     if (__DEV__ && value != null) {
-      const complaint = attributeValueComplaint(element.localName, name, parts === null ? values[i] : value);
-      if (complaint !== null) console.warn(`[vera] ${complaint}`);
+      const kind = attributeValueKind(element.localName, name, parts === null ? values[i] : value);
+      if (kind !== null) console.warn(diagnostic('renderer', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind)));
     }
     if (value != null) element.setAttribute(name, value as string);
     /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
@@ -1034,11 +1022,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
     if (__DEV__ && value != null && value !== false) {
       /** Something that cannot listen does nothing, silently — `false`/`undefined` are the deliberate "no handler". */
       if (typeof value !== 'function' && typeof (value as EventListenerObject).handleEvent !== 'function')
-        console.warn(
-          `[vera] @${name} on <${element.localName}> was given ${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
-            `which cannot listen — the event will do nothing.\nPass a function, or an object with a handleEvent method. A ` +
-            `missing handler is \`undefined\` or \`false\`, both of which are fine; this is neither.`
-        );
+        console.warn(diagnostic('renderer', `<${element.localName}>`, 'not-a-listener', __DEV__ && SHARED.notAListener(name, typeof value)));
       /** A misspelled event name (`@clik`), asked at the first attachment, once per tag and name. */
       if (listener._handler === null) {
         const complaint = eventNameComplaint(element, name);

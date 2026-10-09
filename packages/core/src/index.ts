@@ -1,6 +1,5 @@
 import { wire as register, inserts } from '@verajs/inserts';
-import { diagnostic } from '@verajs/shared-utils';
-import { PROSE } from './diagnostics.js';
+import { diagnostic, SHARED } from '@verajs/shared-utils';
 import { redecideStores } from './services/createProxy.js';
 export { inserts };
 
@@ -26,7 +25,7 @@ export const wire: typeof register = (item) => {
     (inserts as unknown as { $b?: boolean }).$b === true &&
     (inserts.get('template')?.length ?? 0) + (inserts.get('element')?.length ?? 0) > decided
   )
-    console.warn(diagnostic('core', 'wire', 'late-template-module', __DEV__ && PROSE['late-template-module']()));
+    console.warn(diagnostic('core', 'wire', 'late-template-module', __DEV__ && SHARED.lateTemplateModule()));
 };
 export type * from '@verajs/inserts';
 export type * from './types.js';

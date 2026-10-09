@@ -18,9 +18,9 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK } from '@verajs/shared-utils';
+import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, diagnostic, SHARED } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
-import { attributeValueComplaint } from './dev-values.js';
+import { attributeValueKind } from './dev-values.js';
 
 const ATTR = 0;
 const PROPERTY = 1;
@@ -186,7 +186,7 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   }
   if (value === REFUSE) {
     if (__DEV__ && given !== binding._committed)
-      console.warn(`[vera] spread: \`${name}\` was given a javascript: URL — refused, and the attribute removed.`);
+      console.warn(diagnostic('spread', `<${element.localName}>`, 'script-url', __DEV__ && SHARED.scriptUrl(name)));
     binding._committed = given;
     element.removeAttribute(name);
     return;
@@ -212,8 +212,8 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
     if (value == null) element.removeAttribute(name);
     else {
       if (__DEV__) {
-        const complaint = attributeValueComplaint(element.localName, name, value);
-        if (complaint !== null) console.warn(`[vera] ${complaint}`);
+        const kind = attributeValueKind(element.localName, name, value);
+        if (kind !== null) console.warn(diagnostic('spread', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind)));
       }
       element.setAttribute(name, `${value}`);
     }
@@ -227,12 +227,7 @@ const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   } else {
     if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&
         typeof (value as EventListenerObject)?.handleEvent !== 'function')
-      console.warn(
-        `[vera] spread: @${name} on <${element.localName}> was given ` +
-          `${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, which cannot ` +
-          `listen — the event will do nothing.\nPass a function, or an object with a handleEvent method. A missing ` +
-          'handler is `undefined` or `false`, both of which are fine; this is neither.'
-      );
+      console.warn(diagnostic('spread', `<${element.localName}>`, 'not-a-listener', __DEV__ && SHARED.notAListener(name, typeof value)));
     if (binding._handler === null && value != null) element.addEventListener(name, binding);
     binding._handler = value ?? null;
   }

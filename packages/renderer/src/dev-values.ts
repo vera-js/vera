@@ -36,7 +36,7 @@ let reported: Set<string> | undefined;
  * Returns the complaint, or `null` when the value is fine. Never throws — the shapes that break a
  * naive guard are exactly the ones worth reporting, so they reach the `object` arm and are named.
  */
-export const attributeValueComplaint = (tag: string, name: string, value: unknown): string | null => {
+export const attributeValueKind = (tag: string, name: string, value: unknown): string | null => {
   const type = typeof value;
   if (type === 'string' || type === 'number' || type === 'boolean' || type === 'bigint') return null;
   if (type === 'object' && brand(value as object) === '[object URL]') return null;
@@ -67,23 +67,8 @@ export const attributeValueComplaint = (tag: string, name: string, value: unknow
           ? `a Date, whose text carries the TIMEZONE of whichever side rendered it`
           : `an ${type}, which cannot survive as text`;
 
-  /**
-   * Returned WITHOUT the `[vera]` prefix, which each call site writes as a literal.
-   * `tests/diagnostics-convention.test.mjs` reads the prefix off the call, so a message handed over
-   * as a variable is invisible to it — and its answer to that is an allowance list. Taking the
-   * allowance would have excused these two calls rather than checked them, which is the
-   * reclassification this audit keeps refusing; the literal at the call site is what every other
-   * diagnostic in the repo does anyway.
-   */
-  return (
-    `renderer: the attribute \`${name}\` on <${tag}> was given ${said}. ` +
-    `An attribute value is a string and nothing else.\n` +
-    `If the element is meant to RECEIVE this value, bind a property instead — \`.${name}=\${value}\` ` +
-    `— which is how a custom element takes anything that is not text. If it is meant to be read as ` +
-    `text, convert it where you know what it means: \`date.toISOString()\`, \`list.join(' ')\`. ` +
-    `A Date in particular serializes with the SERVER's timezone on one side and the browser's on ` +
-    `the other, so it will not survive hydration.`
-  );
+  /** The KIND only: the sentence is the shared `attribute-value` entry, printed by each call site with its area. */
+  return said;
 };
 
 /**

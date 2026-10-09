@@ -2,6 +2,15 @@
   "url": "https://verajs.dev/e/",
   "entries": [
     {
+      "code": "attribute-value",
+      "params": [
+        "name",
+        "kind"
+      ],
+      "message": "the attribute `{name}` was given {kind}. An attribute value is a string and nothing else.",
+      "fix": "If the element is meant to RECEIVE this value, bind a property instead — `.{name}=${value}` — which is how a custom element takes anything that is not text. If it is meant to be read as text, convert it where you know what it means: `date.toISOString()`, `list.join(' ')`. A Date in particular serializes with the SERVER's timezone on one side and the browser's on the other, so it will not survive hydration."
+    },
+    {
       "code": "content-clash",
       "params": [
         "tag",
@@ -11,12 +20,50 @@
       "fix": "Bind one or the other: the property alone (`<{tag} .{name}=${…}></{tag}>`), or the content alone."
     },
     {
+      "code": "forged-template",
+      "params": [],
+      "message": "is shaped like a template but was not made by html`` — rendered as text.",
+      "fix": "A template from data (JSON, or html([markup])) is never markup; for trusted markup, bind it: <div .innerHTML=${markup}>."
+    },
+    {
       "code": "getter-only-prop",
       "params": [
         "key"
       ],
       "message": "received a bound property `.{key}` (or `!{key}`), but its class declares `{key}` as a getter with no setter — the value cannot be delivered and the binding is ignored.",
       "fix": "Add a setter, or stop binding it."
+    },
+    {
+      "code": "late-template-module",
+      "params": [],
+      "message": "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
+      "fix": "Wire it beside the renderer, before the first render."
+    },
+    {
+      "code": "name-expression",
+      "params": [
+        "written",
+        "given"
+      ],
+      "message": "an attribute name cannot be an expression — `{written}` is read by the parser before any value exists.",
+      "fix": "A name known only at runtime is a spread: `${spread({ [`{written}`]: {given} })}` (from @verajs/renderer/spread)."
+    },
+    {
+      "code": "not-a-listener",
+      "params": [
+        "name",
+        "type"
+      ],
+      "message": "@{name} was given a {type}, which cannot listen — the event will do nothing.",
+      "fix": "Pass a function, or an object with a handleEvent method. A missing handler is `undefined` or `false`, both of which are fine; this is neither."
+    },
+    {
+      "code": "script-url",
+      "params": [
+        "name"
+      ],
+      "message": "`{name}` was given a javascript: URL — refused, and the attribute removed.",
+      "fix": "A bound URL is data, and data must never become code."
     },
     {
       "code": "select-multiple",

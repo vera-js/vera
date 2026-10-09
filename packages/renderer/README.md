@@ -1040,7 +1040,7 @@ never runs and a `<template shadowrootmode>` never attaches, on either side.
 template literal — an array owning `raw`, which nothing from `JSON.parse` can be. Data shaped like a template (an
 API field an attacker turned into `{"strings": [...]}`, a real template sent through JSON, or a hand-built
 `html([markup])`) renders as the text any object does, `[object Object]`, here and in `@verajs/ssr` alike — and here,
-in development, with a warning on every render (a forgery is never cached). Never a throw: the value is attacker-controlled, and a throw would hand over the subtree. The
+in development, with a warning each time a new one arrives. Never a throw: the value is attacker-controlled, and a throw would hand over the subtree. The
 check runs where a template is first built, so a cached template pays nothing. (An ordinary object interpolated
 as a child renders as `String(object)`, as before; one that cannot convert — a parsed `"toString"` key — throws,
 as it does in React. Render a field, not a raw API object.)

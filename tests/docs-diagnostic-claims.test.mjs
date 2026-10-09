@@ -67,7 +67,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 54;
+const PENDING_MAX = 50;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -102,7 +102,7 @@ const CLAIMS = new Map([
   ['llms.txt#ad6b32ff47', 'motion-vocabulary-replaced'], // `motionExtension` is also how a module adds animatable PROPERTIES (`{ key, category, … }`)
   ['llms.txt#52f6fe43e7', PENDING], // Keep a FEED's depth out of `data-vd-query` — an accumulating view's middle pages are DOM, 
   ['llms.txt#df3b9dfe11', 'not a promise: attribute carve-outs, no diagnostic'], // The exceptions are derivations, not a vocabulary: names that cannot be JS identifiers (`da
-  ['llms.txt#347dad05df', PENDING], // On an HTML tag, `rows={data}` is still an attribute, and the renderer names any non-primit
+  ['llms.txt#347dad05df', 'attribute-value'], // On an HTML tag, `rows={data}` is still an attribute, and the renderer names any non-primit
   ['llms.txt#461d362f95', PENDING], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
   ['llms.txt#c23d8dc6f5', PENDING], // **`key` and `ref` work on a runtime `tag` component exactly as on a written element** (`<H
   ['llms.txt#8a42e4218c', 'no-renderer'], // Defining a component before `wire([renderer])` → with nothing on the `'render'` chain, `re
@@ -110,7 +110,7 @@ const CLAIMS = new Map([
   ['llms.txt#7cdcce9c98', 'setup-uncommitted'], // Development warns if neither happens, and names both. 7.
   ['llms.txt#bf52103f92', PENDING], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
   ['llms.txt#7fae901481', PENDING], // Development names it.
-  ['llms.txt#9d82b4cb6b', PENDING], // Development names any non-primitive that reaches an attribute sink. 13.
+  ['llms.txt#9d82b4cb6b', 'attribute-value'], // Development names any non-primitive that reaches an attribute sink. 13.
   ['llms.txt#ebf4968a15', 'upgrade-clobber'], // For an element that never calls `init()`, nothing drains the record either, so the clobber
   ['packages/autoloader/README.md#2c0b84874a', PENDING], // Discovery catches the throw, reports it once and moves on, so a hostile attribute costs a 
   ['packages/core/README.md#bf064fe7d3', 'no-collections'], // Without it core says so the first time one is read.
@@ -146,7 +146,7 @@ const CLAIMS = new Map([
   ['packages/jsx/README.md#f816cb75b4', PENDING], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.
   ['packages/renderer/README.md#2b44911726', 'no-renderer'], // Without it, core has no renderer at all: `render()` warns once (in every build) and puts n
-  ['packages/renderer/README.md#24226b7ae7', PENDING], // Anything else that cannot listen — a string, a number, an object with no `handleEvent` — i
+  ['packages/renderer/README.md#24226b7ae7', 'not-a-listener'], // Anything else that cannot listen — a string, a number, an object with no `handleEvent` — i
   ['packages/renderer/README.md#c3769d8d67', 'select-multiple'], // Development says so.
   ['packages/renderer/README.md#a75ef39c09', PENDING], // | `true`, `false` | as text — **and development says so**; see below |
   ['packages/renderer/README.md#53f8bf9cf7', PENDING], // The value is legitimate and nothing throws, so **development names it** at the binding rat
@@ -171,7 +171,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#731e71d32f', 'not a promise: history of the wording'], // Worth stating because the warning used to imply otherwise and sent the reader hunting for 
   ['packages/renderer/README.md#40e8320f1f', PENDING], // **A key that cannot be written into markup is skipped**, with a warning in development.
   ['packages/renderer/README.md#5a81e4d78c', 'upgrade-clobber'], // Elements that never call `init()` keep the development warning and the `declare` advice in
-  ['packages/renderer/README.md#c0e6e64c98', PENDING], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
+  ['packages/renderer/README.md#f8471d54c4', 'forged-template'], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
   ['packages/renderer/README.md#9716e1f324', PENDING], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
   ['packages/renderer/README.md#5ae4ff86c0', PENDING], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
   ['packages/renderer/README.md#57d42dee7e', 'not a promise: a size'], // <!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the f

@@ -38,12 +38,6 @@
       "fix": "init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount()."
     },
     {
-      "code": "late-template-module",
-      "params": [],
-      "message": "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
-      "fix": "Wire it beside the renderer, before the first render."
-    },
-    {
       "code": "nested-flush",
       "params": [],
       "message": "flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.",

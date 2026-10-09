@@ -229,7 +229,7 @@ test('development names the refusal where it happens', { skip: isProduction && '
   } finally {
     console.warn = silence;
   }
-  assert.ok(said.some((line) => /^\[vera\] renderer: `href` was given a javascript: URL/.test(line)), said.join('\n'));
+  assert.ok(said.some((line) => /^\[vera\] renderer: <a> — `href` was given a javascript: URL[\s\S]*\(script-url\)$/.test(line)), said.join('\n'));
 });
 
 /**
