@@ -7,6 +7,10 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'no-renderer': () => [
+    'no renderer is wired, so nothing will appear.',
+    "Wire one once, at your app entry: `import { renderer } from '@verajs/renderer'; wire([renderer]);`",
+  ],
   'sync-loop': () => [
     're-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, ' +
       'so an unguarded write feeds itself.',

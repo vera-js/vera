@@ -8,6 +8,12 @@
       "fix": "Await BEFORE `init(this)`; or create hooks and call `render()` before the first `await` and write what you await into state; or pass the element explicitly: `useEffect(fn, this)`."
     },
     {
+      "code": "no-renderer",
+      "params": [],
+      "message": "no renderer is wired, so nothing will appear.",
+      "fix": "Wire one once, at your app entry: `import { renderer } from '@verajs/renderer'; wire([renderer]);`"
+    },
+    {
       "code": "sync-loop",
       "params": [],
       "message": "re-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, so an unguarded write feeds itself.",
