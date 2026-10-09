@@ -133,7 +133,7 @@ const warn = (cause: string, message: string, container?: Node) => {
   warned.add(cause);
   /** The container itself rides along: a live element in devtools — hover to highlight it, click to reveal it. */
   if (container === undefined) console.warn(message);
-  else console.warn(message, container);
+  else console.warn('%s', message, container);
 };
 
 /* ── the walk's state, per hydration ─────────────────────────────────────────────────────────────── */

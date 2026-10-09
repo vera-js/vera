@@ -121,7 +121,7 @@ export const directiveLoader = (
      * console line below.
      */
     const request = import(/* @vite-ignore */ src).catch((error) => {
-      console.error(diagnostic('directiveLoader', `"${name}"`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`"${name}"`, src)), error);
+      console.error('%s', diagnostic('directiveLoader', `"${name}"`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`"${name}"`, src)), error);
       throw error;
     });
     claimed.set(name, request);

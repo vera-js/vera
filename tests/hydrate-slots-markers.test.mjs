@@ -9,6 +9,7 @@ import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
+import { printed } from './console-args.mjs';
 
 const server = (children, fixture) => {
   const script = `
@@ -50,7 +51,7 @@ const hostFromServer = (serverHtml) => {
 const warnings = async (fn) => {
   const seen = [];
   const original = console.warn;
-  console.warn = (...args) => seen.push(args.join(' '));
+  console.warn = (...args) => seen.push(printed(args).join(' '));
   try {
     await fn();
   } finally {

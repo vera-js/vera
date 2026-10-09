@@ -37,7 +37,8 @@ const MIGRATED = [
  * error it forwards. Counted, so a second inline call in the file is a deliberate edit, not a free pass.
  */
 const ROUTING = new Map([['packages/shared-utils/src/utils.ts', 2]]);
-const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*[`'"]/g;
+/** A leading `'%s'` is the format, never the message (`tests/console-format-strings.test.mjs`): the line is after it. */
+const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*(?:'%s',\s*)?(?!'%s')[`'"]/g;
 
 /** Each migrated package's own codes, for telling a bare production code from inline prose. */
 const OWN = new Map();

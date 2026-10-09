@@ -304,7 +304,7 @@ export const autoloader = (
           detail: { tag, src, error, element },
         })
       );
-      console.error(diagnostic('autoloader', `<${tag}>`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`<${tag}>`, src)), error);
+      console.error('%s', diagnostic('autoloader', `<${tag}>`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`<${tag}>`, src)), error);
     }
   };
 

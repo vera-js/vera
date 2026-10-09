@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { printed } from './console-args.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'https://x.test/',
@@ -57,7 +58,7 @@ test('a link to a route that throws reports, and keeps the view it had', async (
   element.addEventListener('vera:route-error', (event) => events.push(event.detail));
   const errors = [];
   const nativeError = console.error;
-  console.error = (...args) => errors.push(String(args[0]));
+  console.error = (...args) => errors.push(String(printed(args)[0]));
 
   const rejections = [];
   const onRejection = (reason) => rejections.push(reason);

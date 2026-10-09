@@ -19,6 +19,7 @@ import { parseFragment as parse5Fragment } from 'parse5';
 import { parseFragment } from '../packages/ssr/dist/vera/parse.js';
 import { TextShim, CommentShim } from '../packages/ssr/dist/vera/nodes.js';
 import '@verajs/ssr';
+import { printed } from './console-args.mjs';
 
 /**
  * Element structure, attributes, AND every text and comment value. Values were not compared until 2026-10-06, and the
@@ -258,7 +259,7 @@ test('the unparsed-markup warning fires only for markup this DOM declines', () =
   const warnsFor = (markup) => {
     const said = [];
     const { warn } = console;
-    console.warn = (...args) => said.push(args.join(' '));
+    console.warn = (...args) => said.push(printed(args).join(' '));
     try {
       const host = document.createElement('div');
       host.innerHTML = markup;
@@ -307,7 +308,7 @@ test('the unparsed-markup warning fires only for markup this DOM declines', () =
 test('and the warning does not claim markup is never parsed', () => {
   const said = [];
   const { warn } = console;
-  console.warn = (...args) => said.push(args.join(' '));
+  console.warn = (...args) => said.push(printed(args).join(' '));
   try {
     const host = document.createElement('div');
     host.innerHTML = '<p>x</b>';
@@ -341,7 +342,7 @@ test('a declined chunk is reported even when the element has other children', ()
   const warningsFor = (build) => {
     const said = [];
     const { warn } = console;
-    console.warn = (...args) => said.push(args.join(' '));
+    console.warn = (...args) => said.push(printed(args).join(' '));
     try {
       const host = document.createElement('div');
       build(host);

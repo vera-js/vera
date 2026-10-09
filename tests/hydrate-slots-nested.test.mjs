@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { printed } from './console-args.mjs';
 
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
@@ -39,7 +40,7 @@ const page = (markup = served) => {
 const quietly = async (fn) => {
   const said = [];
   const original = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
+  console.warn = (...args) => said.push(printed(args).join(' '));
   try {
     await fn();
   } finally {

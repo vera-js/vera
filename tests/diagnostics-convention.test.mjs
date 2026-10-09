@@ -16,7 +16,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
-import { walkFiles, readIfPresent } from './walk.mjs';
+import { walkFiles, readIfPresent as readRaw } from './walk.mjs';
+
+/**
+ * A `'%s'` first argument only stops the console from reading the message as a format string (a subject with `%c3` in
+ * it garbled the line and swallowed the forwarded error — vera-5a, 2026-10-09). The message is the NEXT argument, so
+ * the checks below read through it.
+ */
+const readIfPresent = (file) => readRaw(file)?.replace(/console\.(warn|error)\(\s*'%s',\s*/g, 'console.$1(');
 
 const root = new URL('../packages', import.meta.url).pathname;
 

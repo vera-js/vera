@@ -14,6 +14,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { isProduction, load } from './dist.mjs';
 import { hydrating } from './hydration.mjs';
+import { printed } from './console-args.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver'])
@@ -44,7 +45,8 @@ const warnings = (work) => {
   const said = [];
   elements.length = 0;
   const real = console.warn;
-  console.warn = (message, ...rest) => {
+  console.warn = (...args) => {
+    const [message, ...rest] = printed(args);
     said.push(String(message));
     elements.push(...rest);
   };

@@ -361,7 +361,7 @@ const runBlock = async (script: HTMLScriptElement): Promise<void> => {
     const name = new URL(`${page}.inline-${++inline}.jsx`, document.baseURI).href;
     await import(/* @vite-ignore */ await link(document.baseURI, name, await compiledFor(name, script.textContent ?? '')));
   } catch (error) {
-    console.error(`[vera] jsx: ${script.src || 'an inline block'}:`, error);
+    console.error('%s', `[vera] jsx: ${script.src || 'an inline block'}:`, error);
     await nameMissingHelpers();
   }
 };

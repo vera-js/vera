@@ -24,6 +24,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
+import { printed } from './console-args.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'Event', 'CustomEvent', 'NodeFilter', 'Comment', 'Text'])
@@ -41,7 +42,7 @@ const hydrateOver = (markup, template) => {
   document.body.appendChild(host);
   const said = [];
   const warn = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
+  console.warn = (...args) => said.push(printed(args).join(' '));
   try {
     renderInto(template, host);
   } finally {
@@ -120,7 +121,7 @@ test('a comment is not a disagreement, in either direction', { skip }, () => {
     const served = host.querySelector('p');
     const said = [];
     const warn = console.warn;
-    console.warn = (...args) => said.push(args.join(' '));
+    console.warn = (...args) => said.push(printed(args).join(' '));
     try {
       renderInto(template(), host);
     } finally {
@@ -172,7 +173,7 @@ test('an attribute disagreement is repaired, not reported — adoption re-sets t
 test('a mismatch in one container does not cost the others their server markup', { skip }, () => {
   const said = [];
   const original = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
+  console.warn = (...args) => said.push(printed(args).join(' '));
 
   const draw = (label) => html`<p>hello ${label}</p>`;
   const containers = ['a', 'b', 'c'].map((label) => {
@@ -208,7 +209,7 @@ test('a mismatch in one container does not cost the others their server markup',
 test('a fallback keeps the SSR stylesheet, and the message says so', { skip }, () => {
   const said = [];
   const original = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
+  console.warn = (...args) => said.push(printed(args).join(' '));
   const host = document.createElement('div');
   host.innerHTML = `<style data-vm-sheet="styles">p{color:red}</style><p>x</p><span>undescribed</span>`;
   try {

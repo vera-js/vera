@@ -56,8 +56,8 @@ export const emit = async (
       interrupted = true;
       /** Production prints the bare code (Brian's byte rule: the code-and-link shape cost +37 B on vera-router.min.js, the bare
        * codes saved 35 B — 2026-10-09); development the table's text. Two calls, so each begins with a literal. */
-      if (__DEV__) console.error(diagnostic('router', `a ${event} handler`, 'router-handler-threw', __DEV__ && PROSE['router-handler-threw']()), error);
-      else console.error(`[vera] router-handler-threw: ${event}`, error);
+      if (__DEV__) console.error('%s', diagnostic('router', `a ${event} handler`, 'router-handler-threw', __DEV__ && PROSE['router-handler-threw']()), error);
+      else console.error('%s', `[vera] router-handler-threw: ${event}`, error);
     }
   }
 

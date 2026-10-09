@@ -108,9 +108,9 @@ const addLinkListener = (element: HTMLElement) => {
           detail: { path, error, element },
         })
       );
-      if (__DEV__) console.error(diagnostic('router', `"${path}"`, 'router-navigate-threw', __DEV__ && PROSE['router-navigate-threw'](path)), error);
+      if (__DEV__) console.error('%s', diagnostic('router', `"${path}"`, 'router-navigate-threw', __DEV__ && PROSE['router-navigate-threw'](path)), error);
     /** Production: the bare code (the byte rule — see events.ts). */
-    else console.error(`[vera] router-navigate-threw: ${path}`, error);
+    else console.error('%s', `[vera] router-navigate-threw: ${path}`, error);
     }
   };
 
