@@ -1,7 +1,7 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
 import { enqueue } from '../modules/scheduler.js';
-import type { ComponentElement, HookCallback, HookCleanup, HookPass } from '../types.js';
+import type { ComponentElement, Hook, HookCallback, HookCleanup, HookPass } from '../types.js';
 
 /**
  * Runs a cleanup, reported on its own if it throws — a throwing teardown must neither stop the run it
@@ -85,3 +85,11 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
   });
   return hook;
 };
+
+/**
+ * **`createHook`, as core exports it.** A hook of your own runs inside every write it hears; `scheduled: true` makes it
+ * join the flush instead, at its own priority, exactly as the built-in hooks do — so a hook at 25 runs before the
+ * render and reads the DOM as the last render left it (what `useLayoutEffect` did before it took React's meaning).
+ */
+export const createPublicHook = (hook: Hook) =>
+  hook.scheduled ? coalesce(hook.callback!, hook.priority!, false, hook.element) : createHook(hook);

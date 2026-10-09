@@ -323,3 +323,72 @@ test('hooks of one priority on one component run in the order it registered them
   assert.deepEqual(order, ['a', 'b', 'c', 'd'], 'and an update keeps registration order within each priority');
   el.remove();
 });
+
+test('createHook({ scheduled: true }) joins the flush at its priority — at 25, before the render, seeing the OLD DOM', async () => {
+  const state = core.createStore({ n: 0 });
+  const seen = [];
+  const order = [];
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.createHook({ scheduled: true, priority: 25, callback: (change, first) => {
+        void state.n;
+        if (!first) { order.push('snapshot'); seen.push(this.textContent); }
+      } });
+      core.createHook({ scheduled: true, priority: 65, callback: (change, first) => { void state.n; if (!first) order.push('65'); } });
+      core.useLayoutEffect(() => { void state.n; order.push('layout'); });
+      core.useEffect(() => { void state.n; order.push('effect'); });
+      core.render(() => { order.push('render'); return html`<p>${state.n}</p>`; });
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await Promise.resolve();
+  order.length = 0;
+  for (let i = 1; i <= 3; i++) state.n = i;
+  assert.deepEqual(order, [], 'CONTROL: nothing ran inside the writes — it is scheduled, not synchronous');
+  await Promise.resolve();
+  assert.deepEqual(order, ['snapshot', 'render', 'layout', '65', 'effect'], 'once each, in priority order');
+  assert.deepEqual(seen, ['0'], 'the 25 hook read the DOM before the render changed it');
+  el.remove();
+});
+
+test('a scheduled custom hook\'s returned function is its cleanup — before its next run, and on removal', async () => {
+  const state = core.createStore({ n: 0 });
+  const log = [];
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.createHook({ scheduled: true, priority: 65, callback: () => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); } });
+      core.mount();
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await Promise.resolve();
+  state.n = 1;
+  await Promise.resolve();
+  el.remove();
+  assert.deepEqual(log, ['run 0', 'clean 0', 'run 1', 'clean 1']);
+});
+
+test('without `scheduled`, a custom hook runs inside every write it hears — unbatched, as before', () => {
+  const state = core.createStore({ n: 0 });
+  const runs = [];
+  const name = tag();
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.createHook({ priority: 65, callback: (change, first) => { void state.n; if (!first) runs.push(state.n); } });
+      core.mount();
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  state.n = 1;
+  state.n = 2;
+  assert.deepEqual(runs, [1, 2], 'synchronous, once per write');
+  el.remove();
+});

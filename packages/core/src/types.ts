@@ -55,6 +55,11 @@ export type Hook = {
   element?: ComponentElement;
   /** Lower runs earlier; `0` is legal and the earliest. */
   priority: number | null;
+  /**
+   * Joins the flush, as the built-in hooks do: one run per flush at `priority` (render 50, `useLayoutEffect` 60,
+   * `useEffect` 75), and a returned function is its cleanup. Without it a hook runs inside every write it hears.
+   */
+  scheduled?: boolean;
 };
 
 /** Returned from an effect to undo whatever it set up; run before its next run. */
