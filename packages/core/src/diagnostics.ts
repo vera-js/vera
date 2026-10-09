@@ -24,10 +24,6 @@ export const PROSE: Record<string, Prose> = {
     `expected a component element and received ${received}.`,
     'Pass the element whose loop is intentional — `allowRenderLoop(this)` inside the component.',
   ],
-  'tag-called': (tag, received) => [
-    `expected a template literal and received ${received}.`,
-    `It is a tagged template — write ${tag}\`<p>hi</p>\`, not ${tag}('<p>hi</p>').`,
-  ],
   'store-not-object': (received) => [`expected an object and received ${received}.`, 'To hold one value, use ref(value).'],
   'store-refused': (operation, why) => [
     `this store's source object refused the ${operation} — ${why}.`,
@@ -49,10 +45,6 @@ export const PROSE: Record<string, Prose> = {
   'unwired-directives': (attribute) => [
     `renders \`${attribute}\`, but no directives engine is wired, so that attribute does nothing.`,
     "`@verajs/directives` is NOT PUBLISHED YET — `npm i` will 404 — so if this markup came from a demo, remove the attribute or write the behavior yourself for now. When it ships, it is wired once at your app entry: `import { directives } from '@verajs/directives'; wire([renderer, directives]);`",
-  ],
-  'getter-only-prop': (key) => [
-    `received a bound property \`.${key}\`, but its class declares \`${key}\` as a getter with no setter — the value cannot be delivered and the binding is ignored.`,
-    'Add a setter, or stop binding it.',
   ],
   'nested-flush': () => [
     'flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.',

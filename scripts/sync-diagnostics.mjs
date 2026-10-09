@@ -64,8 +64,10 @@ const entries = entriesOf(PROSE);
  */
 const { TABLES: LISTED } = await import('./diagnostic-tables.mjs');
 const TABLES = [];
-for (const { name, table } of LISTED) {
-  const tableEntries = entriesOf((await import(`../packages/${name}/${table}`)).PROSE);
+for (const { name, tables } of LISTED) {
+  /** Several tables per package (one per bundle entry) merge into its one file; a code twice is caught below. */
+  const tableEntries = [];
+  for (const table of tables) tableEntries.push(...entriesOf((await import(`../packages/${name}/${table}`)).PROSE));
   TABLES.push({
     name,
     out: new URL(`../packages/${name}/diagnostics.json`, import.meta.url),

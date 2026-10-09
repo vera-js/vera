@@ -22,14 +22,6 @@
       "fix": "`import { mount } from '@verajs/core'; mount();`"
     },
     {
-      "code": "getter-only-prop",
-      "params": [
-        "key"
-      ],
-      "message": "received a bound property `.{key}`, but its class declares `{key}` as a getter with no setter — the value cannot be delivered and the binding is ignored.",
-      "fix": "Add a setter, or stop binding it."
-    },
-    {
       "code": "init-not-element",
       "params": [
         "received"
@@ -121,15 +113,6 @@
       "params": [],
       "message": "re-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, so an unguarded write feeds itself.",
       "fix": "Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces."
-    },
-    {
-      "code": "tag-called",
-      "params": [
-        "tag",
-        "received"
-      ],
-      "message": "expected a template literal and received {received}.",
-      "fix": "It is a tagged template — write {tag}`<p>hi</p>`, not {tag}('<p>hi</p>')."
     },
     {
       "code": "untrack-not-function",

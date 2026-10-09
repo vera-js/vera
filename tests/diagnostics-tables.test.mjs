@@ -14,23 +14,56 @@ import { TABLES } from '../scripts/diagnostic-tables.mjs';
 
 const at = (name, file) => new URL(`../packages/${name}/${file}`, import.meta.url);
 
-/** A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…`. Captures the two spellings of the code. */
-const CALL = /(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && PROSE\['([a-z][a-z0-9-]*)'\]/g;
+/**
+ * A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…` — or `SHARED['code']` for a code more than one
+ * package prints (shared-utils' table). Captures the two spellings of the code and which table explains it.
+ */
+const CALL = /(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (PROSE|SHARED)\['([a-z][a-z0-9-]*)'\]/g;
 
-for (const { name, table, sources } of TABLES)
-  test(`${name}: every code raised has an entry, every entry is raised, and each call names one code`, async () => {
-    const { PROSE } = await import(at(name, table).href);
-    const raised = new Set();
-    for (const file of sources) {
-      const text = readFileSync(at(name, file), 'utf8');
-      for (const [, printed, explained] of text.matchAll(CALL)) {
-        assert.equal(printed, explained, `${file}: one call prints "${printed}" and explains "${explained}"`);
-        raised.add(printed);
-      }
+/** A package's tables merged, as `sync-diagnostics` publishes them — a code in two of them is a failure here too. */
+const merged = async ({ name, tables }) => {
+  const all = {};
+  for (const table of tables)
+    for (const [code, prose] of Object.entries((await import(at(name, table).href)).PROSE)) {
+      assert.ok(!(code in all), `${name}: "${code}" is in two of its tables`);
+      all[code] = prose;
     }
-    assert.ok(raised.size > 0, `CONTROL: ${name}'s sources raise codes the pattern can read`);
-    assert.deepEqual([...raised].sort(), Object.keys(PROSE).sort());
+  return all;
+};
+
+const SHARED = await merged(TABLES.find(({ name }) => name === 'shared-utils'));
+const raisedShared = new Set();
+const results = [];
+for (const entry of TABLES) {
+  const own = entry.name === 'shared-utils' ? SHARED : await merged(entry);
+  const raised = new Set();
+  const problems = [];
+  for (const file of entry.sources) {
+    const text = readFileSync(at(entry.name, file), 'utf8');
+    for (const [, printed, table, explained] of text.matchAll(CALL)) {
+      if (printed !== explained) problems.push(`${file}: one call prints "${printed}" and explains "${explained}"`);
+      if (table === 'SHARED') {
+        if (!(explained in SHARED)) problems.push(`${file}: SHARED['${explained}'] is not in shared-utils' table`);
+        raisedShared.add(explained);
+      } else raised.add(printed);
+    }
+  }
+  results.push({ ...entry, own, raised, problems });
+}
+
+for (const { name, own, raised, problems, sources } of results)
+  test(`${name}: every code raised has an entry, every entry is raised, and each call names one code`, () => {
+    assert.deepEqual(problems, []);
+    /** Shared-utils' entries are raised from OTHER packages' sources — checked by the next test. */
+    if (name === 'shared-utils') return;
+    assert.ok(sources.length === 0 || raised.size > 0, `CONTROL: ${name}'s sources raise codes the pattern can read`);
+    assert.deepEqual([...raised].sort(), Object.keys(own).sort());
   });
+
+test('every shared code is raised by some package, and only shared codes are raised as SHARED', () => {
+  assert.ok(Object.keys(SHARED).length > 0, 'CONTROL: the shared table has entries');
+  assert.deepEqual([...raisedShared].sort(), Object.keys(SHARED).sort());
+});
 
 test('CONTROL: the list names at least one package, so the loop above ran', () => {
   assert.ok(TABLES.length > 0);

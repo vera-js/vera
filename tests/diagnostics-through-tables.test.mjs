@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TABLES } from '../scripts/diagnostic-tables.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const MIGRATED = [
@@ -34,9 +35,12 @@ for (const [name, bundle] of MIGRATED) {
   });
 
   test(`${name}: no table prose survives in the production bundle`, async () => {
-    const { PROSE } = await import(new URL(`../packages/${name}/src/diagnostics.ts`, import.meta.url).href);
+    /** Its own tables AND the shared one — a package raising `SHARED['x']` must not ship that prose either. */
+    const { tables } = TABLES.find((entry) => entry.name === name);
+    const entries = [];
+    for (const [owner, files] of [[name, tables], ['shared-utils', ['src/diagnostics.ts']]])
+      for (const file of files) entries.push(...Object.entries((await import(new URL(`../packages/${owner}/${file}`, import.meta.url).href)).PROSE));
     const min = readFileSync(join(root, 'packages', name, bundle), 'utf8');
-    const entries = Object.entries(PROSE);
     assert.ok(entries.length > 0, 'CONTROL: the table has entries');
     const leaked = [];
     let checked = 0;
