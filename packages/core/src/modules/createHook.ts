@@ -24,10 +24,10 @@ const newSet = () => new Set<HookCallback>();
  * Never rethrown: an owner's hooks run in one loop, so an escaping error stopped every hook after
  * the failing one — a single bad effect took out its siblings.
  */
-export const reportHookError = (error: unknown, element?: ComponentElement) => {
+export const reportHookError = (error: unknown, element?: ComponentElement, sentence = 'a hook threw:') => {
   const handlers = inserts.get('error');
   if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)(error, element));
-  else reportUncaught(error, 'a hook threw:');
+  else reportUncaught(error, sentence);
 };
 
 /**

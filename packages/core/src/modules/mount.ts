@@ -8,6 +8,8 @@ import type { ComponentElement } from '../types.js';
  * `mount` and the second half of `render`.
  */
 export const commit = (element: ComponentElement) => {
+  /** Development: this generation's setup was committed — what the never-committed check in `init` reads. */
+  if (__DEV__) (element as { _committed?: number })._committed = element._gen;
   element._hooks!.forEach((hooks) => hooks.forEach((hook) => hook({}, true)));
   currentInstance.element = null;
 };

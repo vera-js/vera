@@ -82,3 +82,21 @@ test('a cleanup returned SYNCHRONOUSLY still runs — before the next run, and o
   el.remove();
   assert.deepEqual(log, ['run 0', 'clean 0', 'run 1', 'clean 1']);
 });
+
+test('a cleanup that throws, with no error chain wired, is printed as a CLEANUP — not as a hook', async () => {
+  const name = `x-async-${seq++}`;
+  customElements.define(name, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.useEffect(() => () => { throw new Error('cleanup boom'); });
+      core.mount();
+    }
+  });
+  const el = doc.createElement(name);
+  doc.body.append(el);
+  await tick();
+  const said = await listen(async () => { el.remove(); await tick(); });
+  const ours = said.filter((line) => line.includes('cleanup boom'));
+  assert.equal(ours.length, 1, `printed once: ${said.join(' | ')}`);
+  assert.match(ours[0], /^error \[vera\] a cleanup threw:/, 'attributed to the cleanup, in every build');
+});

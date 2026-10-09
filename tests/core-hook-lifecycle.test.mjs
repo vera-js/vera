@@ -578,6 +578,14 @@ const define = (setup) => {
   const said = [];
   const original = console.error;
   console.error = (...args) => said.push(args.map((a) => (a && a.stack ? `ERR<${a.message}>` : String(a))).join(' | '));
+  /**
+   * Since 2026-10-09 a throwing cleanup goes where a throwing hook goes — the app's `'error'` chain, when one is wired
+   * (this file wires two above), attributed to its component; `[vera] a cleanup threw:` is printed only when none is.
+   * main bypassed the chain for cleanups, to avoid an import cycle, not by design. This row's own handler REPLACES the
+   * one at 90 (same priority), so it sees what the chain receives.
+   */
+  const chained = [];
+  core.wire({ on: 'error', fn: (error, element) => chained.push([error?.message, element?.localName]), priority: 90 });
 
   const tag = `toast-throwing-${Date.now().toString(36)}`;
   customElements.define(tag, class extends HTMLElement {
@@ -610,12 +618,9 @@ const define = (setup) => {
 
   check('the self-removed cleanup ran even though it throws', ran.length === 1, `${ran.length}`);
   check('a later component still mounts', after.shadowRoot?.textContent.trim() === 'after', after.shadowRoot?.textContent);
-  if (isProduction) {
-    check('production still contains the throw', ran.length === 1);
-  } else {
-    check('the throw is reported', said.length === 1, said.join(' | '));
-    check('and attributed to the framework', said[0]?.startsWith('[vera] a cleanup threw'), said[0]);
-  }
+  check('the throw reached the app\'s error chain', chained.some(([message]) => message === 'toast cleanup threw'), JSON.stringify(chained));
+  check('attributed to its component', chained.some(([, name]) => name === tag), JSON.stringify(chained));
+  check('and nothing printed beside the chain', said.length === 0, said.join(' | '));
 }
 
 /* ── a subclass that registers hooks after super's setup has closed ────────────────────────────

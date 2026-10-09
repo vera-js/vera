@@ -31,6 +31,21 @@ let ending = false;
 let warnedAboutClaims = false;
 const claimed = (prefix: string): boolean =>
   ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
+/**
+ * Development, a microtask after `init()`: a setup that registered hooks and was never committed — neither `render()`
+ * nor `mount()` — runs none of them, silently (main had this; it read the current instance, which the setup-end
+ * microtask now clears, so `commit` marks the generation instead). Then the unclaimed-markup check.
+ */
+const afterSetup = (element: ComponentElement) => {
+  const hooks = element._hooks?.reduce((n, set) => n + set.size, 0) ?? 0;
+  if (hooks && (element as { _committed?: number })._committed !== element._gen)
+    console.warn(
+      `[vera] <${element.localName}> registered ${hooks} hook(s) but its setup was never committed, so none of them ` +
+        `will ever run.\ninit() opens the setup and one of these closes it:\n\n` +
+        `  render(() => html\`…\`);   // a component with markup\n  mount();                  // a component with none\n`
+    );
+  unclaimedMarkup(element);
+};
 const unclaimedMarkup = (element: ComponentElement) => {
   if (warnedAboutClaims || claimed('data-vd-')) return;
   const root = element.shadowRoot ?? element._root ?? element;
@@ -53,14 +68,28 @@ const endSetup = () => {
 };
 
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
+  const current = currentInstance.element;
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(
       `init: expected a component element and received ${String(element)}. Call it in connectedCallback with the ` +
         `component itself — \`init(this)\`.`
     );
   currentInstance.element = element;
+  /**
+   * **Development: a second `init()` in one setup discards the hooks registered since the first**, silently — correct
+   * on a reconnect (a fresh generation is what stops effects doubling), a mistake within one setup (main had this).
+   */
+  if (__DEV__ && current === element && element._hooks?.length) {
+    const count = element._hooks.reduce((n, set) => n + set.size, 0);
+    console.warn(
+      `[vera] <${element.localName}> called init() twice in one setup, so the ${count} hook(s) registered since the ` +
+        `first call were discarded and will never run.\ninit() starts a fresh generation of hooks — which is what makes ` +
+        `it safe when a component reconnects — so anything registered before a second call is dropped. Call init() ` +
+        `once, then register hooks, then render() or mount().`
+    );
+  }
   /** After the synchronous setup, so the first render has committed and there is a subtree to look at. */
-  if (__DEV__) queueMicrotask(() => unclaimedMarkup(element));
+  if (__DEV__) queueMicrotask(() => afterSetup(element));
   if (!ending) {
     ending = true;
     queueMicrotask(endSetup);

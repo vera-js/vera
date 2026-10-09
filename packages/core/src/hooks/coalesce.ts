@@ -13,7 +13,8 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
   try {
     cleanup();
   } catch (error) {
-    reportHookError(error, owner ?? undefined);
+    /** Named as a CLEANUP (main did): the hook ran fine — what threw is what it returned. */
+    reportHookError(error, owner ?? undefined, 'a cleanup threw:');
   }
 };
 
