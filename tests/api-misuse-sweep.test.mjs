@@ -76,9 +76,13 @@ const CASES = [
   ['setRenderScheduler(notAFunction)', () => core.setRenderScheduler(42), /setRenderScheduler: expected a function/],
   ['setRouterRenderer(notAFunction)', () => routerModule.setRouterRenderer(42), /setRouterRenderer: expected a function/],
   ['setMatchFunction(notAFunction)', () => routerModule.setMatchFunction(42), /setMatchFunction: expected a function/],
+  ['initRouter with no view', () => routerModule.initRouter(document.createElement('div'), {}), /initRouter: needs an element and a view/],
   ['setBasePath(notAString)', () => routerModule.setBasePath(42), /setBasePath: expected a string or null/],
   ['allowRenderLoop(notAnElement)', () => core.allowRenderLoop(42), /allowRenderLoop: expected a component element/],
 ];
+
+/** Guards behind an async API: they REJECT rather than throw, so the coverage check below awaits them. */
+const REJECTING = [['navigate(notAPath)', () => navigate(42)]];
 
 for (const [label, call, expected] of CASES) {
   test(`${label} names the mistake`, { skip }, () => {
@@ -178,7 +182,7 @@ test('no guard refuses a legitimate input', async () => {
  * Derived from the source rather than restated, so adding a guard and forgetting a case fails here
  * instead of leaving a diagnostic nobody has ever executed.
  */
-test('every by-name guard in the source is exercised above', () => {
+test('every by-name guard in the source is exercised above', async () => {
   /**
    * Two kinds of guard, both enumerated from the SOURCE: a literal `name: expected …` (packages not yet on the code
    * system) and a `misuse(…, 'code', …)` call (core and styles since 2026-10-09 — their prose lives in a table). A code is
@@ -197,8 +201,8 @@ test('every by-name guard in the source is exercised above', () => {
   const exercised = new Set(CASES.map(([, , pattern]) => /\/?\^?([a-zA-Z]+): expected/.exec(String(pattern))?.[1]).filter(Boolean));
   exercised.add('navigate');
   const thrownCodes = new Set();
-  for (const [, call] of CASES) {
-    try { call(); } catch (error) {
+  for (const [, call] of [...CASES, ...REJECTING]) {
+    try { await call(); } catch (error) {
       const code = /\(([a-z][a-z0-9-]*)\)$|\/e\/([a-z][a-z0-9-]*)$/.exec(String(error?.message ?? ''));
       if (code) thrownCodes.add(code[1] ?? code[2]);
     }

@@ -58,14 +58,13 @@ const DIAGNOSTIC_CALL = /console\.(warn|error)\(\s*diagnostic\(/g;
  * says nothing about the rest.
  *
  * So the set is now closed: every call is either parsed, or listed here with the reason, or fails.
- * Three of these forward **someone else's error object**, where a prefix would misattribute it. The
- * fourth is a ternary between two messages, and its branches are checked below rather than excused —
- * an unprefixed branch added later is exactly what this file exists to catch.
+ * Two of these forward **someone else's error object**, where a prefix would misattribute it. (The router's ternary
+ * between two messages left with the code-system migration, 2026-10-09: its two variants are one code now.) The
+ * ternary branch check below stays, for the next one.
  */
 const NOT_A_LITERAL = new Map([
   ['autoloader/src/autoloader.ts', [1, "forwards a caught error's own message"]],
   ['ssr/src/vera/shim.ts', [1, 'forwards a caught error object']],
-  ['router/src/services.ts', [1, 'a ternary between two messages — both branches are checked below']],
   /** Hydration's once-per-kind helper: every caller hands it a `diagnostic(…)` line — asserted below. */
   ['renderer/src/hydration.ts', [2, 'prints a line diagnostic() built — every caller passes one']],
 ]);

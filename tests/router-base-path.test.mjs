@@ -398,6 +398,7 @@ test('a routed href pointing outside the base is diagnosed', { skip: isProductio
   assert.ok(message, `expected a warning about the base, got: ${JSON.stringify(said)}`);
   assert.match(message, /\[vera\]/, 'carries the house prefix so one filter finds every diagnostic');
   assert.match(message, /"\/app\/users"/, 'and names the href the author should have written');
+  assert.match(message, /\(router-href-base\)$/, 'by its code');
   setBasePath(null);
 });
 

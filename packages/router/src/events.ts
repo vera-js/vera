@@ -11,9 +11,7 @@ import { PROSE } from './diagnostics.js';
  */
 export const saidString = (guard: string, path: RouteSnapshot['path'] | undefined, verdict: string, redirectable: boolean) =>
   console.warn(
-    diagnostic('router', `${guard} on "${path}"`, 'router-string-guard',
-      __DEV__ &&
-        PROSE['router-string-guard'](
+    diagnostic('router', `${guard} on "${path}"`, 'router-string-guard', __DEV__ && PROSE['router-string-guard'](
           verdict,
           'To send someone elsewhere, ' +
             (redirectable
@@ -56,7 +54,10 @@ export const emit = async (
         saidString(`a \`${event}\` handler`, to.path, verdict, false);
     } catch (error) {
       interrupted = true;
-      console.error(diagnostic('router', `a ${event} handler`, 'router-handler-threw', __DEV__ && PROSE['router-handler-threw']()), error);
+      /** Production prints the bare code (Brian's byte rule: the code-and-link shape cost +37 B on vera-router.min.js, the bare
+       * codes saved 35 B — 2026-10-09); development the table's text. Two calls, so each begins with a literal. */
+      if (__DEV__) console.error(diagnostic('router', `a ${event} handler`, 'router-handler-threw', __DEV__ && PROSE['router-handler-threw']()), error);
+      else console.error(`[vera] router-handler-threw: ${event}`, error);
     }
   }
 

@@ -76,6 +76,8 @@ const addLinkListener = (element: HTMLElement) => {
      */
     if (__DEV__) {
       const base = currentBase();
+      /** One entry per distinct href the app rendered — development only, and bounded by the hrefs the page itself
+       *  holds; no cap (vera-5a's note, 2026-10-09: decided, not overlooked). */
       if (base !== '' && !url.pathname.startsWith(base) && !warnedOutside.has(href)) {
         warnedOutside.add(href);
         console.warn(diagnostic('router', '<a route>', 'router-href-base', __DEV__ && PROSE['router-href-base'](href, base, url.pathname)));
@@ -106,7 +108,9 @@ const addLinkListener = (element: HTMLElement) => {
           detail: { path, error, element },
         })
       );
-      console.error(diagnostic('router', `"${path}"`, 'router-navigate-threw', __DEV__ && PROSE['router-navigate-threw'](path)), error);
+      if (__DEV__) console.error(diagnostic('router', `"${path}"`, 'router-navigate-threw', __DEV__ && PROSE['router-navigate-threw'](path)), error);
+    /** Production: the bare code (the byte rule — see events.ts). */
+    else console.error(`[vera] router-navigate-threw: ${path}`, error);
     }
   };
 

@@ -194,4 +194,5 @@ test('a relative word that swallows a :param is diagnosed; a static sibling is n
   assert.equal(warnings.length, 1, `one warning for the swallow, none for the static sibling: ${JSON.stringify(said)}`);
   assert.match(warnings[0], /\[vera\]/);
   assert.match(warnings[0], /named route|absolute/, 'and it teaches both correct spellings');
+  assert.match(warnings[0], /\(router-relative-param\)$/, 'by its code');
 });

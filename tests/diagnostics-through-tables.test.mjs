@@ -26,6 +26,7 @@ const MIGRATED = [
   /** Every renderer entry ships its own bundle — tag, keyed, slots… — so every one is checked. */
   ['renderer', 'dist/*.min.js'],
   ['shared-utils', '../renderer/dist/vera-renderer.min.js'],
+  ['router', 'dist/vera-router.min.js'],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -34,6 +35,15 @@ const MIGRATED = [
 const ROUTING = new Map([['packages/shared-utils/src/utils.ts', 2]]);
 const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*[`'"]/g;
 
+/** Each migrated package's own codes, for telling a bare production code from inline prose. */
+const OWN = new Map();
+for (const [name] of MIGRATED) {
+  const own = {};
+  for (const file of TABLES.find((entry) => entry.name === name).tables)
+    Object.assign(own, proseOf(await import(new URL(`../packages/${name}/${file}`, import.meta.url).href)));
+  OWN.set(name, own);
+}
+
 for (const [name, bundle] of MIGRATED) {
   test(`${name}: no inline message — every throw and warning goes through its table`, () => {
     const files = globSync(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((file) => !file.endsWith('diagnostics.ts'));
@@ -41,7 +51,17 @@ for (const [name, bundle] of MIGRATED) {
     const inline = [];
     for (const file of files) {
       const text = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-      const found = [...text.matchAll(INLINE)].map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
+      /**
+       * A production line that IS a bare code from this package's table (`[vera] router-redirect-loop: …`, or a thrown
+       * `name: <code>`) is the code system at its cheapest — Brian's byte rule keeps it where the link costs bytes —
+       * so it is not inline prose. Anything else is.
+       */
+      const found = [...text.matchAll(INLINE)]
+        .filter((match) => {
+          const code = /^[`'"](?:\[vera\] |[a-zA-Z]+: )([a-z][a-z0-9-]*)(?=[:`'"])/.exec(text.slice(match.index + match[0].length - 1))?.[1];
+          return code === undefined || !(code in OWN.get(name));
+        })
+        .map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
       if (ROUTING.get(file) === found.length) continue;
       inline.push(...found);
     }

@@ -80,6 +80,8 @@ test('a link to a route that throws reports, and keeps the view it had', async (
     errors.some((message) => message.includes('[vera] router') && message.includes('/throws')),
     'the console line names the framework and the path'
   );
+  /** By its code in both builds: development's full line, production's bare code (the byte rule). */
+  assert.ok(errors.some((message) => message.includes('router-navigate-threw') && message.includes('/throws')), errors.join(' | '));
 });
 
 /** A caller that *does* await still gets the rejection — that path must not have been swallowed. */

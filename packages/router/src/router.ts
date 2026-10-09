@@ -22,7 +22,8 @@ export const initRouter = (
    * Thrown rather than warned: without a view there is no outlet, so every navigation would return
    * false and the router would look inert with nothing to explain it.
    */
-  if (!element || !view) throw new Error(misuse('initRouter', 'router-no-view', __DEV__ && PROSE['router-no-view']()));
+  /** Production: the bare code (the byte rule — see events.ts). */
+  if (!element || !view) throw new Error(__DEV__ ? misuse('initRouter', 'router-no-view', __DEV__ && PROSE['router-no-view']()) : 'initRouter: router-no-view');
 
   /**
    * **An option this router does not have is a mistake, and silence about it is the bug.**

@@ -66,7 +66,7 @@ test('a navigation that matches nothing says so', { skip }, async () => {
 
   const said = await warnings(() => navigate('/nowhere'));
   assert.equal(said.length, 1, JSON.stringify(said));
-  assert.match(said[0], /^\[vera\] router: nothing matched "\/nowhere"/);
+  assert.match(said[0], /^\[vera\] router: navigate\(\) — nothing matched "\/nowhere"[\s\S]*\(router-no-match\)$/);
   assert.match(said[0], /catch-all/, 'and says what to do about it');
 
   assert.deepEqual(await warnings(() => navigate('/known')), [], 'a path that matches is silent');

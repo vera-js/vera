@@ -298,7 +298,7 @@ const makeApp = (routes) => {
   if (isProduction) check('production says nothing', strings.length === 0, JSON.stringify(strings));
   else {
     check('a before-route handler returning a string is warned about, once', strings.length === 1, JSON.stringify(strings));
-    check('naming the event and the path', /a `before-route` handler on "\/evs-b" returned the string "\/evs-login"/.test(strings[0]));
+    check('naming the event and the path', /a `before-route` handler on "\/evs-b" — returned the string "\/evs-login"[\s\S]*\(router-string-guard\)$/.test(strings[0]));
     check('without offering redirect, which an event cannot carry', !/redirect:/.test(strings[0]) && /call `navigate\("\/evs-login"\)` and return `false`/.test(strings[0]));
   }
 }

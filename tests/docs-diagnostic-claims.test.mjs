@@ -67,7 +67,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 29;
+const PENDING_MAX = 19;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -92,9 +92,9 @@ const CLAIMS = new Map([
   ['llms.txt#c11efabddf', 'event-name-typo'], // Every other prop is permissive (every element accepts it), so `key` and bare props type-ch
   ['llms.txt#7aa6d345c0', PENDING], // `onWarning` hears what compiles but is probably a mistake (`file:line:col — message`; the 
   ['llms.txt#0ddf816771', 'not a promise: attribute carve-outs, no diagnostic'], // Carve-outs, both derivations rather than a list: a name that cannot be a JS identifier (`d
-  ['llms.txt#006492a483', PENDING], // The one surprise — a relative word from a path ENDING in a param replaces it (`navigate('e
-  ['llms.txt#f58d360591', PENDING], // If the parent renders no matching outlet the route does not apply (and warns in developmen
-  ['llms.txt#51b7fd8199', PENDING], // **Write hrefs relative or with the base** — a route-space `href="/users"` works when click
+  ['llms.txt#006492a483', 'router-relative-param'], // The one surprise — a relative word from a path ENDING in a param replaces it (`navigate('e
+  ['llms.txt#f58d360591', 'router-no-outlet'], // If the parent renders no matching outlet the route does not apply (and warns in developmen
+  ['llms.txt#51b7fd8199', 'router-href-base'], // **Write hrefs relative or with the base** — a route-space `href="/users"` works when click
   ['llms.txt#bb996b85fd', 'motion-property-at-top-level'], // A property written at the top level, or a setting written inside `keyframes`, is refused b
   ['llms.txt#17b8203f63', 'motion-pointer-with-scroll'], // `inertia` composes (the mouse-follow feel), and so does `play` — a pointer-sourced play sw
   ['llms.txt#f4c0cf1abe', 'motion-function-threw'], // The attribute NAMES a function and never contains one, `tick` may be the whole animation (
@@ -175,14 +175,14 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#9716e1f324', 'pinned by tests/api-misuse-sweep.test.mjs: a catalog of a dozen messages — every refusal it lists is thrown by the sweep, every warning has its own coded claim'], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
   ['packages/renderer/README.md#5ae4ff86c0', 'tag-key'], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
   ['packages/renderer/README.md#57d42dee7e', 'not a promise: a size'], // <!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the f
-  ['packages/router/README.md#fa48cfe868', PENDING], // **A path that matches nothing does nothing, and development says so.** `navigate` returns 
-  ['packages/router/README.md#7fc72a994a', PENDING], // The warning names the path.
-  ['packages/router/README.md#d53c74196e', PENDING], // If the parent's template renders no matching outlet the route does not apply, and says so 
-  ['packages/router/README.md#7b892d775b', PENDING], // Those levels fall back to searching inside the level above for a bare `<div view>`, and a 
-  ['packages/router/README.md#f7348f4d9d', PENDING], // Development warns when a guard returns a string.
+  ['packages/router/README.md#fa48cfe868', 'router-no-match'], // **A path that matches nothing does nothing, and development says so.** `navigate` returns 
+  ['packages/router/README.md#7fc72a994a', 'router-no-match'], // The warning names the path.
+  ['packages/router/README.md#d53c74196e', 'router-no-outlet'], // If the parent's template renders no matching outlet the route does not apply, and says so 
+  ['packages/router/README.md#7b892d775b', 'router-no-outlet'], // Those levels fall back to searching inside the level above for a bare `<div view>`, and a 
+  ['packages/router/README.md#f7348f4d9d', 'router-string-guard'], // Development warns when a guard returns a string.
   ['packages/router/README.md#5c763d362b', 'not a promise: history: what no longer warns'], // `navigate('login')` from `/shop/items` now goes to `/shop/login` rather than dead-ending w
-  ['packages/router/README.md#12b42ba1c2', PENDING], // Two routes claiming one name warn in development.
-  ['packages/router/README.md#23c2747b14', PENDING], // - **`navigate()` rejects**, so a caller that awaits it can handle the failure itself. - **
+  ['packages/router/README.md#12b42ba1c2', 'router-duplicate-name'], // Two routes claiming one name warn in development.
+  ['packages/router/README.md#23c2747b14', 'router-navigate-threw'], // - **`navigate()` rejects**, so a caller that awaits it can handle the failure itself. - **
   ['packages/ssr/README.md#2f37875801', 'not a promise: says no warning is possible'], // **Wire `slots` on the client AND here:** without it this server writes no light-tree state
   ['packages/ssr/README.md#8e83430b17', 'hydration-fallback'], // An HTML minifier that strips comments removes them, and hydration then treats that compone
   ['packages/ssr/README.md#dc1c1f67b9', PENDING], // A `__proto__` key is skipped, and a read-only property is refused by name |

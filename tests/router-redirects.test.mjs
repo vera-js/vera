@@ -3,7 +3,7 @@
  * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div></div>', { url: 'http://localhost/A' });
 const { window } = dom;
@@ -59,7 +59,7 @@ const before = { ...hits };
 const errs = []; const oe = console.error; console.error = (m) => errs.push(String(m));
 await navigate('/loopA', 'navigate'); await tick();
 console.error = oe;
-check('redirect loop cut off with error', errs.some((m) => m.includes('redirect loop')) &&
+check('redirect loop cut off with error', errs.some((m) => (isProduction ? /^\[vera\] router-redirect-loop: \/loop[AB]$/ : /^\[vera\] router: "\/loop[AB]" — a redirect loop at \/loop[AB][\s\S]*\(router-redirect-loop\)$/).test(m)) &&
   JSON.stringify(hits) === JSON.stringify(before));
 
 console.log(`\n${pass} passed, ${fail} failed`);

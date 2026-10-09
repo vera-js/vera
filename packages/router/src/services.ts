@@ -604,6 +604,8 @@ export const navigate = async (
      * exists so the surprise costs one console read instead of a debugging session, and it names
      * both correct spellings. Development only, once per input.
      */
+    /** `warnedSwallow`: one entry per distinct relative input — development only, bounded by what the app's code
+     *  passes; no cap (vera-5a's note, 2026-10-09: decided, not overlooked). */
     if (__DEV__ && typeof target === 'string' && !/^[/?#]/.test(target) && !warnedSwallow.has(target)) {
       const prior = state.currentPath.split(/[?#]/)[0];
       const cut = prior.lastIndexOf('/') + 1;
@@ -700,7 +702,9 @@ export const navigate = async (
     const redirect = match?.route.redirect;
     if (redirect) {
       if (redirectDepth >= 10) {
-        console.error(diagnostic('router', `"${path}"`, 'router-redirect-loop', __DEV__ && PROSE['router-redirect-loop'](path)));
+        if (__DEV__) console.error(diagnostic('router', `"${path}"`, 'router-redirect-loop', __DEV__ && PROSE['router-redirect-loop'](path)));
+        /** Production: the bare code (the byte rule — see events.ts). */
+        else console.error(`[vera] router-redirect-loop: ${path}`);
         return false;
       }
       const target =
