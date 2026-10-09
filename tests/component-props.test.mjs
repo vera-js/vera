@@ -133,6 +133,24 @@ test('a platform property on a lazy tag is never recorded, and survives the drai
     'the platform accessor still answers for .title — the drain never shadowed it');
 });
 
+test('lazy, and the element never calls init(): the clobber is NAMED in development — the silence above is not deafness', async () => {
+  const warned = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warned.push(String(args[0]));
+  const host = mount();
+  renderInto(html`<cp-lazy-plain .item=${'bound'}></cp-lazy-plain>`, host);
+  customElements.define('cp-lazy-plain', class extends HTMLElement {
+    item;                                  // no init(): nothing drains, so the field wins
+  });
+  dom.window.customElements.upgrade(host);
+  await frame();
+  console.warn = realWarn;
+  assert.equal(host.querySelector('cp-lazy-plain').item, undefined, 'the control: the field really did clobber it');
+  const named = warned.filter((w) => w.includes('was replaced while the element upgraded'));
+  assert.equal(named.length, isProduction ? 0 : 1, named.join(' | '));
+  if (!isProduction) assert.match(named[0], /^\[vera\] renderer: the value bound by `\.item=\$\{…\}` on <cp-lazy-plain>[\s\S]*`declare item\?: …`/);
+});
+
 test('a defined non-vera element is untouched: its own accessor receives, nothing is recorded', () => {
   customElements.define('cp-foreign', class extends HTMLElement {
     #v;

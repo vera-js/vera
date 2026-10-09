@@ -485,10 +485,13 @@ to the first focusable child, which is what a custom control usually wants.
 
 ## Two things that will bite you
 
-**Custom-element fields must be `declare`d in TypeScript.** At ES2022 a class field is a definition,
-not an assignment: `item?: Item` emits `item;`, which runs during element upgrade and overwrites
-whatever a parent already bound there. Write `declare item?: Item` — it emits nothing, and the
-binding survives. In development the renderer warns when it observes this happening.
+**An element that never calls `init()` must `declare` its TypeScript fields.** At ES2022 a class
+field is a definition, not an assignment: `item?: Item` emits `item;`, which runs during element
+upgrade and overwrites whatever a parent bound there before the element's module loaded. A component
+that calls `init()` is repaired for you — `init()` re-applies every value bound before it ran, so a
+bound value outranks the class default in both spellings and no `declare` is needed. An element that
+never calls `init()` (a plain custom element a vera template binds) keeps the loss: write
+`declare item?: Item`, which emits nothing, and development names the clobber when it observes one.
 
 **Prefer a stable template shape over swapping subtrees.** Rendering the same elements every pass
 and toggling `?hidden` keeps template identity, so values update in place instead of the subtree
