@@ -44,6 +44,8 @@
  * Production still prefers the plugin, which ships no compiler at all.
  */
 import type { ImportSite } from './types.js';
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './standalone-diagnostics.js';
 
 /**
  * The compiler's two functions, from `vera-jsx(.min).js` — loaded only when something must compile. Their types are
@@ -164,10 +166,7 @@ const nameMissingHelpers = async (): Promise<void> => {
   for (const url of helpers) {
     if (named.has(url) || (await fetch(url, { method: 'HEAD' }).then((response) => response.ok, () => false))) continue;
     named.add(url);
-    console.error(
-      `[vera] jsx: ${url} was not found. The renderer's helpers are loaded from beside ` +
-        `@verajs/renderer — copy its whole dist folder, or map the helper in the import map.`
-    );
+    console.error(diagnostic('jsx', url, 'jsx-helper-missing', __DEV__ && PROSE['jsx-helper-missing']()));
   }
 };
 
@@ -218,12 +217,11 @@ const fetchFile = async (url: string, importer: string): Promise<Response> => {
   try {
     response = await fetch(url);
   } catch {
-    throw new Error(`[vera] jsx: could not fetch ${url}, imported by ${importer}.`);
+    throw new Error(diagnostic('jsx', `${url}, imported by ${importer}`, 'jsx-fetch-failed', __DEV__ && PROSE['jsx-fetch-failed']()));
   }
   if (!response.ok)
     throw new Error(
-      `[vera] jsx: ${url} answered ${response.status}, imported by ${importer}. A self-hosted page ` +
-        `needs every file it imports beside it — for @verajs/renderer's helpers, its whole dist folder.`
+      diagnostic('jsx', `${url} (${response.status}), imported by ${importer}`, 'jsx-fetch-status', __DEV__ && PROSE['jsx-fetch-status']())
     );
   return response;
 };
@@ -269,10 +267,7 @@ const link = async (base: string, name: string, { js, sites }: Compiled): Promis
         if (!isScript(target) || nativeFile(target)) return [site.start, site.end, target];
         const loop = loopBack(target, name);
         if (loop !== null)
-          throw new Error(
-            `[vera] jsx: circular import ${[name, ...loop].join(' → ')} — buildless mode cannot link a ` +
-              `cycle (a blob URL exists only once its content does). Break it, or build with the Vite plugin.`
-          );
+          throw new Error(diagnostic('jsx', [name, ...loop].join(' → '), 'jsx-circular-import', __DEV__ && PROSE['jsx-circular-import']()));
         let waits = waiting.get(name);
         if (waits === undefined) waiting.set(name, (waits = new Set()));
         waits.add(target);
@@ -361,7 +356,7 @@ const runBlock = async (script: HTMLScriptElement): Promise<void> => {
     const name = new URL(`${page}.inline-${++inline}.jsx`, document.baseURI).href;
     await import(/* @vite-ignore */ await link(document.baseURI, name, await compiledFor(name, script.textContent ?? '')));
   } catch (error) {
-    console.error('%s', `[vera] jsx: ${script.src || 'an inline block'}:`, error);
+    console.error('%s', diagnostic('jsx', script.src || 'an inline block', 'jsx-block-failed', __DEV__ && PROSE['jsx-block-failed']()), error);
     await nameMissingHelpers();
   }
 };

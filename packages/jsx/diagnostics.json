@@ -1,0 +1,91 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "jsx-empty-expression",
+      "params": [
+        "written"
+      ],
+      "message": "{written} has no value.",
+      "fix": "Fill the braces, or remove them."
+    },
+    {
+      "code": "jsx-inner-html-shape",
+      "params": [
+        "given"
+      ],
+      "message": "dangerouslySetInnerHTML expects {{ __html: expr }} — {given}.",
+      "fix": "Sanitize the value first: it is written as HTML."
+    },
+    {
+      "code": "jsx-key-placement",
+      "params": [],
+      "message": "key belongs on the JSX root returned from a list callback.",
+      "fix": "Move it to the element the callback returns."
+    },
+    {
+      "code": "jsx-sigil-value",
+      "params": [
+        "name"
+      ],
+      "message": "{name} needs a value.",
+      "fix": "Write {name}={…}."
+    },
+    {
+      "code": "jsx-tag-mismatch",
+      "params": [
+        "open",
+        "close"
+      ],
+      "message": "<{open}> is closed by </{close}>.",
+      "fix": "End <{open}> with </{open}>, before </{close}>."
+    },
+    {
+      "code": "jsx-unclosed-comment",
+      "params": [],
+      "message": "a comment among the attributes is never closed (*/).",
+      "fix": "Close it with */."
+    },
+    {
+      "code": "jsx-uncontrolled",
+      "params": [
+        "name",
+        "tag",
+        "undone",
+        "initial"
+      ],
+      "message": "{name}={…} makes this <{tag}> controlled: every render writes it back, so {undone} unless onInput/onChange keeps the bound value in step.",
+      "fix": "For an initial value use {initial}; for a fixed one, add readOnly."
+    },
+    {
+      "code": "jsx-block-failed",
+      "params": [],
+      "message": "failed to run; its error follows.",
+      "fix": "The error names what went wrong — a compile error carries its file, line, column and code."
+    },
+    {
+      "code": "jsx-circular-import",
+      "params": [],
+      "message": "is a circular import — buildless mode cannot link a cycle (a blob URL exists only once its content does).",
+      "fix": "Break the cycle, or build with the Vite plugin."
+    },
+    {
+      "code": "jsx-fetch-failed",
+      "params": [],
+      "message": "this file could not be fetched.",
+      "fix": "Check its path, and that the page can reach the server it is on."
+    },
+    {
+      "code": "jsx-fetch-status",
+      "params": [],
+      "message": "this file answered with an error status.",
+      "fix": "A self-hosted page needs every file it imports beside it — for @verajs/renderer's helpers, its whole dist folder."
+    },
+    {
+      "code": "jsx-helper-missing",
+      "params": [],
+      "message": "this helper of the renderer's was not found — the loader fetches the renderer's helpers from beside @verajs/renderer.",
+      "fix": "Copy the renderer's whole dist folder, or map the helper in the import map."
+    }
+  ]
+}

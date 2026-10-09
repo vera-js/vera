@@ -195,7 +195,7 @@ test('a custom-element tag maps props as compiled JSX does', () => {
 
 test('an object style is refused in development, as the compiler refuses it', { skip: isProduction && 'a development check' }, () => {
   const H = tag`p`;
-  assert.throws(() => H({ style: { color: 'red' } }), /`style` expects a STRING/);
+  assert.throws(() => H({ style: { color: 'red' } }), /tag: style expects a STRING[\s\S]*\(style-object\)$/);
 });
 
 /**
@@ -213,7 +213,7 @@ test('a tag outside tag position is refused in development', { skip: isProductio
 
 test('a void tag given children is refused in development — they would vanish', { skip: isProduction && 'a development check' }, () => {
   const BR = tag`br`;
-  assert.throws(() => BR({ children: ['lost'] }), /void element — it takes no children/);
+  assert.throws(() => BR({ children: ['lost'] }), /tag: <br> is a void element — it has no end tag and takes no children, so children given to it would vanish[\s\S]*\(void-children\)$/);
   assert.doesNotThrow(() => BR({ children: [] }), 'an empty list is no content');
   assert.doesNotThrow(() => BR({}), 'nor is none');
 });

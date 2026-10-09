@@ -253,7 +253,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
       if (name !== '__proto__') {
         /** The compiler refuses an object `style` at build time; written into the attribute it reads "[object Object]". */
         if (__DEV__ && name === 'style' && props[name] !== null && typeof props[name] === 'object')
-          throw new TypeError(misuse('tag', 'tag-style-object', __DEV__ && PROSE['tag-style-object']()));
+          throw new TypeError(misuse('tag', 'style-object', __DEV__ && SHARED.styleObject('style: `color:${c}`')));
         mapped[(custom ? componentName : jsxName)(name)] = props[name];
       }
     /**
@@ -261,7 +261,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
      * children given to one would vanish silently — development says so (an empty list is no content).
      */
     if (__DEV__ && empty && children != null && !(Array.isArray(children) && children.length === 0))
-      throw new Error(misuse('tag', 'tag-void-children', __DEV__ && PROSE['tag-void-children'](text)));
+      throw new Error(misuse('tag', 'void-children', __DEV__ && SHARED.voidChildren(text, 'children given to it would vanish')));
     return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   const empty = VOID_TAGS.test(text);

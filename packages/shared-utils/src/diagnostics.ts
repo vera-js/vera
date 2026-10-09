@@ -1,8 +1,10 @@
 /**
- * **The codes more than one package prints — DEVELOPMENT ONLY** (vera-5a, 2026-10-09). A fact said by two emitters has
+ * **The codes more than one package prints — DEVELOPMENT ONLY, except to the jsx compiler** (vera-5a, 2026-10-09). A
+ * fact said by two emitters has
  * ONE docs page and ONE text, so its prose lives here, in the lowest dependency every emitter shares, and each raises
  * it as `SHARED['code']` — never a second sentence in a second table (the dev line would stop being the docs page's
- * text). Referenced only behind `__DEV__`, so production drops it whole. `scripts/sync-diagnostics.mjs` publishes it
+ * text). Referenced only behind `__DEV__`, so production drops it whole — but the jsx COMPILER raises `voidChildren`
+ * and `styleObject` in every build: a compile error is a build tool's only output, and Vite loads the production one. `scripts/sync-diagnostics.mjs` publishes it
  * as `packages/shared-utils/diagnostics.json`; the uniqueness check sees each code here once.
  *
  * Also the home of messages shared-utils' OWN code prints on a renderer's behalf (adopt-property, markup-grammar,
@@ -96,4 +98,17 @@ export const srcdocAttribute: Prose = (property) => [
 export const handlerAttribute: Prose = (name, event) => [
   `binds the \`${name}\` attribute, which runs its value as code — refused.`,
   `Bind a function as an event instead: ${event}.`,
+];
+/**
+ * The jsx compiler and the renderer's `tag` — children given to a void element. Both refuse; the FATE the refusal
+ * prevents is each emitter's (vera-5a): compiled, they would land after the element; through `tag`, vanish.
+ */
+export const voidChildren: Prose = (tag, fate) => [
+  `<${tag}> is a void element — it has no end tag and takes no children, so ${fate}; refused.`,
+  'Move the children out, or use an element that takes content.',
+];
+/** The jsx compiler and the renderer's `tag` — an object `style`. The EXAMPLE is each emitter's spelling. */
+export const styleObject: Prose = (example) => [
+  'style expects a STRING, not an object.',
+  `Build the string: ${example}.`,
 ];

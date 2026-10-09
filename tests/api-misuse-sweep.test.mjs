@@ -61,8 +61,8 @@ const CASES = [
   ['a string interpolated into a tag', () => tag`${'h1'}`, /tag: only another tag may be interpolated/],
   ['a tag that is not an element name', () => tag(Object.assign(['a b'], { raw: ['a b'] })), /tag: "a b" is not an element name/],
   ['a tag outside tag position', () => tagHtml`<p>${tag`h1`}</p>`, /tag: a tag \(`h1`\) may only stand in tag position/],
-  ['an object style on a tag component', () => tag`div`({ style: { color: 'red' } }), /tag: `style` expects a STRING/],
-  ['children on a void tag component', () => tag`br`({ children: ['x'] }), /tag: <br> is a void element/],
+  ['an object style on a tag component', () => tag`div`({ style: { color: 'red' } }), /^tag: style expects a STRING[\s\S]*\(style-object\)$/],
+  ['children on a void tag component', () => tag`br`({ children: ['x'] }), /^tag: <br> is a void element[\s\S]*\(void-children\)$/],
   ['adoptStyles(nothing)', () => styleModule.adoptStyles(undefined), /adoptStyles: expected a component element/],
   ['applyStyles(sheet, nothing)', () => styleModule.applyStyles('p{}', undefined), /applyStyles: expected a component element/],
   /**

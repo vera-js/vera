@@ -101,6 +101,14 @@
       "fix": "If the markup is trusted and sanitized, bind the property: `{property}`."
     },
     {
+      "code": "style-object",
+      "params": [
+        "example"
+      ],
+      "message": "style expects a STRING, not an object.",
+      "fix": "Build the string: {example}."
+    },
+    {
       "code": "tag-called",
       "params": [
         "tag",
@@ -123,6 +131,15 @@
       ],
       "message": "the value bound to `{name}` was replaced while the element upgraded. A class field is the usual cause: at ES2022 `{name}?: …` emits `{name};`, which runs during upgrade and overwrites whatever was set beforehand.",
       "fix": "Write it `declare {name}?: …` instead. A component that calls init() adopts bound properties automatically and never sees this; this element did not. Ignore this if the component replaced the value on purpose."
+    },
+    {
+      "code": "void-children",
+      "params": [
+        "tag",
+        "fate"
+      ],
+      "message": "<{tag}> is a void element — it has no end tag and takes no children, so {fate}; refused.",
+      "fix": "Move the children out, or use an element that takes content."
     }
   ]
 }

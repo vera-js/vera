@@ -36,7 +36,7 @@ Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Im
 | `keyed` | `['keyed', '@verajs/renderer/keyed']` | `[export, module]` to import `keyed` from |
 | `spread` | `['spread', '@verajs/renderer/spread']` | `[export, module]` to import `spread` from, for `{...rest}` on elements |
 | `namespaces` | `true` | wire `@verajs/renderer/namespaces` from every compiled file, so a component's SVG children draw. `false` if you wire it yourself, or want neither its bytes nor SVG children |
-| `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, told of what compiles but is probably a mistake, as `file:line:col — message`. Today: a controlled `value`/`checked` on an `<input>`, `<textarea>` or `<select>` with no `onInput`/`onChange` and no `readOnly` — every render writes it back over what was typed. A direct `transformJsx` call with no `onWarning` says nothing; the buildless loader prints it in development |
+| `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, told of what compiles but is probably a mistake, as `file:line:col — message (code)`. Today: a controlled `value`/`checked` on an `<input>`, `<textarea>` or `<select>` with no `onInput`/`onChange` and no `readOnly` — every render writes it back over what was typed. A direct `transformJsx` call with no `onWarning` says nothing; the buildless loader prints it in development |
 
 **Writing TSX? Add the types, or nothing type-checks.** The JSX namespace ships with this package's
 declarations, but a TSX app imports `@verajs/core` and never imports the plugin, so TypeScript
@@ -314,16 +314,22 @@ claim is that it adds nothing to the bundle. A template literal is the same char
 
 ## What it refuses, and where
 
-Every mistake below is reported with the file, line and column — not left for the next tool to
-choke on:
+Every mistake below is reported with the file, line and column, and ends with its code — the full
+explanation of a code is at `https://verajs.dev/e/<code>` — not left for the next tool to choke on.
+A compile error keeps its whole sentence in every build: the compiler is a build tool, and its
+message is the only thing it can tell you.
 
-- a closing tag that names a different element (`<p>…</b>`)
-- `key` anywhere but the JSX root returned from a list callback — on an element or a component
+- a closing tag that names a different element (`<p>…</b>`) — `jsx-tag-mismatch`
+- `key` anywhere but the JSX root returned from a list callback — on an element or a component —
+  `jsx-key-placement`
 - children inside a void element (`<input>{label}</input>`), which no markup can express: passed
-  through, the binding silently left the element it was written inside
-- `dangerouslySetInnerHTML` in any shape other than `{{ __html: … }}`
-- `style` given an object
-- a sigil with no value (`.rows` on its own)
+  through, the binding silently left the element it was written inside — `void-children`, the
+  renderer's `tag()` refusal too
+- `dangerouslySetInnerHTML` in any shape other than `{{ __html: … }}` — `jsx-inner-html-shape`
+- `style` given an object — `style-object`, also the renderer's `tag()` refusal
+- a sigil with no value (`.rows` on its own) — `jsx-sigil-value`
+- braces holding nothing (`x={}`, `{...}`) — `jsx-empty-expression`
+- a comment among the attributes that is never closed — `jsx-unclosed-comment`
 
 **Anything else that does not parse is left exactly as it was**, and that is deliberate: `<` is
 ambiguous, and `a < b` has to survive a file being run through this. The cost is that a genuinely

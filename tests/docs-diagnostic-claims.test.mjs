@@ -68,7 +68,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 15;
+const PENDING_MAX = 10;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -138,17 +138,17 @@ const CLAIMS = new Map([
   ['packages/inserts/README.md#a56509b716', 'not a promise: a return-value protocol, not a message'], // An insert that wants to change what core does — rather than merely watch — says so through
   ['packages/inserts/README.md#3eed974ae8', 'not a promise: error routing of a throwing hook, not a message'], // **Nothing catches it, and that is deliberate — but it is not the same as a hook.** A `useE
   ['packages/inserts/README.md#776c11547b', 'not a promise: what an insert may do, not a message'], // `'init'` is where per-element setup hooks in, so one throwing module keeps the rest from i
-  ['packages/jsx/README.md#e0a63c3614', PENDING], // | `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, told of what compiles bu
-  ['packages/jsx/README.md#5a8aa12e19', PENDING], // If the renderer's helper files are missing from beside it, the error names the file, where
-  ['packages/jsx/README.md#5f9c8908e7', PENDING], // **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vit
-  ['packages/jsx/README.md#039bf7676f', PENDING], // | `value` / `checked` | `!value=` / `!checked=` | controlled, as React's are: compared wit
+  ['packages/jsx/README.md#a886d0d774', 'jsx-uncontrolled'], // | `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, … as `file:line:col — message (code)`.
+  ['packages/jsx/README.md#5a8aa12e19', 'jsx-helper-missing'], // If the renderer's helper files are missing from beside it, the error names the file, where
+  ['packages/jsx/README.md#5f9c8908e7', 'jsx-circular-import'], // **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vit
+  ['packages/jsx/README.md#039bf7676f', 'jsx-uncontrolled'], // | `value` / `checked` | `!value=` / `!checked=` | controlled, as React's are: compared wit
   ['packages/jsx/README.md#549f696ea7', 'not a promise: attribute carve-outs, no diagnostic'], // Two derivations carve out the attributes: a **name that cannot be a JS identifier** (`data
   ['packages/jsx/README.md#63768c1671', 'boolean-child'], // A **hand-written** template has the same hazard and no compiler to fix it, so `@verajs/ren
   ['packages/jsx/README.md#83e11d96f6', 'boolean-child'], // A hand-written template renders the word **"false"** there, matching lit — and `@verajs/re
   ['packages/jsx/README.md#c448649b3c', 'boolean-child'], // Development names each one, and `{rows.filter((r) => r.ok).map(…)}` is the fix.
   ['packages/jsx/README.md#2331fe9023', 'not a promise: design rationale'], // **This is where vera and React deliberately part**, and the reason is measured: React filt
   ['packages/jsx/README.md#47c79cbe8e', 'not a promise: a heading; the sentences under it are entered'], // ## What it refuses, and where
-  ['packages/jsx/README.md#c2f0e8228c', PENDING], // Every mistake below is reported with the file, line and column — not left for the next too
+  ['packages/jsx/README.md#e7be457bbf', 'pinned by tests/jsx-coded-errors.test.mjs: every refusal in the list, position first and its code ending it, in every build'], // Every mistake below is reported with the file, line and column, and ends with its code — the full explanation
   ['packages/jsx/README.md#724b1c3ce0', 'not a promise: says the bundler reports it, not vera'], // The cost is that a genuinely unclosed element (`<p>x` with no `</p>`) reaches your bundler
   ['packages/jsx/README.md#f816cb75b4', 'event-name-typo'], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.

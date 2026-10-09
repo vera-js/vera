@@ -1,4 +1,5 @@
-import { isCustomElementName, VOID_ELEMENTS } from '@verajs/shared-utils';
+import { isCustomElementName, SHARED, VOID_ELEMENTS } from '@verajs/shared-utils';
+import { coded, PROSE } from './compiler-diagnostics.js';
 import { atExpressionPosition, createParseState, findRoots, isBlankExpression, mark } from './parser.js';
 import type { ImportSite, JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
@@ -89,7 +90,10 @@ const isComponentName = (tag: string): boolean => tag.includes('.') || !/^[a-z]/
  */
 
 /** Platform idiom, named in the principles: an error class STAYS a class. */
-/** `file:line:col — message`, the position counted from `offset` into `code` — what an error and a warning both say. */
+/**
+ * `file:line:col — message (code)`, the position counted from `offset` into `code` — what an error and a warning both say;
+ * the message comes `coded()` from the compiler's table, which keeps its words in every build.
+ */
 const located = (message: string, code: string, fileName: string, offset: number) => {
   const upTo = code.slice(0, offset);
   const line = upTo.split('\n').length;
@@ -726,7 +730,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    */
   const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean): string => {
     if (!isRoot)
-      throw new JsxError('key belongs on the JSX root returned from a list callback', code, fileName, attribute.start);
+      throw new JsxError(coded('jsx-key-placement', PROSE['jsx-key-placement']()), code, fileName, attribute.start);
     return attribute.kind === 'expr'
       ? emitExpression(attribute.text, attribute.roots, valueBase(attribute))
       : JSON.stringify(attribute.kind === 'str' ? attribute.text : null);
@@ -795,8 +799,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        */
       if (node.children.length > 0)
         throw new JsxError(
-          `<${node.tag}> is a void element — it has no end tag and cannot hold children. ` +
-            `Move them out, or use an element that can hold them.`,
+          coded('void-children', SHARED.voidChildren(node.tag, 'children written inside it would land after it')),
           code,
           fileName,
           node.start
@@ -861,9 +864,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (!typesValue && !ticksChecked) return;
     options.onWarning!(
       located(
-        `${name}={…} makes this <${tag}> controlled: every render writes it back, so ${name === 'value' ? 'typed text is replaced' : 'a tick is undone'} ` +
-          `unless onInput/onChange keeps the bound value in step. For an initial value use default${name === 'value' ? 'Value' : 'Checked'}; ` +
-          `for a fixed one, add readOnly.`,
+        coded('jsx-uncontrolled', PROSE['jsx-uncontrolled'](name, tag, name === 'value' ? 'typed text is replaced' : 'a tick is undone', name === 'value' ? 'defaultValue' : 'defaultChecked')),
         code,
         fileName,
         at
@@ -900,11 +901,12 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     }
     if (name === 'dangerouslySetInnerHTML') {
       const match = attribute.kind === 'expr' ? /^\s*\{\s*__html\s*:([\s\S]*)\}\s*$/.exec(attribute.text) : null;
-      if (!match) throw new JsxError('dangerouslySetInnerHTML expects {{ __html: expr }}', code, fileName, attribute.start);
+      if (!match)
+        throw new JsxError(coded('jsx-inner-html-shape', PROSE['jsx-inner-html-shape']('this is another shape')), code, fileName, attribute.start);
       const inner = match[1]!.trim().replace(/,\s*$/, '');
       /** `{{ __html: }}` names the key and gives it nothing, which emitted an empty template hole. */
       if (isBlankExpression(inner))
-        throw new JsxError('dangerouslySetInnerHTML={{ __html: }} has no value', code, fileName, attribute.start);
+        throw new JsxError(coded('jsx-inner-html-shape', PROSE['jsx-inner-html-shape']('{{ __html: }} has no value')), code, fileName, attribute.start);
       const bearer = attribute as Extract<JsxAttribute, { kind: 'expr' }>;
       const innerStart = valueBase(bearer) + bearer.text.indexOf(inner);
       tpl.static(' .innerHTML=');
@@ -912,7 +914,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     if (name === 'style' && attribute.kind === 'expr' && /^\s*\{/.test(attribute.text)) {
-      throw new JsxError('style expects a STRING in Vera JSX (e.g. style={`color:${c}`}), not an object', code, fileName, attribute.start);
+      throw new JsxError(coded('style-object', SHARED.styleObject('style={`color:${c}`}')), code, fileName, attribute.start);
     }
 
     /**
@@ -923,7 +925,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      */
     if (SIGILS.has(name[0]!)) {
       if (attribute.kind === 'none')
-        throw new JsxError(`${name} needs a value — write ${name}={…}`, code, fileName, attribute.start);
+        throw new JsxError(coded('jsx-sigil-value', PROSE['jsx-sigil-value'](name)), code, fileName, attribute.start);
       tpl.static(` ${name}=`);
       tpl.expr(bound ? expression! : JSON.stringify(literal));
       return;

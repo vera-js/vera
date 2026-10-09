@@ -70,8 +70,10 @@ it('a repeat visit compiles nothing and never loads the compiler', async () => {
 it('a circular import is named with its loop — even when both sides load in parallel', async () => {
   const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/cycle/entry.jsx"></script>`);
   expect(result.kind).to.equal('error');
-  expect(result.text).to.include('circular import');
-  expect(result.text).to.match(/a\.jsx.*b\.jsx|b\.jsx.*a\.jsx/);
+  /** By code, in this (production) build: the block that failed, and the loop as the error's subject. */
+  expect(result.text).to.include('/e/jsx-block-failed');
+  expect(result.text).to.include('/e/jsx-circular-import');
+  expect(result.text).to.match(/a\.jsx → \S*b\.jsx|b\.jsx → \S*a\.jsx/);
   result.frame.remove();
 });
 
@@ -81,6 +83,7 @@ it('a missing file names itself and the file that imported it', async () => {
   expect(result.text).to.include('not-here.jsx');
   expect(result.text).to.include('404');
   expect(result.text).to.include('missing/entry.jsx');
+  expect(result.text, 'by code — the file, status and importer are its subject').to.include('/e/jsx-fetch-status');
   result.frame.remove();
 });
 
@@ -129,7 +132,7 @@ it("a renderer helper missing from beside the renderer is named, not left as a b
     addEventListener('message', function listen(event) {
       if (event.source !== frame.contentWindow) return;
       said.push(event.data);
-      if (said.some((m) => m.kind === 'error' && m.text.includes('was not found'))) {
+      if (said.some((m) => m.kind === 'error' && m.text.includes('/e/jsx-helper-missing'))) {
         removeEventListener('message', listen);
         resolve({ said, frame });
       }
@@ -144,9 +147,9 @@ it("a renderer helper missing from beside the renderer is named, not left as a b
       <script type="text/vera-jsx" src="${FIXTURES}/nohelpers/main.jsx"></script>`;
     document.body.appendChild(frame);
   });
-  const named = result.said.find((m) => m.text.includes('was not found'));
+  /** By code in this (production) build; the helper's address is the line's subject, so it is named in every build. */
+  const named = result.said.find((m) => m.text.includes('/e/jsx-helper-missing'));
   expect(named.text).to.include('nohelpers/vera-renderer-namespaces.min.js');
-  expect(named.text).to.include('whole dist folder');
   result.frame.remove();
 });
 
@@ -210,7 +213,7 @@ it('development: a controlled input with nothing keeping it in step is warned ab
     { imports: DEV_IMPORTS }
   );
   expect(result.kind, result.text).to.equal('warn');
-  expect(result.text).to.match(/\[vera\] jsx: .*value=\{…\} makes this <input> controlled/);
+  expect(result.text).to.match(/\[vera\] jsx: .*value=\{…\} makes this <input> controlled[\s\S]*\(jsx-uncontrolled\)$/);
   result.frame.remove();
 });
 it('development: CONTROL — with onInput nothing is said, and the app runs', async () => {

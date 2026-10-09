@@ -198,20 +198,6 @@
       "fix": "Spliced anywhere else it would become text or part of an attribute, which a tag never means."
     },
     {
-      "code": "tag-style-object",
-      "params": [],
-      "message": "`style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.",
-      "fix": "Build the string: style: `color:${c}; margin:${m}px`."
-    },
-    {
-      "code": "tag-void-children",
-      "params": [
-        "tag"
-      ],
-      "message": "<{tag}> is a void element — it takes no children, and these would be dropped.",
-      "fix": "Remove the children, or use an element that takes content."
-    },
-    {
       "code": "keyed-duplicate-key",
       "params": [
         "key"

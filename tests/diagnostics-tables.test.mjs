@@ -17,9 +17,11 @@ const at = (name, file) => new URL(`../packages/${name}/${file}`, import.meta.ur
 /**
  * A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…` — or `SHARED.codeName(…` for a code more than one
  * package prints (shared-utils' table, one export per code, the name IS the code). Captures the printed code and the
- * explaining one, from either table.
+ * explaining one, from either table. The jsx COMPILER's words ship in every build (a compile error is a build tool's
+ * only output), so its form is `coded('code', PROSE['code']…` or `coded('code', SHARED.name…`, with no `__DEV__` — and
+ * only `coded` may omit the guard.
  */
-const CALL = /(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
+const CALL = /(?:(?:diagnostic|misuse)\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && |\bcoded\('([a-z][a-z0-9-]*)',\s*)(?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
 
 /** A package's tables merged, as `sync-diagnostics` publishes them — a code in two of them is a failure here too. */
 const merged = async ({ name, tables }) => {
@@ -41,7 +43,8 @@ for (const entry of TABLES) {
   const problems = [];
   for (const file of entry.sources) {
     const text = readFileSync(at(entry.name, file), 'utf8');
-    for (const [, printed, own, shared] of text.matchAll(CALL)) {
+    for (const [, guarded, compiled, own, shared] of text.matchAll(CALL)) {
+      const printed = guarded ?? compiled;
       const explained = own ?? codeOf(shared);
       if (printed !== explained) problems.push(`${file}: one call prints "${printed}" and explains "${explained}"`);
       if (shared !== undefined) {

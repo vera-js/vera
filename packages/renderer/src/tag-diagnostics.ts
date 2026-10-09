@@ -2,7 +2,8 @@
  * **`@verajs/renderer/tag`'s diagnostics, keyed by code — DEVELOPMENT ONLY** (referenced behind `__DEV__`, so a
  * production bundle drops it). One table per bundle entry, so the tag entry's development bundle carries only its own
  * prose; `scripts/sync-diagnostics.mjs` merges the renderer's tables into `packages/renderer/diagnostics.json`. A tagged
- * template called as a function is core's `tag-called`, raised from shared-utils' table.
+ * template called as a function is core's `tag-called`, and an object `style` and a void element's children are the
+ * jsx compiler's facts too (`style-object`, `void-children`) — all three raised from shared-utils' table.
  */
 import type { Prose } from '@verajs/shared-utils';
 
@@ -26,13 +27,5 @@ export const PROSE: Record<string, Prose> = {
   'tag-inner-html': () => [
     '`dangerouslySetInnerHTML` is not available on a tag component and has been dropped. A tag binds through `spread`, whose names are only known at runtime — so it refuses `.innerHTML` outright rather than open an unreviewable HTML sink.',
     "Write the element directly, with the value sanitized first: html`<${Tag} .innerHTML=${trusted}>` (see the renderer README's security note).",
-  ],
-  'tag-style-object': () => [
-    '`style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.',
-    'Build the string: style: `color:${c}; margin:${m}px`.',
-  ],
-  'tag-void-children': (tag) => [
-    `<${tag}> is a void element — it takes no children, and these would be dropped.`,
-    'Remove the children, or use an element that takes content.',
   ],
 };

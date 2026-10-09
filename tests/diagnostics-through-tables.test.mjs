@@ -31,12 +31,18 @@ const MIGRATED = [
   ['store', 'dist/*.min.js'],
   ['ui', 'dist/*.min.js'],
   ['autoloader', 'dist/*.min.js'],
+  /** The STANDALONE loader's bundle: the compiler is a separate, lazily loaded file whose words ship by design. */
+  ['jsx', 'dist/vera-jsx-standalone.min.js'],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
  * error it forwards. Counted, so a second inline call in the file is a deliberate edit, not a free pass.
  */
-const ROUTING = new Map([['packages/shared-utils/src/utils.ts', 2]]);
+const ROUTING = new Map([
+  ['packages/shared-utils/src/utils.ts', 2],
+  /** The standalone loader forwards the compiler's warning, which already carries its code (vera-5a's rule). */
+  ['packages/jsx/src/standalone.ts', 1],
+]);
 /** A leading `'%s'` is the format, never the message (`tests/console-format-strings.test.mjs`): the line is after it. */
 const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*(?:'%s',\s*)?(?!'%s')[`'"]/g;
 
@@ -137,13 +143,12 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  * this list, so the sentence cannot run ahead of the code.
  */
 const NOT_YET = new Map([
-  ['jsx', 'phase 3'],
   ['motion', 'phase 4 (its own table, omni parity)'],
   ['directives', "phase 4 (its remainder — its table exists, a few inline lines don't use it)"],
   ['ssr', 'phase 4'],
   ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
 ]);
-const NOT_YET_MAX = 5;
+const NOT_YET_MAX = 4;
 
 test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
   const printing = globSync('packages/*/src', { cwd: root })
