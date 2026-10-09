@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { isProduction, load } from './dist.mjs';
+import { load } from './dist.mjs';
 
 /** jsdom reports an exception thrown from a lifecycle callback here, never to the caller: recorded, so a row can see it. */
 const thrown = [];
