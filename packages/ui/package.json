@@ -106,6 +106,9 @@
       "output": [
         "dist/development/*.d.ts",
         "dist/development/*.d.ts.map"
+      ],
+      "dependencies": [
+        "../hooks:build:types"
       ]
     }
   },

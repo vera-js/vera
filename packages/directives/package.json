@@ -142,6 +142,9 @@
       "output": [
         "dist/development/*.d.ts",
         "dist/development/*.d.ts.map"
+      ],
+      "dependencies": [
+        "../motion:build:types"
       ]
     }
   },
