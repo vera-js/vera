@@ -92,3 +92,34 @@ for (const [name, bundle] of MIGRATED) {
     assert.deepEqual(leaked, [], 'table prose reached the production bundle — reference it only behind __DEV__');
   });
 }
+
+/**
+ * **The bare-code production form is one exact shape, enforced, not habitual** (vera-5a, 2026-10-09). Where the byte
+ * rule keeps a production line to its code, it is written by hand at each site, so this pins the format across every
+ * migrated package: a literal that begins `[vera] <code>` continues with `: ` (its subject) or ends there; a thrown
+ * `name: <code>` ends there. Any other continuation is a second format a user would have to learn. Every code in every
+ * table counts — a misspelled one is not a code, and is caught by the inline check above.
+ */
+test('every bare production code line has the one shape: `[vera] <code>` + (`: subject` | end), or `name: <code>`', async () => {
+  const known = new Set();
+  for (const entry of TABLES)
+    for (const file of entry.tables)
+      for (const code of Object.keys(proseOf(await import(new URL(`../packages/${entry.name}/${file}`, import.meta.url).href)))) known.add(code);
+  assert.ok(known.size >= 80, `CONTROL: ${known.size} codes`);
+  const lines = [];
+  const malformed = [];
+  for (const [name] of MIGRATED)
+    for (const file of globSync(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((path) => !path.endsWith('diagnostics.ts'))) {
+      const text = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const match of text.matchAll(/[`'"](?:\[vera\] |[a-zA-Z]+: )([a-z][a-z0-9-]*)([^`'"]?)/g)) {
+        if (!known.has(match[1])) continue;
+        const bracketed = match[0].slice(1).startsWith('[vera] ');
+        const next = match[2];
+        lines.push(`${file}: ${match[0]}`);
+        const ok = bracketed ? next === '' || (next === ':' && text[match.index + match[0].length] === ' ') : next === '';
+        if (!ok) malformed.push(`${file}: ${JSON.stringify(text.slice(match.index, match.index + 50))}`);
+      }
+    }
+  assert.ok(lines.length >= 6, `CONTROL: the six known bare lines were found — ${lines.join(' | ')}`);
+  assert.deepEqual(malformed, [], 'a bare code line in another shape — `[vera] <code>: <subject>` or `[vera] <code>`, `name: <code>`');
+});

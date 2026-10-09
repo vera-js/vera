@@ -508,6 +508,16 @@ html`<section>
 </section>`;
 ```
 
+## Diagnostics — reading a `[vera]` line
+
+Every line the framework prints starts `[vera]`, so one console filter finds them all, and every one carries a code.
+Development prints the explanation and the fix, ending with the code in parentheses:
+`[vera] core: <x-card> — registered 2 hook(s) but its setup was never committed, so none of them will ever run. … (setup-uncommitted)`.
+Production prints a short line instead — the subject and a link, `[vera] core: <x-card> — https://verajs.dev/e/setup-uncommitted`,
+or, where even the link would cost bytes, the bare code, `[vera] router-redirect-loop: /checkout`; a thrown error
+names its function, `initRouter: router-no-view`. Whichever form you hold, the full explanation of a code is at
+`https://verajs.dev/e/<code>`.
+
 ## The rest
 
 The complete API reference lives in the repository's [`llms.txt`](../../llms.txt) — written to be

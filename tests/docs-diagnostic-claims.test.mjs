@@ -42,10 +42,11 @@ const FILES = ['README.md', 'llms.txt', ...globSync('packages/*/README.md', { cw
 /**
  * A promise of a message. Deliberately BROAD: an anchored first version (subject + verb) found 47 sentences and missed
  * 55 real promises ("`render()` warns once in development", "the warning names the path") — a narrow pattern fails
- * unsafe, so the false positives are paid for below with reasons instead.
+ * unsafe, so the false positives are paid for below with reasons instead. A sentence citing `verajs.dev/e/` promises a
+ * page — it matches too (2026-10-09), and is pinned by the test that holds the pages' content.
  */
 const PATTERN =
-  /\b(?:warns?|warned|warning|says so|is named|names (?:it|the|both|which|any|one)|refused by name|reported|reports it|development (?:only )?(?:says|names|warns|throws|reports|catches|flags|tells)|(?:vera|it|the (?:framework|renderer|runtime|engine|router|compiler))\s+(?:names?|reports?|throws a \w*Error|refuses)|is (?:refused by name|said once)|names the (?:mistake|cause|binding|component|attribute))\b/i;
+  /\b(?:warns?|warned|warning|says so|is named|names (?:it|the|both|which|any|one)|refused by name|reported|reports it|development (?:only )?(?:says|names|warns|throws|reports|catches|flags|tells)|(?:vera|it|the (?:framework|renderer|runtime|engine|router|compiler))\s+(?:names?|reports?|throws a \w*Error|refuses)|is (?:refused by name|said once)|names the (?:mistake|cause|binding|component|attribute))\b|verajs\.dev\/e\//i;
 
 /** Sentences, block-aware: a blank line, a heading or a table row ends a block, and code fences are not prose. */
 const sentences = (text) =>
@@ -71,6 +72,10 @@ const PENDING_MAX = 19;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
+  ['llms.txt#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead — the subject and a link …
+  ['llms.txt#abc9affc7d', 'pinned by tests/diagnostics-docs-pages.test.mjs: every code has a page to generate at that address (the hosting is the docs-site release item)'], // Whichever form you hold, the full explanation of a code is at …
+  ['packages/core/README.md#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead …
+  ['packages/core/README.md#abc9affc7d', 'pinned by tests/diagnostics-docs-pages.test.mjs: every code has a page to generate at that address (the hosting is the docs-site release item)'], // Whichever form you hold, the full explanation of a code is at …
   ['README.md#bfb75ca50a', 'no-renderer'], // `@verajs/core` ships **no renderer of its own** — `render()` without one warns (in every b
   ['README.md#b0878705a3', 'slots-unwired'], // It is <!--size:module.renderer-slots.kb-->4.08 KB<!--/size:module.renderer-slots.kb--> gzi
   ['llms.txt#460739a32e', 'no-renderer'], // **Core ships no renderer.** `render()` with none registered paints nothing and warns once 

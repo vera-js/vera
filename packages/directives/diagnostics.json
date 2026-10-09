@@ -77,7 +77,8 @@
       "params": [
         "detail"
       ],
-      "message": "{detail}"
+      "message": "the directive threw: {detail}",
+      "fix": "The element keeps what it had; the expression, or the handler it runs, is what to fix."
     },
     {
       "code": "doc-class-not-object",
@@ -213,7 +214,8 @@
       "params": [
         "detail"
       ],
-      "message": "{detail}"
+      "message": "the fetch threw: {detail}",
+      "fix": "The request did not complete — check the URL, the network, and what the response handling expects."
     },
     {
       "code": "fetch-url-refused",
@@ -1279,7 +1281,8 @@
       "params": [
         "detail"
       ],
-      "message": "{detail}"
+      "message": "a teardown threw: {detail}",
+      "fix": "The element was still released; a teardown should only undo what its directive set up."
     },
     {
       "code": "ternary-missing-colon",
