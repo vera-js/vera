@@ -144,3 +144,28 @@ test('a prototype key is not a preset, however the table is written', async () =
     'hasOwnProperty: a bare TABLE[name] would have answered Object.prototype.constructor here');
   assert.equal(host.querySelector('div').getAttribute('style'), null, 'and nothing was applied');
 });
+
+/**
+ * **Replacing a registered key is reported, not refused** (schema.ts `clash`): deliberate replacement is what this
+ * vocabulary invites, an accidental one must not go unnoticed. By IDENTITY — wiring the same descriptor again is
+ * idempotent and silent (the control: without it, a reporter that fired on every wire would pass the first half).
+ * The README and llms.txt promise the `motion-vocabulary-replaced` warning; no test named it until 2026-10-09.
+ * Last in the file: the replacement is equivalent, but it stays registered for the page.
+ */
+test('wiring a key that is already registered is reported by code; the same descriptor again is not', () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.map(String).join(' '));
+  const descriptor = { key: 'opacity', category: 'filter', cssFunction: 'opacity', defaultUnit: '', units: [''], min: 0, max: 1, initial: 1 };
+  try {
+    wireDirectives([motionExtension(descriptor)]);
+    const first = said.filter((line) => line.includes('motion-vocabulary-replaced'));
+    wireDirectives([motionExtension(descriptor)]);
+    const second = said.filter((line) => line.includes('motion-vocabulary-replaced'));
+    assert.equal(first.length, 1, `a different descriptor for "opacity" is reported once: ${said.join(' | ')}`);
+    if (!isProduction) assert.match(first[0], /opacity/, 'development names the key (production: the code alone)');
+    assert.equal(second.length, 1, 'the same descriptor wired again is idempotent: nothing new');
+  } finally {
+    console.warn = original;
+  }
+});
