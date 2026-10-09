@@ -46,7 +46,7 @@ packages/ssr/types/
 .probe/
 
 # The browser benchmark's bundle, written by `node bench/dom/build.mjs`.
-bench/dom/bundle.js
+bench/dom/bundle*.js
 
 examples/media/
 # `node bench/ssr-scan.mjs --compare <ref>` builds the ref's @verajs/ssr here, inside the tree so it resolves the same core.

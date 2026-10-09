@@ -283,9 +283,16 @@ import { keyed } from '@verajs/renderer/keyed';
  */
 const rawHtml = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
-const veraOwnImpl = (mount) => {
+/**
+ * The scheduler core starts with, captured before any implementation replaces it: what an app gets by not calling
+ * `setRenderScheduler` at all (frames before 2026-10-08; since, a microtask within a per-frame budget).
+ */
+const DEFAULT_SCHEDULER = setRenderScheduler(microtask);
+setRenderScheduler(DEFAULT_SCHEDULER);
+
+const veraOwnImpl = (mount, scheduler = microtask) => {
   /** Microtask scheduling, matching Lit and Vue — see the note in veraImpl. */
-  setRenderScheduler(microtask);
+  setRenderScheduler(scheduler);
   wire({ on: 'render', fn: veraDomRender, priority: 50 });
 
   const host = document.createElement('div');
@@ -535,6 +542,9 @@ const svelteImpl = (mount) => {
 export const IMPLEMENTATIONS = [
   { name: 'VeraJS', note: 'core + lit-html', factory: veraImpl },
   { name: 'VeraJS own', note: 'core + @verajs/renderer', factory: veraOwnImpl },
+  { name: 'VeraJS default', note: 'core + @verajs/renderer, default scheduler', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
+  /** The same entry again: the A/A control a race needs to tell a real gap from noise. */
+  { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
   { name: 'Solid', note: 'solid-js, no JSX', factory: solidImpl },
   { name: 'Vue', note: 'vue runtime, h()', factory: vueImpl },

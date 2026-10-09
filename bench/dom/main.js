@@ -25,7 +25,11 @@
  *   is allocating enough to provoke collection, and that is real information the minimum hides — so
  *   neither number is dropped.
  */
-import { IMPLEMENTATIONS, resetIds } from './impls.js';
+import { IMPLEMENTATIONS as ALL, resetIds } from './impls.js';
+
+/** `?only=VeraJS own,Lit` runs those implementations alone — a race compares builds, not the whole table. */
+const only = new URLSearchParams(location.search).get('only')?.split(',');
+const IMPLEMENTATIONS = only ? ALL.filter((impl) => only.includes(impl.name)) : ALL;
 
 const REPEATS = 7;
 const WARMUP = 2;
@@ -50,7 +54,28 @@ const OPERATIONS = [
   { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap() },
   { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400) },
   { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear() },
-];
+  ...[5, 50].map((k) => ({
+    key: `flood${k}`,
+    label: `${k} events, each updating every 10th row`,
+    setup: (a) => a.create(1000, 10),
+    /** K separate tasks back to back (a MessageChannel, so they land inside one frame) — a burst of messages. */
+    run: (a) =>
+      new Promise((resolve) => {
+        const channel = new MessageChannel();
+        let i = 0;
+        channel.port1.onmessage = () => {
+          const done = a.updateEvery10th();
+          if (++i < k) channel.port2.postMessage(0);
+          else Promise.resolve(done).then(resolve);
+        };
+        channel.port2.postMessage(0);
+      }),
+  })),
+].filter((op) => {
+  /** `?ops=update10,flood50` runs those operations alone; the floods are opt-in, outside the standard table. */
+  const ops = new URLSearchParams(location.search).get('ops')?.split(',');
+  return ops ? ops.includes(op.key) : !op.key.startsWith('flood');
+});
 
 const mount = document.getElementById('mount');
 const tbody = document.getElementById('results');
