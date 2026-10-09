@@ -6,8 +6,9 @@
 One queue, one flush: renders and effects run as a microtask, within a per-frame budget
 
 **Breaking for timing.** Every queued render, layout effect and effect now runs in ONE flush — a microtask, as in Lit
-and Vue — instead of on the element's next animation frame. After `await`, the DOM and its effects are current; a
-write reaches the DOM in about 1–5 ms instead of 19–24.
+and Vue — instead of on the element's next animation frame. After `await`, the DOM and its effects are current — unless
+that frame's flush budget was already spent, when they land on the next frame; `flush()` drains at once for code that
+must read the DOM now. A write reaches the DOM in about 1–5 ms instead of 19–24.
 
 - **Order:** renders, then layout effects, then effects — and parents before children, so a child re-rendered by its
   parent's new props renders once.

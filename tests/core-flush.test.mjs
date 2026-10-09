@@ -183,9 +183,15 @@ test('past the budget, the next flush waits for a frame — driven by an injecte
     state.n = 1;
     await Promise.resolve();
     await Promise.resolve();
-    assert.equal(el.textContent, '9', 'the budget is spent: this flush waits for the frame');
+    assert.equal(el.textContent, '9', 'the budget is spent: after `await` the DOM is NOT yet current (documented)');
+    core.flush();
+    assert.equal(el.textContent, '1', '`flush()` makes it current at once — what the docs tell code that must read now');
+    state.n = 2;
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(el.textContent, '1', 'CONTROL: still within the spent window, the next write waits again');
     await frame();
-    assert.equal(el.textContent, '1', 'and lands on it');
+    assert.equal(el.textContent, '2', 'and lands on the frame');
     s.remove();
   } finally {
     performance.now = real;

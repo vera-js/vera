@@ -197,7 +197,9 @@ store has since outgrown). When rows are replaced rather than mutated — which 
 | `useHook` | at the priority you give it — `25` runs before the render and sees the DOM the last render left; `65` between layout effects and effects | coalesced, one flush |
 
 **Every queued render, layout effect and effect runs in one flush** — a microtask, so after `await` the DOM and its
-effects are current. In a flush, renders run first, then layout effects, then effects, and parents before their
+effects are current, unless this frame's flush budget (below) was already spent: then the flush lands on the next
+frame. Code that must read the DOM at once — focus a new input, measure a row, scroll to it — calls `flush()` first,
+which drains everything queued, synchronously. In a flush, renders run first, then layout effects, then effects, and parents before their
 children: a child re-rendered by its parent's new props renders once. A hook may run **twice** in one flush — so an
 effect that measures what was just rendered and stores it lands before paint — and a third run waits for the next
 frame. Past a budget of about 4 ms of flush work per frame, the next flush also waits for a frame (or, where there are

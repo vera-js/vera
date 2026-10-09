@@ -26,7 +26,8 @@ lit's own output rather than asserting it. VeraJS ships its own renderer and nee
 > - Render scheduling: every queued render and effect runs in ONE flush, a microtask (Lit/Vue
 >   timing), within a budget of about 4 ms of flush work per frame — past it, the next flush waits
 >   for a frame, so a flood of events renders about once per frame. After `await`, the DOM and its
->   effects are current; `flush()` drains on demand. `setRenderScheduler(microtask)` drops the
+>   effects are current UNLESS this frame's budget was already spent (then they land on the next
+>   frame); code that must read the DOM now calls `flush()` first, which drains synchronously. `setRenderScheduler(microtask)` drops the
 >   budget (every flush at once).
 > - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
 >   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
