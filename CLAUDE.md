@@ -22,17 +22,16 @@ code, so they are not re-litigated.
   microtask or call core's `flush()` — the scheduler flushes every queued render and effect as ONE
   microtask. **Seed `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
-- **A probe drives the scheduler with `flush()`, not frames.** Core flushes every queued render, layout
-  effect and effect as one microtask, within a budget of ~4 ms of flush work per 16 ms (by the clock).
-  Past the budget, and for a hook's THIRD run in one flush (a self-feeding loop), it waits for the
-  ELEMENT's window's next frame or a 100 ms timer, whichever comes first. So writes in one task coalesce
-  into one flush in any jsdom, with or without `pretendToBeVisual` (measured 2026-10-08: 100 writes → 0
-  runs synchronously and 1 after a microtask, both ways, `.probe/coalesce/` — the old "1 with it, 100
-  without" was the frame scheduler's), and a probe awaits a microtask or
-  calls `flush()`. Frames matter only on the held path: without `pretendToBeVisual` that path takes the
-  100 ms timer, so a probe exercising a loop or the budget gives jsdom frames, or calls `flush()` and
-  waits out the timer deliberately. **Never drive the budget with real time** — `performance.now()` is
-  coarse on Firefox and WebKit; a test crossing the budget by elapsed milliseconds is flaky on CI. The
+- **A probe drives the scheduler with `flush()` or an `await`, not frames.** Core flushes every queued render,
+  layout effect and effect as one microtask — the default scheduler, `microtask`, since 2026-10-09 — so writes in one
+  task coalesce into one flush in any jsdom, with or without `pretendToBeVisual` (measured 2026-10-08: 100 writes →
+  0 runs synchronously and 1 after a microtask, both ways, `.probe/coalesce/` — the old "1 with it, 100 without" was
+  the frame scheduler's), and after any `await` the DOM is current. Frames matter only on the held path — a hook's
+  THIRD run in one flush (a self-feeding loop) waits for the ELEMENT's window's next frame or a 100 ms timer,
+  whichever comes first — and under the opt-in `frameBudget`. Without `pretendToBeVisual` that path takes the 100 ms
+  timer, so a probe exercising a loop or `frameBudget` gives jsdom frames, or calls `flush()` and waits out the timer
+  deliberately. **Never drive `frameBudget` with real time** — `performance.now()` is coarse on Firefox and WebKit;
+  a test crossing the budget by elapsed milliseconds is flaky on CI. The
   full list a probe needs is `window document HTMLElement customElements CSSStyleSheet Node Element
   DocumentFragment requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent`
   for anything dispatching, and `location`/`history` for the router.
