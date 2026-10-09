@@ -73,7 +73,7 @@ test('a mismatch at the LAST marker of a container yields exactly the client ren
   await tick();
   assert.equal(said.length, 1, `exactly one fallback warning: ${said}`);
   /** Development says the whole sentence; production (Brian's option C) the KIND and the first node that disagreed. */
-  assert.match(said[0], isProduction ? /^\[vera\] hydration: element: found <i> — https:\/\/docs\.verajs\.dev\/e\/hydration-fallback$/ : /^\[vera\] hydration: expected <span>/);
+  assert.match(said[0], isProduction ? /^\[vera\] hydration: element: found <i> — https:\/\/verajs\.dev\/e\/hydration-fallback$/ : /^\[vera\] hydration: expected <span>/);
   assert.deepEqual(elements, [container], 'the container rides along, for devtools to reveal');
   assert.equal(container.querySelector('p') === serverP, false, 'the server <p> was discarded, not adopted');
   assert.equal(container.querySelector('span').textContent, 'client');
@@ -432,7 +432,7 @@ test('a placeholder: client render plus ONE warning for two containers — devel
   });
   assert.equal(said.length, 1, `one warning per cause, not per container: ${said.length}`);
   if (isProduction) {
-    assert.match(said[0], /docs\.verajs\.dev\/e\/hydration-fallback$/);
+    assert.match(said[0], /verajs\.dev\/e\/hydration-fallback$/);
     /** The page production links to is the one that names the fix: the published table says it. */
     const page = JSON.parse(readFileSync(new URL('../packages/renderer/diagnostics.json', import.meta.url), 'utf8'));
     assert.match(page.entries.find((e) => e.code === 'hydration-fallback').fix, /replaceChildren/);

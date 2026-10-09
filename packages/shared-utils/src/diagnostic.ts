@@ -4,13 +4,13 @@
  * code nobody can edit; the docs site redirects instead. `scripts/sync-diagnostics.mjs` imports this constant, so the
  * pages and the bundles can never disagree about where they are.
  */
-export const DOCS = 'https://docs.verajs.dev/e/';
+export const DOCS = 'https://verajs.dev/e/';
 
 /**
  * **One shape for every diagnostic the framework prints** — the short line production keeps, the whole sentence
  * development adds — so a package converting its messages writes a table and a call, never its own format.
  *
- *   production   `[vera] hydration: element: found <i> — https://docs.verajs.dev/e/hydration-fallback`
+ *   production   `[vera] hydration: element: found <i> — https://verajs.dev/e/hydration-fallback`
  *   development  `[vera] hydration: element: found <i> — fell back to a client render: … (hydration-fallback)`
  *
  * `subject` is the free information — what the code already has at hand, naming the problem area — the same in both

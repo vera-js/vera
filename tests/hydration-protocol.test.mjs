@@ -36,7 +36,7 @@ test('a protocol mismatch renders fresh, warns once, and leaves no server markup
     assert.match(
       said[0],
       isProduction
-        ? /^\[vera\] hydration: protocol 999, expected 1 — https:\/\/docs\.verajs\.dev\/e\/hydration-protocol$/
+        ? /^\[vera\] hydration: protocol 999, expected 1 — https:\/\/verajs\.dev\/e\/hydration-protocol$/
         : /^\[vera\] hydration: protocol 999, expected 1 — this @verajs\/renderer and this hydration are from different releases.* \(hydration-protocol\)$/
     );
     assert.equal(container.querySelectorAll('p').length, 1, 'the server markup does not stand beside the client render');

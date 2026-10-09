@@ -339,7 +339,7 @@ export const reject = (
      * production-only failure was undebuggable by the one person who could fix it.
      *
      * The code survives the fold because tooling matches on it, so the whole line costs the URL and
-     * a template: `[vera] directives: data-vd-show — https://docs.verajs.dev/e/undeclared-write`.
+     * a template: `[vera] directives: data-vd-show — https://verajs.dev/e/undeclared-write`.
      *
      * Once per CODE rather than per code×directive as development does — a list of two hundred rows
      * making the same mistake is one line either way, and in production the extra grain buys a

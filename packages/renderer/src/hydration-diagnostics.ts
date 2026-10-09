@@ -1,7 +1,7 @@
 /**
  * **Hydration's diagnostics, keyed by code — DEVELOPMENT ONLY.** Referenced only behind `__DEV__` in `hydration.ts`, so
  * production drops this module whole and prints the shared short line instead (`diagnostic`, shared-utils): the
- * subject, and the link to `docs.verajs.dev/e/<code>`. `scripts/sync-diagnostics.mjs` publishes this table as
+ * subject, and the link to `verajs.dev/e/<code>`. `scripts/sync-diagnostics.mjs` publishes this table as
  * `packages/renderer/diagnostics.json` — the docs pages — and `tests/diagnostics-tables.test.mjs` holds the codes
  * raised and the entries together.
  */

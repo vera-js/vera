@@ -125,5 +125,5 @@ test('a core of ANOTHER protocol is declined, with one warning, and the engine k
   assert.equal(ours.length, 1, `one warning, by code, in every build: ${said.join(' | ')}`);
   if (!isProduction) assert.match(ours[0], /different releases[\s\S]*Update both together\.[\s\S]*\(core-protocol\)$/, 'development says why');
   /** The one code-only shape every production diagnostic has (shared-utils `diagnostic`) — not a second format. */
-  else assert.equal(ours[0], '[vera] directives: wire — https://docs.verajs.dev/e/core-protocol', 'production: the code and its docs entry');
+  else assert.equal(ours[0], '[vera] directives: wire — https://verajs.dev/e/core-protocol', 'production: the code and its docs entry');
 });

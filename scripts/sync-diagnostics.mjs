@@ -3,7 +3,7 @@
  * package can record, as DATA — and the same file for every other package with a table (`TABLES`).
  *
  * Three consumers, one source. The development bundle renders these sentences into the console;
- * `docs.verajs.dev/e/<code>` is a page per entry; and **Vera Studio** ships this file so its
+ * `verajs.dev/e/<code>` is a page per entry; and **Vera Studio** ships this file so its
  * inspector can show a full sentence for a rejection while running a PRODUCTION bundle, where the
  * prose has been folded away. Studio's user is the author, so "production" there is not the
  * end-user context that justifies dropping the words.

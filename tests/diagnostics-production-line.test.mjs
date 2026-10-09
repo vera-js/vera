@@ -55,7 +55,7 @@ test('production names the code and where it is explained', (t) => {
 
   assert.equal(complaints.length, 1, 'once per CODE: two elements making the same mistake is one line');
   assert.match(complaints[0], /^\[vera\] /, 'the prefix every framework diagnostic carries, so one filter finds them all');
-  assert.match(complaints[0], /https:\/\/docs\.verajs\.dev\/e\/state-not-object/,
+  assert.match(complaints[0], /https:\/\/verajs\.dev\/e\/state-not-object/,
     'the code, and the page that explains it — the only actionable thing left once the prose is gone');
   assert.doesNotMatch(complaints[0], /braced object/,
     'and NOT the sentence: carrying it is what cost 1,469 B across this package');
@@ -67,7 +67,7 @@ test('development explains it instead, and links nothing', (t) => {
   assert.ok(complaints.length > 0, 'the control: the refusal happened at all');
   assert.match(complaints[0], /takes a braced object/, 'the sentence, in full');
   assert.match(complaints[0], /Write data-vd-state=/, 'and the fix beside it');
-  assert.doesNotMatch(complaints[0], /docs\.verajs\.dev/,
+  assert.doesNotMatch(complaints[0], /verajs\.dev/,
     'a developer with the explanation in front of them does not need a round trip to read it');
 });
 
