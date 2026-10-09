@@ -217,13 +217,17 @@ test('THE DEFAULT: after a heavy flush in the same frame, a write and an `await`
   let now = real() + 20;
   performance.now = () => Math.max(now, real());
   try {
-    /** The case that failed under the budget: another component's flush "takes" 30 ms in this frame. */
+    /**
+     * The case that failed under the budget: another component's flush "takes" 5 ms in this frame — past the 4 ms
+     * budget but inside its 16 ms window (a 30 ms one would have restarted the window: found when the mutation stayed
+     * green).
+     */
     const slow = core.createStore({ go: 0 });
     const spender = tag();
     customElements.define(spender, class extends HTMLElement {
       connectedCallback() {
         core.init(this);
-        core.useEffect(() => { if (slow.go) now += 30; });
+        core.useEffect(() => { if (slow.go) now += 5; });
         core.mount();
       }
     });
@@ -231,7 +235,7 @@ test('THE DEFAULT: after a heavy flush in the same frame, a write and an `await`
     doc.body.append(s);
     slow.go = 1;
     await Promise.resolve();
-    assert.ok(now - real() >= 29, 'CONTROL: the heavy flush ran and advanced the clock');
+    assert.ok(now - real() >= 4, 'CONTROL: the heavy flush ran and advanced the clock');
     state.n = 1;
     await Promise.resolve();
     assert.equal(el.textContent, '1', 'after `await` the DOM is current — whatever ran before it in the frame');
