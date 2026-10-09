@@ -119,7 +119,7 @@ test('a nested render during a slotted template\'s first update keeps the outer 
   const tip = () => html`<span>tip</span>`;
   const onRef = (el) => { if (el !== null) renderInto(tip(), el); };
   const draw = () => html`<header><i ${onRef}></i><slot name="h">fallback</slot></header>`;
-  const host = doc.createElement('div');
+  const host = doc.createElement('rs-host-a'); // a component's NAME: slots captures for components only
   host.innerHTML = '<b slot="h">MINE</b>';
   doc.body.append(host);
   renderInto(draw(), host);
@@ -190,7 +190,7 @@ test('with slots wired, a light component\'s own top-level ${…} is its output,
 test('a hook wired after slots finds slots\' instance hook and wraps it: both run', async () => {
   calls.c = calls.m = calls.q = 0;
   const draw = () => html`<section data-counted><slot>fb</slot></section>`;
-  const host = doc.createElement('div');
+  const host = doc.createElement('rs-host-b'); // a component's NAME: slots captures for components only
   host.innerHTML = '<b>CONTENT</b>';
   doc.body.append(host);
   renderInto(draw(), host);
@@ -237,7 +237,7 @@ test('a hook wired BEFORE slots is replaced, and development says so', { skip: i
     wire([{ name: 'too-early', on: 'template', priority: 5, fn: (built, result) => {
       if (result.strings.join('').includes('data-early')) built._$inst$ = { $c: () => undefined, $m: () => undefined, $q: () => {} };
     } }]);
-    const host = doc.createElement('div');
+    const host = doc.createElement('rs-host-c'); // a component's NAME: slots captures for components only
     host.innerHTML = '<b>MINE</b>';
     doc.body.append(host);
     renderInto(html`<section data-early><slot>fb</slot></section>`, host);
