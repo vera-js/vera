@@ -32,7 +32,8 @@ export const wire: typeof register = (item) => {
 };
 export type * from '@verajs/inserts';
 export type * from './types.js';
-export { createPublicHook as createHook } from './hooks/coalesce.js';
+export { createHook } from './modules/createHook.js';
+export { useHook } from './hooks/coalesce.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
 export { mount } from './modules/mount.js';

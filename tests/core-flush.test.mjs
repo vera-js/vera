@@ -324,7 +324,7 @@ test('hooks of one priority on one component run in the order it registered them
   el.remove();
 });
 
-test('createHook({ scheduled: true }) joins the flush at its priority — at 25, before the render, seeing the OLD DOM', async () => {
+test('useHook joins the flush at its priority — at 25, before the render, seeing the OLD DOM', async () => {
   const state = core.createStore({ n: 0 });
   const seen = [];
   const order = [];
@@ -332,11 +332,11 @@ test('createHook({ scheduled: true }) joins the flush at its priority — at 25,
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
       core.init(this);
-      core.createHook({ scheduled: true, priority: 25, callback: (change, first) => {
+      core.useHook((change, first) => {
         void state.n;
         if (!first) { order.push('snapshot'); seen.push(this.textContent); }
-      } });
-      core.createHook({ scheduled: true, priority: 65, callback: (change, first) => { void state.n; if (!first) order.push('65'); } });
+      }, 25);
+      core.useHook((change, first) => { void state.n; if (!first) order.push('65'); }, 65);
       core.useLayoutEffect(() => { void state.n; order.push('layout'); });
       core.useEffect(() => { void state.n; order.push('effect'); });
       core.render(() => { order.push('render'); return html`<p>${state.n}</p>`; });
@@ -354,14 +354,14 @@ test('createHook({ scheduled: true }) joins the flush at its priority — at 25,
   el.remove();
 });
 
-test('a scheduled custom hook\'s returned function is its cleanup — before its next run, and on removal', async () => {
+test('a useHook\'s returned function is its cleanup — before its next run, and on removal', async () => {
   const state = core.createStore({ n: 0 });
   const log = [];
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
       core.init(this);
-      core.createHook({ scheduled: true, priority: 65, callback: () => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); } });
+      core.useHook(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); }, 65);
       core.mount();
     }
   });
@@ -374,7 +374,7 @@ test('a scheduled custom hook\'s returned function is its cleanup — before its
   assert.deepEqual(log, ['run 0', 'clean 0', 'run 1', 'clean 1']);
 });
 
-test('without `scheduled`, a custom hook runs inside every write it hears — unbatched, as before', () => {
+test('createHook, the raw primitive, runs inside every write it hears — unbatched', () => {
   const state = core.createStore({ n: 0 });
   const runs = [];
   const name = tag();

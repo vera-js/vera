@@ -1,7 +1,7 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
 import { enqueue } from '../modules/scheduler.js';
-import type { ComponentElement, Hook, HookCallback, HookCleanup, HookPass } from '../types.js';
+import type { ComponentElement, HookCallback, HookCleanup, HookPass } from '../types.js';
 
 /**
  * Runs a cleanup, reported on its own if it throws — a throwing teardown must neither stop the run it
@@ -87,9 +87,14 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
 };
 
 /**
- * **`createHook`, as core exports it.** A hook of your own runs inside every write it hears; `scheduled: true` makes it
- * join the flush instead, at its own priority, exactly as the built-in hooks do — so a hook at 25 runs before the
- * render and reads the DOM as the last render left it (what `useLayoutEffect` did before it took React's meaning).
+ * **A hook of your own, scheduled as the built-in ones are**, at a priority you choose: one run per flush, after every
+ * write in it, and a returned function is its cleanup (render 50, `useLayoutEffect` 60, `useEffect` 75). At 25 it runs
+ * before the render and reads the DOM as the last render left it. `createHook` is the raw primitive under it, which
+ * runs inside every write it hears, unbatched — what a `computed` needs. (Brian, 2026-10-08: a name, not a flag.)
+ *
+ * @param callback The effect: handed the change and whether this is the first pass
+ * @param priority Where it runs in a flush — lower first
+ * @param element The owner, instead of the element being set up
  */
-export const createPublicHook = (hook: Hook) =>
-  hook.scheduled ? coalesce(hook.callback!, hook.priority!, false, hook.element) : createHook(hook);
+export const useHook = (callback: HookCallback, priority: number, element?: ComponentElement) =>
+  coalesce(callback, priority, false, element);
