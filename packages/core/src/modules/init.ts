@@ -15,8 +15,23 @@ import type { ComponentElement } from '../types.js';
  * @param element The element to init
  * @param shadowProps Any desired shadowProps. Passing in null will create a light DOM instance
  */
+/**
+ * **Setup ends at the end of the microtask turn `init()` ran in** — ONE shared microtask per turn, armed only when not
+ * already armed. A hook created after the first `await` in setup then always finds no component (and throws, naming
+ * the fix), whatever connected in between; before, it attached to whichever component was set up last, or was dropped.
+ */
+let ending = false;
+const endSetup = () => {
+  ending = false;
+  currentInstance.element = null;
+};
+
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
   currentInstance.element = element;
+  if (!ending) {
+    ending = true;
+    queueMicrotask(endSetup);
+  }
   /** A new generation: the previous connection's hooks go inert — see `createHook`. */
   element._gen = (element._gen ?? 0) + 1;
   element._hooks = [];

@@ -1,4 +1,5 @@
 import { currentInstance } from '../store/store.js';
+import { noOwner } from './createHook.js';
 import type { ComponentElement } from '../types.js';
 
 /**
@@ -26,5 +27,6 @@ export const commit = (element: ComponentElement) => {
  */
 export const mount = () => {
   const element = currentInstance.element;
-  if (element !== null) commit(element);
+  if (element === null) throw new Error(noOwner('mount()'));
+  commit(element);
 };

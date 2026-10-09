@@ -1,8 +1,17 @@
 import type { ComponentElement, Hook, HookCallback } from '../types.js';
 import { currentInstance, hooksQueue } from '../store/store.js';
-import { prioritySlot, reportUncaught } from '@verajs/shared-utils';
+import { diagnostic, prioritySlot, reportUncaught } from '@verajs/shared-utils';
+import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { ErrorInsert } from '@verajs/inserts';
+
+/**
+ * **No component being set up: THROWS, in every build** (Brian, 2026-10-09 — one rule for every "no owner" case). A
+ * hook, `render()` or `mount()` with none used to be dropped silently, or — after an `await` in setup — attached to
+ * whichever component connected meanwhile. `init()` now ends setup at the end of its microtask turn, so the answer no
+ * longer depends on what else connected: it fails here, the same way every time.
+ */
+export const noOwner = (subject: string) => diagnostic('core', subject, 'no-owner', __DEV__ && PROSE['no-owner']());
 
 /** Hoisted, so `prioritySlot` is not handed a fresh closure per registration. */
 const newSet = () => new Set<HookCallback>();
@@ -43,8 +52,8 @@ export const RENDER_PRIORITY = 50;
  * element's renders and effects. Bumping `_gen` is also how an owner retires its hooks deliberately
  * (`@verajs/directives` does, as teardown).
  *
- * Refused, returning `undefined`, when there is no owner or the priority is not a finite number —
- * `NaN` is what `parseInt` of a config value produces.
+ * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the
+ * priority is not a finite number — `NaN` is what `parseInt` of a config value produces.
  *
  * **A change reaching an owner that is out of the tree runs nothing** — a write would otherwise walk
  * every component no one can see. The first pass always runs (a component rendered into a detached
@@ -58,7 +67,8 @@ export const RENDER_PRIORITY = 50;
  */
 export const createHook = ({ callback, priority, element }: Hook): HookCallback | undefined => {
   const owner = element ?? currentInstance.element;
-  if (!owner || !callback || !Number.isFinite(priority)) return;
+  if (!owner) throw new Error(noOwner('a hook'));
+  if (!callback || !Number.isFinite(priority)) return;
   const generation = owner._gen;
   const hook: HookCallback = (signal, init) => {
     if (owner._gen !== generation || (!init && owner.isConnected === false)) return;

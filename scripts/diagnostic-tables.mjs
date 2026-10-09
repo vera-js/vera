@@ -7,4 +7,5 @@
  */
 export const TABLES = [
   { name: 'renderer', table: 'src/hydration-diagnostics.ts', sources: ['src/hydration.ts'] },
+  { name: 'core', table: 'src/diagnostics.ts', sources: ['src/modules/createHook.ts'] },
 ];

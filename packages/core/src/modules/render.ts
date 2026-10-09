@@ -1,6 +1,7 @@
 import { useRender } from '../hooks/useRender.js';
 import { currentInstance } from '../store/store.js';
 import { commit } from './mount.js';
+import { noOwner } from './createHook.js';
 
 /**
  * Declares a component's template and ends its setup — the closing half of the pair `init()` opens,
@@ -20,7 +21,7 @@ import { commit } from './mount.js';
  */
 export const render = (template: unknown, ...args: unknown[]) => {
   const element = currentInstance.element;
-  if (element === null) return;
+  if (element === null) throw new Error(noOwner('render()'));
   useRender(template, element, ...args);
   commit(element);
 };
