@@ -31,10 +31,11 @@ const steps = [
    * removing a `@template` annotation from `@verajs/ssr`, which turns both entry points into
    * `Promise<void>` for every consumer, and watching all twelve configs report clean.
    *
-   * Wireit caches this, so when nothing has changed it costs a few seconds and the rest of the gate
-   * was going to need it anyway.
+   * **From nothing** (Brian, 2026-10-09): `scripts/clean-build.mjs` clears every `.wireit` and `dist/` first, as CI
+   * starts — a cached build cannot see an undeclared build edge, and four were found that way. It deletes what every
+   * later step reads, so the gate is EXCLUSIVE: nothing else may build or test in this tree while it runs.
    */
-  ['build', 'npm', ['run', 'build']],
+  ['clean build (exclusive)', 'node', ['scripts/clean-build.mjs']],
   ['typecheck', 'npm', ['run', 'typecheck']],
   ['eslint', 'npx', ['eslint', '.']],
   ['size claims', 'node', ['scripts/sync-size-claims.mjs', '--check']],
@@ -82,7 +83,7 @@ const logPath = (name) => join(tmpdir(), `vera-gate-${name.replace(/[^a-z0-9]+/g
 
 let failed = 0;
 for (const [name, command, args] of steps) {
-  process.stdout.write(`  ${name.padEnd(22)}`);
+  process.stdout.write(`  ${name.padEnd(26)}`);
   const run = spawnSync(command, args, { encoding: 'utf8' });
   if (run.status === 0) {
     console.log('✓');
