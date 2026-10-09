@@ -128,8 +128,13 @@ test('the comparison notices markup that does not match the template', () => {
     ['a different tag', '<span class="c">x</span>'],
     ['the wrong number of children', '<div class="c">x</div><div class="c">x</div>'],
   ]) {
-    const { adopted, keptNode } = bothWays(() => html`<div class=${'c'}>x</div>`, markup);
-    if (keptNode || (!isProduction && adopted)) unnoticed.push(label);
+    /**
+     * Noticed = the server's node was NOT kept (the container was cleared and rendered fresh). Not the warning: a
+     * fallback is SAID once per kind of disagreement per page, so the fourth case — `extra`, like the second — falls
+     * back silently by design, and reading the warning read that as unnoticed (measured alone, it warns).
+     */
+    const { keptNode } = bothWays(() => html`<div class=${'c'}>x</div>`, markup);
+    if (keptNode) unnoticed.push(label);
   }
   assert.deepEqual(unnoticed, [], 'the comparison did not notice a corrupted server render');
 
