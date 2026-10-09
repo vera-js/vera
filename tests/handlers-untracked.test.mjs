@@ -80,17 +80,16 @@ test('spread `@click`: the same', async () => {
 test('directives `data-vd-on-click`: later clicks do not re-run the effect that once fired it', { skip: isProduction && 'production directives bundle carries its own core (group A stamp)' }, async () => {
   const draw = () => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`;
   const { afterMount, effectRuns, probed } = await run('hu-directives', draw, (el) => stateOf(el.querySelector('[data-vd-state]'))?.count);
-  /** ≥ 3, not 4: one click currently runs `data-vd-on-click` TWICE (the todo row below) — the control only needs it ran. */
-  assert.ok(probed >= 3, `CONTROL: the on-click assignment ran on the later clicks (count ${probed})`);
+  assert.equal(probed, 4, 'CONTROL: the on-click assignment ran for the effect\'s click and three more — once each');
   assert.equal(effectRuns - afterMount, 0, 'the effect never re-ran');
 });
 
 /**
- * TODO (found 2026-10-09 writing the row above; predates it — the engine before the untracking change counts the same;
- * jsdom only, a real browser unconfirmed): ONE click runs a light component's `data-vd-on-click` TWICE (count 2, 4,
- * 6). Suspect: the delegated listener sits on two roots the click bubbles through. A `todo` row until fixed.
+ * Found 2026-10-09 writing the row above, CONFIRMED in Chrome, Firefox and WebKit: one click inside a light-DOM
+ * component ran `data-vd-on-click` TWICE (the document's root listener and the component's both handled it). Each
+ * element now runs once per event. A plain page region is the control.
  */
-test('one click runs data-vd-on-click once', { todo: 'one click runs it twice (delegated on two roots?)' }, async () => {
+test('one click runs a light component\'s data-vd-on-click ONCE — not once per delegated root', { skip: isProduction && 'production directives bundle carries its own core' }, async () => {
   customElements.define('hu-once', class extends HTMLElement {
     connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
   });

@@ -980,9 +980,18 @@ const KEYED = new Set(['keydown', 'keyup']);
 const keySuffix = (key: string) =>
   key === ' ' ? 'space' : key.length === 1 ? key.toLowerCase() : key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 
+/**
+ * **Each element's handler runs ONCE per event, whichever root saw it first** (2026-10-09). Every activated root keeps
+ * its own listener — the document AND each light-DOM component, whose root is the element itself — and a click inside
+ * a light component bubbles through both: each asked "is the button inside my root?", both said yes, and one click ran
+ * `data-vd-on-click` TWICE (measured in Chrome, Firefox and WebKit: a counter went 2, 4, 6; a plain page region 1, 2).
+ * Shadow components escaped it only because `contains()` does not cross a shadow boundary.
+ */
+const handled = new WeakMap<Event, WeakSet<Element>>();
 const dispatch = (root: Node, event: Event) => {
   const type = event.type;
   const path = event.composedPath();
+  let done = handled.get(event);
   for (const node of path) {
     if (!(node as Element).getAttribute) continue;
     const el = node as Element;
@@ -999,6 +1008,9 @@ const dispatch = (root: Node, event: Event) => {
     }
     if (raw === null) continue;
     if (node !== root && (root as ParentNode).contains && !(root as ParentNode).contains(el)) continue;
+    if (done?.has(el)) continue;
+    if (!done) handled.set(event, (done = new WeakSet()));
+    done.add(el);
     try {
       const parsed = parseAttr(raw);
       if (isObject(parsed)) {
