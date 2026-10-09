@@ -31,6 +31,8 @@ let ending = false;
  * where every caller folds away — drops it whole (a top-level one survives: a call with effects terser cannot prove).
  */
 let warnedAboutClaims = false;
+/** Development: `static styles` with nothing adopting them — said once per page. */
+let warnedAboutStyles = false;
 const claimed = (prefix: string): boolean =>
   ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
 /**
@@ -98,6 +100,21 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
    * `Map.get` per element.
    */
   inserts.get('init')?.forEach((callback) => (callback as InitInsert)(element));
+  /**
+   * Development: a component declaring `static styles` with nothing adopting them renders unstyled, silently — style
+   * adoption left core, so the styles README promises this is said, once (main had it; the lean rebuild dropped it).
+   * Asked of `@verajs/styles` itself (its development `$module` mark), not "any init module": a page wiring directives
+   * but not styles was silenced by main's coarser check.
+   */
+  if (
+    __DEV__ &&
+    !warnedAboutStyles &&
+    (element.constructor as { styles?: unknown }).styles !== undefined &&
+    !inserts.get('init')?.some((fn) => (fn as { $module?: string }).$module === 'styles')
+  ) {
+    warnedAboutStyles = true;
+    console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-styles', __DEV__ && PROSE['unwired-styles']()));
+  }
 };
 
 /**

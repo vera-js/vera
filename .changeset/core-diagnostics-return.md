@@ -13,7 +13,8 @@ production bytes) unless noted:
   store's source object refuses (frozen, sealed, non-writable, getter-only) names the rule instead of the engine's
   trap message; a `Map`/`Set` in a store with nothing to make it reactive is said once; a bound property meeting a
   getter-only member is refused and said once; a setup that registered hooks but was never committed, and a second
-  `init()` in one setup, are said; markup addressed to an unwired directives engine is said.
+  `init()` in one setup, are said; markup addressed to an unwired directives engine is said. A component declaring `static styles` with `@verajs/styles` not wired is said
+  once per page — the check asks for styles itself, so wiring another `'init'` module no longer silences it.
 - A bare `render()` (no template) commits the setup without registering a render — it no longer draws `undefined`
   over the root — and development names `mount()`.
 - **A cleanup that throws now reaches the app's `'error'` chain**, like a hook that throws, attributed to its

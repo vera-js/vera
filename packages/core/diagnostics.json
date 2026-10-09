@@ -146,6 +146,12 @@
       ],
       "message": "renders `{attribute}`, but no directives engine is wired, so that attribute does nothing.",
       "fix": "`@verajs/directives` is NOT PUBLISHED YET — `npm i` will 404 — so if this markup came from a demo, remove the attribute or write the behavior yourself for now. When it ships, it is wired once at your app entry: `import { directives } from '@verajs/directives'; wire([renderer, directives]);`"
+    },
+    {
+      "code": "unwired-styles",
+      "params": [],
+      "message": "declares `static styles`, but nothing is adopting them, so it renders unstyled.",
+      "fix": "Style adoption lives in `@verajs/styles`. Wire it once at your app entry: `import { styles } from '@verajs/styles'; wire([styles]);`"
     }
   ]
 }

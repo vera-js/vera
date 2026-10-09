@@ -66,6 +66,10 @@ export const PROSE: Record<string, Prose> = {
     'render() was called with no template. That works — the setup is committed and the hooks run, exactly as with a template — but mount() is the name for it, and says so at the call site.',
     "`import { mount } from '@verajs/core'; mount();`",
   ],
+  'unwired-styles': () => [
+    'declares `static styles`, but nothing is adopting them, so it renders unstyled.',
+    "Style adoption lives in `@verajs/styles`. Wire it once at your app entry: `import { styles } from '@verajs/styles'; wire([styles]);`",
+  ],
   'late-template-module': () => [
     "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
     'Wire it beside the renderer, before the first render.',
