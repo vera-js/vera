@@ -102,3 +102,19 @@ test('one click runs a light component\'s data-vd-on-click ONCE — not once per
   assert.equal(stateOf(el.querySelector('[data-vd-state]'))?.count, 1);
   el.remove();
 });
+
+test('the SAME Event dispatched twice runs the handler twice — no per-event state (vera-5a)', { skip: isProduction && 'production directives bundle carries its own core' }, async () => {
+  customElements.define('hu-again', class extends HTMLElement {
+    connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
+  });
+  const el = doc.createElement('hu-again');
+  doc.body.append(el);
+  await settled();
+  await tick();
+  const event = new dom.window.MouseEvent('click', { bubbles: true, composed: true });
+  el.querySelector('button').dispatchEvent(event);
+  el.querySelector('button').dispatchEvent(event);
+  await tick();
+  assert.equal(stateOf(el.querySelector('[data-vd-state]'))?.count, 2, 'once per dispatch — not once, not four times');
+  el.remove();
+});

@@ -981,18 +981,26 @@ const keySuffix = (key: string) =>
   key === ' ' ? 'space' : key.length === 1 ? key.toLowerCase() : key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 
 /**
- * **Each element's handler runs ONCE per event, whichever root saw it first** (2026-10-09). Every activated root keeps
- * its own listener — the document AND each light-DOM component, whose root is the element itself — and a click inside
- * a light component bubbles through both: each asked "is the button inside my root?", both said yes, and one click ran
- * `data-vd-on-click` TWICE (measured in Chrome, Firefox and WebKit: a counter went 2, 4, 6; a plain page region 1, 2).
- * Shadow components escaped it only because `contains()` does not cross a shadow boundary.
+ * **Each element is handled by its NEAREST delegated root only** (2026-10-09). Every activated root keeps its own
+ * listener — the document AND each light-DOM component, whose root is the element itself — and a click inside a light
+ * component bubbles through both: each asked "is the button inside my root?", both said yes, and one click ran
+ * `data-vd-on-click` TWICE (measured in Chrome, Firefox and WebKit: 2, 4, 6; a plain page region 1, 2). Shadow
+ * components escaped it only because `contains()` does not cross a shadow boundary. A dispatch at `root` therefore
+ * starts past the nearest INNER root listening for this type: everything deeper is that root's. Computed from the path,
+ * not remembered — so the same Event dispatched again runs again (vera-5a), and no state is kept between listeners
+ * (a per-event record cleared on a microtask would be cleared BETWEEN two listeners of a real click).
  */
-const handled = new WeakMap<Event, WeakSet<Element>>();
 const dispatch = (root: Node, event: Event) => {
   const type = event.type;
   const path = event.composedPath();
-  let done = handled.get(event);
-  for (const node of path) {
+  let from = 0;
+  for (let i = path.indexOf(root) - 1; i >= 0; i--)
+    if (listening.get(path[i] as Node)?.has(type)) {
+      from = i + 1;
+      break;
+    }
+  for (let i = from; i < path.length; i++) {
+    const node = path[i];
     if (!(node as Element).getAttribute) continue;
     const el = node as Element;
     /** Guarded operand first — `on-keydown-enter` beats a bare `on-keydown` (design §6). */
@@ -1008,9 +1016,6 @@ const dispatch = (root: Node, event: Event) => {
     }
     if (raw === null) continue;
     if (node !== root && (root as ParentNode).contains && !(root as ParentNode).contains(el)) continue;
-    if (done?.has(el)) continue;
-    if (!done) handled.set(event, (done = new WeakSet()));
-    done.add(el);
     try {
       const parsed = parseAttr(raw);
       if (isObject(parsed)) {
