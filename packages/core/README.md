@@ -196,18 +196,28 @@ store has since outgrown). When rows are replaced rather than mutated — which 
 | `useSyncEffect` | immediately on every change | **not** batched |
 | `useHook` | at the priority you give it — `25` runs before the render and sees the DOM the last render left; `65` between layout effects and effects | coalesced, one flush |
 
-**Every queued render, layout effect and effect runs in one flush** — a microtask, so after `await` the DOM and its
-effects are current, unless this frame's flush budget (below) was already spent: then the flush lands on the next
-frame. Code that must read the DOM at once — focus a new input, measure a row, scroll to it — calls `flush()` first,
-which drains everything queued, synchronously. In a flush, renders run first, then layout effects, then effects, and parents before their
-children: a child re-rendered by its parent's new props renders once. A hook may run **twice** in one flush — so an
-effect that measures what was just rendered and stores it lands before paint — and a third run waits for the next
-frame. Past a budget of about 4 ms of flush work per frame, the next flush also waits for a frame (or, where there are
-no frames — a hidden tab, a test, a server — a short timer): fifty events landing in one frame render about once, not
-fifty times. Two caveats: an effect runs before the browser paints its update, so a slow one delays that paint; and
-one event whose several listeners each write state renders once per listener (the browser runs microtasks after each
-one) — measured, the click still paints a frame sooner than frame scheduling did, but the work is repeated, so a hot
-event is best handled by one listener making one write.
+**Every queued render, layout effect and effect runs in one flush, on a microtask — so after any `await`,
+everything Vera has queued is done:** the DOM and its effects are current, on every device. In a flush, renders run
+first, then layout effects, then effects, and parents before their children: a child re-rendered by its parent's new
+props renders once. A hook may run **twice** in one flush — so an effect that measures what was just rendered and
+stores it lands before paint. `flush()` runs everything queued at once, synchronously, without waiting for an
+`await`.
+
+The cases where Vera has deliberately **not** queued the work yet, so an `await` does not wait for it:
+
+- **a self-feeding loop** — a hook's third run in one flush waits for the next frame, so a loop can never freeze the page;
+- **`frameBudget`, if you opt in** (`setRenderScheduler(frameBudget)`) — for apps that receive bursts of data as many
+  tasks in one frame: past about 4 ms of flush work in a frame, the next flush waits for the frame, so a burst renders
+  about once per frame (2–4× faster to the final DOM, measured). The trade: after `await` the DOM may still be on its
+  way — call `flush()` before reading it. User input gains nothing from it; browsers already merge it;
+- **a scheduler of your own** set with `setRenderScheduler` — it decides;
+- **work waiting on the network** — a component whose module is still loading, a navigation fetching its route;
+- **an effect's own `await`s** — they are the effect's work, not Vera's.
+
+Two caveats: an effect runs before the browser paints its update, so a slow one delays that paint; and one event
+whose several listeners each write state renders once per listener (the browser runs microtasks after each one) —
+measured, the click still paints a frame sooner than frame scheduling did, but the work is repeated, so a hot event is
+best handled by one listener making one write.
 
 `useLayoutEffect`, `useEffect` and `useSyncEffect` take `(callback, element?)`, and `useHook` takes
 `(callback, priority, element?)` — the same shape with the one thing it adds (`createHook`, the raw primitive under
@@ -290,7 +300,7 @@ per write, so it sees every one.
 | `useRender(template, element, ...args)` | the lower-level half of `render`: registers a render on the component being set up that draws into `element` — which may be a different element |
 | `wire([renderer])` | choose what writes to the DOM |
 | `flush()` | run every queued render and effect now, synchronously — a test, or work that must see the DOM settled (a View Transition's callback) |
-| `setRenderScheduler(fn)` | when a FLUSH runs. The default is a microtask within a per-frame budget, and past it the **element's own window's** next frame (a component in a popped-out window or an iframe waits on that window's frames); `microtask` is the same without a budget. A scheduler receives `(run, element)` and returns the one it replaced |
+| `setRenderScheduler(fn)` | when a FLUSH runs. The default, `microtask`, runs every flush at once. `frameBudget` opts into merging bursts of data: a microtask within about 4 ms of flush work per frame, and past it the **element's own window's** next frame (a component in a popped-out window or an iframe waits on that window's frames). A scheduler receives `(run, element)` and returns the one it replaced |
 
 ```js
 import { init, mount, useRender, useEffect, mathml, html, flush } from '@verajs/core';

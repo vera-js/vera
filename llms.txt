@@ -24,11 +24,11 @@ lit's own output rather than asserting it. VeraJS ships its own renderer and nee
 > - `@verajs/renderer` is browser-confirmed fastest-or-tied against lit-html on the benchmark's
 >   eight operations; prefer it.
 > - Render scheduling: every queued render and effect runs in ONE flush, a microtask (Lit/Vue
->   timing), within a budget of about 4 ms of flush work per frame — past it, the next flush waits
->   for a frame, so a flood of events renders about once per frame. After `await`, the DOM and its
->   effects are current UNLESS this frame's budget was already spent (then they land on the next
->   frame); code that must read the DOM now calls `flush()` first, which drains synchronously. `setRenderScheduler(microtask)` drops the
->   budget (every flush at once).
+>   timing), so after any `await` everything Vera has queued is done — the DOM and its effects are
+>   current. `flush()` drains synchronously. Exceptions, by design: a self-feeding hook's third run
+>   in one flush waits for the frame; the opt-in `setRenderScheduler(frameBudget)` (merges bursts of
+>   data to ~1 render per frame; then `await` may beat the DOM — call `flush()`); a custom
+>   scheduler; work waiting on the network; an effect's own `await`s.
 > - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
 >   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
 >   under `@web/test-runner` and Playwright. Green in CI. `npm run gate` runs all of it.
@@ -137,8 +137,9 @@ the right tool.
 | `html` | tagged template | What you use. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
 | `flush` | `() => void` | Runs every queued render and effect now, synchronously — tests, or a View Transition's callback. |
-| `setRenderScheduler` | `(scheduler) => previous` | When a FLUSH runs. Default: a microtask within a per-frame budget; past it, the element's own window's next frame (a popped-out window or iframe waits on its own), or a short timer where there are none. A scheduler receives `(run, element)`. |
-| `microtask` | `RenderScheduler` | Every flush as a microtask, with no budget. |
+| `setRenderScheduler` | `(scheduler) => previous` | When a FLUSH runs. Default: `microtask`. A scheduler receives `(run, element)`. |
+| `microtask` | `RenderScheduler` | THE DEFAULT: every flush as a microtask. |
+| `frameBudget` | `RenderScheduler` | Opt-in, for bursts of data: a microtask within ~4 ms of flush work per frame; past it the element's own window's next frame (or a short timer where there are none). After `await` the DOM may not be current yet — `flush()` first. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
 
 ### Props — passing data to a child component
