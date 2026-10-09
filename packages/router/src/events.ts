@@ -2,6 +2,23 @@ import type { RouteSnapshot, RouteEvent, RouteEventHandler } from './types.js';
 import { getOrCreate, handlers } from './state.js';
 
 /**
+ * Development: a guard returned a path — the Vue Router habit, which does not redirect here. A string is truthy, so
+ * the route is allowed, which in an auth guard defeats the guard. One message for every guard that can cancel —
+ * `beforeEnter` and the `before-leave`/`before-route` handlers — because the README promises it of "a guard", and only
+ * `beforeEnter` said it until 2026-10-09. `redirect` is offered only where a route can carry one.
+ */
+export const saidString = (guard: string, path: string | undefined, verdict: string, redirectable: boolean) =>
+  console.warn(
+    `[vera] router: ${guard} on "${path}" returned the string "${verdict}", which is truthy, so the route was ` +
+      `allowed. Only \`false\` cancels.\nTo send someone elsewhere, ` +
+      (redirectable
+        ? `either set \`redirect: "${verdict}"\` on the route — which settles inside the promise \`navigate()\` ` +
+          `returns — or call`
+        : 'call') +
+      ` \`navigate("${verdict}")\` and return \`false\`, which starts a separate navigation that promise does not cover.`
+  );
+
+/**
  * Emits an event that can be watched with on and interrupted by returning false. Handler can
  * do anything else such as retrieving api info, updating state, etc.
  *
@@ -28,9 +45,10 @@ export const emit = async (
 
   for (const handler of handlersForEvent) {
     try {
-      if ((await handler(to, from)) === false) {
-        interrupted = true;
-      }
+      const verdict = await handler(to, from);
+      if (verdict === false) interrupted = true;
+      else if (__DEV__ && typeof verdict === 'string' && event !== 'after-route')
+        saidString(`a \`${event}\` handler`, to.path, verdict, false);
     } catch (error) {
       interrupted = true;
       console.error(`[vera] ${event} handler threw`, error);

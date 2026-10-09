@@ -271,6 +271,38 @@ const makeApp = (routes) => {
   }
 }
 
+/**
+ * The README promises the warning of "a guard", and an event guard is one: a `before-route` handler returning a path
+ * was allowed through in silence until 2026-10-09 — the same auth-guard hole. An event cannot carry `redirect`, so its
+ * message does not offer it; an `after-route` handler cancels nothing, so its return is not judged.
+ */
+{
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  let entered = 0;
+  try {
+    const app = makeApp([
+      { path: '/evs-a', component: () => 'A' },
+      { path: '/evs-b', component: () => { entered++; return 'B'; } },
+    ]);
+    await navigate('/evs-a');
+    app.r.on('before-route', (to) => (to.path === '/evs-b' ? '/evs-login' : undefined));
+    app.r.on('after-route', () => '/ignored');
+    await navigate('/evs-b');
+  } finally {
+    console.warn = original;
+  }
+  const strings = said.filter((line) => /returned the string/.test(line));
+  check('an event guard returning a string is still allowed — the hazard the warning exists for', entered === 1);
+  if (isProduction) check('production says nothing', strings.length === 0, JSON.stringify(strings));
+  else {
+    check('a before-route handler returning a string is warned about, once', strings.length === 1, JSON.stringify(strings));
+    check('naming the event and the path', /a `before-route` handler on "\/evs-b" returned the string "\/evs-login"/.test(strings[0]));
+    check('without offering redirect, which an event cannot carry', !/redirect:/.test(strings[0]) && /call `navigate\("\/evs-login"\)` and return `false`/.test(strings[0]));
+  }
+}
+
 // ── before-leave: the documented event nothing tested (run-2 claim sweep) ─────────────────────
 /**
  * The README's contract: `before-leave` fires "before leaving the current route", ahead of

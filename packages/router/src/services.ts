@@ -4,6 +4,7 @@ import type { Inserts } from '@verajs/inserts';
 
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
+import { saidString } from './events.js';
 import { stripTrailingSlash } from '@verajs/shared-utils';
 import type { Renderer } from '@verajs/shared-types';
 
@@ -930,14 +931,7 @@ const guardPass = async (
      * load-bearing because the README makes awaiting the supported way to handle an outcome —
      * "`navigate()` rejects, so a caller that awaits it can handle the failure itself".
      */
-    if (__DEV__ && typeof verdict === 'string')
-      console.warn(
-        `[vera] router: \`beforeEnter\` on "${link.path ?? currentRoute?.path}" returned the string ` +
-          `"${verdict}", which is truthy, so the route was allowed. Only \`false\` cancels.\n` +
-          `To send someone elsewhere, either set \`redirect: "${verdict}"\` on the route — which settles ` +
-          `inside the promise \`navigate()\` returns — or call \`navigate("${verdict}")\` and return ` +
-          `\`false\`, which starts a separate navigation that promise does not cover.`
-      );
+    if (__DEV__ && typeof verdict === 'string') saidString('`beforeEnter`', link.path ?? currentRoute?.path, verdict, true);
     if (verdict === false) return null;
     if (id !== navigationId) return null;
   }
