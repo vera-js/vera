@@ -29,7 +29,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'cust
 const core = await load('core');
 const { renderInto } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
-const { tag } = await load('renderer/tag');
+const { tag, html: tagHtml } = await load('renderer/tag');
 const routerModule = await load('router');
 const { navigate } = routerModule;
 const reactivity = await load('store');
@@ -54,6 +54,11 @@ const CASES = [
   ['an expression in an attribute name', () => renderInto(core.html`<p data-${'x'}="1"></p>`, document.createElement('div')), /renderer: an attribute name cannot be an expression/],
   ['an expression in tag-name position', () => renderInto(core.html`<${'p'}>x</${'p'}>`, document.createElement('div')), /renderer: an expression in tag position/],
   ['tag("h1") called, not tagged', () => tag('h1'), /tag: expected a template literal/],
+  ['a string interpolated into a tag', () => tag`${'h1'}`, /tag: only another tag may be interpolated/],
+  ['a tag that is not an element name', () => tag(Object.assign(['a b'], { raw: ['a b'] })), /tag: "a b" is not an element name/],
+  ['a tag outside tag position', () => tagHtml`<p>${tag`h1`}</p>`, /tag: a tag \(`h1`\) may only stand in tag position/],
+  ['an object style on a tag component', () => tag`div`({ style: { color: 'red' } }), /tag: `style` expects a STRING/],
+  ['children on a void tag component', () => tag`br`({ children: ['x'] }), /tag: <br> is a void element/],
   ['adoptStyles(nothing)', () => styleModule.adoptStyles(undefined), /adoptStyles: expected a component element/],
   ['applyStyles(sheet, nothing)', () => styleModule.applyStyles('p{}', undefined), /applyStyles: expected a component element/],
   /**

@@ -20,7 +20,7 @@ export const proseOf = (module) =>
 
 export const TABLES = [
   { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: ['src/adopt-property.ts', 'src/utils.ts', 'src/markup-grammar.ts'] },
-  { name: 'renderer', tables: ['src/hydration-diagnostics.ts'], sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts'] },
+  { name: 'renderer', tables: ['src/hydration-diagnostics.ts', 'src/tag-diagnostics.ts'], sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts', 'src/tag.ts'] },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
 ];

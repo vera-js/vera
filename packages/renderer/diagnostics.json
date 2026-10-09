@@ -26,6 +26,54 @@
       "params": [],
       "message": "this page was server-rendered with light-DOM slots, which hydration reads through `hydrateSlots`. The server markup is left as served.",
       "fix": "Wire it: `wire([renderer, hydration, slots, hydrateSlots])`."
+    },
+    {
+      "code": "tag-inner-html",
+      "params": [],
+      "message": "`dangerouslySetInnerHTML` is not available on a tag component and has been dropped. A tag binds through `spread`, whose names are only known at runtime — so it refuses `.innerHTML` outright rather than open an unreviewable HTML sink.",
+      "fix": "Write the element directly, with the value sanitized first: html`<${Tag} .innerHTML=${trusted}>` (see the renderer README's security note)."
+    },
+    {
+      "code": "tag-interpolation",
+      "params": [],
+      "message": "only another tag may be interpolated — a string cannot become markup.",
+      "fix": "Interpolate a tag: tag`${Base}-card`, where Base is itself a tag."
+    },
+    {
+      "code": "tag-key",
+      "params": [],
+      "message": "`key` does nothing on a tag component and has been dropped — a key marks a template for list reconciliation, and this call returns one rather than being one.",
+      "fix": "In JSX, write it and the compiler handles it: `<Row key=${id}>` becomes `keyed(id, Row({…}))`. Calling by hand, wrap it yourself: `keyed(id, Row({…}))`."
+    },
+    {
+      "code": "tag-name",
+      "params": [
+        "text"
+      ],
+      "message": "{text} is not an element name. A tag names ONE element — letters, then letters, digits, '.', '_' or '-' — and nothing else becomes markup here.",
+      "fix": "Attributes and content belong in the template: html`<${heading} class=\"title\">…</${heading}>`."
+    },
+    {
+      "code": "tag-position",
+      "params": [
+        "tag"
+      ],
+      "message": "a tag (`{tag}`) may only stand in tag position — `<${T}>…</${T}>`.",
+      "fix": "Spliced anywhere else it would become text or part of an attribute, which a tag never means."
+    },
+    {
+      "code": "tag-style-object",
+      "params": [],
+      "message": "`style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.",
+      "fix": "Build the string: style: `color:${c}; margin:${m}px`."
+    },
+    {
+      "code": "tag-void-children",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> is a void element — it takes no children, and these would be dropped.",
+      "fix": "Remove the children, or use an element that takes content."
     }
   ]
 }

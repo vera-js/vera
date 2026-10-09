@@ -135,9 +135,11 @@ test('props named like Object.prototype members arrive, and __proto__ is still r
  * string's first character as the first static and named an `<h>` — a wrong element that development, which always
  * threw, never showed.
  */
+/** The three refusals made in EVERY build: development explains and names the code, production prints the code-only line. */
+const refusal = (code, words) => (isProduction ? new RegExp(`^(?:Type)?Error: tag: https://verajs\\.dev/e/${code}$`) : new RegExp(`tag: ${words}[\\s\\S]*\\(${code}\\)$`));
 test('a tag called as a function is refused in every build, never a wrong element', () => {
-  assert.throws(() => tag('h1'), /tag: expected a template literal/);
-  assert.throws(() => tag(['h1']), /tag: expected a template literal/, 'an array without .raw is no template either');
+  assert.throws(() => tag('h1'), refusal('tag-called', 'expected a template literal'));
+  assert.throws(() => tag(['h1']), refusal('tag-called', 'expected a template literal'), 'an array without .raw is no template either');
   assert.doesNotThrow(() => tag(Object.assign(['h1'], { raw: ['h1'] })), 'a hand-built template is still accepted');
 });
 
@@ -229,7 +231,7 @@ test('a JSX tag with no props renders bare', () => {
  */
 test('a string cannot become a tag', () => {
   for (const hostile of ['img src=x onerror=alert(1)', 'h1', '', 'div class="x"']) {
-    assert.throws(() => tag`${hostile}`, /only another tag may be interpolated/, JSON.stringify(hostile));
+    assert.throws(() => tag`${hostile}`, refusal('tag-interpolation', 'only another tag may be interpolated'), JSON.stringify(hostile));
   }
 });
 
@@ -255,7 +257,7 @@ test('a tag names one element, and nothing else becomes markup', () => {
   assert.equal(typeof tag`h1`, 'function', 'the ordinary case must still work');
 
   for (const bad of ['a;1:b', 'div onclick=x', '<p>', 'a b', '', '1h', 'a:b', 'a;b'])
-    assert.throws(() => named(bad), /not an element name/, JSON.stringify(bad));
+    assert.throws(() => named(bad), refusal('tag-name', '.* is not an element name'), JSON.stringify(bad));
 });
 
 /**
@@ -266,8 +268,8 @@ test('two tag assignments at one call site cannot reuse each other\'s markup', (
   const draw = (X, Y) => html`<${X}>text</${Y}>`;
   /** The colliding pair, refused at construction now. Both spellings must be impossible. */
   const named = (text) => tag(Object.assign([text], { raw: [text] }));
-  assert.throws(() => draw(tag`a`, named('b;1:c')), /not an element name/);
-  assert.throws(() => draw(named('a;1:b'), tag`c`), /not an element name/);
+  assert.throws(() => draw(tag`a`, named('b;1:c')), refusal('tag-name', '.* is not an element name'));
+  assert.throws(() => draw(named('a;1:b'), tag`c`), refusal('tag-name', '.* is not an element name'));
 
   /** And legal tags at the same call site still render as themselves. */
   const first = into();

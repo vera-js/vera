@@ -1,4 +1,6 @@
 import { spread } from './spread.js';
+import { diagnostic, misuse, SHARED } from '@verajs/shared-utils';
+import { PROSE } from './tag-diagnostics.js';
 
 /**
  * `@verajs/renderer/tag` — an element whose **tag name** is decided at runtime.
@@ -62,10 +64,7 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
        * name text is fixed by source either way, so this is consistency, not safety.
        */
       if (__DEV__ && !(strings[i].endsWith('<') || strings[i].endsWith('</')))
-        throw new Error(
-          `tag: a tag (\`${value[STATIC]}\`) may only stand in tag position — \`<\${T}>…</\${T}>\`. Spliced anywhere ` +
-            `else it would become text or part of an attribute, which a tag never means.`
-        );
+        throw new Error(misuse('tag', 'tag-position', __DEV__ && PROSE['tag-position'](value[STATIC])));
       key += `${i}:${value[STATIC]};`;
     }
   }
@@ -180,17 +179,12 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
    * named an `<h>`, silently — a wrong element only production renders. The explanation is development's.
    */
   if (!(strings as { raw?: unknown } | null)?.raw)
-    throw new TypeError(
-      __DEV__
-        ? `tag: expected a template literal and received ${String(strings)}. ` +
-            "It is a tagged template — write tag`h1`, not tag('h1')."
-        : 'tag: expected a template literal'
-    );
+    throw new TypeError(misuse('tag', 'tag-called', __DEV__ && SHARED.tagCalled('tag', typeof strings === 'string' ? JSON.stringify(strings) : String(strings))));
   let text = strings[0];
   for (let i = 0; i < values.length; i++) {
     const value = values[i] as Tag | undefined;
     if (!value || value[STATIC] === undefined)
-      throw new Error('tag: only another tag may be interpolated — a string cannot become markup');
+      throw new Error(misuse('tag', 'tag-interpolation', __DEV__ && PROSE['tag-interpolation']()));
     text += value[STATIC] + strings[i + 1];
   }
 
@@ -221,11 +215,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
        * page never reaches. Core's static-render refusal is shaped the same way for the same
        * measurement.
        */
-      __DEV__
-        ? `tag: ${JSON.stringify(text)} is not an element name. A tag names ONE element — letters, ` +
-          `then letters, digits, '.', '_' or '-' — and nothing else becomes markup here.\n` +
-          `Attributes and content belong in the template: html\`<\${heading} class="title">…</\${heading}>\`.`
-        : 'tag: not an element name'
+      misuse('tag', 'tag-name', __DEV__ && PROSE['tag-name'](JSON.stringify(text)))
     );
 
   /**
@@ -247,12 +237,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
      * looking, and dropping it silently would be a refusal with no channel, hence the warning.
      */
     if (__DEV__ && key !== undefined)
-      console.warn(
-        `[vera] tag: \`key\` does nothing on a tag component and has been dropped — a key marks a ` +
-          `template for list reconciliation, and this call returns one rather than being one.\n` +
-          `In JSX, write it and the compiler handles it: \`<Row key=\${id}>\` becomes ` +
-          `\`keyed(id, Row({…}))\`. Calling by hand, wrap it yourself: \`keyed(id, Row({…}))\`.`
-      );
+      console.warn(diagnostic('tag', `<${text}>`, 'tag-key', __DEV__ && PROSE['tag-key']()));
     /**
      * **`dangerouslySetInnerHTML` cannot work here, and that is a security property rather than a
      * gap.** A tag reaches its element through `spread`, and `spread` REFUSES `.innerHTML` on
@@ -261,20 +246,14 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
      * console message. Refused here instead, where the reason can be said.
      */
     if (__DEV__ && rawHtml !== undefined)
-      console.warn(
-        `[vera] tag: \`dangerouslySetInnerHTML\` is not available on a tag component and has been ` +
-          `dropped. A tag binds through \`spread\`, whose names are only known at runtime — so it ` +
-          `refuses \`.innerHTML\` outright rather than open an unreviewable HTML sink.\n` +
-          `Write the element directly, with the value sanitized first: ` +
-          `html\`<\${Tag} .innerHTML=\${trusted}>\` (see the renderer README's security note).`
-      );
+      console.warn(diagnostic('tag', `<${text}>`, 'tag-inner-html', __DEV__ && PROSE['tag-inner-html']()));
     /** No prototype, and `__proto__` is no prop: a bag key by that name would otherwise reach `spread` as one. */
     const mapped = { __proto__: null } as unknown as Record<string, unknown>;
     for (const name in props)
       if (name !== '__proto__') {
         /** The compiler refuses an object `style` at build time; written into the attribute it reads "[object Object]". */
         if (__DEV__ && name === 'style' && props[name] !== null && typeof props[name] === 'object')
-          throw new TypeError('tag: `style` expects a STRING (e.g. style: `color:${c}`), not an object — as in Vera JSX.');
+          throw new TypeError(misuse('tag', 'tag-style-object', __DEV__ && PROSE['tag-style-object']()));
         mapped[(custom ? componentName : jsxName)(name)] = props[name];
       }
     /**
@@ -282,7 +261,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
      * children given to one would vanish silently — development says so (an empty list is no content).
      */
     if (__DEV__ && empty && children != null && !(Array.isArray(children) && children.length === 0))
-      throw new Error(`tag: <${text}> is a void element — it takes no children, and these would be dropped.`);
+      throw new Error(misuse('tag', 'tag-void-children', __DEV__ && PROSE['tag-void-children'](text)));
     return empty ? html`<${self} ${spread(mapped)}>` : html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   const empty = VOID_TAGS.test(text);
