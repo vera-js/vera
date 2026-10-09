@@ -1,3 +1,5 @@
+import { misuse } from './diagnostic.js';
+import * as SHARED from './diagnostics.js';
 /**
  * HTML's own element grammar — the facts about tags that every package emitting or reading markup
  * has to agree on.
@@ -168,12 +170,9 @@ export const ownsContent = (element: Element): boolean => {
     if (node.nodeType !== 3 || (node as Text).data === '' || /[^ \t\n\f\r]/.test((node as Text).data)) return true;
   return false;
 };
-export const contentClash = (tag: string, name: string): never => {
-  throw new Error(
-    `renderer: <${tag}> binds \`.${name}\`, which replaces the element's content, and also has content of its own — ` +
-      `markup or a child binding, which the write would strand. Bind one or the other: the property alone ` +
-      `(\`<${tag} .${name}=\${…}></${tag}>\`), or the content alone.`
-  );
+/** `side` is the module the user wired — `renderer` for a template, `spread` for a spread. */
+export const contentClash = (side: string, tag: string, name: string): never => {
+  throw new Error(misuse(side, 'content-clash', __DEV__ && SHARED.contentClash(tag, name)));
 };
 
 /**
@@ -184,8 +183,5 @@ export const contentClash = (tag: string, name: string): never => {
  */
 export const TAG_NAME_HOLE = /<\/?[^\s>]*$/;
 export const tagHole = (side: string): never => {
-  throw new Error(
-    `${side}: an expression in tag position (\`<\${…}>\`) cannot be a tag name — a tag name must be a tag value: ` +
-      `\`tag\`h1\`\` from @verajs/renderer/tag, with that entry's \`html\`.`
-  );
+  throw new Error(misuse(side, 'tag-hole', __DEV__ && SHARED.tagHole()));
 };

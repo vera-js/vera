@@ -1,4 +1,6 @@
 import type { Untracked } from './types.js';
+import { diagnostic } from './diagnostic.js';
+import * as SHARED from './diagnostics.js';
 
 /**
  * Get an object's type.
@@ -101,10 +103,7 @@ export const call: Untracked = (fn, a, b, c) => fn(a!, b!, c!);
 export const isSelection = (element: Element, name: unknown) => {
   if ((name !== 'value' && name !== 'selectedIndex') || element.localName !== 'select') return false;
   if (__DEV__ && element.hasAttribute('multiple'))
-    console.warn(
-      `[vera] \`${name}\` on a <select multiple> controls only ONE selection, and a selection the user adds is kept — ` +
-        'it is not controlled. Bind `?selected=${…}` on each <option> to control every selection.'
-    );
+    console.warn(diagnostic('renderer', '<select multiple>', 'select-multiple', __DEV__ && SHARED.selectMultiple(String(name))));
   return true;
 };
 

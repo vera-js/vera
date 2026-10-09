@@ -1,4 +1,6 @@
 import type { PropertyHost } from './types.js';
+import { diagnostic } from './diagnostic.js';
+import * as SHARED from './diagnostics.js';
 
 /**
  * **Delivering a bound property to a custom element that may not receive it yet** — the one home of the
@@ -38,10 +40,7 @@ export const adoptProperty = (element: PropertyHost, name: string, value: unknow
         refused.set(element, names);
         if (!names.has(name)) {
           names.add(name);
-          console.warn(
-            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no setter — the value ` +
-              `bound to it (\`.${name}\` or \`!${name}\`) cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
-          );
+          console.warn(diagnostic('renderer', `<${element.localName}>`, 'getter-only-prop', __DEV__ && SHARED.getterOnlyProp(name)));
         }
       }
       return 2;
@@ -74,13 +73,7 @@ export const adoptProperty = (element: PropertyHost, name: string, value: unknow
         break;
       }
       if (!owned && element[name] !== record[name])
-        console.warn(
-          `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced while the element ` +
-            `upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits \`${name};\`, which runs ` +
-            `during upgrade and overwrites whatever was set beforehand — write it \`declare ${name}?: …\` instead. ` +
-            `A component that calls init() adopts bound properties automatically and never sees this; this ` +
-            `element did not. Ignore this if the component replaced the value on purpose.`
-        );
+        console.warn(diagnostic('renderer', `<${tag}>`, 'upgrade-clobber', __DEV__ && SHARED.upgradeClobber(name)));
     });
   }
   return upgraded ? 1 : 0;

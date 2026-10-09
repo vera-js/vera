@@ -2,12 +2,29 @@
   "url": "https://docs.verajs.dev/e/",
   "entries": [
     {
+      "code": "content-clash",
+      "params": [
+        "tag",
+        "name"
+      ],
+      "message": "<{tag}> binds `.{name}`, which replaces the element's content, and also has content of its own — markup or a child binding, which the write would strand.",
+      "fix": "Bind one or the other: the property alone (`<{tag} .{name}=${…}></{tag}>`), or the content alone."
+    },
+    {
       "code": "getter-only-prop",
       "params": [
         "key"
       ],
-      "message": "received a bound property `.{key}`, but its class declares `{key}` as a getter with no setter — the value cannot be delivered and the binding is ignored.",
+      "message": "received a bound property `.{key}` (or `!{key}`), but its class declares `{key}` as a getter with no setter — the value cannot be delivered and the binding is ignored.",
       "fix": "Add a setter, or stop binding it."
+    },
+    {
+      "code": "select-multiple",
+      "params": [
+        "name"
+      ],
+      "message": "`{name}` controls only ONE selection here, and a selection the user adds is kept — it is not controlled.",
+      "fix": "Bind `?selected=${…}` on each <option> to control every selection."
     },
     {
       "code": "tag-called",
@@ -17,6 +34,20 @@
       ],
       "message": "expected a template literal and received {received}.",
       "fix": "It is a tagged template — write {tag}`<p>hi</p>`, not {tag}('<p>hi</p>')."
+    },
+    {
+      "code": "tag-hole",
+      "params": [],
+      "message": "an expression in tag position (`<${…}>`) cannot be a tag name — a tag name must be a tag value.",
+      "fix": "Use `tag`h1`` from @verajs/renderer/tag, with that entry's `html`."
+    },
+    {
+      "code": "upgrade-clobber",
+      "params": [
+        "name"
+      ],
+      "message": "the value bound by `.{name}=${…}` was replaced while the element upgraded. A class field is the usual cause: at ES2022 `{name}?: …` emits `{name};`, which runs during upgrade and overwrites whatever was set beforehand.",
+      "fix": "Write it `declare {name}?: …` instead. A component that calls init() adopts bound properties automatically and never sees this; this element did not. Ignore this if the component replaced the value on purpose."
     }
   ]
 }

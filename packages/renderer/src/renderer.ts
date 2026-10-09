@@ -483,7 +483,7 @@ class Template {
          * later commit into it throws on a missing parent. Cannot work as written, so development throws.
          */
         if (__DEV__ && kind !== ATTR && kind !== EVENT && kind !== BOOLEAN && CONTENT_PROPERTY.test(real) && ownsContent(el))
-          contentClash(el.localName, real);
+          contentClash('renderer', el.localName, real);
         kinds[i] = kind;
         names[i] = real;
         statics[i] = value.length === 2 && value[0] === '' && value[1] === '' ? null : value;

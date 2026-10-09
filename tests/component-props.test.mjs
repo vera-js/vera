@@ -148,7 +148,7 @@ test('lazy, and the element never calls init(): the clobber is NAMED in developm
   assert.equal(host.querySelector('cp-lazy-plain').item, undefined, 'the control: the field really did clobber it');
   const named = warned.filter((w) => w.includes('was replaced while the element upgraded'));
   assert.equal(named.length, isProduction ? 0 : 1, named.join(' | '));
-  if (!isProduction) assert.match(named[0], /^\[vera\] renderer: the value bound by `\.item=\$\{…\}` on <cp-lazy-plain>[\s\S]*`declare item\?: …`/);
+  if (!isProduction) assert.match(named[0], /^\[vera\] renderer: <cp-lazy-plain> — the value bound by `\.item=\$\{…\}`[\s\S]*`declare item\?: …`[\s\S]*\(upgrade-clobber\)$/);
 });
 
 test('a defined non-vera element is untouched: its own accessor receives, nothing is recorded', () => {
@@ -287,6 +287,7 @@ test('a getter-only property refuses by name instead of throwing out of init()',
   const complaints = warned.filter((w) => w.includes('locked'));
   assert.equal(complaints.length, isProduction ? 0 : 1,
     'development names the refused binding once; production is silent');
+  if (!isProduction) assert.match(complaints[0], /\(getter-only-prop\)$/, 'by its code');
 });
 
 test('EAGER get-only refuses identically — one rule for both arrival orders, and no throw', async () => {
@@ -324,8 +325,10 @@ test('a non-vera get-only element gets the refusal from the renderer itself', ()
   console.warn = realWarn;
   const el = host.querySelector('cp-foreign-readonly');
   assert.equal(el.frozen, 'theirs', 'no write reached the getter-only surface, and nothing threw');
-  assert.equal(warned.filter((w) => w.includes('frozen')).length, isProduction ? 0 : 1,
+  const named = warned.filter((w) => w.includes('frozen'));
+  assert.equal(named.length, isProduction ? 0 : 1,
     'the renderer names the refusal — no init() means no other voice exists');
+  if (!isProduction) assert.match(named[0], /^\[vera\] renderer: <cp-foreign-readonly> — [\s\S]*\(getter-only-prop\)$/, 'the same code core uses, from the shared table');
 });
 
 test('!prop on a component delivers the property — the client half of the SSR fixture’s live row', async () => {

@@ -133,7 +133,7 @@ class Binding {
     this._url = urlRule(kind, name as string, custom);
     /** A content-replacing property beside content of the element's own: development refuses it, as a template does. */
     if (__DEV__ && (kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(name as string) && ownsContent(element))
-      contentClash(element.localName, name as string);
+      contentClash('spread', element.localName, name as string);
     if (kind === REFUSED) {
       if (__DEV__)
         console.warn(

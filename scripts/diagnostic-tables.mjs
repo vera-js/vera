@@ -19,7 +19,7 @@ export const proseOf = (module) =>
   module.PROSE ?? Object.fromEntries(Object.entries(module).filter(([, fn]) => typeof fn === 'function').map(([name, fn]) => [codeOf(name), fn]));
 
 export const TABLES = [
-  { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: [] },
+  { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: ['src/adopt-property.ts', 'src/utils.ts', 'src/markup-grammar.ts'] },
   { name: 'renderer', tables: ['src/hydration-diagnostics.ts'], sources: ['src/hydration.ts'] },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
