@@ -55,6 +55,8 @@ export interface ComponentElement extends HTMLElement {
    * changes the value without notifying anything that read it — every write goes through the accessor.
    */
   _$raw$?: Record<string, unknown>;
+  /** The subscriptions retired with this element: its own hooks', and any hook created while it was being set up. */
+  _$u$?: Subscription[];
 }
 
 /** What `createHook` registers: the callback, its priority, and optionally its owner. */
@@ -79,11 +81,16 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 
 /** An element's hooks, dense and priority-sorted — `_$p$` runs parallel to it. */
 export type Hooks = Set<HookCallback>[];
+/** One key's subscribers: each hook's single `WeakRef` (a hook's element holds the hook strongly, the store weakly). */
+export type Subscribers = Set<WeakRef<HookCallback>>;
 /**
- * One key's subscribers, and the size at which `track` next sweeps the dead ones out (`l`, the limit) — set on the
- * Set's first add, in that one place, so every subscriber Set has the same shape.
+ * **A hook's subscriptions, so it can leave them** (R1, exact unsubscription — regression #11, Brian 2026-10-10). `r` is
+ * the hook's ONE `WeakRef` for its whole life — what every Set it joined holds, so `delete(r)` finds it — and `d` the
+ * Sets it actually JOINED (made on the first join). Retiring the hook removes `r` from each, so a removed component
+ * leaves nothing behind in a store and nothing ever needs sweeping. `d` holds those Sets STRONGLY while the hook lives:
+ * bounded by what the component reads, released at retirement — not a leak.
  */
-export type Subscribers = Set<WeakRef<HookCallback>> & { l: number };
+export type Subscription = { r: WeakRef<HookCallback>; d: Subscribers[] | undefined };
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

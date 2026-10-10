@@ -1,4 +1,4 @@
-import type { ComponentElement, Hook, HookCallback } from '../types.js';
+import type { ComponentElement, Hook, HookCallback, Subscription } from '../types.js';
 import { currentInstance, hooksQueue } from '../store/store.js';
 import { diagnostic, prioritySlot, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
@@ -66,6 +66,21 @@ export const RENDER_PRIORITY = 50;
  * a write waking the hook, and a deferred pass — which re-enters through the hook rather than around
  * it — so no caller needs its own catch.
  */
+/**
+ * Retires every subscription `owner` carries: each hook leaves exactly the Sets it joined. Run on a component's real
+ * removal and on a re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
+ */
+export const retire = (owner: ComponentElement) => {
+  const list = owner._$u$;
+  if (list === undefined) return;
+  owner._$u$ = undefined;
+  for (let i = 0; i < list.length; i++) {
+    const { r, d } = list[i]!;
+    if (d !== undefined) for (let j = 0; j < d.length; j++) d[j]!.delete(r);
+    list[i]!.d = undefined;
+  }
+};
+
 export const createHook = ({ callback, priority, element }: Hook): HookCallback | undefined => {
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
@@ -73,7 +88,7 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
   const generation = owner._$g$;
   const hook: HookCallback = (signal, init) => {
     if (owner._$g$ !== generation || (!init && owner.isConnected === false)) return;
-    hooksQueue.push(self);
+    hooksQueue.push(sub);
     try {
       callback(signal, init);
     } catch (error) {
@@ -82,7 +97,11 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
       hooksQueue.pop();
     }
   };
-  const self = new WeakRef(hook);
+  const sub: Subscription = { r: new WeakRef(hook), d: undefined };
+  (owner._$u$ ??= []).push(sub);
+  /** A hook created while a component is being set up — a `computed` in its setup — is retired with that component. */
+  const host = currentInstance.element;
+  if (host !== null && host !== owner) (host._$u$ ??= []).push(sub);
   prioritySlot((owner._$h$ ??= []), (owner._$p$ ??= []), priority as number, newSet).add(hook);
   return hook;
 };

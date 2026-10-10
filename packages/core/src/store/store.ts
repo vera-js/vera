@@ -1,5 +1,5 @@
 import { misuse, SHARED } from '@verajs/shared-utils';
-import type { ComponentElement, HookCallback, ResultType, Subscribers, TemplateResult } from '../types.js';
+import type { ComponentElement, ResultType, Subscribers, Subscription, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
@@ -9,7 +9,7 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  * dependency. A stack rather than one slot because a hook can run inside another — a nested
  * component rendering in the middle of its parent's template.
  */
-export const hooksQueue: (WeakRef<HookCallback> | undefined)[] = [];
+export const hooksQueue: (Subscription | undefined)[] = [];
 
 /**
  * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —

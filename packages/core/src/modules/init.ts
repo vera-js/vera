@@ -8,7 +8,7 @@ import { untracked } from './untrack.js';
 import { firstPasses } from './mount.js';
 import { useRender } from '../hooks/useRender.js';
 import { runCleanup } from '../hooks/coalesce.js';
-import { reportHookError } from './createHook.js';
+import { reportHookError, retire } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
 /**
@@ -157,7 +157,8 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
  * delivered props adopted, and the `'init'` inserts — shared by the setup path and the earlier window.
  */
 const start = (element: ComponentElement, root: ShadowRootInit | undefined) => {
-  /** A new generation: the previous connection's hooks go inert — see `createHook`. */
+  /** A new generation: the previous connection's hooks go inert — see `createHook` — and leave the store. */
+  retire(element);
   element._$g$ = (element._$g$ ?? 0) + 1;
   element._$h$ = [];
   element._$p$ = [];
@@ -318,6 +319,7 @@ if (typeof customElements !== 'undefined') {
       element._$c$!.forEach((cleanup) => runCleanup(cleanup, element));
       element._$c$!.clear();
       element._$x$ = true;
+      retire(element);
     };
     /**
      * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never
