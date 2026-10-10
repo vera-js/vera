@@ -1754,6 +1754,10 @@ type RendererModule = ((given?: { shadow?: unknown } | Registry) => RendererModu
  * runs — see above), `fn`, `priority`, and `connect`, which reads the module's own shadow default from `this.s`.
  */
 const shared = {
+  /**
+   * Re-evaluated on EVERY read, so it is meaningful only at the moment `wire` reads it: in a process that imports
+   * `@verajs/ssr` after wiring, a later read answers undefined. Nothing reads it after `wire`; do not cache it.
+   */
   get on() {
     return onServer() ? undefined : ('render' as const);
   },
@@ -1764,6 +1768,8 @@ const shared = {
     if (this.s !== undefined) given.$S = this.s;
   },
 };
+/** Under the shared members, a function's own prototype — so the module keeps `call`, `bind` and `instanceof Function`. */
+Object.setPrototypeOf(shared, Function.prototype);
 
 const make = (shadow?: unknown): RendererModule => {
   const module = ((given?: { shadow?: unknown } | Registry) => {
@@ -1776,6 +1782,10 @@ const make = (shadow?: unknown): RendererModule => {
         console.warn(diagnostic('renderer', 'wire([renderer])', 'renderer-on-server', __DEV__ && PROSE['renderer-on-server']()));
       }
       return;
+    }
+    if (__DEV__ && given != null && typeof given !== 'object') {
+      console.warn(diagnostic('renderer', 'renderer()', 'renderer-options', __DEV__ && PROSE['renderer-options'](typeof given === 'string' ? `'${given}'` : String(given))));
+      return make();
     }
     if (__DEV__)
       for (const key in given as object)

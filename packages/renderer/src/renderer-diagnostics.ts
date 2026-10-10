@@ -6,6 +6,10 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'renderer-options': (given) => [
+    `was given ${given}, not an options object, so it set no default.`,
+    "Pass an object: renderer({ shadow: 'open' }).",
+  ],
   'renderer-on-server': () => [
     'is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only the shadow default was taken.',
     'Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process.',

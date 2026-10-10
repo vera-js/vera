@@ -107,6 +107,14 @@
       "fix": "Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process."
     },
     {
+      "code": "renderer-options",
+      "params": [
+        "given"
+      ],
+      "message": "was given {given}, not an options object, so it set no default.",
+      "fix": "Pass an object: renderer({ shadow: 'open' })."
+    },
+    {
       "code": "self-closed-tag",
       "params": [
         "tag"

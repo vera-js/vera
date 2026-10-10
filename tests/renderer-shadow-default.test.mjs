@@ -86,6 +86,24 @@ test('an invalid default is named once, and components fall back to light DOM', 
   wire([renderer]);
 });
 
+test('the dual stays a real function: call, bind and instanceof Function, bare and called', () => {
+  assert.ok(typeof renderer.call === 'function' && typeof renderer.bind === 'function', 'bare');
+  assert.ok(renderer instanceof Function && renderer({ shadow: 'open' }) instanceof Function, 'and called');
+});
+
+test("renderer('open') — a slip for { shadow: 'open' } — is named ONCE, not once per character, and sets no default", async () => {
+  reset();
+  let module;
+  const said = await listen(async () => { module = renderer('open'); wire([module]); });
+  assert.equal(inserts.$S, undefined, 'no default set');
+  if (!isProduction) {
+    assert.equal(said.filter((line) => line.includes('renderer-options')).length, 1, said.join(' | '));
+    assert.equal(said.filter((line) => line.includes('unknown-option')).length, 0, 'no per-character noise');
+  }
+  reset();
+  wire([renderer]);
+});
+
 test('an unknown renderer() key is named by the shared unknown-option', async () => {
   const said = await listen(async () => { renderer({ shadwo: 'open' }); });
   if (!isProduction) assert.ok(said.some((line) => line.includes('unknown-option') && line.includes('shadwo')), said.join(' | '));
