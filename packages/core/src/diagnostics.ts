@@ -22,8 +22,10 @@ export const PROSE: Record<string, Prose> = {
     `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
     'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
   ],
-  'shadow-option': (value) => [
-    `\`shadow: ${value}\` is not a root this element can have, so it renders into its light DOM.`,
+  'shadow-option': (value, platform) => [
+    platform
+      ? `\`shadow: ${value}\` names a mode the platform does not have, so attachShadow refuses it (it throws, in every build).`
+      : `\`shadow: ${value}\` is not a root this element can have, so it renders into its light DOM.`,
     "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }.",
   ],
   'setup-near-miss': (name) => [

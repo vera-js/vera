@@ -76,6 +76,12 @@ let warnedAboutDefault = false;
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
 const validShadow = (value: unknown) =>
   value === false || value === 'open' || value === 'closed' || (value as ShadowRootInit | null)?.mode === 'open' || (value as ShadowRootInit | null)?.mode === 'closed';
+/** Development: how a `shadow` value is shown in shadow-option, and whether it is the platform's to refuse (it names a mode). */
+const shown = (value: unknown) => {
+  const mode = (value as ShadowRootInit | null)?.mode;
+  return mode ? `{ mode: '${mode}' }` : typeof value === 'string' ? `'${value}'` : String(value);
+};
+const platformRefuses = (value: unknown) => ((value as ShadowRootInit | null)?.mode ? 'platform' : '');
 /** Shape B's call: the class's own `setup()` method, with the element as both `this` and `host`. */
 const callMethod = (element: ComponentElement) => (element as unknown as { setup: Setup }).setup(element);
 
@@ -110,16 +116,20 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   const shadow = own !== undefined ? own : (inserts as unknown as { $S?: InitOptions['shadow'] }).$S;
   if (__DEV__ && own === undefined && shadow !== undefined && !warnedAboutDefault && !validShadow(shadow)) {
     warnedAboutDefault = true;
-    console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](typeof shadow === 'string' ? `'${shadow}'` : String(shadow))));
+    console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
   }
   if (__DEV__ && options) {
     for (const key in options)
       if (key !== 'host' && key !== 'shadow')
         console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'host, shadow')));
     if (own !== undefined && !validShadow(own))
-      console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](typeof own === 'string' ? `'${own}'` : String(own))));
+      console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(own), platformRefuses(own))));
   }
-  const root = shadow === 'open' ? OPEN : shadow === 'closed' ? CLOSED : typeof shadow === 'object' && shadow !== null && (shadow.mode === 'open' || shadow.mode === 'closed') ? shadow : undefined;
+  /**
+   * An object naming a mode goes to the platform AS IS — an unknown mode is refused by `attachShadow` itself, in both
+   * builds (development says why first). Anything else that is not a root renders into the light DOM.
+   */
+  const root = shadow === 'open' ? OPEN : shadow === 'closed' ? CLOSED : (shadow as ShadowRootInit | undefined)?.mode ? (shadow as ShadowRootInit) : undefined;
   const setup = typeof given === 'function' ? given : typeof (element as { setup?: unknown }).setup === 'function' ? callMethod : undefined;
   /** The earlier `init(element, shadowProps)` is explicit, so it wins over the app default. */
   if (setup === undefined) return legacy(element, (typeof given === 'object' && given) || root);
@@ -193,25 +203,23 @@ const settle = (element: ComponentElement, out: unknown, generation: number) => 
     });
     return;
   }
-  if (out != null) {
-    /** Installed as THIS component's render: `useRender`'s owner is the component being set up, so it is set here. */
-    const owner = currentInstance.element;
-    currentInstance.element = element;
-    try {
-      useRender(out, element);
-    } finally {
-      currentInstance.element = owner;
-    }
-    if (__DEV__ && typeof out !== 'function' && !saidStatic.has(element.constructor)) {
-      saidStatic.add(element.constructor);
-      const kind = Array.isArray(out) ? 'an array' : typeof out === 'object' ? 'a template or object' : `a ${typeof out}`;
-      console.error(diagnostic('core', `<${element.localName}>`, 'setup-returned-value', __DEV__ && PROSE['setup-returned-value'](kind)));
-    }
-  }
-  /** The first passes run with NO owner, then the outer one is back: a hook created inside a render belongs to no one. */
+  /**
+   * ONE save and restore around both steps, on a throw too: the render is installed as THIS component's (`useRender`'s
+   * owner is the component being set up), then the first passes run with NO owner — a hook created inside a render
+   * belongs to no one — and the outer owner is back.
+   */
   const previous = currentInstance.element;
-  currentInstance.element = null;
   try {
+    currentInstance.element = element;
+    if (out != null) {
+      useRender(out, element);
+      if (__DEV__ && typeof out !== 'function' && !saidStatic.has(element.constructor)) {
+        saidStatic.add(element.constructor);
+        const kind = Array.isArray(out) ? 'an array' : typeof out === 'object' ? 'a template or object' : `a ${typeof out}`;
+        console.error(diagnostic('core', `<${element.localName}>`, 'setup-returned-value', __DEV__ && PROSE['setup-returned-value'](kind)));
+      }
+    }
+    currentInstance.element = null;
     firstPasses(element);
   } finally {
     currentInstance.element = previous;

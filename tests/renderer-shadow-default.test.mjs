@@ -86,9 +86,19 @@ test('an invalid default is named once, and components fall back to light DOM', 
   wire([renderer]);
 });
 
-test('the dual stays a real function: call, bind and instanceof Function, bare and called', () => {
-  assert.ok(typeof renderer.call === 'function' && typeof renderer.bind === 'function', 'bare');
-  assert.ok(renderer instanceof Function && renderer({ shadow: 'open' }) instanceof Function, 'and called');
+test('the dual: bare, a real function carrying its descriptor; called, [renderer, a connector] for wire', () => {
+  assert.ok(renderer instanceof Function && typeof renderer.call === 'function' && renderer.on === 'render' && renderer.priority === 50, 'bare');
+  const called = renderer({ shadow: 'open' });
+  assert.ok(Array.isArray(called) && called[0] === renderer && typeof called[1] === 'function' && called[1].on === undefined, 'called');
+});
+
+test('renderer({}) after a default leaves it in place — only a given shadow sets one', async () => {
+  reset();
+  wire([renderer({ shadow: 'open' })]);
+  wire([renderer({})]);
+  assert.equal(inserts.$S, 'open');
+  reset();
+  wire([renderer]);
 });
 
 test("renderer('open') — a slip for { shadow: 'open' } — is named ONCE, not once per character, and sets no default", async () => {

@@ -231,6 +231,19 @@ test('a shadow value the platform would not take is refused by name, then light 
   if (!isProduction) assert.ok(said.some((line) => line.includes('shadow-option')), `named: ${said.join(' | ')}`);
 });
 
+test('a ShadowRootInit naming a mode the platform lacks is the PLATFORM\'s to refuse — it throws in both builds', async () => {
+  const tag = name();
+  let thrown;
+  const said = await listen(async () => {
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() { try { init({ host: this, shadow: { mode: 'opne' } }, () => () => html`<p>x</p>`); } catch (error) { thrown = error; } }
+    });
+    await mount(tag);
+  });
+  assert.ok(thrown instanceof dom.window.TypeError || thrown instanceof TypeError, `attachShadow refused it: ${thrown}`);
+  if (!isProduction) assert.ok(said.some((line) => line.includes('shadow-option') && line.includes("{ mode: 'opne' }")), `named first: ${said.join(' | ')}`);
+});
+
 test('the old init(this, { mode }) is refused in development with the new spelling', R2, async () => {
   const said = await listen(async () => {
     await mount(component((host) => { try { init(host, { mode: 'open' }); } catch (error) { console.error(error.message); } }));
