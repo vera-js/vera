@@ -16,7 +16,9 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 
 /** Every specifier whose exports entry carries a `node` condition: `@verajs/jsx`, `@verajs/jsx/…`. */
 const withNode = [];
+let manifests = 0;
 for (const file of globSync('packages/*/package.json', { cwd: root })) {
+  manifests++;
   const { name, exports } = JSON.parse(readFileSync(root + file, 'utf8'));
   if (!exports || typeof exports !== 'object') continue;
   for (const [subpath, target] of Object.entries(exports))
@@ -33,6 +35,7 @@ const bareImports = (text, specifier) => {
 };
 
 test('the scan reads every form, so a silence means something (CONTROL)', () => {
+  assert.ok(manifests >= 10, `CONTROL: ${manifests} package manifests read`);
   assert.ok(withNode.includes('@verajs/jsx'), `CONTROL: @verajs/jsx has a node condition — found ${withNode.join(', ')}`);
   assert.equal(bareImports("import { a } from '@verajs/jsx';\nimport '@verajs/jsx';\nawait import('@verajs/jsx');", '@verajs/jsx'), 3);
   assert.equal(bareImports("import { a } from '@verajs/jsx/standalone';", '@verajs/jsx'), 0, 'a subpath is its own specifier');
@@ -40,6 +43,7 @@ test('the scan reads every form, so a silence means something (CONTROL)', () => 
 
 test('no test imports a package with a node condition bare — it goes through load()', () => {
   const found = [];
+  let scanned = 0;
   for (const file of globSync('tests/**/*.{mjs,js}', { cwd: root })) {
     if (file === 'tests/bare-import-conditions.test.mjs') continue;
     /**
@@ -48,9 +52,11 @@ test('no test imports a package with a node condition bare — it goes through l
      * is the development build in every run, and their pages resolve through import maps.
      */
     if (file.startsWith('tests/browser/')) continue;
+    scanned++;
     const text = readFileSync(root + file, 'utf8');
     for (const specifier of withNode)
       if (bareImports(text, specifier) && !ALLOWED.has(`${file} ${specifier}`)) found.push(`${file}: ${specifier}`);
   }
+  assert.ok(scanned >= 100, `CONTROL: ${scanned} test files scanned`);
   assert.deepEqual(found, [], 'a bare import resolves `node` under test:prod, not the min — use load() from tests/dist.mjs');
 });

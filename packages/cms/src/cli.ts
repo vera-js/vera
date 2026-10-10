@@ -15,6 +15,7 @@
 import type { BuildOptions } from './types.js';
 import process from 'node:process';
 import { buildManifests, checkManifests } from './node.js';
+import { quoted } from '@verajs/shared-utils';
 
 /**
  * **Streams, never `console`, and both halves of that are conventions with teeth.** The production
@@ -57,9 +58,10 @@ if (process.exitCode === undefined) {
 function run(): void {
   if (check) {
     const { stale, missing, orphaned } = checkManifests(options);
-    for (const path of missing) complain(`vera-cms: ${path} is missing`);
-    for (const path of stale) complain(`vera-cms: ${path} is stale`);
-    for (const path of orphaned) complain(`vera-cms: ${path} is orphaned — nothing produces it any more; delete it`);
+    /** A path under content/ comes from author-named folders and files: quoted whole, so none can forge a line. */
+    for (const path of missing) complain(`vera-cms: ${quoted(path, Infinity)} is missing`);
+    for (const path of stale) complain(`vera-cms: ${quoted(path, Infinity)} is stale`);
+    for (const path of orphaned) complain(`vera-cms: ${quoted(path, Infinity)} is orphaned — nothing produces it any more; delete it`);
     if (stale.length + missing.length + orphaned.length > 0) {
       complain('vera-cms: the manifests no longer match the content. Rebuild and commit them.');
       process.exitCode = 1;

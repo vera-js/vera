@@ -27,6 +27,8 @@
 import { parseContent } from './frontmatter.js';
 import { validateEntry } from './schema.js';
 import type { CollectionSchema, ContentSource, Manifest, ManifestEntry } from './types.js';
+import { isOwn, misuse, own, quoted, thrownMessage } from '@verajs/shared-utils';
+import { PROSE } from './publish-diagnostics.js';
 
 /**
  * Builds one collection's manifest from its files.
@@ -52,13 +54,15 @@ export const generateManifest = (
       parsed = parseContent(file.text);
     } catch (error) {
       /** The parser's message carries the line; this adds which file, which it cannot know. */
-      throw new Error(`generateManifest: ${collection}/${file.name}: ${(error as Error).message}`);
+      /** The parser's own refusal carries its line and code already, its outside text quoted: carried as it is. */
+      const detail = isOwn(error) ? (error as Error).message : quoted(thrownMessage(error));
+      throw own(new Error(misuse('generateManifest', 'cms-manifest-entry', __DEV__ && PROSE['cms-manifest-entry']!(quoted(`${collection}/${file.name}`), detail)), { cause: error }));
     }
 
     if (spec !== undefined) {
       const checked = validateEntry(parsed.data, spec);
       if (checked.errors.length > 0)
-        throw new Error(`generateManifest: ${collection}/${file.name}: ${checked.errors.join('; ')}`);
+        throw own(new Error(misuse('generateManifest', 'cms-manifest-invalid', __DEV__ && PROSE['cms-manifest-invalid']!(quoted(`${collection}/${file.name}`), checked.errors.join('; ')))));
       for (const warning of checked.warnings) warnings.push(`${collection}/${file.name} ${warning}`);
       if (spec.body === false && parsed.body.trim() !== '')
         warnings.push(`${collection}/${file.name} has a body, but the collection is data-only (body: false) — it will not render`);

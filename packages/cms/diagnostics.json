@@ -1,0 +1,160 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "cms-build-errors",
+      "params": [
+        "count",
+        "list"
+      ],
+      "message": "{count} problem(s) across the content:\n  {list}",
+      "fix": "Fix each and build again."
+    },
+    {
+      "code": "cms-build-reserved-name",
+      "params": [
+        "name"
+      ],
+      "message": "a collection cannot be named {name} — that artifact name belongs to the generated index.",
+      "fix": "Rename the collection folder."
+    },
+    {
+      "code": "cms-build-schema",
+      "params": [
+        "path",
+        "detail"
+      ],
+      "message": "{path} is not a usable schema: {detail}.",
+      "fix": "Fix content/schema.json and build again."
+    },
+    {
+      "code": "cms-manifest-entry",
+      "params": [
+        "where",
+        "detail"
+      ],
+      "message": "{where} could not be read: {detail}.",
+      "fix": "The file's own error is this one's cause; fix the file and build again."
+    },
+    {
+      "code": "cms-manifest-invalid",
+      "params": [
+        "where",
+        "problems"
+      ],
+      "message": "{where} has fields that do not match the schema: {problems}.",
+      "fix": "Fix those fields in the file and build again."
+    },
+    {
+      "code": "cms-schema-collection-name",
+      "params": [
+        "name"
+      ],
+      "message": "{name} is not a collection name — letters, digits, _ and -, starting alphanumeric.",
+      "fix": "Rename the collection; its folder under content/ takes the same name."
+    },
+    {
+      "code": "cms-schema-collection-shape",
+      "params": [
+        "at"
+      ],
+      "message": "{at} must be an object.",
+      "fix": "Give the collection a { \"fields\": { … } } object."
+    },
+    {
+      "code": "cms-schema-collections",
+      "params": [],
+      "message": "expected a collections object.",
+      "fix": "Write \"collections\": { \"posts\": { … } }."
+    },
+    {
+      "code": "cms-schema-field-name",
+      "params": [
+        "at"
+      ],
+      "message": "{at} — not a field name: letters, digits, _ and -, starting alphanumeric.",
+      "fix": "Rename the field."
+    },
+    {
+      "code": "cms-schema-field-type",
+      "params": [
+        "at",
+        "types"
+      ],
+      "message": "{at} needs a type from: {types}.",
+      "fix": "Give the field one of those types."
+    },
+    {
+      "code": "cms-schema-implicit-field",
+      "params": [
+        "at",
+        "name"
+      ],
+      "message": "{at} — \"{name}\" is implicit and cannot be declared.",
+      "fix": "Remove it: every entry has uuid, title, body and slug already."
+    },
+    {
+      "code": "cms-schema-json",
+      "params": [
+        "detail"
+      ],
+      "message": "not valid JSON — {detail}.",
+      "fix": "Fix the syntax in content/schema.json."
+    },
+    {
+      "code": "cms-schema-list-type",
+      "params": [
+        "at"
+      ],
+      "message": "{at} — a list holds 'string' or 'number' items.",
+      "fix": "Set \"of\": \"string\" or \"of\": \"number\"."
+    },
+    {
+      "code": "cms-schema-not-object",
+      "params": [],
+      "message": "expected an object.",
+      "fix": "content/schema.json holds one object: { \"version\": 1, \"collections\": { … } }."
+    },
+    {
+      "code": "cms-schema-reference",
+      "params": [
+        "at"
+      ],
+      "message": "{at} — a reference needs the collection it points into.",
+      "fix": "Name it: \"collection\": \"authors\"."
+    },
+    {
+      "code": "cms-schema-select-options",
+      "params": [
+        "at"
+      ],
+      "message": "{at} — a select needs a non-empty options array.",
+      "fix": "List its choices: \"options\": [\"a\", \"b\"]."
+    },
+    {
+      "code": "cms-schema-taxonomy",
+      "params": [
+        "at"
+      ],
+      "message": "{at} — a taxonomy field names its term collection.",
+      "fix": "Name it: \"taxonomy\": \"tags\"."
+    },
+    {
+      "code": "cms-schema-taxonomy-missing",
+      "params": [
+        "at",
+        "taxonomy"
+      ],
+      "message": "{at} points at taxonomy {taxonomy}, which is not a declared collection — terms are entries, so a taxonomy needs its collection.",
+      "fix": "Declare that collection, or point at one that exists."
+    },
+    {
+      "code": "cms-schema-version",
+      "params": [
+        "version"
+      ],
+      "message": "unknown version {version} — this reader understands 1.",
+      "fix": "Set \"version\": 1, or update @verajs/cms to a release that reads this version."
+    }
+  ]
+}

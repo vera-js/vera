@@ -36,6 +36,8 @@ const reactivity = await load('store');
 const { autoloader, directiveLoader } = await load('autoloader');
 const styleModule = await load('styles');
 const { wireDirectives } = await load('directives');
+/** cms's schema, manifest and build refusals — one list with tests/cms-coded-errors, so the two cover one set. */
+const { CMS_REFUSALS } = await import('./cms-refusal-cases.mjs');
 
 const skip = isProduction && 'development-only diagnostics';
 
@@ -88,6 +90,7 @@ const CASES = [
   ['setBasePath(notAString)', () => routerModule.setBasePath(42), /setBasePath: expected a string or null/],
   ['allowRenderLoop(notAnElement)', () => core.allowRenderLoop(42), /allowRenderLoop: expected a component element/],
   ['wireDirectives(a directive with no name)', () => wireDirectives({ value: 'none' }), /wireDirectives: a directive needs a `name`[\s\S]*\(wire-directive-name\)$/],
+  ...CMS_REFUSALS.map(([code, run]) => [`cms: ${code}`, run, new RegExp(`\\(${code}\\)$`)]),
   ['wireDirectives(a bad value class)', () => wireDirectives({ name: 'sweep-probe', value: 'text' }), /wireDirectives: `value` must be literal \| expression \| object \| none — got text\.[\s\S]*\(wire-directive-value\)$/],
 ];
 

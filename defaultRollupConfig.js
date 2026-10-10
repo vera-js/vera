@@ -17,6 +17,9 @@ import { dirname, relative, resolve } from 'node:path';
  * @param options.input Entry file (default `src/index.ts`) — secondary entries like the
  * renderer's `hydrate` build pass their own.
  * @param options.alwaysExternal Specifiers kept external in **every** mode, production included.
+ * @param options.words Keep `__DEV__` TRUE in every mode — production's pipeline (minified, standalone) with the
+ * development words: for an entry whose reader is the person who fixes the error, never a visitor (@verajs/cms's
+ * `publish`, `node` and cli, 2026-10-09). The diagnostics stay `__DEV__ && PROSE[…]` in source; the build decides.
  * @param options.preamble A line terser writes FIRST in the production bundle — through terser, so the source map is
  * offset with it (a string prepended afterwards would put every mapped position one line off).
  *
@@ -77,7 +80,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
        * carries two spaces per occurrence in exchange for a map that lands on the right character.
        */
       renderChunk(code) {
-        const replacement = (isProduction ? 'false' : 'true').padEnd('__DEV__'.length);
+        const replacement = (isProduction && !options.words ? 'false' : 'true').padEnd('__DEV__'.length);
         return {
           code: code
             .replace(/\b__DEV__\b/g, replacement)

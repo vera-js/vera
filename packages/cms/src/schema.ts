@@ -29,6 +29,8 @@
  * and anything the subset cannot say fails loudly at schema load rather than validating wrongly.
  */
 import type { CollectionSchema, Field, FrontmatterMap, FrontmatterValue, Schema, Validation } from './types.js';
+import { misuse, own, quoted, thrownMessage } from '@verajs/shared-utils';
+import { PROSE } from './publish-diagnostics.js';
 
 /** The field vocabulary. `text` is multiline prose; `string` is a line. */
 const FIELD_TYPES = new Set(['string', 'text', 'number', 'boolean', 'date', 'image', 'select', 'reference', 'list', 'taxonomy']);
@@ -69,45 +71,42 @@ export const parseSchema = (text: string): Schema => {
   try {
     raw = JSON.parse(text);
   } catch (error) {
-    throw new Error(`parseSchema: not valid JSON — ${(error as Error).message}`);
+    throw own(new Error(misuse('parseSchema', 'cms-schema-json', __DEV__ && PROSE['cms-schema-json']!(quoted(thrownMessage(error))))));
   }
   const schema = raw as Schema;
-  if (schema === null || typeof schema !== 'object') throw new Error('parseSchema: expected an object');
-  if (schema.version !== 1) throw new Error(`parseSchema: unknown version ${JSON.stringify(schema.version)} — this reader understands 1`);
+  if (schema === null || typeof schema !== 'object') throw own(new Error(misuse('parseSchema', 'cms-schema-not-object', __DEV__ && PROSE['cms-schema-not-object']!())));
+  if (schema.version !== 1) throw own(new Error(misuse('parseSchema', 'cms-schema-version', __DEV__ && PROSE['cms-schema-version']!(quoted(String(JSON.stringify(schema.version)))))));
   if (schema.collections === null || typeof schema.collections !== 'object')
-    throw new Error('parseSchema: expected a collections object');
+    throw own(new Error(misuse('parseSchema', 'cms-schema-collections', __DEV__ && PROSE['cms-schema-collections']!())));
 
   for (const [collection, spec] of Object.entries(schema.collections)) {
     const at = `collections.${collection}`;
     if (badName(collection))
-      throw new Error(`parseSchema: ${JSON.stringify(collection)} is not a collection name — letters, digits, _ and -, starting alphanumeric`);
-    if (spec === null || typeof spec !== 'object') throw new Error(`parseSchema: ${at} must be an object`);
+      throw own(new Error(misuse('parseSchema', 'cms-schema-collection-name', __DEV__ && PROSE['cms-schema-collection-name']!(quoted(collection)))));
+    if (spec === null || typeof spec !== 'object') throw own(new Error(misuse('parseSchema', 'cms-schema-collection-shape', __DEV__ && PROSE['cms-schema-collection-shape']!(quoted(at)))));
     for (const [name, field] of Object.entries(spec.fields ?? {})) {
       const here = `${at}.fields.${name}`;
       if (field === null || typeof field !== 'object' || !FIELD_TYPES.has(field.type))
-        throw new Error(`parseSchema: ${here} needs a type from: ${[...FIELD_TYPES].join(', ')}`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-field-type', __DEV__ && PROSE['cms-schema-field-type']!(quoted(here), [...FIELD_TYPES].join(', ')))));
       if (name === 'uuid' || name === 'title' || name === 'body' || name === 'slug')
-        throw new Error(`parseSchema: ${here} — "${name}" is implicit and cannot be declared`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-implicit-field', __DEV__ && PROSE['cms-schema-implicit-field']!(quoted(here), name))));
       if (badName(name))
-        throw new Error(`parseSchema: ${here} — not a field name: letters, digits, _ and -, starting alphanumeric`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-field-name', __DEV__ && PROSE['cms-schema-field-name']!(quoted(here)))));
       if (field.type === 'select' && (!Array.isArray(field.options) || field.options.length === 0))
-        throw new Error(`parseSchema: ${here} — a select needs a non-empty options array`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-select-options', __DEV__ && PROSE['cms-schema-select-options']!(quoted(here)))));
       if (field.type === 'reference' && (typeof field.collection !== 'string' || badName(field.collection)))
-        throw new Error(`parseSchema: ${here} — a reference needs the collection it points into`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-reference', __DEV__ && PROSE['cms-schema-reference']!(quoted(here)))));
       if (field.type === 'list' && field.of !== 'string' && field.of !== 'number')
-        throw new Error(`parseSchema: ${here} — a list holds 'string' or 'number' items`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-list-type', __DEV__ && PROSE['cms-schema-list-type']!(quoted(here)))));
       /**
        * The VALUE is checked like a name, because it is one — `taxonomy: "__proto__"` walked
        * through the inherited-lookup existence check below and seeded terms onto
        * `Object.prototype` itself, globally, with the build reporting green (audit pass 7).
        */
       if (field.type === 'taxonomy' && (typeof field.taxonomy !== 'string' || badName(field.taxonomy)))
-        throw new Error(`parseSchema: ${here} — a taxonomy field names its term collection`);
+        throw own(new Error(misuse('parseSchema', 'cms-schema-taxonomy', __DEV__ && PROSE['cms-schema-taxonomy']!(quoted(here)))));
       if (field.type === 'taxonomy' && !Object.hasOwn(schema.collections, field.taxonomy))
-        throw new Error(
-          `parseSchema: ${here} points at taxonomy "${field.taxonomy}", which is not a declared collection — ` +
-            `terms are entries, so a taxonomy needs its collection`
-        );
+        throw own(new Error(misuse('parseSchema', 'cms-schema-taxonomy-missing', __DEV__ && PROSE['cms-schema-taxonomy-missing']!(quoted(here), quoted(String(field.taxonomy))))));
     }
   }
   return schema;

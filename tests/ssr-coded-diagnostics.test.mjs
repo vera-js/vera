@@ -15,9 +15,9 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { renderToString } from '@verajs/ssr';
 import { PROSE, TWINS } from '../packages/ssr/dist/vera/diagnostics.js';
-import { ssrMisuse, ssrWarning, quoted } from '../packages/ssr/dist/vera/report.js';
+import { ssrMisuse, ssrWarning, quoted, own, isOwn } from '../packages/ssr/dist/vera/report.js';
 /** shared-utils' DEVELOPMENT build — the one where misuse()/diagnostic() carry prose (`__DEV__` true). */
-import { SHARED, misuse, diagnostic } from '../packages/shared-utils/dist/development/vera-shared-utils.js';
+import { SHARED, misuse, diagnostic, quoted as sharedQuoted, own as sharedOwn, isOwn as sharedIsOwn } from '../packages/shared-utils/dist/development/vera-shared-utils.js';
 
 const MODULE = new URL('./fixtures/ssr/coded-ssr.js', import.meta.url);
 
@@ -39,6 +39,19 @@ test("ssr's formatters say exactly what shared-utils' say in development", () =>
   assert.equal(ssrMisuse('ssr-x', prose), misuse('ssr', 'ssr-x', prose));
   assert.equal(ssrWarning('<p-x>', 'ssr-x', prose), diagnostic('ssr', '<p-x>', 'ssr-x', prose));
   assert.equal(ssrMisuse('ssr-x', ['alone.']), misuse('ssr', 'ssr-x', ['alone.']), 'and with no fix');
+  for (const text of ['plain', 'a\n[vera] fake\x1b[2K', 'x'.repeat(200)]) {
+    assert.equal(quoted(text), sharedQuoted(text), 'quoted() is the twin of shared-utils\'');
+    assert.equal(quoted(text, Infinity), sharedQuoted(text, Infinity), 'and so is its no-truncate mode');
+  }
+  /** own()/isOwn(): the same behavior on both sides (each keeps its own set, as each package's errors are its own). */
+  for (const [mark, has] of [[own, isOwn], [sharedOwn, sharedIsOwn]]) {
+    const error = new Error('x');
+    assert.equal(mark(error), error, 'own() returns the error it marks');
+    assert.equal(has(error), true);
+    assert.equal(has(new Error('y')), false, 'an unmarked error is foreign');
+    assert.equal(has(null), false);
+    assert.equal(has('a string'), false);
+  }
 });
 
 test('every TWIN generates its SHARED fact word for word, and none is one of ssr\'s own codes', () => {

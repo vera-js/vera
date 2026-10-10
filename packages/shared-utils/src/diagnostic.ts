@@ -46,3 +46,29 @@ export const diagnostic = (
   __DEV__ && andProse
     ? `[vera] ${inArea}: ${bySubject} — ${andProse[0]}${andProse[1] ? ` ${andProse[1]}` : ''} (${withCode})`
     : `[vera] ${inArea}: ${bySubject} — ${DOCS}${withCode}`;
+
+/**
+ * **Text from outside — a file path, a YAML key, a URL, an error's message — quoted before it reaches a line.** A log is a
+ * pipeline, and such text can be shaped by an author or a request: a newline in it forges a line, an ESC sequence hides
+ * one (log injection). `JSON.stringify` escapes both; cut to 80 characters so one value cannot fill the log. @verajs/ssr
+ * keeps a twin (it cannot import this), held equal by tests/ssr-coded-diagnostics.
+ */
+/**
+ * `max` caps the length (80 by default); `Infinity` keeps the whole text for a value worth reading in full — a site
+ * owner's own path — which is still ESCAPED: truncation and escaping are separate jobs, and a path is not free of control
+ * characters just because its owner wrote it (vera-5a, 2026-10-09).
+ */
+export const quoted = (text: string, max = 80): string => JSON.stringify(text.length > max ? `${text.slice(0, max)}…` : text);
+
+/**
+ * **The errors a package constructs, marked as its own** — so a wrapper that reports an inner refusal (cms's
+ * `generateManifest` around a frontmatter line) carries it as it is: already formatted, its outside text already
+ * quoted. Anything else is foreign, and quoted. Identity, never a shape test: a message can imitate ours, an identity
+ * cannot. @verajs/ssr keeps a twin (it cannot import this).
+ */
+const ours = /* @__PURE__ */ new WeakSet<object>();
+export const own = <E extends Error>(error: E): E => {
+  ours.add(error);
+  return error;
+};
+export const isOwn = (error: unknown): boolean => typeof error === 'object' && error !== null && ours.has(error);

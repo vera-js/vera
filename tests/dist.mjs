@@ -40,6 +40,7 @@ export const ENTRY = {
   'cms/content': ['cms', 'vera-cms-content'],
   'cms/publish': ['cms', 'vera-cms-publish'],
   'cms/node': ['cms', 'vera-cms-node'],
+  'cms/cli': ['cms', 'vera-cms-cli'],
   core: ['core', 'vera'],
   jsx: ['jsx', 'vera-jsx'],
   'jsx/standalone': ['jsx', 'vera-jsx-standalone'],

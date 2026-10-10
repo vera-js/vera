@@ -44,13 +44,13 @@ test('a valid schema parses, with every field kind in it', () => {
 test('a broken schema fails at load with the path named', () => {
   const bad = (collections, pattern) =>
     assert.throws(() => parseSchema(JSON.stringify({ version: 1, collections })), pattern);
-  assert.throws(() => parseSchema('{nope'), /parseSchema: not valid JSON/);
-  assert.throws(() => parseSchema('{"version":2,"collections":{}}'), /unknown version 2/);
-  bad({ posts: { fields: { x: { type: 'blob' } } } }, /collections\.posts\.fields\.x needs a type/);
-  bad({ posts: { fields: { title: { type: 'string' } } } }, /"title" is implicit and cannot be declared/);
-  bad({ posts: { fields: { status: { type: 'select', options: [] } } } }, /non-empty options/);
-  bad({ posts: { fields: { author: { type: 'reference' } } } }, /needs the collection it points into/);
-  bad({ posts: { fields: { tags: { type: 'list', of: 'boolean' } } } }, /holds 'string' or 'number'/);
+  assert.throws(() => parseSchema('{nope'), /parseSchema: not valid JSON[\s\S]*\(cms-schema-json\)$/);
+  assert.throws(() => parseSchema('{"version":2,"collections":{}}'), /unknown version "2"[\s\S]*\(cms-schema-version\)$/);
+  bad({ posts: { fields: { x: { type: 'blob' } } } }, /"collections\.posts\.fields\.x" needs a type[\s\S]*\(cms-schema-field-type\)$/);
+  bad({ posts: { fields: { title: { type: 'string' } } } }, /"title" is implicit and cannot be declared[\s\S]*\(cms-schema-implicit-field\)$/);
+  bad({ posts: { fields: { status: { type: 'select', options: [] } } } }, /non-empty options[\s\S]*\(cms-schema-select-options\)$/);
+  bad({ posts: { fields: { author: { type: 'reference' } } } }, /needs the collection it points into[\s\S]*\(cms-schema-reference\)$/);
+  bad({ posts: { fields: { tags: { type: 'list', of: 'boolean' } } } }, /holds 'string' or 'number'[\s\S]*\(cms-schema-list-type\)$/);
 });
 
 // ── the entry validation matrix ─────────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ test('a declared-field violation fails the whole publish, file and field named',
   const { root, posts, content, out } = site(SCHEMA);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(posts, 'bad.md'), '---\nuuid: u1\ntitle: T\ndate: tomorrow\n---\nx');
-  assert.throws(() => buildManifests({ content, out }), /posts\/bad\.md: "date": expected a date/);
+  assert.throws(() => buildManifests({ content, out }), /"posts\/bad\.md" has fields that do not match the schema: "date": expected a date[\s\S]*\(cms-manifest-invalid\)$/);
 });
 
 test('generateManifest without a spec validates nothing — the schemaless site is untouched', () => {
@@ -139,7 +139,7 @@ test('a broken schema file refuses the build — present and wrong is worse than
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(content, 'schema.json'), '{broken');
   writeFileSync(join(content, 'posts', 'a.md'), '---\nuuid: u\ntitle: T\n---\nx');
-  assert.throws(() => buildManifests({ content, out }), /schema\.json: parseSchema: not valid JSON/);
+  assert.throws(() => buildManifests({ content, out }), /schema\.json" is not a usable schema: parseSchema: not valid JSON[\s\S]*\(cms-build-schema\)$/);
 });
 
 test('a data-only collection with a body warns that it will not render', () => {

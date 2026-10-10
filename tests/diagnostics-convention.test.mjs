@@ -194,7 +194,8 @@ test('no console call escapes the check by not starting with a literal', () => {
  */
 test('the shared diagnostic formatter prefixes both of its lines', () => {
   const text = readFileSync(new URL('../packages/shared-utils/src/diagnostic.ts', import.meta.url), 'utf8');
-  const body = text.slice(text.indexOf('export const diagnostic'));
+  const start = text.indexOf('export const diagnostic');
+  const body = text.slice(start, text.indexOf('\nexport ', start + 1) >>> 0 || undefined);
   const lines = [...body.matchAll(/[?:]\s*`([^`]*)/g)].map(([, line]) => line);
   assert.equal(lines.length, 2, 'CONTROL: the development and production templates were both found');
   for (const line of lines) assert.ok(line.startsWith('[vera] '), `a formatter line lacks the prefix: ${line.slice(0, 40)}`);

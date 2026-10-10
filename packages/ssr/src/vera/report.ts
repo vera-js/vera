@@ -20,7 +20,12 @@ export const ssrWarning = (subject: string, code: string, prose: Said): string =
  * sequence hides one (log injection — the server's form of the '%s' class). `JSON.stringify` escapes both; cut to 80
  * characters so one value cannot fill the log either.
  */
-export const quoted = (text: string): string => JSON.stringify(text.length > 80 ? `${text.slice(0, 80)}…` : text);
+/**
+ * `max` caps the length (80 by default); `Infinity` keeps the whole text for a value worth reading in full — a site
+ * owner's own path — which is still ESCAPED: truncation and escaping are separate jobs, and a path is not free of control
+ * characters just because its owner wrote it (vera-5a, 2026-10-09).
+ */
+export const quoted = (text: string, max = 80): string => JSON.stringify(text.length > max ? `${text.slice(0, max)}…` : text);
 
 /**
  * **Once per process per key.** A server renders per request, so a warning that fires per render floods the log at

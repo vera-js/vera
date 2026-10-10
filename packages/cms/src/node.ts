@@ -20,6 +20,8 @@ import { parseSchema } from './schema.js';
 import { checkReferences, generateTaxonomies, serializeTaxonomies } from './taxonomy.js';
 import { emitJsonSchemas } from './emit.js';
 import type { BuildOptions, BuildResult, CheckResult, ContentSource, Manifest, Schema } from './types.js';
+import { isOwn, misuse, own, quoted, thrownMessage } from '@verajs/shared-utils';
+import { PROSE } from './publish-diagnostics.js';
 
 /**
  * One collection's files, read off disk in sorted order.
@@ -56,7 +58,9 @@ const schemaOf = (content: string): Schema | undefined => {
   try {
     return parseSchema(text);
   } catch (error) {
-    throw new Error(`buildManifests: ${join(content, 'schema.json')}: ${(error as Error).message}`);
+    /** The site owner's own path, printed WHOLE but still escaped — a repository can hold any file name. */
+    const detail = isOwn(error) ? (error as Error).message : quoted(thrownMessage(error));
+    throw own(new Error(misuse('buildManifests', 'cms-build-schema', __DEV__ && PROSE['cms-build-schema']!(quoted(join(content, 'schema.json'), Infinity), detail)), { cause: error }));
   }
 };
 
@@ -72,9 +76,7 @@ const artifactsOf = (options: BuildOptions): { artifacts: Map<string, string>; w
   /** Schemaless sites get the same protection the schema's RESERVED list gives declared ones. */
   for (const name of names)
     if (name === 'site' || name === 'taxonomies')
-      throw new Error(
-        `buildManifests: a collection cannot be named "${name}" — that artifact name belongs to the generated index`
-      );
+      throw own(new Error(misuse('buildManifests', 'cms-build-reserved-name', __DEV__ && PROSE['cms-build-reserved-name']!(quoted(name)))));
   const manifests = new Map<string, Manifest>();
   for (const name of names) {
     /** Own keys only — a folder named `constructor` once validated against Object's constructor. */
@@ -94,7 +96,7 @@ const artifactsOf = (options: BuildOptions): { artifacts: Map<string, string>; w
   if (schema !== undefined) {
     const { index, errors } = generateTaxonomies(schema, manifests);
     errors.push(...checkReferences(schema, manifests));
-    if (errors.length > 0) throw new Error(`buildManifests:\n  ${errors.join('\n  ')}`);
+    if (errors.length > 0) throw own(new Error(misuse('buildManifests', 'cms-build-errors', __DEV__ && PROSE['cms-build-errors']!(String(errors.length), errors.join('\n  ')))));
     if (Object.keys(index.taxonomies).length > 0)
       artifacts.set(join(out, 'taxonomies.json'), serializeTaxonomies(index));
     /** The interchange contracts, served beside the manifests they govern. */
