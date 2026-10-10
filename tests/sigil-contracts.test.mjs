@@ -49,7 +49,11 @@ for (const pkg of readdirSync(root)) {
 
 /** Read and never written in these sources, with the reason. */
 const UNWRITTEN = {
-  /** An optional member of the renderer's applier interface: implemented by an applier module, if one wants removal notice. */
+  /**
+   * A PUBLIC opt-in written by AUTHOR code, never by ours: "Teardown is opt-in, on the applier" — `applyThing._$detach$ =
+   * (previous) => …` (renderer README, the applier teardown section); declaring it arms the renderer's teardown walk.
+   * Read by renderer.ts and hydration.ts, covered by tests/renderer-teardown. Not dead code.
+   */
   _$detach$: ['renderer'],
 };
 /** Written by more than one package on purpose. */
