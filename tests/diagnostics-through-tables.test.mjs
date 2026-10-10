@@ -6,7 +6,7 @@
  *    its text comes through `misuse()` / `diagnostic()`, whose prose is the table's.
  * 2. BUNDLES: no table prose survives in the production bundle — what "development-only costs 0 B" rests on.
  *
- * MIGRATED grows as packages move onto the code system (the rest: the pre-release migration piece).
+ * MIGRATED holds every package that prints or throws (since phase 5, 2026-10-09; the last test below holds it so).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,6 +44,9 @@ const MIGRATED = [
   ['directives', 'dist/*.min.js'],
   /** Node-only, compiled per file, no `__DEV__`: its words ship by design, so there is no production bundle to check. */
   ['ssr', null],
+  /** The visitor's bundle only: publish, node and the cli keep their words in every build by design (`words: true`), and
+   *  tests/words-builds-prose-only holds them to prose-only `__DEV__`. */
+  ['cms', 'dist/vera-cms-content.min.js'],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -66,6 +69,16 @@ const IMITATIONS = new Map([
   ['packages/ssr/src/vera/nodes.ts', 5],
   ['packages/ssr/src/vera/events.ts', 1],
   ['packages/ssr/src/vera/stylesheets.ts', 2],
+]);
+/**
+ * **cms's programmer contracts** — throws that state, by name and in words, what an API refuses from the code calling it:
+ * serializeContent's value rules, the writer's collection/slug/path bounds, the reader's collection name (the migration
+ * plan's named list, phase 5). Thrown, never printed; counted per file so a new one is a deliberate edit.
+ */
+const NAMED = new Map([
+  ['packages/cms/src/write.ts', 8],
+  ['packages/cms/src/writer.ts', 2],
+  ['packages/cms/src/reader.ts', 1],
 ]);
 /** A leading `'%s'` is the format, never the message (`tests/console-format-strings.test.mjs`): the line is after it. */
 const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*(?:'%s',\s*)?(?!'%s')[`'"]/g;
@@ -97,7 +110,7 @@ for (const [name, bundle] of MIGRATED) {
           return code === undefined || !(code in OWN.get(name));
         })
         .map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
-      if ((ROUTING.get(file) ?? IMITATIONS.get(file)) === found.length) continue;
+      if ((ROUTING.get(file) ?? IMITATIONS.get(file) ?? NAMED.get(file)) === found.length) continue;
       inline.push(...found);
     }
     assert.deepEqual(inline, [], 'a message written inline — put its text in the package table and raise it by code');
@@ -164,18 +177,13 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
 });
 
 /**
- * **"Every line the framework prints carries a code" is true package by package, and this says which** (vera-5a,
- * 2026-10-09). A package whose sources print or throw is either MIGRATED above (its messages come from its table) or
- * listed here with the phase that moves it. The list only SHRINKS — `NOT_YET_MAX` — and phase 5 leaves cms's named
- * exclusions (programmer API contracts, kept as named throws). The README and llms.txt name the migrated packages by
- * this list, so the sentence cannot run ahead of the code.
+ * **"Every package gives every line a code" is true package by package** (vera-5a, 2026-10-09). Every package whose
+ * sources print or throw is MIGRATED above — its messages come from its table — and the exceptions are the counted
+ * lists (ROUTING, IMITATIONS, NAMED), which the README and llms.txt name. The phase-by-phase NOT_YET list emptied with
+ * phase 5 and is gone: a new package that prints joins MIGRATED, or this goes red.
  */
-const NOT_YET = new Map([
-  ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
-]);
-const NOT_YET_MAX = 1;
 
-test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
+test('every package that prints or throws is on the code system', () => {
   const printing = globSync('packages/*/src', { cwd: root })
     .map((dir) => dir.split('/')[1])
     .filter((name) =>
@@ -185,7 +193,5 @@ test('every package that prints or throws is on the code system, or listed with 
     );
   assert.ok(printing.length >= 10, `CONTROL: ${printing.length} packages print`);
   const migrated = new Set(MIGRATED.map(([name]) => name));
-  assert.deepEqual(printing.filter((name) => !migrated.has(name) && !NOT_YET.has(name)), [], 'a package prints uncoded and is on neither list');
-  assert.deepEqual([...NOT_YET.keys()].filter((name) => migrated.has(name)), [], 'migrated — delete its NOT_YET row');
-  assert.ok(NOT_YET.size <= NOT_YET_MAX, `${NOT_YET.size} not yet migrated, more than ${NOT_YET_MAX}: the list only shrinks`);
+  assert.deepEqual(printing.filter((name) => !migrated.has(name)), [], 'a package prints or throws uncoded — migrate it onto its table');
 });

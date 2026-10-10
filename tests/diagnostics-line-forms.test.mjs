@@ -2,7 +2,7 @@
  * **Every line the formatters write is one of the documented forms, and the docs show every production form**
  * (code-system phase 5b, vera-5a, 2026-10-09). tests/diagnostics-through-tables reads hand-written SOURCE literals; a
  * formatter's output is no literal, so it never sees it — this drives the formatters themselves (shared-utils'
- * `diagnostic`, `misuse`, `misuseAbout`, and ssr's twins) in the build under test and requires each output to match
+ * `diagnostic`, `misuse`, `misuseAbout`, `reportUncaught`, and ssr's twins) in the build under test and requires each output to match
  * exactly one form, and the form its formatter is for. The forms are disjoint by construction (each test input keeps
  * ` — ` out of the words, as real prose need not), so "exactly one" is checkable. The other half is the docs: the
  * "reading a `[vera]` line" section, in the core README and in llms.txt, must show every PRODUCTION form at least once
@@ -32,25 +32,39 @@ const FORMS = {
   'thrown, development': new RegExp(`^${NAME}: (?!.* — ).+ \\(${CODE}\\)$`),
   'thrown with its subject, development': new RegExp(`^${NAME}: [^—]+ — (?!https:).+ \\(${CODE}\\)$`),
   'compiled, with its link': new RegExp(`^[^\\s:]+:\\d+:\\d+ — ${LINK}$`),
+  /** The one line with no code: the framework forwarding an error the USER's code threw, the error printed beside it. */
+  'forwarded, your error': /^\[vera\] [a-z][a-z ]*[a-z]:$/,
 };
 const PRODUCTION_FORMS = Object.keys(FORMS).filter((form) => !form.endsWith('development'));
 
 const formsOf = (line) => Object.entries(FORMS).filter(([, shape]) => shape.test(line)).map(([form]) => form);
 
 const PROSE = ['the value is not usable here.', 'Pass a function instead.'];
+
+/** reportUncaught prints the forwarded line beside the error; Node has no `reportError`, so it prints here in both builds. */
+const forwarded = (() => {
+  const saved = console.error;
+  let first = '';
+  console.error = (line) => { first = String(line); };
+  try { shared.reportUncaught(new Error("the user's"), 'a hook threw:'); } finally { console.error = saved; }
+  return first;
+})();
+
+/** `[formatter, the line it wrote, the form it is for, a fragment the line must hold — the CONTROL that it ran]`. */
 const ROWS = [
-  ['diagnostic', shared.diagnostic('core', '<x-card>', 'probe-code', PROSE), isProduction ? 'printed, with its link' : 'printed, development'],
-  ['misuse', shared.misuse('untrack', 'probe-code', PROSE), isProduction ? 'thrown, with its link' : 'thrown, development'],
+  ['diagnostic', shared.diagnostic('core', '<x-card>', 'probe-code', PROSE), isProduction ? 'printed, with its link' : 'printed, development', 'probe-code'],
+  ['misuse', shared.misuse('untrack', 'probe-code', PROSE), isProduction ? 'thrown, with its link' : 'thrown, development', 'probe-code'],
   ['misuseAbout', shared.misuseAbout('parseFrontmatter', 'line 3', 'probe-code', PROSE),
-    isProduction ? 'thrown with its subject, with its link' : 'thrown with its subject, development'],
+    isProduction ? 'thrown with its subject, with its link' : 'thrown with its subject, development', 'probe-code'],
   /** ssr keeps its words in every build (a server's log is read by the person who fixes it). */
-  ["ssr's ssrMisuse", ssrMisuse('probe-code', PROSE), 'thrown, development'],
-  ["ssr's ssrWarning", ssrWarning('<x-card>', 'probe-code', PROSE), 'printed, development'],
+  ["ssr's ssrMisuse", ssrMisuse('probe-code', PROSE), 'thrown, development', 'probe-code'],
+  ["ssr's ssrWarning", ssrWarning('<x-card>', 'probe-code', PROSE), 'printed, development', 'probe-code'],
+  ['reportUncaught', forwarded, 'forwarded, your error', 'a hook threw:'],
 ];
 
-for (const [formatter, line, expected] of ROWS)
+for (const [formatter, line, expected, mark] of ROWS)
   test(`${formatter} writes exactly one documented form: ${expected}`, () => {
-    assert.ok(line.length > 0 && line.includes('probe-code'), `CONTROL: the formatter produced a line: ${JSON.stringify(line)}`);
+    assert.ok(line.includes(mark), `CONTROL: the formatter produced its line: ${JSON.stringify(line)}`);
     assert.deepEqual(formsOf(line), [expected], JSON.stringify(line));
   });
 
