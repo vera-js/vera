@@ -66,7 +66,11 @@ test('the client imports the SAME module and adopts what the server rendered —
   }
   /** The one engine line allowed: jsdom has no `@scope` (a real engine does — the browser row asserts silence). */
   assert.deepEqual(said.filter((line) => !line.includes('(no-scope)')), [], 'no hydration fallback, nothing else said');
-  assert.ok(said.length <= 1, `at most the one no-scope line: ${said.join(' | ')}`);
+  /**
+   * EXACTLY once in development, not at most: jsdom has no `@scope`, so silence there would mean styles' detection broke
+   * (a real engine prints 0, which the browser row covers). The warning is development-only, so production says nothing.
+   */
+  assert.equal(said.length, isProduction ? 0 : 1, `the no-scope line: ${said.join(' | ')}`);
   assert.ok(doc.querySelector('ia-counter p') === before.p && doc.querySelector('ia-counter button') === before.button, 'the counter was adopted');
   assert.ok(doc.querySelector('ia-card h2') === before.h2, 'the slotted header was adopted');
   assert.ok(doc.querySelector('ia-styled p') === before.styled, 'the styled component was adopted');
