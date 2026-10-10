@@ -9,7 +9,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { transformJsx } from '@verajs/jsx';
+import { load } from './dist.mjs';
+import { jsxLine } from './jsx-line.mjs';
+
+/** Through dist.mjs — the artifact under test (development, production, or the node build), never a bare resolve. */
+const { transformJsx } = await load('jsx');
 
 const compile = (source) => transformJsx(source, 'app.tsx', { namespaces: false }).replace(/^import .*\n/gm, '').trim();
 
@@ -41,7 +45,7 @@ test('only the element with the comment was affected before: its siblings in the
 });
 
 test('an unterminated comment among the attributes is reported, naming the file and position — never passed through', () => {
-  assert.throws(() => transformJsx('const a = <p class="a" /* oops>x</p>;', 'app.tsx'), /app\.tsx:1:24 — a comment among the attributes is never closed/);
+  assert.throws(() => transformJsx('const a = <p class="a" /* oops>x</p>;', 'app.tsx'), jsxLine('jsx-unclosed-comment', 'a comment among the attributes is never closed', 'app.tsx:1:24'));
 });
 
 test('CONTROL: non-JSX `<` followed by a comment is left untouched', () => {

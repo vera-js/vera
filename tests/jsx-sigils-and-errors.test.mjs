@@ -19,7 +19,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { transformJsx } from '@verajs/jsx';
+import { load } from './dist.mjs';
+import { jsxLine } from './jsx-line.mjs';
+
+/** Through dist.mjs — the artifact under test (development, production, or the node build), never a bare resolve. */
+const { transformJsx } = await load('jsx');
 
 /** These pin how markup COMPILES; the namespaces wiring every module also gets is not their subject. */
 const compile = (source) => transformJsx(source, 'app.tsx', { namespaces: false }).replace(/^import .*\n/gm, '').trim();
@@ -41,7 +45,7 @@ test('a sigil the author wrote is not guessed at a second time', () => {
 });
 
 test('a sigil with no value is refused, with a position', () => {
-  assert.throws(() => transformJsx('const a = <p .rows />;', 'app.tsx'), /app\.tsx:1:14 — \.rows needs a value/);
+  assert.throws(() => transformJsx('const a = <p .rows />;', 'app.tsx'), jsxLine('jsx-sigil-value', '.rows needs a value', 'app.tsx:1:14'));
 });
 
 test('a lone sigil is a name only for the ref', () => {
@@ -51,8 +55,8 @@ test('a lone sigil is a name only for the ref', () => {
 });
 
 test('a mismatched closing tag is reported where it is', () => {
-  assert.throws(() => transformJsx('const a = <p>y</b>;', 'app.tsx'), /app\.tsx:1:15 — <p> is closed by <\/b>/);
-  assert.throws(() => transformJsx('const a = <ul><li>1</ul>;', 'app.tsx'), /<li> is closed by <\/ul>/);
+  assert.throws(() => transformJsx('const a = <p>y</b>;', 'app.tsx'), jsxLine('jsx-tag-mismatch', '<p> is closed by </b>', 'app.tsx:1:15'));
+  assert.throws(() => transformJsx('const a = <ul><li>1</ul>;', 'app.tsx'), jsxLine('jsx-tag-mismatch', '<li> is closed by </ul>'));
   assert.throws(
     () => transformJsx('const first = <p>ok</p>;\nconst second = <p>y</b>;', 'app.tsx'),
     /app\.tsx:2:20/,
@@ -66,8 +70,8 @@ test('an empty attribute expression is reported, and an empty child is not', () 
    * never wrote, with nothing naming the `{}` responsible. An empty CHILD container stays legal and
    * vanishes, which is what JSX does, so this is a pair rather than a single rule.
    */
-  assert.throws(() => transformJsx('const a = <div x={} />;', 'app.tsx'), /app\.tsx:1:18 — x=\{\} has no value/);
-  assert.throws(() => transformJsx('const a = <div x={ /* c */ } />;', 'app.tsx'), /x=\{\} has no value/);
+  assert.throws(() => transformJsx('const a = <div x={} />;', 'app.tsx'), jsxLine('jsx-empty-expression', 'x={} has no value', 'app.tsx:1:18'));
+  assert.throws(() => transformJsx('const a = <div x={ /* c */ } />;', 'app.tsx'), jsxLine('jsx-empty-expression', 'x={} has no value'));
   assert.equal(compile('const a = <div>{}</div>;'), 'const a = html`<div></div>`;');
   assert.equal(compile('const a = <div x={1} />;'), 'const a = html`<div x=${1}></div>`;');
   /**
@@ -75,12 +79,12 @@ test('an empty attribute expression is reported, and an empty child is not', () 
    * LINE comment (every copy of the test stripped only block comments), a spread of nothing, and an
    * `__html` key with no value. A line comment in a CHILD vanishes like a block one.
    */
-  assert.throws(() => transformJsx('const a = <div x={// note\n} />;', 'app.tsx'), /app\.tsx:1:18 — x=\{\} has no value/);
-  assert.throws(() => transformJsx('const a = <Card {...} />;', 'app.tsx'), /app\.tsx:1:17 — \{\.\.\.\} has no value/);
-  assert.throws(() => transformJsx('const a = <Card {.../* c */} />;', 'app.tsx'), /\{\.\.\.\} has no value/);
+  assert.throws(() => transformJsx('const a = <div x={// note\n} />;', 'app.tsx'), jsxLine('jsx-empty-expression', 'x={} has no value', 'app.tsx:1:18'));
+  assert.throws(() => transformJsx('const a = <Card {...} />;', 'app.tsx'), jsxLine('jsx-empty-expression', '{...} has no value', 'app.tsx:1:17'));
+  assert.throws(() => transformJsx('const a = <Card {.../* c */} />;', 'app.tsx'), jsxLine('jsx-empty-expression', '{...} has no value'));
   assert.throws(
     () => transformJsx('const a = <div dangerouslySetInnerHTML={{ __html: }} />;', 'app.tsx'),
-    /__html: \}\} has no value/
+    jsxLine('jsx-inner-html-shape', '{{ __html: }} has no value')
   );
   assert.equal(compile('const a = <div>{// note\n}</div>;'), 'const a = html`<div></div>`;');
   /** The controls: a comment BESIDE a value, and a real spread and `__html`, are all still values. */
@@ -101,8 +105,8 @@ test('only the FIRST fault is reported, whichever kind comes first', () => {
   /** After one fault the walker's idea of the source is already wrong, so a later complaint is a
    *  consequence of it — and naming it buries the cause. Both orders, since each channel has its own
    *  "only if nothing yet" guard. */
-  assert.throws(() => transformJsx('const a = <div x={} />;\nconst b = <p>x</span>;', 'app.tsx'), /app\.tsx:1:18 — x=\{\} has no value/);
-  assert.throws(() => transformJsx('const b = <p>x</span>;\nconst a = <div x={} />;', 'app.tsx'), /<p> is closed by <\/span>/);
+  assert.throws(() => transformJsx('const a = <div x={} />;\nconst b = <p>x</span>;', 'app.tsx'), jsxLine('jsx-empty-expression', 'x={} has no value', 'app.tsx:1:18'));
+  assert.throws(() => transformJsx('const b = <p>x</span>;\nconst a = <div x={} />;', 'app.tsx'), jsxLine('jsx-tag-mismatch', '<p> is closed by </span>'));
 });
 
 test('a boolean attribute set to the empty string is TRUE', () => {

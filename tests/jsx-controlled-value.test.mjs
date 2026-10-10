@@ -9,8 +9,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { transformJsx } from '@verajs/jsx';
 import { load } from './dist.mjs';
+
+/** Through dist.mjs — the artifact under test, never a bare resolve. */
+const { transformJsx } = await load('jsx');
 
 const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'Node', 'Element', 'HTMLElement', 'Comment', 'Text', 'DocumentFragment', 'MutationObserver', 'customElements', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent'])

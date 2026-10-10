@@ -25,8 +25,15 @@
  *   npm test                       # development
  *   VERA_DIST=production npm test  # production
  *   npm run test:all               # both
+ *   npm run test:jsx-node          # the jsx compiler's node build (VERA_DIST=node)
  */
 export const isProduction = process.env.VERA_DIST === 'production';
+/**
+ * **`VERA_DIST=node`: the jsx compiler's NODE build, everything else development** — the pairing a Vite or Node user
+ * runs (`@verajs/jsx`'s `node` export condition maps `dist/node/vera-jsx.js`: production's pipeline, minified, with
+ * `__DEV__` true). A third program, so the jsx suites run against it too (`npm run test:jsx-node`, in the gate).
+ */
+export const isNodeBuild = process.env.VERA_DIST === 'node';
 
 /** Bundle name -> the `filename` its package.json declares. */
 export const ENTRY = {
@@ -90,7 +97,7 @@ export const distUrl = (name, query = '') => {
   const entry = ENTRY[name];
   if (entry === undefined) throw new Error(`tests/dist.mjs: unknown bundle "${name}"`);
   const [pkg, file] = entry;
-  const path = isProduction ? `${file}.min.js` : `development/${file}.js`;
+  const path = isProduction ? `${file}.min.js` : isNodeBuild && name === 'jsx' ? `node/${file}.js` : `development/${file}.js`;
   return new URL(`../packages/${pkg}/dist/${path}${query}`, import.meta.url).href;
 };
 

@@ -7,7 +7,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { transformJsx, veraJsx } from '@verajs/jsx';
+import { isProduction, load } from './dist.mjs';
+
+/** Through dist.mjs — the artifact under test (development, production, or the node build), never a bare resolve. */
+const { transformJsx, veraJsx } = await load('jsx');
 
 const warnings = (source) => {
   const said = [];
@@ -26,6 +29,7 @@ for (const [label, source] of [
   test(`warns: ${label} with nothing keeping it in step`, () => {
     const said = warnings(source);
     assert.equal(said.length, 1, said.join(' | '));
+    if (isProduction) return assert.match(said[0], /^app\.tsx:1:\d+ — https:\/\/verajs\.dev\/e\/jsx-uncontrolled$/);
     assert.match(said[0], /^app\.tsx:1:\d+ — (value|checked)=\{…\} makes this <(input|textarea|select)> controlled/);
     assert.match(said[0], /onInput\/onChange/);
     assert.match(said[0], /default(Value|Checked)/);
@@ -63,5 +67,7 @@ test('the Vite plugin reports it through the bundler\'s own warn', () => {
   const plugin = veraJsx({ inject: false });
   plugin.transform.call({ warn: (message) => told.push(message) }, 'export const a = (s) => <input value={s.v} />;', '/src/form.tsx?x=1');
   assert.equal(told.length, 1);
-  assert.match(told[0], /^\/src\/form\.tsx:1:\d+ — value=\{…\} makes this <input> controlled/);
+  assert.match(told[0], isProduction
+    ? /^\/src\/form\.tsx:1:\d+ — https:\/\/verajs\.dev\/e\/jsx-uncontrolled$/
+    : /^\/src\/form\.tsx:1:\d+ — value=\{…\} makes this <input> controlled/);
 });

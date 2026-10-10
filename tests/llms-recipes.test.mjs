@@ -19,8 +19,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { transformJsx } from '@verajs/jsx';
-import { distUrl } from './dist.mjs';
+import { distUrl, load } from './dist.mjs';
+
+/** Through dist.mjs — the artifact under test, never a bare resolve. */
+const { transformJsx } = await load('jsx');
 
 const source = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
 

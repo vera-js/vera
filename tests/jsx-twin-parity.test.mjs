@@ -18,7 +18,10 @@
  * run is testing, the same trick `tests/llms-recipes.test.mjs` uses, so nothing is written to disk.
  */
 import { load, distUrl } from './dist.mjs';
-import { transformJsx } from '@verajs/jsx';
+import { jsxLine } from './jsx-line.mjs';
+
+/** Through dist.mjs — the artifact under test, never a bare resolve. */
+const { transformJsx } = await load('jsx');
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -145,12 +148,12 @@ test('source where `<` is not JSX comes back byte-identical', () => {
 test('and the mistakes it documents are refused by name', () => {
   assert.throws(
     () => transformJsx('const a = <p></b>;', 'x.jsx'),
-    /<p> is closed by <\/b>/,
+    jsxLine('jsx-tag-mismatch', '<p> is closed by </b>'),
     'a mismatched close should be named'
   );
   assert.throws(
     () => transformJsx('const a = <p style={{ color: "red" }}>x</p>;', 'x.jsx'),
-    /style expects a STRING/,
+    jsxLine('style-object', 'style expects a STRING'),
     'an object style should be named'
   );
   /**
@@ -161,12 +164,12 @@ test('and the mistakes it documents are refused by name', () => {
    */
   assert.throws(
     () => transformJsx('const a = <input>{label}</input>;', 'x.jsx'),
-    /<input> is a void element/,
+    jsxLine('void-children', '<input> is a void element'),
     'a binding inside a void element should be named, not relocated'
   );
   assert.throws(
     () => transformJsx('const a = <p><br>text</br></p>;', 'x.jsx'),
-    /<br> is a void element/,
+    jsxLine('void-children', '<br> is a void element'),
     'and static children too'
   );
 });

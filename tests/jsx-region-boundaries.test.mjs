@@ -23,7 +23,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { transformJsx } from '@verajs/jsx';
+import { load } from './dist.mjs';
+import { jsxLine } from './jsx-line.mjs';
+
+/** Through dist.mjs — the artifact under test (development, production, or the node build), never a bare resolve. */
+const { transformJsx } = await load('jsx');
 
 const JSX_FREE = [
   ['a plain comparison', 'const ok = a < b;'],
@@ -322,5 +326,5 @@ test('a TSX type-parameter list is not markup, and is never reported as broken m
    *  attribute expression is still reported — so the rule above is not simply "never report". */
   assert.match(transformJsx('export const v = <div extends="x">ok</div>;', 'p.tsx'), /html`<div extends="x">ok<\/div>`/);
   assert.match(transformJsx('export const v = <div extends>ok</div>;', 'p.tsx'), /html`<div extends>ok<\/div>`/);
-  assert.throws(() => transformJsx('export const v = <div x={}/>;', 'p.tsx'), /x=\{\} has no value/);
+  assert.throws(() => transformJsx('export const v = <div x={}/>;', 'p.tsx'), jsxLine('jsx-empty-expression', 'x={} has no value'));
 });
