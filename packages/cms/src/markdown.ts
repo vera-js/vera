@@ -50,6 +50,8 @@
  */
 
 import type { Block, Inline, ListItem, Root } from './types.js';
+import { misuse, own } from '@verajs/shared-utils';
+import { PROSE } from './content-diagnostics.js';
 
 /** Linear on purpose — the old `(\S*)[^\`]*$` tail was quadratic on long lines (audit pass 7). */
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
@@ -100,7 +102,7 @@ const fenceAt = (line: string): RegExpExecArray | null => {
 };
 
 const parseBlocks = (lines: string[], depth = 0): Block[] => {
-  if (depth > DEPTH) throw new Error(`parseMarkdown: nesting deeper than ${DEPTH} levels — this is not prose`);
+  if (depth > DEPTH) throw own(new Error(misuse('parseMarkdown', 'cms-markdown-depth', __DEV__ && PROSE['cms-markdown-depth']!(String(DEPTH)))));
   const blocks: Block[] = [];
   let i = 0;
   while (i < lines.length) {

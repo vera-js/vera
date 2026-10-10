@@ -22,7 +22,7 @@
     "typecheck": "node scripts/typecheck.mjs",
     "release": "npm run build && changeset publish",
     "test:prod": "VERA_DIST=production node --test \"tests/**/*.test.mjs\"",
-    "test:jsx-node": "VERA_DIST=node node --conditions development --test \"tests/jsx*.test.mjs\" tests/llms-recipes.test.mjs",
+    "test:node-builds": "VERA_DIST=node node --conditions development --test \"tests/jsx*.test.mjs\" \"tests/cms*.test.mjs\" tests/llms-recipes.test.mjs",
     "metrics": "node scripts/metrics.mjs",
     "test:browser": "web-test-runner --config web-test-runner.config.mjs",
     "test:all": "npm test && npm run test:prod && npm run test:browser",

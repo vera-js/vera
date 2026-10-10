@@ -20,7 +20,7 @@ const manifest = (collection, rows) => ({
 });
 
 test('__proto__ as a frontmatter key refuses with its line — it once silently ate the field', () => {
-  assert.throws(() => parseFrontmatter('---\ntitle: T\n__proto__: x\n---\nb'), /line 3: `__proto__` is not a supported key/);
+  assert.throws(() => parseFrontmatter('---\ntitle: T\n__proto__: x\n---\nb'), /line 3: the key `__proto__` is not supported\.[\s\S]*\(cms-frontmatter-key\)$/);
   /** The refusal must not leak into ordinary keys that merely shadow prototype members. */
   const { data } = parseFrontmatter('---\nconstructor: fine\ntoString: also\n---\nb');
   assert.equal(data.constructor, 'fine');

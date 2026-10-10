@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const { queryEntries, createReader } = await load('cms/content');
 
@@ -102,7 +102,9 @@ test('concurrent queries share one request per collection — the promise is cac
 test('a failed load names the collection, the status and the URL — and is not cached', async () => {
   const requests = serve(MANIFESTS);
   const site = createReader({ url: 'https://example.com/_manifests/' });
-  await assert.rejects(site.entries('missing'), /createReader: .*"missing".*HTTP 404.*https:\/\/example\.com\/_manifests\/missing\.json/);
+  await assert.rejects(site.entries('missing'), isProduction
+    ? /createReader: "https:\/\/example\.com\/_manifests\/missing\.json" \(HTTP 404\): https:\/\/verajs\.dev\/e\/cms-reader-manifest$/
+    : /createReader: "https:\/\/example\.com\/_manifests\/missing\.json" \(HTTP 404\): could not load the "missing" manifest\.[\s\S]*\(cms-reader-manifest\)$/);
   await assert.rejects(site.entries('missing'), /HTTP 404/);
   assert.equal(requests.length, 2); // the second attempt really refetched
 });

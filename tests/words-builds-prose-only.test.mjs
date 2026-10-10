@@ -70,14 +70,14 @@ test('CONTROL: the list covers every `words: true` entry, and every bundle on it
 
 /**
  * **POSITIVE CONTROL: the decoder finds a line it must find**, per words bundle — so a decoding bug cannot read as
- * "clean" (vera-5a). Each entry: a line of source that certainly ships in that bundle. (cms's content node build joins
- * when content carries prose, 5b.)
+ * "clean" (vera-5a). Each entry: a line of source that certainly ships in that bundle.
  */
 const KNOWN = [
   ['packages/jsx/dist/node/vera-jsx.js', 'packages/jsx/src/transform.ts', "coded('jsx-key-placement'"],
   ['packages/cms/dist/vera-cms-publish.min.js', 'packages/cms/src/schema.ts', "'cms-schema-json'"],
   ['packages/cms/dist/vera-cms-node.min.js', 'packages/cms/src/schema.ts', "'cms-schema-json'"],
   ['packages/cms/dist/vera-cms-cli.min.js', 'packages/cms/src/schema.ts', "'cms-schema-json'"],
+  ['packages/cms/dist/node/vera-cms-content.js', 'packages/cms/src/frontmatter.ts', "'cms-frontmatter-mixed-list'"],
 ];
 test('POSITIVE CONTROL: each words bundle\'s decoded mappings contain a line that certainly shipped', () => {
   for (const [bundle, source, needle] of KNOWN) {

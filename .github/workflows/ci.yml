@@ -87,8 +87,8 @@ jobs:
       # branches and inlines workspace deps. A pass against one says nothing about the other.
       - run: npm test
       - run: npm run test:prod
-      # The jsx compiler's NODE build (what Vite and Node load through its `node` condition) is a third program.
-      - run: npm run test:jsx-node
+      # The NODE builds (what Node and Vite load through a `node` export condition) are third programs.
+      - run: npm run test:node-builds
       # @verajs/motion USED TO carry its own gate here — audit rules, generated-reference drift, a
       # consumer compiled against built declarations, the built-artifact wiring check, doc examples
       # through the real parser, and its suite under node --test + happy-dom.

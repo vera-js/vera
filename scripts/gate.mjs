@@ -63,9 +63,9 @@ const steps = [
   ['ui manifest', 'node', ['packages/ui/scripts/generate-manifest.mjs', '--check']],
   ['node (development)', 'npm', ['test']],
   ['node (production)', 'npm', ['run', 'test:prod']],
-  /** The jsx compiler's NODE build — what Vite and Node load through its `node` condition (minified, __DEV__ true): a
-   *  third program, so the compiler suites run against it too (vera-5a, 2026-10-09). */
-  ['node (jsx node build)', 'npm', ['run', 'test:jsx-node']],
+  /** The NODE builds — what Node and Vite load through a `node` export condition (minified, __DEV__ true): jsx's
+   *  compiler and cms's content. Third programs, so their suites run against them too (vera-5a, 2026-10-09). */
+  ['node (node builds)', 'npm', ['run', 'test:node-builds']],
   ['browser × 3', 'npm', ['run', 'test:browser:all']],
 ];
 

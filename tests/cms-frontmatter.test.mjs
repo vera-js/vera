@@ -87,11 +87,11 @@ const refuses = (yaml, pattern) => {
 };
 
 test('an unclosed fence refuses', () => {
-  assert.throws(() => parseFrontmatter('---\ntitle: x\nno closing fence'), /line 1: .*no closing/);
+  assert.throws(() => parseFrontmatter('---\ntitle: x\nno closing fence'), /line 1: the opening --- never closes[\s\S]*\(cms-frontmatter-unclosed\)$/);
 });
 
 test('block scalars refuse with the workaround named', () => {
-  refuses('text: |', /line 2: block scalars.*quote the string/);
+  refuses('text: |', /line 2: block scalars \(\|\) are not supported\. Quote the string instead[\s\S]*\(cms-frontmatter-unsupported\)$/);
 });
 
 test('anchors, flow maps, and tabs refuse', () => {
@@ -123,7 +123,7 @@ test('a nested inline array refuses instead of parsing as a string — audit pas
 });
 
 test('a duplicate key refuses instead of silently last-winning — audit pass 2', () => {
-  refuses('title: One\ntitle: Two', /line 3: duplicate key `title`/);
+  refuses('title: One\ntitle: Two', /line 3: the key "title" is a duplicate\.[\s\S]*\(cms-frontmatter-key\)$/);
 });
 
 test('a list mixing scalar and map items refuses', () => {

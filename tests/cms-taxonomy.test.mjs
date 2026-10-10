@@ -10,7 +10,7 @@ import test from 'node:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const { parseSchema, generateTaxonomies, serializeTaxonomies, generateManifest } = await load('cms/publish');
 const { buildManifests } = await load('cms/node');
@@ -116,7 +116,9 @@ test('a transient index failure retries; only true absence reads as empty — au
       : new Response(JSON.stringify({ version: 1, taxonomies: { tags: { design: { count: 4, collections: { posts: 4 } } } } }));
   };
   const reader = createReader();
-  await assert.rejects(reader.terms('tags'), /taxonomy index \(HTTP 500\)/);
+  await assert.rejects(reader.terms('tags'), isProduction
+    ? /taxonomies\.json" \(HTTP 500\): https:\/\/verajs\.dev\/e\/cms-reader-taxonomy$/
+    : /taxonomies\.json" \(HTTP 500\): could not load the taxonomy index\.[\s\S]*\(cms-reader-taxonomy\)$/);
   const terms = await reader.terms('tags');
   assert.equal(terms[0].count, 4, 'the rejection must not be cached — the retry sees the real index');
 });

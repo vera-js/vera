@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 import { rotateScalar } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>');
@@ -112,5 +112,6 @@ test('hostile markdown never throws, and the twins agree on it', () => {
   }
   assert.ok(parseMarkdown('####### x').children[0].type !== 'heading', 'seven hashes is prose, not h7');
   assert.throws(() => parseMarkdown('> '.repeat(65) + 'x'),
-    /nesting deeper/, 'CONTROL: the depth cap (64) is real and names itself');
+    isProduction ? /\/e\/cms-markdown-depth$/ : /nesting deeper than 64 levels[\s\S]*\(cms-markdown-depth\)$/,
+    'CONTROL: the depth cap (64) is real and names itself — by its code in production, where content keeps no words');
 });

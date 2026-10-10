@@ -14,6 +14,8 @@
  */
 import { queryEntries } from './query.js';
 import type { Manifest, Reader, ReaderEntry, ReaderOptions, TaxonomyIndex } from './types.js';
+import { misuse, own, quoted } from '@verajs/shared-utils';
+import { PROSE } from './content-diagnostics.js';
 
 /**
  * Creates a reader over a site's published manifests.
@@ -58,7 +60,8 @@ export const createReader = (options: ReaderOptions = {}): Reader => {
     const target = `${base}${collection}.json`;
     const response = await fetch(target);
     if (!response.ok)
-      throw new Error(`createReader: could not load the "${collection}" manifest (HTTP ${response.status}) from ${target}`);
+      /** The address and the status are the SUBJECT, so a live page's production line still says what failed and how. */
+      throw own(new Error(misuse(`createReader: ${quoted(target, Infinity)} (HTTP ${response.status})`, 'cms-reader-manifest', __DEV__ && PROSE['cms-reader-manifest']!(`"${collection}"`))));
     return (await response.json()) as Manifest;
   };
 
@@ -81,7 +84,7 @@ export const createReader = (options: ReaderOptions = {}): Reader => {
         const response = await fetch(`${base}taxonomies.json`);
         if (response.status === 404) return { version: 1, taxonomies: {} };
         if (!response.ok)
-          throw new Error(`createReader: could not load the taxonomy index (HTTP ${response.status})`);
+          throw own(new Error(misuse(`createReader: ${quoted(`${base}taxonomies.json`, Infinity)} (HTTP ${response.status})`, 'cms-reader-taxonomy', __DEV__ && PROSE['cms-reader-taxonomy']!())));
         return (await response.json()) as TaxonomyIndex;
       })();
       taxonomyIndex.catch(() => (taxonomyIndex = undefined));

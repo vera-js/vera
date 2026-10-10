@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { load } from './dist.mjs';
 
-const { parseSchema, generateManifest } = await load('cms/publish');
+const { parseSchema, generateManifest, parseFrontmatter, parseMarkdown } = await load('cms/publish');
 const { buildManifests } = await load('cms/node');
 
 const schema = (collections) => JSON.stringify({ version: 1, collections });
@@ -29,6 +29,15 @@ const build = (files) => () => {
 };
 
 export const CMS_REFUSALS = [
+  /** Frontmatter and markdown through `publish`, whose words are kept in every build (content's are development's). */
+  ['cms-frontmatter-unclosed', () => parseFrontmatter('---\ntitle: x\n'), 'the opening --- never closes'],
+  ['cms-frontmatter-unsupported', () => parseFrontmatter('---\nbody: |\n---\n'), 'block scalars (|) are not supported'],
+  ['cms-frontmatter-indent', () => parseFrontmatter('---\n a: 1\n---\n'), 'expected 0-space indentation'],
+  ['cms-frontmatter-entry', () => parseFrontmatter('---\njust words\n---\n'), 'expected `key: value`'],
+  ['cms-frontmatter-key', () => parseFrontmatter('---\ntitle: a\ntitle: b\n---\n'), 'the key "title" is a duplicate'],
+  ['cms-frontmatter-mixed-list', () => parseFrontmatter('---\nxs:\n  - a\n  - k: v\n---\n'), 'a list mixes scalar and map items'],
+  ['cms-frontmatter-depth', () => parseFrontmatter('---\n' + Array.from({ length: 40 }, (_, i) => '  '.repeat(i) + 'k:').join('\n') + '\n---\n'), 'nesting deeper than 32 levels'],
+  ['cms-markdown-depth', () => parseMarkdown('>'.repeat(100) + ' x'), 'nesting deeper than 64 levels'],
   ['cms-schema-json', parse('{nope'), 'not valid JSON'],
   ['cms-schema-not-object', parse('null'), 'expected an object'],
   ['cms-schema-version', parse('{"version":3,"collections":{}}'), 'unknown version "3"'],

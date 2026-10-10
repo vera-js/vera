@@ -227,6 +227,84 @@
       ],
       "message": "unknown version {version} — this reader understands 1.",
       "fix": "Set \"version\": 1, or update @verajs/cms to a release that reads this version."
+    },
+    {
+      "code": "cms-frontmatter-depth",
+      "params": [
+        "max"
+      ],
+      "message": "nesting deeper than {max} levels.",
+      "fix": "Flatten the data: frontmatter holds fields, not documents."
+    },
+    {
+      "code": "cms-frontmatter-entry",
+      "params": [
+        "expected"
+      ],
+      "message": "expected {expected}.",
+      "fix": "Write one entry per line."
+    },
+    {
+      "code": "cms-frontmatter-indent",
+      "params": [
+        "indent"
+      ],
+      "message": "expected {indent}-space indentation.",
+      "fix": "Indent each level by two spaces."
+    },
+    {
+      "code": "cms-frontmatter-key",
+      "params": [
+        "key",
+        "why"
+      ],
+      "message": "the key {key} {why}.",
+      "fix": "Rename or remove the key."
+    },
+    {
+      "code": "cms-frontmatter-mixed-list",
+      "params": [],
+      "message": "a list mixes scalar and map items.",
+      "fix": "Use one or the other."
+    },
+    {
+      "code": "cms-frontmatter-unclosed",
+      "params": [
+        "what"
+      ],
+      "message": "{what} never closes.",
+      "fix": "Close it: a quoted string with its quote, the frontmatter with a --- line."
+    },
+    {
+      "code": "cms-frontmatter-unsupported",
+      "params": [
+        "feature",
+        "instead"
+      ],
+      "message": "{feature} are not supported.",
+      "fix": "{instead}."
+    },
+    {
+      "code": "cms-markdown-depth",
+      "params": [
+        "max"
+      ],
+      "message": "nesting deeper than {max} levels — this is not prose.",
+      "fix": "Flatten the lists or quotes."
+    },
+    {
+      "code": "cms-reader-manifest",
+      "params": [
+        "collection"
+      ],
+      "message": "could not load the {collection} manifest.",
+      "fix": "Check the manifests were built and deployed at that address."
+    },
+    {
+      "code": "cms-reader-taxonomy",
+      "params": [],
+      "message": "could not load the taxonomy index.",
+      "fix": "Check taxonomies.json was built and deployed beside the manifests."
     }
   ]
 }
