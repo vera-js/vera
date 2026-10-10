@@ -35,4 +35,8 @@ customElements.define('never-frame', NeverFrame);
 customElements.define('never-connected', NeverConnected);
 customElements.define('late-settle', LateSettle);
 customElements.define('late-reject', LateReject);
+/** The same components under second names: a timeout warning is said once per process per component, so a row that
+ *  asserts its own warning needs its own key (tests/ssr-render-timeout.test.mjs). */
+customElements.define('late-settle-zero', class extends LateSettle {});
+customElements.define('never-frame-default', class extends NeverFrame {});
 export default NeverFrame;

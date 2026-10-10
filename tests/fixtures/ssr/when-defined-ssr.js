@@ -50,4 +50,6 @@ customElements.define('wait-guarded', waiting(true));
 customElements.define('wait-returned', WaitReturned);
 customElements.define('wait-async', WaitAsync);
 customElements.define('wait-plain', WaitPlain);
+/** A second name for a row that asserts its own timeout warning — said once per process per component. */
+customElements.define('wait-plain-again', class extends WaitPlain {});
 export default WaitReturned;

@@ -13,9 +13,6 @@
  * a hash of its text, and must appear in CLAIMS with one of:
  * - a CODE: it must exist in a package's generated `diagnostics.json`, and some test must assert it — a code no test
  *   names is a promise nothing checks;
- * - PENDING: the package has not moved its messages to codes yet. Verified by hand when the entry was written. This
- *   list only ever SHRINKS (`PENDING_MAX`) — it is the code-system migration's to-do list, not a place to park new
- *   promises;
  * - `pinned by tests/<file>: …` — a promise of BEHAVIOR, not of a message (an error routed through the `'error'`
  *   chain, a report's own text): no code can keep it, so the named test does, and that file must exist;
  * - a reason starting `not a promise:` — the pattern matched a sentence that promises nothing (it says there is NO
@@ -46,7 +43,7 @@ const FILES = ['README.md', 'llms.txt', ...globSync('packages/*/README.md', { cw
  * page — it matches too (2026-10-09), and is pinned by the test that holds the pages' content.
  */
 const PATTERN =
-  /\b(?:warns?|warned|warning|says so|is named|names (?:it|the|both|which|any|one)|refused by name|reported|reports it|development (?:only )?(?:says|names|warns|throws|reports|catches|flags|tells)|(?:vera|it|the (?:framework|renderer|runtime|engine|router|compiler))\s+(?:names?|reports?|throws a \w*Error|refuses)|is (?:refused by name|said once)|names the (?:mistake|cause|binding|component|attribute)|give every line a code)\b|verajs\.dev\/e\//i;
+  /\b(?:warns?|warned|warning|says so|is named|names (?:it|the|both|which|any|one)|refused by name|reported|reports it|development (?:only )?(?:says|names|warns|throws|reports|catches|flags|tells)|(?:vera|it|the (?:framework|renderer|runtime|engine|router|compiler))\s+(?:names?|reports?|throws a \w*Error|refuses)|is (?:refused by name|said once)|names the (?:mistake|cause|binding|component|attribute)|gives? every line a code)\b|verajs\.dev\/e\//i;
 
 /** Sentences, block-aware: a blank line, a heading or a table row ends a block, and code fences are not prose. */
 const sentences = (text) =>
@@ -66,17 +63,20 @@ for (const file of FILES)
   for (const sentence of sentences(read(file)))
     if (PATTERN.test(sentence)) found.set(key(file, sentence), sentence);
 
-const PENDING = 'pending the code-system migration';
-/** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 6;
-
-/** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
+/**
+ * key → code | `pinned by tests/<file>: why` | 'not a promise: …'. The excerpt after `//` is for the reader; the key is
+ * the identity. (A PENDING value existed while packages migrated; it reached 0 when ssr moved onto codes, 2026-10-09,
+ * and went — a new promise is entered with its code or its pin.)
+ */
 const CLAIMS = new Map([
+  ['packages/ssr/README.md#22e66ee19b', 'pinned by tests/ssr-coded-diagnostics.test.mjs: every code ssr raises has its entry, each line ending on its code'], // **What ssr says, and how.** Every line ends with its code
+  ['packages/ssr/README.md#616e1b6d69', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the same key twice is one line, a second key a second; outside text arrives JSON-quoted'], // Two rules make it safe on a server
+  ['packages/ssr/README.md#12068394f6', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the refused javascript: value is never printed; a forged template warns once per component'], // A refused `javascript:` URL is reported without its value at all
   ['packages/autoloader/README.md#040a91dcf5', 'pinned by tests/directive-import-one-report.test.mjs: one failed import is exactly one line, the URL-named Error beside it, and a direct caller gets that rejection with nothing printed'], // **A failed import is reported once, by the engine** — one line naming the directive and the URL
   ['llms.txt#304378b23d', 'pinned by tests/jsx-coded-errors.test.mjs: the production compiler says exactly position + docs link'], // **On this map a compile error names its position and its code** — `app.jsx:1:15 — https://verajs.dev/e/…`
   ['llms.txt#11ecc1a63b', 'jsx-uncontrolled'], // While developing, map `@verajs/jsx` to …/dist/development/vera-jsx-standalone.js instead
-  ['llms.txt#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // Core, styles, the renderer and the router also give every line a code …
-  ['packages/core/README.md#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // the same sentence
+  ['llms.txt#8ee55460c3', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // Core, styles, the renderer and the router also give every line a code …
+  ['packages/core/README.md#8ee55460c3', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // the same sentence
   ['llms.txt#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead — the subject and a link …
   ['llms.txt#abc9affc7d', 'pinned by tests/diagnostics-docs-pages.test.mjs: every code has a page to generate at that address (the hosting is the docs-site release item)'], // Whichever form you hold, the full explanation of a code is at …
   ['packages/core/README.md#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead …
@@ -196,13 +196,13 @@ const CLAIMS = new Map([
   ['packages/router/README.md#23c2747b14', 'router-navigate-threw'], // - **`navigate()` rejects**, so a caller that awaits it can handle the failure itself. - **
   ['packages/ssr/README.md#2f37875801', 'not a promise: says no warning is possible'], // **Wire `slots` on the client AND here:** without it this server writes no light-tree state
   ['packages/ssr/README.md#8e83430b17', 'hydration-fallback'], // An HTML minifier that strips comments removes them, and hydration then treats that compone
-  ['packages/ssr/README.md#dc1c1f67b9', PENDING], // A `__proto__` key is skipped, and a read-only property is refused by name |
-  ['packages/ssr/README.md#1894c72248', PENDING], // | `timeout` | how long `renderToStringAsync` waits on promises a component starts, in mill
-  ['packages/ssr/README.md#17179b9838', PENDING], // When the budget runs out the render serves what it has and warns, in every build, naming t
-  ['packages/ssr/README.md#07eca03e44', PENDING], // The warning names the component waiting and the child it waits on.
+  ['packages/ssr/README.md#dc1c1f67b9', 'ssr-prop-refused'], // A `__proto__` key is skipped, and a read-only property is refused by name |
+  ['packages/ssr/README.md#1894c72248', 'ssr-timeout'], // | `timeout` | how long `renderToStringAsync` waits on promises a component starts, in mill
+  ['packages/ssr/README.md#8fe5946dd0', 'ssr-timeout'], // When the budget runs out the render serves what it has and warns, in every build, naming t
+  ['packages/ssr/README.md#07eca03e44', 'ssr-timeout'], // The warning names the component waiting and the child it waits on.
   ['packages/ssr/README.md#b7dd238da1', 'not a promise: says it prints no warning'], // That serves the component's state from before the wait, which is exactly what the browser 
-  ['packages/ssr/README.md#1e3a0a07fa', PENDING], // **It only ever produces the component it was written for**: a copy of it on another tag is
-  ['packages/ssr/README.md#777bd846a5', PENDING], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
+  ['packages/ssr/README.md#1e3a0a07fa', "not a promise: the instance marker's behavior, no message"], // **It only ever produces the component it was written for**: a copy of it on another tag is
+  ['packages/ssr/README.md#777bd846a5', 'ssr-styles-vary'], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
   ['packages/store/README.md#1bca1504c8', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // An evaluation that throws is reported through the `'error'` insert rather than escaping, e
   ['packages/styles/README.md#48e9ab9c5a', 'unwired-styles'], // Forget the wiring and a component with `static styles` renders unstyled — development says
   ['packages/styles/README.md#ab7656278f', 'slotted-light'], // Development says so if a light component's sheet uses `::slotted()`.
@@ -234,7 +234,7 @@ test('the pattern still finds promises — a silent extractor would pass everyth
 
 test('every promise sentence is entered — a new or reworded one is checked against the code before it lands', () => {
   const missing = [...found].filter(([k]) => !CLAIMS.has(k)).map(([k, s]) => `${k} — ${s.slice(0, 160)}`);
-  assert.deepEqual(missing, [], 'enter each with its code, PENDING (only if its package has no codes yet) or "not a promise: why"');
+  assert.deepEqual(missing, [], 'enter each with its code, "pinned by tests/<file>: why", or "not a promise: why"');
 });
 
 test('every entry still has its sentence', () => {
@@ -243,7 +243,7 @@ test('every entry still has its sentence', () => {
 
 test('every cited code exists in a diagnostics table and some test asserts it; every pinning test exists', () => {
   for (const [k, value] of CLAIMS) {
-    if (value === PENDING || value.startsWith('not a promise:')) continue;
+    if (value.startsWith('not a promise:')) continue;
     const pinned = value.match(/^pinned by (tests\/[\w.-]+): ./);
     if (pinned) {
       assert.ok(existsSync(root + pinned[1]), `${k} is pinned by ${pinned[1]}, which does not exist`);
@@ -255,7 +255,3 @@ test('every cited code exists in a diagnostics table and some test asserts it; e
   }
 });
 
-test('the pending list only shrinks', () => {
-  const pending = [...CLAIMS.values()].filter((value) => value === PENDING).length;
-  assert.ok(pending <= PENDING_MAX, `${pending} pending, more than ${PENDING_MAX}: a new promise needs a code`);
-});

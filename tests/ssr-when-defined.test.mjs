@@ -82,11 +82,12 @@ test('a whenDefined wait for a tag the server never defines ends at the budget, 
 test('the warning names the nested component whose wait was cut, and the guard that ends it', async () => {
   const { warnings } = await warned('wait-outer');
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /^\[vera\] ssr: <wait-outer> was served after its 80 ms `timeout` with a promise still pending in <wait-async> \(/);
+  assert.match(warnings[0], /^\[vera\] ssr: <wait-outer> — was served after its 80 ms `timeout` with a promise still pending in <wait-async> \(/);
   assert.match(warnings[0], /`if \(globalThis\.__veraSsrShimmed\) return;`/);
   /** A timeout with no whenDefined wait names the component but prints no whenDefined fix. */
-  const plain = await warned('wait-plain');
-  assert.match(plain.warnings[0], /still pending in <wait-plain> \(/);
+  /** Its own key: an earlier row already said wait-plain's warning, once per process. */
+  const plain = await warned('wait-plain-again');
+  assert.match(plain.warnings[0], /still pending in <wait-plain-again> \(/);
   assert.doesNotMatch(plain.warnings[0], /__veraSsrShimmed/);
 });
 

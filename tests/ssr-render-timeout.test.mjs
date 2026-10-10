@@ -29,7 +29,7 @@ test('a never-settling promise from a frame or an async connectedCallback ends a
     assert.ok(ms >= 110 && ms < 1000, `${tag}: ${ms} ms`);
     assert.ok(html.includes('<p>'), `${tag}: what had rendered is served`);
     assert.equal(warnings.length, 1, `${tag}: ${warnings}`);
-    assert.match(warnings[0], new RegExp(`^\\[vera\\] ssr: <${tag}> was served after its 120 ms \`timeout\``));
+    assert.match(warnings[0], new RegExp(`^\\[vera\\] ssr: <${tag}> — was served after its 120 ms \`timeout\`[\\s\\S]*\\(ssr-timeout\\)$`));
   }
 });
 
@@ -40,6 +40,10 @@ test('a wait shorter than the budget is waited for, and a longer one is cut', as
   const cut = await timed('late-settle', { timeout: 10 });
   assert.ok(cut.html.includes('data-done="early"'), cut.html);
   assert.equal(cut.warnings.length, 1);
+  /** Said once per process per component — a server renders per request, so the next cut is served in silence. */
+  const again = await timed('late-settle', { timeout: 10 });
+  assert.ok(again.html.includes('data-done="early"'), 'CONTROL: cut again');
+  assert.deepEqual(again.warnings, [], 'the same component twice is one line');
 });
 
 test('a rejection inside the budget still fails the render, as before', async () => {
@@ -48,13 +52,13 @@ test('a rejection inside the budget still fails the render, as before', async ()
 
 /** `0` is not "no limit" (there is no such setting): it waits for nothing, so even a short wait is cut, and said. */
 test('`timeout: 0` waits for nothing', async () => {
-  const { html, ms, warnings } = await timed('late-settle', { timeout: 0 });
+  const { html, ms, warnings } = await timed('late-settle-zero', { timeout: 0 });
   assert.ok(html.includes('data-done="early"') && ms < 50, `${ms} ms: ${html}`);
   assert.match(warnings[0], /after its 0 ms `timeout`/);
 });
 
 test('the default budget is 2000 ms', async () => {
-  const { ms, warnings } = await timed('never-frame', {});
+  const { ms, warnings } = await timed('never-frame-default', {});
   assert.ok(ms >= 1990 && ms < 3500, `${ms} ms`);
   assert.match(warnings[0], /after its 2000 ms `timeout`/);
 });

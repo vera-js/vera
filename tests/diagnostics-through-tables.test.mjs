@@ -42,6 +42,8 @@ const MIGRATED = [
   ['motion', ['dist/*.min.js', '../directives/dist/*.min.js']],
   /** Every directives bundle — the engine and each pack. */
   ['directives', 'dist/*.min.js'],
+  /** Node-only, compiled per file, no `__DEV__`: its words ship by design, so there is no production bundle to check. */
+  ['ssr', null],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -51,6 +53,19 @@ const ROUTING = new Map([
   ['packages/shared-utils/src/utils.ts', 2],
   /** The standalone loader forwards the compiler's warning, which already carries its code (vera-5a's rule). */
   ['packages/jsx/src/standalone.ts', 1],
+]);
+/**
+ * **The ssr shim's platform imitations** — throws that reproduce an error the BROWSER throws (`Failed to execute
+ * 'appendChild' on 'Node'…`, `Illegal constructor`): a DOM answering differently from the platform is the worst bug that
+ * package has, so they stay the platform's words, off the code system. Counted per file, and pinned platform-exact by
+ * class and name in tests/ssr-imitations-differential.test.mjs (vera-5a, 2026-10-09).
+ */
+const IMITATIONS = new Map([
+  ['packages/ssr/src/vera/views.ts', 1],
+  ['packages/ssr/src/vera/shim.ts', 3],
+  ['packages/ssr/src/vera/nodes.ts', 5],
+  ['packages/ssr/src/vera/events.ts', 1],
+  ['packages/ssr/src/vera/stylesheets.ts', 2],
 ]);
 /** A leading `'%s'` is the format, never the message (`tests/console-format-strings.test.mjs`): the line is after it. */
 const INLINE = /(?:throw new \w*Error|console\.(?:warn|error))\(\s*(?:'%s',\s*)?(?!'%s')[`'"]/g;
@@ -82,13 +97,13 @@ for (const [name, bundle] of MIGRATED) {
           return code === undefined || !(code in OWN.get(name));
         })
         .map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
-      if (ROUTING.get(file) === found.length) continue;
+      if ((ROUTING.get(file) ?? IMITATIONS.get(file)) === found.length) continue;
       inline.push(...found);
     }
     assert.deepEqual(inline, [], 'a message written inline — put its text in the package table and raise it by code');
   });
 
-  test(`${name}: no table prose survives in the production bundle`, async () => {
+  test(`${name}: no table prose survives in the production bundle`, { skip: bundle === null && 'no production bundle — its words ship by design' }, async () => {
     /** Its own tables AND the shared one — a package raising `SHARED['x']` must not ship that prose either. */
     const { tables } = TABLES.find((entry) => entry.name === name);
     const entries = [];
@@ -156,10 +171,9 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  * this list, so the sentence cannot run ahead of the code.
  */
 const NOT_YET = new Map([
-  ['ssr', 'phase 4'],
   ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
 ]);
-const NOT_YET_MAX = 2;
+const NOT_YET_MAX = 1;
 
 test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
   const printing = globSync('packages/*/src', { cwd: root })

@@ -179,5 +179,6 @@ test('hoisting different CSS for the same tag warns and keeps the first', async 
   assert.equal(drift.length, 1, 'warned once, not once per render');
   assert.match(drift[0], /^\[vera\] ssr:/, 'with the framework prefix');
   assert.match(drift[0], /head-style-ssr/, 'naming the component');
+  assert.ok(drift[0].endsWith('(ssr-styles-vary)'), `by code: ${drift[0]}`);
   assert.ok(third, 'a third render still succeeds');
 });

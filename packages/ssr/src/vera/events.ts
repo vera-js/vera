@@ -11,6 +11,9 @@
  * three phases could not be told apart. What it did give — `once`, `handleEvent` objects, and a
  * return value reflecting `preventDefault` — is reproduced here and covered by the same tests.
  */
+import { PROSE } from './diagnostics.js';
+import { once, ssrWarning } from './report.js';
+import { currentRenderingTag } from './stylesheets.js';
 
 /** A listener as the platform takes one: a function, or an object whose `handleEvent` is called. */
 type ListenerCallback = ((this: unknown, event: Event) => unknown) | { handleEvent?(event: Event): unknown };
@@ -122,7 +125,9 @@ const runListeners = (
       else entry.callback?.handleEvent?.(event);
     } catch (error) {
       /** A listener that throws must not take the dispatch down, exactly as in a browser. */
-      console.error('[vera] ssr: a listener threw', error);
+      const tag = currentRenderingTag();
+      if (once(`ssr-listener-threw:${tag}:${event.type}`))
+        console.error('%s', ssrWarning((tag ? `<${tag}>` : 'the page'), 'ssr-listener-threw', PROSE['ssr-listener-threw']!(event.type)), error);
     }
     if (immediatelyStopped()) return;
   }

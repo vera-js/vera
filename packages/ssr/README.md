@@ -96,10 +96,21 @@ budget starting at its turn).
 — an `async connectedCallback`, a promise a frame callback returns — for at most `timeout` milliseconds (2000 by
 default) from the start of its turn. One that never settles, such as a wait on a child the server never defines,
 used to hold the request open forever, and because renders take turns, every request after it as well. When the
-budget runs out the render serves what it has and warns, in every build, naming the component: the page served is
-not the one its code describes, so raise `timeout` if the wait is real or find the promise that never settles.
+budget runs out the render serves what it has and warns, in every build, naming the component — once per component
+for the life of the process, as every ssr warning is: the page served is not the one its code describes, so raise
+`timeout` if the wait is real or find the promise that never settles.
 There is deliberately no way to wait without limit: `timeout: 0` means wait for nothing, and the largest value is
 2147483647 ms.
+
+**What ssr says, and how.** Every line ends with its code — the full explanation of a code is at
+`https://verajs.dev/e/<code>` — and keeps its whole sentence in every build, since a server's log is read by its
+developer. Two rules make it safe on a server: **a warning is said once per process per key** (the component, and the
+attribute or event where that tells two facts apart), because a server renders per request and a per-render warning
+would flood the log at request rate; and **text from outside — an error's message, a URL, a selector — is
+JSON-quoted and cut to 80 characters**, so a newline or an escape sequence in it can neither forge nor hide a log line.
+A refused `javascript:` URL is reported without its value at all, and data shaped like a template is reported and
+rendered as the object it is. The errors the shim throws in the platform's own words (`Failed to execute 'appendChild'
+on 'Node'…`) stay exactly those: this is a DOM, and it answers as the browser does.
 
 **A wait on a child only the browser defines costs the whole `timeout`, on every request** — and since renders take
 turns, every request queued behind it waits too. The warning names the component waiting and the child it waits on.

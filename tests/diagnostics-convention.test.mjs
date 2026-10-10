@@ -54,7 +54,8 @@ const ANY_CONSOLE_CALL = /console\.(warn|error)\(/g;
  * `[vera]` itself, which the test below the next one reads from its source, so such a call is read here rather than
  * excused.
  */
-const DIAGNOSTIC_CALL = /console\.(warn|error)\(\s*diagnostic\(/g;
+/** ssr's `ssrWarning` is that formatter's twin (ssr cannot import shared-utils) — prefixed the same way, asserted below. */
+const DIAGNOSTIC_CALL = /console\.(warn|error)\(\s*(?:diagnostic|ssrWarning)\(/g;
 
 /**
  * **Calls whose first argument is not a literal, so `CONSOLE_CALL` cannot read them.**
@@ -197,6 +198,15 @@ test('the shared diagnostic formatter prefixes both of its lines', () => {
   const lines = [...body.matchAll(/[?:]\s*`([^`]*)/g)].map(([, line]) => line);
   assert.equal(lines.length, 2, 'CONTROL: the development and production templates were both found');
   for (const line of lines) assert.ok(line.startsWith('[vera] '), `a formatter line lacks the prefix: ${line.slice(0, 40)}`);
+});
+
+/** ssr's twin of the shared formatter prefixes its line too (tests/ssr-coded-diagnostics holds the two equal). */
+test("ssr's warning formatter prefixes its line", () => {
+  const text = readFileSync(new URL('../packages/ssr/src/vera/report.ts', import.meta.url), 'utf8');
+  const body = text.slice(text.indexOf('export const ssrWarning'), text.indexOf('\n', text.indexOf('export const ssrWarning')));
+  const lines = [...body.matchAll(/=>\s*`([^`]*)/g)].map(([, line]) => line);
+  assert.equal(lines.length, 1, 'CONTROL: the template was found');
+  assert.ok(lines[0].startsWith('[vera] '), `ssrWarning's line lacks the prefix: ${lines[0]}`);
 });
 
 /** Motion's problemLine() — excused above for its two printers — builds only prefixed lines: `diagnostic()` in

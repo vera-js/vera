@@ -10,6 +10,8 @@
  * nothing of the pipeline.
  */
 import { registry } from './shim.js';
+import { PROSE } from './diagnostics.js';
+import { own, ssrMisuse } from './report.js';
 /** The attribute-name charset, from the parser that owns it — see `ATTRIBUTE` below. */
 import { ATTRIBUTE_NAME } from './parse.js';
 import { freshScan, scanTag } from './tokenizer.js';
@@ -84,12 +86,7 @@ export const renderComponentTags = (
   emit: (name: string, attrs: string, depth: number, children?: string) => string
 ): string => {
   if (depth > MAX_DEPTH)
-    throw new Error(
-      `ssr: component nesting exceeded ${MAX_DEPTH} levels. A component that renders itself ` +
-        `recurses without bound, and on a server that is a hung request — so this refuses rather ` +
-        `than waiting for the stack to go.\nIf the tree is genuinely this deep it renders fine in a ` +
-        `browser, which has no such limit; that difference is in the @verajs/ssr README.`
-    );
+    throw own(new Error(ssrMisuse('ssr-nesting-depth', PROSE['ssr-nesting-depth']!(String(MAX_DEPTH)))));
   /** No dash, no custom element — cheaper to ask than to walk the string and find nothing. */
   if (!markup.includes('-')) return markup;
 

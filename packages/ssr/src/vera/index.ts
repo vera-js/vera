@@ -40,6 +40,8 @@ import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
 import type { ElementShim } from './nodes.js';
 import { thrownMessage } from './escaping.js';
+import { PROSE } from './diagnostics.js';
+import { isOwn, once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
 import type { SsrRenderOptions, SsrRenderResult, SsrTemplate } from './types.js';
 
 /**
@@ -136,11 +138,7 @@ wire({ on: 'render', fn: serverRenderer, priority: 50 });
  */
 let staticRender = false;
 const refuseStatic = (prop: string | symbol) =>
-  new TypeError(
-    `ssr: this render declared itself static, so its stores are not reactive and writing ` +
-      `\`${String(prop)}\` would change nothing. Remove \`static: true\` from renderToString, or stop ` +
-      `writing to the store during the render.`
-  );
+  own(new TypeError(ssrMisuse('ssr-static-write', PROSE['ssr-static-write']!(quoted(String(prop))))));
 /**
  * One static-aware handler per handler it wraps, never one per value: a copy per value cost a small
  * render about 1.2 µs (a fifth of it) in allocation, and gave every nested proxy a handler of its own.
@@ -223,11 +221,7 @@ const prepareInstance = (
       try {
         (element as unknown as Record<string, unknown>)[name] = value;
       } catch (error) {
-        throw new TypeError(
-          `ssr: <${tag}> refused a value from \`props\` — ${thrownMessage(error)}. A read-only property ` +
-            `cannot be set; pass it as an attribute, or give the class a setter.`,
-          { cause: error }
-        );
+        throw own(new TypeError(ssrMisuse('ssr-prop-refused', PROSE['ssr-prop-refused']!(tag, quoted(thrownMessage(error)))), { cause: error }));
       }
     }
   if (children) element.innerHTML = children;
@@ -294,10 +288,7 @@ const renderInstance = (
   const pending = element.connectedCallback?.() as { then?: unknown } | null | undefined;
   flushFrames(failed(tag));
   if (typeof pending?.then === 'function')
-    throw new Error(
-      `ssr: <${tag}> has an async connectedCallback, which cannot be awaited during a synchronous render — ` +
-        `its markup would be empty. Use renderToStringAsync, or load data first and pass it as attributes.`
-    );
+    throw own(new Error(ssrMisuse('ssr-async-connected', PROSE['ssr-async-connected']!(tag))));
   const pieces = finishInstance(element, tag, previousTag);
   return assemble(pieces, renderComponentTags(pieces.shadow, depth, emit), renderComponentTags(pieces.light, depth, emit));
 };
@@ -343,33 +334,33 @@ const renderInstanceAsync = async (
 const isUrl = (value: unknown): value is string | URL => typeof value === 'string' || value instanceof URL;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; message: string }> = [
-  { name: 'url', valid: isUrl, message: 'renderToString needs a module URL — a URL or a string' },
+const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expected: string }> = [
+  { name: 'url', valid: isUrl, expected: 'a module URL — a URL or a string' },
   {
     name: 'tag',
     valid: (v) => v === undefined || typeof v === 'string',
-    message: '`tag` must be a custom element name',
+    expected: 'a custom element name',
   },
   {
     name: 'attributes',
     valid: (v) => typeof v === 'string' || isRecord(v),
-    message: '`attributes` must be an object of names to values, or a string',
+    expected: 'an object of names to values, or a string',
   },
   {
     name: 'props',
     valid: (v) => v === undefined || isRecord(v),
-    message: '`props` must be an object of properties to assign',
+    expected: 'an object of properties to assign',
   },
-  { name: 'children', valid: (v) => typeof v === 'string', message: '`children` must be a markup string' },
-  { name: 'seen', valid: (v) => v === undefined || v instanceof Set, message: '`seen` must be a Set' },
-  { name: 'base', valid: (v) => v === undefined || isUrl(v), message: '`base` must be a URL or a path string' },
-  { name: 'location', valid: (v) => v === undefined || isUrl(v), message: '`location` must be a URL or a path string' },
-  { name: 'static', valid: (v) => typeof v === 'boolean', message: '`static` must be true or false' },
+  { name: 'children', valid: (v) => typeof v === 'string', expected: 'a markup string' },
+  { name: 'seen', valid: (v) => v === undefined || v instanceof Set, expected: 'a Set' },
+  { name: 'base', valid: (v) => v === undefined || isUrl(v), expected: 'a URL or a path string' },
+  { name: 'location', valid: (v) => v === undefined || isUrl(v), expected: 'a URL or a path string' },
+  { name: 'static', valid: (v) => typeof v === 'boolean', expected: 'true or false' },
   /** Node turns a `setTimeout` past 2^31 − 1 ms into 1 ms, so that is the largest budget that means what it says. */
   {
     name: 'timeout',
     valid: (v) => v === undefined || (typeof v === 'number' && v >= 0 && v <= 2 ** 31 - 1),
-    message: '`timeout` must be a number of milliseconds, from 0 to 2147483647',
+    expected: 'a number of milliseconds, from 0 to 2147483647',
   },
 ];
 
@@ -385,10 +376,7 @@ const attributeMarkup = (attributes: string | Record<string, unknown>): string =
         .filter(([, value]) => value != null && value !== false)
         .map(([name, value]) => {
           if (name === '' || BAD_ATTRIBUTE_NAME.test(name))
-            throw new TypeError(
-              `ssr: \`attributes\` cannot use ${JSON.stringify(name)} as a name — an attribute name may not contain ` +
-                `whitespace, a quote, "/", "=" or ">"; setAttribute refuses it in the browser too.`
-            );
+            throw own(new TypeError(ssrMisuse('ssr-attribute-name', PROSE['ssr-attribute-name']!(quoted(name)))));
           return ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
         })
         .join('');
@@ -419,7 +407,7 @@ const renderModule = async (
   isAsync: boolean
 ): Promise<SsrRenderResult> => {
   /** From JavaScript, `options` can be anything; `null` used to surface as an unnamed destructuring error. */
-  if (!isRecord(options)) throw new TypeError('ssr: `options` must be an object, or left out');
+  if (!isRecord(options)) throw own(new TypeError(ssrMisuse('ssr-option', PROSE['ssr-option']!('options', 'an object, or left out'))));
   const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false, timeout } = options;
   const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic, timeout };
   /**
@@ -428,8 +416,8 @@ const renderModule = async (
    * ~1.4 KB of garbage per render, GC on every render after (+12% on a mixed load, measured).
    */
   for (let i = 0; i < CHECKS.length; i++) {
-    const { name, valid, message } = CHECKS[i];
-    if (!valid(given[name])) throw new TypeError(`ssr: ${message}`);
+    const { name, valid, expected } = CHECKS[i];
+    if (!valid(given[name])) throw own(new TypeError(ssrMisuse('ssr-option', PROSE['ssr-option']!(name, expected))));
   }
   const href = url instanceof URL ? url.href : url;
 
@@ -441,7 +429,7 @@ const renderModule = async (
   if (base !== undefined) {
     const directory = String(base instanceof URL ? base.href : base);
     const root = new URL('.', directory.endsWith('/') ? directory : `${directory}/`).href;
-    if (!href.startsWith(root)) throw new Error(`ssr: refused ${href} — resolves outside ${root}`);
+    if (!href.startsWith(root)) throw own(new Error(ssrMisuse('ssr-url-refused', PROSE['ssr-url-refused']!(quoted(href), quoted(root)))));
   }
 
   /** The entry is found by matching the module's EXPORTS to the registry — a registry diff around the
@@ -455,17 +443,13 @@ const renderModule = async (
   }
   const tag = chosen || entryTags.get(href);
   if (!tag || !registry.has(tag))
-    throw new Error(`ssr: no custom element definition found for ${url} — export the component's class, or pass { tag }`);
+    throw own(new Error(ssrMisuse('ssr-no-definition', PROSE['ssr-no-definition']!(quoted(String(url))))));
   const attrString = attributeMarkup(attributes);
 
   /** An app that wired a renderer after this module was imported displaced the server's, and every
    *  component would render empty. */
   if (!inserts.get('render')?.includes(serverRenderer))
-    throw new Error(
-      'ssr: the server renderer has been replaced — something wired a renderer after @verajs/ssr was imported, ' +
-        'and every component would render empty. Guard the client wiring (`if (!globalThis.__veraSsrShimmed)`) ' +
-        'or keep it out of the module the server imports.'
-    );
+    throw own(new Error(ssrMisuse('ssr-renderer-replaced', PROSE['ssr-renderer-replaced']!())));
 
   /**
    * The request's globals, applied inside this turn and restored in one `finally`, on every path. The
@@ -504,17 +488,8 @@ const renderModule = async (
     if (isAsync && endBudget()) {
       const list = (names: Iterable<string>) => [...names].map((name) => `<${name}>`).join(', ');
       const waits = pendingDefinitionNames();
-      console.warn(
-        `[vera] ssr: <${tag}> was served after its ${timeout ?? DEFAULT_TIMEOUT} ms \`timeout\` with a promise still pending` +
-          (timedOut.size ? ` in ${list(timedOut)}` : '') +
-          ` (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.` +
-          (waits.length
-            ? ` Still waiting on customElements.whenDefined for ${list(waits)}, which the server never defined. If only the ` +
-              `browser defines it, return before that wait on the server — \`if (globalThis.__veraSsrShimmed) return;\` — ` +
-              `so the server serves what the component shows before the wait, as the browser does first.`
-            : '') +
-          ` Raise \`timeout\` if the wait is real, or find the promise that never settles.`
-      );
+      if (once(`ssr-timeout:${tag}`))
+        console.warn(ssrWarning(`<${tag}>`, 'ssr-timeout', PROSE['ssr-timeout']!(String(timeout ?? DEFAULT_TIMEOUT), list(timedOut), list(waits))));
     }
     staticRender = false;
     globalThis.document.title = title;
@@ -533,10 +508,10 @@ const finishPage = (rendered: string, tag: string, seen: Set<string> | undefined
   if (failures.length) {
     const [first] = failures;
     const others = failures.length > 1 ? ` (and ${failures.length - 1} more)` : '';
-    throw new Error(
-      `ssr: <${first.tag ?? tag}> threw while rendering${others} — its markup would be empty. ${String((first.error as { message?: unknown } | null | undefined)?.message ?? first.error)}`,
+    throw own(new Error(
+      ssrMisuse('ssr-render-threw', PROSE['ssr-render-threw']!(first.tag ?? tag, others, isOwn(first.error) ? (first.error as Error).message : quoted(String((first.error as { message?: unknown } | null | undefined)?.message ?? first.error)))),
       { cause: first.error }
-    );
+    ));
   }
   const css: string[] = [];
   for (const done of renderedTags) {

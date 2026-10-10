@@ -503,7 +503,7 @@ for (const [what, file, message] of [
  */
 {
   const url = fixture('hello-ssr.js');
-  await assert.rejects(() => renderToString(), /needs a module URL/);
+  await assert.rejects(() => renderToString(), /`url` must be a module URL[\s\S]*\(ssr-option\)$/);
   await assert.rejects(() => renderToString(url, { children: 5 }), /`children` must be a markup string/);
   await assert.rejects(() => renderToString(url, { seen: [] }), /`seen` must be a Set/);
   await assert.rejects(() => renderToString(url, { attributes: ['a'] }), /`attributes` must be an object/);

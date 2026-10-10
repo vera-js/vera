@@ -39,6 +39,12 @@ export const TABLES = [
    * namespace.
    */
   { name: 'motion', tables: ['src/diagnostics.ts'], sources: [], checkedBy: 'tests/diagnostics-table.test.mjs' },
+  /**
+   * ssr keeps its words in every build (Node, no `__DEV__`), raising `ssrMisuse('code', PROSE['code']…)` /
+   * `ssrWarning(…, 'code', PROSE['code']…)` — its manifest is held by tests/ssr-coded-diagnostics. Its TWINS (shared
+   * facts it restates) are not in PROSE, so they are never published as ssr's.
+   */
+  { name: 'ssr', tables: ['src/vera/diagnostics.ts'], sources: [], checkedBy: 'tests/ssr-coded-diagnostics.test.mjs' },
   /** The compiler's table keeps its words in every build; the standalone loader's is development-only. */
   { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: ['src/transform.ts', 'src/parser.ts', 'src/standalone.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },

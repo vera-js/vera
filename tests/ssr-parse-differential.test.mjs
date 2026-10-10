@@ -20,6 +20,44 @@ import { parseFragment } from '../packages/ssr/dist/vera/parse.js';
 import { TextShim, CommentShim } from '../packages/ssr/dist/vera/nodes.js';
 import '@verajs/ssr';
 import { printed } from './console-args.mjs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * **The unparsed-markup warning, one row per PROCESS** (4c, 2026-10-09). It is said once per process per component —
+ * a server renders per request — so a row run after another row has already said it would see a silence that
+ * proves nothing, and a QUIET row after any warning would pass for the same wrong reason. Each row is a child
+ * process with nothing said yet.
+ */
+const BUILDS = {
+  alone: (host) => { host.innerHTML = '<p>x</b>'; },
+  mixed: (host) => { host.innerHTML = '<p>x</b>'; host.appendChild(document.createElement('b')); },
+  twice: (host) => { host.innerHTML = '<p>x</b>'; void host.children.length; const other = document.createElement('div'); other.innerHTML = '<i>y</b>'; void other.children.length; },
+  'well-formed markup': (host) => { host.innerHTML = '<b>good</b>'; },
+  'markup plus an appended element': (host) => { host.innerHTML = '<b>good</b>'; host.appendChild(document.createElement('i')); },
+  'append() with plain text': (host) => { host.append('plain text'); },
+  'append() with a string that looks like markup': (host) => { host.append('<p>x</b>'); },
+};
+const ROW = process.env.VERA_PARSE_ROW;
+if (ROW) {
+  const { markup, build } = JSON.parse(ROW);
+  const said = [];
+  console.warn = (...args) => said.push(printed(args).join(' '));
+  const host = document.createElement('div');
+  if (markup !== undefined) host.innerHTML = markup;
+  else BUILDS[build](host);
+  const children = host.children.length;
+  process.stdout.write(JSON.stringify({ said: said.filter((line) => /could not be parsed/.test(line)), children }));
+  process.exit(0);
+}
+const row = (spec) => {
+  const result = spawnSync(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url)], {
+    encoding: 'utf8',
+    env: { ...process.env, VERA_PARSE_ROW: JSON.stringify(spec) },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+};
 
 /**
  * Element structure, attributes, AND every text and comment value. Values were not compared until 2026-10-06, and the
@@ -257,17 +295,8 @@ test('never disagrees with parse5 — it matches or it declines', () => {
  */
 test('the unparsed-markup warning fires only for markup this DOM declines', () => {
   const warnsFor = (markup) => {
-    const said = [];
-    const { warn } = console;
-    console.warn = (...args) => said.push(printed(args).join(' '));
-    try {
-      const host = document.createElement('div');
-      host.innerHTML = markup;
-      void host.children.length;
-      return { warned: said.some((line) => /could not be parsed/.test(line)), children: host.children.length };
-    } finally {
-      console.warn = warn;
-    }
+    const { said, children } = row({ markup });
+    return { warned: said.length > 0, children };
   };
 
   /** Everything the parser handles must be quiet *and* produce children. */
@@ -306,17 +335,7 @@ test('the unparsed-markup warning fires only for markup this DOM declines', () =
 });
 
 test('and the warning does not claim markup is never parsed', () => {
-  const said = [];
-  const { warn } = console;
-  console.warn = (...args) => said.push(printed(args).join(' '));
-  try {
-    const host = document.createElement('div');
-    host.innerHTML = '<p>x</b>';
-    void host.children.length;
-  } finally {
-    console.warn = warn;
-  }
-  const message = said.find((line) => /could not be parsed/.test(line)) ?? '';
+  const message = row({ markup: '<p>x</b>' }).said[0] ?? '';
   assert.ok(message, 'the warning did not fire');
   assert.doesNotMatch(
     message,
@@ -339,31 +358,14 @@ test('and the warning does not claim markup is never parsed', () => {
  * only entry still a string after parsing is a chunk the parser declined.
  */
 test('a declined chunk is reported even when the element has other children', () => {
-  const warningsFor = (build) => {
-    const said = [];
-    const { warn } = console;
-    console.warn = (...args) => said.push(printed(args).join(' '));
-    try {
-      const host = document.createElement('div');
-      build(host);
-      void host.children.length;
-      return { said: said.filter((line) => /could not be parsed/.test(line)), children: host.children.length };
-    } finally {
-      console.warn = warn;
-    }
-  };
+  const warningsFor = (build) => row({ build });
 
   /** Declined on its own — the case the warning was originally written for. */
-  const alone = warningsFor((host) => {
-    host.innerHTML = '<p>x</b>';
-  });
+  const alone = warningsFor('alone');
   assert.equal(alone.said.length, 1, 'a declined chunk on its own should warn');
 
   /** Declined alongside a real node — the case that used to be silent. */
-  const mixed = warningsFor((host) => {
-    host.innerHTML = '<p>x</b>';
-    host.appendChild(document.createElement('b'));
-  });
+  const mixed = warningsFor('mixed');
   assert.equal(mixed.children, 1, 'the appended element should be visible');
   assert.equal(
     mixed.said.length,
@@ -371,14 +373,12 @@ test('a declined chunk is reported even when the element has other children', ()
     'a declined chunk went unreported because the element had another child — the harder case, not the easier one'
   );
 
-  /** And nothing legitimate triggers it. */
-  for (const [name, build] of [
-    ['well-formed markup', (host) => { host.innerHTML = '<b>good</b>'; }],
-    ['markup plus an appended element', (host) => { host.innerHTML = '<b>good</b>'; host.appendChild(document.createElement('i')); }],
-    ['append() with plain text', (host) => { host.append('plain text'); }],
-    ['append() with a string that looks like markup', (host) => { host.append('<p>x</b>'); }],
-  ]) {
-    const quiet = warningsFor(build);
+  /** Said once per process: a second declined container in the same process adds no second line. */
+  assert.equal(warningsFor('twice').said.length, 1, 'the same key twice is ONE line — a server renders per request');
+
+  /** And nothing legitimate triggers it — each row in its own process, so a silence means something. */
+  for (const name of ['well-formed markup', 'markup plus an appended element', 'append() with plain text', 'append() with a string that looks like markup']) {
+    const quiet = warningsFor(name);
     assert.equal(quiet.said.length, 0, `${name} should not warn — a string argument is text, not declined markup`);
   }
 });

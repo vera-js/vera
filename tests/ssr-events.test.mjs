@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import '@verajs/ssr';
+import { printed } from './console-args.mjs';
 
 const real = new JSDOM('<!doctype html><body></body>').window;
 
@@ -192,7 +193,7 @@ test('a listener that throws does not stop the others', () => {
   const seen = [];
   const errors = [];
   const original = console.error;
-  console.error = (...args) => errors.push(args.join(' '));
+  console.error = (...args) => errors.push(printed(args));
   try {
     leaf.addEventListener('ping', () => {
       throw new Error('listener exploded');
@@ -206,7 +207,8 @@ test('a listener that throws does not stop the others', () => {
     console.error = original;
   }
   assert.equal(errors.length, 1, 'the failure was reported');
-  assert.match(errors[0], /^\[vera\]/, 'with the framework prefix');
+  assert.match(String(errors[0][0]), /^\[vera\] ssr: the page — a "ping" listener threw[\s\S]*\(ssr-listener-threw\)$/, 'by code, with the framework prefix');
+  assert.ok(errors[0].at(-1) instanceof Error && errors[0].at(-1).message === 'listener exploded', 'the error itself beside the line');
 });
 
 /**

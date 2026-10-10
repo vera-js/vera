@@ -1,0 +1,155 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "ssr-async-connected",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> has an async connectedCallback, which cannot be awaited during a synchronous render — its markup would be empty.",
+      "fix": "Use renderToStringAsync, or load data first and pass it as attributes."
+    },
+    {
+      "code": "ssr-attribute-name",
+      "params": [
+        "name"
+      ],
+      "message": "`attributes` cannot use {name} as a name — an attribute name may not contain whitespace, a quote, \"/\", \"=\" or \">\"; setAttribute refuses it in the browser too.",
+      "fix": "Give it a valid attribute name."
+    },
+    {
+      "code": "ssr-listener-threw",
+      "params": [
+        "type"
+      ],
+      "message": "a \"{type}\" listener threw — the dispatch went on, as in a browser; its error follows.",
+      "fix": "The error names what went wrong. This is said once per component and event type for the life of the process."
+    },
+    {
+      "code": "ssr-markup-declined",
+      "params": [],
+      "message": "some of this element's markup could not be parsed, so children/querySelector do not see it — they answer emptily, or with only the part that did parse.",
+      "fix": "This DOM parses markup it can reproduce exactly and declines the rest, rather than building a tree the browser would not — a mismatched or stray closing tag is the usual cause. Make the markup well-formed, or build the children with createElement/appendChild if a component needs to read them back."
+    },
+    {
+      "code": "ssr-nesting-depth",
+      "params": [
+        "max"
+      ],
+      "message": "component nesting exceeded {max} levels. A component that renders itself recurses without bound, and on a server that is a hung request — so this refuses rather than waiting for the stack to go.",
+      "fix": "If the tree is genuinely this deep it renders fine in a browser, which has no such limit; that difference is in the @verajs/ssr README."
+    },
+    {
+      "code": "ssr-no-definition",
+      "params": [
+        "url"
+      ],
+      "message": "no custom element definition found for {url}.",
+      "fix": "Export the component's class from that module, or pass { tag }."
+    },
+    {
+      "code": "ssr-option",
+      "params": [
+        "name",
+        "expected"
+      ],
+      "message": "`{name}` must be {expected}.",
+      "fix": "Check the options passed to renderToString."
+    },
+    {
+      "code": "ssr-prop-refused",
+      "params": [
+        "tag",
+        "thrown"
+      ],
+      "message": "<{tag}> refused a value from `props` — setting it threw {thrown}.",
+      "fix": "A read-only property cannot be set; pass it as an attribute, or give the class a setter. The setter's own error is this one's cause."
+    },
+    {
+      "code": "ssr-render-threw",
+      "params": [
+        "tag",
+        "others",
+        "thrown"
+      ],
+      "message": "<{tag}> threw while rendering{others} — its markup would be empty: {thrown}.",
+      "fix": "The component's own error is this one's cause."
+    },
+    {
+      "code": "ssr-renderer-replaced",
+      "params": [],
+      "message": "the server renderer has been replaced — something wired a renderer after @verajs/ssr was imported, and every component would render empty.",
+      "fix": "Guard the client wiring (`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports."
+    },
+    {
+      "code": "ssr-selector-unsupported",
+      "params": [
+        "selector",
+        "why"
+      ],
+      "message": "this DOM cannot answer the selector {selector} — {why}.",
+      "fix": "It matches on structure and attributes only; rather than return a wrong answer it says so."
+    },
+    {
+      "code": "ssr-setter-threw",
+      "params": [
+        "tag",
+        "name",
+        "thrown"
+      ],
+      "message": "<{tag}> refused the bound property `.{name}` — its setter threw {thrown}.",
+      "fix": "The binding's value is the argument it was given; the setter's own error is this one's cause."
+    },
+    {
+      "code": "ssr-sheet-text",
+      "params": [],
+      "message": "CSSStyleSheet.deleteRule needs a parsed rule list; this sheet is text.",
+      "fix": "Remove the rule from the text instead, or replace the sheet."
+    },
+    {
+      "code": "ssr-static-write",
+      "params": [
+        "prop"
+      ],
+      "message": "this render declared itself static, so its stores are not reactive and writing {prop} would change nothing.",
+      "fix": "Remove `static: true` from renderToString, or stop writing to the store during the render."
+    },
+    {
+      "code": "ssr-styles-vary",
+      "params": [],
+      "message": "hoisted different CSS than it did on an earlier render, and the new stylesheet was dropped.",
+      "fix": "A tag's styles are established once per class for the life of the process, so CSS that varies per request cannot be hoisted — put the varying part in an inline style or a custom property instead."
+    },
+    {
+      "code": "ssr-template-in-text",
+      "params": [],
+      "message": "a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text.",
+      "fix": "Render a string there."
+    },
+    {
+      "code": "ssr-timeout",
+      "params": [
+        "timeout",
+        "pendingIn",
+        "waitingOn"
+      ],
+      "message": "was served after its {timeout} ms `timeout` with a promise still pending in {pendingIn} (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then. Still waiting on customElements.whenDefined for {waitingOn}, which the server never defined.",
+      "fix": "If only the browser defines it, return before that wait on the server — `if (globalThis.__veraSsrShimmed) return;` — so the server serves what the component shows before the wait, as the browser does first. Raise `timeout` if the wait is real, or find the promise that never settles. Said once per component for the life of the process."
+    },
+    {
+      "code": "ssr-unfinished-tag",
+      "params": [],
+      "message": "a template cannot end inside a tag — the client drops an unfinished tag.",
+      "fix": "Close the tag inside the template."
+    },
+    {
+      "code": "ssr-url-refused",
+      "params": [
+        "href",
+        "root"
+      ],
+      "message": "refused {href} — it resolves outside {root}.",
+      "fix": "Nothing was imported. A module URL is bounded to `base`; point it at a module inside that directory."
+    }
+  ]
+}

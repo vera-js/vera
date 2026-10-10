@@ -1,6 +1,9 @@
 import { escapeHtml, escapeRawText } from './shim.js';
 import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
 import { registry } from './registry.js';
+import { PROSE, TWINS } from './diagnostics.js';
+import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
+import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
 import type { ScanResult, ScanStart, SsrTemplate } from './types.js';
@@ -78,17 +81,21 @@ const nameCut = (text: string, nameAt: number): number => (nameAt > 0 && isSpace
  */
 const NAME_CHAR_BEFORE = /[^\s"'>=/]$/;
 const NAME_CHAR_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
+/**
+ * A bound `javascript:` URL, refused — said once per process per component and attribute. The VALUE is never printed:
+ * it is attacker-shaped by definition, and a server's console is a log pipeline (vera-5a, 2026-10-09).
+ */
+const refusedScriptUrl = (name: string): void => {
+  const tag = currentRenderingTag();
+  if (once(`script-url:${tag}:${name}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'script-url', TWINS.scriptUrl(name)));
+};
 const nameHole = (before: string, after: string): never => {
   const prefix = (/[^\s"'>=/]*$/.exec(before) ?? [''])[0];
   const suffix = (/^[^\s"'>=/]*/.exec(after) ?? [''])[0];
   const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\s>]*))/.exec(after.slice(suffix.length));
   const given =
     value === null ? "''" : value[2] === '"' ? JSON.stringify(value[1]) : value[4] === "'" ? JSON.stringify(value[3]) : value[5] ? JSON.stringify(value[5]) : '…';
-  throw new Error(
-    `ssr: an attribute name cannot be an expression — \`${prefix}\${…}${suffix}\` is read by the parser before any ` +
-      `value exists. A name known only at runtime is a spread: \`\${spread({ [\`${prefix}\${…}${suffix}\`]: ${given} })}\` ` +
-      `(from @verajs/renderer/spread).`
-  );
+  throw own(new Error(ssrMisuse('name-expression', TWINS.nameExpression(`${prefix}${'${…}'}${suffix}`, given))));
 };
 
 
@@ -223,17 +230,10 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
       carrier = Object.getPrototypeOf(carrier);
     }
     if (refusable) {
-      console.warn(
-        `[vera] ssr: <${tag}> declares \`${name}\` as a getter with no setter — the bound value ` +
-          `cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
-      );
+      if (once(`getter-only-prop:${tag}:${name}`)) console.warn(ssrWarning(`<${tag}>`, 'getter-only-prop', TWINS.getterOnlyProp(name)));
       return;
     }
-    throw new TypeError(
-      `ssr: <${tag}> refused the bound property \`.${name}\` — ${thrownMessage(error)}. ` +
-        `Its setter threw; the binding's value is the argument it was given.`,
-      { cause: error }
-    );
+    throw own(new TypeError(ssrMisuse('ssr-setter-threw', PROSE['ssr-setter-threw']!(tag, name, quoted(thrownMessage(error)))), { cause: error }));
   }
 };
 
@@ -283,7 +283,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * `null` — the caller renders it as the ordinary object it is — and never a throw: the value is attacker-controlled
    * by definition, and a throw would trade the injection for the whole response.
    */
-  if (!isLiteral(strings)) return null;
+  if (!isLiteral(strings)) {
+    /** Once per process per component (Brian, 2026-10-09); the forgery itself still renders as the object it is. */
+    const tag = currentRenderingTag();
+    if (once(`forged-template:${tag}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'forged-template', TWINS.forgedTemplate()));
+    return null;
+  }
   const parts: string[] = [];
   const kinds: SlotKind[] = [];
   const names: string[] = [];
@@ -592,10 +597,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     const tagNameHole = tagState.phase === TAG_OPEN || tagState.phase === END_TAG_OPEN || tagState.phase === TAG_NAME;
     if (tagNameHole)
-      throw new Error(
-        'ssr: an expression in tag position (`<${…}>`) cannot be a tag name — a tag name must be a tag value: ' +
-          '`tag`h1`` from @verajs/renderer/tag, with that entry\'s `html`.'
-      );
+      throw own(new Error(ssrMisuse('tag-hole', TWINS.tagHole())));
     if (elementPosition && !tagNameHole && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
       nameHole(part, strings[i + 1]);
     elementPositions.push(elementPosition);
@@ -642,7 +644,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    */
   const end = scanTag(strings[strings.length - 1], tagState);
   if (end.inValue || (end.inTag && end.tagName))
-    throw new Error('ssr: a template cannot end inside a tag — the client drops an unfinished tag. Close the tag inside the template.');
+    throw own(new Error(ssrMisuse('ssr-unfinished-tag', PROSE['ssr-unfinished-tag']!())));
   const closers = closersOf(end);
   if (closers) parts[parts.length - 1] += closers;
 
@@ -833,12 +835,11 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * ONE decision for every shape, written whole or not at all: a sole nullish value removes the attribute,
          * and a bound srcdoc or a `javascript:` URL is refused — as the client decides each of them.
          */
-        if (
-          (group.sole && value == null) ||
-          group.refuse === 1 ||
-          (group.refuse > 1 && (group.refuse === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(joined))
-        )
+        if ((group.sole && value == null) || group.refuse === 1) break;
+        if (group.refuse > 1 && (group.refuse === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(joined)) {
+          refusedScriptUrl(group.name);
           break;
+        }
         if (group.strip) out = removeAttribute(out, group.name);
         out += attribute + '"';
         break;
@@ -1375,7 +1376,7 @@ export const serializeValue = (value: unknown, raw = false, depth = 0, text = fa
      * can CLOSE the element — `${html`</textarea>`}` — and turn the statics after it into unchecked markup.
      */
     if ((value as Probed).strings) {
-      if (text && isLiteral((value as Probed).strings)) throw new Error('ssr: a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text. Render a string there.');
+      if (text && isLiteral((value as Probed).strings)) throw own(new Error(ssrMisuse('ssr-template-in-text', PROSE['ssr-template-in-text']!())));
       return serializeTemplate(value as SsrTemplate, depth);
     }
     /**

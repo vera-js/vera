@@ -14,8 +14,10 @@ import { decode, parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
-import { StyleSheetShim, toSheetSequence } from './stylesheets.js';
+import { currentRenderingTag, StyleSheetShim, toSheetSequence } from './stylesheets.js';
 import { registry } from './registry.js';
+import { PROSE } from './diagnostics.js';
+import { once, ssrWarning } from './report.js';
 
 /** A retained child: an element, a text node or a comment — the nodes a container keeps by reference. */
 type ChildShim = ElementShim | TextShim | CommentShim;
@@ -368,7 +370,7 @@ const textOf = (container: ContainerShim): string => {
   return out;
 };
 
-/** Warned once per container, so a component that queries in a loop says it once. */
+/** Checked once per container (the fast path); said once per process per component — a server renders per request. */
 const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
 
 /**
@@ -494,14 +496,8 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
      * `createElement`; the truth is that this particular markup was refused, and making it
      * well-formed is usually the fix.
      */
-    console.warn(
-      `[vera] ssr: some of this element's markup could not be parsed, so children/querySelector ` +
-        `do not see it — they answer emptily, or with only the part that did parse. This DOM parses ` +
-        `markup it can reproduce exactly and declines the rest, ` +
-        `rather than building a tree the browser would not — a mismatched or stray closing tag is ` +
-        `the usual cause. Make the markup well-formed, or build the children with ` +
-        `createElement/appendChild if a component needs to read them back.`
-    );
+    const tag = currentRenderingTag();
+    if (once(`ssr-markup-declined:${tag}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'ssr-markup-declined', PROSE['ssr-markup-declined']!()));
   }
   return nodes;
 };

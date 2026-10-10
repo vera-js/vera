@@ -33,6 +33,8 @@
  */
 
 import type { ContainerShim, ElementShim } from './nodes.js';
+import { PROSE } from './diagnostics.js';
+import { own, quoted, ssrMisuse } from './report.js';
 
 /** One test of a compound against a candidate element; `scope` is the node the query started from, for `:scope`. */
 type Test = (element: ElementShim, scope: ContainerShim) => boolean;
@@ -51,10 +53,7 @@ const ID = /^#([\w-]+)/;
 const NOT = /^:not\(/i;
 
 const refuse: (selector: string, why: string) => never = (selector, why) => {
-  throw new Error(
-    `ssr: this DOM cannot answer the selector ${JSON.stringify(selector)} — ${why}. It matches on ` +
-      `structure and attributes only. Rather than return a wrong answer it says so.`
-  );
+  throw own(new Error(ssrMisuse('ssr-selector-unsupported', PROSE['ssr-selector-unsupported']!(quoted(selector), why))));
 };
 
 /**

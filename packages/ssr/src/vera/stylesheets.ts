@@ -4,6 +4,8 @@
  * The `StyleSheetShim` class is the DOM half — audited in place. The hoisting half (which component a
  * sheet belongs to, per request) is SSR orchestration, rebuilt in the lean rebuild from this floor.
  */
+import { PROSE } from './diagnostics.js';
+import { own, ssrMisuse, ssrWarning } from './report.js';
 
 /**
  * Light-DOM `@scope` styles hoisted during renders, **keyed by the component that hoisted them**, so a
@@ -19,6 +21,8 @@ export const setRenderingTag = (tag: string): string => {
   renderingTag = tag;
   return previous;
 };
+/** The component rendering right now — the key a warning is said once per. */
+export const currentRenderingTag = (): string => renderingTag;
 
 /**
  * The tags that hoisted during the render in progress. `@verajs/styles` hoists once per class, so a tag
@@ -65,7 +69,7 @@ export class StyleSheetShim {
    * so a rule cannot be addressed by index. Deleting one is refused rather than silently ignored.
    */
   deleteRule(): never {
-    throw new Error('ssr: CSSStyleSheet.deleteRule needs a parsed rule list; this sheet is text');
+    throw own(new Error(ssrMisuse('ssr-sheet-text', PROSE['ssr-sheet-text']!())));
   }
   /** The pre-standard spellings, which are still what some libraries reach for. */
   addRule(selector: string, style?: string): number {
@@ -119,12 +123,7 @@ export const hoist = (cssText: string): void => {
   if (sheets && !hoistedThisRender.has(renderingTag)) {
     if (!sheets.includes(cssText) && !warnedAboutDrift.has(renderingTag)) {
       warnedAboutDrift.add(renderingTag);
-      console.warn(
-        `[vera] ssr: <${renderingTag}> hoisted different CSS than it did on an earlier render, and the new ` +
-          `stylesheet was dropped. A tag's styles are established once per class for the life of the process, ` +
-          `so CSS that varies per request cannot be hoisted — put the varying part in an inline style or a ` +
-          `custom property instead.`
-      );
+      console.warn(ssrWarning(`<${renderingTag}>`, 'ssr-styles-vary', PROSE['ssr-styles-vary']!()));
     }
     return;
   }
