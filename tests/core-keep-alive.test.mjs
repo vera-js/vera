@@ -204,17 +204,29 @@ test('a third-party element keeps every field of its own through connect, move, 
 });
 
 /**
- * **The author's `connectedCallback` result comes back through the wrapper.** A server render awaits the promise an
- * `async connectedCallback` returns; design 6's first wrapper dropped it, and every SSR wait on one ended at once
- * (`ssr-render-timeout` read 0.24 ms against a 120 ms budget).
+ * **The author's `connectedCallback` promise is still waited for through the wrapper.** A server render awaits what
+ * `connectedCallback` returns; design 6's first wrapper dropped it, and every SSR wait on one ended at once
+ * (`ssr-render-timeout` read 0.24 ms against a 120 ms budget). Since da2387a the wrapper returns a NEW promise — the
+ * author's joined with any pending setup (tests/core-setup-async-ssr pins that half) — so what is pinned is the
+ * behavior, not identity: the returned promise must not settle before the author's does, and must settle after it.
+ * Nothing reads the value it resolves to (ssr only awaits it).
  */
-test('the wrapped connectedCallback returns what the author\'s returned', () => {
-  const token = Promise.resolve('mine');
+test("the wrapped connectedCallback's promise settles only after the author's", async () => {
+  let release;
+  const token = new Promise((resolve) => (release = resolve));
   customElements.define('ka-returns', class extends dom.window.HTMLElement {
     connectedCallback() { init(this); return token; }
   });
   const el = doc.createElement('ka-returns');
-  assert.equal(el.connectedCallback(), token);
+  const returned = el.connectedCallback();
+  assert.ok(typeof returned?.then === 'function', 'CONTROL: a promise came back');
+  let settled = false;
+  returned.then(() => (settled = true));
+  await tick();
+  assert.equal(settled, false, "not before the author's promise");
+  release('mine');
+  await tick();
+  assert.equal(settled, true, "and after it");
 });
 
 /**
