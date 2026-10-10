@@ -69,6 +69,11 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 
 /** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
 export type Hooks = Set<HookCallback>[];
+/**
+ * One key's subscribers, and the size at which `track` next sweeps the dead ones out (`l`, the limit) — set on the
+ * Set's first add, in that one place, so every subscriber Set has the same shape.
+ */
+export type Subscribers = Set<WeakRef<HookCallback>> & { l: number };
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -2,7 +2,7 @@ import { hooksQueue, proxyCallbacks } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { Signal } from '../types.js';
+import type { Signal, Subscribers } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
@@ -21,8 +21,19 @@ const track = (obj: object, prop: unknown) => {
     proxyCallbacks.set(obj, props);
   }
   let hooks = props.get(prop);
-  if (hooks === undefined) props.set(prop, (hooks = new Set()));
+  if (hooks === undefined) props.set(prop, (hooks = new Set() as Subscribers));
   hooks.add(hook);
+  /**
+   * **The dead-subscription sweep.** A key that is never WRITTEN (`trigger` prunes on a write) kept one dead `WeakRef`
+   * per component that ever read it, for the life of the store (measured 2026-10-10: 50 542 at 50k components, ~90 B
+   * each). When a Set grows to its limit (`l`, 32 at first) the dead are dropped and the limit becomes twice what is
+   * left: amortised O(1) per add, dead entries under 2 × the peak live count. Only growth reaches the limit — after a
+   * sweep it is twice the size — so a deduped re-read never sweeps; an emptied Set's limit is 0, so `||=` gives it 32.
+   */
+  if (hooks.size >= (hooks.l ||= 32)) {
+    for (const ref of hooks) if (!ref.deref()) hooks.delete(ref);
+    hooks.l = 2 * hooks.size;
+  }
 };
 
 /** Wakes every live hook that read `obj[prop]`, dropping the ones whose element is gone. */
