@@ -75,7 +75,7 @@ test('with no handler, a throwing ref goes to reportError — and the render car
   assert.deepEqual(reported, ['ref failed'], 'the window hears it, as page-error listeners need');
   assert.equal(element.querySelector('i')?.textContent, 'after', 'CONTROL: the render completed past the ref');
   if (!isProduction)
-    assert.ok(printed.some((line) => line.startsWith('[vera] an element ref threw')), 'development names it');
+    assert.ok(printed.some((line) => line.startsWith('[vera] renderer: an element ref — threw') && line.includes('(ref-threw)')), 'development names it');
   else assert.deepEqual(printed, [], 'production leaves the report to the platform');
   element.remove();
 });
@@ -105,6 +105,11 @@ test('off-browser, with no reportError, both still reach the console', async () 
   }
   assert.ok(printed.some((line) => line.includes('ref failed')), 'the ref error is printed');
   assert.ok(printed.some((line) => line.includes('effect failed')), 'the hook error is printed');
+  /** Each beside its CODE — the bare code in production, the sentence ending on it in development (phase 5). */
+  const line = (code, failed) => printed.find((said) => said.includes(failed))?.split(' Error: ')[0];
+  for (const [code, failed] of [['ref-threw', 'ref failed'], ['hook-threw', 'effect failed']])
+    if (isProduction) assert.equal(line(code, failed), `[vera] ${code}`);
+    else assert.ok(line(code, failed)?.endsWith(`(${code})`), `development: ${line(code, failed)}`);
   ref.remove();
   effect.remove();
 });

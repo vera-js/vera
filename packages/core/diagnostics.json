@@ -22,6 +22,18 @@
       "fix": "`import { mount } from '@verajs/core'; mount();`"
     },
     {
+      "code": "cleanup-threw",
+      "params": [],
+      "message": "threw (the function a hook returned, not the hook itself); its error is printed beside this line, and the rest of the teardown ran.",
+      "fix": "Fix the cleanup, or wire an 'error' insert to handle what hooks throw."
+    },
+    {
+      "code": "hook-threw",
+      "params": [],
+      "message": "threw; its error is printed beside this line, and the other hooks still ran.",
+      "fix": "Fix the hook, or wire an 'error' insert to handle what hooks throw: `wire([{ on: 'error', fn: (error, element) => … }])`."
+    },
+    {
       "code": "init-not-element",
       "params": [
         "received"

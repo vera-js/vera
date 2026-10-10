@@ -53,7 +53,6 @@ const MIGRATED = [
  * error it forwards. Counted, so a second inline call in the file is a deliberate edit, not a free pass.
  */
 const ROUTING = new Map([
-  ['packages/shared-utils/src/utils.ts', 2],
   /** The standalone loader forwards the compiler's warning, which already carries its code (vera-5a's rule). */
   ['packages/jsx/src/standalone.ts', 1],
 ]);

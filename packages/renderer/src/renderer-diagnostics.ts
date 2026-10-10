@@ -6,6 +6,10 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'ref-threw': () => [
+    'threw; its error is printed beside this line, and the render continued without it.',
+    "Fix the ref, or wire an 'error' insert to handle what refs throw.",
+  ],
   /* ── a template's own source (said once per template) ── */
   'self-closed-tag': (tag) => [
     `<${tag}> is left OPEN by this template, so everything after it becomes its child rather than its sibling. HTML has no self-closing syntax outside <svg> and <math> — \`<${tag} />\` is an open tag, not an empty element.`,

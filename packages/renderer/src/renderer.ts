@@ -661,7 +661,7 @@ const applyRef = (callback: (element: Element | null) => void, element: Element 
   try {
     callback(element);
   } catch (error) {
-    reportTo(registry?.get('error'), error, hostOf(renderRoot), __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
+    reportTo(registry?.get('error'), error, hostOf(renderRoot), __DEV__ ? diagnostic('renderer', 'an element ref', 'ref-threw', __DEV__ && PROSE['ref-threw']()) : '[vera] ref-threw');
   }
 };
 

@@ -63,7 +63,7 @@ const topLevel = (args) => {
   return out;
 };
 
-const EXEMPT = new Map([['packages/shared-utils/src/utils.ts', [2, "reportUncaught: the sentence is always the framework's own fixed literal — no subject"]]]);
+const EXEMPT = new Map([['packages/shared-utils/src/utils.ts', [2, "reportUncaught: the line is always the framework's own fixed text — a literal code in production, a table sentence with a fixed subject in development; '%s' measured +2–3 B on the renderer bundles"]]]);
 
 test('every multi-argument console call passes %s first, or starts with a plain literal free of %', () => {
   const unsafe = [];

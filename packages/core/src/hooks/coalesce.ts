@@ -14,7 +14,7 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
     cleanup();
   } catch (error) {
     /** Named as a CLEANUP (main did): the hook ran fine — what threw is what it returned. */
-    reportHookError(error, owner ?? undefined, 'a cleanup threw:');
+    reportHookError(error, owner ?? undefined, __DEV__ ? diagnostic('core', 'a cleanup', 'cleanup-threw', __DEV__ && PROSE['cleanup-threw']()) : '[vera] cleanup-threw');
   }
 };
 

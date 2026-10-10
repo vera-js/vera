@@ -74,6 +74,8 @@ const NOT_A_LITERAL = new Map([
   ['autoloader/src/autoloader.ts', [1, 'forwards a refusal of its own, already coded (loader-url-refused) — routing']],
   ['autoloader/src/loader.ts', [1, 'forwards a refusal of its own, already coded (directive-loader-name, loader-url-refused) — routing']],
   ['ssr/src/vera/shim.ts', [1, 'forwards a caught error object']],
+  /** reportUncaught prints the line its caller built: `'[vera] <code>'` or a diagnostic() line, literal at every call site. */
+  ['shared-utils/src/utils.ts', [2, "prints a coded line its caller built — '[vera] <code>' or diagnostic()'s"]],
   /** Hydration's once-per-kind helper: every caller hands it a `diagnostic(…)` line — asserted below. */
   ['renderer/src/hydration.ts', [2, 'prints a line diagnostic() built — every caller passes one']],
   /** Motion's one formatter, problemLine(): the fallback reporter prints it, and the server-written script prints

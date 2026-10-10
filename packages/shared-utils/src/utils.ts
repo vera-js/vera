@@ -55,16 +55,19 @@ export const prioritySlot = <T>(list: T[], order: number[], priority: number, cr
  * without unwinding the caller, so one failing hook or ref never stops its siblings. A bare
  * `console.error` reached none of those: a component could stop updating while every page-error
  * listener stayed silent. Off-browser (Node has no `reportError`) the console is all there is.
- * `sentence` is the framework's own line, printed beside the error in development — WITHOUT the
- * `[vera]` prefix, which is added here as a literal so no caller can forget it and
- * `tests/diagnostics-convention.test.mjs` can still read it.
+ * `line` is the framework's own line, printed beside the error — a CODED one (code-system phase 5, 2026-10-09):
+ * each caller passes `'[vera] <code>'` in production and its table's `diagnostic()` sentence in development, both
+ * literal codes at the call site, so the static checks read them. The subject is fixed wording too (`a hook`, `an
+ * element ref`), never a tag name: this line is the console's FORMAT (no `'%s'`, which measured +2–3 B on the renderer
+ * bundles), so nothing from outside may reach it — the element goes to the `'error'` handlers instead. Production prints it only where the platform has no
+ * `reportError` (Node); in a browser, `reportError` alone reports.
  *
  * Shared by core (a hook threw) and the renderer (a ref threw) so the fallback is one rule.
  */
-export const reportUncaught = (error: unknown, sentence: string) => {
-  if (typeof reportError !== 'function') console.error('[vera] ' + sentence, error);
+export const reportUncaught = (error: unknown, line: string) => {
+  if (typeof reportError !== 'function') console.error(line, error);
   else {
-    if (__DEV__) console.error('[vera] ' + sentence, error);
+    if (__DEV__) console.error(line, error);
     reportError(error);
   }
 };
@@ -78,9 +81,9 @@ export const reportUncaught = (error: unknown, sentence: string) => {
  * **Core keeps a deliberate twin** (`reportHookError`, the same rule as a `forEach`): routed through here it measured
  * +11 B gzip on `vera.min.js` (2026-10-09). A change to the rule changes both.
  */
-export const reportTo = (handlers: readonly unknown[] | undefined, error: unknown, element: Element | undefined, sentence: string) => {
+export const reportTo = (handlers: readonly unknown[] | undefined, error: unknown, element: Element | undefined, line: string) => {
   if (handlers?.length) for (const handler of handlers) (handler as (error: unknown, element?: Element) => void)(error, element);
-  else reportUncaught(error, sentence);
+  else reportUncaught(error, line);
 };
 
 /** The component a render root belongs to: a shadow root's host, or a light root itself. */

@@ -95,6 +95,12 @@
       "fix": "Use <pre> for preformatted text."
     },
     {
+      "code": "ref-threw",
+      "params": [],
+      "message": "threw; its error is printed beside this line, and the render continued without it.",
+      "fix": "Fix the ref, or wire an 'error' insert to handle what refs throw."
+    },
+    {
       "code": "self-closed-tag",
       "params": [
         "tag"
@@ -212,6 +218,15 @@
       ],
       "message": "expected a template as the second argument and received {received}.",
       "fix": "It marks a template with a key — `keyed(row.id, html`<li>…</li>`)`."
+    },
+    {
+      "code": "claim-threw",
+      "params": [
+        "phase",
+        "outcome"
+      ],
+      "message": "threw in {phase}; its error is printed beside this line, and {outcome}.",
+      "fix": "Fix the claim's callback, or wire an 'error' insert to handle what claims throw."
     },
     {
       "code": "elements-hook-replaced",

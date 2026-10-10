@@ -7,6 +7,15 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  /* ── what the app's own code threw, forwarded (printed beside the error; production prints the bare code) ── */
+  'hook-threw': () => [
+    'threw; its error is printed beside this line, and the other hooks still ran.',
+    "Fix the hook, or wire an 'error' insert to handle what hooks throw: `wire([{ on: 'error', fn: (error, element) => … }])`.",
+  ],
+  'cleanup-threw': () => [
+    'threw (the function a hook returned, not the hook itself); its error is printed beside this line, and the rest of the teardown ran.',
+    "Fix the cleanup, or wire an 'error' insert to handle what hooks throw.",
+  ],
   /* ── misused APIs (thrown, development only — `misuse()`) ── */
   'untrack-not-function': (received) => [
     `expected a function and received ${received}.`,

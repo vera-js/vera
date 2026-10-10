@@ -31,7 +31,7 @@ let registered: Map<string, unknown[]> | null = null;
  * component it belongs to (else as uncaught), and the render, the other claims and the teardown carry on. A mid-commit
  * throw once left a component's root empty for good; `mount` propagating aborted every later claim's mount.
  */
-const report = (error: unknown, root: Node | null, sentence: string) => reportTo(registered?.get('error'), error, hostOf(root), sentence);
+const report = (error: unknown, root: Node | null, line: string) => reportTo(registered?.get('error'), error, hostOf(root), line);
 
 /**
  * **The next element of an instance in document pre-order, never leaving it.** A root is a fragment, or — for a
@@ -76,7 +76,7 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
       try {
         behaviors[k].create?.(node!, adopted);
       } catch (error) {
-        report(error, root, __DEV__ ? 'an element claim threw in create; the render continued without it.' : 'claim threw');
+        report(error, root, __DEV__ ? diagnostic('elements', 'an element claim', 'claim-threw', __DEV__ && PROSE['claim-threw']('create', 'the render continued without it')) : '[vera] claim-threw');
         continue;
       }
       found.push(node!, behaviors[k]);
@@ -96,7 +96,7 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
       try {
         value = behavior.mount?.(found[i] as Element, context);
       } catch (error) {
-        report(error, state.r, __DEV__ ? 'an element claim threw in mount; the others still mounted.' : 'claim threw');
+        report(error, state.r, __DEV__ ? diagnostic('elements', 'an element claim', 'claim-threw', __DEV__ && PROSE['claim-threw']('mount', 'the others still mounted')) : '[vera] claim-threw');
         continue;
       }
       if (value !== undefined && behavior.unmount !== undefined) (state.k ??= []).push(found[i], behavior, value);
@@ -111,7 +111,7 @@ const hookFor = (positions: number[], behaviors: ElementBehavior[]): InstanceHoo
         try {
           (kept[i + 1] as ElementBehavior).unmount!(kept[i + 2], kept[i] as Element);
         } catch (error) {
-          report(error, state.r, __DEV__ ? 'an element claim threw in unmount; the rest of the teardown ran.' : 'claim threw');
+          report(error, state.r, __DEV__ ? diagnostic('elements', 'an element claim', 'claim-threw', __DEV__ && PROSE['claim-threw']('unmount', 'the rest of the teardown ran')) : '[vera] claim-threw');
         }
   },
 });

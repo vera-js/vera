@@ -18,8 +18,8 @@ production bytes) unless noted:
 - A bare `render()` (no template) commits the setup without registering a render — it no longer draws `undefined`
   over the root — and development names `mount()`.
 - **A cleanup that throws now reaches the app's `'error'` chain**, like a hook that throws, attributed to its
-  component — apps with a chain wired will now see cleanup errors they did not before. With no chain it prints
-  `[vera] a cleanup threw:`.
+  component — apps with a chain wired will now see cleanup errors they did not before. With no chain it is reported
+  the platform's way, beside its code (`cleanup-threw`) where the console prints it.
 - `init` and `allowRenderLoop` accept an element from another window (a popped-out window's component failed the
   opener's `instanceof Element`).
 - Each copy of core tears down only the components it initialized: a page holding two copies (a bundle that inlines

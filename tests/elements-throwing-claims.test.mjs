@@ -157,6 +157,6 @@ if (process.env.VERA_THROWING_CLAIMS === 'no-chain') {
     assert.deepEqual(ran, ['create m', 'create o', 'mount m', 'mount o']);
     assert.deepEqual(ids, ['m', 'o'], 'the render completed');
     if (isProduction) assert.deepEqual(said, [], 'production: reportError alone');
-    else assert.deepEqual(said, ['[vera] an element claim threw in mount; the others still mounted.']);
+    else assert.deepEqual(said, ["[vera] elements: an element claim — threw in mount; its error is printed beside this line, and the others still mounted. Fix the claim's callback, or wire an 'error' insert to handle what claims throw. (claim-threw)"]);
   });
 }

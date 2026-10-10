@@ -25,10 +25,10 @@ const newSet = () => new Set<HookCallback>();
  * the failing one — a single bad effect took out its siblings.
  */
 /** A deliberate twin of shared-utils' `reportTo` (the same rule, +11 B there): change both together. */
-export const reportHookError = (error: unknown, element?: ComponentElement, sentence = 'a hook threw:') => {
+export const reportHookError = (error: unknown, element: ComponentElement | undefined, line: string) => {
   const handlers = inserts.get('error');
   if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)(error, element));
-  else reportUncaught(error, sentence);
+  else reportUncaught(error, line);
 };
 
 /**
@@ -77,7 +77,7 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
     try {
       callback(signal, init);
     } catch (error) {
-      reportHookError(error, owner);
+      reportHookError(error, owner, __DEV__ ? diagnostic('core', 'a hook', 'hook-threw', __DEV__ && PROSE['hook-threw']()) : '[vera] hook-threw');
     } finally {
       hooksQueue.pop();
     }

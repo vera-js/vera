@@ -581,7 +581,7 @@ const define = (setup) => {
   console.error = (...args) => said.push(args.map((a) => (a && a.stack ? `ERR<${a.message}>` : String(a))).join(' | '));
   /**
    * Since 2026-10-09 a throwing cleanup goes where a throwing hook goes — the app's `'error'` chain, when one is wired
-   * (this file wires two above), attributed to its component; `[vera] a cleanup threw:` is printed only when none is.
+   * (this file wires two above), attributed to its component; `[vera] cleanup-threw` (its sentence, in development) is printed only when none is.
    * main bypassed the chain for cleanups, to avoid an import cycle, not by design. This row's own handler REPLACES the
    * one at 90 (same priority), so it sees what the chain receives.
    */

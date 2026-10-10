@@ -56,7 +56,7 @@ for (const [hook, register] of [
     await tick();
   });
   assert.deepEqual(runs, [0, 1], 'CONTROL: it ran on the first pass and on the change, its awaits completing');
-  assert.equal(said.filter((line) => line.includes('a hook threw')).length, 0, `nothing called the promise as a cleanup: ${said.join(' | ')}`);
+  assert.equal(said.filter((line) => line.includes('hook-threw')).length, 0, `nothing called the promise as a cleanup: ${said.join(' | ')}`);
   if (isProduction) assert.deepEqual(said, [], 'production is silent');
   else {
     assert.equal(said.length, 1, `development names it ONCE, not per run: ${said.join(' | ')}`);
@@ -98,5 +98,5 @@ test('a cleanup that throws, with no error chain wired, is printed as a CLEANUP 
   const said = await listen(async () => { el.remove(); await tick(); });
   const ours = said.filter((line) => line.includes('cleanup boom'));
   assert.equal(ours.length, 1, `printed once: ${said.join(' | ')}`);
-  assert.match(ours[0], /^error \[vera\] a cleanup threw:/, 'attributed to the cleanup, in every build');
+  assert.match(ours[0], isProduction ? /^error \[vera\] cleanup-threw / : /^error \[vera\] core: a cleanup — threw \(the function a hook returned[\s\S]*\(cleanup-threw\) /, 'attributed to the cleanup, by code, in every build');
 });

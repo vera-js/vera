@@ -24,7 +24,8 @@ const NAME = '(?:[A-Za-z][\\w.]*|"[^"]+")';
 
 const FORMS = {
   'printed, with its link': new RegExp(`^\\[vera\\] ${CODE}: .+ — ${LINK}$`),
-  'printed, the bare code': new RegExp(`^\\[vera\\] ${CODE}: (?![^—]*\\(${CODE}\\)$)[^—]+$`),
+  /** With its subject, or — where there is none — the code alone, ending the line. */
+  'printed, the bare code': new RegExp(`^\\[vera\\] ${CODE}(?:: (?![^—]*\\(${CODE}\\)$)[^—]+)?$`),
   'printed, development': new RegExp(`^\\[vera\\] ${CODE}: .+ — (?!https:).+ \\(${CODE}\\)$`),
   'thrown, with its link': new RegExp(`^${NAME}: ${LINK}$`),
   'thrown, the bare code': new RegExp(`^${NAME}: ${CODE}$`),
@@ -32,8 +33,6 @@ const FORMS = {
   'thrown, development': new RegExp(`^${NAME}: (?!.* — ).+ \\(${CODE}\\)$`),
   'thrown with its subject, development': new RegExp(`^${NAME}: [^—]+ — (?!https:).+ \\(${CODE}\\)$`),
   'compiled, with its link': new RegExp(`^[^\\s:]+:\\d+:\\d+ — ${LINK}$`),
-  /** The one line with no code: the framework forwarding an error the USER's code threw, the error printed beside it. */
-  'forwarded, your error': /^\[vera\] [a-z][a-z ]*[a-z]:$/,
 };
 const PRODUCTION_FORMS = Object.keys(FORMS).filter((form) => !form.endsWith('development'));
 
@@ -41,13 +40,22 @@ const formsOf = (line) => Object.entries(FORMS).filter(([, shape]) => shape.test
 
 const PROSE = ['the value is not usable here.', 'Pass a function instead.'];
 
-/** reportUncaught prints the forwarded line beside the error; Node has no `reportError`, so it prints here in both builds. */
+/**
+ * reportUncaught prints the line it is handed with the error BESIDE it (Node has no `reportError`, so it prints here in
+ * both builds) — the line a hook's caller hands it: the bare code in production, its sentence in development.
+ */
 const forwarded = (() => {
   const saved = console.error;
-  let first = '';
-  console.error = (line) => { first = String(line); };
-  try { shared.reportUncaught(new Error("the user's"), 'a hook threw:'); } finally { console.error = saved; }
-  return first;
+  const error = new Error("the user's");
+  let args = [];
+  console.error = (...printed) => { args = printed; };
+  try {
+    shared.reportUncaught(error, isProduction ? '[vera] hook-threw' : shared.diagnostic('core', 'a hook', 'hook-threw', PROSE));
+  } finally {
+    console.error = saved;
+  }
+  assert.ok(args.length === 2 && args[1] === error, 'the error is printed beside the line, unformatted');
+  return String(args[0]);
 })();
 
 /** `[formatter, the line it wrote, the form it is for, a fragment the line must hold — the CONTROL that it ran]`. */
@@ -59,7 +67,7 @@ const ROWS = [
   /** ssr keeps its words in every build (a server's log is read by the person who fixes it). */
   ["ssr's ssrMisuse", ssrMisuse('probe-code', PROSE), 'thrown, development', 'probe-code'],
   ["ssr's ssrWarning", ssrWarning('<x-card>', 'probe-code', PROSE), 'printed, development', 'probe-code'],
-  ['reportUncaught', forwarded, 'forwarded, your error', 'a hook threw:'],
+  ['reportUncaught', forwarded, isProduction ? 'printed, the bare code' : 'printed, development', 'hook-threw'],
 ];
 
 for (const [formatter, line, expected, mark] of ROWS)

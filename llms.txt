@@ -1697,8 +1697,8 @@ Say so rather than inventing an API:
 ## Diagnostics — reading a `[vera]` line
 
 Every line the framework prints starts `[vera]`, so one console filter finds them all, and every package gives every
-line a code. The one line without one forwards an error your own code threw (`[vera] a hook threw:` beside it, in
-development, or wherever the platform has no `reportError`): it reports your error rather than explaining one of ours.
+line a code — including the line printed beside an error your own code threw, `[vera] hook-threw` in production
+(only where the platform has no `reportError`; a browser reports it the platform's way).
 Development prints the explanation and the fix, ending with the code in parentheses:
 `[vera] core: <x-card> — registered 2 hook(s) but its setup was never committed, so none of them will ever run. … (setup-uncommitted)`.
 Production prints a short line instead — the subject and a link, `[vera] core: <x-card> — https://verajs.dev/e/setup-uncommitted`,
