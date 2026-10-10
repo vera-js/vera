@@ -75,6 +75,10 @@ const NOT_A_LITERAL = new Map([
   ['ssr/src/vera/shim.ts', [1, 'forwards a caught error object']],
   /** Hydration's once-per-kind helper: every caller hands it a `diagnostic(…)` line — asserted below. */
   ['renderer/src/hydration.ts', [2, 'prints a line diagnostic() built — every caller passes one']],
+  /** Motion's one formatter, problemLine(): the fallback reporter prints it, and the server-written script prints
+   *  the lines it built — every line starts `[vera]`, asserted below in both builds. */
+  ['motion/src/schema.ts', [1, 'prints a line problemLine() built']],
+  ['motion/src/ssr.ts', [1, "the server-written script prints problemLine()'s lines"]],
 ]);
 
 /**
@@ -193,6 +197,17 @@ test('the shared diagnostic formatter prefixes both of its lines', () => {
   const lines = [...body.matchAll(/[?:]\s*`([^`]*)/g)].map(([, line]) => line);
   assert.equal(lines.length, 2, 'CONTROL: the development and production templates were both found');
   for (const line of lines) assert.ok(line.startsWith('[vera] '), `a formatter line lacks the prefix: ${line.slice(0, 40)}`);
+});
+
+/** Motion's problemLine() — excused above for its two printers — builds only prefixed lines: `diagnostic()` in
+ *  development (checked by the test before this one), and a `[vera] <code>` template in production. */
+test("motion's problemLine prefixes both of its lines", () => {
+  const text = readFileSync(new URL('../packages/motion/src/schema.ts', import.meta.url), 'utf8');
+  const body = text.slice(text.indexOf('export const problemLine'), text.indexOf('let report'));
+  assert.match(body, /\?\s*diagnostic\('motion', /, 'CONTROL: development builds its line with diagnostic()');
+  const production = [...body.matchAll(/:\s*`([^`]*)/g)].map(([, line]) => line);
+  assert.equal(production.length, 1, 'CONTROL: the production template was found');
+  assert.ok(production[0].startsWith('[vera] '), `the production line lacks the prefix: ${production[0]}`);
 });
 
 /** And a local helper excused above for printing `diagnostic()` lines receives nothing else. */

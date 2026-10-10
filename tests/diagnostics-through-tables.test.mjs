@@ -34,6 +34,9 @@ const MIGRATED = [
   /** Both: the standalone loader AND the compiler a buildless page fetches — neither may carry a sentence (3d). The
    *  words Node and Vite read are `dist/node/`, outside this glob by design. */
   ['jsx', 'dist/*.min.js'],
+  /** Motion's own bundles AND every directives one: the pack inlines @verajs/motion, and the table it hands the engine
+   *  must be dead there too (vera-5a, phase 4 seam condition 3). */
+  ['motion', ['dist/*.min.js', '../directives/dist/*.min.js']],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -86,7 +89,7 @@ for (const [name, bundle] of MIGRATED) {
     const entries = [];
     for (const [owner, files] of [[name, tables], ['shared-utils', ['src/diagnostics.ts']]])
       for (const file of files) entries.push(...Object.entries(proseOf(await import(new URL(`../packages/${owner}/${file}`, import.meta.url).href))));
-    const bundles = globSync(join('packages', name, bundle), { cwd: root });
+    const bundles = [bundle].flat().flatMap((one) => globSync(join('packages', name, one), { cwd: root }));
     assert.ok(bundles.length > 0, `CONTROL: ${bundle} matched a bundle`);
     const min = bundles.map((file) => readFileSync(join(root, file), 'utf8')).join('\n');
     assert.ok(entries.length > 0, 'CONTROL: the table has entries');
@@ -148,12 +151,11 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  * this list, so the sentence cannot run ahead of the code.
  */
 const NOT_YET = new Map([
-  ['motion', 'phase 4 (its own table, omni parity)'],
   ['directives', "phase 4 (its remainder — its table exists, a few inline lines don't use it)"],
   ['ssr', 'phase 4'],
   ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
 ]);
-const NOT_YET_MAX = 4;
+const NOT_YET_MAX = 3;
 
 test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
   const printing = globSync('packages/*/src', { cwd: root })

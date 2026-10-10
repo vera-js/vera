@@ -68,7 +68,7 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 10;
+const PENDING_MAX = 8;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
@@ -99,7 +99,7 @@ const CLAIMS = new Map([
   ['llms.txt#807497a5bc', 'not a promise: says there is no warning'], // No error, no warning, no accessible name.
   ['llms.txt#a9a4b2f023', 'hydration-fallback'], // An attribute is READ and written only on a difference (a wrong one is repaired, a right on
   ['llms.txt#c11efabddf', 'event-name-typo'], // Every other prop is permissive (every element accepts it), so `key` and bare props type-ch
-  ['llms.txt#7aa6d345c0', PENDING], // `onWarning` hears what compiles but is probably a mistake (`file:line:col — message`; the 
+  ['llms.txt#ecc227eaa1', 'jsx-uncontrolled'], // `onWarning` hears what compiles but is probably a mistake (`file:line:col — message (code)`; …
   ['llms.txt#0ddf816771', 'not a promise: attribute carve-outs, no diagnostic'], // Carve-outs, both derivations rather than a list: a name that cannot be a JS identifier (`d
   ['llms.txt#006492a483', 'router-relative-param'], // The one surprise — a relative word from a path ENDING in a param replaces it (`navigate('e
   ['llms.txt#f58d360591', 'router-no-outlet'], // If the parent renders no matching outlet the route does not apply (and warns in developmen
@@ -107,7 +107,7 @@ const CLAIMS = new Map([
   ['llms.txt#bb996b85fd', 'motion-property-at-top-level'], // A property written at the top level, or a setting written inside `keyframes`, is refused b
   ['llms.txt#17b8203f63', 'motion-pointer-with-scroll'], // `inertia` composes (the mouse-follow feel), and so does `play` — a pointer-sourced play sw
   ['llms.txt#f4c0cf1abe', 'motion-function-threw'], // The attribute NAMES a function and never contains one, `tick` may be the whole animation (
-  ['llms.txt#108a5f871d', PENDING], // It now also emits one inline `<script data-vm-diagnostics>` that `console.warn`s every pro
+  ['llms.txt#ed7c5e3aed', 'pinned by tests/motion-ssr-diagnostics.test.mjs: the script is RUN and every line is motion\'s one format, per build'], // It now also emits one inline `<script data-vm-diagnostics>` … one line each, in motion's one format
   ['llms.txt#ad6b32ff47', 'motion-vocabulary-replaced'], // `motionExtension` is also how a module adds animatable PROPERTIES (`{ key, category, … }`)
   ['llms.txt#52f6fe43e7', PENDING], // Keep a FEED's depth out of `data-vd-query` — an accumulating view's middle pages are DOM, 
   ['llms.txt#df3b9dfe11', 'not a promise: attribute carve-outs, no diagnostic'], // The exceptions are derivations, not a vocabulary: names that cannot be JS identifiers (`da

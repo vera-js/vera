@@ -17,6 +17,7 @@ import { parseValue, parseLiteral, isPath, isObject, sameValue } from './parse.j
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
 import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnector } from './types.js';
+import type { Prose } from '@verajs/shared-utils';
 /**
  * Referenced ONLY inside `__DEV__` branches, which is what lets the whole module leave the
  * production bundle: once those fold, nothing names `PROSE` and rollup drops the import with it.
@@ -202,18 +203,38 @@ const register = (d: Directive): void => {
   attrsDirty = true;
 };
 
-const seams = (): EngineSeams => ({
-  _$seams$: true,
-  setParse: (parse) => {
-    parseAttr = parse;
-  },
-  setEvalExpr: (evalExpr) => {
-    tierEval = evalExpr;
-  },
-  directive: register,
-  reject,
-  action: callAction,
-});
+/**
+ * **Prose packs handed this engine (`seams.prose`) — DEVELOPMENT ONLY.** Module state, exactly as `byName` is: one per
+ * copy of the engine, so two engines (two bundles, two core copies) never read each other's sentences. Merged, never
+ * replaced: the engine's own table wins, then the first registration; the same function registered again (the motion
+ * pack registers from both of its connectors) is no conflict.
+ */
+const registered: Record<string, Prose> = {};
+const registerProse = (table: Record<string, Prose>): void => {
+  for (const code in table) {
+    const held = PROSE[code] ?? registered[code];
+    if (held === undefined) registered[code] = table[code]!;
+    else if (held !== table[code]) console.warn(diagnostic('directives', 'seams.prose', 'prose-duplicate', PROSE['prose-duplicate']!(code)));
+  }
+};
+
+const seams = (): EngineSeams => {
+  const handed: EngineSeams = {
+    _$seams$: true,
+    setParse: (parse) => {
+      parseAttr = parse;
+    },
+    setEvalExpr: (evalExpr) => {
+      tierEval = evalExpr;
+    },
+    directive: register,
+    reject,
+    action: callAction,
+  };
+  /** Development only — production has no prose to register, so the member is absent and costs nothing. */
+  if (__DEV__) handed.prose = registerProse;
+  return handed;
+};
 
 export const wireDirectives = (item: Directive | EngineConnector | Array<Directive | EngineConnector>) => {
   claim();
@@ -305,7 +326,7 @@ export const reject = (
   if (__DEV__) {
     if (typeof messageOrArgs === 'string') message = messageOrArgs;
     else {
-      const [text, suggested] = PROSE[code]?.(...((messageOrArgs ?? []) as string[])) ?? [`(${code})`];
+      const [text, suggested] = (PROSE[code] ?? registered[code])?.(...((messageOrArgs ?? []) as string[])) ?? [`(${code})`];
       message = text;
       fix ??= suggested;
     }

@@ -20,7 +20,7 @@ import { createSequence } from './frames.js';
 
 import { parseUrl } from './url.js';
 
-import { pageProblem } from './schema.js';
+import { elementProblem, pageProblem } from './schema.js';
 
 import { MOTION_ATTR } from './parse.js';
 
@@ -41,9 +41,8 @@ type Drawer = { draw(index: number): void; destroy(): void };
  */
 const drawers = new Map<Element, { drawer: Drawer; frames: number }>();
 /**
- * Canvases already refused, and why — reported through the element's own
- * refusal channel (captured at tick setup) where a GUI reads, besides the
- * console line.
+ * Canvases already refused, and by which code — reported once, through the
+ * element's own refusal channel (captured at tick setup) where a GUI reads.
  */
 const refused = new Map<Element, string>();
 /** Each active element's refusal channel, captured by the tick's `setup`. */
@@ -82,26 +81,31 @@ const drawerFor = (
   if (existing) return existing;
   if (refused.has(node)) return null;
 
-  const fail = (message: string): null => {
-    refused.set(node, message);
-    console.warn(`[vera] motion: ${message}`);
-    /** The element's own diagnostics too — a console line is not a report a GUI can read. */
-    rejecters.get(node)?.('motion-sequence-refused', [message]);
+  /**
+   * One refusal, by code — through the element's own rejecter when a directive activated it (the engine's registry, which
+   * a GUI reads), otherwise motion's element reporter. It printed a console line AND rejected, which under the engine
+   * said every refusal twice.
+   */
+  const fail = (code: string, args: readonly string[] = []): null => {
+    refused.set(node, code);
+    const reject = rejecters.get(node);
+    if (reject) reject(code, args);
+    else elementProblem(node, code, args);
     return null;
   };
 
   if (!(node instanceof HTMLCanvasElement)) {
-    return fail('frame needs a <canvas> element.');
+    return fail('motion-sequence-canvas');
   }
 
   const settings = frameSettings(node);
   /** Validated again HERE, against the policy — see `frameSettings`. */
   const url = parseUrl(String(settings['frame-url'] ?? ''), window.location.origin, allowedOrigins);
-  if (!url) return fail('frame-url is missing or not permitted.');
+  if (!url) return fail('motion-sequence-url', [String(settings['frame-url'] ?? '')]);
 
   const frames = Number(settings['frame-count']);
   if (!Number.isFinite(frames) || frames < 1) {
-    return fail('frame-count must be a positive number.');
+    return fail('motion-sequence-count', [String(settings['frame-count'] ?? '')]);
   }
 
   const pad = Number(settings['frame-pad']);
@@ -114,14 +118,14 @@ const drawerFor = (
      * slash — so one missing character 404s every fetch and the canvas
      * stays blank.
      */
-    onFailure: (failed) => fail(`frame-url: nothing loaded, starting with ${failed}`),
+    onFailure: (failed) => fail('motion-sequence-load', [String(failed)]),
     url,
     frames,
     ...(Number.isFinite(pad) && pad > 0 ? { pad } : {}),
     ...(typeof ext === 'string' && ext ? { ext } : {}),
     ...(tween ? { tween } : {}),
   });
-  if (!drawer) return fail('this canvas has no 2D context.');
+  if (!drawer) return fail('motion-sequence-context');
 
   const entry = { drawer, frames };
   drawers.set(node, entry);

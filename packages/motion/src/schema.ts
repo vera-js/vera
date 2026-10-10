@@ -1,5 +1,6 @@
 import type { Band, InsertMap, PositionUnit, PropertyDef, Range, RawKeyframe, Refusal, SettingDef, Unit, Wirable, WirableFactory, WirableTree } from './types.js';
-import { thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, thrownMessage } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 /**
  * The single source of truth for the motion vocabulary.
  *
@@ -50,8 +51,19 @@ import { thrownMessage } from '@verajs/shared-utils';
  * `reject` arrives through the connector's seams at wiring time. Before
  * wiring, the fallback still speaks — a problem is never dropped.
  */
-let report: (code: string, args: readonly string[], element?: Element) => void = (code, args) => {
-  console.warn(`[vera] motion: ${code}${args.length ? ` (${args.join(', ')})` : ''}`);
+/**
+ * **One motion problem as one console line** — the fallback reporter's and the server-written script's (`ssr.ts`), so
+ * the format has one home. Development: the sentence from motion's own table, `[vera] motion: <subject> — … (code)`.
+ * Production: the bare code with its arguments, `[vera] <code>: <subject> (<args>)` — the byte rule, measured
+ * 2026-10-09 against the link form (+12 B on vera-motion.min.js where this ties the old line) and the bare code
+ * without the arguments (16 B smaller, but production would stop naming what it already names).
+ */
+export const problemLine = (code: string, args: readonly string[], subject: string): string =>
+  __DEV__
+    ? diagnostic('motion', subject, code, PROSE[code]?.(...args))
+    : `[vera] ${code}: ${subject}${args.length ? ` (${args.join(', ')})` : ''}`;
+let report: (code: string, args: readonly string[], element?: Element) => void = (code, args, element) => {
+  console.warn(problemLine(code, args, element ? `<${element.localName}>` : 'the page'));
 };
 export const setProblemReporter = (fn: typeof report): void => {
   report = fn;

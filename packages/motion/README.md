@@ -42,7 +42,9 @@ client reports its own refusals to the browser console — but an **SSR-only** p
 scanner, so `problems` was the only copy, sitting in a server process while the person who wrote the
 value looked at a browser.
 
-So the pass also emits one inline `<script data-vm-diagnostics>` that logs every problem it found:
+So the pass also emits one inline `<script data-vm-diagnostics>` that logs every problem it found, one
+line each in the format the client prints: `[vera] motion: server render — <sentence> (<code>)` from a
+development build, `[vera] <code>: server render (<args>)` from a production one:
 
 ```js
 renderMotion(document, { wire: [motion, presets] });            // NODE_ENV !== 'production'

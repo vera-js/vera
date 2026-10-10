@@ -25,7 +25,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 
-const { PROSE } = await import('../packages/directives/src/diagnostics.ts');
+const { PROSE: DIRECTIVES } = await import('../packages/directives/src/diagnostics.ts');
+/** `@verajs/motion`'s own table (phase 4, 2026-10-09) — its codes reach the engine through the pack, so ONE manifest
+ *  holds both tables: a raise is covered by either, and the ownership test below says which. */
+const { PROSE: MOTION } = await import('../packages/motion/src/diagnostics.ts');
+const PROSE = { ...DIRECTIVES, ...MOTION };
 
 /** Every `.ts` under the package, so a new pack cannot quietly sit outside the check. */
 const files = (dir, into = []) => {
@@ -178,6 +182,15 @@ test('every code raised has an entry — no refusal without words', () => {
     .map((code) => `${code} (raised in ${[...raised.get(code)].join(', ')})`);
   assert.deepEqual(missing, [],
     'a code with no table entry records a refusal that cannot explain itself, in dev or in the docs');
+});
+
+test('each code lives in its owner\'s table: what @verajs/motion raises is motion\'s, and no code is in both', () => {
+  assert.ok(Object.keys(MOTION).length >= 50, `CONTROL: motion's table has ${Object.keys(MOTION).length} entries`);
+  const both = Object.keys(MOTION).filter((code) => code in DIRECTIVES);
+  assert.deepEqual(both, [], 'a code in both tables is two texts for one page');
+  const fromMotion = (code) => [...(raised.get(code) ?? [])].some((file) => file.startsWith('motion/src/'));
+  assert.deepEqual(Object.keys(DIRECTIVES).filter(fromMotion), [], '@verajs/motion raises these, so their prose belongs in its table — a standalone embedder reads them there');
+  assert.deepEqual(Object.keys(MOTION).filter((code) => !fromMotion(code)), [], 'motion\'s table holds a code @verajs/motion never raises — it belongs to the pack, in directives\' table');
 });
 
 test('every entry is actually raised — no orphan prose', () => {

@@ -1,3 +1,4 @@
+import type { Prose } from '@verajs/shared-utils';
 /**
  * The directive contract — DESIGN-DIRECTIVES §2, as refined by §19.1. These words face every
  * directive author; keep them exactly as the design doc records them.
@@ -205,6 +206,15 @@ export type EngineSeams = {
    * is unregistered or if nothing is currently firing.
    */
   action: (name: string, args: readonly unknown[], element: Element | null) => unknown;
+  /**
+   * Hand this engine a pack's prose table, so `reject()` reads its sentences by code — DEVELOPMENT ONLY, absent in
+   * production. The motion pack registers `@verajs/motion`'s table here: one lookup for every route a motion code
+   * reaches the engine by. It MERGES and never replaces — the engine's own table first, then the FIRST registration;
+   * a different text for a code already held is ignored, said once in development (`prose-duplicate`). OPTIONAL, and
+   * `_$seams$` carries no version, so adding it needed no bump: a pack calls `seams.prose?.(…)` and an engine
+   * without it simply has no prose for those codes.
+   */
+  prose?: (table: Record<string, Prose>) => void;
 };
 
 /**

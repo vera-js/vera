@@ -21,6 +21,7 @@ import {
   registerVocabulary, setProblemReporter, parseEasing, parseSelector, parseOrigin,
   properties, settings as vocabulary, parseMeasure, pageProblem,
   paintRows, pathRows, sequenceRows, sequenceModule, wireFunctions,
+  MOTION_PROSE,
 } from '@verajs/motion/internal';
 import type { RegionOptions, SequenceOptions } from '@verajs/motion/internal';
 import { parseValue, isObject } from '../parse.js';
@@ -132,7 +133,7 @@ const guarded = (
     } catch (error) {
       live = false;
       pageProblem('motion-onprogress-threw');
-      console.warn('[vera] motion: the onProgress exception was:', error);
+      console.warn('[vera] motion-onprogress-threw', error);
     }
   };
 };
@@ -461,6 +462,8 @@ const configDirective: Directive = {
 const connect = (options?: MotionOptions): EngineConnector => (seams) => {
   /** Page problems land in the engine's registry like every other refusal. */
   setProblemReporter((code, args, element) => seams.reject(element ?? null, 'motion', code, args));
+  /** `@verajs/motion`'s own sentences, for every route a motion code reaches the engine by — development only. */
+  if (__DEV__ && MOTION_PROSE) seams.prose?.(MOTION_PROSE);
   resolveOptions(options ?? {});
   seams.directive(motionDirective);
   seams.directive(configDirective);
@@ -480,6 +483,8 @@ export const motion = dual<MotionOptions>(connect);
  */
 export const motionExtension = (rows: WirableTree): EngineConnector => (seams) => {
   setProblemReporter((code, args, element) => seams.reject(element ?? null, 'motion', code, args));
+  /** `@verajs/motion`'s own sentences, for every route a motion code reaches the engine by — development only. */
+  if (__DEV__ && MOTION_PROSE) seams.prose?.(MOTION_PROSE);
   registerVocabulary(rows);
 };
 

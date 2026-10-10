@@ -26,7 +26,7 @@ import { generateSimple, inlineCssFor } from './generate.js';
 
 import { STAGGER_PROPERTY } from './registry.js';
 
-import { registerVocabulary, setProblemReporter } from './schema.js';
+import { problemLine, registerVocabulary, setProblemReporter } from './schema.js';
 import type { DroppedElement, Generated, RenderMotionOptions, RenderMotionReport } from './types.js';
 
 
@@ -153,12 +153,14 @@ const emitDiagnostics = (
   const wanted = options.diagnostics ?? env?.['NODE_ENV'] !== 'production';
   if (!wanted) return;
 
-  /** The `[vera]` prefix is applied at the LOG call below rather than baked into these strings,
-   *  so `tests/diagnostics-convention.test.mjs` can see a literal first argument. It could not read
-   *  a prefix that lived only inside the data, and a convention a checker cannot verify is one that
-   *  drifts — this is the same lesson as the allowance rule, reached from the other side. */
-  const lines = problems.map(({ code, args }) =>
-    `${code}${args.length ? ` (${args.join(', ')})` : ''}`);
+  /**
+   * Each line is `problemLine()`'s — the client reporter's format, so a page reads one shape whichever side found the
+   * problem: the sentence in development, the bare code with its arguments in production. The prefix lives in that
+   * one formatter, and `tests/diagnostics-convention.test.mjs` asserts every line it builds starts `[vera]` (the
+   * literal-first-argument rule this script used to satisfy by prefixing at the log call). No summary header: every
+   * line already names its code and `server render`.
+   */
+  const lines = problems.map(({ code, args }) => problemLine(code, args, 'server render'));
   /** `<` is the only character that can end a raw-text element; escaping it is sufficient and
    *  leaves the text readable in devtools. `U+2028`/`U+2029` are JSON-legal but break older
    *  parsers as literal line terminators, so they go too. */
@@ -171,9 +173,7 @@ const emitDiagnostics = (
   if (options.nonce !== undefined) script.setAttribute('nonce', options.nonce);
   script.setAttribute('data-vm-diagnostics', '');
   script.textContent =
-    `(function(){var m=${payload};` +
-    `console.warn('[vera] motion: '+m.length+' problem'+(m.length>1?'s':'')+' during server render');` +
-    `for(var i=0;i<m.length;i++)console.warn('[vera] motion: '+m[i]);})();`;
+    `(function(){var m=${payload};for(var i=0;i<m.length;i++)console.warn(m[i]);})();`;
   (doc.body ?? doc.head ?? doc.documentElement)?.appendChild(script);
 };
 

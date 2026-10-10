@@ -8,6 +8,7 @@
  * `tables` (2026-10-09): a package may keep several — one per bundle entry, so a development bundle carries only its
  * own prose — and they are MERGED into its one `diagnostics.json`. `shared-utils` holds the codes more than one package
  * prints (raised as `SHARED['code']`, never re-entered in a second table); its `sources` are its own files that print.
+ * `checkedBy` names the test that holds a package's manifest when the generic call pattern cannot read its raises.
  */
 /** `tagCalled` → `tag-called`: a shared table's export name IS its code (see shared-utils' diagnostics.ts). */
 export const codeOf = (name) => name.replace(/[A-Z0-9]/g, (c) => `-${c.toLowerCase()}`);
@@ -31,6 +32,13 @@ export const TABLES = [
   { name: 'store', tables: ['src/diagnostics.ts'], sources: ['src/computed.ts'] },
   { name: 'ui', tables: ['src/diagnostics.ts'], sources: ['src/register.ts', 'src/select/element.ts'] },
   { name: 'router', tables: ['src/diagnostics.ts'], sources: ['src/events.ts', 'src/methods.ts', 'src/router.ts', 'src/services.ts'] },
+  /**
+   * Motion raises through routes of its own (`pageProblem`, refusal objects, a settings-type map), which the generic
+   * call pattern cannot read — so its manifest is held by the motion-aware scanner in `checkedBy`, beside directives'
+   * (the pack forwards motion's codes into that engine). Listed here so its table is published and joins the one
+   * namespace.
+   */
+  { name: 'motion', tables: ['src/diagnostics.ts'], sources: [], checkedBy: 'tests/diagnostics-table.test.mjs' },
   /** The compiler's table keeps its words in every build; the standalone loader's is development-only. */
   { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: ['src/transform.ts', 'src/parser.ts', 'src/standalone.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },

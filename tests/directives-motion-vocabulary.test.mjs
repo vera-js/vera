@@ -137,7 +137,7 @@ test('sequence wired: the whole validation chain runs — a real canvas fails at
   const el = host.querySelector('canvas');
   const reasons = rejections(el);
   /** url passed policy, count parsed — jsdom's context-less canvas is the stop. */
-  assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'), JSON.stringify(reasons));
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-context'), JSON.stringify(reasons));
   if (!isProduction) assert.ok(reasons.some((r) => /no 2D context/.test(r.message)), 'reached createSequence');
   host.remove();
   await settled();
@@ -147,7 +147,7 @@ test('sequence: the tick on a non-canvas is the first refusal', async () => {
   const host = await mount(
     `<div data-vd-motion="{ function: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-canvas'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs a <canvas>/.test(r.message)));
   host.remove();
   await settled();
@@ -157,7 +157,8 @@ test('sequence: a cross-origin frame-url is refused by the default policy', asyn
   const host = await mount(
     `<canvas data-vd-motion="{ function: 'sequence', scroll: '100%, 0%', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
   const reasons = rejections(host.querySelector('canvas'));
-  assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'), 'same-origin unless the FACTORY allows');
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-url'), 'same-origin unless the FACTORY allows');
+  if (!isProduction) assert.ok(reasons.some((r) => /https:\/\/cdn\.example\/seq\/" is missing or not permitted/.test(r.message)), 'names the refused URL');
   host.remove();
   await settled();
 });

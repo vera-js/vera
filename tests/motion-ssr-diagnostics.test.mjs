@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const { renderMotion } = await load('motion/ssr');
 
@@ -43,12 +43,17 @@ test('a page with problems carries them to the browser console', () => {
 
   const script = scriptIn(dom);
   assert.ok(script, 'the problems the server found never reached the page the author is looking at');
-  assert.match(script.textContent, /console\.warn/, 'it must actually log');
-  assert.match(script.textContent, /\[vera\] motion:/,
-    'every diagnostic this framework prints carries the [vera] prefix, so one filter finds them all');
-  for (const { code } of report.problems) {
-    assert.ok(script.textContent.includes(code), `the script must name the problem code ${code}`);
-  }
+  /** RUN it, with the console captured — the lines a browser prints, not the script's text. */
+  const printed = [];
+  new Function('console', script.textContent)({ warn: (line) => printed.push(line) });
+  assert.equal(printed.length, report.problems.length, 'one line per problem, no summary header');
+  report.problems.forEach(({ code }, i) => {
+    /** motion's one line format (problemLine): the sentence in development, the bare code + arguments in production. */
+    const shape = isProduction
+      ? new RegExp(`^\\[vera\\] ${code}: server render( \\(.*\\))?$`)
+      : new RegExp(`^\\[vera\\] motion: server render — .+ \\(${code}\\)$`);
+    assert.match(printed[i], shape, 'every line carries the [vera] prefix and its code, in the one shape');
+  });
 });
 
 /**

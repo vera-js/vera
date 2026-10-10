@@ -25,3 +25,10 @@ export { EVENTS } from './events.js';
 export * as keyframeRegistry from './registry.js';
 export * as writePath from './generate.js';
 export * from './types.js';
+import type { Prose } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
+/**
+ * Motion's refusal table, for the directives motion pack to hand the engine (`seams.prose`) — DEVELOPMENT ONLY: in
+ * production it is `undefined`, so this export cannot keep the table alive in any bundle.
+ */
+export const MOTION_PROSE: Record<string, Prose> | undefined = __DEV__ ? PROSE : undefined;

@@ -823,7 +823,7 @@ path for a component's props is `props<CalendarDay>({ … })`.
 injected as needed (`inject: false` to provide them yourself; each is also individually configurable
 — `html: ['h', 'my-lib']`), and every compiled file wires `@verajs/renderer/namespaces`
 (`namespaces: false` to leave it out; `inject: false` leaves it out too, with the other imports). `onWarning`
-hears what compiles but is probably a mistake (`file:line:col — message`; the Vite plugin reports it through Vite, the
+hears what compiles but is probably a mistake (`file:line:col — message (code)`; the Vite plugin reports it through Vite, the
 buildless loader prints it in development): today a controlled `value`/`checked` that no `onInput`/`onChange` keeps in
 step and no `readOnly` fixes.
 
@@ -1289,8 +1289,9 @@ plays to their END state — no driver involvement, so it holds with JavaScript 
 **Server diagnostics reach the browser, because the author is not at the server's terminal**:
 `renderMotion` returns `problems`, and on an SSR-ONLY page (no hydration, so no client scanner ever
 runs) that array was the only copy — read by a server process, never by the person who wrote the
-value. It now also emits one inline `<script data-vm-diagnostics>` that `console.warn`s every problem,
-gated on `diagnostics` (default: `NODE_ENV !== 'production'`; pass `false` to be certain, `true` to
+value. It now also emits one inline `<script data-vm-diagnostics>` that `console.warn`s every problem —
+one line each, in motion's one format: `[vera] motion: server render — <sentence> (<code>)` from a development
+build, `[vera] <code>: server render (<args>)` from a production one — gated on `diagnostics` (default: `NODE_ENV !== 'production'`; pass `false` to be certain, `true` to
 force it in staging). Pass `nonce` if the page sets a CSP nonce — **without one a strict `script-src`
 blocks the channel silently, which reads exactly like a page with no problems**. A clean page emits
 no script at all.

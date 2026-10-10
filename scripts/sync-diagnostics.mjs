@@ -21,6 +21,24 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { registerHooks } from 'node:module';
+
+/**
+ * **Package sources import each other as `./x.js`** (the TypeScript convention for what the build emits), and Node's
+ * type-stripping runs `.ts` but never rewrites that specifier — so a source module with one runtime relative import
+ * could not be read here at all (motion's `schema.ts` gained one, its diagnostics table, 2026-10-09). A missing
+ * relative `.js` under `packages/` is retried as the `.ts` beside it; nothing else changes.
+ */
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    try {
+      return nextResolve(specifier, context);
+    } catch (error) {
+      if (error?.code !== 'ERR_MODULE_NOT_FOUND' || !/^\.{1,2}\/.*\.js$/.test(specifier) || !context.parentURL?.includes('/packages/')) throw error;
+      return nextResolve(specifier.replace(/\.js$/, '.ts'), context);
+    }
+  },
+});
 
 const OUT = new URL('../packages/directives/diagnostics.json', import.meta.url);
 
