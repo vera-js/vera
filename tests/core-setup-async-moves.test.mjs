@@ -12,8 +12,8 @@ import { load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body><iframe></iframe></body>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'requestAnimationFrame', 'cancelAnimationFrame', 'MutationObserver'])
   globalThis[k] = dom.window[k];
-const { html, wire, init } = await load('core');
-const { renderer } = await load('renderer');
+const { html, wire, init, createStore, useEffect, useLayoutEffect } = await load('core');
+const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 const doc = dom.window.document;
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -69,3 +69,39 @@ test('a move into ANOTHER document: the first settle is dropped, the second setu
   await tick();
   assert.equal(kid.textContent, 'setup 2', 'the second setup renders');
 });
+
+/**
+ * **What a throwing setup registered stays inert, even when no next connect resets it** (vera-5a): a same-document
+ * move skips the author's `connectedCallback`, so nothing re-inits. The hooks were never committed — no first pass, so
+ * no subscription — and nothing a later write or a parent's re-render does reaches them. (Why `init` keeps no discard:
+ * one was mutation-proven unobservable; this row is what an undiscarded hook must keep doing.)
+ */
+test('a throwing setup, then a same-document move, a store write and a parent re-render: nothing it registered runs', async () => {
+  const shared = createStore({ v: 0 });
+  const ran = [];
+  customElements.define('as-throws', class extends dom.window.HTMLElement {
+    connectedCallback() {
+      try {
+        init(this, () => {
+          useEffect(() => { ran.push(`effect ${shared.v}`); });
+          useLayoutEffect(() => { ran.push(`layout ${shared.v}`); });
+          throw new Error('setup boom');
+        });
+      } catch { /* the author's own call failed */ }
+    }
+  });
+  const parent = box();
+  const renderParent = (n) => renderInto(html`<p>${n}</p>${kid}`, parent);
+  const kid = doc.createElement('as-throws');
+  renderParent(0);
+  await tick();
+  assert.ok(kid.isConnected, 'CONTROL: connected, its setup threw');
+  box().insertBefore(kid, null); // a same-document move: no re-init
+  await tick();
+  shared.v = 1;
+  await tick();
+  renderParent(1);
+  await tick();
+  assert.deepEqual(ran, [], 'nothing it registered ever ran');
+});
+
