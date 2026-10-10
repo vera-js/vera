@@ -36,6 +36,18 @@ export const misuse = (forName: string, withCode: string, andProse?: false | rea
     ? `${forName}: ${andProse[0]}${andProse[1] ? ` ${andProse[1]}` : ''} (${withCode})`
     : `${forName}: ${DOCS}${withCode}`;
 
+/**
+ * **A misused API and what it was misused ABOUT** — `misuse()` with a subject, in `diagnostic()`'s ` — ` separator:
+ * `parseFrontmatter: line 3 — https://verajs.dev/e/cms-frontmatter-unsupported`. The subject is the free information
+ * (a line, a URL and its status) and prints in both builds. A sibling rather than an optional parameter on `misuse()`,
+ * because `misuse()` is inlined into every bundle that throws and a conditional subject would tax all of them for a
+ * shape few need; a sibling is tree-shaken where unused.
+ */
+export const misuseAbout = (forName: string, aboutSubject: string, withCode: string, andProse?: false | readonly [string, string?]) =>
+  __DEV__ && andProse
+    ? `${forName}: ${aboutSubject} — ${andProse[0]}${andProse[1] ? ` ${andProse[1]}` : ''} (${withCode})`
+    : `${forName}: ${aboutSubject} — ${DOCS}${withCode}`;
+
 export const diagnostic = (
   inArea: string,
   bySubject: string,

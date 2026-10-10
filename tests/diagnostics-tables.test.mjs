@@ -20,7 +20,7 @@ const at = (name, file) => new URL(`../packages/${name}/${file}`, import.meta.ur
  * explaining one, from either table. `coded(…)` is the jsx compiler's, whose message leads with a source position
  * rather than an area — the same `__DEV__ &&` form.
  */
-const CALL = /(?:\b(?:diagnostic|misuse|coded))\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
+const CALL = /(?:\b(?:diagnostic|misuse|misuseAbout|coded))\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
 
 /** A package's tables merged, as `sync-diagnostics` publishes them — a code in two of them is a failure here too. */
 const merged = async ({ name, tables }) => {

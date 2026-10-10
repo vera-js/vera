@@ -14,7 +14,7 @@
  */
 import { queryEntries } from './query.js';
 import type { Manifest, Reader, ReaderEntry, ReaderOptions, TaxonomyIndex } from './types.js';
-import { misuse, own, quoted } from '@verajs/shared-utils';
+import { misuseAbout, own, quoted } from '@verajs/shared-utils';
 import { PROSE } from './content-diagnostics.js';
 
 /**
@@ -61,7 +61,7 @@ export const createReader = (options: ReaderOptions = {}): Reader => {
     const response = await fetch(target);
     if (!response.ok)
       /** The address and the status are the SUBJECT, so a live page's production line still says what failed and how. */
-      throw own(new Error(misuse(`createReader: ${quoted(target, Infinity)} (HTTP ${response.status})`, 'cms-reader-manifest', __DEV__ && PROSE['cms-reader-manifest']!(`"${collection}"`))));
+      throw own(new Error(misuseAbout('createReader', `${quoted(target, Infinity)} (HTTP ${response.status})`, 'cms-reader-manifest', __DEV__ && PROSE['cms-reader-manifest']!(`"${collection}"`))));
     return (await response.json()) as Manifest;
   };
 
@@ -84,7 +84,7 @@ export const createReader = (options: ReaderOptions = {}): Reader => {
         const response = await fetch(`${base}taxonomies.json`);
         if (response.status === 404) return { version: 1, taxonomies: {} };
         if (!response.ok)
-          throw own(new Error(misuse(`createReader: ${quoted(`${base}taxonomies.json`, Infinity)} (HTTP ${response.status})`, 'cms-reader-taxonomy', __DEV__ && PROSE['cms-reader-taxonomy']!())));
+          throw own(new Error(misuseAbout('createReader', `${quoted(`${base}taxonomies.json`, Infinity)} (HTTP ${response.status})`, 'cms-reader-taxonomy', __DEV__ && PROSE['cms-reader-taxonomy']!())));
         return (await response.json()) as TaxonomyIndex;
       })();
       taxonomyIndex.catch(() => (taxonomyIndex = undefined));

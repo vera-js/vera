@@ -17,6 +17,7 @@ import { isProduction, load } from './dist.mjs';
 import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { calls } from './source-calls.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -37,7 +38,7 @@ const { autoloader, directiveLoader } = await load('autoloader');
 const styleModule = await load('styles');
 const { wireDirectives } = await load('directives');
 /** cms's schema, manifest and build refusals — one list with tests/cms-coded-errors, so the two cover one set. */
-const { CMS_REFUSALS } = await import('./cms-refusal-cases.mjs');
+const { CMS_REFUSALS, CMS_REJECTIONS } = await import('./cms-refusal-cases.mjs');
 
 const skip = isProduction && 'development-only diagnostics';
 
@@ -95,7 +96,7 @@ const CASES = [
 ];
 
 /** Guards behind an async API: they REJECT rather than throw, so the coverage check below awaits them. */
-const REJECTING = [['navigate(notAPath)', () => navigate(42)]];
+const REJECTING = [['navigate(notAPath)', () => navigate(42)], ...CMS_REJECTIONS.map(([code, run]) => [`cms: ${code}`, run])];
 
 for (const [label, call, expected] of CASES) {
   test(`${label} names the mistake`, { skip }, () => {
@@ -210,15 +211,20 @@ test('every by-name guard in the source is exercised above', async () => {
     if (file.endsWith('.d.ts')) continue;
     const text = readFileSync(join(root, file), 'utf8');
     for (const match of text.matchAll(/`([a-zA-Z]+): expected /g)) guards.add(match[1]);
-    for (const match of text.matchAll(/misuse\([^,]+,\s*'([a-z][a-z0-9-]*)'/g)) {
-      /**
-       * A misuse() line PUSHED onto a list (cms's validation and build lines) is a message, not a guard that throws — but
-       * only a COVERAGE hand-off excuses it (vera-5a): the code must be one tests/cms-list-lines exercises. A pushed code
-       * with no row there stays required here, so "not thrown" still means "pinned somewhere".
-       */
-      if (/\.push\(\s*$/.test(text.slice(Math.max(0, match.index - 16), match.index)) && LIST_LINES.has(match[1])) continue;
-      codes.add(match[1]);
-    }
+    /** Read by a balanced scan, never a regex: `misuse\([^,]+,` read nothing from a first argument holding a comma
+     *  (`quoted(target, Infinity)`), and two thrown codes went unrequired that way. `misuseAbout` puts the code third. */
+    for (const [callee, index] of [['misuse(', 1], ['misuseAbout(', 2]])
+      for (const { at, args } of calls(text, callee)) {
+        const code = /^'([a-z][a-z0-9-]*)'$/.exec(args[index] ?? '')?.[1];
+        if (code === undefined) continue;
+        /**
+         * A misuse() line PUSHED onto a list (cms's validation and build lines) is a message, not a guard that throws —
+         * but only a COVERAGE hand-off excuses it (vera-5a): the code must be one tests/cms-list-lines exercises. A pushed
+         * code with no row there stays required here, so "not thrown" still means "pinned somewhere".
+         */
+        if (/\.push\(\s*$/.test(text.slice(Math.max(0, at - 16), at)) && LIST_LINES.has(code)) continue;
+        codes.add(code);
+      }
   }
   assert.ok(guards.size + codes.size >= 15, `only found ${guards.size} literal guards and ${codes.size} coded ones — has the message shape changed?`);
 

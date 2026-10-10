@@ -12,8 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { distUrl, load } from './dist.mjs';
-import { CMS_REFUSALS } from './cms-refusal-cases.mjs';
+import { distUrl, isProduction, load } from './dist.mjs';
+import { CMS_REFUSALS, CMS_REJECTIONS } from './cms-refusal-cases.mjs';
 
 const { parseSchema } = await load('cms/publish');
 const { buildManifests } = await load('cms/node');
@@ -24,6 +24,17 @@ for (const [code, run, fragment] of CMS_REFUSALS)
     assert.throws(run, (error) => {
       assert.ok(error.message.includes(fragment), `the words, in this build too: ${error.message}`);
       assert.ok(error.message.endsWith(`(${code})`), error.message);
+      return true;
+    });
+  });
+
+/** The reader's: `content` keeps its words outside production; in production the subject stays and the link follows it. */
+for (const [code, run, fragment] of CMS_REJECTIONS)
+  test(`${code}: the subject and the code, in every build — the sentence outside production`, async () => {
+    await assert.rejects(run, (error) => {
+      assert.ok(error.message.startsWith('createReader: "https://example.com/_manifests/'), `the URL is the subject: ${error.message}`);
+      if (isProduction) assert.ok(error.message.endsWith(` — https://verajs.dev/e/${code}`), error.message);
+      else assert.ok(error.message.includes(fragment) && error.message.endsWith(`(${code})`), error.message);
       return true;
     });
   });

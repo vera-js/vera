@@ -10,6 +10,7 @@ import { load } from './dist.mjs';
 
 const { parseSchema, generateManifest, parseFrontmatter, parseMarkdown } = await load('cms/publish');
 const { buildManifests } = await load('cms/node');
+const { createReader } = await load('cms/content');
 
 const schema = (collections) => JSON.stringify({ version: 1, collections });
 const parse = (text) => () => parseSchema(text);
@@ -61,4 +62,25 @@ export const CMS_REFUSALS = [
     'posts/p.md': '---\ntitle: P\ntags: [nope]\n---\n',
     'tags/.keep': '',
   }), 'problem(s) across the content'],
+];
+
+/**
+ * The reader's refusals REJECT — a failed load is async — and come from `content`, a visitor's bundle whose words are
+ * development's: production prints `createReader: "<url>" (HTTP <status>) — https://verajs.dev/e/<code>`, so these
+ * assert the sentence outside production only. Each: [code, run, a fragment of its sentence]. `fetch` is faked for the
+ * one call and restored, whatever happens.
+ */
+const failing = (status, read) => async () => {
+  const saved = globalThis.fetch;
+  globalThis.fetch = async () => new Response('', { status });
+  try {
+    await read(createReader({ url: 'https://example.com/_manifests/' }));
+  } finally {
+    globalThis.fetch = saved;
+  }
+};
+
+export const CMS_REJECTIONS = [
+  ['cms-reader-manifest', failing(404, (reader) => reader.entries('posts')), 'could not load the "posts" manifest'],
+  ['cms-reader-taxonomy', failing(500, (reader) => reader.terms('tags')), 'could not load the taxonomy index'],
 ];

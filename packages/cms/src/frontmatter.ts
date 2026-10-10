@@ -24,7 +24,7 @@
  * about which fields exist. That is the schema's job.
  */
 import { parseMarkdown } from './markdown.js';
-import { misuse, own, quoted } from '@verajs/shared-utils';
+import { misuseAbout, own, quoted } from '@verajs/shared-utils';
 import { PROSE } from './content-diagnostics.js';
 import type { ContentFile, FrontmatterMap, Root, Scalar } from './types.js';
 
@@ -39,10 +39,10 @@ const KEY = /^([A-Za-z0-9_-]+):(?: (.*))?$/;
 
 /**
  * One subject for every refusal — the LINE, so a bad file names where instead of its symptom, in every build (a visitor
- * bundle's production line is `parseFrontmatter: line 3: <docs link>`). Each raise is a literal call per branch, as the
+ * bundle's production line is `parseFrontmatter: line 3 — <docs link>`). Each raise is a literal call per branch, as the
  * code system's static checks read them.
  */
-const at = (line: number): string => `parseFrontmatter: line ${line + 1}`;
+const at = (line: number): string => `line ${line + 1}`;
 
 /**
  * Splits a content file into its frontmatter fields and its body.
@@ -56,7 +56,7 @@ export const parseFrontmatter = (source: string): ContentFile => {
   if (!FENCE.test(lines[0] ?? '')) return { data: {}, body: source };
   let close = 1;
   while (close < lines.length && !FENCE.test(lines[close])) close++;
-  if (close === lines.length) throw own(new Error(misuse(at(0), 'cms-frontmatter-unclosed', __DEV__ && PROSE['cms-frontmatter-unclosed']!('the opening ---'))));
+  if (close === lines.length) throw own(new Error(misuseAbout('parseFrontmatter', at(0), 'cms-frontmatter-unclosed', __DEV__ && PROSE['cms-frontmatter-unclosed']!('the opening ---'))));
   return {
     data: parseMap(lines.slice(1, close), 0, 1),
     body: lines.slice(close + 1).join('\n'),
@@ -82,14 +82,14 @@ const parseScalar = (raw: string, line: number): Scalar => {
   if (raw[0] === '"' || raw[0] === "'") {
     const quote = raw[0];
     if (raw.length < 2 || raw[raw.length - 1] !== quote)
-      throw own(new Error(misuse(at(line), 'cms-frontmatter-unclosed', __DEV__ && PROSE['cms-frontmatter-unclosed']!(`the ${quote}…${quote} string`))));
+      throw own(new Error(misuseAbout('parseFrontmatter', at(line), 'cms-frontmatter-unclosed', __DEV__ && PROSE['cms-frontmatter-unclosed']!(`the ${quote}…${quote} string`))));
     const inner = raw.slice(1, -1);
     /** Double quotes unescape the two sequences generators emit; single quotes are literal. */
     return quote === '"' ? inner.replace(/\\(["\\])/g, '$1') : inner;
   }
-  if (raw[0] === '|' || raw[0] === '>') throw own(new Error(misuse(at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!(`block scalars (${raw[0]})`, 'Quote the string instead'))));
-  if (raw[0] === '&' || raw[0] === '*') throw own(new Error(misuse(at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('YAML anchors and aliases', 'Write the value out where it is used'))));
-  if (raw[0] === '{') throw own(new Error(misuse(at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('flow maps ({…})', 'Use indented keys'))));
+  if (raw[0] === '|' || raw[0] === '>') throw own(new Error(misuseAbout('parseFrontmatter', at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!(`block scalars (${raw[0]})`, 'Quote the string instead'))));
+  if (raw[0] === '&' || raw[0] === '*') throw own(new Error(misuseAbout('parseFrontmatter', at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('YAML anchors and aliases', 'Write the value out where it is used'))));
+  if (raw[0] === '{') throw own(new Error(misuseAbout('parseFrontmatter', at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('flow maps ({…})', 'Use indented keys'))));
   return raw;
 };
 
@@ -117,7 +117,7 @@ const parseInlineArray = (raw: string, line: number): Scalar[] => {
   return parts.map((part) => {
     const trimmed = part.trim();
     /** `[a, [b]]` once parsed the inner list as the STRING "[b]" — almost right, which the subset forbids. */
-    if (trimmed[0] === '[') throw own(new Error(misuse(at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('nested arrays', 'Use a list of maps, or flatten the data'))));
+    if (trimmed[0] === '[') throw own(new Error(misuseAbout('parseFrontmatter', at(line), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('nested arrays', 'Use a list of maps, or flatten the data'))));
     return parseScalar(trimmed, line);
   });
 };
@@ -132,7 +132,7 @@ const indentOf = (line: string): number => line.length - line.trimStart().length
 const DEPTH = 32;
 
 const parseMap = (lines: string[], indent: number, offset: number, depth = 0): FrontmatterMap => {
-  if (depth > DEPTH) throw own(new Error(misuse(at(offset), 'cms-frontmatter-depth', __DEV__ && PROSE['cms-frontmatter-depth']!(String(DEPTH)))));
+  if (depth > DEPTH) throw own(new Error(misuseAbout('parseFrontmatter', at(offset), 'cms-frontmatter-depth', __DEV__ && PROSE['cms-frontmatter-depth']!(String(DEPTH)))));
   const map: FrontmatterMap = {};
   let i = 0;
   while (i < lines.length) {
@@ -141,11 +141,11 @@ const parseMap = (lines: string[], indent: number, offset: number, depth = 0): F
       i++;
       continue;
     }
-    if (line.includes('\t')) throw own(new Error(misuse(at(offset + i), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('tabs', 'Indent with two spaces'))));
-    if (indentOf(line) !== indent) throw own(new Error(misuse(at(offset + i), 'cms-frontmatter-indent', __DEV__ && PROSE['cms-frontmatter-indent']!(String(indent)))));
+    if (line.includes('\t')) throw own(new Error(misuseAbout('parseFrontmatter', at(offset + i), 'cms-frontmatter-unsupported', __DEV__ && PROSE['cms-frontmatter-unsupported']!('tabs', 'Indent with two spaces'))));
+    if (indentOf(line) !== indent) throw own(new Error(misuseAbout('parseFrontmatter', at(offset + i), 'cms-frontmatter-indent', __DEV__ && PROSE['cms-frontmatter-indent']!(String(indent)))));
 
     const entry = KEY.exec(line.trim());
-    if (entry === null) throw own(new Error(misuse(at(offset + i), 'cms-frontmatter-entry', __DEV__ && PROSE['cms-frontmatter-entry']!('`key: value`'))));
+    if (entry === null) throw own(new Error(misuseAbout('parseFrontmatter', at(offset + i), 'cms-frontmatter-entry', __DEV__ && PROSE['cms-frontmatter-entry']!('`key: value`'))));
     const key = entry![1];
     const raw = entry![2] ?? '';
     /**
@@ -155,9 +155,9 @@ const parseMap = (lines: string[], indent: number, offset: number, depth = 0): F
      * loudly, like everything else the subset cannot hold. `constructor` and friends are ordinary
      * here: plain assignment shadows them with own keys.
      */
-    if (key === '__proto__') throw own(new Error(misuse(at(offset + i), 'cms-frontmatter-key', __DEV__ && PROSE['cms-frontmatter-key']!('`__proto__`', 'is not supported'))));
+    if (key === '__proto__') throw own(new Error(misuseAbout('parseFrontmatter', at(offset + i), 'cms-frontmatter-key', __DEV__ && PROSE['cms-frontmatter-key']!('`__proto__`', 'is not supported'))));
     /** Duplicate keys silently last-won, which is the silent-data-loss family; the subset refuses. */
-    if (Object.hasOwn(map, key)) throw own(new Error(misuse(at(offset + i), 'cms-frontmatter-key', __DEV__ && PROSE['cms-frontmatter-key']!(quoted(key), 'is a duplicate'))));
+    if (Object.hasOwn(map, key)) throw own(new Error(misuseAbout('parseFrontmatter', at(offset + i), 'cms-frontmatter-key', __DEV__ && PROSE['cms-frontmatter-key']!(quoted(key), 'is a duplicate'))));
     const value = raw.trim();
 
     if (value !== '') {
@@ -198,7 +198,7 @@ const parseListItems = (lines: string[], indent: number, offset: number, depth: 
       continue;
     }
     if (indentOf(line) !== indent || !/^- ?/.test(line.trim()))
-      throw own(new Error(misuse(at(offset + i), 'cms-frontmatter-entry', __DEV__ && PROSE['cms-frontmatter-entry']!('a `- ` list item'))));
+      throw own(new Error(misuseAbout('parseFrontmatter', at(offset + i), 'cms-frontmatter-entry', __DEV__ && PROSE['cms-frontmatter-entry']!('a `- ` list item'))));
     const rest = line.trim().replace(/^- ?/, '');
 
     /** `- key: value` opens a map item that owns following deeper-indented lines. */
@@ -216,6 +216,6 @@ const parseListItems = (lines: string[], indent: number, offset: number, depth: 
     }
   }
   if (scalars.length > 0 && maps.length > 0)
-    throw own(new Error(misuse(at(offset), 'cms-frontmatter-mixed-list', __DEV__ && PROSE['cms-frontmatter-mixed-list']!())));
+    throw own(new Error(misuseAbout('parseFrontmatter', at(offset), 'cms-frontmatter-mixed-list', __DEV__ && PROSE['cms-frontmatter-mixed-list']!())));
   return maps.length > 0 ? maps : scalars;
 };

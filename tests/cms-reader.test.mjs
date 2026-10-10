@@ -103,8 +103,8 @@ test('a failed load names the collection, the status and the URL — and is not 
   const requests = serve(MANIFESTS);
   const site = createReader({ url: 'https://example.com/_manifests/' });
   await assert.rejects(site.entries('missing'), isProduction
-    ? /createReader: "https:\/\/example\.com\/_manifests\/missing\.json" \(HTTP 404\): https:\/\/verajs\.dev\/e\/cms-reader-manifest$/
-    : /createReader: "https:\/\/example\.com\/_manifests\/missing\.json" \(HTTP 404\): could not load the "missing" manifest\.[\s\S]*\(cms-reader-manifest\)$/);
+    ? /createReader: "https:\/\/example\.com\/_manifests\/missing\.json" \(HTTP 404\) — https:\/\/verajs\.dev\/e\/cms-reader-manifest$/
+    : /createReader: "https:\/\/example\.com\/_manifests\/missing\.json" \(HTTP 404\) — could not load the "missing" manifest\.[\s\S]*\(cms-reader-manifest\)$/);
   await assert.rejects(site.entries('missing'), /HTTP 404/);
   assert.equal(requests.length, 2); // the second attempt really refetched
 });

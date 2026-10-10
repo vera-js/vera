@@ -515,9 +515,13 @@ also gives every line a code; cms's messages carry codes before release.
 Development prints the explanation and the fix, ending with the code in parentheses:
 `[vera] core: <x-card> — registered 2 hook(s) but its setup was never committed, so none of them will ever run. … (setup-uncommitted)`.
 Production prints a short line instead — the subject and a link, `[vera] core: <x-card> — https://verajs.dev/e/setup-uncommitted`,
-or, where even the link would cost bytes, the bare code, `[vera] router-redirect-loop: /checkout`; a thrown error
-names its function, `initRouter: router-no-view`. Whichever form you hold, the full explanation of a code is at
-`https://verajs.dev/e/<code>`.
+or, where even the link would cost bytes, the bare code, `[vera] router-redirect-loop: /checkout`. A thrown error
+names its function and then the link, `untrack: https://verajs.dev/e/untrack-not-function` (or the bare code,
+`initRouter: router-no-view`), with its subject, where it has one, before the link in the same ` — `:
+`parseFrontmatter: line 3 — https://verajs.dev/e/cms-frontmatter-unsupported`. A cms validation line names its field
+rather than a function, `"date": this required field is missing. (cms-entry-required)`, and keeps its words in every
+build. A JSX compile error names its position, `app.jsx:1:15 — https://verajs.dev/e/jsx-tag-mismatch`. Whichever
+form you hold, the full explanation of a code is at `https://verajs.dev/e/<code>`.
 
 ## The rest
 

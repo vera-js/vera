@@ -74,7 +74,7 @@ test('a missing uuid warns — returned, not printed — and still indexes', () 
 test('a broken file fails the build with the file named around the parser’s own line', () => {
   assert.throws(
     () => generateManifest('posts', [{ name: 'bad.md', text: '---\na: {b: 1}\n---\nx' }]),
-    /generateManifest: "posts\/bad\.md" could not be read: .*parseFrontmatter: line 2: flow maps[\s\S]*\(cms-manifest-entry\)$/
+    /generateManifest: "posts\/bad\.md" could not be read: .*parseFrontmatter: line 2 — flow maps[\s\S]*\(cms-manifest-entry\)$/
   );
 });
 

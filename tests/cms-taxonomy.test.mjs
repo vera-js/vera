@@ -117,8 +117,8 @@ test('a transient index failure retries; only true absence reads as empty — au
   };
   const reader = createReader();
   await assert.rejects(reader.terms('tags'), isProduction
-    ? /taxonomies\.json" \(HTTP 500\): https:\/\/verajs\.dev\/e\/cms-reader-taxonomy$/
-    : /taxonomies\.json" \(HTTP 500\): could not load the taxonomy index\.[\s\S]*\(cms-reader-taxonomy\)$/);
+    ? /taxonomies\.json" \(HTTP 500\) — https:\/\/verajs\.dev\/e\/cms-reader-taxonomy$/
+    : /taxonomies\.json" \(HTTP 500\) — could not load the taxonomy index\.[\s\S]*\(cms-reader-taxonomy\)$/);
   const terms = await reader.terms('tags');
   assert.equal(terms[0].count, 4, 'the rejection must not be cached — the retry sees the real index');
 });

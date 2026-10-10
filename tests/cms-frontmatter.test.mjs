@@ -87,21 +87,21 @@ const refuses = (yaml, pattern) => {
 };
 
 test('an unclosed fence refuses', () => {
-  assert.throws(() => parseFrontmatter('---\ntitle: x\nno closing fence'), /line 1: the opening --- never closes[\s\S]*\(cms-frontmatter-unclosed\)$/);
+  assert.throws(() => parseFrontmatter('---\ntitle: x\nno closing fence'), /line 1 — the opening --- never closes[\s\S]*\(cms-frontmatter-unclosed\)$/);
 });
 
 test('block scalars refuse with the workaround named', () => {
-  refuses('text: |', /line 2: block scalars \(\|\) are not supported\. Quote the string instead[\s\S]*\(cms-frontmatter-unsupported\)$/);
+  refuses('text: |', /line 2 — block scalars \(\|\) are not supported\. Quote the string instead[\s\S]*\(cms-frontmatter-unsupported\)$/);
 });
 
 test('anchors, flow maps, and tabs refuse', () => {
-  refuses('a: &anchor x', /line 2: .*anchors/);
-  refuses('a: {b: 1}', /line 2: flow maps/);
-  refuses('a:\n\tb: 1', /line 3: tabs/);
+  refuses('a: &anchor x', /line 2 — .*anchors/);
+  refuses('a: {b: 1}', /line 2 — flow maps/);
+  refuses('a:\n\tb: 1', /line 3 — tabs/);
 });
 
 test('a non-key line refuses with its own line number, not its slice index', () => {
-  refuses('title: ok\nseo:\n  good: yes\n  !!broken', /line 5: expected `key: value`/);
+  refuses('title: ok\nseo:\n  good: yes\n  !!broken', /line 5 — expected `key: value`/);
 });
 
 test('a dashed scalar containing a colon is a scalar — it once became a map, silently', () => {
@@ -123,7 +123,7 @@ test('a nested inline array refuses instead of parsing as a string — audit pas
 });
 
 test('a duplicate key refuses instead of silently last-winning — audit pass 2', () => {
-  refuses('title: One\ntitle: Two', /line 3: the key "title" is a duplicate\.[\s\S]*\(cms-frontmatter-key\)$/);
+  refuses('title: One\ntitle: Two', /line 3 — the key "title" is a duplicate\.[\s\S]*\(cms-frontmatter-key\)$/);
 });
 
 test('a list mixing scalar and map items refuses', () => {

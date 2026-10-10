@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { closingParen, topLevelArgs } from './source-calls.mjs';
 
 
 /** The engine's table and each pack's own (one per pack entry, so a pack's development bundle carries only its prose),
@@ -55,58 +56,13 @@ const files = (dir, into = []) => {
  * fallback, which is the one this table has to cover.
  */
 
-/**
- * A BALANCED scan rather than a regex, and the difference is not pedantry: a lazy match to the
- * first comma reads `reject(el, attr, 'code', …)` as ending at `el` and finds no code at all, so
- * twelve live codes looked like orphaned prose. Arguments here routinely contain template literals
- * with commas inside them, which is exactly what a regex cannot see the end of.
- */
-const closingParen = (text, from) => {
-  let depth = 1;
-  let quote = null;
-  let i = from;
-  while (i < text.length && depth > 0) {
-    const ch = text[i];
-    if (quote) {
-      if (ch === '\\') { i += 2; continue; }
-      if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'" || ch === '`') quote = ch;
-    else if (ch === '(') depth++;
-    else if (ch === ')') depth--;
-    i++;
-  }
-  return i - 1;
-};
-
-const topLevelArgs = (body) => {
-  const out = [];
-  let depth = 0;
-  let quote = null;
-  let current = '';
-  for (let i = 0; i < body.length; i++) {
-    const ch = body[i];
-    if (quote) {
-      current += ch;
-      if (ch === '\\') { current += body[++i] ?? ''; continue; }
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; current += ch; continue; }
-    if ('([{'.includes(ch)) depth++;
-    if (')]}'.includes(ch)) depth--;
-    if (ch === ',' && depth === 0) { out.push(current.trim()); current = ''; continue; }
-    current += ch;
-  }
-  if (current.trim()) out.push(current.trim());
-  return out;
-};
 
 /**
  * `[callee, index of the code argument]` — the engine's own form puts it third, `Ctx`'s first. And the shared API every
- * migrated package raises through: `diagnostic(area, subject, 'code', …)` and `misuse(name, 'code', …)` — without
+ * migrated package raises through: `diagnostic(area, subject, 'code', …)`, `misuse(name, 'code', …)` and `misuseAbout(name, subject, 'code', …)` — without
  * them the first directives message on that API (`core-protocol`, 2026-10-09) read as orphaned prose.
  */
-const FORMS = [['ctx.reject(', 0], ['context.reject(', 0], ['seams.reject(', 2], ['reject(', 2], ['diagnostic(', 2], ['misuse(', 1]];
+const FORMS = [['ctx.reject(', 0], ['context.reject(', 0], ['seams.reject(', 2], ['reject(', 2], ['diagnostic(', 2], ['misuse(', 1], ['misuseAbout(', 2]];
 
 const raised = new Map();
 /** Three roots since the package cut: the engine, the motion engine (@verajs/motion — its codes
@@ -120,7 +76,7 @@ for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).
     let at = 0;
     while ((at = text.indexOf(callee, at)) !== -1) {
       /** `ctx.reject(` also contains `reject(`; only the bare form needs the boundary check. */
-      if ((callee === 'reject(' || callee === 'diagnostic(' || callee === 'misuse(') && /[a-zA-Z.]/.test(text[at - 1] ?? ' ')) { at += callee.length; continue; }
+      if ((callee === 'reject(' || callee === 'diagnostic(' || callee === 'misuse(' || callee === 'misuseAbout(') && /[a-zA-Z.]/.test(text[at - 1] ?? ' ')) { at += callee.length; continue; }
       const end = closingParen(text, at + callee.length);
       const args = topLevelArgs(text.slice(at + callee.length, end));
       const key = `${at}`;
