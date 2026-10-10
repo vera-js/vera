@@ -51,7 +51,7 @@ const mount = () => {
   const host = mount();
   let renders = 0, seen;
   core.createHook({ element: host, priority: 60, callback: () => { renders++; seen = doubled.value; } });
-  [...host._hooks[0]][0](undefined, true);
+  [...host._$h$[0]][0](undefined, true);
 
   check('a reader sees the value', seen === 2);
   const before = renders;

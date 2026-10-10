@@ -16,7 +16,7 @@ import type { ComponentElement, InitOptions, Setup } from '../types.js';
  * that commits it. Attaches a shadow root when `shadowProps` asks for one; without them the
  * component renders into its light DOM.
  *
- * The returned root is **kept** on `_root`, because `element.shadowRoot` is null for a closed one.
+ * The returned root is **kept** on `_$r$`, because `element.shadowRoot` is null for a closed one.
  *
  * @param element The element to init
  * @param shadowProps Any desired shadowProps. Passing in null will create a light DOM instance
@@ -45,14 +45,14 @@ const claimed = (prefix: string): boolean =>
  * microtask now clears, so `commit` marks the generation instead). Then the unclaimed-markup check.
  */
 const afterSetup = (element: ComponentElement) => {
-  const hooks = element._hooks?.reduce((n, set) => n + set.size, 0) ?? 0;
-  if (hooks && (element as { _committed?: number })._committed !== element._gen)
+  const hooks = element._$h$?.reduce((n, set) => n + set.size, 0) ?? 0;
+  if (hooks && (element as { _$k$?: number })._$k$ !== element._$g$)
     console.warn(diagnostic('core', `<${element.localName}>`, 'setup-uncommitted', __DEV__ && PROSE['setup-uncommitted'](String(hooks))));
   unclaimedMarkup(element);
 };
 const unclaimedMarkup = (element: ComponentElement) => {
   if (warnedAboutClaims || claimed('data-vd-')) return;
-  const root = element.shadowRoot ?? element._root ?? element;
+  const root = element.shadowRoot ?? element._$r$ ?? element;
   for (const node of (root as ParentNode).querySelectorAll('*')) {
     const hit = [...node.attributes].find((a) => a.name.startsWith('data-vd-'));
     if (!hit) continue;
@@ -149,7 +149,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   } finally {
     currentInstance.element = previous;
   }
-  settle(element, out, element._gen!);
+  settle(element, out, element._$g$!);
 };
 
 /**
@@ -158,15 +158,15 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
  */
 const start = (element: ComponentElement, root: ShadowRootInit | undefined) => {
   /** A new generation: the previous connection's hooks go inert — see `createHook`. */
-  element._gen = (element._gen ?? 0) + 1;
-  element._hooks = [];
-  element._hookPriorities = [];
+  element._$g$ = (element._$g$ ?? 0) + 1;
+  element._$h$ = [];
+  element._$p$ = [];
   /** A fresh connection: cleanups registered from here are owed a later removal again. */
-  element._cleanups = new Set();
-  element._removed = false;
+  element._$c$ = new Set();
+  element._$x$ = false;
   /** The document it was set up in: a move into another one is a teardown and a fresh setup (see the wrapper below). */
-  (element as Moving)._doc = element.ownerDocument;
-  if (root && !element.shadowRoot && !element._root) element._root = element.attachShadow(root);
+  (element as Moving)._$d$ = element.ownerDocument;
+  if (root && !element.shadowRoot && !element._$r$) element._$r$ = element.attachShadow(root);
   adoptProps(element);
   /**
    * The `'init'` insert: every element as it comes to life, after its root exists and before its first
@@ -204,9 +204,9 @@ const settle = (element: ComponentElement, out: unknown, generation: number) => 
      * the HANDLED chain, so it never rejects: a setup that rejects commits nothing (like one that throws) and is reported
      * once through the `'error'` chain — which is how a server hears of it — never as an unhandled rejection.
      */
-    (element as Moving)._setup = (out as PromiseLike<unknown>).then(
+    (element as Moving)._$s$ = (out as PromiseLike<unknown>).then(
       (value) => {
-        if (element._gen === generation && element.isConnected) settle(element, value, generation);
+        if (element._$g$ === generation && element.isConnected) settle(element, value, generation);
       },
       (error) =>
         reportHookError(error, element, __DEV__ ? diagnostic('core', `<${element.localName}>`, 'setup-rejected', __DEV__ && PROSE['setup-rejected']()) : '[vera] setup-rejected')
@@ -244,8 +244,8 @@ const legacy = (element: ComponentElement, shadowProps: ShadowRootInit | undefin
    * **Development: a second `init()` in one setup discards the hooks registered since the first**, silently — correct
    * on a reconnect (a fresh generation is what stops effects doubling), a mistake within one setup (main had this).
    */
-  if (__DEV__ && current === element && element._hooks?.length) {
-    const count = element._hooks.reduce((n, set) => n + set.size, 0);
+  if (__DEV__ && current === element && element._$h$?.length) {
+    const count = element._$h$.reduce((n, set) => n + set.size, 0);
     console.warn(diagnostic('core', `<${element.localName}>`, 'init-twice', __DEV__ && PROSE['init-twice'](String(count))));
   }
   if (__DEV__) nearMiss(element);
@@ -295,10 +295,10 @@ const nearMiss = (element: ComponentElement) => {
  * ANOTHER document (a pop-out window) once it connects there: its listeners and frame clock belong to
  * the old window.
  *
- * `_removed` is set after the teardown, so a cleanup registered from then on — an effect that removed
+ * `_$x$` is set after the teardown, so a cleanup registered from then on — an effect that removed
  * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
-type Moving = ComponentElement & { _moved?: boolean; _doc?: Document; _setup?: PromiseLike<unknown> };
+type Moving = ComponentElement & { _$m$?: boolean; _$d$?: Document; _$s$?: PromiseLike<unknown> };
 /**
  * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down. A page can
  * hold two copies (a production bundle that inlines core, as `@verajs/directives` does for its standalone fallback): each
@@ -315,15 +315,15 @@ if (typeof customElements !== 'undefined') {
     const connected = proto.connectedCallback;
     const teardown = (element: Moving) => {
       own?.call(element);
-      element._cleanups!.forEach((cleanup) => runCleanup(cleanup, element));
-      element._cleanups!.clear();
-      element._removed = true;
+      element._$c$!.forEach((cleanup) => runCleanup(cleanup, element));
+      element._$c$!.clear();
+      element._$x$ = true;
     };
     /**
      * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never
      * mangled — a brand no other library has). The wrapper sees every class defined after core loads, a third party's
      * included: the fields it keeps are mangled to single letters in production, where a minified library keeps fields
-     * of its own, and its unmangled ones (`_cleanups`) are ordinary names another base class may own — so neither can be
+     * of its own, and its unmangled ones (`_$c$`) are ordinary names another base class may own — so neither can be
      * the test. Anything else gets exactly its own callbacks; nothing is read from it, written to it, or called.
      *
      * **Still connected at its disconnect, a component is being MOVED** — `append`/`insertBefore` of a connected node,
@@ -333,8 +333,8 @@ if (typeof customElements !== 'undefined') {
      */
     proto.disconnectedCallback = function (this: Moving) {
       if (!mine.has(this)) return own?.call(this);
-      this._moved = this.isConnected;
-      if (!this._moved) teardown(this);
+      this._$m$ = this.isConnected;
+      if (!this._$m$) teardown(this);
     };
     /**
      * A move into ANOTHER document (a pop-out window) is not kept: its listeners and frame clock belong to the old one.
@@ -344,9 +344,9 @@ if (typeof customElements !== 'undefined') {
      * — and that is correct: a first connect has nothing to keep. Do not move `init` earlier to "fix" it.
      */
     proto.connectedCallback = function (this: Moving) {
-      if (mine.has(this) && this._moved) {
-        this._moved = false;
-        if (this.ownerDocument === this._doc) return;
+      if (mine.has(this) && this._$m$) {
+        this._$m$ = false;
+        if (this.ownerDocument === this._$d$) return;
         teardown(this);
       }
       /**
@@ -356,7 +356,7 @@ if (typeof customElements !== 'undefined') {
        * result. A class defined before core loaded is not wrapped; on a server the app imports core first.
        */
       const result = connected?.call(this);
-      return this._setup || (result as PromiseLike<unknown> | undefined)?.then ? Promise.resolve(result).then(() => this._setup) : result;
+      return this._$s$ || (result as PromiseLike<unknown> | undefined)?.then ? Promise.resolve(result).then(() => this._$s$) : result;
     };
     return nativeDefine(name, Class, options);
   };

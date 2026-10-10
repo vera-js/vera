@@ -1072,7 +1072,7 @@ test('children appended AFTER the first render land with native semantics, bare 
  * **`slotted()` against a CLOSED shadow root.** `element.shadowRoot` is null there, so reading only
  * that returned `[]` — a silent wrong answer from an accessor documented as answering in either
  * mode, and the same shape as a bug core's own `init` comment records ("read `element.shadowRoot`,
- * found null, and fell back"). Core keeps the root it attached in both modes and exempts `_root`
+ * found null, and fell back"). Core keeps the root it attached in both modes and exempts `_$r$`
  * from mangling so other bundles can read it; `@verajs/styles` already does, for this reason.
  *
  * Runs in production too, which is the half that matters: this bundle mangles `_[a-z]` properties

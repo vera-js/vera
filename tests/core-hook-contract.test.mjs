@@ -65,7 +65,7 @@ test('a reconnect retires the previous connection\'s hooks', () => {
   assert.equal(runs, 1, 'the retired hook did not run on a write');
 });
 
-/** The same mechanism, used deliberately: an owner bumps `_gen` to retire its hooks as teardown. */
+/** The same mechanism, used deliberately: an owner bumps `_$g$` to retire its hooks as teardown. */
 test('bumping an owner\'s generation retires its hooks', () => {
   const owner = {};
   const state = core.createStore({ n: 0 });
@@ -75,7 +75,7 @@ test('bumping an owner\'s generation retires its hooks', () => {
   state.n = 1;
   assert.equal(runs, 2, 'CONTROL: live, the hook re-runs on a write');
 
-  owner._gen = (owner._gen ?? 0) + 1;
+  owner._$g$ = (owner._$g$ ?? 0) + 1;
   state.n = 2;
   assert.equal(runs, 2, 'retired, it does not');
 });

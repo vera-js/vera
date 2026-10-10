@@ -37,7 +37,7 @@ for (const { name, props, reachable } of MODES) {
       connectedCallback() {
         init(this, props);
         /** The element's own view of its root, which is the only handle a closed mode has. */
-        root = this._root ?? this.shadowRoot;
+        root = this._$r$ ?? this.shadowRoot;
         render(() => html`<p class="marker">content</p>`);
       }
     }
@@ -86,7 +86,7 @@ it('light DOM (no shadow props) still renders into the element', async () => {
   await frame();
   await frame();
   expect(element.shadowRoot).to.equal(null);
-  expect(element._root, 'no root is created for light DOM').to.equal(undefined);
+  expect(element._$r$, 'no root is created for light DOM').to.equal(undefined);
   expect(element.querySelector('p')?.textContent).to.equal('light');
   element.remove();
 });

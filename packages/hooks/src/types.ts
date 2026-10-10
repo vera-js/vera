@@ -1,12 +1,12 @@
 /** The shared vocabulary of the behavior controllers. */
 
 /**
- * An element that went through core's `init()`, which gives it the `_cleanups` release-on-unmount
+ * An element that went through core's `init()`, which gives it the `_$c$` release-on-unmount
  * set. The member is part of core's tested structural contract (mangle-exempt), not a private we
  * happen to know about.
  */
 export interface LifecycleElement extends HTMLElement {
-  _cleanups?: Set<() => void>;
+  _$c$?: Set<() => void>;
 }
 
 /** One choosable row. `value` is the identity; two options must never share one. */
@@ -43,7 +43,7 @@ export type SelectOption = {
  * **Both calls are idempotent and both are cheap, so call them on every open and every close**
  * rather than tracking whether they are needed: activating twice installs one set of listeners,
  * and deactivating when idle returns immediately. `activate` also re-registers `deactivate` into
- * the element's current `_cleanups` set each time, which is what keeps an element that was moved
+ * the element's current `_$c$` set each time, which is what keeps an element that was moved
  * in the DOM (and so re-`init()`ed) from stranding document listeners when it is finally removed.
  *
  * There is no `isActive`: the state belongs to the widget that decided to open, and a second copy

@@ -19,12 +19,11 @@ import pkg from './package.json' with { type: 'json' };
 const external = ['@verajs/core', '@verajs/hooks', '@verajs/renderer/spread', '@verajs/renderer/keyed', '@verajs/renderer/slots'];
 
 /**
- * `_root` and `_cleanups` are exempt from mangling: it is core's structural contract for reaching a (possibly
- * closed) shadow root on the live element — the same exemption core's own regex carries, held by
- * `tests/core-structural-contracts.test.mjs`. Mangled, the element read `this.<mangled>` while
- * core stored `_root`, and every root lookup fell back to the element — production build only.
+ * Core's root and release-on-unmount set are `_$r$` and `_$c$`, sigiled, so no mangling regex can rename the reads (a
+ * mangled `_root` here once made every root lookup fall back to the element, production build only);
+ * `tests/core-structural-contracts.test.mjs` holds the names.
  */
-const mangle = /^_(?!root$|cleanups$)[a-z]/;
+const mangle = /^_[a-z]/;
 
 export default [
   defaultRollupConfig(pkg.filename, external, mangle, { alwaysExternal: external }),

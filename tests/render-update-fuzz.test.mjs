@@ -18,7 +18,7 @@
  * `render-parity` and the example-based suites are for.
  *
  * What it *does* catch is state a reused part failed to release. Committing only on the first render
- * — `value !== this._committed && this._committed === UNSET` — fails it immediately across attribute,
+ * — `value !== this._$k$ && this._$k$ === UNSET` — fails it immediately across attribute,
  * boolean-attribute and property shapes.
  *
  * Both mutations were run. The first one surviving is the reason the limitation above is stated as

@@ -23,7 +23,7 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
   coalesce(
     (signal) => {
       const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
-      const target = element._root ?? element.shadowRoot ?? element;
+      const target = element._$r$ ?? element.shadowRoot ?? element;
       const renderers = inserts.get('render');
       if (!renderers?.length) {
         if (!warnedNoRenderer) {

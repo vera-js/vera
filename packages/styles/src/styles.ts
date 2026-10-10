@@ -114,8 +114,8 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     throw new TypeError(misuse('applyStyles', 'apply-not-element', __DEV__ && PROSE['apply-not-element'](String(element))));
   const doc = element.ownerDocument;
   const view = doc.defaultView;
-  /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
-  const shadowRoot = (element as StyledElement & { _root?: ShadowRoot })._root ?? element.shadowRoot;
+  /** `_$r$` first: a closed shadow root is not reachable through `element.shadowRoot`. */
+  const shadowRoot = (element as StyledElement & { _$r$?: ShadowRoot })._$r$ ?? element.shadowRoot;
   const list = (Array.isArray(styles) ? styles : [styles]).filter(Boolean);
   /** Development: an entry that is neither CSS text nor a sheet is named, not met as `value.replace is not a function`. */
   if (__DEV__)

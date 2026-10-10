@@ -4,7 +4,7 @@
  *
  * The reactive half is core's own: each reflection instance is ONE `createHook` whose owner is a
  * plain object — reads through context stores inside the callback subscribe automatically, writes
- * re-run it on core's scheduler (no second timing model), and bumping the owner's `_gen` is the
+ * re-run it on core's scheduler (no second timing model), and bumping the owner's `_$g$` is the
  * core-sanctioned kill switch that makes a torn-down instance permanently inert. The engine
  * invents no reactivity.
  *
@@ -861,8 +861,8 @@ export const runAttrAssignments = (el: Element, attr: string): void => {
 type Instance = {
   _directive: AnyDirective;
   _attr: string;
-  /** Bumping `_gen` makes the createHook permanently inert — core's own stale-guard as teardown. */
-  _owner: { _gen?: number };
+  /** Bumping `_$g$` makes the createHook permanently inert — core's own stale-guard as teardown. */
+  _owner: { _$g$?: number };
   _teardown?: () => void;
   _cleanup?: () => void;
 };
@@ -959,7 +959,7 @@ const deactivateDirective = (el: Element, attr: string) => {
   const instance = map?.get(attr);
   if (!instance || !map) return;
   map.delete(attr);
-  instance._owner._gen = (instance._owner._gen ?? 0) + 1; // the kill switch
+  instance._owner._$g$ = (instance._owner._$g$ ?? 0) + 1; // the kill switch
   try {
     instance._cleanup?.();
     instance._teardown?.();
@@ -1508,7 +1508,7 @@ export const directives = {
     const el = element as unknown as Record<string, ShadowRoot | null | undefined>;
     /** `_shadowRoot` is the server's own field — a CLOSED root is null on `shadowRoot` in both
      *  runtimes, and the server still serializes it, so it must still be evaluated. */
-    const root = el['_root'] ?? el['_shadowRoot'] ?? element.shadowRoot ?? element;
+    const root = el['_$r$'] ?? el['_shadowRoot'] ?? element.shadowRoot ?? element;
     activate(root as ShadowRoot | Element);
   },
 };

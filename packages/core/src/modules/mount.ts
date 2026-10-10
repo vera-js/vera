@@ -19,8 +19,8 @@ export const commit = (element: ComponentElement) => {
  */
 export const firstPasses = (element: ComponentElement) => {
   /** Development: this generation's setup was committed — what the never-committed check in `init` reads. */
-  if (__DEV__) (element as { _committed?: number })._committed = element._gen;
-  const all = element._hooks!;
+  if (__DEV__) (element as { _$k$?: number })._$k$ = element._$g$;
+  const all = element._$h$!;
   for (let i = 0; i < all.length; i++) for (const hook of all[i]!) hook({}, true);
 };
 

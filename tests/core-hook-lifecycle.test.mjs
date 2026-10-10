@@ -78,7 +78,7 @@ const define = (setup) => {
   await frame();
   check('four attach cycles leave exactly one live render hook', renders === settled + 1,
     `fired ${renders - settled} times`);
-  check('and one hook slot, not four', el._hooks.length === 1, `${el._hooks.length} slots`);
+  check('and one hook slot, not four', el._$h$.length === 1, `${el._$h$.length} slots`);
   body.removeChild(el);
 }
 
@@ -264,7 +264,7 @@ const define = (setup) => {
 /**
  * `connectedCallback` runs again every time an element is re-added — a router navigating back, a
  * list reordering, a conditional subtree returning — so `init()` and `render()` build a fresh set
- * of hooks. The old set was dropped from `_hooks` and left registered in the store, which holds it
+ * of hooks. The old set was dropped from `_$h$` and left registered in the store, which holds it
  * **weakly**: eventually correct, but only once a garbage collection happens. Until then the
  * element had two live subscriptions and ran everything twice, and a second reconnect made it
  * three times.
@@ -524,7 +524,7 @@ const define = (setup) => {
  * effect *returns*, so an effect that calls `this.remove()` — a toast dismissing itself, a component
  * that redirects — finished *after* that sweep and added its cleanup to a set nothing would ever
  * drain again. The interval or listener it was meant to release ran forever, silently: the exact
- * failure `_cleanups` exists to prevent, reached by the one order that skips it.
+ * failure `_$c$` exists to prevent, reached by the one order that skips it.
  *
  * Found by a sweep of timing hazards. The control matters as much as the case: an element removed on
  * a later tick must still run its cleanup exactly once, and one never removed must not run it at all.

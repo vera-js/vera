@@ -941,11 +941,11 @@ export const slotted = (host: Element, name = ''): Node[] => {
     return lightOf(light).filter((node) => slotNameOf(node) === name);
   }
   /**
-   * `_root` first: a CLOSED root is null through `shadowRoot`, and core keeps the root it attached under that unmangled
-   * name in both modes (`@verajs/styles` reads it the same way). Quoted, so this bundle's mangling leaves it alone.
+   * Core's `_$r$` first: a CLOSED root is null through `shadowRoot`, and core keeps the root it attached under that
+   * sigiled name in both modes (`@verajs/styles` reads it the same way); no mangling regex matches a sigil.
    * Names are compared, never put in a selector — a quote in one would throw.
    */
-  const root = (host as unknown as Record<string, ShadowRoot | null | undefined>)['_root'] ?? host.shadowRoot;
+  const root = (host as unknown as Record<string, ShadowRoot | null | undefined>)['_$r$'] ?? host.shadowRoot;
   const slot = [...(root?.querySelectorAll('slot') ?? [])].find((s) => (s.getAttribute('name') ?? '') === name);
   return slot === undefined ? [] : slot.assignedNodes();
 };
@@ -980,7 +980,7 @@ export const slotDiscovery = [
        * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
        * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
        */
-      if ((element as unknown as Record<string, unknown>)['_root'] != null || element.shadowRoot !== null) return;
+      if ((element as unknown as Record<string, unknown>)['_$r$'] != null || element.shadowRoot !== null) return;
       /** A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption). */
       if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
     },

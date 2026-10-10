@@ -47,7 +47,7 @@ test('a hook at priority 0 registers and runs', async () => {
   const hook = core.createHook({ element: el, priority: 5, callback: () => {} });
   assert.equal(typeof hook, 'function', 'createHook must hand back its wrapper');
 
-  el._hooks?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
+  el._$h$?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
   assert.deepEqual(order, ['zero:0', 'ten:0'], 'priority 0 runs, and runs first');
 
   order.length = 0;
@@ -87,7 +87,7 @@ test('defineProperty inside a setter still notifies', async () => {
 
   const seen = [];
   core.createHook({ element: el, priority: 50, callback: () => seen.push(other.shadow) });
-  el._hooks?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
+  el._$h$?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
   assert.deepEqual(seen, [0], 'the hook read the initial value');
 
   state.trigger = 7;
@@ -110,7 +110,7 @@ test('an ordinary assignment notifies exactly once', async () => {
       runs++;
     },
   });
-  el._hooks?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
+  el._$h$?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
   runs = 0;
   state.n = 1;
   await new Promise((r) => dom.window.requestAnimationFrame(r));
@@ -138,7 +138,7 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
     core.useSyncEffect(() => {
       state.n = state.n + 1;
     }, el);
-    el._hooks?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
+    el._$h$?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
   } catch (error) {
     if (isProduction) return; // production has no guard; a stack overflow here is the documented cost
     throw error;
@@ -210,7 +210,7 @@ test('a sealed store still notifies on a write to an existing key', async () => 
   const state = core.createStore(Object.seal({ n: 0 }));
   const seen = [];
   core.createHook({ element: el, priority: 50, callback: () => seen.push(state.n) });
-  el._hooks?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
+  el._$h$?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
   state.n = 1;
   await new Promise((r) => dom.window.requestAnimationFrame(r));
   assert.deepEqual(seen, [0, 1]);

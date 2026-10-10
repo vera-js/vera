@@ -50,11 +50,11 @@ test('…and throws the SAME way when another component connected in between', a
   /** Another component sets up synchronously in the same turn — before, the awaiting one's hook joined IT. */
   const other = `x-no-owner-${seq++}`;
   let otherHooks = 0;
-  customElements.define(other, class extends HTMLElement { connectedCallback() { core.init(this); otherHooks = this._hooks?.flat?.().length ?? 0; } });
+  customElements.define(other, class extends HTMLElement { connectedCallback() { core.init(this); otherHooks = this._$h$?.flat?.().length ?? 0; } });
   const b = doc.createElement(other);
   doc.body.append(b);
   await assert.rejects(el.ready, NO_OWNER);
-  assert.equal(b._hooks.reduce((n, set) => n + set.size, 0), otherHooks, 'and the other component gained no stray hook');
+  assert.equal(b._$h$.reduce((n, set) => n + set.size, 0), otherHooks, 'and the other component gained no stray hook');
   el.remove();
   b.remove();
 });

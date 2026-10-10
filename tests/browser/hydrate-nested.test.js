@@ -87,7 +87,7 @@ describe('a component tree adopts its own markup', () => {
     await frame();
     await frame();
 
-    const root = element._root;
+    const root = element._$r$;
     expect(root, 'the framework lost its handle on the closed root').to.exist;
     expect(root.querySelector('#closed')?.textContent).to.equal('closed 0');
 

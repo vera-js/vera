@@ -29,7 +29,7 @@
  * The **leak** direction is caught: dropping one cleanup at teardown fails immediately.
  *
  * The **double-teardown** direction is *not reached*, and the reason is that it appears unreachable
- * through the DOM rather than untested. Removing `init`'s `this._cleanups?.clear()` — so a torn-down
+ * through the DOM rather than untested. Removing `init`'s `this._$c$?.clear()` — so a torn-down
  * element keeps its cleanup set — leaves this suite green, because every disconnect in these
  * sequences is either final or followed by a connect, and connecting re-runs `init`, which installs a
  * fresh set. Calling `remove()` on an already-removed element fires no second `disconnectedCallback`,

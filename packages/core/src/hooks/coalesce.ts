@@ -32,7 +32,7 @@ let created = 0;
  * reads queues another pass rather than recursing into one.
  *
  * Whatever the callback returns is its cleanup, run before its next run and when its owner is
- * removed — it is kept in the owner's `_cleanups`, which the removal sweeps (see `init`). An owner
+ * removed — it is kept in the owner's `_$c$`, which the removal sweeps (see `init`). An owner
  * that removed itself during this very run has already been swept, so its cleanup runs at once
  * rather than into a set nothing will drain again.
  *
@@ -72,7 +72,7 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
       if (init || now) {
         now = false;
         if (cleanup) {
-          owner?._cleanups?.delete(cleanup);
+          owner?._$c$?.delete(cleanup);
           /** Cleared first, so a callback that throws does not leave a spent cleanup to run again. */
           const spent = cleanup;
           cleanup = undefined;
@@ -90,8 +90,8 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
           console.warn(diagnostic('core', `${hook}${owner?.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
         }
         if (cleanup) {
-          if (owner?._removed) runCleanup(cleanup, owner);
-          else owner?._cleanups?.add(cleanup);
+          if (owner?._$x$) runCleanup(cleanup, owner);
+          else owner?._$c$?.add(cleanup);
         }
         return;
       }

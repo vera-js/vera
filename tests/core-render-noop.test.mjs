@@ -68,7 +68,7 @@ test('a second render() in one setup throws no-owner, naming the store', async (
   assert.equal(thrown.length, 1, `exactly one throw, for the second call: ${thrown.join(' | ')}`);
   assert.match(thrown[0], /no-owner/, 'the no-owner code');
   if (!isProduction) assert.match(thrown[0], /write to a store/, 'and development names what to do instead');
-  assert.match(host._root.textContent, /first/, 'the first call is the one that drew');
+  assert.match(host._$r$.textContent, /first/, 'the first call is the one that drew');
 });
 
 /**
@@ -112,7 +112,7 @@ test('one render() in setup warns about nothing', async () => {
     document.body.append(host);
     await frame();
   });
-  assert.equal(host._root.textContent, '0', 'the control: it rendered');
+  assert.equal(host._$r$.textContent, '0', 'the control: it rendered');
   assert.deepEqual(warnings, []);
 });
 
@@ -142,7 +142,7 @@ test('a bare render() commits the setup, draws nothing, and development names mo
     await frame();
   });
   assert.deepEqual(ran, ['x-render-bare', 'x-render-mount'], 'both committed: their effects ran');
-  assert.equal(bare._root.textContent, '', 'nothing was drawn over the root — no `undefined`');
+  assert.equal(bare._$r$.textContent, '', 'nothing was drawn over the root — no `undefined`');
   if (isProduction) assert.deepEqual(warnings, [], 'production carries no guard');
   else {
     assert.equal(warnings.length, 1, `one warning, for render() alone — mount() is silent: ${warnings.join(' | ')}`);

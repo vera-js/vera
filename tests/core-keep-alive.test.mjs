@@ -175,8 +175,8 @@ test('a custom element that never called init keeps the platform\'s callbacks on
 test('a third-party element keeps every field of its own through connect, move, remove and reconnect', async () => {
   const LETTERS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$'];
   /**
-   * And the UNMANGLED names core keeps (vera-5a): `_cleanups` is an ordinary name another base class may own, so it
-   * cannot be how core recognizes its own — entries here must never be called, and a truthy `_moved` of its own must
+   * And the UNMANGLED names core keeps (vera-5a): `_$c$` is an ordinary name another base class may own, so it
+   * cannot be how core recognizes its own — entries here must never be called, and a truthy `_$m$` of its own must
    * never skip its connectedCallback.
    */
   let called = 0;
@@ -185,8 +185,8 @@ test('a third-party element keeps every field of its own through connect, move, 
     constructor() {
       super();
       for (const k of LETTERS) this[k] = `mine-${k}`;
-      this._cleanups = [() => called++];
-      this._gen = 'mine'; this._moved = true; this._doc = 'mine'; this._removed = 'mine'; this._hooks = 'mine';
+      this._$c$ = [() => called++];
+      this._$g$ = 'mine'; this._$m$ = true; this._$d$ = 'mine'; this._$x$ = 'mine'; this._$h$ = 'mine';
     }
     connectedCallback() { connects++; }
   });

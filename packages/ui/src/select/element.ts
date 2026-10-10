@@ -224,7 +224,7 @@ const reflectForm = (element: VeraSelect, value: SelectOption[]) => {
   if (internals.setValidity) {
     /** The anchor is what reportValidity() focuses and points the browser's bubble at. */
     const anchor =
-      (((element as { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element).querySelector?.(
+      (((element as { _$r$?: ShadowRoot })._$r$ ?? element.shadowRoot ?? element).querySelector?.(
         '[part="trigger"]'
       ) as HTMLElement | null) ?? undefined;
     if (element.hasAttribute('required') && value.length === 0)
@@ -570,7 +570,7 @@ export class VeraSelect extends HTMLElement {
    * call when an associated <label> is clicked) was a no-op on an unfocusable host (measured).
    */
   override focus(options?: FocusOptions) {
-    const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
+    const root = (this as { _$r$?: ShadowRoot })._$r$ ?? this.shadowRoot ?? this;
     const slottedTrigger = slotted(this, 'trigger').find((node) => node.nodeType === 1) as HTMLElement | undefined;
     const trigger = (slottedTrigger ?? root.querySelector?.('[part="trigger"]')) as HTMLElement | null;
     if (trigger) trigger.focus(options);
@@ -623,7 +623,7 @@ export class VeraSelect extends HTMLElement {
       }
     }
     init(this, light ? undefined : { mode: 'open' });
-    const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
+    const root = (this as { _$r$?: ShadowRoot })._$r$ ?? this.shadowRoot ?? this;
     const entry = internal(this);
     /**
      * Everything seed-shaped below runs only on the controller's FIRST creation. A reconnect
@@ -735,7 +735,7 @@ export class VeraSelect extends HTMLElement {
      * Markup stays live in shadow mode — but the observer exists ONLY for markup-sourced selects:
      * a property-driven one (the common JS path) pays zero observer. htmlSourced also gates the
      * callback, so a later property assignment retires an existing observer's effect; it is
-     * released for real through the _cleanups contract on disconnect.
+     * released for real through the _$c$ contract on disconnect.
      */
     if (entry.htmlSourced && typeof MutationObserver !== 'undefined' && !entry.light) {
       const observer = new MutationObserver(() => {
@@ -767,9 +767,9 @@ export class VeraSelect extends HTMLElement {
         attributes: true,
         attributeFilter: ['selected', 'value', 'label', 'disabled', 'data-group', 'data-description', 'slot'],
       });
-      (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => observer.disconnect());
+      (this as { _$c$?: Set<() => void> })._$c$?.add(() => observer.disconnect());
     }
-    (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => {
+    (this as { _$c$?: Set<() => void> })._$c$?.add(() => {
       clearTimeout(entry.hideTimer);
       clearTimeout(entry.timer); // the filter debounce must not fire on a detached element
     });

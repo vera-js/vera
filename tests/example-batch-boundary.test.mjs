@@ -19,7 +19,7 @@ core.wire({ on: 'store', fn: batching, priority: 60 });
 const state = core.createStore({ a: 0, b: 0 });
 let syncRuns = 0, lastA = -1;
 core.createHook({ element: host, priority: 60, callback: () => { syncRuns++; lastA = state.a; state.b; } });
-[...host._hooks[0]][0](undefined, true);
+[...host._$h$[0]][0](undefined, true);
 const r0 = syncRuns;
 
 batch(() => { state.a = 1; state.b = 2; state.a = 3; });
@@ -36,7 +36,7 @@ const el = dom.window.document.createElement('div');
 dom.window.document.body.appendChild(el);
 const oe = console.error; console.error = () => {};
 core.createHook({ element: el, priority: 60, callback: () => { throw new Error('boom'); } });
-[...el._hooks[0]][0](undefined, true);
+[...el._$h$[0]][0](undefined, true);
 console.error = oe;
 check('error boundary renders fallback with role=alert', el.querySelector('[role="alert"]')?.textContent.includes('wrong'));
 

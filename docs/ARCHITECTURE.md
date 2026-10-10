@@ -21,7 +21,7 @@ Two things register into `'render'`:
 
 | Priority | Registered by | Does |
 | ---: | --- | --- |
-| 50 | `wire([renderer])` | renders the template; core resolves `_root ?? shadowRoot ?? element` at dispatch |
+| 50 | `wire([renderer])` | renders the template; core resolves `_$r$ ?? shadowRoot ?? element` at dispatch |
 | 75 | `wire([autoloader(…)])` | discovers undefined custom elements and lazy-loads them |
 
 **Nothing is registered until an app wires it.** Core used to self-register a default renderer
@@ -112,7 +112,7 @@ by making bundles share global state.
 
 ## Effect ordering
 
-`init()` seeds `element._hooks`; `mount()` runs the first pass of every hook and clears the instance, and
+`init()` seeds `element._$h$`; `mount()` runs the first pass of every hook and clears the instance, and
 `render()` is `useRender` followed by that same commit.
 Hooks carry a priority, and lower runs first:
 

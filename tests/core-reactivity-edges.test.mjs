@@ -35,7 +35,7 @@ const watch = (initial, read) => {
     priority: 60,
     callback: () => { seen.runs++; seen.value = read(state); },
   });
-  [...host._hooks[0]][0](undefined, true);
+  [...host._$h$[0]][0](undefined, true);
   return { state, seen, from: seen.runs };
 };
 

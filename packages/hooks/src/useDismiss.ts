@@ -12,7 +12,7 @@
  * inside a shadow root, where `event.target` would name the host and a `contains()` test would
  * lie about slotted content.
  *
- * Deactivation is registered into the element's `_cleanups` — the cross-boundary release-on-unmount
+ * Deactivation is registered into the element's `_$c$` — the cross-boundary release-on-unmount
  * contract `init()` creates and `tests/core-structural-contracts.test.mjs` holds unmangled — so a
  * component removed while its menu is open never strands a document listener.
  */
@@ -85,11 +85,11 @@ export const useDismiss = (element: LifecycleElement, onDismiss: (event?: Keyboa
     }
     /**
      * Registered at ACTIVATE, into the element's CURRENT cleanup set - not once at creation.
-     * init() replaces _cleanups on every re-init, so a creation-time registration lives in the
+     * init() replaces _$c$ on every re-init, so a creation-time registration lives in the
      * first connect's set only, and an element moved in the DOM then removed while open leaked
      * both document listeners (measured: a document Escape drove a detached element's controller).
      */
-    element._cleanups?.add(deactivate);
+    element._$c$?.add(deactivate);
   };
 
 

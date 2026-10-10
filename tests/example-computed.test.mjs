@@ -18,7 +18,7 @@ const state = core.createStore({ count: 1, doubled: computed(() => state.count *
 
 let runs = 0, seen = -1;
 core.createHook({ element: host, priority: 60, callback: () => { runs++; seen = state.doubled; } });
-[...host._hooks[0]][0](undefined, true);
+[...host._$h$[0]][0](undefined, true);
 check('computed reads as a value', seen === 2);
 const r0 = runs;
 state.count = 5;

@@ -50,7 +50,7 @@ export const RENDER_PRIORITY = 50;
  * **A hook belongs to its owner's generation.** `init()` starts a new one every time an element
  * reconnects, and a hook from an older generation does nothing — otherwise the store, which only
  * holds it weakly, kept running it until a collection happened, and every reconnect doubled the
- * element's renders and effects. Bumping `_gen` is also how an owner retires its hooks deliberately
+ * element's renders and effects. Bumping `_$g$` is also how an owner retires its hooks deliberately
  * (`@verajs/directives` does, as teardown).
  *
  * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the
@@ -70,9 +70,9 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
   if (!callback || !Number.isFinite(priority)) return;
-  const generation = owner._gen;
+  const generation = owner._$g$;
   const hook: HookCallback = (signal, init) => {
-    if (owner._gen !== generation || (!init && owner.isConnected === false)) return;
+    if (owner._$g$ !== generation || (!init && owner.isConnected === false)) return;
     hooksQueue.push(self);
     try {
       callback(signal, init);
@@ -83,6 +83,6 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
     }
   };
   const self = new WeakRef(hook);
-  prioritySlot((owner._hooks ??= []), (owner._hookPriorities ??= []), priority as number, newSet).add(hook);
+  prioritySlot((owner._$h$ ??= []), (owner._$p$ ??= []), priority as number, newSet).add(hook);
   return hook;
 };

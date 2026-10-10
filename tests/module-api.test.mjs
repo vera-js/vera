@@ -159,16 +159,16 @@ test('applyStyles with changed text rewrites the one style element', async () =>
  * **A CLOSED shadow root gets the styles, not the document.** `element.shadowRoot` is null for a closed
  * root — that is what closed means — so styles read through it went down the light-DOM path and were
  * hoisted into the page, leaving the component unstyled and the page carrying its rules. `init()` keeps
- * the root on `_root` for exactly this. Pinned by the lean rebuild's mutation controls (2026-09-28).
+ * the root on `_$r$` for exactly this. Pinned by the lean rebuild's mutation controls (2026-09-28).
  */
 test('a component with a closed shadow root gets its styles inside that root', async () => {
   const { applyStyles } = await load('styles');
   const el = document.createElement('div');
   document.body.appendChild(el);
-  el._root = el.attachShadow({ mode: 'closed' });
+  el._$r$ = el.attachShadow({ mode: 'closed' });
   const headBefore = document.head.querySelectorAll('style').length;
   applyStyles('p { color: green }', el);
-  assert.equal(el._root.querySelectorAll('style[data-vm-sheet="styles"]').length, 1, 'the rules are in the closed root');
+  assert.equal(el._$r$.querySelectorAll('style[data-vm-sheet="styles"]').length, 1, 'the rules are in the closed root');
   assert.equal(document.head.querySelectorAll('style').length, headBefore, 'and nothing was hoisted into the page');
 });
 

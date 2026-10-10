@@ -8,11 +8,10 @@ import pkg from './package.json' with { type: 'json' };
  * importmap resolves the bare specifier; under a bundler the dependency dedupes.
  */
 /**
- * `_cleanups` is exempt from mangling: it is core's release-on-unmount contract on the live
- * element, exempted identically in core's own regex and held unmangled by
- * `tests/core-structural-contracts.test.mjs`. Mangling it here renamed the read while core kept
- * the real name — dismissal listeners then leaked on unmount, production build only.
+ * Core's release-on-unmount set is `_$c$`, sigiled, so no mangling regex can rename the read (a mangled `_cleanups`
+ * here once leaked dismissal listeners on unmount, production build only); `tests/core-structural-contracts.test.mjs`
+ * holds the name.
  */
-export default defaultRollupConfig(pkg.filename, ['@verajs/core'], /^_(?!cleanups$)[a-z]/, {
+export default defaultRollupConfig(pkg.filename, ['@verajs/core'], /^_[a-z]/, {
   alwaysExternal: ['@verajs/core'],
 });

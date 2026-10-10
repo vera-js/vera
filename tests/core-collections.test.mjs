@@ -21,7 +21,7 @@ core.createHook({ element: host, priority: 60, callback: () => {
   runs++;
   snap = [...state.m.entries()].map(([k, v]) => `${k}=${v}`).join(',') + '|' + state.m.size + '|' + state.s.size;
 }});
-[...host._hooks[0]][0](undefined, true);
+[...host._$h$[0]][0](undefined, true);
 const r0 = runs;
 
 check('zero-wiring methods + size', snap === '|0|0');
@@ -50,7 +50,7 @@ const host2 = dom.window.document.createElement('div');
 dom.window.document.body.appendChild(host2);
 let keyedRuns = 0;
 core.createHook({ element: host2, priority: 60, callback: () => { keyedRuns++; state.m.get('a'); } });
-[...host2._hooks[0]][0](undefined, true);
+[...host2._$h$[0]][0](undefined, true);
 const k0 = keyedRuns;
 state.m.set('b', 1);
 check('unrelated key does not re-run keyed hook', keyedRuns === k0);
@@ -93,7 +93,7 @@ core.createHook({ element: host, priority: 60, callback: () => {
   wRuns++;
   wSnap = `${boundary.weakMap.get(k1)}|${boundary.weakSet.has(k2)}|${boundary.objMap.get(k1)}`;
 }});
-[...host._hooks[0]].at(-1)(undefined, true);
+[...host._$h$[0]].at(-1)(undefined, true);
 const w0 = wRuns;
 check('weak collections read through', wSnap === 'a|false|v');
 
@@ -139,7 +139,7 @@ core.createHook({ element: iterHost, priority: 60, callback: () => {
   for (const v of iter.s) out += v;
   forOfSnap = out;
 }});
-[...iterHost._hooks[0]][0](undefined, true);
+[...iterHost._$h$[0]][0](undefined, true);
 const i0 = iterRuns;
 
 check('spread reads the Map', spreadSnap === 'a1');
@@ -177,7 +177,7 @@ check('and hears a delete', iterRuns === i0 + 3 && forOfSnap === '1');
     void chained.m.size;
     void chained.s.size;
   }});
-  [...host._hooks[host._hooks.length - 1]][0](undefined, true);
+  [...host._$h$[host._$h$.length - 1]][0](undefined, true);
   const base = notifications;
 
   /** The returned value is the collection you called it on, exactly as the built-in reports. */

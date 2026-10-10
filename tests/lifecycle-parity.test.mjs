@@ -191,7 +191,7 @@ const CASES = {
       kid.rows = ['from', 'the', 'parent'];
       kid.setAttribute('label', 'set too');
       render(() => html\`<div></div>\`);
-      (this.shadowRoot ?? this._root).appendChild(kid);
+      (this.shadowRoot ?? this._$r$).appendChild(kid);
     `,
     defines: `
       class Child extends HTMLElement {
@@ -369,7 +369,7 @@ const CASES = {
     body: `
       init(this, { mode: 'open' });
       const state = createStore({ when: 'not run' });
-      const root = this.shadowRoot ?? this._root;
+      const root = this.shadowRoot ?? this._$r$;
       requestAnimationFrame(() => { state.when = root.innerHTML.includes('<p>') ? 'after the render' : 'before it'; });
       render(() => html\`<p>\${state.when}</p>\`);
     `,
@@ -697,7 +697,7 @@ for (const [name, spec] of Object.entries(ALL)) {
   dom.window.document.body.appendChild(element);
   await settle();
 
-  const root = element.shadowRoot ?? element._root;
+  const root = element.shadowRoot ?? element._$r$;
   const fromClient = {
     host: hostLine(element),
     shadow: root ? canonical(root) : '',

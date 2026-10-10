@@ -1,22 +1,32 @@
-/** A component element, carrying what `init` and the hooks attach to it. */
+/**
+ * A component element, carrying what `init` and the hooks attach to it.
+ *
+ * **Every field core keeps on an element is SIGILED** (O4, 2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$p$` their
+ * priorities, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup (and
+ * `_$k$`, committed, in development). The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
+ * letters production mangled the rest to, collided with a base class's own fields — and core reads them back, so a base
+ * class's `_root` crashed the render. No mangling regex matches a sigil, so the names are also the cross-package
+ * contract (styles, ui, hooks and directives read them) in every build. Short on purpose: each is written at every
+ * access. A new field takes a sigil too; `tests/core-host-fields-collision.test.mjs` fails on anything else.
+ */
 export interface ComponentElement extends HTMLElement {
   /**
    * The element's hooks, dense and priority-sorted. Attached to the element so they are collected
    * with it — the store holds them only weakly.
    */
-  _hooks?: Hooks;
-  /** Priorities parallel to `_hooks`, which is kept dense rather than indexed by priority. */
-  _hookPriorities?: number[];
+  _$h$?: Hooks;
+  /** Priorities parallel to `_$h$`, which is kept dense rather than indexed by priority. */
+  _$p$?: number[];
   /**
    * How many times this element has been `init()`ed. A hook captures the value it was created
    * under and does nothing when it no longer matches — see `createHook`.
    */
-  _gen?: number;
+  _$g$?: number;
   /** Effect cleanups awaiting removal, which runs them (see `init`). Read by the renderer's adapters. */
-  _cleanups?: Set<HookCleanup>;
-  /** Set once removal has swept `_cleanups`, so a cleanup registered after it runs at once. */
-  _removed?: boolean;
-  /** Wrapped at `customElements.define` time to run `_cleanups`; an author's own is chained first. */
+  _$c$?: Set<HookCleanup>;
+  /** Set once removal has swept `_$c$`, so a cleanup registered after it runs at once. */
+  _$x$?: boolean;
+  /** Wrapped at `customElements.define` time to run `_$c$`; an author's own is chained first. */
   disconnectedCallback?: () => void;
   /**
    * The root this element renders into, kept because `element.shadowRoot` is **null for a closed
@@ -24,7 +34,7 @@ export interface ComponentElement extends HTMLElement {
    * package boundaries by the `'render'` insert and by `@verajs/styles`, so it is a cross-boundary
    * contract and must never be mangled.
    */
-  _root?: ShadowRoot;
+  _$r$?: ShadowRoot;
   /**
    * What a parent's property bindings delivered before this element could receive them, recorded by
    * `@verajs/renderer` (template parts and `spread`) and drained by `init()` into reactive accessors
@@ -67,7 +77,7 @@ export type HookCleanup = () => void;
  */
 export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
 
-/** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
+/** An element's hooks, dense and priority-sorted — `_$p$` runs parallel to it. */
 export type Hooks = Set<HookCallback>[];
 /**
  * One key's subscribers, and the size at which `track` next sweeps the dead ones out (`l`, the limit) — set on the

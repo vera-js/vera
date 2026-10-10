@@ -96,7 +96,7 @@ test('useDismiss: unmount releases the document listeners through the _cleanups 
 
   /** init() drains _cleanups on disconnect — the release-on-unmount contract. */
   element.remove();
-  element._cleanups?.forEach((cleanup) => cleanup());
+  element._$c$?.forEach((cleanup) => cleanup());
   dom.window.document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }));
   assert.deepEqual(calls, [], 'a removed component strands no document listener');
 });

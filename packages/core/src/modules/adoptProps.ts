@@ -84,7 +84,7 @@ export const adoptProps = (element: ComponentElement) => {
        * Effects are not forced — a side effect must not re-fire because a prop arrived. During the drain
        * this is a no-op: `init()` has just reset the hooks.
        */
-      element._hooks?.[element._hookPriorities!.indexOf(RENDER_PRIORITY)]?.forEach((hook) => hook({}, true));
+      element._$h$?.[element._$p$!.indexOf(RENDER_PRIORITY)]?.forEach((hook) => hook({}, true));
     };
   }
   const record = element._$props$;
