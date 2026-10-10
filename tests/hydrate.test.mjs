@@ -103,6 +103,8 @@ assert.equal(opaque.textContent, '[object Object]', 'an opaque object fell back 
 // 6. a client-only DOM node adopts WITHOUT giving up hydration
 //    The server rendered nothing for it (it has no document to build one), so there is nothing to
 //    claim — the node is inserted and the surrounding server DOM is still adopted in place.
+//    The markup here is hand-written: the REAL server's half (it writes nothing for a node) is
+//    tests/ssr-node-values.test.mjs, which found it writing `[object EventTarget]` (2026-10-09).
 const withNode = dom.window.document.createElement('div');
 withNode.innerHTML = '<p>server</p>';
 const serverP = withNode.querySelector('p');

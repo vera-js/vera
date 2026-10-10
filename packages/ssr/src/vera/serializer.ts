@@ -4,10 +4,14 @@ import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
 import { currentRenderingTag } from './stylesheets.js';
-import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
+import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
 import type { ScanResult, ScanStart, SsrTemplate } from './types.js';
 import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, scanTag } from './tokenizer.js';
+
+/** Module-local, because serializeValue (the hottest function here) reads it: an imported binding is a live one, which
+ *  V8 reaches less directly (CLAUDE.md, measured on the tokenizer's constants). */
+const NodeBase = NodeBaseShim;
 
 /**
  * The vera-native template serializer: flattens core's `html` template objects to markup with
@@ -1397,6 +1401,16 @@ export const serializeValue = (value: unknown, raw = false, depth = 0, text = fa
      * here and only here — principle #8 puts it at the render boundary, not at the source.
      */
     if (typeof (value as Probed)._$attrs$ === 'function') return '';
+
+    /**
+     * **A DOM node writes nothing** (2026-10-09). The client inserts the node itself, and hydration's contract is that
+     * the server rendered nothing for it — the renderer README's "the one thing the server cannot have rendered", which
+     * adoption relies on to keep everything around it. This fell through to `String(value)` and served
+     * `[object EventTarget]` into the page, which the client then refused as markup the template does not describe:
+     * junk on the static page AND the whole container's adoption discarded. Before the iterable test, so a fragment
+     * (whose children are a node list) never reads as a list.
+     */
+    if (value instanceof NodeBase) return '';
 
     /**
      * An iterable renders its entries, exactly as the client's child position does — a `Set` or a
