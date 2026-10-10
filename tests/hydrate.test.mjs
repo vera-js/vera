@@ -91,14 +91,31 @@ renderInto(html`<span>${'fresh'}</span>`, bad);
 assert.equal(bad.textContent, 'fresh', 'mismatch fell back to clean render');
 assert.equal(bad.querySelectorAll('p').length, 0, 'stale markup cleared');
 
-// 5. a value the server cannot have rendered mismatches — it never throws out of renderInto()
+// 5. an opaque object never throws out of renderInto()
 //    Adoption used to spread whatever reached this branch, so a plain object raised
 //    `TypeError: value is not iterable` and escaped the MISMATCH guard, taking the page down where
 //    every other disagreement with the server degrades quietly.
+//    5a. Over the REAL server's output it ADOPTS: the server writes `[object Object]`, as the client
+//        does (measured 2026-10-09 — this row once hand-wrote other markup and asserted a fallback the
+//        product never produces, so it would have stayed green had adoption of the case broken).
+const opaqueServed = execFileSync(process.execPath, ['--input-type=module', '-e', `
+import { serializeTemplate } from '@verajs/ssr';
+const { html } = await import('@verajs/core');
+process.stdout.write(serializeTemplate(html\`<p>\${{ a: 1 }}</p>\`));`], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+assert.equal(opaqueServed, '<p>[object Object]</p>', 'CONTROL: what the server writes for an opaque object');
 const opaque = dom.window.document.createElement('div');
-opaque.innerHTML = '<p>server</p>';
-renderInto(html`<p>${{ a: 1 }}</p>`, opaque);
-assert.equal(opaque.textContent, '[object Object]', 'an opaque object fell back instead of throwing');
+opaque.innerHTML = opaqueServed;
+const opaqueP = opaque.querySelector('p');
+const opaqueDraw = (value) => html`<p>${value}</p>`;
+renderInto(opaqueDraw({ a: 1 }), opaque);
+assert.ok(opaque.querySelector('p') === opaqueP, 'the server <p> was adopted, not rebuilt');
+assert.equal(opaque.textContent, '[object Object]');
+//    5b. Where the markup DOES disagree, the guard falls back — still without throwing. Hand-made on
+//        purpose: the mismatch is the point.
+const opaqueMismatch = dom.window.document.createElement('div');
+opaqueMismatch.innerHTML = '<p>server</p>';
+renderInto(opaqueDraw({ a: 1 }), opaqueMismatch);
+assert.equal(opaqueMismatch.textContent, '[object Object]', 'a mismatch around an opaque object fell back instead of throwing');
 
 // 6. a client-only DOM node adopts WITHOUT giving up hydration
 //    The server rendered nothing for it (it has no document to build one), so there is nothing to
