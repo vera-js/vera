@@ -74,4 +74,15 @@ export const PROSE: Record<string, Prose> = {
     'Rename the collection folder.',
   ],
   'cms-build-errors': (count, list) => [`${count} problem(s) across the content:\n  ${list}`, 'Fix each and build again.'],
+  /** The writer's publish flow (5c). Stated as the usual cause where GitHub's answer has rarer ones too — sending someone to fix the wrong thing is worse than hedging. */
+  'cms-writer-not-open': () => ['publishing needs the branch head this session edits against, and nothing has pinned it.', 'Call open() first.'],
+  'cms-writer-nothing-staged': () => ['nothing is staged, so there is nothing to publish.', 'Stage or remove an entry first.'],
+  'cms-writer-tree-refused': () => [
+    'GitHub refused the tree (HTTP 422). The usual cause is a staged removal naming a file the branch does not have.',
+    'discard() that removal, or open() a fresher base, and publish again; everything staged is kept.',
+  ],
+  'cms-writer-moved': () => [
+    'the branch moved ahead while this session edited. Nothing was lost.',
+    'open() again to pin the new head, then publish; the staged changes are kept.',
+  ],
 };

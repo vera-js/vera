@@ -229,6 +229,30 @@
       "fix": "Set \"version\": 1, or update @verajs/cms to a release that reads this version."
     },
     {
+      "code": "cms-writer-moved",
+      "params": [],
+      "message": "the branch moved ahead while this session edited. Nothing was lost.",
+      "fix": "open() again to pin the new head, then publish; the staged changes are kept."
+    },
+    {
+      "code": "cms-writer-not-open",
+      "params": [],
+      "message": "publishing needs the branch head this session edits against, and nothing has pinned it.",
+      "fix": "Call open() first."
+    },
+    {
+      "code": "cms-writer-nothing-staged",
+      "params": [],
+      "message": "nothing is staged, so there is nothing to publish.",
+      "fix": "Stage or remove an entry first."
+    },
+    {
+      "code": "cms-writer-tree-refused",
+      "params": [],
+      "message": "GitHub refused the tree (HTTP 422). The usual cause is a staged removal naming a file the branch does not have.",
+      "fix": "discard() that removal, or open() a fresher base, and publish again; everything staged is kept."
+    },
+    {
       "code": "cms-frontmatter-depth",
       "params": [
         "max"

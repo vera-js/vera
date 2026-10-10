@@ -38,7 +38,7 @@ const { autoloader, directiveLoader } = await load('autoloader');
 const styleModule = await load('styles');
 const { wireDirectives } = await load('directives');
 /** cms's schema, manifest and build refusals — one list with tests/cms-coded-errors, so the two cover one set. */
-const { CMS_REFUSALS, CMS_REJECTIONS } = await import('./cms-refusal-cases.mjs');
+const { CMS_REFUSALS, CMS_REJECTIONS, CMS_WRITER_REJECTIONS } = await import('./cms-refusal-cases.mjs');
 
 const skip = isProduction && 'development-only diagnostics';
 
@@ -96,7 +96,7 @@ const CASES = [
 ];
 
 /** Guards behind an async API: they REJECT rather than throw, so the coverage check below awaits them. */
-const REJECTING = [['navigate(notAPath)', () => navigate(42)], ...CMS_REJECTIONS.map(([code, run]) => [`cms: ${code}`, run])];
+const REJECTING = [['navigate(notAPath)', () => navigate(42)], ...[...CMS_REJECTIONS, ...CMS_WRITER_REJECTIONS].map(([code, run]) => [`cms: ${code}`, run])];
 
 for (const [label, call, expected] of CASES) {
   test(`${label} names the mistake`, { skip }, () => {

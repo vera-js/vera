@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { load } from './dist.mjs';
 
-const { parseSchema, generateManifest, parseFrontmatter, parseMarkdown } = await load('cms/publish');
+const { parseSchema, generateManifest, parseFrontmatter, parseMarkdown, createWriter } = await load('cms/publish');
 const { buildManifests } = await load('cms/node');
 const { createReader } = await load('cms/content');
 
@@ -83,4 +83,41 @@ const failing = (status, read) => async () => {
 export const CMS_REJECTIONS = [
   ['cms-reader-manifest', failing(404, (reader) => reader.entries('posts')), 'could not load the "posts" manifest'],
   ['cms-reader-taxonomy', failing(500, (reader) => reader.terms('tags')), 'could not load the taxonomy index'],
+];
+
+/**
+ * The writer's publish-flow refusals (5c) — async, from `publish`, so their words are kept in every build. A minimal
+ * GitHub answers just the calls a publish makes; `trees` and `ref` set the status of the tree POST and the ref PATCH
+ * (422 there is the refused removal, 409 here the moved head). Each: [code, run, a fragment of its sentence].
+ */
+const github = ({ trees = 201, ref = 200 } = {}) => async (url, init = {}) => {
+  const method = init.method ?? 'GET';
+  const path = new URL(url).pathname;
+  const json = (status, body) => new Response(JSON.stringify(body), { status });
+  if (method === 'GET' && path.includes('/git/ref/')) return json(200, { object: { sha: 'c0' } });
+  if (method === 'GET' && path.includes('/git/commits/')) return json(200, { tree: { sha: 't0' } });
+  if (method === 'POST' && path.endsWith('/git/trees')) return json(trees, { sha: 't1' });
+  if (method === 'POST' && path.endsWith('/git/commits')) return json(201, { sha: 'c1' });
+  if (method === 'PATCH') return json(ref, {});
+  return json(404, {});
+};
+const publishing = (answers, steps) => async () => {
+  const saved = globalThis.fetch;
+  globalThis.fetch = github(answers);
+  try {
+    const writer = createWriter({ repo: 'owner/site', token: 't' });
+    await steps(writer);
+    await writer.publish({ message: 'm' });
+  } finally {
+    globalThis.fetch = saved;
+  }
+};
+
+export const CMS_WRITER_REJECTIONS = [
+  ['cms-writer-not-open', publishing({}, (writer) => writer.stage('posts', 'a', { data: { uuid: 'u' }, body: 'x' })), 'Call open() first'],
+  ['cms-writer-nothing-staged', publishing({}, (writer) => writer.open()), 'nothing is staged'],
+  ['cms-writer-tree-refused', publishing({ trees: 422 }, async (writer) => { await writer.open(); writer.remove('posts', 'gone'); }),
+    'The usual cause is a staged removal naming a file the branch does not have'],
+  ['cms-writer-moved', publishing({ ref: 409 }, async (writer) => { await writer.open(); writer.remove('posts', 'gone'); }),
+    '"main" — the branch moved ahead while this session edited'],
 ];

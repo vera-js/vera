@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { distUrl, isProduction, load } from './dist.mjs';
-import { CMS_REFUSALS, CMS_REJECTIONS } from './cms-refusal-cases.mjs';
+import { CMS_REFUSALS, CMS_REJECTIONS, CMS_WRITER_REJECTIONS } from './cms-refusal-cases.mjs';
 
 const { parseSchema } = await load('cms/publish');
 const { buildManifests } = await load('cms/node');
@@ -35,6 +35,16 @@ for (const [code, run, fragment] of CMS_REJECTIONS)
       assert.ok(error.message.startsWith('createReader: "https://example.com/_manifests/'), `the URL is the subject: ${error.message}`);
       if (isProduction) assert.ok(error.message.endsWith(` — https://verajs.dev/e/${code}`), error.message);
       else assert.ok(error.message.includes(fragment) && error.message.endsWith(`(${code})`), error.message);
+      return true;
+    });
+  });
+
+/** The writer's: `publish` keeps its words in every build, so the sentence is asserted in production too. */
+for (const [code, run, fragment] of CMS_WRITER_REJECTIONS)
+  test(`${code}: the sentence and its code, in every build`, async () => {
+    await assert.rejects(run, (error) => {
+      assert.ok(error.message.startsWith('createWriter: ') && error.message.includes(fragment), `the words, in this build too: ${error.message}`);
+      assert.ok(error.message.endsWith(`(${code})`), error.message);
       return true;
     });
   });

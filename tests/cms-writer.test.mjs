@@ -140,7 +140,11 @@ test('removing a file the branch never had is named, not a raw 422 — audit pas
   const site = writer();
   await site.open();
   site.remove('posts', 'never-existed');
-  await assert.rejects(site.publish({ message: 'm' }), /usual cause is a staged removal naming a file/);
+  await assert.rejects(site.publish({ message: 'm' }), (error) => {
+    assert.match(error.message, /usual cause is a staged removal naming a file[\s\S]*\(cms-writer-tree-refused\)$/);
+    assert.equal(error.cause?.status, 422, "GitHub's answer rides along as the cause, its status readable");
+    return true;
+  });
   assert.equal(site.status().staged.length, 1, 'everything staged is kept, as the message promises');
 });
 
@@ -164,7 +168,11 @@ test('a moved head is refused, named honestly, staged work kept — and re-open 
   github.commits.c99 = { tree: 't0', parents: [github.head] };
   github.head = 'c99';
 
-  await assert.rejects(site.publish({ message: 'race' }), /"main" moved ahead.*Nothing was lost.*staged changes are kept/s);
+  await assert.rejects(site.publish({ message: 'race' }), (error) => {
+    assert.match(error.message, /^createWriter: "main" — the branch moved ahead.*Nothing was lost.*staged changes are kept\. \(cms-writer-moved\)$/s);
+    assert.ok([409, 422].includes(error.cause?.status), `the refusing answer is the cause: ${error.cause?.status}`);
+    return true;
+  });
   assert.equal(site.status().staged.length, 1, 'the overlay must survive the refusal');
 
   await site.open();
@@ -178,10 +186,10 @@ test('publish without open() refuses with instructions; publish with nothing sta
   fakeGithub();
   const site = writer();
   site.stage('posts', 'a', { data: { uuid: 'u' }, body: 'x' });
-  await assert.rejects(site.publish({ message: 'm' }), /open\(\) first/);
+  await assert.rejects(site.publish({ message: 'm' }), /Call open\(\) first\. \(cms-writer-not-open\)$/);
   await site.open();
   site.discard();
-  await assert.rejects(site.publish({ message: 'm' }), /nothing is staged/);
+  await assert.rejects(site.publish({ message: 'm' }), /nothing is staged[\s\S]*\(cms-writer-nothing-staged\)$/);
 });
 
 test('discard drops one path or everything; status reports removals as null', () => {
@@ -201,3 +209,23 @@ test('the reader entry does not carry the writer — a deployed site structurall
   assert.equal(content.createWriter, undefined);
   assert.equal(content.serializeContent, undefined);
 });
+
+/**
+ * The publish flow ROUTES on the status a failed request carries (422 on the tree, 409/422 on the ref): 5c moved the
+ * refusals onto codes and must not have moved that. A request that fails with no refusal of its own still surfaces
+ * GitHub's status on the error.
+ */
+test('a failed request carries its HTTP status — what the publish flow reads to route a refusal', async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 503 });
+  try {
+    await assert.rejects(writer().open(), (error) => {
+      assert.equal(error.status, 503);
+      assert.match(error.message, /^createWriter: GET \/git\/ref\/heads\/main answered HTTP 503$/);
+      return true;
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+

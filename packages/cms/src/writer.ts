@@ -23,7 +23,9 @@
  * a token is minted (device flow, a paste, CI secrets) is the host application's concern; the
  * writer is handed one, or a function that produces one fresh per request.
  */
+import { misuse, misuseAbout, own, quoted } from '@verajs/shared-utils';
 import { serializeContent } from './write.js';
+import { PROSE } from './publish-diagnostics.js';
 import type { Writer, WriterOptions } from './types.js';
 
 /**
@@ -42,12 +44,12 @@ const RESERVED = new Set(['constructor', 'prototype', 'site', 'taxonomies']);
 const safeName = (kind: 'collection' | 'slug', value: string): string => {
   const rule = kind === 'collection' ? COLLECTION : SLUG;
   if (!rule.test(value) || value.includes('..') || (kind === 'collection' && RESERVED.has(value)))
-    throw new Error(`createWriter: "${value}" is not a ${kind} name`);
+    throw new Error(`createWriter: ${quoted(value)} is not a ${kind} name`);
   return value;
 };
 const safePath = (path: string): string => {
   if (path === '' || path.startsWith('/') || path.includes('\\') || path.includes('\0') || path.split('/').some((part) => part === '' || part === '.' || part === '..'))
-    throw new Error(`createWriter: "${path}" is not a repository path — relative, no empty, . or .. segments`);
+    throw new Error(`createWriter: ${quoted(path)} is not a repository path — relative, no empty, . or .. segments`);
   return path;
 };
 
@@ -88,8 +90,7 @@ export const createWriter = (options: WriterOptions): Writer => {
   };
 
   const mustBeOpen = (): string => {
-    if (base === null)
-      throw new Error('createWriter: open() first — publishing needs the branch head this session edits against');
+    if (base === null) throw own(new Error(misuse('createWriter', 'cms-writer-not-open', __DEV__ && PROSE['cms-writer-not-open']!())));
     return base;
   };
 
@@ -123,7 +124,7 @@ export const createWriter = (options: WriterOptions): Writer => {
 
     publish: async ({ message }) => {
       const parent = mustBeOpen();
-      if (overlay.size === 0) throw new Error('createWriter: nothing is staged — there is nothing to publish');
+      if (overlay.size === 0) throw own(new Error(misuse('createWriter', 'cms-writer-nothing-staged', __DEV__ && PROSE['cms-writer-nothing-staged']!())));
 
       /**
        * A blob per write, POSTed in parallel — a publish's latency is one round trip, not one per
@@ -161,11 +162,7 @@ export const createWriter = (options: WriterOptions): Writer => {
          * rarer causes too, and sending someone to fix the wrong thing is worse than hedging).
          */
         if ((error as Error & { status?: number }).status === 422 && tree.some((entry) => entry.sha === null))
-          throw new Error(
-            'createWriter: the tree was refused (HTTP 422). The usual cause is a staged removal naming a ' +
-              'file the branch does not have — discard() that removal (or open() a fresher base) and ' +
-              'publish again; everything staged is kept.'
-          );
+          throw own(new Error(misuse('createWriter', 'cms-writer-tree-refused', __DEV__ && PROSE['cms-writer-tree-refused']!()), { cause: error }));
         throw error;
       }
       const commit = await request('POST', '/git/commits', { message, tree: created.sha as string, parents: [parent] });
@@ -180,10 +177,7 @@ export const createWriter = (options: WriterOptions): Writer => {
       } catch (error) {
         const status = (error as Error & { status?: number }).status;
         if (status === 409 || status === 422)
-          throw new Error(
-            `createWriter: "${branch}" moved ahead while this session edited. Nothing was lost — ` +
-              `open() again to pin the new head, then publish; the staged changes are kept.`
-          );
+          throw own(new Error(misuseAbout('createWriter', quoted(branch), 'cms-writer-moved', __DEV__ && PROSE['cms-writer-moved']!()), { cause: error }));
         throw error;
       }
 
