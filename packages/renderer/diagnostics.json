@@ -101,6 +101,12 @@
       "fix": "Fix the ref, or wire an 'error' insert to handle what refs throw."
     },
     {
+      "code": "renderer-on-server",
+      "params": [],
+      "message": "is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only the shadow default was taken.",
+      "fix": "Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process."
+    },
+    {
       "code": "self-closed-tag",
       "params": [
         "tag"

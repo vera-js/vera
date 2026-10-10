@@ -71,6 +71,11 @@ const CLOSED: ShadowRootInit = { mode: 'closed' };
 /** Development: what was said once per component class — a static setup return, a near-miss `setup` spelling. */
 const saidStatic = new WeakSet<object>();
 const saidNearMiss = new WeakSet<object>();
+/** Development: an invalid app default is said once per page (a component's own invalid option, at each connect). */
+let warnedAboutDefault = false;
+/** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
+const validShadow = (value: unknown) =>
+  value === false || value === 'open' || value === 'closed' || (value as ShadowRootInit | null)?.mode === 'open' || (value as ShadowRootInit | null)?.mode === 'closed';
 /** Shape B's call: the class's own `setup()` method, with the element as both `this` and `host`. */
 const callMethod = (element: ComponentElement) => (element as unknown as { setup: Setup }).setup(element);
 
@@ -97,17 +102,27 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
   mine.add(element);
-  const shadow = options?.shadow;
+  /**
+   * The component's own `shadow` (an explicit `false` included), else the app default `renderer({ shadow })` set on the
+   * registry (`$S`), else light DOM.
+   */
+  const own = options?.shadow;
+  const shadow = own !== undefined ? own : (inserts as unknown as { $S?: InitOptions['shadow'] }).$S;
+  if (__DEV__ && own === undefined && shadow !== undefined && !warnedAboutDefault && !validShadow(shadow)) {
+    warnedAboutDefault = true;
+    console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](typeof shadow === 'string' ? `'${shadow}'` : String(shadow))));
+  }
   if (__DEV__ && options) {
     for (const key in options)
       if (key !== 'host' && key !== 'shadow')
         console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'host, shadow')));
-    if (shadow !== undefined && shadow !== false && shadow !== 'open' && shadow !== 'closed' && !((shadow as ShadowRootInit)?.mode === 'open' || (shadow as ShadowRootInit)?.mode === 'closed'))
-      console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](typeof shadow === 'string' ? `'${shadow}'` : String(shadow))));
+    if (own !== undefined && !validShadow(own))
+      console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](typeof own === 'string' ? `'${own}'` : String(own))));
   }
   const root = shadow === 'open' ? OPEN : shadow === 'closed' ? CLOSED : typeof shadow === 'object' && shadow !== null && (shadow.mode === 'open' || shadow.mode === 'closed') ? shadow : undefined;
   const setup = typeof given === 'function' ? given : typeof (element as { setup?: unknown }).setup === 'function' ? callMethod : undefined;
-  if (setup === undefined) return legacy(element, root ?? (given as ShadowRootInit | undefined));
+  /** The earlier `init(element, shadowProps)` is explicit, so it wins over the app default. */
+  if (setup === undefined) return legacy(element, (typeof given === 'object' && given) || root);
   start(element, root);
   /** The window: this component is the owner while its setup runs — untracked, restored in `finally`, on a throw too. */
   const previous = currentInstance.element;

@@ -6,6 +6,10 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'renderer-on-server': () => [
+    'is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only the shadow default was taken.',
+    'Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process.',
+  ],
   'ref-threw': () => [
     'threw; its error is printed beside this line, and the render continued without it.',
     "Fix the ref, or wire an 'error' insert to handle what refs throw.",

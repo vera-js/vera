@@ -1694,13 +1694,8 @@ export const renderInto = (result: unknown, container: Node) => {
 if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
 
 /** Everything this renderer needs, in one entry: `wire([renderer])`. */
-export const renderer = {
-  name: '@verajs/renderer',
-  on: 'render' as const,
-  fn: renderInto as never,
-  priority: 50,
-  /** Typed against the registry `wire` hands over, so `wire([renderer])` compiles in a consumer's project. */
-  connect: (given: { get(name: never): unknown }) => {
+/** The renderer's connect: core's registry, its untracked primitive, and the hydration hand-off. */
+const connectTo = (given: { get(name: never): unknown }) => {
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
     /**
@@ -1728,8 +1723,72 @@ export const renderer = {
       toText, // HANDOFF_TO_TEXT
       needRemovalWork, // HANDOFF_REMOVAL_WORK
     ];
+};
+
+/** Whether this process is a SERVER: `@verajs/ssr` sets this public flag at import. Read when `wire` runs, never at load. */
+const onServer = () => (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
+/** Development: the decline is said once per process. */
+let declined = false;
+
+type Registry = { get(name: never): unknown; $S?: unknown };
+type RendererModule = ((given?: { shadow?: unknown } | Registry) => RendererModule | void) & {
+  readonly on: 'render' | undefined;
+  fn: never;
+  priority: number;
+  connect: (given: Registry) => void;
+};
+
+/**
+ * **`renderer` is a DUAL** — `wire([renderer])` as it always was, or `wire([renderer({ shadow: 'open' })])` to set the
+ * app's default root: every component whose own `shadow` option says nothing gets it (core's `init` reads it after the
+ * component's own and before light DOM).
+ *
+ * **On a server it declines its render insert** (Brian's (b′), 2026-10-10): `@verajs/ssr` renders with its own renderer,
+ * and a client one wired in shared app code used to DISPLACE it, breaking every server render. `on` is a getter read
+ * when `wire` runs — so the order that matters is "ssr imported before the wire call" — and on a server it answers
+ * nothing, which makes `wire` hand this function the registry as a CONNECTOR: it sets only the shadow default, so one
+ * shared `wire([renderer({ shadow })])` carries the same default to both sides. Development says so once per process.
+ */
+/**
+ * What every renderer module shares, on ONE prototype rather than defined per instance: `on` (a getter read when `wire`
+ * runs — see above), `fn`, `priority`, and `connect`, which reads the module's own shadow default from `this.s`.
+ */
+const shared = {
+  get on() {
+    return onServer() ? undefined : ('render' as const);
+  },
+  fn: renderInto as never,
+  priority: 50,
+  connect(this: { s?: unknown }, given: Registry) {
+    connectTo(given);
+    if (this.s !== undefined) given.$S = this.s;
   },
 };
+
+const make = (shadow?: unknown): RendererModule => {
+  const module = ((given?: { shadow?: unknown } | Registry) => {
+    if ((given as Registry | undefined)?.get) {
+      /** It still CONNECTS — the registry, `untracked`, the hydration hand-off: a process that loaded ssr may install a
+       *  client DOM and call renderInto directly (tests/spread-ssr does). Only the render INSERT is declined. */
+      shared.connect.call(module, given as Registry);
+      if (__DEV__ && !declined) {
+        declined = true;
+        console.warn(diagnostic('renderer', 'wire([renderer])', 'renderer-on-server', __DEV__ && PROSE['renderer-on-server']()));
+      }
+      return;
+    }
+    if (__DEV__)
+      for (const key in given as object)
+        if (key !== 'shadow') console.warn(diagnostic('renderer', 'renderer()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'shadow')));
+    return make((given as { shadow?: unknown } | undefined)?.shadow);
+  }) as RendererModule & { s?: unknown };
+  module.s = shadow;
+  /** Development: the name the collision warning reports (`wire`'s name bookkeeping is development-only). */
+  if (__DEV__) Object.defineProperty(module, 'name', { value: '@verajs/renderer' });
+  return Object.setPrototypeOf(module, shared) as RendererModule;
+};
+
+export const renderer = make();
 
 /**
  * Development: `renderInto` is the draw, not the module — `wire([renderInto])` would be taken as a connector and

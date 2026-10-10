@@ -198,6 +198,7 @@ const CLAIMS = new Map([
   ['packages/router/README.md#5c763d362b', 'not a promise: history: what no longer warns'], // `navigate('login')` from `/shop/items` now goes to `/shop/login` rather than dead-ending w
   ['packages/router/README.md#12b42ba1c2', 'router-duplicate-name'], // Two routes claiming one name warn in development.
   ['packages/router/README.md#23c2747b14', 'router-navigate-threw'], // - **`navigate()` rejects**, so a caller that awaits it can handle the failure itself. - **
+  ['packages/ssr/README.md#68aad5823e', 'pinned by tests/renderer-shadow-default.test.mjs: on a server the shared wire call declines the render insert, keeps the shadow default, and says so once'], // … A process that has loaded `@verajs/ssr` is a server …
   ['packages/ssr/README.md#2f37875801', 'not a promise: says no warning is possible'], // **Wire `slots` on the client AND here:** without it this server writes no light-tree state
   ['packages/ssr/README.md#8e83430b17', 'hydration-fallback'], // An HTML minifier that strips comments removes them, and hydration then treats that compone
   ['packages/ssr/README.md#dc1c1f67b9', 'ssr-prop-refused'], // A `__proto__` key is skipped, and a read-only property is refused by name |

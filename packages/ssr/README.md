@@ -327,9 +327,15 @@ Importing `@verajs/ssr` installs a DOM on `globalThis`: `document`, `window`, `c
   moment this module loads, however late, and a component defined afterwards is never upgraded — with
   nothing saying why. This repository's own tests render the server half in a subprocess for exactly
   this reason.
-- **A client renderer wired after this import is refused** — it would displace the server's and every
-  component would render empty. Guard the client wiring (`if (!globalThis.__veraSsrShimmed)`), or keep it
-  out of the modules the server imports.
+- **A process that has loaded `@verajs/ssr` is a server.** Wiring vera's renderer there —
+  `wire([renderer])` or `wire([renderer({ shadow: 'open' })])` in app code the server and the browser
+  share — declines its render insert (the server renders with its own) and keeps only the shadow default,
+  so one shared wire call gives both sides the same default root; development says so once per process.
+  Import `@verajs/ssr` before that wire call. Code that needs the client renderer in the same process (a
+  test that server-renders and then hydrates) installs a client DOM and calls `renderInto` directly —
+  `wire([renderer])` there registers no client render insert — or renders the server half in a separate
+  process. The client renderer cannot draw into this DOM itself: it holds strings, not a tree. A renderer that is not vera's would displace the server's and is refused at render time; guard
+  its wiring (`if (!globalThis.__veraSsrShimmed)`).
 
 **It is complete, and checked twice.** Every member a real element, shadow root, document,
 `CSSStyleSheet`, `DOMTokenList` or window exposes in Chromium, Firefox and WebKit is either

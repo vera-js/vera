@@ -45,11 +45,13 @@ const MODULES = [
 
 test('every module is a well-formed descriptor', () => {
   for (const [label, module, on] of MODULES) {
-    assert.equal(typeof module, 'object', `${label} is exported`);
+    /** `renderer` is a DUAL (2026-10-10): a function carrying `on`, which `wire` reads as a descriptor. */
+    assert.ok(typeof module === 'object' || (typeof module === 'function' && module.on !== undefined), `${label} is exported`);
     assert.equal(module.on, on, `${label} registers on '${on}'`);
     assert.equal(typeof module.fn, 'function', `${label} carries a callback`);
     assert.ok(Number.isFinite(module.priority), `${label} has a finite priority`);
-    assert.match(module.name, /^@verajs\//, `${label} names itself for the collision warning`);
+    /** The name feeds `wire`'s collision warning, which is development-only — so is renderer's name (2026-10-10). */
+    if (!isProduction || label !== 'renderer') assert.match(module.name, /^@verajs\//, `${label} names itself for the collision warning`);
   }
 });
 

@@ -68,8 +68,8 @@ export const PROSE: Record<string, Prose> = {
     "Export the component's class from that module, or pass { tag }.",
   ],
   'ssr-renderer-replaced': () => [
-    'the server renderer has been replaced — something wired a renderer after @verajs/ssr was imported, and every component would render empty.',
-    'Guard the client wiring (`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports.',
+    'the server renderer has been replaced — a renderer was wired that does not know @verajs/ssr is rendering, and every component would render empty.',
+    "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring (`if (!globalThis.__veraSsrShimmed)`).",
   ],
   'ssr-timeout': (timeout, pendingIn, waitingOn) => [
     `was served after its ${timeout} ms \`timeout\` with a promise still pending${pendingIn ? ` in ${pendingIn}` : ''} (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.${waitingOn ? ` Still waiting on customElements.whenDefined for ${waitingOn}, which the server never defined.` : ''}`,

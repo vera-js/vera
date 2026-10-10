@@ -78,8 +78,8 @@
     {
       "code": "ssr-renderer-replaced",
       "params": [],
-      "message": "the server renderer has been replaced — something wired a renderer after @verajs/ssr was imported, and every component would render empty.",
-      "fix": "Guard the client wiring (`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports."
+      "message": "the server renderer has been replaced — a renderer was wired that does not know @verajs/ssr is rendering, and every component would render empty.",
+      "fix": "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring (`if (!globalThis.__veraSsrShimmed)`)."
     },
     {
       "code": "ssr-selector-unsupported",
