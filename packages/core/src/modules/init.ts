@@ -198,7 +198,8 @@ const start = (element: ComponentElement, root: ShadowRootInit | undefined) => {
  */
 const settle = (element: ComponentElement, out: unknown, generation: number) => {
   if (typeof (out as PromiseLike<unknown> | null)?.then === 'function') {
-    (out as PromiseLike<unknown>).then((value) => {
+    /** Kept for the `customElements.define` wrapper below, which hands it to whoever awaits the connect — a server. */
+    (element as Moving)._setup = (out as PromiseLike<unknown>).then((value) => {
       if (element._gen === generation && element.isConnected) settle(element, value, generation);
     });
     return;
@@ -288,7 +289,7 @@ const nearMiss = (element: ComponentElement) => {
  * `_removed` is set after the teardown, so a cleanup registered from then on — an effect that removed
  * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
-type Moving = ComponentElement & { _moved?: boolean; _doc?: Document };
+type Moving = ComponentElement & { _moved?: boolean; _doc?: Document; _setup?: PromiseLike<unknown> };
 /**
  * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down. A page can
  * hold two copies (a production bundle that inlines core, as `@verajs/directives` does for its standalone fallback): each
@@ -339,8 +340,14 @@ if (typeof customElements !== 'undefined') {
         if (this.ownerDocument === this._doc) return;
         teardown(this);
       }
-      /** Its result is returned: a server render awaits the promise an `async connectedCallback` gives. */
-      return connected?.call(this);
+      /**
+       * Its result is returned, and a server render awaits it — so a PENDING SETUP joins it: an async setup is part of
+       * the connect, whatever the author's callback returned (nothing, a value, or its own promise, which may settle
+       * first — or before `init` even ran, so the setup is read once that promise has settled). A browser ignores the
+       * result. A class defined before core loaded is not wrapped; on a server the app imports core first.
+       */
+      const result = connected?.call(this);
+      return this._setup || (result as PromiseLike<unknown> | undefined)?.then ? Promise.resolve(result).then(() => this._setup) : result;
     };
     return nativeDefine(name, Class, options);
   };

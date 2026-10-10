@@ -51,7 +51,7 @@ export const PROSE: Record<string, Prose> = {
     'A read-only property cannot be set; pass it as an attribute, or give the class a setter. The setter\'s own error is this one\'s cause.',
   ],
   'ssr-async-connected': (tag) => [
-    `<${tag}> has an async connectedCallback, which cannot be awaited during a synchronous render — its markup would be empty.`,
+    `<${tag}> has an async connectedCallback or an async setup, which cannot be awaited during a synchronous render — its markup would be empty.`,
     'Use renderToStringAsync, or load data first and pass it as attributes.',
   ],
   'ssr-attribute-name': (name) => [
