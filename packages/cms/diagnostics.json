@@ -11,6 +11,12 @@
       "fix": "Fix each and build again."
     },
     {
+      "code": "cms-build-missing-folder",
+      "params": [],
+      "message": "the schema declares this collection, but content/ has no such folder.",
+      "fix": "Create the folder, or remove the collection from the schema."
+    },
+    {
       "code": "cms-build-reserved-name",
       "params": [
         "name"
@@ -26,6 +32,72 @@
       ],
       "message": "{path} is not a usable schema: {detail}.",
       "fix": "Fix content/schema.json and build again."
+    },
+    {
+      "code": "cms-build-unknown-collection",
+      "params": [],
+      "message": "the collection is not in the schema — it publishes, but nothing validates it.",
+      "fix": "Declare it in content/schema.json."
+    },
+    {
+      "code": "cms-entry-body-unused",
+      "params": [],
+      "message": "the entry has a body, but the collection is data-only (body: false) — it will not render.",
+      "fix": "Remove the body, or allow one in the collection's schema."
+    },
+    {
+      "code": "cms-entry-dangling-reference",
+      "params": [
+        "field",
+        "uuid",
+        "collection"
+      ],
+      "message": "{field} references uuid {uuid}, and {collection}/ has no entry carrying it.",
+      "fix": "Point it at an entry that exists, or create that entry."
+    },
+    {
+      "code": "cms-entry-no-uuid",
+      "params": [],
+      "message": "the entry has no uuid, so nothing can reference it and a rename will orphan its history.",
+      "fix": "Add one to its frontmatter."
+    },
+    {
+      "code": "cms-entry-required",
+      "params": [],
+      "message": "this required field is missing.",
+      "fix": "Add it to the entry's frontmatter."
+    },
+    {
+      "code": "cms-entry-unknown-field",
+      "params": [],
+      "message": "this field is not in the schema — it publishes, but nothing validates it.",
+      "fix": "Declare it in content/schema.json, or remove it."
+    },
+    {
+      "code": "cms-entry-unknown-term",
+      "params": [
+        "field",
+        "slug",
+        "taxonomy",
+        "path"
+      ],
+      "message": "{field} names the term {slug}, and {taxonomy}/ has no such entry.",
+      "fix": "Fix the slug, or create {path}."
+    },
+    {
+      "code": "cms-entry-untitled",
+      "params": [],
+      "message": "the entry has no title, so listings will show its slug.",
+      "fix": "Give it a title in its frontmatter."
+    },
+    {
+      "code": "cms-entry-value",
+      "params": [
+        "expected",
+        "got"
+      ],
+      "message": "expected {expected}, got {got}.",
+      "fix": "Change the value in the entry's frontmatter."
     },
     {
       "code": "cms-manifest-entry",

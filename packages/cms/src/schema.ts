@@ -112,40 +112,33 @@ export const parseSchema = (text: string): Schema => {
   return schema;
 };
 
-/** One value against one declared field; a sentence when it breaks the promise, null when it keeps it. */
+/** What one declared field expects, when the value breaks its promise; null when it keeps it. */
 const violation = (value: FrontmatterValue, field: Field): string | null => {
   switch (field.type) {
     case 'string':
     case 'text':
     case 'image':
-      return typeof value === 'string' ? null : `expected a string, got ${describe(value)}`;
+      return typeof value === 'string' ? null : 'a string';
     case 'number':
-      return typeof value === 'number' ? null : `expected a number, got ${describe(value)}`;
+      return typeof value === 'number' ? null : 'a number';
     case 'boolean':
-      return typeof value === 'boolean' ? null : `expected a boolean, got ${describe(value)}`;
+      return typeof value === 'boolean' ? null : 'a boolean';
     case 'date':
-      return typeof value === 'string' && DATE.test(value)
-        ? null
-        : `expected a date like 2026-09-02, got ${describe(value)}`;
+      return typeof value === 'string' && DATE.test(value) ? null : 'a date like 2026-09-02';
     case 'select':
-      return typeof value === 'string' && field.options.includes(value)
-        ? null
-        : `expected one of ${field.options.join(', ')} — got ${describe(value)}`;
+      return typeof value === 'string' && field.options.includes(value) ? null : `one of ${field.options.join(', ')}`;
     case 'reference':
-      return typeof value === 'string' ? null : `expected the uuid of an entry in "${field.collection}", got ${describe(value)}`;
+      return typeof value === 'string' ? null : `the uuid of an entry in "${field.collection}"`;
     case 'taxonomy':
-      return Array.isArray(value) && value.every((item) => typeof item === 'string')
-        ? null
-        : `expected a list of "${field.taxonomy}" term slugs, got ${describe(value)}`;
+      return Array.isArray(value) && value.every((item) => typeof item === 'string') ? null : `a list of "${field.taxonomy}" term slugs`;
     case 'list':
-      return Array.isArray(value) && value.every((item) => typeof item === field.of)
-        ? null
-        : `expected a list of ${field.of}s, got ${describe(value)}`;
+      return Array.isArray(value) && value.every((item) => typeof item === field.of) ? null : `a list of ${field.of}s`;
   }
 };
 
+/** What a value is, for a line: a string is QUOTED (an author wrote it — a newline in it must not forge a line). */
 const describe = (value: FrontmatterValue): string =>
-  value === null ? 'null' : Array.isArray(value) ? 'a list' : typeof value === 'object' ? 'a map' : JSON.stringify(value);
+  value === null ? 'null' : Array.isArray(value) ? 'a list' : typeof value === 'object' ? 'a map' : typeof value === 'string' ? quoted(value) : String(value);
 
 /**
  * One entry's frontmatter against its collection's schema.
@@ -162,21 +155,21 @@ export const validateEntry = (data: FrontmatterMap, spec: CollectionSchema): Val
   for (const [name, field] of Object.entries(fields)) {
     const value = data[name];
     if (value === undefined || value === null) {
-      if (field.required) errors.push(`"${name}" is required and missing`);
+      if (field.required) errors.push(misuse(quoted(name), 'cms-entry-required', __DEV__ && PROSE['cms-entry-required']!()));
       continue;
     }
-    const broken = violation(value, field);
-    if (broken !== null) errors.push(`"${name}": ${broken}`);
+    const expected = violation(value, field);
+    if (expected !== null) errors.push(misuse(quoted(name), 'cms-entry-value', __DEV__ && PROSE['cms-entry-value']!(expected, describe(value))));
   }
 
   if (spec.title !== false && typeof data.title !== 'string')
-    warnings.push('has no title, so listings will show its slug');
+    warnings.push(misuse('"title"', 'cms-entry-untitled', __DEV__ && PROSE['cms-entry-untitled']!()));
 
   for (const name of Object.keys(data)) {
     if (name === 'uuid' || name === 'title') continue;
     /** `hasOwn`, not an undefined-check: a field named `constructor` must read as unknown, not as inherited machinery. */
     if (!Object.hasOwn(fields, name))
-      warnings.push(`"${name}" is not in the schema — it publishes, but nothing validates it`);
+      warnings.push(misuse(quoted(name), 'cms-entry-unknown-field', __DEV__ && PROSE['cms-entry-unknown-field']!()));
   }
 
   return { errors, warnings };

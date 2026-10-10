@@ -63,17 +63,15 @@ export const generateManifest = (
       const checked = validateEntry(parsed.data, spec);
       if (checked.errors.length > 0)
         throw own(new Error(misuse('generateManifest', 'cms-manifest-invalid', __DEV__ && PROSE['cms-manifest-invalid']!(quoted(`${collection}/${file.name}`), checked.errors.join('; ')))));
-      for (const warning of checked.warnings) warnings.push(`${collection}/${file.name} ${warning}`);
+      /** Each line already coded, its subject the field; the file leads it. */
+      for (const warning of checked.warnings) warnings.push(`${quoted(`${collection}/${file.name}`)} ${warning}`);
       if (spec.body === false && parsed.body.trim() !== '')
-        warnings.push(`${collection}/${file.name} has a body, but the collection is data-only (body: false) — it will not render`);
+        warnings.push(misuse(quoted(`${collection}/${file.name}`), 'cms-entry-body-unused', __DEV__ && PROSE['cms-entry-body-unused']!()));
     }
 
     const uuid = typeof parsed.data.uuid === 'string' ? parsed.data.uuid : null;
     if (uuid === null)
-      warnings.push(
-        `${collection}/${file.name} has no uuid, so nothing can reference it and a rename will ` +
-          `orphan its history — add one to its frontmatter`
-      );
+      warnings.push(misuse(quoted(`${collection}/${file.name}`), 'cms-entry-no-uuid', __DEV__ && PROSE['cms-entry-no-uuid']!()));
 
     entries.push({ slug, uuid, data: parsed.data, excerpt: excerptOf(parsed.root.children) });
   }

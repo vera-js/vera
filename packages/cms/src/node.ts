@@ -82,7 +82,7 @@ const artifactsOf = (options: BuildOptions): { artifacts: Map<string, string>; w
     /** Own keys only — a folder named `constructor` once validated against Object's constructor. */
     const spec = schema !== undefined && Object.hasOwn(schema.collections, name) ? schema.collections[name] : undefined;
     if (schema !== undefined && spec === undefined)
-      warnings.push(`the "${name}" collection is not in the schema — it publishes, but nothing validates it`);
+      warnings.push(misuse(quoted(name), 'cms-build-unknown-collection', __DEV__ && PROSE['cms-build-unknown-collection']!()));
     const generated = generateManifest(name, filesOf(join(content, name)), spec);
     manifests.set(name, generated.manifest);
     artifacts.set(join(out, `${name}.json`), serializeManifest(generated.manifest));
@@ -107,7 +107,7 @@ const artifactsOf = (options: BuildOptions): { artifacts: Map<string, string>; w
   if (schema !== undefined)
     for (const declared of Object.keys(schema.collections))
       if (!names.includes(declared))
-        warnings.push(`the schema declares "${declared}", but content/ has no such folder`);
+        warnings.push(misuse(quoted(declared), 'cms-build-missing-folder', __DEV__ && PROSE['cms-build-missing-folder']!()));
 
   const site = {
     version: 1,

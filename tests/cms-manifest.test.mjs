@@ -67,7 +67,7 @@ test('a missing uuid warns — returned, not printed — and still indexes', () 
   assert.equal(manifest.entries[0].uuid, null);
   assert.equal(manifest.entries[0].data.title, 'Old');
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /posts\/legacy\.md has no uuid/);
+  assert.match(warnings[0], /"posts\/legacy\.md": the entry has no uuid[\s\S]*\(cms-entry-no-uuid\)$/);
   assert.match(warnings[0], /rename will orphan/);
 });
 

@@ -49,7 +49,7 @@ export const TABLES = [
    * cms (phase 5): one table per side — `publish-diagnostics` (schema, manifests, the build, the writer) for the entries
    * read by the person who fixes the error (built with `words: true`), and the content side's for a visitor's page.
    */
-  { name: 'cms', tables: ['src/publish-diagnostics.ts'], sources: ['src/schema.ts', 'src/manifest.ts', 'src/node.ts'] },
+  { name: 'cms', tables: ['src/publish-diagnostics.ts'], sources: ['src/schema.ts', 'src/manifest.ts', 'src/node.ts', 'src/taxonomy.ts'] },
   /** The compiler's table keeps its words in every build; the standalone loader's is development-only. */
   { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: ['src/transform.ts', 'src/parser.ts', 'src/standalone.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },

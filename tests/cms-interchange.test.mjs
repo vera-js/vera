@@ -124,7 +124,7 @@ test('a dangling reference is an error naming the file; an entry without a uuid 
   ]);
   const errors = checkReferences(SCHEMA, manifests);
   assert.equal(errors.length, 2);
-  assert.match(errors[0], /posts\/a\.md: "author" references uuid "u-ghost", and authors\/ has no entry carrying it/);
+  assert.match(errors[0], /"posts\/a\.md": "author" references uuid "u-ghost", and authors\/ has no entry carrying it[\s\S]*\(cms-entry-dangling-reference\)$/);
 });
 
 test('through the pipeline: the dangling uuid fails the build, and the contracts land beside the manifests', (t) => {

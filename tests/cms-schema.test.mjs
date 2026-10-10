@@ -83,7 +83,7 @@ test('every declared-field violation is an error, with the expectation spelled o
 });
 
 test('missing required is an error; missing optional is nothing; null counts as missing', () => {
-  assert.match(validateEntry({ uuid: 'u', title: 'T' }, POSTS).errors[0], /"date" is required and missing/);
+  assert.match(validateEntry({ uuid: 'u', title: 'T' }, POSTS).errors[0], /^"date": this required field is missing[\s\S]*\(cms-entry-required\)$/);
   assert.deepEqual(validateEntry({ uuid: 'u', title: 'T', date: '2026-01-01', views: null }, POSTS).errors, []);
 });
 
@@ -98,7 +98,7 @@ test('unknown fields and a missing title warn — degraded, never broken', () =>
   const { errors, warnings } = validateEntry({ uuid: 'u', date: '2026-01-01', categoreis: ['oops'] }, POSTS);
   assert.deepEqual(errors, []);
   assert.match(warnings[0], /has no title, so listings will show its slug/);
-  assert.match(warnings[1], /"categoreis" is not in the schema/);
+  assert.match(warnings[1], /^"categoreis": this field is not in the schema[\s\S]*\(cms-entry-unknown-field\)$/);
 });
 
 // ── the grades, through the real pipeline ───────────────────────────────────────────────────────
@@ -130,8 +130,8 @@ test('folder/schema mismatches warn in both directions', (t) => {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'content', 'posts', 'a.md'), '---\nuuid: u\ntitle: T\n---\nx');
   const { warnings } = buildManifests({ content, out });
-  assert.ok(warnings.some((warning) => /"posts" collection is not in the schema/.test(warning)));
-  assert.ok(warnings.some((warning) => /schema declares "articles", but content\/ has no such folder/.test(warning)));
+  assert.ok(warnings.some((warning) => /^"posts": the collection is not in the schema[\s\S]*\(cms-build-unknown-collection\)$/.test(warning)));
+  assert.ok(warnings.some((warning) => /^"articles": the schema declares this collection, but content\/ has no such folder[\s\S]*\(cms-build-missing-folder\)$/.test(warning)));
 });
 
 test('a broken schema file refuses the build — present and wrong is worse than absent', (t) => {

@@ -19,6 +19,8 @@
  * CLI run the identical integrity check, so a site publishes to the same standard from either.
  */
 import type { CollectionSchema, Manifest, Schema, TaxonomyIndex } from './types.js';
+import { misuse, quoted } from '@verajs/shared-utils';
+import { PROSE } from './publish-diagnostics.js';
 
 /** The taxonomy fields a collection declares, as `[fieldName, termCollection]` pairs. */
 const taxonomyFieldsOf = (spec: CollectionSchema): [string, string][] =>
@@ -60,10 +62,7 @@ export const checkReferences = (schema: Schema, manifests: Map<string, Manifest>
         const value = entry.data[fieldName];
         if (typeof value !== 'string') continue; // absent or invalid; per-entry validation owns that
         if (!indexOf(field.collection).has(value))
-          errors.push(
-            `${collection}/${entry.slug}.md: "${fieldName}" references uuid "${value}", and ` +
-              `${field.collection}/ has no entry carrying it`
-          );
+          errors.push(misuse(quoted(`${collection}/${entry.slug}.md`), 'cms-entry-dangling-reference', __DEV__ && PROSE['cms-entry-dangling-reference']!(quoted(fieldName), quoted(value), field.collection)));
       }
     }
   }
@@ -110,10 +109,7 @@ export const generateTaxonomies = (
           if (typeof slug !== 'string') continue;
           const term = known[slug];
           if (term === undefined) {
-            errors.push(
-              `${collection}/${entry.slug}.md: "${fieldName}" names the term "${slug}", and ` +
-                `${taxonomy}/ has no such entry — fix the slug, or create ${taxonomy}/${slug}.md`
-            );
+            errors.push(misuse(quoted(`${collection}/${entry.slug}.md`), 'cms-entry-unknown-term', __DEV__ && PROSE['cms-entry-unknown-term']!(quoted(fieldName), quoted(slug), taxonomy, quoted(`${taxonomy}/${slug}.md`))));
             continue;
           }
           term.count += 1;

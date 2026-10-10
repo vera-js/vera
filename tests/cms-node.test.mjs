@@ -37,7 +37,7 @@ test('build writes one manifest per collection plus the site index', (t) => {
     ['pages.json', 'posts.json', 'site.json']
   );
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /posts\/legacy\.md has no uuid/);
+  assert.match(warnings[0], /"posts\/legacy\.md": the entry has no uuid[\s\S]*\(cms-entry-no-uuid\)$/);
 
   const posts = JSON.parse(readFileSync(join(out, 'posts.json'), 'utf8'));
   assert.deepEqual(posts.entries.map((entry) => entry.slug), ['hello', 'legacy']);
@@ -110,7 +110,7 @@ test('the CLI builds, checks clean, refuses drift with the file named, and rejec
   const built = run([], root);
   assert.equal(built.code, 0);
   assert.match(built.output, /wrote 3 files/);
-  assert.match(built.output, /legacy\.md has no uuid/);
+  assert.match(built.output, /"posts\/legacy\.md": the entry has no uuid[\s\S]*\(cms-entry-no-uuid\)/);
 
   assert.equal(run(['--check'], root).code, 0);
 

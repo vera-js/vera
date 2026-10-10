@@ -201,13 +201,24 @@ test('every by-name guard in the source is exercised above', async () => {
    * system) and a `misuse(…, 'code', …)` call (core and styles since 2026-10-09 — their prose lives in a table). A code is
    * exercised when some case THROWS a message ending in it: `(code)` in development, `…/e/code` in production.
    */
+  /** The codes tests/cms-list-lines asserts a line ends on — its `endsOn(line, 'code', …)` rows. */
+  const LIST_LINES = new Set([...readFileSync(join(root, 'tests/cms-list-lines.test.mjs'), 'utf8').matchAll(/endsOn\([^;]*?,\s*'([a-z][a-z0-9-]*)',/g)].map(([, code]) => code));
+  assert.ok(LIST_LINES.size >= 10, `CONTROL: tests/cms-list-lines exercises ${LIST_LINES.size} list codes`);
   const guards = new Set();
   const codes = new Set();
   for (const file of globSync('packages/*/src/**/*.{ts,js}', { cwd: root })) {
     if (file.endsWith('.d.ts')) continue;
     const text = readFileSync(join(root, file), 'utf8');
     for (const match of text.matchAll(/`([a-zA-Z]+): expected /g)) guards.add(match[1]);
-    for (const match of text.matchAll(/misuse\([^,]+,\s*'([a-z][a-z0-9-]*)'/g)) codes.add(match[1]);
+    for (const match of text.matchAll(/misuse\([^,]+,\s*'([a-z][a-z0-9-]*)'/g)) {
+      /**
+       * A misuse() line PUSHED onto a list (cms's validation and build lines) is a message, not a guard that throws — but
+       * only a COVERAGE hand-off excuses it (vera-5a): the code must be one tests/cms-list-lines exercises. A pushed code
+       * with no row there stays required here, so "not thrown" still means "pinned somewhere".
+       */
+      if (/\.push\(\s*$/.test(text.slice(Math.max(0, match.index - 16), match.index)) && LIST_LINES.has(match[1])) continue;
+      codes.add(match[1]);
+    }
   }
   assert.ok(guards.size + codes.size >= 15, `only found ${guards.size} literal guards and ${codes.size} coded ones — has the message shape changed?`);
 

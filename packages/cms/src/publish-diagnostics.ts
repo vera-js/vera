@@ -45,6 +45,29 @@ export const PROSE: Record<string, Prose> = {
     "The file's own error is this one's cause; fix the file and build again.",
   ],
   'cms-manifest-invalid': (where, problems) => [`${where} has fields that do not match the schema: ${problems}.`, 'Fix those fields in the file and build again.'],
+  /** One entry's lines — each a list item (a manifest's errors, the build's warnings), its subject the field or the file. */
+  'cms-entry-required': () => ['this required field is missing.', 'Add it to the entry\'s frontmatter.'],
+  'cms-entry-value': (expected, got) => [`expected ${expected}, got ${got}.`, 'Change the value in the entry\'s frontmatter.'],
+  'cms-entry-untitled': () => ['the entry has no title, so listings will show its slug.', 'Give it a title in its frontmatter.'],
+  'cms-entry-unknown-field': () => ['this field is not in the schema — it publishes, but nothing validates it.', 'Declare it in content/schema.json, or remove it.'],
+  'cms-entry-body-unused': () => [
+    'the entry has a body, but the collection is data-only (body: false) — it will not render.',
+    'Remove the body, or allow one in the collection\'s schema.',
+  ],
+  'cms-entry-no-uuid': () => [
+    'the entry has no uuid, so nothing can reference it and a rename will orphan its history.',
+    'Add one to its frontmatter.',
+  ],
+  'cms-entry-dangling-reference': (field, uuid, collection) => [
+    `${field} references uuid ${uuid}, and ${collection}/ has no entry carrying it.`,
+    'Point it at an entry that exists, or create that entry.',
+  ],
+  'cms-entry-unknown-term': (field, slug, taxonomy, path) => [
+    `${field} names the term ${slug}, and ${taxonomy}/ has no such entry.`,
+    `Fix the slug, or create ${path}.`,
+  ],
+  'cms-build-unknown-collection': () => ['the collection is not in the schema — it publishes, but nothing validates it.', 'Declare it in content/schema.json.'],
+  'cms-build-missing-folder': () => ['the schema declares this collection, but content/ has no such folder.', 'Create the folder, or remove the collection from the schema.'],
   'cms-build-schema': (path, detail) => [`${path} is not a usable schema: ${detail}.`, 'Fix content/schema.json and build again.'],
   'cms-build-reserved-name': (name) => [
     `a collection cannot be named ${name} — that artifact name belongs to the generated index.`,

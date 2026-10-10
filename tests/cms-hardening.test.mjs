@@ -54,7 +54,7 @@ test('schema names are bounded — they travel into artifact paths and URLs', ()
 test('a field named constructor in CONTENT reads as unknown, not as inherited machinery', async () => {
   const { validateEntry } = await load('cms/publish');
   const { warnings } = validateEntry({ uuid: 'u', title: 'T', constructor: 'x' }, { fields: {} });
-  assert.ok(warnings.some((warning) => /"constructor" is not in the schema/.test(warning)));
+  assert.ok(warnings.some((warning) => /^"constructor": this field is not in the schema[\s\S]*\(cms-entry-unknown-field\)$/.test(warning)));
 });
 
 test('the writer refuses path-shaped names — one once staged a GitHub Actions workflow', () => {

@@ -63,8 +63,8 @@ test('a dangling term reference is an error naming the file, the slug, and both 
   ]);
   const { errors } = generateTaxonomies(SCHEMA, manifests);
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /posts\/a\.md: "tags" names the term "desing"/);
-  assert.match(errors[0], /fix the slug, or create tags\/desing\.md/);
+  assert.match(errors[0], /"posts\/a\.md": "tags" names the term "desing"[\s\S]*\(cms-entry-unknown-term\)$/);
+  assert.match(errors[0], /Fix the slug, or create "tags\/desing\.md"/);
 });
 
 test('through the pipeline: the typo fails the build; creating the term file fixes it', (t) => {
