@@ -6,7 +6,7 @@
       "params": [
         "tag"
       ],
-      "message": "<{tag}> has an async connectedCallback, which cannot be awaited during a synchronous render — its markup would be empty.",
+      "message": "<{tag}> has an async connectedCallback or an async setup, which cannot be awaited during a synchronous render — its markup would be empty.",
       "fix": "Use renderToStringAsync, or load data first and pass it as attributes."
     },
     {

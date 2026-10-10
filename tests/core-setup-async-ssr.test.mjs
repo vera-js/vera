@@ -43,3 +43,11 @@ test('a setup slower than `timeout` is served as it stands, with the over-budget
   assert.ok(!out.html.includes('<p>slow</p>'), `not waited past the budget: ${out.html}`);
   assert.ok(out.said.some((line) => line.includes('ssr-timeout')), `said: ${out.said.join(' | ')}`);
 });
+
+test('a rejected async setup reaches the server as a render failure carrying its cause', () => {
+  const out = serve('renderToStringAsync', 'as-reject');
+  assert.ok(out.threw !== null || out.said.length > 0, 'CONTROL: the server heard of it at all');
+  const heard = `${out.threw ?? ''} ${out.said.join(' | ')}`;
+  assert.match(heard, /ssr-render-threw|setup-rejected/, heard);
+  assert.match(heard, /the fetch failed/, `the cause is named: ${heard}`);
+});

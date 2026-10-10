@@ -8,6 +8,7 @@ import { untracked } from './untrack.js';
 import { firstPasses } from './mount.js';
 import { useRender } from '../hooks/useRender.js';
 import { runCleanup } from '../hooks/coalesce.js';
+import { reportHookError } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
 /**
@@ -198,10 +199,18 @@ const start = (element: ComponentElement, root: ShadowRootInit | undefined) => {
  */
 const settle = (element: ComponentElement, out: unknown, generation: number) => {
   if (typeof (out as PromiseLike<unknown> | null)?.then === 'function') {
-    /** Kept for the `customElements.define` wrapper below, which hands it to whoever awaits the connect — a server. */
-    (element as Moving)._setup = (out as PromiseLike<unknown>).then((value) => {
-      if (element._gen === generation && element.isConnected) settle(element, value, generation);
-    });
+    /**
+     * Kept for the `customElements.define` wrapper below, which hands it to whoever awaits the connect — a server. It is
+     * the HANDLED chain, so it never rejects: a setup that rejects commits nothing (like one that throws) and is reported
+     * once through the `'error'` chain — which is how a server hears of it — never as an unhandled rejection.
+     */
+    (element as Moving)._setup = (out as PromiseLike<unknown>).then(
+      (value) => {
+        if (element._gen === generation && element.isConnected) settle(element, value, generation);
+      },
+      (error) =>
+        reportHookError(error, element, __DEV__ ? diagnostic('core', `<${element.localName}>`, 'setup-rejected', __DEV__ && PROSE['setup-rejected']()) : '[vera] setup-rejected')
+    );
     return;
   }
   /**

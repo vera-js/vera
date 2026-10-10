@@ -58,3 +58,13 @@ customElements.define('as-slow', class extends HTMLElement {
     });
   }
 });
+
+/** A setup that rejects. */
+customElements.define('as-reject', class extends HTMLElement {
+  connectedCallback() {
+    init(this, async () => {
+      await later(10);
+      throw new Error('the fetch failed');
+    });
+  }
+});

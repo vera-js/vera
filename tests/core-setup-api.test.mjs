@@ -18,7 +18,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 const core = await load('core');
 const { renderer } = await load('renderer');
 core.wire([renderer]);
-const { init, html, createStore, useEffect, flush } = core;
+const { init, html, createStore, useEffect, flush, wire, inserts } = core;
 const doc = dom.window.document;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let seq = 0;
@@ -242,6 +242,40 @@ test('a ShadowRootInit naming a mode the platform lacks is the PLATFORM\'s to re
   });
   assert.ok(thrown instanceof dom.window.TypeError || thrown instanceof TypeError, `attachShadow refused it: ${thrown}`);
   if (!isProduction) assert.ok(said.some((line) => line.includes('shadow-option') && line.includes("{ mode: 'opne' }")), `named first: ${said.join(' | ')}`);
+});
+
+test('a rejected async setup is reported ONCE through the error chain — never an unhandled rejection — and commits nothing', async () => {
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  const reported = [];
+  const handler = (error, element) => reported.push([error.message, element?.localName]);
+  wire({ on: 'error', fn: handler, priority: 77 });
+  let ran = 0;
+  const tag = name();
+  try {
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        init(this, async () => {
+          useEffect(() => { ran++; });
+          await Promise.resolve();
+          throw new Error('the fetch failed');
+        });
+      }
+    });
+    await mount(tag);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+    /** Unwired again, so later rows see no error insert: the chain and its priority order (`_p`, never mangled). */
+    const chain = inserts.get('error');
+    const at = chain.indexOf(handler);
+    chain.splice(at, 1);
+    chain._p.splice(at, 1);
+  }
+  assert.deepEqual(reported, [['the fetch failed', tag]], 'reported once, with its cause and its element');
+  assert.equal(unhandled.length, 0, `no unhandled rejection: ${unhandled.map(String).join(' | ')}`);
+  assert.equal(ran, 0, 'nothing it registered ran');
 });
 
 test('the old init(this, { mode }) is refused in development with the new spelling', R2, async () => {

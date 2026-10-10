@@ -98,6 +98,12 @@
       "fix": "Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns."
     },
     {
+      "code": "setup-rejected",
+      "params": [],
+      "message": "its async setup rejected, so nothing it registered runs; the error is printed beside this line.",
+      "fix": "Catch inside the setup to render a fallback, or wire an 'error' insert to handle it: `wire([{ on: 'error', fn: (error, element) => … }])`."
+    },
+    {
       "code": "setup-returned-value",
       "params": [
         "kind"
@@ -116,9 +122,10 @@
     {
       "code": "shadow-option",
       "params": [
-        "value"
+        "value",
+        "platform"
       ],
-      "message": "`shadow: {value}` is not a root this element can have, so it renders into its light DOM.",
+      "message": "`shadow: {value}` names a mode the platform does not have, so attachShadow refuses it (it throws, in every build).",
       "fix": "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }."
     },
     {

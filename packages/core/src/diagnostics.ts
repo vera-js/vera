@@ -18,6 +18,10 @@ export const PROSE: Record<string, Prose> = {
   ],
   /* ── misused APIs (thrown, development only — `misuse()`) ── */
   /* ── the setup (R1, 2026-10-10) ── */
+  'setup-rejected': () => [
+    'its async setup rejected, so nothing it registered runs; the error is printed beside this line.',
+    "Catch inside the setup to render a fallback, or wire an 'error' insert to handle it: `wire([{ on: 'error', fn: (error, element) => … }])`.",
+  ],
   'setup-returned-value': (kind) => [
     `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
     'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
