@@ -169,6 +169,16 @@ code, so they are not re-litigated.
   tier-up is part of the cost, not noise: it is what a server's first requests pay. Keep what a hot loop reads module-local and export a separate alias (`export const
   RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
   every hot-path change gets a cold-process or race measurement before it lands.
+- **A hot function near V8's inlining budget pays for ANY growth — even code that never runs.** V8 inlines a function
+  into its caller only while its bytecode is at most `--max-inlined-bytecode-size` (460). `serializeValue`, inlined into
+  `serializeTemplate`'s per-binding loop, sat at 455; the DOM-node case took it to 467 and cost 3.6% steady on renders
+  that never reached the case (2026-10-09). A bisect turning the change's parts off settled it: the import, the alias and
+  a same-size comment were free, and a never-taken `if (value === DEAD) return ''` alone cost 4.0% — V8's trace said
+  "Cannot consider serializeValue for inlining (reason: 5)", too big. Measure with `--print-bytecode
+  --print-bytecode-filter=<name>` (or `--trace-turbo-inlining`), and when a change crosses, move rarely-run code — an
+  error's construction is the usual candidate — out of line. `tests/ssr-inlining-budget.test.mjs` guards
+  `serializeValue` and prints its headroom every run. A size cliff shows in no code read and no correctness test; and
+  Firefox and Safari inline on different rules, so in the browser the three-engine race is the only oracle.
 - **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
   create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
   class defines is work the engine does for every instance; never add one speculatively.
