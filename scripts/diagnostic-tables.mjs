@@ -43,3 +43,11 @@ export const TABLES = [
   { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: ['src/transform.ts', 'src/parser.ts', 'src/standalone.ts'] },
   { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/render.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
 ];
+
+/**
+ * **Directives' tables** — the engine's and each pack's own (one per pack entry, as the renderer's) — merged into one
+ * `packages/directives/diagnostics.json`, which `scripts/sync-diagnostics.mjs` publishes WITH the payload vocabulary,
+ * so directives is not in TABLES. Its manifest is `checkedBy` the motion-aware scanner (the pack forwards motion's
+ * codes); through-tables reads its tables from here.
+ */
+export const DIRECTIVES = { name: 'directives', tables: ['src/diagnostics.ts', 'src/remote-diagnostics.ts'], checkedBy: 'tests/diagnostics-table.test.mjs' };

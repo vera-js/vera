@@ -291,3 +291,8 @@ The name itself is markup input and is allowlisted to `[a-z][a-z0-9-]*` before a
 a name outside the grammar is declined, never fetched. `directiveLoader(...).url(name)` returns
 the URL it would fetch, for `<link rel="modulepreload">` warming and for answering "why is it
 fetching that". One attempt per name per page load; the engine memoizes the refusals.
+
+**A failed import is reported once, by the engine** — one line naming the directive and the URL, with the error
+beside it. The loader itself prints nothing: its load function rejects with an `Error` whose message is the URL
+it tried and whose `cause` is the import's own error (`error.cause`). So a page that calls the loader directly,
+without the engine, reads both from its own `catch`.

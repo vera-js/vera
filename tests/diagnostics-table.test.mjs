@@ -25,7 +25,15 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 
-const { PROSE: DIRECTIVES } = await import('../packages/directives/src/diagnostics.ts');
+/** The engine's table and each pack's own (one per pack entry, so a pack's development bundle carries only its prose),
+ *  listed once in scripts/diagnostic-tables.mjs. */
+const { DIRECTIVES: LISTED } = await import('../scripts/diagnostic-tables.mjs');
+const DIRECTIVES = {};
+for (const table of LISTED.tables)
+  for (const [code, prose] of Object.entries((await import(`../packages/directives/${table}`)).PROSE)) {
+    assert.ok(!(code in DIRECTIVES), `"${code}" is in two of directives' tables`);
+    DIRECTIVES[code] = prose;
+  }
 /** `@verajs/motion`'s own table (phase 4, 2026-10-09) — its codes reach the engine through the pack, so ONE manifest
  *  holds both tables: a raise is covered by either, and the ownership test below says which. */
 const { PROSE: MOTION } = await import('../packages/motion/src/diagnostics.ts');
@@ -167,6 +175,16 @@ for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).
     raised.get(match[1]).add(rel);
   }
 }
+
+/**
+ * **A code in the SHARED table is the shared table's, whatever route raises it** — not only when the call names
+ * `SHARED.` in its arguments (the check above): motion()'s option check hands reject() the shared text through a
+ * variable, as reject's caller-text path takes it (2026-10-09). tests/diagnostics-tables holds the shared table.
+ */
+const { proseOf } = await import('../scripts/diagnostic-tables.mjs');
+const SHARED_CODES = Object.keys(proseOf(await import('../packages/shared-utils/src/diagnostics.ts')));
+assert.ok(SHARED_CODES.includes('unknown-option'), 'CONTROL: the shared table was read');
+for (const code of SHARED_CODES) raised.delete(code);
 
 test('every code raised has an entry — no refusal without words', () => {
   /**

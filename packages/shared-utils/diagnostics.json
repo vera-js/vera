@@ -125,6 +125,15 @@
       "fix": "Use `tag`h1`` from @verajs/renderer/tag, with that entry's `html`."
     },
     {
+      "code": "unknown-option",
+      "params": [
+        "key",
+        "list"
+      ],
+      "message": "`{key}` is not an option, so it was ignored.",
+      "fix": "The options are {list}."
+    },
+    {
       "code": "upgrade-clobber",
       "params": [
         "name"

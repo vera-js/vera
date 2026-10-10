@@ -178,6 +178,14 @@
       "message": "{url} answered {status}."
     },
     {
+      "code": "fetch-feed-depth",
+      "params": [
+        "key"
+      ],
+      "message": "this accumulating feed's \"{key}\" is URL-bound through data-vd-query, so a shared link opens with holes — the middle pages were DOM, not URL.",
+      "fix": "A feed shares a POSITION: an item fragment (#id), or a server cursor the establishment request can start from. Keep \"{key}\" out of data-vd-query."
+    },
+    {
       "code": "fetch-foreign-markup",
       "params": [],
       "message": "a cross-origin response may only be JSON — markup is never swapped from another origin.",
@@ -269,9 +277,10 @@
       "code": "loader-failed",
       "params": [
         "suffix",
-        "detail"
+        "src"
       ],
-      "message": "the loader claimed \"{suffix}\" but the import failed: {detail}"
+      "message": "the loader claimed \"{suffix}\" but its import of {src} failed — the error follows.",
+      "fix": "Check that the file is at that address and loads on its own (open it directly)."
     },
     {
       "code": "loader-loaded-nothing",
@@ -366,13 +375,6 @@
       ],
       "message": "this element senses its own position (in-view) while \"when: '{when}'\" gates an animation that MOVES it — if the sensor feeds that gate, the trigger line can sit inside the element's own travel and oscillate.",
       "fix": "Put data-vd-in-view on an untransformed wrapper; the box then animates without ever crossing its own line."
-    },
-    {
-      "code": "motion-unknown-option",
-      "params": [
-        "key"
-      ],
-      "message": "motion() was given \"{key}\", which is not an option this pack has."
     },
     {
       "code": "name-forbidden",
@@ -833,6 +835,20 @@
       "params": [],
       "message": "data-vd-watch takes a braced object of key: { writes }.",
       "fix": "Write data-vd-watch=\"{ q: { page: 1 } }\"."
+    },
+    {
+      "code": "wire-directive-name",
+      "params": [],
+      "message": "a directive needs a `name` string or a { match } family.",
+      "fix": "Name it: { name: 'tooltip', … }, or match a family: { name: { match: (attr) => …, pattern: 'tip-*' }, … }."
+    },
+    {
+      "code": "wire-directive-value",
+      "params": [
+        "given"
+      ],
+      "message": "`value` must be literal | expression | object | none — got {given}.",
+      "fix": "It says what apply() receives: 'literal' the attribute's text, 'object' a parsed { … }, 'expression' its evaluated value, 'none' nothing."
     }
   ],
   "payloads": [

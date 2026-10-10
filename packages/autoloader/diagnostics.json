@@ -27,15 +27,6 @@
       "fix": "The error is printed beside this line; the import itself failed."
     },
     {
-      "code": "loader-option",
-      "params": [
-        "key",
-        "known"
-      ],
-      "message": "`{key}` is not an option, so it was ignored.",
-      "fix": "The options are {known}."
-    },
-    {
       "code": "loader-resolve-threw",
       "params": [],
       "message": "the `resolve` option threw.",

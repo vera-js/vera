@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load, isProduction } from './dist.mjs';
+import { printed } from './console-args.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element',
@@ -31,7 +32,7 @@ wireDirectives([expressions, ...interactions]);
 
 const lines = [];
 const original = console.warn;
-console.warn = (...args) => lines.push(args.join(' '));
+console.warn = (...args) => lines.push(printed(args).join(' '));
 
 /**
  * The same refusal from TWO elements, which is what the once-per-code rule is about.

@@ -26,7 +26,8 @@ import {
 import type { RegionOptions, SequenceOptions } from '@verajs/motion/internal';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
-import type { Ctx, Directive, EngineConnector } from '../types.js';
+import type { Ctx, Directive, EngineConnector, EngineSeams } from '../types.js';
+import { SHARED } from '@verajs/shared-utils';
 import { splitDirective } from './split.js';
 
 
@@ -132,8 +133,8 @@ const guarded = (
       fn(node, progress);
     } catch (error) {
       live = false;
-      pageProblem('motion-onprogress-threw');
-      console.warn('[vera] motion-onprogress-threw', error);
+      /** One line, the callback's error beside it. */
+      pageProblem('motion-onprogress-threw', [], error);
     }
   };
 };
@@ -143,7 +144,7 @@ let defaults = { ...DEFAULTS };
 let breakpoints: Map<string, Range> = usableBreakpoints(DEFAULTS.breakpoints);
 let onProgress: ((node: HTMLElement, progress: number) => void) | undefined;
 
-const resolveOptions = (options: MotionOptions): void => {
+const resolveOptions = (options: MotionOptions, reject: EngineSeams['reject']): void => {
   /** `undefined` means NOT GIVEN, not "off" — the GUI-generated-object rule. */
   const merged = { ...DEFAULTS, ...options } as typeof defaults & MotionOptions;
   for (const [key, value] of Object.entries(options)) {
@@ -151,9 +152,15 @@ const resolveOptions = (options: MotionOptions): void => {
       (merged as unknown as Record<string, unknown>)[key] = (DEFAULTS as Record<string, unknown>)[key];
     }
   }
+  /**
+   * The one SHARED text the five sibling modules print (`unknown-option`), handed to reject() as caller text in
+   * development — so the check stays EVERY-BUILD (production still records the rejection and prints its code;
+   * `rejections()` is what an inspector reads) with no table registration (vera-5a, 2026-10-09).
+   */
   for (const key of Object.keys(options)) {
     if (!KNOWN_OPTIONS.has(key)) {
-      pageProblem('motion-unknown-option', [key]);
+      const [text, fix] = __DEV__ ? SHARED.unknownOption(key, [...KNOWN_OPTIONS].join(', ')) : [];
+      reject(null, 'motion()', 'unknown-option', text, fix);
     }
   }
   /** Boolean options that are not booleans invert accessibility switches silently. */
@@ -461,10 +468,10 @@ const configDirective: Directive = {
 
 const connect = (options?: MotionOptions): EngineConnector => (seams) => {
   /** Page problems land in the engine's registry like every other refusal. */
-  setProblemReporter((code, args, element) => seams.reject(element ?? null, 'motion', code, args));
+  setProblemReporter((code, args, element, cause) => seams.reject(element ?? null, 'motion', code, args, undefined, cause));
   /** `@verajs/motion`'s own sentences, for every route a motion code reaches the engine by — development only. */
   if (__DEV__ && MOTION_PROSE) seams.prose?.(MOTION_PROSE);
-  resolveOptions(options ?? {});
+  resolveOptions(options ?? {}, seams.reject);
   seams.directive(motionDirective);
   seams.directive(configDirective);
 };
@@ -482,7 +489,7 @@ export const motion = dual<MotionOptions>(connect);
  * body registers its rows. Exported so third parties write the same shape.
  */
 export const motionExtension = (rows: WirableTree): EngineConnector => (seams) => {
-  setProblemReporter((code, args, element) => seams.reject(element ?? null, 'motion', code, args));
+  setProblemReporter((code, args, element, cause) => seams.reject(element ?? null, 'motion', code, args, undefined, cause));
   /** `@verajs/motion`'s own sentences, for every route a motion code reaches the engine by — development only. */
   if (__DEV__ && MOTION_PROSE) seams.prose?.(MOTION_PROSE);
   registerVocabulary(rows);

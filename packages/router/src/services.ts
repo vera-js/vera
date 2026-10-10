@@ -5,7 +5,7 @@ import type { Inserts } from '@verajs/inserts';
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
 import { saidString } from './events.js';
-import { diagnostic, misuse, stripTrailingSlash } from '@verajs/shared-utils';
+import { diagnostic, misuse, SHARED, stripTrailingSlash } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import type { Renderer } from '@verajs/shared-types';
 
@@ -59,7 +59,7 @@ export const router = (given: Inserts | { animate?: boolean; base?: string }): v
   if (__DEV__) {
     for (const key of Object.keys(options))
       if (key !== 'animate' && key !== 'base')
-        console.warn(diagnostic('router', 'router()', 'router-option', __DEV__ && PROSE['router-option'](key)));
+        console.warn(diagnostic('router', 'router()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'animate, base')));
   }
   /** Applied immediately, not in the returned connector: the no-core path (`setRouterRenderer`)
    *  never wires the connector and must still be able to opt in. */

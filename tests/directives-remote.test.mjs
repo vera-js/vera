@@ -17,6 +17,7 @@ import test from 'node:test';
 import { createServer, get } from 'node:http';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { printed } from './console-args.mjs';
 
 /* ── a real server ───────────────────────────────────────────────────────────────────────── */
 
@@ -328,7 +329,7 @@ test('the pun guard: an accumulating feed with a URL-bound depth key warns once 
   const isProd = process.env.VERA_DIST === 'production';
   const warnings = [];
   const orig = console.warn;
-  console.warn = (...a) => { warnings.push(a.join(' ')); };
+  console.warn = (...a) => { warnings.push(printed(a).join(' ')); };
   try {
     const host = await mount(`
       <div data-vd-state="{ page: 1 }" data-vd-query="page">
@@ -340,7 +341,7 @@ test('the pun guard: an accumulating feed with a URL-bound depth key warns once 
     host.querySelector('#feedmore').click();
     await new Promise((r) => setTimeout(r, 150));
     await settled();
-    const hits = warnings.filter((w) => w.includes('[vera] fetch') && w.includes('holes'));
+    const hits = warnings.filter((w) => w.includes('(fetch-feed-depth)') && w.includes('holes'));
     if (isProd) assert.equal(hits.length, 0, 'production carries no advisory text');
     else assert.equal(hits.length, 1, 'dev warns exactly once per element, naming the pun');
     host.remove();

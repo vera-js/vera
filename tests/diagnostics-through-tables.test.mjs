@@ -13,7 +13,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TABLES, proseOf } from '../scripts/diagnostic-tables.mjs';
+import { DIRECTIVES, TABLES as LISTED, proseOf } from '../scripts/diagnostic-tables.mjs';
+
+/** Every package's tables, directives' included (published by sync-diagnostics with its payloads, so listed apart). */
+const TABLES = [...LISTED, DIRECTIVES];
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 /**
@@ -37,6 +40,8 @@ const MIGRATED = [
   /** Motion's own bundles AND every directives one: the pack inlines @verajs/motion, and the table it hands the engine
    *  must be dead there too (vera-5a, phase 4 seam condition 3). */
   ['motion', ['dist/*.min.js', '../directives/dist/*.min.js']],
+  /** Every directives bundle — the engine and each pack. */
+  ['directives', 'dist/*.min.js'],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -151,11 +156,10 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  * this list, so the sentence cannot run ahead of the code.
  */
 const NOT_YET = new Map([
-  ['directives', "phase 4 (its remainder — its table exists, a few inline lines don't use it)"],
   ['ssr', 'phase 4'],
   ['cms', 'phase 5 — the named list in the migration plan; programmer API contracts stay named throws'],
 ]);
-const NOT_YET_MAX = 3;
+const NOT_YET_MAX = 2;
 
 test('every package that prints or throws is on the code system, or listed with its phase (the list only shrinks)', () => {
   const printing = globSync('packages/*/src', { cwd: root })

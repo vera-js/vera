@@ -196,7 +196,7 @@ export type EngineSeams = {
   setParse: (parse: (source: string) => Parsed) => void;
   setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
   directive: (d: Directive) => void;
-  reject: (element: Element | null, directive: string, code: string, messageOrArgs?: string | readonly unknown[], fix?: string) => void;
+  reject: (element: Element | null, directive: string, code: string, messageOrArgs?: string | readonly unknown[], fix?: string, cause?: unknown) => void;
   /**
    * Invoke a registered ACTION — the value tier's door to `wireActions`.
    *

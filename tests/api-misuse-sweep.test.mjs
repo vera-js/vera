@@ -35,6 +35,7 @@ const { navigate } = routerModule;
 const reactivity = await load('store');
 const { autoloader, directiveLoader } = await load('autoloader');
 const styleModule = await load('styles');
+const { wireDirectives } = await load('directives');
 
 const skip = isProduction && 'development-only diagnostics';
 
@@ -86,6 +87,8 @@ const CASES = [
   ['initRouter with no view', () => routerModule.initRouter(document.createElement('div'), {}), /initRouter: needs an element and a view/],
   ['setBasePath(notAString)', () => routerModule.setBasePath(42), /setBasePath: expected a string or null/],
   ['allowRenderLoop(notAnElement)', () => core.allowRenderLoop(42), /allowRenderLoop: expected a component element/],
+  ['wireDirectives(a directive with no name)', () => wireDirectives({ value: 'none' }), /wireDirectives: a directive needs a `name`[\s\S]*\(wire-directive-name\)$/],
+  ['wireDirectives(a bad value class)', () => wireDirectives({ name: 'sweep-probe', value: 'text' }), /wireDirectives: `value` must be literal \| expression \| object \| none — got text\.[\s\S]*\(wire-directive-value\)$/],
 ];
 
 /** Guards behind an async API: they REJECT rather than throw, so the coverage check below awaits them. */

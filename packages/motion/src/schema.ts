@@ -62,14 +62,16 @@ export const problemLine = (code: string, args: readonly string[], subject: stri
   __DEV__
     ? diagnostic('motion', subject, code, PROSE[code]?.(...args))
     : `[vera] ${code}: ${subject}${args.length ? ` (${args.join(', ')})` : ''}`;
-let report: (code: string, args: readonly string[], element?: Element) => void = (code, args, element) => {
-  console.warn(problemLine(code, args, element ? `<${element.localName}>` : 'the page'));
+/** `cause` — what was thrown, when one caused the problem — rides beside the line on the '%s' path (one report, the
+ *  error and its stack with it); it is console-only. */
+let report: (code: string, args: readonly string[], element?: Element, cause?: unknown) => void = (code, args, element, cause) => {
+  console.warn('%s', problemLine(code, args, element ? `<${element.localName}>` : 'the page'), ...(cause === undefined ? [] : [cause]));
 };
 export const setProblemReporter = (fn: typeof report): void => {
   report = fn;
 };
 /** A page-level problem — no element to hang it on. Codes, like everything else here. */
-export const pageProblem = (code: string, args: readonly string[] = []): void => report(code, args);
+export const pageProblem = (code: string, args: readonly string[] = [], cause?: unknown): void => report(code, args, undefined, cause);
 /** A problem WITH a culprit — the verify instrument's shape: on a page of fifty motions, the
  *  report is only actionable if it names which one the cascade squashed. The element rides the
  *  reporter seam as an optional third argument, so an element-less reporter is unaffected. */

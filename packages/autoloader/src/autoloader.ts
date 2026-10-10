@@ -1,5 +1,5 @@
 import type { AutoloaderInstance, AutoloaderOptions } from './types.js';
-import { diagnostic, misuse, thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, misuse, SHARED, thrownMessage } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
 /**
@@ -48,7 +48,7 @@ export const autoloader = (
   if (__DEV__ && options)
     for (const key of Object.keys(options))
       if (key !== 'extension' && key !== 'resolve')
-        console.warn(diagnostic('autoloader', 'options', 'loader-option', __DEV__ && PROSE['loader-option'](key, 'extension and resolve')));
+        console.warn(diagnostic('autoloader', 'options', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'extension, resolve')));
 
   /** Normalized so callers may pass either `ts` or `.ts` */
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;

@@ -112,3 +112,11 @@ export const styleObject: Prose = (example) => [
   'style expects a STRING, not an object.',
   `Build the string: ${example}.`,
 ];
+/**
+ * An option a module or loader does not have — autoloader(), directiveLoader(), router(), and the directives packs
+ * remote(), sensors(), motion(). One fact and one fix; the module is the line's SUBJECT and the list is its own.
+ */
+export const unknownOption: Prose = (key, list) => [
+  `\`${key}\` is not an option, so it was ignored.`,
+  `The options are ${list}.`,
+];

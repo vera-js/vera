@@ -68,10 +68,11 @@ for (const file of FILES)
 
 const PENDING = 'pending the code-system migration';
 /** The pending list's size when it was written; lower it as packages migrate, never raise it. */
-const PENDING_MAX = 8;
+const PENDING_MAX = 6;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
+  ['packages/autoloader/README.md#040a91dcf5', 'pinned by tests/directive-import-one-report.test.mjs: one failed import is exactly one line, the URL-named Error beside it, and a direct caller gets that rejection with nothing printed'], // **A failed import is reported once, by the engine** — one line naming the directive and the URL
   ['llms.txt#304378b23d', 'pinned by tests/jsx-coded-errors.test.mjs: the production compiler says exactly position + docs link'], // **On this map a compile error names its position and its code** — `app.jsx:1:15 — https://verajs.dev/e/…`
   ['llms.txt#11ecc1a63b', 'jsx-uncontrolled'], // While developing, map `@verajs/jsx` to …/dist/development/vera-jsx-standalone.js instead
   ['llms.txt#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // Core, styles, the renderer and the router also give every line a code …
@@ -109,7 +110,7 @@ const CLAIMS = new Map([
   ['llms.txt#f4c0cf1abe', 'motion-function-threw'], // The attribute NAMES a function and never contains one, `tick` may be the whole animation (
   ['llms.txt#ed7c5e3aed', 'pinned by tests/motion-ssr-diagnostics.test.mjs: the script is RUN and every line is motion\'s one format, per build'], // It now also emits one inline `<script data-vm-diagnostics>` … one line each, in motion's one format
   ['llms.txt#ad6b32ff47', 'motion-vocabulary-replaced'], // `motionExtension` is also how a module adds animatable PROPERTIES (`{ key, category, … }`)
-  ['llms.txt#52f6fe43e7', PENDING], // Keep a FEED's depth out of `data-vd-query` — an accumulating view's middle pages are DOM, 
+  ['llms.txt#52f6fe43e7', 'fetch-feed-depth'], // Keep a FEED's depth out of `data-vd-query` — an accumulating view's middle pages are DOM, 
   ['llms.txt#df3b9dfe11', 'not a promise: attribute carve-outs, no diagnostic'], // The exceptions are derivations, not a vocabulary: names that cannot be JS identifiers (`da
   ['llms.txt#347dad05df', 'attribute-value'], // On an HTML tag, `rows={data}` is still an attribute, and the renderer names any non-primit
   ['llms.txt#461d362f95', 'boolean-child'], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
@@ -134,7 +135,7 @@ const CLAIMS = new Map([
   ['packages/core/README.md#e8129f5cea', 'not a promise: says nothing can warn'], // Without the guard the component still renders, because a custom-element reaction that thro
   ['packages/core/README.md#b9d5123713', 'not a promise: says there is no warning'], // **Every ID-based ARIA relationship resolves within a single tree, so a shadow root breaks 
   ['packages/core/README.md#10b78df7ea', 'upgrade-clobber'], // An element that never calls `init()` (a plain custom element a vera template binds) keeps 
-  ['packages/directives/README.md#bc8584566e', PENDING], // A feed shares a POSITION — an item fragment (`#id`), or a server cursor the establishment 
+  ['packages/directives/README.md#bc8584566e', 'fetch-feed-depth'], // A feed shares a POSITION — an item fragment (`#id`), or a server cursor the establishment 
   ['packages/directives/README.md#4d20f0c981', 'motion-property-at-top-level'], // Put one in the wrong half and it is refused by name with the move spelled out, in both dir
   ['packages/directives/README.md#c54e2c0f10', 'motion-vocabulary-replaced'], // Keys **replace** with a `motion-vocabulary-replaced` warning; inserts (`preset`, `easing`,
   ['packages/inserts/README.md#a56509b716', 'not a promise: a return-value protocol, not a message'], // An insert that wants to change what core does — rather than merely watch — says so through

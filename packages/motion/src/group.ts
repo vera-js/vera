@@ -82,8 +82,8 @@ export const runInserts = (point: keyof InsertMap, ...args: readonly unknown[]):
     } catch (error) {
       if (!warnedInsert) {
         warnedInsert = true;
-        pageProblem('motion-module-threw', [point]);
-        console.warn('[vera] motion-module-threw', error);
+        /** One line, the module's error beside it. */
+        pageProblem('motion-module-threw', [point], error);
       }
     }
   }

@@ -54,8 +54,10 @@ for (const entry of TABLES) {
   results.push({ ...entry, own, raised, problems });
 }
 
-for (const { name, own, raised, problems, sources, checkedBy } of results)
-  test(`${name}: every code raised has an entry, every entry is raised, and each call names one code`, { skip: checkedBy && `held by ${checkedBy}` }, () => {
+/** A package whose manifest another test holds (`checkedBy` — motion's, in tests/diagnostics-table.test.mjs) gets no
+ *  row here at all: a permanently skipped duplicate would read as pending work in every run. */
+for (const { name, own, raised, problems, sources } of results.filter(({ checkedBy }) => !checkedBy))
+  test(`${name}: every code raised has an entry, every entry is raised, and each call names one code`, () => {
     assert.deepEqual(problems, []);
     /** Shared-utils' entries are raised from OTHER packages' sources — checked by the next test. */
     if (name === 'shared-utils') return;

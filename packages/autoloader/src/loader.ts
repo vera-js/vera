@@ -34,7 +34,7 @@
  * exactly the autoloader's posture with URLs; the ASKER memoizes refusals, this memoizes loads.
  */
 import type { DirectiveLoaderInstance, DirectiveLoaderOptions } from './types.js';
-import { diagnostic, misuse, thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, misuse, SHARED, thrownMessage } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
 /** The refusals this loader throws itself — already coded, so `load` forwards them as they are (routing). */
@@ -64,7 +64,7 @@ export const directiveLoader = (
     if (options)
       for (const key of Object.keys(options))
         if (key !== 'extension' && key !== 'alias' && key !== 'resolve')
-          console.warn(diagnostic('directiveLoader', 'options', 'loader-option', __DEV__ && PROSE['loader-option'](key, 'extension, alias and resolve')));
+          console.warn(diagnostic('directiveLoader', 'options', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'extension, alias, resolve')));
   }
   const base = new URL('.', rootDir).href;
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
@@ -117,12 +117,15 @@ export const directiveLoader = (
     /**
      * The import IS the claim. Success means "the module ran" — whether it registered the name
      * is the ASKER's check, because only the asker owns the registry; a module that loads and
-     * registers nothing earns `loader-loaded-nothing` there, with this URL in the story via the
-     * console line below.
+     * registers nothing earns `loader-loaded-nothing` there.
+     *
+     * A failure is the ASKER's to report too, and this prints nothing (2026-10-09): one failed import used to say two
+     * lines — this one with the URL and the error, the engine's with the directive and its elements. The engine now
+     * says one, asking `url` for the address and forwarding the import's error; a direct caller reads the address in
+     * the rejection's message and the import's own error as its `cause` — the standard shape.
      */
-    const request = import(/* @vite-ignore */ src).catch((error) => {
-      console.error('%s', diagnostic('directiveLoader', `"${name}"`, 'loader-import-failed', __DEV__ && PROSE['loader-import-failed'](`"${name}"`, src)), error);
-      throw error;
+    const request = import(/* @vite-ignore */ src).catch((error: unknown) => {
+      throw new Error(src, { cause: error });
     });
     claimed.set(name, request);
     return request;

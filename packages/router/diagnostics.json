@@ -107,14 +107,6 @@
       "fix": "initRouter(element, { view }) — the view is an element or the name of a [view] outlet."
     },
     {
-      "code": "router-option",
-      "params": [
-        "option"
-      ],
-      "message": "`{option}` is not a router option, so it was ignored.",
-      "fix": "The options are animate, base."
-    },
-    {
       "code": "router-redirect-loop",
       "params": [
         "path"

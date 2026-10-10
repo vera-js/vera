@@ -33,7 +33,9 @@
  * the first, so a fast-typing search box cannot have an early response land after a late one and
  * write stale state — the bug every hand-rolled version of this has.
  */
+import { diagnostic, SHARED } from '@verajs/shared-utils';
 import { dual } from './dual.js';
+import { PROSE } from './remote-diagnostics.js';
 import { claimCommit, commitFlip } from './flip.js';
 import { isObject } from './parse.js';
 import type { Directive, Ctx, EngineConnector, ListChange } from './types.js';
@@ -292,12 +294,7 @@ const fetchDirective: Directive = {
                   .find((key) => requested.has(key) || requested.has(`${key}[]`));
                 if (pun) {
                   warnedFeedDepth.add(element);
-                  console.warn(
-                    `[vera] fetch: this accumulating feed's "${pun}" is URL-bound through data-vd-query, ` +
-                    `so a shared link opens with holes — the middle pages were DOM, not URL. ` +
-                    `A feed shares a POSITION: an item fragment (#id), or a server cursor the ` +
-                    `establishment request can start from. Keep "${pun}" out of data-vd-query.`
-                  );
+                  console.warn(diagnostic('directives', 'data-vd-fetch', 'fetch-feed-depth', PROSE['fetch-feed-depth']!(pun)));
                 }
               }
               const markup = body;
@@ -686,7 +683,7 @@ const connect = (options?: RemoteOptions): EngineConnector => (seams) => {
   if (__DEV__ && options) {
     for (const key of Object.keys(options))
       if (key !== 'allowedOrigins' && key !== 'headers')
-        console.warn(`[vera] remote: \`${key}\` is not a remote option, so it was ignored. The options are allowedOrigins, headers.`);
+        console.warn(diagnostic('directives', 'remote()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'allowedOrigins, headers')));
   }
   allowedOrigins = [];
   for (const entry of options?.allowedOrigins ?? []) {

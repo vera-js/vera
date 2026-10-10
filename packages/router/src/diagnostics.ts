@@ -63,7 +63,6 @@ export const PROSE: Record<string, Prose> = {
       ? 'Routes are registered separately: `const { addRoutes } = initRouter(el, { view }); addRoutes(routes)`.'
       : `The options are ${known}.`,
   ],
-  'router-option': (option) => [`\`${option}\` is not a router option, so it was ignored.`, 'The options are animate, base.'],
   'router-route-option': (key, path, known) => [
     `\`${key}\` is not a route option, so it was ignored on "${path}".`,
     `The options are ${known} — anything else belongs in \`meta\`, which every guard and action reads off the snapshot.`,

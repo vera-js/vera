@@ -50,6 +50,14 @@ const parseFailure: Prose = (raw, detail) => [
 ];
 
 export const PROSE: Record<string, Prose> = {
+  'wire-directive-name': () => [
+    'a directive needs a `name` string or a { match } family.',
+    "Name it: { name: 'tooltip', … }, or match a family: { name: { match: (attr) => …, pattern: 'tip-*' }, … }.",
+  ],
+  'wire-directive-value': (given) => [
+    `\`value\` must be literal | expression | object | none — got ${given}.`,
+    "It says what apply() receives: 'literal' the attribute's text, 'object' a parsed { … }, 'expression' its evaluated value, 'none' nothing.",
+  ],
   'prose-duplicate': (code) => [
     `"${code}" already has its text — this engine's own, or a pack registered earlier — so this registration's is ignored.`,
     "Give a pack's codes a prefix of its own: a code reads one way everywhere.",
@@ -105,7 +113,10 @@ export const PROSE: Record<string, Prose> = {
   'focus-trap-empty': () => [`nothing focusable to trap.`, `Add a focusable child, or remove the trap.`],
   'handler-not-object': () => [`an on-* value is a braced assignments object.`],
   'key-not-writable': (key: string) => [`"${key}" is a path, and a path can be read but not written.`, `Write the whole object under its own key, or use a flat key.`],
-  'loader-failed': (suffix: string, detail: string) => [`the loader claimed "${suffix}" but the import failed: ${detail}`],
+  'loader-failed': (suffix: string, src: string) => [
+    `the loader claimed "${suffix}" but its import${src ? ` of ${src}` : ''} failed — the error follows.`,
+    'Check that the file is at that address and loads on its own (open it directly).',
+  ],
   'loader-loaded-nothing': (suffix: string) => [`a module loaded for "${suffix}" but registered nothing by that name.`, `The module must call wireDirectives with a matching directive.`],
   'no-carrier': (key: string) => [`a write to "${key}" found no data-vd-state ancestor.`, `Add one, or use an @page key.`],
   'origin-not-url': (detail: string) => [`allowedOrigins entry ${detail} is not a url; ignoring it.`, `Write the full origin, for example "https://api.example".`],
@@ -206,7 +217,6 @@ export const PROSE: Record<string, Prose> = {
   'motion-group-scroller': (key) => [`motion-group ${key}: is a selector matching one element on the page.`],
   'motion-group-duration': (key) => [`motion-group ${key}: must be a number from 0 to 3600.`],
   'motion-breakpoint-unusable': (name) => [`breakpoint ${name} is not a usable [min, max]; ignoring it.`],
-  'motion-unknown-option': (key) => [`motion() was given "${key}", which is not an option this pack has.`],
   'motion-option-not-boolean': (key, given) => [`${key} must be true or false, not ${given}; using the default.`],
   'motion-option-unusable': (name, given, fallback) => [
     `${name} ${given} is not usable; ${fallback ? `using ${fallback}.` : 'ignoring it.'}`,

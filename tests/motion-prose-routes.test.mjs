@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
+import { printed } from './console-args.mjs';
 
 const SCENARIO = process.env.VERA_MOTION_ROUTE;
 
@@ -29,7 +30,7 @@ if (SCENARIO) {
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
   const said = [];
-  console.warn = (...args) => said.push(args.map(String).join(' '));
+  console.warn = (...args) => said.push(printed(args).map(String).join(' '));
   const report = (rejected) => process.stdout.write(JSON.stringify({ said, rejected }));
   if (SCENARIO === 'standalone') {
     const { pageProblem } = await load('motion/internal');

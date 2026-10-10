@@ -48,7 +48,17 @@ const OUT = new URL('../packages/directives/diagnostics.json', import.meta.url);
  * which would keep the whole table in the production bundle and undo the 1,035 B it exists to
  * recover. Node strips the type annotations; the module imports nothing.
  */
-const { PROSE } = await import('../packages/directives/src/diagnostics.ts');
+/** The engine's table and each pack's own, merged — listed once, in scripts/diagnostic-tables.mjs (`DIRECTIVES`). */
+const { DIRECTIVES } = await import('./diagnostic-tables.mjs');
+const PROSE = {};
+for (const table of DIRECTIVES.tables)
+  for (const [code, prose] of Object.entries((await import(`../packages/directives/${table}`)).PROSE)) {
+    if (code in PROSE) {
+      console.error(`diagnostic code "${code}" is in two of directives' tables.`);
+      process.exit(1);
+    }
+    PROSE[code] = prose;
+  }
 /** The same constant the production bundle prints, never a second copy of the string. */
 const { DOCS } = await import('../packages/shared-utils/src/diagnostic.ts');
 /**

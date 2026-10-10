@@ -24,7 +24,7 @@ import type { Prose } from '@verajs/shared-utils';
  */
 import { PROSE } from './diagnostics.js';
 /** The one format every package prints, from shared-utils — production's link never tethers the dev-only table. */
-import { diagnostic } from '@verajs/shared-utils';
+import { diagnostic, misuse } from '@verajs/shared-utils';
 import { DEFAULT_PAYLOADS, TYPE } from './payload-defaults.js';
 import type { Payload } from './payload-defaults.js';
 
@@ -101,6 +101,7 @@ const discover = (el: Element, attr: string, suffix: string): void => {
 
   /** First claimer wins; a link that throws declines (a broken loader costs its answer, not the page). */
   let claim: Promise<unknown> | true | null = null;
+  let claimer: LoaderFn | null = null;
   for (const fn of loaderChain()) {
     let answer: ReturnType<LoaderFn>;
     try {
@@ -110,7 +111,10 @@ const discover = (el: Element, attr: string, suffix: string): void => {
     }
     if (answer === true) claim = true;
     else if (answer && typeof (answer as Promise<unknown>).then === 'function') claim = answer as Promise<unknown>;
-    if (claim) break;
+    if (claim) {
+      if (__DEV__) claimer = fn;
+      break;
+    }
   }
 
   if (!claim) {
@@ -140,8 +144,23 @@ const discover = (el: Element, attr: string, suffix: string): void => {
     (error) => {
       loadingNames.delete(suffix);
       undiscoverable.add(suffix);
+      /**
+       * ONE report per failure, here — the asker owns the elements and the registry. The address is asked of the
+       * LOADER that claimed (`url`, which @verajs/autoloader's directiveLoader carries), never parsed out of a
+       * message, for development's sentence. The rejection itself rides beside the line in every build: from that
+       * loader it is `Error(src, { cause })`, so even production's line comes with the address and, as its cause, the
+       * import's own error (devtools show the chain).
+       */
+      /** Development's sentence only — production's line carries the address on the forwarded rejection. */
+      let src = '';
+      if (__DEV__)
+        try {
+          src = (claimer as { url?: (name: string) => string } | null)?.url?.(suffix) ?? '';
+        } catch {
+          /** A loader whose `url` throws still had its import fail: the report goes out without the address. */
+        }
       for (const entry of waiting) {
-        reject(entry.el, entry.attr, 'loader-failed', [suffix, String((error as Error)?.message ?? error)]);
+        reject(entry.el, entry.attr, 'loader-failed', [suffix, src], undefined, error);
       }
     }
   );
@@ -194,9 +213,9 @@ const register = (d: Directive): void => {
   const held = d as AnyDirective;
   if (__DEV__) {
     if (!d || (typeof d.name !== 'string' && typeof (d.name as { match?: unknown })?.match !== 'function'))
-      throw new Error('wireDirectives: a directive needs a `name` string or a { match } family.');
+      throw new Error(misuse('wireDirectives', 'wire-directive-name', __DEV__ && PROSE['wire-directive-name']!()));
     if (!VALUE_CLASSES.has(d.value))
-      throw new Error(`wireDirectives: \`value\` must be literal | expression | object | none — got ${String(d.value)}.`);
+      throw new Error(misuse('wireDirectives', 'wire-directive-value', __DEV__ && PROSE['wire-directive-value']!(String(d.value))));
   }
   if (typeof d.name === 'string') byName.set(d.name, held);
   else families.push({ match: d.name.match, directive: held });
@@ -320,8 +339,16 @@ export const reject = (
   directive: string,
   code: string,
   messageOrArgs?: string | readonly unknown[],
-  fix?: string
+  fix?: string,
+  /**
+   * What was THROWN, when a refusal is caused by an exception — forwarded beside the line (on the '%s' path, so the
+   * line is never read as a format) so one report carries the error and its stack. Console only, never on the record:
+   * a registry holding error objects would hold their stacks and whatever their closures reach for the page's life.
+   */
+  cause?: unknown
 ) => {
+  /** The forwarded error, or nothing — so a refusal with no cause prints exactly its line. */
+  const tail = cause === undefined ? [] : [cause];
   let message = '';
   if (__DEV__) {
     if (typeof messageOrArgs === 'string') message = messageOrArgs;
@@ -348,7 +375,7 @@ export const reject = (
     const key = element ? `${code}:${directive}` : `${code}:${directive}:${String(messageOrArgs)}`;
     if (!warned.has(key)) {
       warned.add(key);
-      console.warn(diagnostic('directives', directive, code, [message, fix]));
+      console.warn('%s', diagnostic('directives', directive, code, [message, fix]), ...tail);
     }
   } else if (!warned.has(code)) {
     /**
@@ -367,7 +394,7 @@ export const reject = (
      * reader nothing they can act on differently.
      */
     warned.add(code);
-    console.warn(diagnostic('directives', directive, code));
+    console.warn('%s', diagnostic('directives', directive, code), ...tail);
   }
 };
 

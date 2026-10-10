@@ -28,6 +28,7 @@
  *    engine, a server, a test DOM), the sensor reports the READABLE answer — in view, measured
  *    once — because content the page cannot sense must still be content the reader can see.
  */
+import { diagnostic, SHARED } from '@verajs/shared-utils';
 import { dual } from './dual.js';
 import { isObject } from './parse.js';
 import type { Directive, Ctx, EngineConnector } from './types.js';
@@ -741,7 +742,7 @@ const connect = (options?: SensorsOptions): EngineConnector => (seams) => {
   if (__DEV__ && options) {
     for (const key of Object.keys(options))
       if (key !== 'pointer')
-        console.warn(`[vera] sensors: \`${key}\` is not a sensors option, so it was ignored. The options are pointer.`);
+        console.warn(diagnostic('directives', 'sensors()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'pointer')));
   }
   for (const directive of [inView, size, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
   const ambient = options?.pointer;
