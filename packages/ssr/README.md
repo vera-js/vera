@@ -357,9 +357,16 @@ dependency involved.
   reflecting `preventDefault`, and a shadow boundary crossed only by a `composed` event. The walk is
   over the node tree, so an event does not continue into `document` or `window`.
 - **Where the platform throws, this throws** — an attribute or tag name that cannot be written, a
-  second `attachShadow` or `attachInternals`, an invalid custom-element name, `appendChild` of a
-  non-node. Lenience on a server does not make anything work; it moves the failure to the client and
-  strips the context.
+  second `attachShadow` or `attachInternals`, an invalid custom-element name, and every Node-typed
+  argument that is not a node (`appendChild({})`, `removeChild(null)`, `contains({})`), with the
+  platform's `TypeError`. `new HTMLElement()`, `new Node()` and `new X()` for a class never defined are
+  an `Illegal constructor`, as they are in a browser. Lenience on a server does not make anything work;
+  it moves the failure to the client and strips the context.
+- **The Node interfaces are the platform's.** A text node is a `Node`, a `CharacterData` and a `Text`;
+  `Node`'s constants are on every node; `append({})` inserts the text `[object Object]`, as the
+  `(Node or DOMString)` union converts; and `String(node)` names its interface (`[object Text]`) — for
+  text, comments, fragments and shadow roots. An element's name depends on its tag and is not yet
+  answered (`[object Node]` here, `[object HTMLDivElement]` in a browser).
 - **A selector this DOM cannot answer honestly throws** rather than answering `null`. It matches type,
   class, id, every attribute operator, `:not()` and all four combinators — descendant, `>`, `+` and
   `~`. Everything else raises, for **two different reasons**: `:hover`, `:checked`, `:visible` and

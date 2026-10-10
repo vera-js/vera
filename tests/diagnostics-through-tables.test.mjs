@@ -65,7 +65,9 @@ const ROUTING = new Map([
 const IMITATIONS = new Map([
   ['packages/ssr/src/vera/views.ts', 1],
   ['packages/ssr/src/vera/shim.ts', 3],
-  ['packages/ssr/src/vera/nodes.ts', 5],
+  /** The Node base's two WebIDL helpers (a non-node, a missing argument) and three `Illegal constructor`s (Node,
+   *  CharacterData, an element no creation path made), since 2026-10-09; the per-method messages were four of the five. */
+  ['packages/ssr/src/vera/nodes.ts', 6],
   ['packages/ssr/src/vera/events.ts', 1],
   ['packages/ssr/src/vera/stylesheets.ts', 2],
 ]);

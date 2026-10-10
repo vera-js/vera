@@ -15,7 +15,7 @@ import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
 import { currentRenderingTag, StyleSheetShim, toSheetSequence } from './stylesheets.js';
-import { registry } from './registry.js';
+import { constructible, registry } from './registry.js';
 import { PROSE } from './diagnostics.js';
 import { once, ssrWarning } from './report.js';
 
@@ -316,7 +316,7 @@ const insertAround = (
   /** A node with a parent is always one of the child kinds — shadow roots and fragments never get one. */
   const reference = where === 'after' ? node.nextSibling : (node as ChildShim);
   for (const one of inserted)
-    parent.insertBefore(typeof one === 'string' ? new TextShim(one) : one, reference);
+    parent.insertBefore(one instanceof NodeBaseShim ? one : new TextShim(one), reference);
   /**
    * **Unless the node replaced itself.** `x.replaceWith(x)` inserted `x` back where it was and then
    * removed it, so a node replaced by itself **disappeared** — measured against jsdom, which leaves
@@ -513,7 +513,39 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
  * the input — `&amp;` stays `&amp;` rather than becoming this package's `&#38;` — and falls back to
  * escaping its data the moment somebody writes to it.
  */
-class CharacterDataShim extends EventTarget {
+/**
+ * **`Node` itself — the one base every node of this DOM shares** (2026-10-09). Text and comments were a separate
+ * line from containers, and `Node` was the container class, so `text instanceof Node` answered `false` where every
+ * engine answers `true`, and a Node-typed parameter could not tell a node from any object: `appendChild({})` and
+ * `replaceChild({}, child)` were accepted, `contains({})` answered `false`, `removeChild(null)` threw the wrong class.
+ * Measured by differential against jsdom (tests/ssr-imitations-differential).
+ */
+export class NodeBaseShim extends EventTarget {
+  constructor() {
+    super();
+    /** `new Node()` is an `Illegal constructor` in every engine — the interface is abstract. */
+    if (new.target === NodeBaseShim) throw new TypeError('Illegal constructor');
+  }
+}
+
+/** The token this DOM's own creation paths hand `ElementShim` — see its constructor. Module-local, so it cannot be forged. */
+const MADE = Symbol('made');
+
+/**
+ * **A Node-typed WebIDL parameter refuses what is not a node**, with the platform's `TypeError`. Being lenient here only
+ * moves the failure to the client, where the same call throws with the server's context gone.
+ */
+const mustBeNode = (value: unknown, method: string, position: number): void => {
+  if (!(value instanceof NodeBaseShim))
+    throw new TypeError(`Failed to execute '${method}' on 'Node': parameter ${position} is not of type 'Node'.`);
+};
+/** A required argument that is absent: WebIDL counts arguments before it converts them. */
+const required = (method: string, needed: number, present: number): void => {
+  if (present < needed)
+    throw new TypeError(`Failed to execute '${method}' on 'Node': ${needed} argument${needed === 1 ? '' : 's'} required, but only ${present} present.`);
+};
+
+export class CharacterDataShim extends NodeBaseShim {
   declare _data: string;
   /** The bytes a parsed node came from, until something writes to it. */
   declare _source: string | null;
@@ -521,6 +553,8 @@ class CharacterDataShim extends EventTarget {
   declare isConnected: boolean;
   constructor(data: unknown) {
     super();
+    /** Abstract too: `new CharacterData()` is refused, where `new Text()` and `new Comment()` are not. */
+    if (new.target === CharacterDataShim) throw new TypeError('Illegal constructor');
     this._data = `${data}`;
     this._source = null;
     this._parent = null;
@@ -612,13 +646,17 @@ class CharacterDataShim extends EventTarget {
     insertAround(this, nodes, 'replace');
   }
   isSameNode(node: unknown): boolean {
+    if (node != null) mustBeNode(node, 'isSameNode', 1);
     return node === this;
   }
   isEqualNode(node: { readonly nodeType?: number; readonly data?: unknown } | null | undefined): boolean {
+    if (node != null) mustBeNode(node, 'isEqualNode', 1);
     /** `nodeType` is the subclass's — this base is never instantiated on its own. */
     return node?.nodeType === (this as DuckNode).nodeType && node?.data === this._data;
   }
   contains(node: unknown): boolean {
+    required('contains', 1, arguments.length);
+    if (node != null) mustBeNode(node, 'contains', 1);
     return node === this;
   }
   getRootNode(): CharacterDataShim | ContainerShim {
@@ -689,7 +727,7 @@ export class CommentShim extends CharacterDataShim {
   }
 }
 
-export class ContainerShim extends EventTarget {
+export class ContainerShim extends NodeBaseShim {
   declare _entries: EntryShim[];
   declare _parent: ContainerShim | null;
   declare isConnected: boolean;
@@ -806,10 +844,7 @@ export class ContainerShim extends EventTarget {
      * here and throws in every engine, so `this.appendChild(maybeMissing)` — ordinary code —
      * rendered a server page with the child quietly absent and then crashed the client.
      */
-    if (node === null || typeof node !== 'object')
-      throw new TypeError(
-        `Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'.`
-      );
+    mustBeNode(node, 'appendChild', 1);
     /**
      * A registered component that has not rendered is marked, so the scan over this markup renders
      * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
@@ -845,11 +880,10 @@ export class ContainerShim extends EventTarget {
    * a node I do not have" is exactly the kind of thing a server should not paper over.
    */
   insertBefore<T extends InsertableShim>(node: T, reference: ChildShim | null | undefined): T {
-    if (node === null || typeof node !== 'object')
-      throw new TypeError(
-        `Failed to execute 'insertBefore' on 'Node': parameter 1 is not of type 'Node'.`
-      );
+    required('insertBefore', 2, arguments.length);
+    mustBeNode(node, 'insertBefore', 1);
     if (reference === null || reference === undefined) return this.appendChild(node);
+    mustBeNode(reference, 'insertBefore', 2);
     if (this._entries.indexOf(reference) === -1)
       throw new DOMException(
         `Failed to execute 'insertBefore' on 'Node': The node before which the new node is to be ` +
@@ -900,8 +934,9 @@ export class ContainerShim extends EventTarget {
    * runs here rather than hitting a missing method.
    */
   moveBefore<T extends InsertableShim>(node: T, reference: ChildShim | null | undefined): T {
-    if (node === null || typeof node !== 'object')
-      throw new TypeError(`Failed to execute 'moveBefore' on 'Node': parameter 1 is not of type 'Node'.`);
+    required('moveBefore', 2, arguments.length);
+    mustBeNode(node, 'moveBefore', 1);
+    if (reference !== null && reference !== undefined) mustBeNode(reference, 'moveBefore', 2);
     if (!node._parent)
       throw new DOMException(
         `Failed to execute 'moveBefore' on 'Node': The node to be moved has no parent.`,
@@ -916,10 +951,8 @@ export class ContainerShim extends EventTarget {
     return this.insertBefore(node, reference ?? null);
   }
   replaceChild(node: InsertableShim, old: ChildShim): ChildShim {
-    if (node === null || typeof node !== 'object')
-      throw new TypeError(
-        `Failed to execute 'replaceChild' on 'Node': parameter 1 is not of type 'Node'.`
-      );
+    mustBeNode(node, 'replaceChild', 1);
+    mustBeNode(old, 'replaceChild', 2);
     if (this._entries.indexOf(old) === -1)
       throw new DOMException(
         `Failed to execute 'replaceChild' on 'Node': The node to be replaced is not a child of this node.`,
@@ -971,6 +1004,7 @@ export class ContainerShim extends EventTarget {
    * implementation, so only the disconnected bit is worth comparing across implementations.
    */
   compareDocumentPosition(other: NodeShim): number {
+    mustBeNode(other, 'compareDocumentPosition', 1);
     if (other === this) return 0;
     if (this.contains(other)) return 16 + 4;
     if (other.contains?.(this)) return 8 + 2;
@@ -998,6 +1032,7 @@ export class ContainerShim extends EventTarget {
    * nothing to remove, the child having been flattened into a string at append time.
    */
   removeChild<T extends ChildShim>(node: T): T {
+    mustBeNode(node, 'removeChild', 1);
     const index = this._entries.indexOf(node);
     if (index === -1)
       throw new DOMException(
@@ -1108,6 +1143,8 @@ export class ContainerShim extends EventTarget {
    * reading as "this is not mine".
    */
   contains(node: NodeShim | null | undefined): boolean {
+    required('contains', 1, arguments.length);
+    if (node != null) mustBeNode(node, 'contains', 1);
     for (let current: NodeShim | null | undefined = node; current; current = current._parent)
       if (current === this) return true;
     return false;
@@ -1123,6 +1160,7 @@ export class ContainerShim extends EventTarget {
     insertAround(this, nodes, 'replace');
   }
   isSameNode(node: unknown): boolean {
+    if (node != null) mustBeNode(node, 'isSameNode', 1);
     return node === this;
   }
   /**
@@ -1131,6 +1169,7 @@ export class ContainerShim extends EventTarget {
    * type, name, attributes as a set, and children pairwise.
    */
   isEqualNode(node: DuckNode | null | undefined): boolean {
+    if (node != null) mustBeNode(node, 'isEqualNode', 1);
     return equalNodes(this, node);
   }
   /**
@@ -1186,11 +1225,12 @@ export class ContainerShim extends EventTarget {
    */
   append(...nodes: Array<string | InsertableShim>): void {
     for (const node of nodes) {
-      if (typeof node === 'string') {
-        this._entries.push(escapeHtml(node));
+      /** `(Node or DOMString)`: anything that is not a node is converted to a string — `append({})` is the text `[object Object]`. */
+      if (!(node instanceof NodeBaseShim)) {
+        this._entries.push(escapeHtml(`${node}`));
         this._parsed = false;
       }
-      else this.appendChild(node);
+      else this.appendChild(node as InsertableShim);
     }
   }
   replaceChildren(...nodes: Array<string | InsertableShim>): void {
@@ -1749,8 +1789,14 @@ export class ElementShim extends ContainerShim {
   declare _upgraded?: boolean;
   /** Set by `renderComponent` once this instance has rendered. */
   declare _rendered?: boolean;
-  constructor(localName: string = '', namespaceURI: string = HTML_NS) {
+  constructor(localName: string = '', namespaceURI: string = HTML_NS, made?: typeof MADE) {
     super();
+    /**
+     * **`Illegal constructor`, as in every engine, unless this DOM is the one creating it** (2026-10-09): `new
+     * HTMLElement()`, `new HTMLElement('div')` and `new X()` for a class never defined all constructed here. Only a
+     * DEFINED class may be constructed directly — `new.target` exactly, so a subclass of a defined class is refused too.
+     */
+    if (made !== MADE && !constructible.has(new.target)) throw new TypeError('Illegal constructor');
     this._ns = namespaceURI;
     this.localName = localName;
     this.isConnected = true;
@@ -2372,7 +2418,7 @@ export class ElementShim extends ContainerShim {
  */
 const build = (name: string, namespaceURI: string = HTML_NS): ElementShim => {
   const Element = namespaceURI === HTML_NS ? interfaceFor(name, ElementShim) : ElementShim;
-  return new Element(name, namespaceURI);
+  return new Element(name, namespaceURI, MADE);
 };
 
 export const createElement = (localName: unknown, namespaceURI: string = HTML_NS): ElementShim => {
@@ -2452,12 +2498,19 @@ const internals = new WeakMap<ElementShim, InternalsShim>();
  * one of them — and generating them beats sixty hand-written accessors that go stale.
  */
 defineReflections(ElementShim);
-/** `Node`'s constants are on every node, so they go on the shared base. */
-Object.assign(ContainerShim.prototype, NODE_CONSTANTS);
+/** `Node`'s constants are on every node, so they go on the shared base — text and comments included. */
+Object.assign(NodeBaseShim.prototype, NODE_CONSTANTS);
 /**
  * **And on the interface object itself.** WebIDL puts a constant on both the prototype and the
  * constructor, so `node.nodeType === Node.TEXT_NODE` is the ordinary spelling — and `Node` is this
  * class (`shim.js` assigns it). The constants reached instances and not the constructor, so that
  * comparison was against `undefined` and quietly false for every node.
  */
-Object.assign(ContainerShim, NODE_CONSTANTS);
+Object.assign(NodeBaseShim, NODE_CONSTANTS);
+/**
+ * **What `String(node)` says** — the interface's name, as every engine answers (`[object Text]`), where it said
+ * `[object EventTarget]` for every node. The kinds with one interface each; an element's depends on its tag (a measured
+ * table, not a guess — open in the portal TODO), so elements keep the base answer for now.
+ */
+for (const [Kind, tag] of [[NodeBaseShim, 'Node'], [CharacterDataShim, 'CharacterData'], [TextShim, 'Text'], [CommentShim, 'Comment'], [FragmentShim, 'DocumentFragment'], [ShadowRootShim, 'ShadowRoot']] as const)
+  Object.defineProperty(Kind.prototype, Symbol.toStringTag, { value: tag, configurable: true });

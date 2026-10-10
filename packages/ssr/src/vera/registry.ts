@@ -9,3 +9,8 @@ import type { SsrRegistry } from './types.js';
  */
 
 export const registry: SsrRegistry = new Map();
+/**
+ * The element classes code may construct directly, as in a browser (`new.target` exactly): every class `define`
+ * accepted, and the two legacy factories `Image` and `Audio`. Anything else is an `Illegal constructor`.
+ */
+export const constructible = new WeakSet<object>();

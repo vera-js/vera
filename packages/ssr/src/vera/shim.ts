@@ -20,11 +20,12 @@
 import { escapeHtml, escapeStyleText, escapeRawText, RAW_TEXT_ELEMENTS } from './escaping.js';
 import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting, documentAdoptedSheets, setDocumentAdoptedSheets } from './stylesheets.js';
 import { beginBudget, bounded, cancelFrame, endBudget, flushFrames, flushFramesAsync, requestFrame, setCoreFlush } from './frames.js';
-import { registry } from './registry.js';
+import { constructible, registry } from './registry.js';
 import {
+  NodeBaseShim,
+  CharacterDataShim,
   TextShim,
   CommentShim,
-  ContainerShim,
   FragmentShim,
   ShadowRootShim,
   ElementShim,
@@ -332,12 +333,16 @@ export const installShims = () => {
   /**
    * The DOM interfaces, so `instanceof` answers correctly.
    *
-   * `value instanceof Node` is how ordinary code tells a node from a string — the renderer's own
-   * text-vs-node decision is that test — and `Node` being undefined made it a `ReferenceError`
-   * rather than `false`. These are the real shim classes, so an element made here *is* a `Node`,
-   * an `Element` and an `HTMLElement`, exactly as it would be in a browser.
+   * `value instanceof Node` is how ordinary code tells a node from a string, and `Node` being undefined made it a
+   * `ReferenceError` rather than `false`. These are the real shim classes, so an element made here *is* a `Node`, an
+   * `Element` and an `HTMLElement`, exactly as it would be in a browser — and since 2026-10-09 a text node is a `Node`,
+   * a `CharacterData` and a `Text` too: `Node` was the container class, so text and comments answered `false`, and
+   * `Text`, `Comment` and `CharacterData` were not exposed at all.
    */
-  globalThis.Node = ContainerShim as unknown as typeof Node;
+  globalThis.Node = NodeBaseShim as unknown as typeof Node;
+  globalThis.CharacterData = CharacterDataShim as unknown as typeof CharacterData;
+  globalThis.Text = TextShim as unknown as typeof Text;
+  globalThis.Comment = CommentShim as unknown as typeof Comment;
   globalThis.Element = ElementShim as unknown as typeof Element;
   globalThis.ShadowRoot = ShadowRootShim as unknown as typeof ShadowRoot;
   /**
@@ -367,6 +372,8 @@ export const installShims = () => {
       super('audio');
     }
   }) as unknown as typeof Audio;
+  constructible.add(globalThis.Image);
+  constructible.add(globalThis.Audio);
 
   /**
    * The observers, inert.
@@ -468,6 +475,7 @@ export const installShims = () => {
         );
       }
       registry.set(name, Class);
+      constructible.add(Class);
       const waiting = pendingDefinitions.get(name);
       if (waiting !== undefined) {
         pendingDefinitions.delete(name);
@@ -511,8 +519,8 @@ export const installShims = () => {
    */
   globalThis.document = ({
     title: '',
-    body: new ElementShim('body'),
-    documentElement: new ElementShim('html'),
+    body: createElement('body'),
+    documentElement: createElement('html'),
     /**
      * **`body` is what a browser reports when nothing has focus**, and it never answers `null` for a
      * document that exists. `null` here meant `document.activeElement.tagName` — ordinary code —
