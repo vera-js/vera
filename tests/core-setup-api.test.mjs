@@ -22,8 +22,8 @@ const { init, html, createStore, useEffect, flush } = core;
 const doc = dom.window.document;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let seq = 0;
-/** Red against today's core on purpose — each row's own assertion (piece 1); piece 2's commit flips them. */
-const TODO = { todo: 'R1 piece 2: init(host, setup) and the setup that returns its render' };
+/** R2 removes the old `init(host, shadowProps)` window; until then its refusal is pending. */
+const R2 = { todo: 'R2: the old init(this, { mode }) form is refused once every call site is migrated' };
 const name = () => `x-setup-${seq++}`;
 
 /** Every console line while `run` runs. */
@@ -48,7 +48,7 @@ const mount = async (tag, parent = doc.body) => {
   return el;
 };
 
-test('the setup runs once, its render on every change — setup ×1, render ×1 at connect', TODO, async () => {
+test('the setup runs once, its render on every change — setup ×1, render ×1 at connect', async () => {
   const state = createStore({ n: 0 });
   let setups = 0;
   let renders = 0;
@@ -65,14 +65,14 @@ test('the setup runs once, its render on every change — setup ×1, render ×1 
   assert.equal(el.textContent, '1');
 });
 
-test('the setup receives its element as `host`', TODO, async () => {
+test('the setup receives its element as `host`', async () => {
   let seen = null;
   const tag = component((host) => init(host, (h) => { seen = h; return () => html`<i></i>`; }));
   const el = await mount(tag);
   assert.ok(seen === el);
 });
 
-test('a setup is UNTRACKED: a read in it re-renders neither the parent that connected it nor the component itself', TODO, async () => {
+test('a setup is UNTRACKED: a read in it re-renders neither the parent that connected it nor the component itself', async () => {
   const shared = createStore({ v: 1 });
   let childRenders = 0;
   let parentRenders = 0;
@@ -95,7 +95,7 @@ test('a setup is UNTRACKED: a read in it re-renders neither the parent that conn
   assert.deepEqual([parentRenders, childRenders], before, 'still nothing — the read subscribed no one');
 });
 
-test('the window is the call: a hook outside a setup has no owner — after a return and after a throw', TODO, async () => {
+test('the window is the call: a hook outside a setup has no owner — after a return and after a throw', async () => {
   const tag = component((host) => init(host, () => () => html`<i></i>`));
   await mount(tag);
   assert.throws(() => useEffect(() => {}), /no-owner/, 'after the setup returned, no component is being set up');
@@ -108,7 +108,7 @@ test('the window is the call: a hook outside a setup has no owner — after a re
   assert.throws(() => useEffect(() => {}), /no-owner/, 'a throw closes the window too');
 });
 
-test('a setup that throws: init rethrows it; the hooks it registered never run; the next connect renders normally', TODO, async () => {
+test('a setup that throws: init rethrows it; the hooks it registered never run; the next connect renders normally', async () => {
   let effects = 0;
   let fail = true;
   const thrown = [];
@@ -132,7 +132,7 @@ test('a setup that throws: init rethrows it; the hooks it registered never run; 
   assert.equal(effects, 1, 'and its effect runs once');
 });
 
-test('a nested init inside a setup restores the outer component as the owner', TODO, async () => {
+test('a nested init inside a setup restores the outer component as the owner', async () => {
   const order = [];
   const inner = doc.createElement('div');
   const tag = component((host) => init(host, () => {
@@ -144,7 +144,7 @@ test('a nested init inside a setup restores the outer component as the owner', T
   assert.ok(order.includes('outer'), `the outer effect ran on the outer component: ${order}`);
 });
 
-test('a hook created inside a render callback has no owner', TODO, async () => {
+test('a hook created inside a render callback has no owner', async () => {
   let thrown = null;
   const tag = component((host) => init(host, () => () => {
     try { useEffect(() => {}); } catch (error) { thrown = error; }
@@ -154,7 +154,7 @@ test('a hook created inside a render callback has no owner', TODO, async () => {
   assert.match(String(thrown?.message), /no-owner/);
 });
 
-test('a setup returning nothing is a side-effect setup: its effects run, nothing renders', TODO, async () => {
+test('a setup returning nothing is a side-effect setup: its effects run, nothing renders', async () => {
   let ran = 0;
   const tag = component((host) => init(host, () => { useEffect(() => { ran++; }); }));
   const el = await mount(tag);
@@ -163,7 +163,7 @@ test('a setup returning nothing is a side-effect setup: its effects run, nothing
 });
 
 for (const [kind, value] of [['a template', html`<p>static</p>`], ['a string', 'static'], ['an array', ['sta', 'tic']]])
-  test(`a setup returning ${kind} renders it once, statically — the same in both builds; development says why, once`, TODO, async () => {
+  test(`a setup returning ${kind} renders it once, statically — the same in both builds; development says why, once`, async () => {
     const shared = createStore({ v: 1 });
     const said = await listen(async () => {
       const tag = component((host) => init(host, () => { void shared.v; return value; }));
@@ -180,7 +180,7 @@ for (const [kind, value] of [['a template', html`<p>static</p>`], ['a string', '
     else assert.equal(ours.length, 1, `one coded message per component class: ${said.join(' | ')}`);
   });
 
-test('Shape B: init(host) with no function calls the class\'s setup() method, and super.setup() composes', TODO, async () => {
+test('Shape B: init(host) with no function calls the class\'s setup() method, and super.setup() composes', async () => {
   const calls = [];
   class Base extends HTMLElement {
     setup() { calls.push('base'); return () => html`<p>base</p>`; }
@@ -195,18 +195,25 @@ test('Shape B: init(host) with no function calls the class\'s setup() method, an
   assert.equal(el.textContent, 'base');
 });
 
-test('options travel with the host: { host, shadow } — open, closed, a ShadowRootInit, and false for light', TODO, async () => {
+test('options travel with the host: { host, shadow } — open, closed, a ShadowRootInit, and false for light', async () => {
   const open = await mount(component((host) => init({ host, shadow: 'open' }, () => () => html`<p>o</p>`)));
   assert.ok(open.shadowRoot !== null && open.shadowRoot.textContent === 'o', 'an open root, rendered into');
   const closed = await mount(component((host) => init({ host, shadow: 'closed' }, () => () => html`<p>c</p>`)));
   assert.ok(closed.shadowRoot === null && closed.textContent === '', 'a closed root: hidden, and the light DOM untouched');
-  const init_ = await mount(component((host) => init({ host, shadow: { mode: 'open', delegatesFocus: true } }, () => () => html`<p>d</p>`)));
-  assert.ok(init_.shadowRoot?.delegatesFocus === true, 'a ShadowRootInit passes through');
+  /** jsdom does not implement `delegatesFocus`, so the row asserts what core controls: attachShadow receives it as given. */
+  const given = { mode: 'open', delegatesFocus: true };
+  let received = null;
+  const init_ = await mount(component((host) => {
+    const attach = host.attachShadow.bind(host);
+    host.attachShadow = (options) => { received = options; return attach(options); };
+    init({ host, shadow: given }, () => () => html`<p>d</p>`);
+  }));
+  assert.ok(received === given && init_.shadowRoot?.textContent === 'd', 'a ShadowRootInit passes through as given');
   const light = await mount(component((host) => init({ host, shadow: false }, () => () => html`<p>l</p>`)));
   assert.ok(light.shadowRoot === null && light.textContent === 'l', 'false is explicitly light DOM');
 });
 
-test('Shape B takes the same options object: init({ host: this, shadow }) finds this.setup', TODO, async () => {
+test('Shape B takes the same options object: init({ host: this, shadow }) finds this.setup', async () => {
   const tag = name();
   customElements.define(tag, class extends HTMLElement {
     setup() { return () => html`<p>b</p>`; }
@@ -216,7 +223,7 @@ test('Shape B takes the same options object: init({ host: this, shadow }) finds 
   assert.equal(el.shadowRoot?.textContent, 'b');
 });
 
-test('a shadow value the platform would not take is refused by name, then light DOM', TODO, async () => {
+test('a shadow value the platform would not take is refused by name, then light DOM', async () => {
   const said = await listen(async () => {
     const el = await mount(component((host) => init({ host, shadow: true }, () => () => html`<p>x</p>`)));
     assert.ok(el.shadowRoot === null && el.textContent === 'x', 'the fallback: light DOM');
@@ -224,14 +231,14 @@ test('a shadow value the platform would not take is refused by name, then light 
   if (!isProduction) assert.ok(said.some((line) => line.includes('shadow-option')), `named: ${said.join(' | ')}`);
 });
 
-test('the old init(this, { mode }) is refused in development with the new spelling', TODO, async () => {
+test('the old init(this, { mode }) is refused in development with the new spelling', R2, async () => {
   const said = await listen(async () => {
     await mount(component((host) => { try { init(host, { mode: 'open' }); } catch (error) { console.error(error.message); } }));
   });
   if (!isProduction) assert.ok(said.some((line) => line.includes('init-options')), `named: ${said.join(' | ')}`);
 });
 
-test('a near-miss setup spelling is named once; a setup-less init and the consumer shape stay silent', TODO, async () => {
+test('a near-miss setup spelling is named once; a setup-less init and the consumer shape stay silent', async () => {
   const said = await listen(async () => {
     const typo = name();
     customElements.define(typo, class extends HTMLElement {
@@ -250,7 +257,7 @@ test('a near-miss setup spelling is named once; a setup-less init and the consum
   }
 });
 
-test('an async setup: the resolved render is installed; a write while it is pending does not re-run the setup', TODO, async () => {
+test('an async setup: the resolved render is installed; a write while it is pending does not re-run the setup', async () => {
   const state = createStore({ n: 0 });
   let setups = 0;
   let release;

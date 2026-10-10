@@ -17,6 +17,19 @@ export const PROSE: Record<string, Prose> = {
     "Fix the cleanup, or wire an 'error' insert to handle what hooks throw.",
   ],
   /* ── misused APIs (thrown, development only — `misuse()`) ── */
+  /* ── the setup (R1, 2026-10-10) ── */
+  'setup-returned-value': (kind) => [
+    `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
+    'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
+  ],
+  'shadow-option': (value) => [
+    `\`shadow: ${value}\` is not a root this element can have, so it renders into its light DOM.`,
+    "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }.",
+  ],
+  'setup-near-miss': (name) => [
+    `it has a \`${name}\` method and no \`setup\`, so init found nothing to run.`,
+    'Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns.',
+  ],
   'untrack-not-function': (received) => [
     `expected a function and received ${received}.`,
     'It runs the function without subscribing — `untrack(() => state.a)`, not `untrack(state.a)`, which reads the property before untrack can do anything about it.',

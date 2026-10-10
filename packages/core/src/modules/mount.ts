@@ -8,10 +8,20 @@ import type { ComponentElement } from '../types.js';
  * `mount` and the second half of `render`.
  */
 export const commit = (element: ComponentElement) => {
+  firstPasses(element);
+  currentInstance.element = null;
+};
+
+/**
+ * The first pass of every hook registered since `init()`, in priority order — `commit` without clearing the current
+ * instance, for the setup path, whose window already closed when its setup returned. Plain loops: no closure per
+ * mount (C3).
+ */
+export const firstPasses = (element: ComponentElement) => {
   /** Development: this generation's setup was committed — what the never-committed check in `init` reads. */
   if (__DEV__) (element as { _committed?: number })._committed = element._gen;
-  element._hooks!.forEach((hooks) => hooks.forEach((hook) => hook({}, true)));
-  currentInstance.element = null;
+  const all = element._hooks!;
+  for (let i = 0; i < all.length; i++) for (const hook of all[i]!) hook({}, true);
 };
 
 /**

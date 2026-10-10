@@ -90,12 +90,36 @@
       "fix": "It receives the flush and decides when to run it — `microtask` (the default) and `frameBudget` are exported for that."
     },
     {
+      "code": "setup-near-miss",
+      "params": [
+        "name"
+      ],
+      "message": "it has a `{name}` method and no `setup`, so init found nothing to run.",
+      "fix": "Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns."
+    },
+    {
+      "code": "setup-returned-value",
+      "params": [
+        "kind"
+      ],
+      "message": "its setup returned {kind}, not a render function, so it rendered once and will never update.",
+      "fix": "Return a render function — `return () => html`…`;` — the setup runs once, the render on every change."
+    },
+    {
       "code": "setup-uncommitted",
       "params": [
         "hooks"
       ],
       "message": "registered {hooks} hook(s) but its setup was never committed, so none of them will ever run.",
       "fix": "init() opens the setup and one of these closes it: `render(() => html`…`)` for a component with markup, `mount();` for one with none."
+    },
+    {
+      "code": "shadow-option",
+      "params": [
+        "value"
+      ],
+      "message": "`shadow: {value}` is not a root this element can have, so it renders into its light DOM.",
+      "fix": "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }."
     },
     {
       "code": "store-not-object",

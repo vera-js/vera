@@ -74,6 +74,19 @@ export type Hooks = Set<HookCallback>[];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RenderTemplate = <V>(signal?: Signal<V>) => any;
 
+/** The root a component renders into: `'open'` / `'closed'` shadow, `false` for light DOM, or any `ShadowRootInit`. */
+export type ShadowOption = 'open' | 'closed' | false | ShadowRootInit;
+/** `init({ host, …options }, setup?)`'s first argument: the element, with the options that travel with it. */
+export type InitOptions = {
+  host: ComponentElement;
+  shadow?: ShadowOption;
+};
+/**
+ * A component's setup: runs ONCE per connect, untracked, with the element as `host`, and returns its render function
+ * (or nothing, for a side-effect setup; or a promise of either, for an async one).
+ */
+export type Setup = (host: ComponentElement) => unknown;
+
 /** Which kind of template a result is, numbered as lit numbers them: 1 html, 2 svg, 3 mathml. */
 export type ResultType = 1 | 2 | 3;
 
