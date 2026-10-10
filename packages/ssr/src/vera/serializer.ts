@@ -1339,6 +1339,17 @@ type Probed = {
   readonly [Symbol.iterator]?: unknown;
 };
 
+/**
+ * **Out of line on purpose: `serializeValue` must stay under V8's inlining budget.** It is inlined into
+ * `serializeTemplate`'s per-binding loop only while its bytecode is at most 460 bytes (`--max-inlined-bytecode-size`), and
+ * it sat at 455: the DOM-node case (2026-10-09) took it to 467 and cost 3.6% steady on renders that never reach the
+ * case — any statement did (a never-taken branch alone measured +4.0%). A refusal's error construction is the cheapest
+ * thing to move out: it runs once, at the throw.
+ */
+const refuseTemplateInText = (): never => {
+  throw own(new Error(ssrMisuse('ssr-template-in-text', PROSE['ssr-template-in-text']!())));
+};
+
 export const serializeValue = (value: unknown, raw = false, depth = 0, text = false): string => {
   /**
    * Only `null` and `undefined` are empty, exactly as on the client — `false` and `0` render.
@@ -1380,7 +1391,7 @@ export const serializeValue = (value: unknown, raw = false, depth = 0, text = fa
      * can CLOSE the element — `${html`</textarea>`}` — and turn the statics after it into unchecked markup.
      */
     if ((value as Probed).strings) {
-      if (text && isLiteral((value as Probed).strings)) throw own(new Error(ssrMisuse('ssr-template-in-text', PROSE['ssr-template-in-text']!())));
+      if (text && isLiteral((value as Probed).strings)) refuseTemplateInText();
       return serializeTemplate(value as SsrTemplate, depth);
     }
     /**
