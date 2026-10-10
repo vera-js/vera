@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import { load, isProduction } from './dist.mjs';
+import { serve as serveTemplates } from './served.mjs';
 
 const serve = (fixture, children) =>
   execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
@@ -105,7 +106,8 @@ test('production prints nothing for the empty case', { skip: !isProduction && 'p
  */
 test('CONTRACT: an unmarked container of server markup, with nothing hydrating, gets a second render beside it', () => {
   const container = doc.createElement('div');
-  container.innerHTML = '<p>Hello</p>';
+  /** The real server's markup, which is unmarked for a plain container — the case this contract is about. */
+  container.innerHTML = serveTemplates({ p: "html`<p>${'Hello'}</p>`" }).p;
   doc.body.append(container);
   renderInto(html`<p>${'Hello'}</p>`, container);
   assert.equal(container.querySelectorAll('p').length, 2, 'the server\'s and the client\'s — wire hydration to adopt instead');

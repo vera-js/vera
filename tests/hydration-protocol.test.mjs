@@ -27,6 +27,7 @@ test('a protocol mismatch renders fresh, warns once, and leaves no server markup
   try {
     wire([hydration]);
     const container = document.createElement('div');
+    /** Hand-written: the markup is immaterial — a foreign protocol is refused before anything is adopted. */
     container.innerHTML = '<p>server</p>';
     document.body.append(container);
     const serverP = container.querySelector('p');

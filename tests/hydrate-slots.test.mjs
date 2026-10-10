@@ -370,6 +370,7 @@ for (const [label, light, main] of [
     /** Stated, as server output is — an unstated component host is client-made and never reads marks. */
     const host = dom.window.document.createElement('my-host');
     host.setAttribute('data-vm-light', light);
+    /** Hand-written on purpose: hostile statements and marks are what no server writes. */
     host.innerHTML = `<article><main>${main}</main></article>`;
     dom.window.document.getElementById('root').appendChild(host);
     /** Disagrees at the root, so the rescue reads the marks on the way to a clean render. */
@@ -541,6 +542,7 @@ test('AUDIT — a template-changed mismatch preserves unnamed content and bare t
  */
 test('AUDIT — non-server children: a client-made component keeps every child, named and unnamed, silently', async () => {
   const host = dom.window.document.createElement('mm-host');
+  /** Hand-written on purpose: client-made children are, by definition, not server output. */
   host.innerHTML = '<h2 slot="header">named</h2><span>plain</span>bare';
   dom.window.document.getElementById('root').appendChild(host);
   const h2 = host.querySelector('h2');

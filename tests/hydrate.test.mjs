@@ -8,6 +8,7 @@ import { hydrating } from './hydration.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
+import { serve } from './served.mjs';
 
 const serverScript = `
 import { serializeTemplate } from '@verajs/ssr';
@@ -184,7 +185,7 @@ console.log('hydrate ok — markerless adoption, identity preserved, fallback sa
 //      duplicate would each pass a lone textContent read.
 {
   const host = dom.window.document.createElement('div');
-  host.innerHTML = '<p>server</p>';
+  host.innerHTML = serve({ p: "html`<p>${'server'}</p>`" }).p;
   dom.window.document.body.appendChild(host);
   const server = host.querySelector('p');
   const draw = (v) => renderInto(html`<p>${v}</p>`, host);

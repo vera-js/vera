@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { serve } from './served.mjs';
 
 /** Server output of the slots card fixture, its light children supplied. */
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
@@ -121,7 +122,7 @@ test('a page of three components, the middle one served with slots: the others h
  */
 test('re-entrant from a setter in another container\'s commit: thrown to that render, the served host untouched', async () => {
   const outer = dom.window.document.createElement('section');
-  outer.innerHTML = '<p></p><button>go</button>';
+  outer.innerHTML = serve({ outer: "html`<p .hook=${1}></p><button @click=${() => {}}>go</button>`" }).outer;
   root.appendChild(outer);
   const b = host(served.replace(/slot-card-ssr/g, 'blast-r'));
   const bMarkup = b.outerHTML;

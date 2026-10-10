@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { serve } from './served.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent'])
@@ -21,10 +22,15 @@ const created = [];
 const track = { create: (element, adopted) => created.push([element, adopted]), mount: (element, { adopted }) => log.push([element, adopted]) };
 core.wire([renderer, hydration, elements, { on: 'element', fn: (el) => (el.hasAttribute('data-track') ? track : undefined), priority: 50 }]);
 const { html } = core;
+/** The real server's markup for the rows that adopt it (tests/served.mjs). */
+const SERVED = serve({
+  tracked: "html`<p data-track id=${'s'}>x</p>`",
+  bound: "html`<em data-x=${'bound-value'}>x</em>`",
+});
 
 test('an adopted element mounts with adopted: true — the server node itself; a client render says false', () => {
   const host = document.body.appendChild(document.createElement('div'));
-  host.innerHTML = '<p data-track id="s">x</p>';
+  host.innerHTML = SERVED.tracked;
   const server = host.querySelector('p');
   const draw = (id) => html`<p data-track id=${id}>x</p>`;
   renderInto(draw('s'), host);
@@ -43,7 +49,7 @@ test("a claim is asked about the template, not its first instance — a hydrated
   const seen = [];
   core.wire({ on: 'element', fn: (el) => { if (el.localName === 'em') seen.push(el.getAttribute('data-x')); }, priority: 60 });
   const host = document.body.appendChild(document.createElement('div'));
-  host.innerHTML = '<em data-x="bound-value">x</em>';
+  host.innerHTML = SERVED.bound;
   const quiet = console.warn;
   console.warn = () => {};
   try {
@@ -60,6 +66,7 @@ test("a claim is asked about the template, not its first instance — a hydrated
  */
 test('a mismatching container mounts no claim before it is cleared; the client render mounts once, not adopted', () => {
   const host = document.body.appendChild(document.createElement('div'));
+  /** Hand-written on purpose: the mismatch at the last marker is the point. */
   host.innerHTML = '<p data-track id="m">x</p><b>server</b>';
   const draw = () => html`<p data-track id="m">x</p><i>client</i>`;
   const from = log.length;

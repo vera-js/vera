@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { serve } from './served.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent'])
@@ -21,7 +22,7 @@ const { html } = core;
 
 test('an html template inside <svg> adopts the server markup parsed as SVG — self-closed siblings included', () => {
   const host = document.body.appendChild(document.createElement('div'));
-  host.innerHTML = '<svg><path d="M0"/><circle r="1"/></svg>';
+  host.innerHTML = serve({ svg: "html`<svg>${html`<path d=${'M0'}/><circle r=${1}/>`}</svg>`" }).svg;
   const [path, circle] = [host.querySelector('path'), host.querySelector('circle')];
   assert.equal(circle.parentNode.localName, 'svg', 'CONTROL: the server markup parsed as siblings');
   const said = [];
