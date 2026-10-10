@@ -3,7 +3,7 @@
  * renderer build in jsdom, proving the emitted templates hit the same engine paths (identity,
  * keyed reconciliation, events) as hand-written ones.
  */
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 const { transformJsx } = await load('jsx');
 import { JSDOM } from 'jsdom';
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
@@ -377,9 +377,9 @@ const italics = container.querySelectorAll('i');
 assert.equal(italics.length, 2, 'fragment renders multi-root');
 assert.equal(italics[1].textContent, '`tick costs $9', 'backticks and dollar-brace survive');
 
-// ── 5. helpful compile errors ──
-assert.throws(() => transformJsx('const a = <ul><li key={1}>x</li></ul>;', 'e.jsx'), /key belongs on the JSX root/);
-assert.throws(() => transformJsx('const a = <div style={{ color: c }} />;', 'e.jsx'), /style expects a STRING/);
+// ── 5. helpful compile errors — the sentence in development, the position + docs link in production ──
+assert.throws(() => transformJsx('const a = <ul><li key={1}>x</li></ul>;', 'e.jsx'), isProduction ? /^Error: e\.jsx:1:\d+ — https:\/\/verajs\.dev\/e\/jsx-key-placement$/ : /key belongs on the JSX root/);
+assert.throws(() => transformJsx('const a = <div style={{ color: c }} />;', 'e.jsx'), isProduction ? /^Error: e\.jsx:1:\d+ — https:\/\/verajs\.dev\/e\/style-object$/ : /style expects a STRING/);
 
 // ── 6. auto-imports ──
 const injected = transformJsx('export const v = () => <p>{x.map((i) => <b key={i}>{i}</b>)}</p>;', 'i.jsx');

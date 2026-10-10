@@ -1,12 +1,14 @@
 /**
- * **The jsx compiler's diagnostics, keyed by code — in EVERY build** (code-system phase 3, vera-5a, 2026-10-09). Unlike
- * every runtime table, this one is not behind `__DEV__`: a compile error is a build tool's only output, Vite and Node
- * load the compiler through the `default` condition (its production bundle), and the standalone loader imports it
- * lazily, only when something must be compiled. So the words stay and the code is added: `file:line:col — sentence fix
- * (code)`. Two facts are the renderer's `tag()` refusals too and live in shared-utils' table (`void-children`,
- * `style-object`). `scripts/sync-diagnostics.mjs` merges this with the standalone loader's table into
- * `packages/jsx/diagnostics.json`.
+ * **The jsx compiler's diagnostics, keyed by code — DEVELOPMENT ONLY, like every other table** (code-system phase 3,
+ * vera-5a; Brian, 2026-10-09). The production compiler is the file a buildless page fetches (`vera-jsx.min.js`, loaded
+ * lazily by the standalone loader on a cold visit), so its words would be paid on every buildless JSX page: production
+ * prints the position and the code's docs link, `file:line:col — https://verajs.dev/e/<code>`. **Node and Vite keep
+ * the words** — the package's `"node"` export condition is the development build, so the build tool, which no page
+ * ever downloads, says `file:line:col — sentence fix (code)`. Two facts are the renderer's `tag()` refusals too and
+ * live in shared-utils' table (`void-children`, `style-object`). `scripts/sync-diagnostics.mjs` merges this with the
+ * standalone loader's table into `packages/jsx/diagnostics.json`.
  */
+import { DOCS } from '@verajs/shared-utils';
 import type { Prose } from '@verajs/shared-utils';
 
 
@@ -41,10 +43,14 @@ export const PROSE: Record<string, Prose> = {
   ],
 };
 
-/** A sentence and its fix, ending with the code that names its docs page — the compiler's message, every build. */
-export const coded = (code: string, [sentence, fix]: readonly [string, string?]) => `${sentence}${fix ? ` ${fix}` : ''} (${code})`;
 /**
- * Called as `coded('x', PROSE['x'](…))`, naming the code twice — `tests/diagnostics-tables.test.mjs` holds the two equal.
- * A `say(code, …args)` that looked the prose up itself was measured 16 B larger (2026-10-09): with literal keys the
- * production compiler carries each code once and no table object — every entry inlined at its call site.
+ * The compiler's message: in development a sentence and its fix, ending with the code that names its docs page; in
+ * production (the prose folded away at the call, `__DEV__ && PROSE[…]`) the docs page itself.
+ */
+export const coded = (code: string, prose: false | readonly [string, string?]) =>
+  prose ? `${prose[0]}${prose[1] ? ` ${prose[1]}` : ''} (${code})` : `${DOCS}${code}`;
+/**
+ * Called as `coded('x', __DEV__ && PROSE['x'](…))`, naming the code twice — `tests/diagnostics-tables.test.mjs` holds
+ * the two equal. A `say(code, …args)` that looked the prose up itself was measured 16 B larger (2026-10-09, when the
+ * words still shipped): with literal keys each entry inlined at its one call site, and a lookup keeps the whole table.
  */

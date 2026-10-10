@@ -314,10 +314,14 @@ claim is that it adds nothing to the bundle. A template literal is the same char
 
 ## What it refuses, and where
 
-Every mistake below is reported with the file, line and column, and ends with its code — the full
-explanation of a code is at `https://verajs.dev/e/<code>` — not left for the next tool to choke on.
-A compile error keeps its whole sentence in every build: the compiler is a build tool, and its
-message is the only thing it can tell you.
+Every mistake below is reported with the file, line and column and its code — the full explanation
+of a code is at `https://verajs.dev/e/<code>` — not left for the next tool to choke on. **The Vite
+plugin and any Node use say the whole sentence**: the package's `node` export condition is the
+development build, because a build tool's message is all it can tell you and no page downloads it.
+**A buildless page on the `.min.js` loader gets the position and the code**
+(`app.jsx:1:15 — https://verajs.dev/e/jsx-tag-mismatch`), because that compiler is fetched by the
+page and every page would pay for the sentences; map the development loader while developing to
+read them (the buildless recipe in `llms.txt` shows the one-line swap).
 
 - a closing tag that names a different element (`<p>…</b>`) — `jsx-tag-mismatch`
 - `key` anywhere but the JSX root returned from a list callback — on an element or a component —

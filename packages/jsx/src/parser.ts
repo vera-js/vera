@@ -352,7 +352,7 @@ const skipTrivia = (state: ParseState): void => {
     } else if (next === '*') {
       const end = code.indexOf('*/', state.i + 2);
       if (end < 0) {
-        if (state.mismatch === null) state.mismatch = { message: coded('jsx-unclosed-comment', PROSE['jsx-unclosed-comment']()), at: state.i };
+        if (state.mismatch === null) state.mismatch = { message: coded('jsx-unclosed-comment', __DEV__ && PROSE['jsx-unclosed-comment']()), at: state.i };
         state.i = code.length;
         return;
       }
@@ -409,7 +409,7 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
       /** A spread of NOTHING is reported like an empty attribute — `<Card {...} />` emitted
        *  `Card({ ... })`, which does not parse. */
       if (isBlankExpression(container.text.slice(dots))) {
-        if (state.mismatch === null) state.mismatch = { message: coded('jsx-empty-expression', PROSE['jsx-empty-expression']('{...}')), at: spreadStart };
+        if (state.mismatch === null) state.mismatch = { message: coded('jsx-empty-expression', __DEV__ && PROSE['jsx-empty-expression']('{...}')), at: spreadStart };
         return null;
       }
       attrs.push({
@@ -467,7 +467,7 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
        */
       if (isBlankExpression(container.text)) {
         if (state.mismatch === null)
-          state.mismatch = { message: coded('jsx-empty-expression', PROSE['jsx-empty-expression'](`${name}={}`)), at: container.start - 1 };
+          state.mismatch = { message: coded('jsx-empty-expression', __DEV__ && PROSE['jsx-empty-expression'](`${name}={}`)), at: container.start - 1 };
         return null;
       }
       attrs.push({ name, kind: 'expr', text: container.text, roots: container.roots, start: nameStart, valueStart: container.start });
@@ -502,7 +502,7 @@ const parseChildren = (state: ParseState, closingTag: string | null): JsxChild[]
         if (name !== closingTag || code[state.i] !== '>') {
           if (name !== closingTag && state.mismatch === null)
             state.mismatch = {
-              message: coded('jsx-tag-mismatch', PROSE['jsx-tag-mismatch'](closingTag, name)),
+              message: coded('jsx-tag-mismatch', __DEV__ && PROSE['jsx-tag-mismatch'](closingTag, name)),
               at: state.i - name.length - 2,
             };
           return null;

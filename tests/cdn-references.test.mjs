@@ -63,7 +63,8 @@ const walk = (dir) => {
 };
 walk(root);
 
-const URL_PATTERN = /cdn\.jsdelivr\.net\/npm\/(@verajs\/[a-z][a-z-]*)(?:@([^/\s"')]+))?\/([^\s"')]+)/g;
+/** A URL ends at whitespace, a quote, `)` — or a backtick, since prose writes one in inline code (`` `https://…` ``). */
+const URL_PATTERN = /cdn\.jsdelivr\.net\/npm\/(@verajs\/[a-z][a-z-]*)(?:@([^/\s"')`]+))?\/([^\s"')`]+)/g;
 
 const references = [];
 for (const file of files)

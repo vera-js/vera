@@ -730,7 +730,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    */
   const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean): string => {
     if (!isRoot)
-      throw new JsxError(coded('jsx-key-placement', PROSE['jsx-key-placement']()), code, fileName, attribute.start);
+      throw new JsxError(coded('jsx-key-placement', __DEV__ && PROSE['jsx-key-placement']()), code, fileName, attribute.start);
     return attribute.kind === 'expr'
       ? emitExpression(attribute.text, attribute.roots, valueBase(attribute))
       : JSON.stringify(attribute.kind === 'str' ? attribute.text : null);
@@ -799,7 +799,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        */
       if (node.children.length > 0)
         throw new JsxError(
-          coded('void-children', SHARED.voidChildren(node.tag, 'children written inside it would land after it')),
+          coded('void-children', __DEV__ && SHARED.voidChildren(node.tag, 'children written inside it would land after it')),
           code,
           fileName,
           node.start
@@ -864,7 +864,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (!typesValue && !ticksChecked) return;
     options.onWarning!(
       located(
-        coded('jsx-uncontrolled', PROSE['jsx-uncontrolled'](name, tag, name === 'value' ? 'typed text is replaced' : 'a tick is undone', name === 'value' ? 'defaultValue' : 'defaultChecked')),
+        coded('jsx-uncontrolled', __DEV__ && PROSE['jsx-uncontrolled'](name, tag, name === 'value' ? 'typed text is replaced' : 'a tick is undone', name === 'value' ? 'defaultValue' : 'defaultChecked')),
         code,
         fileName,
         at
@@ -902,11 +902,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (name === 'dangerouslySetInnerHTML') {
       const match = attribute.kind === 'expr' ? /^\s*\{\s*__html\s*:([\s\S]*)\}\s*$/.exec(attribute.text) : null;
       if (!match)
-        throw new JsxError(coded('jsx-inner-html-shape', PROSE['jsx-inner-html-shape']('this is another shape')), code, fileName, attribute.start);
+        throw new JsxError(coded('jsx-inner-html-shape', __DEV__ && PROSE['jsx-inner-html-shape']('this is another shape')), code, fileName, attribute.start);
       const inner = match[1]!.trim().replace(/,\s*$/, '');
       /** `{{ __html: }}` names the key and gives it nothing, which emitted an empty template hole. */
       if (isBlankExpression(inner))
-        throw new JsxError(coded('jsx-inner-html-shape', PROSE['jsx-inner-html-shape']('{{ __html: }} has no value')), code, fileName, attribute.start);
+        throw new JsxError(coded('jsx-inner-html-shape', __DEV__ && PROSE['jsx-inner-html-shape']('{{ __html: }} has no value')), code, fileName, attribute.start);
       const bearer = attribute as Extract<JsxAttribute, { kind: 'expr' }>;
       const innerStart = valueBase(bearer) + bearer.text.indexOf(inner);
       tpl.static(' .innerHTML=');
@@ -914,7 +914,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     if (name === 'style' && attribute.kind === 'expr' && /^\s*\{/.test(attribute.text)) {
-      throw new JsxError(coded('style-object', SHARED.styleObject('style={`color:${c}`}')), code, fileName, attribute.start);
+      throw new JsxError(coded('style-object', __DEV__ && SHARED.styleObject('style={`color:${c}`}')), code, fileName, attribute.start);
     }
 
     /**
@@ -925,7 +925,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      */
     if (SIGILS.has(name[0]!)) {
       if (attribute.kind === 'none')
-        throw new JsxError(coded('jsx-sigil-value', PROSE['jsx-sigil-value'](name)), code, fileName, attribute.start);
+        throw new JsxError(coded('jsx-sigil-value', __DEV__ && PROSE['jsx-sigil-value'](name)), code, fileName, attribute.start);
       tpl.static(` ${name}=`);
       tpl.expr(bound ? expression! : JSON.stringify(literal));
       return;

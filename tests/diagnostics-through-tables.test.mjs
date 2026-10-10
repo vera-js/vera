@@ -31,8 +31,9 @@ const MIGRATED = [
   ['store', 'dist/*.min.js'],
   ['ui', 'dist/*.min.js'],
   ['autoloader', 'dist/*.min.js'],
-  /** The STANDALONE loader's bundle: the compiler is a separate, lazily loaded file whose words ship by design. */
-  ['jsx', 'dist/vera-jsx-standalone.min.js'],
+  /** Both: the standalone loader AND the compiler a buildless page fetches — neither may carry a sentence (3d). The
+   *  words Node and Vite read are `dist/node/`, outside this glob by design. */
+  ['jsx', 'dist/*.min.js'],
 ];
 /**
  * Error ROUTING, not messages (the migration plan excludes it): `reportUncaught` prints the caller's sentence beside an
@@ -92,9 +93,13 @@ for (const [name, bundle] of MIGRATED) {
     const leaked = [];
     let checked = 0;
     for (const [code, prose] of entries) {
-      /** A distinctive stretch of the first sentence, before its first parameter. */
-      const [sentence] = prose('\u0000', '\u0000', '\u0000');
-      const fragment = sentence.split('\u0000')[0].slice(0, 32).trim();
+      /**
+       * The LONGEST fixed stretch of the first sentence, between its parameters — not the stretch before the first one:
+       * a sentence that OPENS with a parameter (`${name} needs a value.`) had an empty prefix, was skipped, and a
+       * mutation that shipped its words to production stayed green (2026-10-09).
+       */
+      const [sentence] = prose('\u0000', '\u0000', '\u0000', '\u0000');
+      const fragment = sentence.split('\u0000').map((part) => part.trim()).sort((a, b) => b.length - a.length)[0].slice(0, 32).trim();
       if (fragment.length < 12) continue;
       checked++;
       if (min.includes(fragment)) leaked.push(`${code}: "${fragment}"`);

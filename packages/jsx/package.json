@@ -23,6 +23,7 @@
     ".": {
       "types": "./dist/development/vera-jsx.d.ts",
       "development": "./dist/development/vera-jsx.js",
+      "node": "./dist/node/vera-jsx.js",
       "default": "./dist/vera-jsx.min.js"
     },
     "./standalone": {
@@ -55,6 +56,7 @@
       "dependencies": [
         "build:development",
         "build:production",
+        "build:node",
         "build:types"
       ]
     },
@@ -96,6 +98,26 @@
       "output": [
         "dist/*.min.js",
         "dist/*.min.js.map"
+      ]
+    },
+    "build:node": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "node"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/node/*.js",
+        "dist/node/*.js.map"
       ]
     },
     "build:types": {

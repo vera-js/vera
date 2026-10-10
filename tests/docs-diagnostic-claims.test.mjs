@@ -72,6 +72,8 @@ const PENDING_MAX = 10;
 
 /** key → code | PENDING | 'not a promise: …'. The excerpt after `//` is for the reader; the key is the identity. */
 const CLAIMS = new Map([
+  ['llms.txt#304378b23d', 'pinned by tests/jsx-coded-errors.test.mjs: the production compiler says exactly position + docs link'], // **On this map a compile error names its position and its code** — `app.jsx:1:15 — https://verajs.dev/e/…`
+  ['llms.txt#11ecc1a63b', 'jsx-uncontrolled'], // While developing, map `@verajs/jsx` to …/dist/development/vera-jsx-standalone.js instead
   ['llms.txt#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // Core, styles, the renderer and the router also give every line a code …
   ['packages/core/README.md#ce53ba9a2a', 'pinned by tests/diagnostics-through-tables.test.mjs: the migrated list and the shrink-only NOT_YET list — the sentence names what is coded; when NOT_YET empties it can say every line'], // the same sentence
   ['llms.txt#1787f0438b', 'pinned by tests/diagnostics-docs-pages.test.mjs: the three production forms and the one docs address every code is explained at'], // Production prints a short line instead — the subject and a link …
@@ -148,7 +150,8 @@ const CLAIMS = new Map([
   ['packages/jsx/README.md#c448649b3c', 'boolean-child'], // Development names each one, and `{rows.filter((r) => r.ok).map(…)}` is the fix.
   ['packages/jsx/README.md#2331fe9023', 'not a promise: design rationale'], // **This is where vera and React deliberately part**, and the reason is measured: React filt
   ['packages/jsx/README.md#47c79cbe8e', 'not a promise: a heading; the sentences under it are entered'], // ## What it refuses, and where
-  ['packages/jsx/README.md#e7be457bbf', 'pinned by tests/jsx-coded-errors.test.mjs: every refusal in the list, position first and its code ending it, in every build'], // Every mistake below is reported with the file, line and column, and ends with its code — the full explanation
+  ['packages/jsx/README.md#b7967e9cd2', 'pinned by tests/jsx-coded-errors.test.mjs: every refusal in the list, position first and its code, in each build'], // Every mistake below is reported with the file, line and column and its code — the full explanation
+  ['packages/jsx/README.md#1254da39bf', 'pinned by tests/jsx-coded-errors.test.mjs: production is exactly position + docs link, and the node build says the sentence'], // **A buildless page on the `.min.js` loader gets the position and the code**
   ['packages/jsx/README.md#724b1c3ce0', 'not a promise: says the bundler reports it, not vera'], // The cost is that a genuinely unclosed element (`<p>x` with no `</p>`) reaches your bundler
   ['packages/jsx/README.md#f816cb75b4', 'event-name-typo'], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.

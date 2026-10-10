@@ -31,6 +31,15 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
   const mode = process.env.MODE;
   const isProduction = mode === 'prod';
   const isTypes = mode === 'types';
+  /**
+   * **`node`: production's pipeline with development's words** — minified and standalone, `__DEV__` left `true`. For a
+   * build TOOL whose messages are its only output and which no page downloads: `@verajs/jsx`'s compiler, mapped by its
+   * `node` export condition (2026-10-09). Not the development file, because that one is unminified, and measured cold
+   * that cost the compiler 1–1.5% over its first 20 passes of a real corpus (both A/A pairs inside 0.6%); minified, the
+   * same code tied the production compiler cold and steady.
+   */
+  const isNode = mode === 'node';
+  const minified = isProduction || isNode;
 
   const file = fileName + (isProduction ? '.min.js' : isTypes ? '.d.ts' : '.js');
 
@@ -115,7 +124,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
   return {
     input: options.input ?? 'src/index.ts',
     output: {
-      file: isProduction ? `dist/${file}` : `dist/development/${file}`,
+      file: isProduction ? `dist/${file}` : isNode ? `dist/node/${file}` : `dist/development/${file}`,
       format: 'es',
       sourcemap: true,
       /**
@@ -141,18 +150,18 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
         return relativePath;
       },
     },
-    external: !isProduction ? (dependencies ?? []) : (options.alwaysExternal ?? []),
+    external: !minified ? (dependencies ?? []) : (options.alwaysExternal ?? []),
     plugins: [
       defineDev(),
       typescript({
-        outDir: isProduction ? 'dist/' : 'dist/development/',
+        outDir: isProduction ? 'dist/' : isNode ? 'dist/node/' : 'dist/development/',
         compilerOptions: {
           composite: false,
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
         },
       }),
-      isProduction &&
+      minified &&
         terser({
           output: {
             comments: false,

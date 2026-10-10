@@ -1463,6 +1463,12 @@ the price of the modules being genuinely independent of core.
 
 For CodePen, a demo, or a self-hosted multi-file app. Copy this shape; it works with no toolchain.
 
+**On this map a compile error names its position and its code** — `app.jsx:1:15 — https://verajs.dev/e/jsx-tag-mismatch` —
+because the `.min.js` compiler a page fetches carries no sentences: every page that compiles would pay for them.
+While developing, map `@verajs/jsx` to `https://cdn.jsdelivr.net/npm/@verajs/jsx@0.3.2/dist/development/vera-jsx-standalone.js`
+instead — the same loader, with a compiler that says the whole sentence and its fix, and warns about what compiles but
+is probably a mistake (a controlled `value` with nothing keeping it in step).
+
 ```html
 <!-- Three entries, and that is all. The compiled blocks import `html` from core; every
      `@verajs/renderer/<entry>` — the `keyed`, `spread` and `namespaces` the compiler imports, and
