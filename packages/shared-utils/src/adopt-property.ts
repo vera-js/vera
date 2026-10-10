@@ -18,6 +18,12 @@ import * as SHARED from './diagnostics.js';
  *
  * `_$props$` and `_$adopt$` are `$`-named because they cross bundle boundaries (renderer, spread, core)
  * and must survive property mangling.
+ *
+ * **`_$adopt$` is a BRAND, not just a slot:** present means "core has initialized this component", which is what routes
+ * a delivery to the live accessor (`1`) instead of the `_$props$` record. Do not move it to a class's PROTOTYPE to save
+ * the closure per element (R1's C6, 2026-10-10): every instance would carry it BEFORE `init`, and a delivery to an
+ * upgraded-but-uninitialized element would be adopted into a store that does not exist yet. The closure was raced
+ * against one shared function in three engines and costs nothing measurable — there is no saving to chase.
  */
 
 /** Development only: getter-only names already reported, per element — a `!name` re-asserts on every render. */
