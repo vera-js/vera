@@ -108,6 +108,13 @@ test('two components awaiting between init and render both throw, whichever resu
   const b = dom.window.document.createElement('await-mid-b');
   app.appendChild(a);
   app.appendChild(b);
-  await assert.rejects(b.ready, /no-owner|no component being set up/, 'the one that resumed first');
-  await assert.rejects(a.ready, /no-owner|no component being set up/, 'and the one it would have overtaken');
+  /**
+   * Both handlers attached EAGERLY. Awaiting b's before attaching a's left a's rejection unhandled whenever a resumed
+   * first — under load the two timers can be scheduled more than 15 ms apart, so the 20 ms one expires before the 5 ms
+   * one (seen once in a full production run, 2026-10-09; vera-5a). Which resumes first is not what this asserts.
+   */
+  const first = assert.rejects(b.ready, /no-owner|no component being set up/, 'the one that resumed first');
+  const second = assert.rejects(a.ready, /no-owner|no component being set up/, 'and the one it would have overtaken');
+  await first;
+  await second;
 });
