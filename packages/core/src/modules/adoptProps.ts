@@ -86,7 +86,13 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
      * Effects are not forced — a side effect must not re-fire because a prop arrived. During the drain
      * this is a no-op: `init()` has just reset the hooks.
      */
-    this._$h$?.[this._$p$!.indexOf(RENDER_PRIORITY)]?.forEach((hook) => hook.$n({}, true));
+    const hooks = this._$h$;
+    if (hooks !== undefined)
+      for (let i = 0; i < hooks.length; i++) {
+        const hook = hooks[i]!;
+        /** The render band: a key is priority × 1e9 + creation, so a priority-50 hook's key is in [50e9, 51e9). */
+        if (hook._k >= RENDER_PRIORITY * 1e9 && hook._k < (RENDER_PRIORITY + 1) * 1e9) hook.$n({}, true);
+      }
 }
 
 export const adoptProps = (element: ComponentElement) => {

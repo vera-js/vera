@@ -33,31 +33,6 @@ export const isWeakCollection = (item: unknown) => {
 export const stripTrailingSlash = (str: string) => (str !== '/' && str.endsWith('/') ? str.slice(0, -1) : str);
 
 /**
- * Finds the entry for `priority` in a dense, priority-sorted pair of arrays, creating one if it is
- * not there yet. `order` holds the priorities and `list` the values at matching indices.
- *
- * Priority is deliberately NOT used as an array index. Indexing by priority leaves holes — hooks at
- * 25/50/75 produce a 76-element array with 73 of them empty — and these arrays are walked on every
- * render and every write, so the holes dominated the cost.
- *
- * @param list Values, ordered by ascending priority
- * @param order Priorities, parallel to `list`
- * @param priority Priority to find or create
- * @param create Builds the value when the priority is not present yet
- * @return The existing or newly created value
- */
-export const prioritySlot = <T>(list: T[], order: number[], priority: number, create: () => T): T => {
-  let slot = 0;
-  while (slot < order.length && order[slot] < priority) slot++;
-  if (order[slot] === priority) return list[slot];
-
-  order.splice(slot, 0, priority);
-  const created = create();
-  list.splice(slot, 0, created);
-  return created;
-};
-
-/**
  * **Reports an error nothing else handled, the way the platform reports one.** `reportError` fires
  * the window's `error` event — what `window.onerror`, error trackers and test runners listen for —
  * without unwinding the caller, so one failing hook or ref never stops its siblings. A bare

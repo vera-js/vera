@@ -131,7 +131,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * warned; a reconnect is a legitimate restart).
    */
   if (__DEV__ && currentInstance.element === element && element._$h$?.length) {
-    const count = element._$h$.reduce((n, set) => n + set.size, 0);
+    const count = element._$h$.length;
     console.warn(diagnostic('core', `<${element.localName}>`, 'init-twice', __DEV__ && PROSE['init-twice'](String(count))));
   }
   /** Development: a `setup()` method spelled another way would have been this init's setup. */
@@ -145,10 +145,10 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   if (generation !== undefined) {
     retireGeneration(element);
     element._$x$ = false;
+    /** The old generation's list goes; the new one is made by its first hook (`register`), so a fresh element writes none. */
+    element._$h$ = undefined;
   }
   element._$g$ = (generation ?? 0) + 1;
-  element._$h$ = [];
-  element._$p$ = [];
   /** The document it was set up in: a move into another one is a teardown and a fresh setup (see the wrapper below). */
   (element as Moving)._$d$ = element.ownerDocument;
   /**
@@ -358,7 +358,7 @@ if (typeof customElements !== 'undefined') {
     const teardown = (element: Moving) => {
       own?.call(element);
       retireGeneration(element);
-      element._$h$ = element._$p$ = undefined;
+      element._$h$ = undefined;
       /** The renderer drops what its part holds of the component's JS (work queue 0d) — absent on a server, a no-op. */
       (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
       element._$x$ = true;

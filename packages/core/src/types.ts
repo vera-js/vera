@@ -1,8 +1,7 @@
 /**
  * A component element, carrying what `init` and the hooks attach to it.
  *
- * **Every field core keeps on an element is SIGILED** (O4, 2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$p$` their
- * priorities, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$o$` the
+ * **Every field core keeps on an element is SIGILED** (O4, 2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$o$` the
  * non-element owners its setup created. The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
  * letters production mangled the rest to, collided with a base class's own fields — and core reads them back, so a base
  * class's `_root` crashed the render. No mangling regex matches a sigil, so the names are also the cross-package
@@ -11,12 +10,10 @@
  */
 export interface ComponentElement extends HTMLElement {
   /**
-   * The element's hooks, dense and priority-sorted. Attached to the element so they are collected
-   * with it — the store holds them only weakly.
+   * The element's hooks, ONE flat list in run order (priority, then creation), created with the first hook. Attached to
+   * the element so they are collected with it — the store holds them only weakly.
    */
   _$h$?: Hooks;
-  /** Priorities parallel to `_$h$`, which is kept dense rather than indexed by priority. */
-  _$p$?: number[];
   /**
    * How many times this element has been `init()`ed. A hook captures the value it was created
    * under and does nothing when it no longer matches — see `createHook`.
@@ -79,8 +76,8 @@ export type HookCleanup = () => void;
  */
 export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
 
-/** An element's hooks, dense and priority-sorted — `_$p$` runs parallel to it. */
-export type Hooks = Set<HookRecord>[];
+/** An element's hooks in run order: sorted by `_k` (priority, then creation). */
+export type Hooks = HookRecord[];
 /** One key's subscribers: each hook's single `WeakRef` (a hook's element holds the hook strongly, the store weakly). */
 export type Subscribers = Set<WeakRef<HookRecord>>;
 

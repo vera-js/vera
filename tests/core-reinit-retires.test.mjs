@@ -154,7 +154,6 @@ test('a removed component drops its hook lists — and a reconnect rebuilds them
   el.remove();
   await tick();
   assert.equal(el._$h$, undefined, 'removed: no hook lists');
-  assert.equal(el._$p$, undefined, 'removed: no priorities');
   doc.body.append(el);
   await tick();
   store.n = 2;

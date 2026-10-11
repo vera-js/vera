@@ -1,4 +1,4 @@
-import type { ComponentElement, HookRecord } from '../types.js';
+import type { ComponentElement } from '../types.js';
 
 /**
  * The first pass of every hook a component's setup registered, in priority order — what commits a setup (`init`'s
@@ -10,9 +10,8 @@ import type { ComponentElement, HookRecord } from '../types.js';
  * NOT frozen, so a mistaken write behaves the same on a first pass as on any later one (vera-5a).
  */
 const FIRST = {};
-const run = (hook: HookRecord) => hook.$n(FIRST, true);
-const pass = (hooks: Set<HookRecord>) => hooks.forEach(run);
-
+/** A plain loop over the one list, reading its length live: a hook a first pass registers on this owner runs too. */
 export const firstPasses = (element: ComponentElement) => {
-  element._$h$!.forEach(pass);
+  const hooks = element._$h$;
+  if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i]!.$n(FIRST, true);
 };

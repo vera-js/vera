@@ -1,7 +1,7 @@
 import type { ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal, Subscribers } from '../types.js';
 import { currentInstance, hooksQueue, mine } from '../store/store.js';
 import { enqueue } from './scheduler.js';
-import { diagnostic, prioritySlot, reportUncaught } from '@verajs/shared-utils';
+import { diagnostic, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { ErrorInsert } from '@verajs/inserts';
@@ -14,8 +14,6 @@ import type { ErrorInsert } from '@verajs/inserts';
  */
 export const noOwner = (subject: string) => diagnostic('core', subject, 'no-owner', __DEV__ && PROSE['no-owner']());
 
-/** Hoisted, so `prioritySlot` is not handed a fresh closure per registration. */
-const newSet = () => new Set<HookRecord>();
 
 /**
  * Hands a thrown hook error to the `'error'` insert chain, or reports it the way the platform reports
@@ -43,18 +41,18 @@ export const RENDER_PRIORITY = 50;
  * removal and on a re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
  */
 export const retire = (owner: ComponentElement) => {
-  /** Every hook the generation registered is in its priority Sets; each carries its record (`s`). */
+  /** Every hook the generation registered is in its one list, each carrying its own subscriptions. */
   const all = owner._$h$;
   if (all !== undefined)
-    for (let i = 0; i < all.length; i++)
-      for (const hook of all[i]!) {
-        const w = hook.w;
-        const d = hook.d;
-        hook.a?.delete(w);
-        hook.b?.delete(w);
-        if (d !== undefined) for (let k = 0; k < d.length; k++) d[k]!.delete(w);
-        hook.a = hook.b = hook.d = undefined;
-      }
+    for (let i = 0; i < all.length; i++) {
+      const hook = all[i]!;
+      const w = hook.w;
+      const d = hook.d;
+      hook.a?.delete(w);
+      hook.b?.delete(w);
+      if (d !== undefined) for (let k = 0; k < d.length; k++) d[k]!.delete(w);
+      hook.a = hook.b = hook.d = undefined;
+    }
   /** One level only: what a setup created is never itself an element being set up, so it owns no further owners. */
   const owned = owner._$o$;
   if (owned !== undefined) {
@@ -246,7 +244,18 @@ export const register = (owner: ComponentElement, callback: HookCallback, priori
   const host = currentInstance.element;
   if (host !== null && host !== owner && (owner as Partial<Node>).nodeType === undefined)
     (host._$o$ ??= []).push(owner);
-  prioritySlot((owner._$h$ ??= []), (owner._$p$ ??= []), priority, newSet).add(hook);
+  /**
+   * ONE flat list in run order. Keys only grow, so a hook joins at the end — unless a LOWER priority arrives after a
+   * higher one (a `useHook(…, 25)` registered after the render): then it moves back past the hooks that run after it.
+   */
+  const hooks = (owner._$h$ ??= []);
+  let at = hooks.length;
+  hooks.push(hook);
+  while (at > 0 && hooks[at - 1]!._k > hook._k) {
+    hooks[at] = hooks[at - 1]!;
+    at--;
+  }
+  hooks[at] = hook;
   return hook;
 };
 

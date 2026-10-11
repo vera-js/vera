@@ -94,7 +94,7 @@ test('mutating a Date in place does not notify; replacing it does', async () => 
 
   const seen = [];
   core.createHook({ element, priority: 50, callback: () => seen.push(state.when.getTime()) });
-  element._$h$?.forEach((set) => set.forEach((callback) => callback.$n(undefined, true)));
+  element._$h$?.forEach((callback) => callback.$n(undefined, true));
   const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
   state.when.setUTCFullYear(1999);

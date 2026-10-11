@@ -80,7 +80,7 @@ const define = (setup) => {
   await frame();
   check('four attach cycles leave exactly one live render hook', renders === settled + 1,
     `fired ${renders - settled} times`);
-  check('and one hook slot, not four', el._$h$.length === 1, `${el._$h$.length} slots`);
+  check('and one hook, not four', el._$h$.length === 1, `${el._$h$.length} hooks`);
   body.removeChild(el);
 }
 

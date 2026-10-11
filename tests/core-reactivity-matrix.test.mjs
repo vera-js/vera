@@ -190,7 +190,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
 
     let seen = '';
     core.createHook({ element, priority: 60, callback: () => (seen = kind.read(store.v)) });
-    [...element._$h$[0]][0].$n(undefined, true);
+    element._$h$[0].$n(undefined, true);
 
     const before = seen;
     if (before !== kind.read(mirror)) {
@@ -237,7 +237,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
     priority: 60,
     callback: () => { runs++; void `${store.a}${store.nested.n}${store.list[0]}${store.list.length}`; },
   });
-  [...element._$h$[0]][0].$n(undefined, true);
+  element._$h$[0].$n(undefined, true);
 
   const counted = (name, mutate) => {
     const before = runs;
@@ -274,7 +274,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
 
   let seen = '';
   core.createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
-  [...element._$h$[0]][0].$n(undefined, true);
+  element._$h$[0].$n(undefined, true);
 
   store.full = 'x y';
   if (seen === 'x y') pass++;
@@ -301,7 +301,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
 
   let seen = '';
   core.createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
-  [...element._$h$[0]][0].$n(undefined, true);
+  element._$h$[0].$n(undefined, true);
 
   store.full = 'x y';
   if (seen === 'x y') pass++;
