@@ -171,6 +171,22 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
 };
 
 /**
+ * **Retires a generation — the ONE place, for a removal and for a re-init alike.** Everything a generation owns ends
+ * here: its effects' pending cleanups run (each through `runCleanup`, so one that throws is reported and the rest still
+ * run), and its hooks leave every store they joined. Before, the removal ran the cleanups and `start` only replaced the
+ * set: an element set up again IN PLACE dropped its first generation's cleanups, so an interval or listener outlived
+ * its hooks (found 2026-10-10). A new per-generation store is retired here, so both paths retire it by construction.
+ */
+const retireGeneration = (element: ComponentElement) => {
+  const pending = element._$c$;
+  if (pending !== undefined) {
+    pending.forEach((cleanup) => runCleanup(cleanup, element));
+    pending.clear();
+  }
+  retire(element);
+};
+
+/**
  * What every connect does before its setup: a fresh generation, the root (attached from `root` when it has none), the
  * delivered props adopted, and the `'init'` inserts — shared by the setup path and the earlier window.
  */
@@ -180,7 +196,7 @@ const start = (element: ComponentElement, root: ShadowRootInit | undefined) => {
    * a first setup and writing `_$u$` up front, to spare two missing-field reads, cost Firefox's collector 35% on
    * create + remove over a long run — raced 2026-10-10. Leave it as it is.)
    */
-  retire(element);
+  retireGeneration(element);
   element._$g$ = (element._$g$ ?? 0) + 1;
   element._$h$ = [];
   element._$p$ = [];
@@ -340,10 +356,8 @@ if (typeof customElements !== 'undefined') {
     const connected = proto.connectedCallback;
     const teardown = (element: Moving) => {
       own?.call(element);
-      element._$c$!.forEach((cleanup) => runCleanup(cleanup, element));
-      element._$c$!.clear();
+      retireGeneration(element);
       element._$x$ = true;
-      retire(element);
     };
     /**
      * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never
