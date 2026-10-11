@@ -19,7 +19,10 @@ export interface ComponentElement extends HTMLElement {
    * under and does nothing when it no longer matches — see `createHook`.
    */
   _$g$?: number;
-  /** Effect cleanups awaiting removal, which runs them (see `init`). Read by the renderer's adapters. */
+  /**
+   * Cleanups OTHER packages register for removal (`@verajs/hooks`' `useDismiss`, ui's select — created with `??=`), run
+   * after the hooks' own, in registration order (see `init`'s `retireGeneration`). Core's effects keep theirs on the hook.
+   */
   _$c$?: Set<HookCleanup>;
   /** Set once removal has swept `_$c$`, so a cleanup registered after it runs at once. */
   _$x$?: boolean;

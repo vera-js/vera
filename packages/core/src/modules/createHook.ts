@@ -1,5 +1,5 @@
 import type { ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal, Subscribers } from '../types.js';
-import { currentInstance, hooksQueue, mine } from '../store/store.js';
+import { currentInstance, hooksQueue } from '../store/store.js';
 import { enqueue } from './scheduler.js';
 import { diagnostic, misuse, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
@@ -37,8 +37,15 @@ export const reportHookError = (error: unknown, element: ComponentElement | unde
 export const RENDER_PRIORITY = 50;
 
 /**
- * Retires every subscription `owner` carries: each hook leaves exactly the Sets it joined. Run on a component's real
- * removal and on a re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
+ * **Retires every hook `owner` carries, in run order**: each leaves exactly the Sets it joined, then its last cleanup runs
+ * (`runCleanup`: one that throws is reported and the rest still run). Run on a component's real removal and on a
+ * re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
+ *
+ * **A cleanup lives on its hook, as React keeps an effect's `destroy` on its effect** (work queue 5, step 3, Brian
+ * 2026-10-11): each hook keeps the cleanup its LATEST run returned. They used to sit in one Set on the element, where a
+ * re-run deleted its old cleanup and added the new one at the END — so after a layout effect re-ran, removal ran the
+ * effect's cleanup before the layout effect's, the reverse of priority order. The list is in run order, so this walk is
+ * in priority order by construction. Unsubscribed first, so a cleanup's own write cannot wake the hook it belongs to.
  */
 export const retire = (owner: ComponentElement) => {
   /** Every hook the generation registered is in its one list, each carrying its own subscriptions. */
@@ -52,6 +59,7 @@ export const retire = (owner: ComponentElement) => {
       hook.b?.delete(w);
       if (d !== undefined) for (let k = 0; k < d.length; k++) d[k]!.delete(w);
       hook.a = hook.b = hook.d = undefined;
+      spend(hook);
     }
   /** One level only: what a setup created is never itself an element being set up, so it owns no further owners. */
   const owned = owner._$o$;
@@ -71,6 +79,19 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
   } catch (error) {
     /** Named as a CLEANUP (main did): the hook ran fine — what threw is what it returned. */
     reportHookError(error, owner ?? undefined, __DEV__ ? diagnostic('core', 'a cleanup', 'cleanup-threw', __DEV__ && PROSE['cleanup-threw']()) : '[vera] cleanup-threw');
+  }
+};
+
+/**
+ * **Runs a hook's cleanup, once** — before its next run, at removal (`retire`), and at once when its owner was removed
+ * during this very run. Cleared FIRST: a spent cleanup must neither run twice (a callback that throws next would leave it
+ * to run again) nor keep alive what it captured.
+ */
+const spend = (hook: HookRecord) => {
+  const cleanup = hook._c;
+  if (cleanup !== undefined) {
+    hook._c = undefined;
+    runCleanup(cleanup, hook._o);
   }
 };
 
@@ -196,8 +217,8 @@ class HookState implements HookRecord {
    * **The run, tracked**: what it reads subscribes it. A raw hook just runs; any other runs its previous cleanup first
    * and keeps a returned FUNCTION as the next — an `async` callback returns a promise, which was called as a cleanup on
    * the next run and on removal (`[vera] a hook threw:` twice, measured 2026-10-09); now an async effect just runs.
-   * The cleanup is also kept in the owner's `_$c$`, which removal sweeps (see `init`); an owner that removed itself
-   * during this very run has already been swept, so its cleanup runs at once rather than into a Set nothing drains.
+   * The cleanup stays ON the hook (`_c`), where removal's walk finds it (`retire`); an owner that removed itself during
+   * this very run has already been walked, so its cleanup runs at once rather than waiting on a walk that is over.
    */
   $t(signal?: Signal<unknown>, init?: boolean) {
     const owner = this._o;
@@ -207,13 +228,7 @@ class HookState implements HookRecord {
         this._cb(signal, init);
         return;
       }
-      const spent = this._c;
-      if (spent !== undefined) {
-        owner._$c$?.delete(spent);
-        /** Cleared first, so a callback that throws does not leave a spent cleanup to run again. */
-        this._c = undefined;
-        runCleanup(spent, owner);
-      }
+      spend(this);
       const out = this._cb(signal, init);
       const cleanup = typeof out === 'function' ? out : undefined;
       this._c = cleanup;
@@ -223,11 +238,8 @@ class HookState implements HookRecord {
         const hook = priority === 60 ? 'useLayoutEffect' : priority === 75 ? (this._m === SYNC ? 'useSyncEffect' : 'useEffect') : 'useHook';
         console.warn(diagnostic('core', `${hook}${owner.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
       }
-      if (cleanup !== undefined) {
-        if (owner._$x$) runCleanup(cleanup, owner);
-        /** The Set on the FIRST cleanup — most components register none, so none pay for it. Elements `init` set up only. */
-        else if (mine.has(owner)) (owner._$c$ ??= new Set()).add(cleanup);
-      }
+      /** `_$x$` is read only when there IS a cleanup: on a fresh element it is a miss, a walk down the DOM prototype chain. */
+      if (cleanup !== undefined && owner._$x$) spend(this);
     } catch (error) {
       threw(error, owner);
     } finally {

@@ -118,3 +118,40 @@ test('a priority that is not a finite number THROWS from useHook and createHook,
   assert.equal(el._$h$?.length ?? 0, before, 'no hook was added');
   el.remove();
 });
+
+/**
+ * **Removal runs cleanups in priority order — after a re-run too** (work queue 5, step 3). Each hook keeps its latest
+ * cleanup ON itself, as React keeps an effect's `destroy`; they used to sit in one Set on the element, where a re-run
+ * moved its cleanup to the END — so after the layout effect re-ran, the effect's cleanup ran first (measured
+ * 2026-10-11, both builds). Then the cleanups other packages register in `_$c$` (`useDismiss`, ui's select), in
+ * registration order — a third party's cleanup still sees what core's cleanups did.
+ */
+test('removal runs every cleanup in priority order, even after a re-run, then the other packages’ cleanups', async () => {
+  const order = [];
+  const state = core.createStore({ width: 0 });
+  const seen = { closed: false };
+  let layoutRuns = 0;
+  const tag = `ho-${seq++}`;
+  customElements.define(tag, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this, (host) => {
+        /** A third party's removal cleanup, registered the way `useDismiss` does — it reads what core's cleanup wrote. */
+        (host._$c$ ??= new Set()).add(() => order.push(`third party (saw closed: ${seen.closed})`));
+        core.useLayoutEffect(() => { state.width; layoutRuns++; return () => order.push('layout cleanup'); });
+        core.useEffect(() => () => { seen.closed = true; order.push('effect cleanup'); });
+        return () => core.html`<p>x</p>`;
+      });
+    }
+  });
+  const el = doc.createElement(tag);
+  doc.body.append(el);
+  await tick();
+  state.width = 1;
+  await tick();
+  assert.equal(layoutRuns, 2, 'CONTROL: the layout effect re-ran');
+  assert.deepEqual(order, ['layout cleanup'], 'CONTROL: its re-run ran its previous cleanup');
+  order.length = 0;
+  el.remove();
+  await tick();
+  assert.deepEqual(order, ['layout cleanup', 'effect cleanup', 'third party (saw closed: true)']);
+});

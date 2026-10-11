@@ -249,17 +249,19 @@ const pending = (element: ComponentElement, out: PromiseLike<unknown>, generatio
 
 /**
  * **Retires a generation — the ONE place, for a removal and for a re-init alike.** Everything a generation owns ends
- * here: its effects' pending cleanups run (each through `runCleanup`, so one that throws is reported and the rest still
- * run), and its hooks leave every store they joined (see `retire`). A re-init that only replaced the hook lists would
- * drop the first generation's cleanups, so an interval or listener outlived its hooks (found 2026-10-10).
+ * here, in one fixed order: its hooks leave every store they joined and run their last cleanups, in priority order
+ * (`retire`); then the cleanups OTHER packages registered in `_$c$` (`@verajs/hooks`' `useDismiss`, ui's select) run in
+ * the order they were registered. Each through `runCleanup`, so one that throws is reported and the rest still run. A
+ * re-init that only replaced the hook lists would drop the first generation's cleanups, so an interval or listener
+ * outlived its hooks (found 2026-10-10).
  */
 const retireGeneration = (element: ComponentElement) => {
+  retire(element);
   const cleanups = element._$c$;
   if (cleanups !== undefined) {
     cleanups.forEach((cleanup) => runCleanup(cleanup, element));
     cleanups.clear();
   }
-  retire(element);
 };
 
 /** Development: an invalid app default or own `shadow`, and an unknown option key — said by name, before the fallback. */
