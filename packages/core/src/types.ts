@@ -129,6 +129,12 @@ export type TemplateResult<T extends ResultType = 1> = {
 };
 
 /** The change that woke a hook: which property, and its value after and before. */
+/**
+ * **What a write was — ONE read-only object per write, shared by every hook it reaches** (R2.5, 2026-10-11: `trigger`
+ * makes one per write, not one per subscriber; every first pass shares one `{}`). Nothing compares a signal's
+ * identity, writes to it, or aborts through it — and nothing may: a per-hook field here (a run id, an abort controller)
+ * would leak one subscriber's state into all of them. Per-hook state belongs on the hook.
+ */
 export type Signal<V> = {
   prop?: string;
   value?: V;

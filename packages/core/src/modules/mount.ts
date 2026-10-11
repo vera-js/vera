@@ -5,8 +5,11 @@ import type { ComponentElement, HookCallback } from '../types.js';
  * `commit`). Two shared functions: no closure per mount (C3), and compact bytecode — a nested `for…of` over a Set
  * compiled to about 3x the bytecode, which Chrome's first render interprets for every component (R2.5).
  */
-/** ONE empty signal for every first pass — read, never written; frozen so a hook cannot change what the next one sees. */
-const FIRST = Object.freeze({});
+/**
+ * ONE empty signal for every first pass — shared and read-only by contract, exactly as a write's signal is (see `Signal`);
+ * NOT frozen, so a mistaken write behaves the same on a first pass as on any later one (vera-5a).
+ */
+const FIRST = {};
 const run = (hook: HookCallback) => hook(FIRST, true);
 const pass = (hooks: Set<HookCallback>) => hooks.forEach(run);
 
