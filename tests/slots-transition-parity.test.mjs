@@ -34,7 +34,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 for (const key of ['window','document','HTMLElement','customElements','CSSStyleSheet','Node','Element','DocumentFragment','Text','Comment','requestAnimationFrame','cancelAnimationFrame','Event','CustomEvent','MutationObserver','NodeFilter'])
   globalThis[key] = dom.window[key];
 
-const { init, html, render, wire } = await load('core');
+const { init, html, wire } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { slots, slotted } = await load('renderer/slots');
@@ -49,8 +49,9 @@ for (const [tag, mode] of [['t-gap-light', undefined], ['t-gap-shadow', { mode: 
     tag,
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this, mode);
-        if (mode === undefined) render(() => html`<div class="box"><slot name="n">NF</slot><main><slot>DF</slot></main></div>`);
+        /** Light: a rendered shell. Shadow: the constructor attached and filled the root, so the setup renders nothing. */
+        if (mode === undefined) init(this, () => () => html`<div class="box"><slot name="n">NF</slot><main><slot>DF</slot></main></div>`);
+        else init({ host: this, shadow: mode });
       }
       constructor() {
         super();
@@ -64,8 +65,7 @@ for (const [tag, mode] of [['t-light', undefined], ['t-shadow', { mode: 'open' }
     tag,
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this, mode);
-        render(() => html`<div class="box"><slot>FALLBACK</slot></div>`);
+        init({ host: this, shadow: mode ?? false }, () => () => html`<div class="box"><slot>FALLBACK</slot></div>`);
       }
     }
   );
@@ -205,8 +205,7 @@ test('a component whose own output carries slot= still renders it', async () => 
     't-selfslot',
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this); // LIGHT
-        render(() => html`<div slot="header" class="box"><slot>FB</slot></div>`);
+        init(this, () => () => html`<div slot="header" class="box"><slot>FB</slot></div>`); // LIGHT
       }
     }
   );
@@ -344,8 +343,7 @@ test('slotchange fires the same number of times as the platform, through a full 
     't-life',
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this); // LIGHT
-        render(() => html`<div class="box"><header><slot name="h" @slotchange=${bump}>HF</slot></header><main><slot @slotchange=${bump}>DF</slot></main></div>`);
+        init(this, () => () => html`<div class="box"><header><slot name="h" @slotchange=${bump}>HF</slot></header><main><slot @slotchange=${bump}>DF</slot></main></div>`); // LIGHT
       }
     }
   );

@@ -1,6 +1,6 @@
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
-import { init, createStore, useEffect, render, useLayoutEffect, ref, html } from '@verajs/core';
+import { init, createStore, useEffect, useLayoutEffect, ref, html } from '@verajs/core';
 import { css } from '@verajs/styles';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
@@ -39,144 +39,128 @@ class GoodbyeComponent extends HTMLElement {
   static styles = [styles, inputStyles];
 
   connectedCallback() {
-    init(this, { mode: 'open' });
+    /** Written after the setup returns (below), so it lives outside it. */
     let componentInit = false;
-    const state = createStore({
-      hello: { name: { first: 'hello', last: 'goodbye' } },
-      goodbye: 'hello',
-      color: 'red',
-      /**
-       * Restored: `changeStateMachine` (wired to the "Change state machine" button below) reads all
-       * three. While they were commented out that button threw on click, so the Set/Map/object
-       * reactivity this component exists to exercise was never actually running.
-       */
-      testSet: new Set(['hello', 'goodbye']),
-      map: new Map([['hello', 'Little Women']]),
-      testObject: 'testObject',
-      bigTest: { littleTest: 'LITTLE TEST' },
-      ...generateLargeObject(20, 100),
-    });
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({
+        hello: { name: { first: 'hello', last: 'goodbye' } },
+        goodbye: 'hello',
+        color: 'red',
+        /**
+         * Restored: `changeStateMachine` (wired to the "Change state machine" button below) reads all
+         * three. While they were commented out that button threw on click, so the Set/Map/object
+         * reactivity this component exists to exercise was never actually running.
+         */
+        testSet: new Set(['hello', 'goodbye']),
+        map: new Map([['hello', 'Little Women']]),
+        testObject: 'testObject',
+        bigTest: { littleTest: 'LITTLE TEST' },
+        ...generateLargeObject(20, 100),
+      });
+      const testMap = createStore(new Map([['hello', 'Little Women']]));
+      const testRef = ref(0);
+      useEffect(() => {
+        console.log(state.hello);
+      });
+      useEffect(() => {
+        console.log('STATE CHANGED!!!', state.hello.name.last);
+      });
+      // const stateMachine = ref(new Map([['hello', 'goodbye']]));
 
-    const testMap = createStore(new Map([['hello', 'Little Women']]));
+      // useEffect(() => {
+      //   console.log('State machine value: ', stateMachine.value.get('hello'));
+      // });
+      // useEffect(() => {
+      //   console.log('State map value: ', state.map.get('hello'));
+      // });
+      // useEffect(() => {
+      //   // console.log('State set value: ', state.set);
 
-    const testRef = ref(0);
+      //   const newValue = state.testSet.has('goodbye');
+      //   console.log("state.testSet.has('goodbye') changed", newValue);
+      // });
+      // useEffect(() => {
+      //   state.map.get('hello');
+      // });
+      // useEffect(() => {
+      //   const newValue = testMap.get('hello');
+      //   console.log("state.testMap.get('hello') changed", newValue);
+      // });
 
-    useEffect(() => {
-      console.log(state.hello);
-    });
+      useEffect(() => {
+        console.log(testRef);
+      });
+      // useEffect(() => {
+      //   state.testObject;
+      // });
 
-    useEffect(() => {
-      console.log('STATE CHANGED!!!', state.hello.name.last);
-    });
+      useEffect(() => {
+        const router = initRouter(this, { view: 'main' });
 
-    // const stateMachine = ref(new Map([['hello', 'goodbye']]));
-
-    // useEffect(() => {
-    //   console.log('State machine value: ', stateMachine.value.get('hello'));
-    // });
-    // useEffect(() => {
-    //   console.log('State map value: ', state.map.get('hello'));
-    // });
-    // useEffect(() => {
-    //   // console.log('State set value: ', state.set);
-
-    //   const newValue = state.testSet.has('goodbye');
-    //   console.log("state.testSet.has('goodbye') changed", newValue);
-    // });
-    // useEffect(() => {
-    //   state.map.get('hello');
-    // });
-    // useEffect(() => {
-    //   const newValue = testMap.get('hello');
-    //   console.log("state.testMap.get('hello') changed", newValue);
-    // });
-
-    useEffect(() => {
-      console.log(testRef);
-    });
-    // useEffect(() => {
-    //   state.testObject;
-    // });
-
-    useEffect(() => {
-      const router = initRouter(this, { view: 'main' });
-
-      router?.addRoutes([
-        {
-          path: '/light',
-          title: () => `LIGHT! ${state.hello.name.first}`,
-          component: () => html`<hello-component></hello-component>`,
-        },
-      ]);
-    });
-
-    useEffect((signal) => {
-      // const { hello: hello2 } = hello;
-      void [state.hello.name.first, state.goodbye, state.color]; // reading them is what subscribes
-      if (componentInit) {
-        if (signal?.prop === 'first') console.log('hello.name.first changed', state.hello.name.first);
-        if (signal?.prop === 'last')
-          console.log('hello.name.last changed - you shouldnt see this', state.hello.name.last);
-        if (signal?.prop === 'color') console.log('color changed', state.color);
+        router?.addRoutes([
+          {
+            path: '/light',
+            title: () => `LIGHT! ${state.hello.name.first}`,
+            component: () => html`<hello-component></hello-component>`,
+          },
+        ]);
+      });
+      useEffect((signal) => {
+        // const { hello: hello2 } = hello;
+        void [state.hello.name.first, state.goodbye, state.color]; // reading them is what subscribes
+        if (componentInit) {
+          if (signal?.prop === 'first') console.log('hello.name.first changed', state.hello.name.first);
+          if (signal?.prop === 'last')
+            console.log('hello.name.last changed - you shouldnt see this', state.hello.name.last);
+          if (signal?.prop === 'color') console.log('color changed', state.color);
+        }
+      });
+      useEffect(() => {
+        void state.bigTest.littleTest;
+        if (componentInit) console.log(state.bigTest.littleTest);
+      });
+      useEffect(() => {
+        console.log('first run EFFECT');
+      });
+      this.cleanUp = () => {
+        console.log('unmounting');
+      };
+      useLayoutEffect(() => {
+        console.log('useLayoutEffect *** Global State Hello', globalState.hello);
+      });
+      useEffect(() => {
+        console.log('useEffect *** Global State Hello', globalState.hello);
+      });
+      const inputHelloNameFirst = (e: Event) => {
+        globalState.hello = (e.target as HTMLInputElement).value;
+      };
+      const inputHelloNameLast = (e: Event) => {
+        state.hello.name.last = (e.target as HTMLInputElement).value;
+      };
+      const changeColor = () => {
+        state.color = 'blue';
+      };
+      function randomString(length = 8) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
       }
-    });
-
-    useEffect(() => {
-      void state.bigTest.littleTest;
-      if (componentInit) console.log(state.bigTest.littleTest);
-    });
-
-    useEffect(() => {
-      console.log('first run EFFECT');
-    });
-
-    this.cleanUp = () => {
-      console.log('unmounting');
-    };
-
-    useLayoutEffect(() => {
-      console.log('useLayoutEffect *** Global State Hello', globalState.hello);
-    });
-
-    useEffect(() => {
-      console.log('useEffect *** Global State Hello', globalState.hello);
-    });
-
-    const inputHelloNameFirst = (e: Event) => {
-      globalState.hello = (e.target as HTMLInputElement).value;
-    };
-    const inputHelloNameLast = (e: Event) => {
-      state.hello.name.last = (e.target as HTMLInputElement).value;
-    };
-
-    const changeColor = () => {
-      state.color = 'blue';
-    };
-
-    function randomString(length = 8) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let result = '';
-      for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return result;
-    }
-
-    const changeStateMachine = () => {
-      state.testSet.delete('goodbye');
-      state.map.set('hello', randomString());
-      testMap.set('hello', randomString());
-      state.testObject = 'FKLAKLJSDF';
-      // console.log(stateMachine.value);
-    };
-
-    useEffect(() => {
-      discover(this.shadowRoot);
-    });
-
-    render(() => {
-      console.log('RENDER *** Global State Hello', globalState.hello);
-      return html`
+      const changeStateMachine = () => {
+        state.testSet.delete('goodbye');
+        state.map.set('hello', randomString());
+        testMap.set('hello', randomString());
+        state.testObject = 'FKLAKLJSDF';
+        // console.log(stateMachine.value);
+      };
+      useEffect(() => {
+        discover(this.shadowRoot);
+      });
+      return () => {
+        console.log('RENDER *** Global State Hello', globalState.hello);
+        return html`
         <style>
           * {
             --custom-color: ${state.color};
@@ -213,6 +197,7 @@ class GoodbyeComponent extends HTMLElement {
           <slot name="hello-slot"></slot>
         </div>
       `;
+      };
     });
 
     componentInit = true;

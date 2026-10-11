@@ -1,12 +1,13 @@
-import { init, render, html, useEffect, createStore } from '@verajs/core';
+import { init, html, useEffect, createStore } from '@verajs/core';
 export default class EffectThrowsSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
     const state = createStore({ n: 1 });
-    useEffect(() => {
-      if (state.n === 2) throw new Error('effect blew up');
+    init({ host: this, shadow: 'open' }, () => {
+      useEffect(() => {
+        if (state.n === 2) throw new Error('effect blew up');
+      });
+      return () => html`<p>${state.n}</p>`;
     });
-    render(() => html`<p>${state.n}</p>`);
     state.n = 2;
   }
 }

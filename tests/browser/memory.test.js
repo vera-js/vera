@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, useEffect, ref, wire, html, mount } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, useEffect, ref, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
@@ -93,23 +93,16 @@ const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r
 
 let tagSeq = 0;
 /** Mounts and drops the same component shape N times, and answers how many survived. */
-const cycleComponent = async (body, { renders = true, times = 40 } = {}) => {
+const cycleComponent = async (setup, { times = 40 } = {}) => {
   const tag = `x-mem-${tagSeq++}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      body(this);
       /**
-       * **`init()` opens a setup and something has to close it.** `render()` does; a component that
-       * only registers effects has to call `mount()`. This read `if (renders) return;`, which closes
-       * nothing — so the three effect-only shapes below registered hooks that never ran, and the
-       * cases most likely to retain something were measuring components with no live effects at all.
-       *
-       * Core said so on every run — "registered 1 hook(s) but its setup was never committed" — in a
-       * suite whose output nobody was reading, which is the whole reason a warning has to be a
-       * failure somewhere.
+       * `setup` is the component's whole setup: it returns its render, or nothing (an effect-only component — the one
+       * form commits it all the same). Under the legacy window an effect-only shape had to call `mount()`, and once it
+       * did not, so the shapes most likely to retain something measured components whose effects never ran.
        */
-      if (!renders) mount();
+      init({ host: this, shadow: 'open' }, () => setup(this));
     }
   });
   const refs = [];
@@ -129,22 +122,24 @@ const cycleComponent = async (body, { renders = true, times = 40 } = {}) => {
 /** A store that outlives every component below, which is the shape that would pin them. */
 const outliving = createStore({ n: 0, rows: [1, 2, 3] });
 
+/** Each a SETUP. The effect-only ones are block-bodied: `useEffect` returns its hook, a function, which an expression
+ *  body would return as the render. */
 const SHAPES = [
-  ['a plain rendering component', () => render(() => html`<i>x</i>`)],
-  ['one subscribed to a store that outlives it', () => render(() => html`<i>${outliving.n}</i>`)],
-  ['one with an effect on that store', () => useEffect(() => { void outliving.n; }), { renders: false }],
-  ['one whose effect registers a cleanup', () => useEffect(() => { void outliving.n; return () => {}; }), { renders: false }],
-  ['one with an event listener in its template', () => render(() => html`<button @click=${() => {}}>go</button>`)],
-  ['one rendering a keyed list', () => render(() => html`<ul>${outliving.rows.map((r) => keyed(r, html`<li>${r}</li>`))}</ul>`)],
-  ['one listening to itself', (self) => { self.addEventListener('custom', () => {}); render(() => html`<i>x</i>`); }],
-  ['one holding an element ref of its own', () => { const box = ref(); render(() => html`<i ${box}>x</i>`); }],
+  ['a plain rendering component', () => () => html`<i>x</i>`],
+  ['one subscribed to a store that outlives it', () => () => html`<i>${outliving.n}</i>`],
+  ['one with an effect on that store', () => { useEffect(() => { void outliving.n; }); }],
+  ['one whose effect registers a cleanup', () => { useEffect(() => { void outliving.n; return () => {}; }); }],
+  ['one with an event listener in its template', () => () => html`<button @click=${() => {}}>go</button>`],
+  ['one rendering a keyed list', () => () => html`<ul>${outliving.rows.map((r) => keyed(r, html`<li>${r}</li>`))}</ul>`],
+  ['one listening to itself', (self) => { self.addEventListener('custom', () => {}); return () => html`<i>x</i>`; }],
+  ['one holding an element ref of its own', () => { const box = ref(); return () => html`<i ${box}>x</i>`; }],
 ];
 
-for (const [label, body, options] of SHAPES) {
+for (const [label, setup] of SHAPES) {
   it(`${label} is collectable once removed`, async function () {
     if (!window.gc) this.skip();
     this.timeout(20000);
-    const retained = await cycleComponent(body, options);
+    const retained = await cycleComponent(setup);
     expect(retained, `${retained}/40 still reachable`).to.be.below(5);
   });
 }
@@ -157,7 +152,7 @@ for (const [label, body, options] of SHAPES) {
 it('a store does not accumulate subscriptions from components that are gone', async function () {
   if (!window.gc) this.skip();
   this.timeout(20000);
-  await cycleComponent(() => render(() => html`<i>${outliving.n}</i>`), { times: 100 });
+  await cycleComponent(() => () => html`<i>${outliving.n}</i>`, { times: 100 });
   const started = performance.now();
   for (let i = 0; i < 500; i++) outliving.n = i;
   const elapsed = performance.now() - started;
