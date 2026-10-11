@@ -52,13 +52,31 @@ const afterSetup = (element: ComponentElement) => {
 };
 const unclaimedMarkup = (element: ComponentElement) => {
   if (warnedAboutClaims || claimed('data-vd-')) return;
-  const root = element.shadowRoot ?? element._$r$ ?? element;
-  for (const node of (root as ParentNode).querySelectorAll('*')) {
-    const hit = [...node.attributes].find((a) => a.name.startsWith('data-vd-'));
-    if (!hit) continue;
-    warnedAboutClaims = true;
-    console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-directives', __DEV__ && PROSE['unwired-directives'](hit.name)));
-    return;
+  const root = (element.shadowRoot ?? element._$r$ ?? element) as ParentNode;
+  /**
+   * A plain walk, not `querySelectorAll`: a selector engine may keep the last root it searched (jsdom's does), and
+   * this runs on EVERY component's first pass in development — it kept the last-set-up component alive after removal
+   * (tests/core-subscription-sweep's re-render and 5000-hook rows, development only, 2026-10-10).
+   */
+  const stack: Element[] = [];
+  let el = root.firstElementChild;
+  while (el !== null) {
+    const attrs = el.attributes;
+    for (let i = 0; i < attrs.length; i++)
+      if (attrs[i]!.name.startsWith('data-vd-')) {
+        warnedAboutClaims = true;
+        console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-directives', __DEV__ && PROSE['unwired-directives'](attrs[i]!.name)));
+        return;
+      }
+    /** Depth first: down to the first child, else across, else back up to the nearest ancestor with a next sibling. */
+    if (el.firstElementChild !== null) {
+      stack.push(el);
+      el = el.firstElementChild;
+      continue;
+    }
+    let next = el.nextElementSibling;
+    while (next === null && stack.length) next = stack.pop()!.nextElementSibling;
+    el = next;
   }
 };
 const endSetup = () => {
