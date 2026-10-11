@@ -58,8 +58,9 @@ const component = (css) =>
   class extends dom.window.HTMLElement {
     static styles = css;
     connectedCallback() {
-      core.init(this);
-      core.render(() => html`<p>x</p>`);
+      core.init(this, () => {
+        return () => html`<p>x</p>`;
+      });
     }
   };
 

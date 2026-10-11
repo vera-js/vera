@@ -11,7 +11,7 @@
  * loop below collects repeatedly and waits for a plateau.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 
 wire({ on: 'render', fn: renderer, priority: 50 });
@@ -21,19 +21,18 @@ customElements.define(
   'a11y-probe',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ open: false });
-      this.state = state;
-      render(
-        () => html`<div>
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ open: false });
+        this.state = state;
+        return () => html`<div>
           <button id="toggle" aria-expanded=${String(state.open)} aria-controls="panel" @click=${() => (state.open = !state.open)}>
             toggle
           </button>
           <section id="panel" role="region" aria-labelledby="toggle" ?hidden=${!state.open}>
             <a id="inside" href="#x">a link</a>
           </section>
-        </div>`
-      );
+        </div>`;
+      });
     }
   }
 );
@@ -97,8 +96,9 @@ describe('memory discipline', () => {
       'memory-probe',
       class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          render(() => html`<p>${state.n}</p>`);
+          init({ host: this, shadow: 'open' }, () => {
+            return () => html`<p>${state.n}</p>`;
+          });
         }
       }
     );
@@ -129,10 +129,11 @@ describe('memory discipline', () => {
       'memory-render-probe',
       class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          render(() => {
-            renders++;
-            return html`<p>${state.n}</p>`;
+          init({ host: this, shadow: 'open' }, () => {
+            return () => {
+              renders++;
+              return html`<p>${state.n}</p>`;
+            };
           });
         }
       }
@@ -158,10 +159,11 @@ describe('a form-associated custom element participates in its form', () => {
       class extends HTMLElement {
         static formAssociated = true;
         connectedCallback() {
-          init(this, { mode: 'open' });
-          this.internals = this.attachInternals();
-          this.internals.setFormValue('from internals');
-          render(() => html`<output>held</output>`);
+          init({ host: this, shadow: 'open' }, () => {
+            this.internals = this.attachInternals();
+            this.internals.setFormValue('from internals');
+            return () => html`<output>held</output>`;
+          });
         }
       }
     );

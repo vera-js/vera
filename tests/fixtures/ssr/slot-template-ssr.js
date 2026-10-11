@@ -4,12 +4,13 @@
  * so the host has no nodes for a query to find and the server cannot distribute. The client can.
  * The point of this fixture is that the divergence is announced rather than silent.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 export class SlotTemplateSsr extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(() => html`<p><slot name="h">fallback</slot><template><i>inert</i></template></p>`);
+    init(this, () => {
+      return () => html`<p><slot name="h">fallback</slot><template><i>inert</i></template></p>`;
+    });
   }
 }
 

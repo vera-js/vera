@@ -7,7 +7,7 @@
  * rules off the rest of the page. Server-side the same CSS comes back on `styles` rather than in
  * the markup, which is what a page shell is expected to place.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 import { css } from '@verajs/styles';
 
 export default class SinkScoped extends HTMLElement {
@@ -18,15 +18,14 @@ export default class SinkScoped extends HTMLElement {
   `;
 
   connectedCallback() {
-    init(this);
-    render(
-      () => html`<div>
+    init(this, () => {
+      return () => html`<div>
         <h2>Styles, in the light DOM</h2>
         <h3>Hoisted to the document once per class and wrapped in @scope, so the rules cannot reach the rest of the page</h3>
         <h4>Nothing to click. Open devtools and look for the @scope rule in the document.</h4>
         <p class="scoped">scoped to the tag</p>
-      </div>`
-    );
+      </div>`;
+    });
   }
 }
 

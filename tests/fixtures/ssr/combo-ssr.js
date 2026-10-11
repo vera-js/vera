@@ -1,11 +1,14 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 customElements.define('combo-child', class extends HTMLElement {
-  connectedCallback() { init(this, { mode: 'open' }); render(() => html`<i>child</i>`); }
+  connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+    return () => html`<i>child</i>`;
+  }); }
 });
 export default class ComboSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<div><combo-child></combo-child><slot></slot></div>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<div><combo-child></combo-child><slot></slot></div>`;
+    });
   }
 }
 customElements.define('combo-ssr', ComboSsr);

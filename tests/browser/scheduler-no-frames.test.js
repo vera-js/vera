@@ -7,7 +7,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { html, wire, init, render, useEffect, createStore } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init, useEffect, createStore } from '../../packages/core/dist/development/vera.js';
 
 wire([renderer]);
 
@@ -28,15 +28,16 @@ const state = createStore({ n: 0, loop: 0, until: 0 });
 let effects = 0;
 customElements.define('x-no-frames', class extends HTMLElement {
   connectedCallback() {
-    init(this);
-    useEffect(() => {
-      void state.n;
-      effects++;
+    init(this, () => {
+      useEffect(() => {
+        void state.n;
+        effects++;
+      });
+      useEffect(() => {
+        if (state.loop > 0 && state.loop < state.until) state.loop++;
+      });
+      return () => html`<p>${state.n}</p><b>${state.loop}</b>`;
     });
-    useEffect(() => {
-      if (state.loop > 0 && state.loop < state.until) state.loop++;
-    });
-    render(() => html`<p>${state.n}</p><b>${state.loop}</b>`);
   }
 });
 const element = document.createElement('x-no-frames');

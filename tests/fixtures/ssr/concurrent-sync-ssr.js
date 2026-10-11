@@ -8,29 +8,26 @@
  * Kept identical to `concurrent-async-ssr.js` in every other respect, so a difference between the two
  * entry points cannot be a difference between the components.
  */
-import { init, createStore, render, html } from '@verajs/core';
+import { init, createStore, html } from '@verajs/core';
 
 export default class ConcurrentProbeSync extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const marker = this.getAttribute('marker') ?? 'none';
-    const depth = Number(this.getAttribute('depth') ?? '1');
+    init({ host: this, shadow: 'open' }, () => {
+      const marker = this.getAttribute('marker') ?? 'none';
+      const depth = Number(this.getAttribute('depth') ?? '1');
+      /** No suspension: this one is for the synchronous entry point, which refuses an async callback. */
 
-    /** No suspension: this one is for the synchronous entry point, which refuses an async callback. */
 
-
-    const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
-
-    render(
-      () => html`
+      const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
+      return () => html`
         <section data-marker=${state.marker}>
           <h1>${state.marker}</h1>
           <ul>
             ${state.rows.map((row) => html`<li>${row}</li>`)}
           </ul>
         </section>
-      `
-    );
+      `;
+    });
   }
 }
 

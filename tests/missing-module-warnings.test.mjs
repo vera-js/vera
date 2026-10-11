@@ -35,7 +35,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
  * own `__DEV__` branch, and `tests/dist.mjs` explains why a re-export would silently resolve to the
  * production build and assert against a program that has no guard at all.
  */
-const { wire, init, render, html } = await load('core');
+const { wire, init, html } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 
@@ -59,8 +59,9 @@ const mount = (markup) => capture(async () => {
   const tag = `pasted-${++counter}`;
   dom.window.customElements.define(tag, class extends dom.window.HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`${markup}`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`${markup}`;
+      });
     }
   });
   const el = dom.window.document.createElement(tag);

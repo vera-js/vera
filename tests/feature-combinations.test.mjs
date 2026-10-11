@@ -320,7 +320,7 @@ test('keyed + spread: bags ride reorders, update in place, and leave with their 
  * test its shape).
  */
 test('styles + hold: five park/restore cycles adopt once and hoist once', async () => {
-  const { init, render } = core;
+  const { init } = core;
   const { css } = await load('styles');
   const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
   const realWarn = console.warn;
@@ -329,11 +329,15 @@ test('styles + hold: five park/restore cycles adopt once and hoist once', async 
     core.wire([await load('styles').then((m) => m.styles)]);
     customElements.define('fc-styled-shadow', class extends dom.window.HTMLElement {
       static styles = css`.inner { color: rgb(1, 2, 3); }`;
-      connectedCallback() { init(this, { mode: 'open' }); render(() => html`<p class="inner">shadow</p>`); }
+      connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p class="inner">shadow</p>`;
+      }); }
     });
     customElements.define('fc-styled-light', class extends dom.window.HTMLElement {
       static styles = css`.lt { color: rgb(4, 5, 6); }`;
-      connectedCallback() { init(this); render(() => html`<p class="lt">light</p>`); }
+      connectedCallback() { init(this, () => {
+        return () => html`<p class="lt">light</p>`;
+      }); }
     });
     const host = div();
     dom.window.document.body.append(host);
@@ -371,7 +375,7 @@ test('styles + hold: five park/restore cycles adopt once and hoist once', async 
  * the collection trap.
  */
 test('collections + keyed: map mutations move rows by identity, batches coalesce', async () => {
-  const { init, render, createStore } = core;
+  const { init, createStore } = core;
   core.wire([await load('store/collections').then((m) => m.collections)]);
   /**
    * This file's globals deliberately omit `requestAnimationFrame`, so the scheduler runs its
@@ -388,9 +392,10 @@ test('collections + keyed: map mutations move rows by identity, batches coalesce
   let renders = 0;
   customElements.define('fc-map-list', class extends dom.window.HTMLElement {
     connectedCallback() {
-      init(this);
-      this.store = createStore({ rows: new Map([['a', 1], ['b', 2], ['c', 3]]) });
-      render(() => { renders++; return html`<ul>${[...this.store.rows.entries()].map(([k, v]) => keyed(k, html`<li>${k}=${v}</li>`))}</ul>`; });
+      init(this, () => {
+        this.store = createStore({ rows: new Map([['a', 1], ['b', 2], ['c', 3]]) });
+        return () => { renders++; return html`<ul>${[...this.store.rows.entries()].map(([k, v]) => keyed(k, html`<li>${k}=${v}</li>`))}</ul>`; };
+      });
     }
   });
   const el = dom.window.document.createElement('fc-map-list');
@@ -469,7 +474,7 @@ test('hold + keyed: rows share the call site and never each other\'s parked stat
  * the frame scheduler is installed for the test's duration (this file's globals omit rAF).
  */
 test('computed + untrack: one render per dep write, none per untracked write', async () => {
-  const { init, render, createStore, untrack } = core;
+  const { init, createStore, untrack } = core;
   const { computed } = await load('store');
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
@@ -479,13 +484,14 @@ test('computed + untrack: one render per dep write, none per untracked write', a
     let renders = 0, evals = 0;
     customElements.define('fc-calc-view', class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this);
-        this.store = createStore({ items: [3, 4], noise: 0, unrelated: 'x' });
-        this.total = computed(() => { evals++; return this.store.items.reduce((n, v) => n + v, 0); });
-        render(() => {
-          renders++;
-          const n = untrack(() => this.store.noise);
-          return html`<b>total=${this.total.value} noise=${n}</b>`;
+        init(this, () => {
+          this.store = createStore({ items: [3, 4], noise: 0, unrelated: 'x' });
+          this.total = computed(() => { evals++; return this.store.items.reduce((n, v) => n + v, 0); });
+          return () => {
+            renders++;
+            const n = untrack(() => this.store.noise);
+            return html`<b>total=${this.total.value} noise=${n}</b>`;
+          };
         });
       }
     });
@@ -522,7 +528,7 @@ test('computed + untrack: one render per dep write, none per untracked write', a
  * holds stale by design; and the reassignment escape hatch shows it while identity still holds.
  */
 test('shallowRef + keyed: replace reconciles by identity, inner mutation stays invisible', async () => {
-  const { init, render, shallowRef } = core;
+  const { init, shallowRef } = core;
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
@@ -531,9 +537,10 @@ test('shallowRef + keyed: replace reconciles by identity, inner mutation stays i
     let renders = 0;
     customElements.define('fc-rows-view', class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this);
-        this.rows = shallowRef([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'c', v: 3 }]);
-        render(() => { renders++; return html`<ul>${this.rows.value.map((r) => keyed(r.id, html`<li>${r.id}:${r.v}</li>`))}</ul>`; });
+        init(this, () => {
+          this.rows = shallowRef([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'c', v: 3 }]);
+          return () => { renders++; return html`<ul>${this.rows.value.map((r) => keyed(r.id, html`<li>${r.id}:${r.v}</li>`))}</ul>`; };
+        });
       }
     });
     const el = dom.window.document.createElement('fc-rows-view');
@@ -617,7 +624,7 @@ test('spread + hold: bags update, departed keys release, handlers swap — acros
  * assertion: ["input", null, "input"], one effect run per transition.
  */
 test('a ref box drives effects through land, release, and re-land', async () => {
-  const { init, render, ref, useEffect, createStore } = core;
+  const { init, ref, useEffect, createStore } = core;
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
@@ -626,11 +633,12 @@ test('a ref box drives effects through land, release, and re-land', async () => 
     const seen = [];
     customElements.define('fc-ref-view', class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this);
-        this.box = ref(null);
-        this.state = createStore({ show: true });
-        useEffect(() => { seen.push(this.box.value?.localName ?? null); });
-        render(() => html`<div>${this.state.show ? html`<input ${this.box} />` : 'gone'}</div>`);
+        init(this, () => {
+          this.box = ref(null);
+          this.state = createStore({ show: true });
+          useEffect(() => { seen.push(this.box.value?.localName ?? null); });
+          return () => html`<div>${this.state.show ? html`<input ${this.box} />` : 'gone'}</div>`;
+        });
       }
     });
     const el = dom.window.document.createElement('fc-ref-view');

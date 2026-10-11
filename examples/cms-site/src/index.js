@@ -9,7 +9,7 @@
  *     where `.innerHTML=${…}` is the renderer's documented escape hatch for markup you trust.
  *     This site's markup is its own repository, which is the definition of trusted here.
  */
-import { init, createStore, render, html, wire } from '@verajs/core';
+import { init, createStore, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { createReader, parseContent, serializeHtml } from '@verajs/cms/content';
 
@@ -21,31 +21,25 @@ customElements.define(
   'cms-site',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ posts: [], terms: [], open: null, article: '' });
-
-      reader.entries('posts', { sort: 'date:desc' }).then((posts) => {
-        state.posts = posts;
-      });
-      /** Terms are entries too — `terms()` joins their files with usage counts from the index. */
-      reader.terms('tags').then((terms) => {
-        state.terms = terms.filter((term) => term.count > 0);
-      });
-
-      const open = async (post) => {
-        state.open = post;
-        const source = await fetch(`./content/posts/${post.slug}.md`).then((response) => response.text());
-        state.article = serializeHtml(parseContent(source).root);
-      };
-
-      const close = () => {
-        state.open = null;
-        state.article = '';
-      };
-
-      /** One stable shape, toggled with `?hidden` — values update in place, no subtree teardown. */
-      render(
-        () => html`
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ posts: [], terms: [], open: null, article: '' });
+        reader.entries('posts', { sort: 'date:desc' }).then((posts) => {
+          state.posts = posts;
+        });
+        /** Terms are entries too — `terms()` joins their files with usage counts from the index. */
+        reader.terms('tags').then((terms) => {
+          state.terms = terms.filter((term) => term.count > 0);
+        });
+        const open = async (post) => {
+          state.open = post;
+          const source = await fetch(`./content/posts/${post.slug}.md`).then((response) => response.text());
+          state.article = serializeHtml(parseContent(source).root);
+        };
+        const close = () => {
+          state.open = null;
+          state.article = '';
+        };
+        return () => html`
           <header>
             <h1>A flat-file site</h1>
             <p ?hidden=${state.open !== null}>
@@ -72,8 +66,8 @@ customElements.define(
             <p><a href="#" @click=${close}>← all posts</a></p>
             <div .innerHTML=${state.article}></div>
           </article>
-        `
-      );
+        `;
+      });
     }
   }
 );

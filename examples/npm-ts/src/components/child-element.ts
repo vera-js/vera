@@ -1,4 +1,4 @@
-import { html, init, render } from '@verajs/core';
+import { html, init } from '@verajs/core';
 
 class ChildElement extends HTMLElement {
   /**
@@ -11,8 +11,9 @@ class ChildElement extends HTMLElement {
   declare item?: { message: string };
 
   connectedCallback() {
-    init(this);
-    render(() => html`<p>${this.item?.message}</p>`);
+    init(this, () => {
+      return () => html`<p>${this.item?.message}</p>`;
+    });
   }
 }
 

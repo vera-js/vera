@@ -1,4 +1,4 @@
-import { html, init, render } from '@verajs/core';
+import { html, init } from '@verajs/core';
 
 customElements.define(
   'name-acquire',
@@ -7,8 +7,9 @@ customElements.define(
     declare store?: { name?: string };
 
     connectedCallback() {
-      init(this);
-      render(() => html`<p>Hello ${this.store?.name}</p>`);
+      init(this, () => {
+        return () => html`<p>Hello ${this.store?.name}</p>`;
+      });
     }
   }
 );

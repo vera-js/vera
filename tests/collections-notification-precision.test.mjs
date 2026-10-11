@@ -54,8 +54,9 @@ const watching = async (read) => {
   const tag = `precision-${nextTag++}`;
   dom.window.customElements.define(tag, class extends dom.window.HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      core.render(() => { renders++; return html`<p>${String(read(store.m))}</p>`; });
+      core.init({ host: this, shadow: 'open' }, () => {
+        return () => { renders++; return html`<p>${String(read(store.m))}</p>`; };
+      });
     }
   });
   app.appendChild(dom.window.document.createElement(tag));

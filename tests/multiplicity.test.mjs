@@ -38,10 +38,11 @@ test('two instances of one component keep separate state and both get the class 
   customElements.define('x-twin', class extends HTMLElement {
     static styles = css`p { color: rgb(9, 9, 9) }`;
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        return () => core.html`<p>${state.n}</p>`;
+      });
     }
   });
   const first = D.createElement('x-twin');
@@ -91,8 +92,9 @@ test('one store shared by two components updates both', async () => {
   for (const tag of ['x-shared-a', 'x-shared-b']) {
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
-        core.init(this, { mode: 'open' });
-        core.render(() => core.html`<b>${shared.v}</b>`);
+        core.init({ host: this, shadow: 'open' }, () => {
+          return () => core.html`<b>${shared.v}</b>`;
+        });
       }
     });
     const element = D.createElement(tag);

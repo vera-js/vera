@@ -7,23 +7,24 @@
  * unable to see that state at all — `@verajs/styles` hoists once per class ever, so it reaches the
  * guard exactly once and a leak in it changes nothing.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 export default class HeadStyleSsr extends HTMLElement {
   connectedCallback() {
-    init(this);
-    /**
-     * **The CSS differs per request**, which is what makes a leak of the hoisting state visible at
-     * all: `hoist` de-duplicates by text, so a component emitting the *same* stylesheet every time
-     * cannot show the defect. A request whose color is its own is the only shape where "request
-     * two carried request one's CSS" is a statement you can check.
-     */
-    const tone = this.getAttribute('tone') ?? 'teal';
-    render(() => {
-      const style = document.createElement('style');
-      style.textContent = `.head-style { color: ${tone} }`;
-      document.head.appendChild(style);
-      return html`<p class="head-style">${tone}</p>`;
+    init(this, () => {
+      /**
+       * **The CSS differs per request**, which is what makes a leak of the hoisting state visible at
+       * all: `hoist` de-duplicates by text, so a component emitting the *same* stylesheet every time
+       * cannot show the defect. A request whose color is its own is the only shape where "request
+       * two carried request one's CSS" is a statement you can check.
+       */
+      const tone = this.getAttribute('tone') ?? 'teal';
+      return () => {
+        const style = document.createElement('style');
+        style.textContent = `.head-style { color: ${tone} }`;
+        document.head.appendChild(style);
+        return html`<p class="head-style">${tone}</p>`;
+      };
     });
   }
 }

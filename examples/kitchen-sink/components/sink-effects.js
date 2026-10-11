@@ -12,51 +12,47 @@
  * shows the layout count including this pass and the coalesced count from the pass before. That is
  * the contract, and rendering both is how a test sees it.
  */
-import { init, render, html, createStore, useEffect, useLayoutEffect, useSyncEffect } from '@verajs/core';
+import { init, html, createStore, useEffect, useLayoutEffect, useSyncEffect } from '@verajs/core';
 
 export default class SinkEffects extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ n: 0, report: 'press a button' });
-    /** Untracked on purpose — see the header. */
-    const counts = { sync: 0, coalesced: 0, layout: 0, lastProp: '' };
-    /** Where the counters stood when the last press began, so a press can report its own deltas. */
-    let mark = { sync: 0, coalesced: 0, layout: 0 };
-    this.state = state;
-    this.counts = counts;
-
-    useLayoutEffect(() => {
-      void state.n;
-      counts.layout++;
-    });
-    useEffect((signal) => {
-      void state.n;
-      counts.coalesced++;
-      if (signal?.prop) counts.lastProp = String(signal.prop);
-      /**
-       * Published from here because `useEffect` runs **after** the render, so a template reading the
-       * counters directly always shows this pass's `useEffect` count one behind. Writing a value the
-       * template does read — and that this effect never reads — schedules one more render, which
-       * then shows the finished numbers. No loop: the only dependency is `state.n`.
-       */
-      state.report =
-        `useSyncEffect +${counts.sync - mark.sync}, ` +
-        `useEffect +${counts.coalesced - mark.coalesced}, ` +
-        `useLayoutEffect +${counts.layout - mark.layout}`;
-    });
-    useSyncEffect(() => {
-      void state.n;
-      counts.sync++;
-    });
-
-    /** Marks the counters before writing, so what the press caused can be reported on its own. */
-    this.bump = (times = 1) => {
-      mark = { sync: counts.sync, coalesced: counts.coalesced, layout: counts.layout };
-      for (let i = 0; i < times; i++) state.n++;
-    };
-
-    render(
-      () => html`<section id="effects">
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ n: 0, report: 'press a button' });
+      /** Untracked on purpose — see the header. */
+      const counts = { sync: 0, coalesced: 0, layout: 0, lastProp: '' };
+      /** Where the counters stood when the last press began, so a press can report its own deltas. */
+      let mark = { sync: 0, coalesced: 0, layout: 0 };
+      this.state = state;
+      this.counts = counts;
+      useLayoutEffect(() => {
+        void state.n;
+        counts.layout++;
+      });
+      useEffect((signal) => {
+        void state.n;
+        counts.coalesced++;
+        if (signal?.prop) counts.lastProp = String(signal.prop);
+        /**
+         * Published from here because `useEffect` runs **after** the render, so a template reading the
+         * counters directly always shows this pass's `useEffect` count one behind. Writing a value the
+         * template does read — and that this effect never reads — schedules one more render, which
+         * then shows the finished numbers. No loop: the only dependency is `state.n`.
+         */
+        state.report =
+          `useSyncEffect +${counts.sync - mark.sync}, ` +
+          `useEffect +${counts.coalesced - mark.coalesced}, ` +
+          `useLayoutEffect +${counts.layout - mark.layout}`;
+      });
+      useSyncEffect(() => {
+        void state.n;
+        counts.sync++;
+      });
+      /** Marks the counters before writing, so what the press caused can be reported on its own. */
+      this.bump = (times = 1) => {
+        mark = { sync: counts.sync, coalesced: counts.coalesced, layout: counts.layout };
+        for (let i = 0; i < times; i++) state.n++;
+      };
+      return () => html`<section id="effects">
         <h2>Effects</h2>
         <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>
         <h4>Press each button once and read "that press caused" — the same three writes batch differently.</h4>
@@ -72,8 +68,8 @@ export default class SinkEffects extends HTMLElement {
         <p>useEffect runs: <span id="coalesced">${counts.coalesced}</span></p>
         <p>useLayoutEffect runs: <span id="layout">${counts.layout}</span></p>
         <p>last changed: <span id="lastProp">${counts.lastProp}</span></p>
-      </section>`
-    );
+      </section>`;
+    });
   }
 }
 

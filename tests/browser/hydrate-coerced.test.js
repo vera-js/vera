@@ -11,7 +11,7 @@
  * and the identity of the node carrying it.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
@@ -72,10 +72,11 @@ const mount = async (name) => {
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        const state = createStore({ ...STATE });
-        this.state = state;
-        render(() => template(state));
+        init({ host: this, shadow: 'open' }, () => {
+          const state = createStore({ ...STATE });
+          this.state = state;
+          return () => template(state);
+        });
       }
     }
   );

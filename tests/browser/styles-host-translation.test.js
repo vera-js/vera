@@ -15,7 +15,7 @@ import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
 import { slots } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
-import { html, wire, init, render } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init } from '../../packages/core/dist/development/vera.js';
 
 /** `slots` too: the ::slotted comparison below needs a light component that actually distributes,
  *  and without it the renderer says so — which is how this omission was found. */
@@ -31,11 +31,15 @@ const SHEET = css`
 `;
 customElements.define('ht-light', class extends HTMLElement {
   static styles = SHEET;
-  connectedCallback() { init(this); render(() => html`<p>x</p><q></q>`); }
+  connectedCallback() { init(this, () => {
+    return () => html`<p>x</p><q></q>`;
+  }); }
 });
 customElements.define('ht-shadow', class extends HTMLElement {
   static styles = SHEET;
-  connectedCallback() { init(this, { mode: 'open' }); render(() => html`<p>x</p><q></q>`); }
+  connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+    return () => html`<p>x</p><q></q>`;
+  }); }
 });
 
 it('styles the element itself from :host in light DOM, exactly as under a shadow root', async () => {
@@ -90,11 +94,15 @@ it('does not leak the translated rules to anything outside the component', async
  */
 customElements.define('sd-shadow', class extends HTMLElement {
   static styles = css`::slotted(b) { border-top-style: dashed } [part="body"] b { border-top-style: dashed } ::slotted(i) { border-bottom-style: groove }`;
-  connectedCallback() { init(this, { mode: 'open' }); render(() => html`<main part="body"><slot></slot></main>`); }
+  connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+    return () => html`<main part="body"><slot></slot></main>`;
+  }); }
 });
 customElements.define('sd-light', class extends HTMLElement {
   static styles = css`::slotted(b) { border-top-style: dashed } [part="body"] b { border-top-style: dashed } ::slotted(i) { border-bottom-style: groove }`;
-  connectedCallback() { init(this); render(() => html`<main part="body"><slot></slot></main>`); }
+  connectedCallback() { init(this, () => {
+    return () => html`<main part="body"><slot></slot></main>`;
+  }); }
 });
 
 it('::slotted() and a descendant selector are complementary, and the pair works in both', async () => {

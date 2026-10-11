@@ -7,7 +7,7 @@
  * its initial state into the page. `hold()` keeps the toggled-away subtree alive so anything the
  * user typed into it survives, which is a client-only guarantee stated as one.
  */
-import { init, render, html, createStore } from '@verajs/core';
+import { init, html, createStore } from '@verajs/core';
 import { hold } from '@verajs/renderer';
 
 export default class SinkForm extends HTMLElement {
@@ -34,23 +34,21 @@ export default class SinkForm extends HTMLElement {
   }
 
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const seen = (this.seen ??= []);
-    const describe = (entry) => `${entry.name}: ${entry.previous ?? '(unset)'} → ${entry.value}`;
-    const state = createStore({
-      editing: false,
-      calls: seen.length,
-      latest: seen.length ? describe(seen[seen.length - 1]) : '(none yet)',
-      log: seen.slice(-3).map(describe).join('  ·  '),
-    });
-    this.state = state;
-    let renames = 0;
-    this.internals = this.attachInternals();
-    this.internals.setFormValue(this.getAttribute('value') ?? '');
-    this.toggle = () => (state.editing = !state.editing);
-
-    render(
-      () => html`<section id="form">
+    init({ host: this, shadow: 'open' }, () => {
+      const seen = (this.seen ??= []);
+      const describe = (entry) => `${entry.name}: ${entry.previous ?? '(unset)'} → ${entry.value}`;
+      const state = createStore({
+        editing: false,
+        calls: seen.length,
+        latest: seen.length ? describe(seen[seen.length - 1]) : '(none yet)',
+        log: seen.slice(-3).map(describe).join('  ·  '),
+      });
+      this.state = state;
+      let renames = 0;
+      this.internals = this.attachInternals();
+      this.internals.setFormValue(this.getAttribute('value') ?? '');
+      this.toggle = () => (state.editing = !state.editing);
+      return () => html`<section id="form">
         <h2>Forms and held DOM</h2>
         <h3>hold() keeps a toggled-away subtree alive, and attributeChangedCallback is the only reactive-attribute mechanism a custom element has</h3>
         <h4>Press edit, type something, press show the value, then edit again — your text is still there.</h4>
@@ -66,8 +64,8 @@ export default class SinkForm extends HTMLElement {
               : html`<output id="viewer">${this.getAttribute('value') ?? ''}</output>`
           )}
         </div>
-      </section>`
-    );
+      </section>`;
+    });
   }
 }
 

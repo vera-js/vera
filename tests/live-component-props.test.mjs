@@ -24,7 +24,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
   globalThis[key] = dom.window[key];
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 
-const { init, render, html } = await load('core');
+const { init, html } = await load('core');
 const renderInto = await hydrating();
 const { spread } = await load('renderer/spread');
 const doc = dom.window.document;
@@ -34,10 +34,11 @@ const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(()
 let renders = 0;
 customElements.define('lp-row', class extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(() => {
-      renders++;
-      return html`<p>${String(this.live)} · ${String(this.item)}</p>`;
+    init(this, () => {
+      return () => {
+        renders++;
+        return html`<p>${String(this.live)} · ${String(this.item)}</p>`;
+      };
     });
   }
 });

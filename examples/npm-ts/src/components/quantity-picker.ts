@@ -1,4 +1,4 @@
-import { html, init, ref, render, createStore } from '@verajs/core';
+import { html, init, ref, createStore } from '@verajs/core';
 import { css } from '@verajs/styles';
 
 const styles = css`
@@ -18,34 +18,24 @@ class QuantityPicker extends HTMLElement {
   static styles = [styles, inputStyles];
 
   connectedCallback() {
-    init(this, { mode: 'open' });
-
-    const globalStore = createStore({ name: 'hello' });
-
-    const counter = ref(0);
-    const name = ref('hello friend');
-
-    const incrementCounter = () => {
-      console.log('hello');
-      counter.value++;
-      globalStore.name = 'goodbye';
-    };
-
-    const checked = ref(true);
-
-    const setChecked = () => {
-      checked.value = !checked.value;
-    };
-
-    const changeName = (e: Event) => {
-      console.log(e);
-      name.value = (e.target as HTMLInputElement).value;
-    };
-
-
-    // TODO Add the ? check and logic in the main renderer, based off of the ssr-renderer
-    render(
-      () => html`<div>
+    init({ host: this, shadow: 'open' }, () => {
+      const globalStore = createStore({ name: 'hello' });
+      const counter = ref(0);
+      const name = ref('hello friend');
+      const incrementCounter = () => {
+        console.log('hello');
+        counter.value++;
+        globalStore.name = 'goodbye';
+      };
+      const checked = ref(true);
+      const setChecked = () => {
+        checked.value = !checked.value;
+      };
+      const changeName = (e: Event) => {
+        console.log(e);
+        name.value = (e.target as HTMLInputElement).value;
+      };
+      return () => html`<div>
         <h2>here is some content</h2>
         <p>${counter.value}</p>
         <button @click=${incrementCounter}>Increment me</button>
@@ -53,8 +43,8 @@ class QuantityPicker extends HTMLElement {
         <input .value=${name.value} @input=${changeName} type="text" />
         <input ?checked=${checked.value} @click=${setChecked} type="checkbox" />
         <name-acquire .store=${globalStore}></name-acquire>
-      </div>`
-    );
+      </div>`;
+    });
 
     // Non lit way - values in input don't render because we don't have a custom server-side render
     // function that tells them what to do. This is a big TODO

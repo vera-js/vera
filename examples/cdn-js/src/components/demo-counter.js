@@ -1,4 +1,4 @@
-import { init, createStore, render, useEffect, html } from '@verajs/core';
+import { init, createStore, useEffect, html } from '@verajs/core';
 import { computed } from '../inserts/computed.js';
 
 /**
@@ -11,33 +11,28 @@ import { computed } from '../inserts/computed.js';
  */
 class DemoCounter extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-
-    const state = createStore({
-      count: 0,
-      /** A computed value via the example insert — reads as a plain property below. */
-      doubled: computed(() => state.count * 2),
-    });
-    const tallies = createStore(new Map([['clicks', 0]]));
-
-    useEffect(() => {
-      console.log('count is now', state.count);
-    });
-
-    const increment = () => {
-      state.count++;
-      tallies.set('clicks', tallies.get('clicks') + 1);
-    };
-
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({
+        count: 0,
+        /** A computed value via the example insert — reads as a plain property below. */
+        doubled: computed(() => state.count * 2),
+      });
+      const tallies = createStore(new Map([['clicks', 0]]));
+      useEffect(() => {
+        console.log('count is now', state.count);
+      });
+      const increment = () => {
+        state.count++;
+        tallies.set('clicks', tallies.get('clicks') + 1);
+      };
+      return () => html`
         <fieldset>
           <legend>demo-counter (autoloaded)</legend>
           <button @click=${increment}>Clicked ${state.count} times</button>
           <p>Reactive Map tally: ${tallies.get('clicks')} — doubled (computed): ${state.doubled}</p>
         </fieldset>
-      `
-    );
+      `;
+    });
   }
 }
 

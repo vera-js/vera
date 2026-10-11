@@ -64,8 +64,9 @@ test('wire takes them as a list, and styles adopts from it', () => {
     class extends HTMLElement {
       static styles = 'p { color: rgb(1, 2, 3); }';
       connectedCallback() {
-        core.init(this, { mode: 'open' });
-        core.render(() => core.html`<p>hi</p>`);
+        core.init({ host: this, shadow: 'open' }, () => {
+          return () => core.html`<p>hi</p>`;
+        });
       }
     }
   );

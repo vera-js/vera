@@ -4,13 +4,14 @@
  * naming every component that failed — so a caller can fall back to a client-rendered shell rather
  * than ship the empty markup the failure would otherwise produce.
  */
-import { init, render } from '@verajs/core';
+import { init } from '@verajs/core';
 
 export default class ThrowsSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => {
-      throw new Error('component exploded');
+    init({ host: this, shadow: 'open' }, () => {
+      return () => {
+        throw new Error('component exploded');
+      };
     });
   }
 }

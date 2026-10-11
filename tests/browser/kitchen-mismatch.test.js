@@ -11,7 +11,7 @@
  * behind that the component does not describe — which is the rule that actually matters.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
@@ -23,17 +23,16 @@ customElements.define(
   'mismatch-probe',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ rows: ['a', 'b'] });
-      this.state = state;
-      render(
-        () => html`<section id="root">
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ rows: ['a', 'b'] });
+        this.state = state;
+        return () => html`<section id="root">
           <p id="text">client</p>
           <ul id="rows">
             ${state.rows.map((row) => html`<li data-id=${row}>${row}</li>`)}
           </ul>
-        </section>`
-      );
+        </section>`;
+      });
     }
   }
 );

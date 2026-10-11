@@ -13,15 +13,14 @@
  * a template's STRINGS and the browser's parser assigns namespaces from structure. The compile-time
  * tag decides what `createElementNS` does on the CLIENT and has no effect here.
  */
-import { init, render, html, svg } from '@verajs/core';
+import { init, html, svg } from '@verajs/core';
 
 const Frame = ({ children }) => html`<svg viewBox="0 0 24 24" width="24" height="24">${children}</svg>`;
 
 export default class SvgIconSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`
         <figure class="icon">
           ${Frame({
             children: [
@@ -31,8 +30,8 @@ export default class SvgIconSsr extends HTMLElement {
             ],
           })}
         </figure>
-      `
-    );
+      `;
+    });
   }
 }
 

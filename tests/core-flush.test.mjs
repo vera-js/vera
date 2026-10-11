@@ -31,9 +31,10 @@ test('after `await`, the DOM and its effects are done — one write, one microta
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useEffect(() => { void state.n; seen.push(this.textContent); });
-      core.render(() => html`<p>${state.n}</p>`);
+      core.init(this, () => {
+        core.useEffect(() => { void state.n; seen.push(this.textContent); });
+        return () => html`<p>${state.n}</p>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -52,10 +53,11 @@ test('order within a flush: renders, then layout effects, then effects (React\'s
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useEffect(() => { void state.n; order.push('effect'); });
-      core.useLayoutEffect(() => { void state.n; order.push('layout'); });
-      core.render(() => { order.push('render'); return html`<p>${state.n}</p>`; });
+      core.init(this, () => {
+        core.useEffect(() => { void state.n; order.push('effect'); });
+        core.useLayoutEffect(() => { void state.n; order.push('layout'); });
+        return () => { order.push('render'); return html`<p>${state.n}</p>`; };
+      });
     }
   });
   const el = doc.createElement(name);
@@ -75,15 +77,16 @@ test('a child re-rendered by its parent\'s new props renders ONCE — parent fir
   const parent = 'x-flush-parent';
   customElements.define(child, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      /** Reads the same store as its parent AND the prop the parent delivers. */
-      core.render(() => { renders.child++; return html`<i>${state.n}/${this.n}</i>`; });
+      core.init(this, () => {
+        return () => { renders.child++; return html`<i>${state.n}/${this.n}</i>`; };
+      });
     }
   });
   customElements.define(parent, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => { renders.parent++; return html`<b>${state.n}</b><x-flush-child .n=${state.n}></x-flush-child>`; });
+      core.init(this, () => {
+        return () => { renders.parent++; return html`<b>${state.n}</b><x-flush-child .n=${state.n}></x-flush-child>`; };
+      });
     }
   });
   const el = doc.createElement(parent);
@@ -103,10 +106,11 @@ test('a measure-then-set settles within ONE flush — before paint, no frame in 
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      /** Measures what was just rendered (its text length stands in for a layout read) and stores it. */
-      core.useEffect(() => { void state.text; state.width = this.querySelector('span').textContent.length; });
-      core.render(() => html`<span>${state.text}</span><b>${state.width}</b>`);
+      core.init(this, () => {
+        /** Measures what was just rendered (its text length stands in for a layout read) and stores it. */
+        core.useEffect(() => { void state.text; state.width = this.querySelector('span').textContent.length; });
+        return () => html`<span>${state.text}</span><b>${state.width}</b>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -129,8 +133,9 @@ test('`flush()` drains every queued pass, synchronously', () => {
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => html`<p>${state.n}</p>`);
+      core.init(this, () => {
+        return () => html`<p>${state.n}</p>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -148,8 +153,9 @@ test('frameBudget, opted in: past its budget the next flush waits for a frame �
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => html`<p>${state.n}</p>`);
+      core.init(this, () => {
+        return () => html`<p>${state.n}</p>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -168,9 +174,9 @@ test('frameBudget, opted in: past its budget the next flush waits for a frame �
     const spender = tag();
     customElements.define(spender, class extends HTMLElement {
       connectedCallback() {
-        core.init(this);
-        core.useEffect(() => { if (slow.go) now += 5; });
-        core.mount();
+        core.init(this, () => {
+          core.useEffect(() => { if (slow.go) now += 5; });
+        });
       }
     });
     const s = doc.createElement(spender);
@@ -206,8 +212,9 @@ test('THE DEFAULT: after a heavy flush in the same frame, a write and an `await`
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => html`<p>${state.n}</p>`);
+      core.init(this, () => {
+        return () => html`<p>${state.n}</p>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -226,9 +233,9 @@ test('THE DEFAULT: after a heavy flush in the same frame, a write and an `await`
     const spender = tag();
     customElements.define(spender, class extends HTMLElement {
       connectedCallback() {
-        core.init(this);
-        core.useEffect(() => { if (slow.go) now += 5; });
-        core.mount();
+        core.init(this, () => {
+          core.useEffect(() => { if (slow.go) now += 5; });
+        });
       }
     });
     const s = doc.createElement(spender);
@@ -252,14 +259,16 @@ test('passes queued OUT of order are sorted: a child woken first still runs afte
   const renders = { parent: 0, child: 0 };
   customElements.define('x-flush-kid', class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => { renders.child++; return html`<i>${own.x}/${this.y}</i>`; });
+      core.init(this, () => {
+        return () => { renders.child++; return html`<i>${own.x}/${this.y}</i>`; };
+      });
     }
   });
   customElements.define('x-flush-mom', class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => { renders.parent++; return html`<x-flush-kid .y=${shared.y}></x-flush-kid>`; });
+      core.init(this, () => {
+        return () => { renders.parent++; return html`<x-flush-kid .y=${shared.y}></x-flush-kid>`; };
+      });
     }
   });
   const el = doc.createElement('x-flush-mom');
@@ -280,9 +289,9 @@ test('a window with no frames still settles a held loop — through the timer', 
   const el = frameless.window.document.createElement('div');
   frameless.window.document.body.append(el);
   const state = core.createStore({ n: 0 });
-  core.init(el);
-  core.useEffect(() => { if (state.n > 0 && state.n < 5) state.n++; });
-  core.mount();
+  core.init(el, () => {
+    core.useEffect(() => { if (state.n > 0 && state.n < 5) state.n++; });
+  });
   state.n = 1;
   await Promise.resolve();
   assert.equal(state.n, 3, 'two runs in the flush, then held');
@@ -297,9 +306,9 @@ test('an element whose window has gone (a closed pop-out) still settles a held l
   const el = orphan.createElement('div');
   orphan.body.append(el);
   const state = core.createStore({ n: 0 });
-  core.init(el);
-  core.useEffect(() => { if (state.n > 0 && state.n < 5) state.n++; });
-  core.mount();
+  core.init(el, () => {
+    core.useEffect(() => { if (state.n > 0 && state.n < 5) state.n++; });
+  });
   state.n = 1;
   await Promise.resolve();
   assert.equal(state.n, 3, 'CONTROL: two runs in the flush, then held');
@@ -312,9 +321,10 @@ test('on MOUNT, the first useLayoutEffect sees the DOM the first render made —
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useLayoutEffect(() => { seen.push(this.querySelector('p')?.textContent ?? 'no DOM yet'); });
-      core.render(() => html`<p>first</p>`);
+      core.init(this, () => {
+        core.useLayoutEffect(() => { seen.push(this.querySelector('p')?.textContent ?? 'no DOM yet'); });
+        return () => html`<p>first</p>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -331,10 +341,11 @@ test('a useLayoutEffect measuring the NEW DOM and storing it settles within one 
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      /** Its text length stands in for a layout read: what a tooltip ported from React does. */
-      core.useLayoutEffect(() => { void state.text; state.width = this.querySelector('span').textContent.length; });
-      core.render(() => html`<span>${state.text}</span><b>${state.width}</b>`);
+      core.init(this, () => {
+        /** Its text length stands in for a layout read: what a tooltip ported from React does. */
+        core.useLayoutEffect(() => { void state.text; state.width = this.querySelector('span').textContent.length; });
+        return () => html`<span>${state.text}</span><b>${state.width}</b>`;
+      });
     }
   });
   const el = doc.createElement(name);
@@ -358,12 +369,12 @@ test('hooks of one priority on one component run in the order it registered them
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useLayoutEffect(() => { void state.n; order.push('a'); });
-      core.useLayoutEffect(() => { void state.n; order.push('b'); });
-      core.useEffect(() => { void state.n; order.push('c'); });
-      core.useEffect(() => { void state.n; order.push('d'); });
-      core.mount();
+      core.init(this, () => {
+        core.useLayoutEffect(() => { void state.n; order.push('a'); });
+        core.useLayoutEffect(() => { void state.n; order.push('b'); });
+        core.useEffect(() => { void state.n; order.push('c'); });
+        core.useEffect(() => { void state.n; order.push('d'); });
+      });
     }
   });
   const el = doc.createElement(name);
@@ -384,15 +395,16 @@ test('useHook joins the flush at its priority — at 25, before the render, seei
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useHook((change, first) => {
-        void state.n;
-        if (!first) { order.push('snapshot'); seen.push(this.textContent); }
-      }, 25);
-      core.useHook((change, first) => { void state.n; if (!first) order.push('65'); }, 65);
-      core.useLayoutEffect(() => { void state.n; order.push('layout'); });
-      core.useEffect(() => { void state.n; order.push('effect'); });
-      core.render(() => { order.push('render'); return html`<p>${state.n}</p>`; });
+      core.init(this, () => {
+        core.useHook((change, first) => {
+          void state.n;
+          if (!first) { order.push('snapshot'); seen.push(this.textContent); }
+        }, 25);
+        core.useHook((change, first) => { void state.n; if (!first) order.push('65'); }, 65);
+        core.useLayoutEffect(() => { void state.n; order.push('layout'); });
+        core.useEffect(() => { void state.n; order.push('effect'); });
+        return () => { order.push('render'); return html`<p>${state.n}</p>`; };
+      });
     }
   });
   const el = doc.createElement(name);
@@ -413,9 +425,9 @@ test('a useHook\'s returned function is its cleanup — before its next run, and
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useHook(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); }, 65);
-      core.mount();
+      core.init(this, () => {
+        core.useHook(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); }, 65);
+      });
     }
   });
   const el = doc.createElement(name);
@@ -433,9 +445,9 @@ test('createHook, the raw primitive, runs inside every write it hears — unbatc
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.createHook({ priority: 65, callback: (change, first) => { void state.n; if (!first) runs.push(state.n); } });
-      core.mount();
+      core.init(this, () => {
+        core.createHook({ priority: 65, callback: (change, first) => { void state.n; if (!first) runs.push(state.n); } });
+      });
     }
   });
   const el = doc.createElement(name);
@@ -453,8 +465,7 @@ test('useHook and createHook take `element` alike: outside setup, the element gi
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.mount();
+      core.init(this, () => {});
     }
   });
   const el = doc.createElement(name);
@@ -491,16 +502,17 @@ test('flush() inside a running flush does nothing — no nested drain, the write
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useEffect(() => {
-        if (state.text !== 'b') return;
-        state.text = 'c';
-        core.flush();
-        core.flush();
-        /** No nested drain: the render of 'c' has not run yet, inside this effect. */
-        state.seen = this.querySelector('p').textContent;
+      core.init(this, () => {
+        core.useEffect(() => {
+          if (state.text !== 'b') return;
+          state.text = 'c';
+          core.flush();
+          core.flush();
+          /** No nested drain: the render of 'c' has not run yet, inside this effect. */
+          state.seen = this.querySelector('p').textContent;
+        });
+        return () => html`<p>${state.text}</p>`;
       });
-      core.render(() => html`<p>${state.text}</p>`);
     }
   });
   const el = doc.createElement(name);
@@ -526,14 +538,15 @@ test('an event an effect fires synchronously, whose handler writes and calls flu
   const name = tag();
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      /**
-       * Clicks ONCE: a handler run synchronously inside an effect is tracked BY that effect (its `clicked++` reads
-       * `clicked`), so an unguarded click re-ran the effect on every click — a self-feeding loop the loop rule held to
-       * one round per frame, forever (found writing this row).
-       */
-      core.useEffect(() => { if (state.n === 1 && !this.clickedOnce) { this.clickedOnce = true; this.querySelector('button').click(); } });
-      core.render(() => html`<button @click=${() => { state.clicked++; core.flush(); }}>x</button><b>${state.clicked}</b>`);
+      core.init(this, () => {
+        /**
+         * Clicks ONCE: a handler run synchronously inside an effect is tracked BY that effect (its `clicked++` reads
+         * `clicked`), so an unguarded click re-ran the effect on every click — a self-feeding loop the loop rule held to
+         * one round per frame, forever (found writing this row).
+         */
+        core.useEffect(() => { if (state.n === 1 && !this.clickedOnce) { this.clickedOnce = true; this.querySelector('button').click(); } });
+        return () => html`<button @click=${() => { state.clicked++; core.flush(); }}>x</button><b>${state.clicked}</b>`;
+      });
     }
   });
   const el = doc.createElement(name);

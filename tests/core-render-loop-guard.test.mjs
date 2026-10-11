@@ -61,12 +61,13 @@ const OVER = 60;
   let el;
   const warnings = await listen(async () => {
     el = define((element) => {
-      core.init(element, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      element._state = state;
-      /** Reads `n` and writes it: the write feeds the pass that made it. */
-      core.useEffect(() => { ran++; state.n = state.n + 1; });
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: element, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        element._state = state;
+        /** Reads `n` and writes it: the write feeds the pass that made it. */
+        core.useEffect(() => { ran++; state.n = state.n + 1; });
+        return () => core.html`<p>${state.n}</p>`;
+      });
     });
     el._state.n = 1;
     await frames(OVER);
@@ -97,19 +98,20 @@ const OVER = 60;
   let ticks = 0;
   const warnings = await listen(async () => {
     const el = define((element) => {
-      core.init(element, { mode: 'open' });
-      const state = core.createStore({ t: 0 });
-      element._state = state;
-      /**
-       * The write lands in a *later* frame, not inside the pass that scheduled it — which is the
-       * whole discriminator. This is the shape an animation takes, and it must never warn.
-       */
-      core.useEffect(() => {
-        void state.t;
-        ticks++;
-        dom.window.requestAnimationFrame(() => { state.t = state.t + 1; });
+      core.init({ host: element, shadow: 'open' }, () => {
+        const state = core.createStore({ t: 0 });
+        element._state = state;
+        /**
+         * The write lands in a *later* frame, not inside the pass that scheduled it — which is the
+         * whole discriminator. This is the shape an animation takes, and it must never warn.
+         */
+        core.useEffect(() => {
+          void state.t;
+          ticks++;
+          dom.window.requestAnimationFrame(() => { state.t = state.t + 1; });
+        });
+        return () => core.html`<p>${state.t}</p>`;
       });
-      core.render(() => core.html`<p>${state.t}</p>`);
     });
     el._state.t = 1;
     await frames(OVER * 2);
@@ -125,13 +127,14 @@ const OVER = 60;
   let renders = 0;
   const warnings = await listen(async () => {
     const el = define((element) => {
-      core.init(element, { mode: 'open' });
-      const state = core.createStore({ n: 0, seen: 0 });
-      element._state = state;
-      core.render(() => {
-        renders++;
-        state.seen = state.n + renders;
-        return core.html`<p>${state.seen}</p>`;
+      core.init({ host: element, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0, seen: 0 });
+        element._state = state;
+        return () => {
+          renders++;
+          state.seen = state.n + renders;
+          return core.html`<p>${state.seen}</p>`;
+        };
       });
     });
     el._state.n = 1;
@@ -150,12 +153,13 @@ const OVER = 60;
   let ran = 0;
   const warnings = await listen(async () => {
     const el = define((element) => {
-      core.init(element, { mode: 'open' });
-      const state = core.createStore({ t: 0 });
-      element._state = state;
-      core.allowRenderLoop(element);
-      core.useEffect(() => { ran++; state.t = state.t + 1; });
-      core.render(() => core.html`<p>${state.t}</p>`);
+      core.init({ host: element, shadow: 'open' }, () => {
+        const state = core.createStore({ t: 0 });
+        element._state = state;
+        core.allowRenderLoop(element);
+        core.useEffect(() => { ran++; state.t = state.t + 1; });
+        return () => core.html`<p>${state.t}</p>`;
+      });
     });
     el._state.t = 1;
     await frames(OVER);
@@ -177,11 +181,12 @@ const OVER = 60;
     const els = [];
     for (let i = 0; i < OVER; i++) {
       els.push(define((element) => {
-        core.init(element, { mode: 'open' });
-        const state = core.createStore({ n: 0, echo: 0 });
-        element._state = state;
-        core.useEffect(() => { state.echo = state.n; });
-        core.render(() => core.html`<p>${state.echo}</p>`);
+        core.init({ host: element, shadow: 'open' }, () => {
+          const state = core.createStore({ n: 0, echo: 0 });
+          element._state = state;
+          core.useEffect(() => { state.echo = state.n; });
+          return () => core.html`<p>${state.echo}</p>`;
+        });
       }));
     }
     for (const el of els) { el._state.n = 1; await frame(); }
@@ -202,11 +207,12 @@ const OVER = 60;
   let ran = 0;
   const warnings = await listen(async () => {
     const make = () => define((element) => {
-      core.init(element, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      element._state = state;
-      core.useEffect(() => { ran++; state.n = state.n + 1; });
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: element, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        element._state = state;
+        core.useEffect(() => { ran++; state.n = state.n + 1; });
+        return () => core.html`<p>${state.n}</p>`;
+      });
     });
     const a = make(), b = make();
     a._state.n = 1;
@@ -258,14 +264,15 @@ const OVER = 60;
   let passes = 0;
   const warnings = await listen(async () => {
     const el = define((element) => {
-      core.init(element, { mode: 'open' });
-      const state = core.createStore({ n: 0, target: 0 });
-      element._state = state;
-      core.useEffect(() => {
-        passes++;
-        if (state.n !== state.target) state.n = state.n + 1;
+      core.init({ host: element, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0, target: 0 });
+        element._state = state;
+        core.useEffect(() => {
+          passes++;
+          if (state.n !== state.target) state.n = state.n + 1;
+        });
+        return () => core.html`<p>${state.n}</p>`;
       });
-      core.render(() => core.html`<p>${state.n}</p>`);
     });
 
     el._state.target = 40;

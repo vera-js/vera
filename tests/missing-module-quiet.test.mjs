@@ -23,7 +23,7 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wire, init, render, html } = await load('core');
+const { wire, init, html } = await load('core');
 const { renderer } = await load('renderer');
 const { directives, wireDirectives, expressions, interactions } = await load('directives');
 wire([renderer, directives]);
@@ -38,10 +38,11 @@ test('a wired engine is never told its markup does nothing', async (t) => {
   try {
     dom.window.customElements.define('wired-thing', class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        render(() => html`${dom.window.document.createRange().createContextualFragment(
+        init({ host: this, shadow: 'open' }, () => {
+          return () => html`${dom.window.document.createRange().createContextualFragment(
           '<div data-vd-state="{ open: false }"><button data-vd-on-click="{ open: !open }">menu</button></div>'
-        )}`);
+        )}`;
+        });
       }
     });
     dom.window.document.body.appendChild(dom.window.document.createElement('wired-thing'));

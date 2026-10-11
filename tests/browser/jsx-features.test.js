@@ -13,7 +13,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { transformJsx } from '../../packages/jsx/dist/development/vera-jsx.js';
-import { html, wire, init, render } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init } from '../../packages/core/dist/development/vera.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { namespaces } from '../../packages/renderer/dist/development/vera-renderer-namespaces.js';
 
@@ -101,8 +101,9 @@ it('a bare prop on a dash-named tag arrives as a property, reactively', async ()
     'jsx-feature-child',
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        render(() => html`<p>${this.item ? this.item.label : 'none'} / ${String(this.count)}</p>`);
+        init({ host: this, shadow: 'open' }, () => {
+          return () => html`<p>${this.item ? this.item.label : 'none'} / ${String(this.count)}</p>`;
+        });
       }
     }
   );

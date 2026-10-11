@@ -27,7 +27,7 @@ const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true, virtua
 for (const k of ['window', 'document', 'Node', 'Element', 'HTMLElement', 'Comment', 'Text', 'DocumentFragment', 'MutationObserver', 'customElements', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent', 'MouseEvent'])
   globalThis[k] = dom.window[k];
 const settle = () => new Promise((r) => dom.window.setTimeout(r, 0));
-const { wire, init, render, html } = await load('core');
+const { wire, init, html } = await load('core');
 const { renderInto, renderer } = await load('renderer');
 const { hydration } = await load('renderer/hydration');
 const { slots } = await load('renderer/slots');
@@ -88,14 +88,17 @@ test('a page of three components, the middle one served with slots: the others h
   for (const tag of ['blast-a', 'blast-c'])
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
-        init(this);
-        render(() => html`<button @click=${() => clicked.push(tag)}>${tag}</button>`);
+        init(this, () => {
+          return () => html`<button @click=${() => clicked.push(tag)}>${tag}</button>`;
+        });
       }
     });
   customElements.define('blast-b', class extends HTMLElement {
     connectedCallback() {
-      init(this);
-      render(card);
+      init(this, () => {
+        const view = card;
+        return typeof view === 'function' ? view : () => view;
+      });
     }
   });
   await settle();
@@ -172,8 +175,10 @@ test('a served CORE component: slots defers its init capture to the adoption —
   try {
     customElements.define('served-core', class extends HTMLElement {
       connectedCallback() {
-        init(this);
-        render(card);
+        init(this, () => {
+          const view = card;
+          return typeof view === 'function' ? view : () => view;
+        });
       }
     });
     await settle();

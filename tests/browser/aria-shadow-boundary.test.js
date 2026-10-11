@@ -60,7 +60,7 @@ it('ElementInternals sets ARIA on the host, which is the way across', () => {
  * The three ways through, as `@verajs/core`'s README recommends them. Advice that has not been run
  * is a guess, and this is the file that stops it being one.
  */
-import { init, render, html } from '../../packages/core/dist/development/vera.js';
+import { init, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { wire } from '../../packages/core/dist/development/vera.js';
 import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
@@ -72,8 +72,9 @@ it('1. label and control in the same template associate', async () => {
   const tag = 'x-aria-same-root';
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<label for="f">Email</label><input id="f" />`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<label for="f">Email</label><input id="f" />`;
+      });
     }
   });
   const element = document.createElement(tag);
@@ -90,8 +91,9 @@ it('2. ElementInternals set before init survives it, and is visible on the host'
       this._internals ??= this.attachInternals();
       this._internals.role = 'button';
       this._internals.ariaLabel = 'Save';
-      init(this, { mode: 'open' });
-      render(() => html`<span>Save</span>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<span>Save</span>`;
+      });
     }
   });
   const element = document.createElement(tag);
@@ -107,8 +109,9 @@ it('3. light DOM lets the page own the relationship, and static styles still app
   customElements.define(tag, class extends HTMLElement {
     static styles = css`input { outline-color: rgb(1, 2, 3) }`;
     connectedCallback() {
-      init(this);
-      render(() => html`<input id="light-field" />`);
+      init(this, () => {
+        return () => html`<input id="light-field" />`;
+      });
     }
   });
   const wrapper = document.createElement('div');
@@ -125,8 +128,9 @@ it('delegatesFocus forwards focus to the first focusable child', async () => {
   const tag = 'x-aria-delegates';
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open', delegatesFocus: true });
-      render(() => html`<input id="d" />`);
+      init({ host: this, shadow: { mode: 'open', delegatesFocus: true } }, () => {
+        return () => html`<input id="d" />`;
+      });
     }
   });
   const element = document.createElement(tag);

@@ -1,4 +1,4 @@
-import { init, render, html, createStore } from '@verajs/core';
+import { init, html, createStore } from '@verajs/core';
 
 /**
  * Every binding kind in one component, so the browser suite can hydrate them all through real
@@ -9,10 +9,9 @@ import { init, render, html, createStore } from '@verajs/core';
  */
 export default class BindingsSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ text: 'hello & <world>', count: 3, rows: ['a', 'b'] });
-    render(
-      () => html`<section id="root">
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ text: 'hello & <world>', count: 3, rows: ['a', 'b'] });
+      return () => html`<section id="root">
         <p id="text">${state.text}</p>
         <p id="multi">${state.text} and ${state.count}</p>
         <p id="falsy">[${0}][${false}][${null}]</p>
@@ -37,8 +36,8 @@ export default class BindingsSsr extends HTMLElement {
         </ul>
         <ul id="empty">${[]}</ul>
         <p id="looksLikeAttr">total=${state.count}</p>
-      </section>`
-    );
+      </section>`;
+    });
   }
 }
 customElements.define('bindings-ssr', BindingsSsr);

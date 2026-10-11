@@ -33,7 +33,9 @@ if (SCENARIO) {
   for (const name of ['us-a', 'us-b']) {
     customElements.define(name, class extends HTMLElement {
       static styles = 'p { color: red }';
-      connectedCallback() { core.init(this); core.render(() => core.html`<p>x</p>`); }
+      connectedCallback() { core.init(this, () => {
+        return () => core.html`<p>x</p>`;
+      }); }
     });
     dom.window.document.body.append(dom.window.document.createElement(name));
   }

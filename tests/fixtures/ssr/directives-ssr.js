@@ -3,7 +3,7 @@
  * `directives` exactly as a browser app would — the engine's `'init'` connector detects the
  * shim and evaluates once instead of activating, so nothing here is server-specific.
  */
-import { init, render, html, wire } from '@verajs/core';
+import { init, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { wireDirectives, directives, interactions, expressions } from '@verajs/directives';
 
@@ -19,9 +19,8 @@ wireDirectives([expressions, ...interactions]);
 
 export default class DirectivesSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`
         <div data-vd-state="{ open: false, name: 'vera', qty: 3, price: 40 }" data-vd-cloak>
           <nav data-vd-show="open" data-vd-class="{ is-open: open }">menu</nav>
           <p data-vd-show="!open">closed</p>
@@ -33,8 +32,8 @@ export default class DirectivesSsr extends HTMLElement {
           <em data-vd-style="{ opacity: open ? 1 : 0.5 }">styled</em>
           <u data-vd-lazy-thing>a name no pack provides — for the preload list</u>
         </div>
-      `
-    );
+      `;
+    });
   }
 }
 

@@ -31,14 +31,15 @@ const run = async (name, draw, probe = () => undefined) => {
   let effectRuns = 0;
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useEffect(() => {
-        void state.n;
-        effectRuns++;
-        /** Clicks once, on a LATER change — after directives activated: a click during mount reached no handler. */
-        if (state.n === 1 && !this.clicked) { this.clicked = true; this.querySelector('button').click(); }
+      core.init(this, () => {
+        core.useEffect(() => {
+          void state.n;
+          effectRuns++;
+          /** Clicks once, on a LATER change — after directives activated: a click during mount reached no handler. */
+          if (state.n === 1 && !this.clicked) { this.clicked = true; this.querySelector('button').click(); }
+        });
+        return () => draw(state);
       });
-      core.render(() => draw(state));
     }
   });
   const el = doc.createElement(name);
@@ -91,7 +92,9 @@ test('directives `data-vd-on-click`: later clicks do not re-run the effect that 
  */
 test('one click runs a light component\'s data-vd-on-click ONCE — not once per delegated root', async () => {
   customElements.define('hu-once', class extends HTMLElement {
-    connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
+    connectedCallback() { core.init(this, () => {
+      return () => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`;
+    }); }
   });
   const el = doc.createElement('hu-once');
   doc.body.append(el);
@@ -105,7 +108,9 @@ test('one click runs a light component\'s data-vd-on-click ONCE — not once per
 
 test('the SAME Event dispatched twice runs the handler twice — no per-event state (vera-5a)', async () => {
   customElements.define('hu-again', class extends HTMLElement {
-    connectedCallback() { core.init(this); core.render(() => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`); }
+    connectedCallback() { core.init(this, () => {
+      return () => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`;
+    }); }
   });
   const el = doc.createElement('hu-again');
   doc.body.append(el);

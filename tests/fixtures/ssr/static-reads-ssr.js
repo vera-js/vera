@@ -1,4 +1,4 @@
-import { init, render, html, createStore } from '@verajs/core';
+import { init, html, createStore } from '@verajs/core';
 
 /**
  * A store the static-mode suite counts reads on — `counted` is the flag its store module looks for.
@@ -9,9 +9,10 @@ export const reads = { count: 0 };
 
 export default class StaticReadsSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ counted: true, label: 'counted' });
-    render(() => html`<p>${state.label}</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ counted: true, label: 'counted' });
+      return () => html`<p>${state.label}</p>`;
+    });
   }
 }
 customElements.define('static-reads-ssr', StaticReadsSsr);

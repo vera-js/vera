@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 /** A child whose bound property has only a getter — assignment throws, and the error must name it. */
 class ReadonlyChild extends HTMLElement {
@@ -6,16 +6,18 @@ class ReadonlyChild extends HTMLElement {
     return 'immutable';
   }
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>${this.locked}</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>${this.locked}</p>`;
+    });
   }
 }
 customElements.define('readonly-child', ReadonlyChild);
 
 class ReadonlyParent extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<readonly-child .locked=${'overwrite'}></readonly-child>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<readonly-child .locked=${'overwrite'}></readonly-child>`;
+    });
   }
 }
 customElements.define('readonly-parent', ReadonlyParent);

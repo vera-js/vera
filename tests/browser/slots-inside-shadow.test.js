@@ -16,7 +16,7 @@
 import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { slots } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
-import { html, wire, init, render, createStore } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init, createStore } from '../../packages/core/dist/development/vera.js';
 
 wire([renderer, slots]);
 const settle = async () => {
@@ -27,16 +27,18 @@ const settle = async () => {
 
 customElements.define('lis-card', class extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(() => html`<article><header><slot name="h">no title</slot></header><main><slot>no body</slot></main></article>`);
+    init(this, () => {
+      return () => html`<article><header><slot name="h">no title</slot></header><main><slot>no body</slot></main></article>`;
+    });
   }
 });
 
 const state = createStore({ title: 'One' });
 customElements.define('lis-shell', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<section><lis-card><h2 slot="h">${state.title}</h2>placed body</lis-card></section>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<section><lis-card><h2 slot="h">${state.title}</h2>placed body</lis-card></section>`;
+    });
   }
 });
 

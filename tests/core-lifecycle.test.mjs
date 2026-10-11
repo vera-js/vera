@@ -31,10 +31,11 @@ const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
 let cleanups = 0, userDisconnects = 0, effectRuns = 0;
 class TickerEl extends window.HTMLElement {
   connectedCallback() {
-    core.init(this);
-    this.state = core.createStore({ n: 0 });
-    core.useEffect(() => { effectRuns++; this.state.n; return () => cleanups++; });
-    core.render(() => String(this.state.n));
+    core.init(this, () => {
+      this.state = core.createStore({ n: 0 });
+      core.useEffect(() => { effectRuns++; this.state.n; return () => cleanups++; });
+      return () => String(this.state.n);
+    });
   }
   disconnectedCallback() { userDisconnects++; }
 }
@@ -58,10 +59,11 @@ check('second removal runs latest cleanup once', cleanups === 3 && userDisconnec
 let syncCleanups = 0;
 class SyncEl extends window.HTMLElement {
   connectedCallback() {
-    core.init(this);
-    this.state = core.createStore({ n: 0 });
-    core.useSyncEffect(() => { this.state.n; return () => syncCleanups++; });
-    core.render(() => '');
+    core.init(this, () => {
+      this.state = core.createStore({ n: 0 });
+      core.useSyncEffect(() => { this.state.n; return () => syncCleanups++; });
+      return () => '';
+    });
   }
 }
 window.customElements.define('sync-el', SyncEl);
@@ -118,12 +120,13 @@ check('no styles injected inside light element', l1.querySelectorAll('style').le
   core.setRenderScheduler(core.microtask);
   class SchedEl extends window.HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      core.useLayoutEffect(() => { order.push('layout'); void state.n; });
-      core.useEffect(() => { order.push('effect'); void state.n; });
-      core.render(() => { order.push('render'); return core.html`<p>${state.n}</p>`; });
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        core.useLayoutEffect(() => { order.push('layout'); void state.n; });
+        core.useEffect(() => { order.push('effect'); void state.n; });
+        return () => { order.push('render'); return core.html`<p>${state.n}</p>`; };
+      });
     }
   }
   window.customElements.define('sched-el', SchedEl);

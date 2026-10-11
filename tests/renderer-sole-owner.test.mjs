@@ -80,8 +80,9 @@ test('a keyed list in a SOLE position reorders, grows and empties in place', () 
 test("a light-DOM component's own render survives its parent's binding changing — the binding keeps its markers there", async () => {
   customElements.define('x-own-panel', class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => html`<b>own</b>`);
+      core.init(this, () => {
+        return () => html`<b>own</b>`;
+      });
     }
   });
   const host = document.body.appendChild(document.createElement('div'));

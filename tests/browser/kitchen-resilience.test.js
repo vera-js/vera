@@ -10,7 +10,7 @@
  * the configuration where that is either true or quietly wrong.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore} from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore} from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { initRouter, navigate, router } from '../../packages/router/dist/development/vera-router.js';
 
@@ -33,12 +33,13 @@ describe('a failing component does not take the page with it', () => {
       'resilience-bad',
       class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const state = createStore({ explode: false });
-          this.state = state;
-          render(() => {
-            if (state.explode) throw new Error('resilience: deliberate render failure');
-            return html`<p id="bad">alive</p>`;
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ explode: false });
+            this.state = state;
+            return () => {
+              if (state.explode) throw new Error('resilience: deliberate render failure');
+              return html`<p id="bad">alive</p>`;
+            };
           });
         }
       }
@@ -47,10 +48,11 @@ describe('a failing component does not take the page with it', () => {
       'resilience-good',
       class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const state = createStore({ n: 0 });
-          this.state = state;
-          render(() => html`<p id="good">${state.n}</p>`);
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ n: 0 });
+            this.state = state;
+            return () => html`<p id="good">${state.n}</p>`;
+          });
         }
       }
     );

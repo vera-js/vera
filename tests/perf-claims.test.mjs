@@ -111,11 +111,12 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
 test('a hook that re-runs thousands of times does not make writes progressively slower', () => {
   customElements.define('x-perf-claims', class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      core.useSyncEffect(() => { void state.n; });
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        core.useSyncEffect(() => { void state.n; });
+        return () => core.html`<p>${state.n}</p>`;
+      });
     }
   });
   const element = dom.window.document.createElement('x-perf-claims');

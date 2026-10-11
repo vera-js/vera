@@ -49,7 +49,7 @@ try {
   lit = null;
 }
 
-const { init, createStore, render, wire } = await load('core');
+const { init, createStore, wire } = await load('core');
 const doc = dom.window.document;
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
@@ -61,10 +61,11 @@ test('core drives a FOREIGN renderer through the render insert', { skip: lit ===
     'foreign-counter',
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this);
-        const store = createStore({ count: 1 });
-        bump = () => (store.count += 1);
-        render(() => lit.html`<p class="out">count ${store.count}</p>`);
+        init(this, () => {
+          const store = createStore({ count: 1 });
+          bump = () => (store.count += 1);
+          return () => lit.html`<p class="out">count ${store.count}</p>`;
+        });
       }
     }
   );

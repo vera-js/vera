@@ -30,7 +30,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { html, init, render, createStore, ref, wire } = core;
+const { html, init, createStore, ref, wire } = core;
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 
@@ -69,7 +69,9 @@ test('removing the component does not release the ref, and the element is simply
   const box = ref();
   const tag = `x-reflife-${seq++}`;
   customElements.define(tag, class extends HTMLElement {
-    connectedCallback() { init(this, { mode: 'open' }); render(() => html`<i ${box}>x</i>`); }
+    connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+      return () => html`<i ${box}>x</i>`;
+    }); }
   });
   const element = document.createElement(tag);
   a.appendChild(element);
@@ -88,8 +90,9 @@ test('which is what keeps a move from blanking it', async () => {
   let renders = 0;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => { renders++; return html`<i ${box}>${state.n}</i>`; });
+      init({ host: this, shadow: 'open' }, () => {
+        return () => { renders++; return html`<i ${box}>${state.n}</i>`; };
+      });
     }
   });
   const element = document.createElement(tag);
@@ -121,10 +124,11 @@ test('a ref created inside its component is not shared between instances', async
   const tag = `x-reflife-${seq++}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const box = ref();
-      boxes.push(box);
-      render(() => html`<i ${box}>x</i>`);
+      init({ host: this, shadow: 'open' }, () => {
+        const box = ref();
+        boxes.push(box);
+        return () => html`<i ${box}>x</i>`;
+      });
     }
   });
   a.appendChild(document.createElement(tag));

@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 /**
  * ssr's bounded warnings — `tests/ssr-coded-diagnostics.test.mjs`. Two components per warning, so a row can show
@@ -7,8 +7,9 @@ import { init, render, html } from '@verajs/core';
 const component = (draw) =>
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => draw(this));
+      init({ host: this, shadow: 'open' }, () => {
+        return () => draw(this);
+      });
     }
   };
 
@@ -44,7 +45,8 @@ customElements.define('throws-text', class extends HTMLElement {
     throw new Error(`bad ${value}\n[vera] fake\x1b[2K`);
   }
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>x</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>x</p>`;
+    });
   }
 });

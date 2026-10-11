@@ -11,7 +11,7 @@
  * page after the list has been reversed, shortened, grown and emptied.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, shallowRef, untrack } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, shallowRef, untrack } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
@@ -25,14 +25,13 @@ customElements.define(
   'keyed-hydrate-probe',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const rows = shallowRef([...ROWS]);
-      this.rows = rows;
-      this.set = (next) => (rows.value = next);
-      this.current = () => untrack(() => rows.value);
-      render(
-        () => html`<ul id="list">${rows.value.map((row) => keyed(row, html`<li data-id=${row}>${row}</li>`))}</ul>`
-      );
+      init({ host: this, shadow: 'open' }, () => {
+        const rows = shallowRef([...ROWS]);
+        this.rows = rows;
+        this.set = (next) => (rows.value = next);
+        this.current = () => untrack(() => rows.value);
+        return () => html`<ul id="list">${rows.value.map((row) => keyed(row, html`<li data-id=${row}>${row}</li>`))}</ul>`;
+      });
     }
   }
 );

@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 /** A child whose setter THROWS — the component's own error, and it must stay one, named. */
 class ThrowingChild extends HTMLElement {
@@ -9,16 +9,18 @@ class ThrowingChild extends HTMLElement {
     return 'never';
   }
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>${this.strict}</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>${this.strict}</p>`;
+    });
   }
 }
 customElements.define('throwing-child', ThrowingChild);
 
 class ThrowingParent extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<throwing-child .strict=${'nope'}></throwing-child>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<throwing-child .strict=${'nope'}></throwing-child>`;
+    });
   }
 }
 customElements.define('throwing-parent', ThrowingParent);

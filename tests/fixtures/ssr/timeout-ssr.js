@@ -1,24 +1,27 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 /** Components whose promises never settle, settle late, or reject — see `tests/ssr-render-timeout.test.mjs`. */
 class NeverFrame extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>frame</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>frame</p>`;
+    });
     requestAnimationFrame(() => new Promise(() => {}));
   }
 }
 class NeverConnected extends HTMLElement {
   async connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>connected</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>connected</p>`;
+    });
     await new Promise(() => {});
   }
 }
 class LateSettle extends HTMLElement {
   async connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>settle</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>settle</p>`;
+    });
     this.setAttribute('data-done', 'early');
     await new Promise((done) => setTimeout(done, 60));
     this.setAttribute('data-done', 'late');
@@ -26,8 +29,9 @@ class LateSettle extends HTMLElement {
 }
 class LateReject extends HTMLElement {
   async connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>reject</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>reject</p>`;
+    });
     await new Promise((done, fail) => setTimeout(() => fail(new Error('late-reject')), 30));
   }
 }

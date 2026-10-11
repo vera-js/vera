@@ -11,7 +11,7 @@
  * only thing that distinguishes adoption from a quiet rebuild.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
@@ -81,10 +81,11 @@ const mount = async (name) => {
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        const state = createStore({ ...STATE });
-        this.state = state;
-        render(() => template(state));
+        init({ host: this, shadow: 'open' }, () => {
+          const state = createStore({ ...STATE });
+          this.state = state;
+          return () => template(state);
+        });
       }
     }
   );
@@ -132,10 +133,11 @@ describe('hydration over awkward text', () => {
       'text-edge-comment',
       class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const state = createStore({ n: 1 });
-          this.state = state;
-          render(() => html`<p id="body">${state.n}</p>`);
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ n: 1 });
+            this.state = state;
+            return () => html`<p id="body">${state.n}</p>`;
+          });
         }
       }
     );

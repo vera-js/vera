@@ -41,8 +41,9 @@ const parent = (draw) => {
   const counter = { renders: 0 };
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => { counter.renders++; return draw(); });
+      core.init(this, () => {
+        return () => { counter.renders++; return draw(); };
+      });
     }
   });
   const el = document.body.appendChild(document.createElement(tag));

@@ -8,7 +8,7 @@
  * interleave with. If the turn queue ever stopped covering both entry points, the marker below would
  * come back attached to the wrong request.
  */
-import { init, createStore, render, html } from '@verajs/core';
+import { init, createStore, html } from '@verajs/core';
 
 export default class ConcurrentProbe extends HTMLElement {
   async connectedCallback() {
@@ -20,20 +20,17 @@ export default class ConcurrentProbe extends HTMLElement {
      * synchronous (a render() after an await in setup throws, no-owner); the render still pauses mid-lifecycle.
      */
     await new Promise((resolve) => setTimeout(resolve, depth % 3));
-    init(this, { mode: 'open' });
-
-    const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
-
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
+      return () => html`
         <section data-marker=${state.marker}>
           <h1>${state.marker}</h1>
           <ul>
             ${state.rows.map((row) => html`<li>${row}</li>`)}
           </ul>
         </section>
-      `
-    );
+      `;
+    });
   }
 }
 

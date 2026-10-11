@@ -4,10 +4,12 @@
  * The fixture for the marker-hijack case: `children` is raw markup, so a caller passing request
  * data through it could otherwise write a marker claiming this child's prepared instance.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 class Secret extends HTMLElement {
   token = 'PUBLIC';
-  connectedCallback() { init(this); render(() => html`<p>${this.token}</p>`); }
+  connectedCallback() { init(this, () => {
+    return () => html`<p>${this.token}</p>`;
+  }); }
 }
 customElements.define('marker-secret-ssr', Secret);
 class InstanceMarkerSsr extends HTMLElement {

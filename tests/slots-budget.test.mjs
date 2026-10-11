@@ -22,7 +22,9 @@ const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(()
 
 test('with frameBudget opted in and spent, a render waits for the frame while a slot redistributes after `await`', async () => {
   const previous = core.setRenderScheduler(core.frameBudget);
-  customElements.define('sb-host', class extends HTMLElement { connectedCallback() { core.init(this); core.render(() => core.html`<div><slot></slot></div>`); } });
+  customElements.define('sb-host', class extends HTMLElement { connectedCallback() { core.init(this, () => {
+    return () => core.html`<div><slot></slot></div>`;
+  }); } });
   const spend = core.createStore({ go: 0 });
   const state = core.createStore({ n: 0 });
   const real = performance.now.bind(performance);
@@ -30,8 +32,12 @@ test('with frameBudget opted in and spent, a render waits for the frame while a 
   let now = real();
   performance.now = () => Math.max(now, real());
   try {
-    customElements.define('sb-spend', class extends HTMLElement { connectedCallback() { core.init(this); core.useEffect(() => { if (spend.go) now += 5; }); core.mount(); } });
-    customElements.define('sb-n', class extends HTMLElement { connectedCallback() { core.init(this); core.render(() => core.html`<p>${state.n}</p>`); } });
+    customElements.define('sb-spend', class extends HTMLElement { connectedCallback() { core.init(this, () => {
+      core.useEffect(() => { if (spend.go) now += 5; });
+    }); } });
+    customElements.define('sb-n', class extends HTMLElement { connectedCallback() { core.init(this, () => {
+      return () => core.html`<p>${state.n}</p>`;
+    }); } });
     const host = doc().createElement('sb-host');
     const n = doc().createElement('sb-n');
     doc().body.append(host, doc().createElement('sb-spend'), n);

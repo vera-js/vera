@@ -1,10 +1,11 @@
 /** Run shapes an outer template binds into a light-slot component (hydration's R1 pins) — one module, chosen by `tag`. */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 class SlotShapeInner extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(() => html`<div class="box"><slot name="t">T</slot><slot>FB</slot></div>`);
+    init(this, () => {
+      return () => html`<div class="box"><slot name="t">T</slot><slot>FB</slot></div>`;
+    });
   }
 }
 customElements.define('slot-shape-inner', SlotShapeInner);
@@ -14,8 +15,10 @@ const shape = (tag, draw) =>
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        init(this);
-        render(draw);
+        init(this, () => {
+          const view = draw;
+          return typeof view === 'function' ? view : () => view;
+        });
       }
     }
   );

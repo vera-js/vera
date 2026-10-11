@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 /** Setters that throw values that are not errors — see `tests/ssr-thrown-values.test.mjs`. */
 class ThrowsNull extends HTMLElement {
@@ -6,8 +6,9 @@ class ThrowsNull extends HTMLElement {
     throw null;
   }
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>null</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>null</p>`;
+    });
   }
 }
 class ThrowsUndefined extends HTMLElement {
@@ -15,14 +16,16 @@ class ThrowsUndefined extends HTMLElement {
     throw undefined;
   }
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>undefined</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>undefined</p>`;
+    });
   }
 }
 class BindsThrower extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<throws-undefined .boom=${1}></throws-undefined>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<throws-undefined .boom=${1}></throws-undefined>`;
+    });
   }
 }
 customElements.define('throws-null', ThrowsNull);

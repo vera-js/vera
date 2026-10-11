@@ -1,4 +1,4 @@
-import { init, render, html, wire } from '@verajs/core';
+import { init, html, wire } from '@verajs/core';
 import { initRouter, router } from '@verajs/router';
 
 /**
@@ -9,12 +9,13 @@ wire([router]);
 
 export default class FirstView extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    initRouter(this, { view: 'main' }).addRoutes([
-      { path: '/', component: () => html`<p>home</p>` },
-      { path: '/about', component: () => html`<p>about</p>` },
-    ]);
-    render(() => html`<nav>n</nav><main view="main"></main>`);
+    init({ host: this, shadow: 'open' }, () => {
+      initRouter(this, { view: 'main' }).addRoutes([
+        { path: '/', component: () => html`<p>home</p>` },
+        { path: '/about', component: () => html`<p>about</p>` },
+      ]);
+      return () => html`<nav>n</nav><main view="main"></main>`;
+    });
   }
 }
 customElements.define('first-view', FirstView);

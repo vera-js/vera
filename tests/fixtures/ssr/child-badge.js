@@ -1,10 +1,11 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 class ChildBadge extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const label = this.getAttribute('label') ?? 'child';
-    render(() => html`<em>badge: ${label}</em>`);
+    init({ host: this, shadow: 'open' }, () => {
+      const label = this.getAttribute('label') ?? 'child';
+      return () => html`<em>badge: ${label}</em>`;
+    });
   }
 }
 customElements.define('child-badge', ChildBadge);

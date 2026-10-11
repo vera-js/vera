@@ -31,9 +31,10 @@ test('after a write, a useLayoutEffect sees the class a directive applied to wha
   const seen = [];
   customElements.define('x-le-directive', class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useLayoutEffect(() => { seen.push([state.n, this.querySelector('nav')?.classList.contains('busy')]); });
-      core.render(() => core.html`<div data-vd-state="{ count: 5 }"><nav data-vd-class="{ busy: count > 3 }">${state.n}</nav></div>`);
+      core.init(this, () => {
+        core.useLayoutEffect(() => { seen.push([state.n, this.querySelector('nav')?.classList.contains('busy')]); });
+        return () => core.html`<div data-vd-state="{ count: 5 }"><nav data-vd-class="{ busy: count > 3 }">${state.n}</nav></div>`;
+      });
     }
   });
   const el = document.createElement('x-le-directive');
@@ -54,8 +55,9 @@ test('after a write, a useLayoutEffect sees the class a directive applied to wha
 test('removing a component that renders directives throws nothing', async () => {
   customElements.define('x-le-teardown', class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.render(() => core.html`<div data-vd-state="{ count: 5 }"><nav data-vd-class="{ busy: count > 3 }">x</nav></div>`);
+      core.init(this, () => {
+        return () => core.html`<div data-vd-state="{ count: 5 }"><nav data-vd-class="{ busy: count > 3 }">x</nav></div>`;
+      });
     }
   });
   const el = document.createElement('x-le-teardown');

@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, render, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
+import { init, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 
@@ -31,9 +31,10 @@ it('a real component renders a lazy child, and the child loads and upgrades', as
     'live-host',
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        this.setAttribute('data-autoload', '');
-        render(() => html`<section><lazy-child></lazy-child></section>`);
+        init({ host: this, shadow: 'open' }, () => {
+          this.setAttribute('data-autoload', '');
+          return () => html`<section><lazy-child></lazy-child></section>`;
+        });
       }
     }
   );
@@ -61,9 +62,10 @@ it('a lazy child appearing on a later render is found too', async () => {
     'toggle-host',
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        this.setAttribute('data-autoload', '');
-        render(() => html`<div>${state.show ? html`<nested-grandchild></nested-grandchild>` : ''}</div>`);
+        init({ host: this, shadow: 'open' }, () => {
+          this.setAttribute('data-autoload', '');
+          return () => html`<div>${state.show ? html`<nested-grandchild></nested-grandchild>` : ''}</div>`;
+        });
       }
     }
   );

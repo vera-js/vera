@@ -1,4 +1,4 @@
-import { init, render, html, shallowRef } from '@verajs/core';
+import { init, html, shallowRef } from '@verajs/core';
 
 /**
  * The larger SSR bench fixture: a 100-row table, the classic list-heavy page shape. Rows live in
@@ -8,10 +8,9 @@ import { init, render, html, shallowRef } from '@verajs/core';
  */
 export default class RowsSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = shallowRef(Array.from({ length: 100 }, (_, i) => ({ id: i, label: `row ${i} <safe>` })));
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      const state = shallowRef(Array.from({ length: 100 }, (_, i) => ({ id: i, label: `row ${i} <safe>` })));
+      return () => html`
         <table>
           <tbody>
             ${state.value.map(
@@ -19,8 +18,8 @@ export default class RowsSsr extends HTMLElement {
             )}
           </tbody>
         </table>
-      `
-    );
+      `;
+    });
   }
 }
 customElements.define('rows-ssr', RowsSsr);

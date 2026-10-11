@@ -6,13 +6,14 @@
  * it — including, in this case, git itself on a checkout that translates line endings, which would
  * make the fixture stop testing the thing it exists to test.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 export const CR = '\r';
 
 customElements.define('t-rawtext', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<div><style>a${CR}b</style><script>a${CR}b</script></div>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<div><style>a${CR}b</style><script>a${CR}b</script></div>`;
+    });
   }
 });

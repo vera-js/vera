@@ -41,9 +41,9 @@ for (const [hook, register] of [
   const name = `x-async-${seq++}`;
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      register(async () => { const n = state.n; await null; runs.push(n); });
-      core.mount();
+      core.init(this, () => {
+        register(async () => { const n = state.n; await null; runs.push(n); });
+      });
     }
   });
   const said = await listen(async () => {
@@ -69,9 +69,9 @@ test('a cleanup returned SYNCHRONOUSLY still runs — before the next run, and o
   const log = [];
   customElements.define('x-async-sync', class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useEffect(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); });
-      core.mount();
+      core.init(this, () => {
+        core.useEffect(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); });
+      });
     }
   });
   const el = doc.createElement('x-async-sync');
@@ -87,9 +87,9 @@ test('a cleanup that throws, with no error chain wired, is printed as a CLEANUP 
   const name = `x-async-${seq++}`;
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.useEffect(() => () => { throw new Error('cleanup boom'); });
-      core.mount();
+      core.init(this, () => {
+        core.useEffect(() => () => { throw new Error('cleanup boom'); });
+      });
     }
   });
   const el = doc.createElement(name);

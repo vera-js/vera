@@ -54,7 +54,9 @@ test("renderer({ shadow: 'open' }) gives every component that says nothing an op
   wire([renderer({ shadow: 'open' })]);
   const form = await mount((host) => init(host, () => () => html`<p>f</p>`));
   assert.ok(form.shadowRoot?.textContent === 'f', 'the one form');
-  const legacy = await mount((host) => { init(host); core.render(() => html`<p>l</p>`); });
+  const legacy = await mount((host) => { init(host, () => {
+    return () => html`<p>l</p>`;
+  }); });
   assert.ok(legacy.shadowRoot?.textContent === 'l', 'the legacy init(this) too');
   reset();
   wire([renderer]);
@@ -67,7 +69,9 @@ test("a component's own shadow beats the default — false for light, 'closed', 
   assert.ok(light.shadowRoot === null && light.textContent === 'l', 'false is explicitly light');
   const closed = await mount((host) => init({ host, shadow: 'closed' }, () => () => html`<p>c</p>`));
   assert.ok(closed.shadowRoot === null && closed.textContent === '', 'closed: hidden, the light DOM untouched');
-  const legacy = await mount((host) => { init(host, { mode: 'closed' }); core.render(() => html`<p>x</p>`); });
+  const legacy = await mount((host) => { init({ host: host, shadow: 'closed' }, () => {
+    return () => html`<p>x</p>`;
+  }); });
   assert.ok(legacy.shadowRoot === null && legacy.textContent === '', 'the explicit legacy shadowProps wins');
   reset();
   wire([renderer]);

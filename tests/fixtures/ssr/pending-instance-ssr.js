@@ -4,20 +4,22 @@
  * *marked* and never emitted, which is exactly the state `pendingInstances.clear()` exists to stop
  * one request handing to the next. Built for `tests/ssr-concurrency-stress.test.mjs`.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 class PendingChild extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<i>child</i>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<i>child</i>`;
+    });
   }
 }
 customElements.define('pending-child-ssr', PendingChild);
 
 export default class PendingInstanceSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>host</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>host</p>`;
+    });
     const holder = document.createElement('template');
     holder.appendChild(document.createElement('pending-child-ssr'));
     this.shadowRoot.appendChild(holder);

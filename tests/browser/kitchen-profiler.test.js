@@ -10,7 +10,7 @@
  * one is and the application never knows.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import {
   renderInto as profilingRender,
   profile,
@@ -28,14 +28,14 @@ customElements.define(
   'profiler-churn',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ editing: false });
-      this.state = state;
-      render(() =>
-        state.editing
-          ? html`<div><input id="editor" /></div>`
-          : html`<section><output id="viewer">v</output></section>`
-      );
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ editing: false });
+        this.state = state;
+        return () =>
+          state.editing
+            ? html`<div><input id="editor" /></div>`
+            : html`<section><output id="viewer">v</output></section>`;
+      });
     }
   }
 );
@@ -45,15 +45,14 @@ customElements.define(
   'profiler-stable',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ editing: false });
-      this.state = state;
-      render(
-        () => html`<div>
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ editing: false });
+        this.state = state;
+        return () => html`<div>
           <input id="editor" ?hidden=${!state.editing} />
           <output id="viewer" ?hidden=${state.editing}>v</output>
-        </div>`
-      );
+        </div>`;
+      });
     }
   }
 );

@@ -10,7 +10,7 @@ import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body><iframe></iframe></body>', { pretendToBeVisual: true });
 for (const k of ['window','document','HTMLElement','customElements','Node','Element','DocumentFragment','Text','Comment','Event','CustomEvent','requestAnimationFrame','cancelAnimationFrame','MutationObserver']) globalThis[k] = dom.window[k];
-const { html, wire, init, render, useEffect } = await load('core');
+const { html, wire, init, useEffect } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { slots } = await load('renderer/slots');
@@ -21,7 +21,10 @@ const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => se
 const log = [];
 const count = (word) => log.filter((l) => l.startsWith(word)).length;
 customElements.define('ka-kid', class extends dom.window.HTMLElement {
-  connectedCallback() { log.push(`setup ${this.id}`); init(this); useEffect(() => () => log.push(`cleanup ${this.id}`)); render(() => html`<i>${this.id}</i>`); }
+  connectedCallback() { log.push(`setup ${this.id}`); init(this, () => {
+    useEffect(() => () => log.push(`cleanup ${this.id}`));
+    return () => html`<i>${this.id}</i>`;
+  }); }
   disconnectedCallback() { log.push(`dc ${this.id}`); }
 });
 /** A plain container for kids: not a slot host (no dash), so slots never captures its children. */
@@ -118,7 +121,9 @@ test('a slotted component sets up ONCE on its first distribution', async () => {
 
 test('a throwing author disconnectedCallback still propagates on removal, as before', async () => {
   customElements.define('ka-throws', class extends dom.window.HTMLElement {
-    connectedCallback() { init(this); render(() => html`t`); }
+    connectedCallback() { init(this, () => {
+      return () => html`t`;
+    }); }
     disconnectedCallback() { throw new Error('author dc threw'); }
   });
   const el = doc.createElement('ka-throws'); box().append(el); await frame();

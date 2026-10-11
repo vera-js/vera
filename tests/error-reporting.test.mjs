@@ -27,26 +27,29 @@ for (const key of [
 const core = await load('core');
 const { renderer } = await load('renderer');
 core.wire([renderer]);
-const { html, init, render, useEffect } = core;
+const { html, init, useEffect } = core;
 const frame = () => new Promise((resolve) => setTimeout(resolve, 40));
 
 customElements.define('x-ref-throws', class extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(() => html`<p &ref=${() => { throw new Error('ref failed'); }}>r</p><i>after</i>`);
+    init(this, () => {
+      return () => html`<p &ref=${() => { throw new Error('ref failed'); }}>r</p><i>after</i>`;
+    });
   }
 });
 customElements.define('x-shadow-ref-throws', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p &ref=${() => { throw new Error('shadow ref failed'); }}>r</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p &ref=${() => { throw new Error('shadow ref failed'); }}>r</p>`;
+    });
   }
 });
 customElements.define('x-effect-throws', class extends HTMLElement {
   connectedCallback() {
-    init(this);
-    useEffect(() => { throw new Error('effect failed'); });
-    render(() => html`<p>e</p>`);
+    init(this, () => {
+      useEffect(() => { throw new Error('effect failed'); });
+      return () => html`<p>e</p>`;
+    });
   }
 });
 

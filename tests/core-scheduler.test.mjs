@@ -35,11 +35,12 @@ const counter = (extra) => {
   const tag = `x-sched-${seq++}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      extra?.(state);
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        extra?.(state);
+        return () => core.html`<p>${state.n}</p>`;
+      });
     }
   });
   const element = dom.window.document.createElement(tag);
@@ -101,13 +102,14 @@ test('the effects contract survives the microtask scheduler', async () => {
     const tag = `x-sched-${seq++}`;
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
-        core.init(this, { mode: 'open' });
-        const state = core.createStore({ n: 0 });
-        this._state = state;
-        core.useSyncEffect(() => { order.push(`sync:${state.n}`); });
-        core.useLayoutEffect(() => { void state.n; order.push('layout'); });
-        core.useEffect(() => { void state.n; order.push('effect'); });
-        core.render(() => { renders++; return core.html`<p>${state.n}</p>`; });
+        core.init({ host: this, shadow: 'open' }, () => {
+          const state = core.createStore({ n: 0 });
+          this._state = state;
+          core.useSyncEffect(() => { order.push(`sync:${state.n}`); });
+          core.useLayoutEffect(() => { void state.n; order.push('layout'); });
+          core.useEffect(() => { void state.n; order.push('effect'); });
+          return () => { renders++; return core.html`<p>${state.n}</p>`; };
+        });
       }
     });
     const probe = dom.window.document.createElement(tag);
@@ -229,10 +231,11 @@ test('re-queueing does not fire twice while one scheduler stays installed', asyn
   const tag = `x-sched-${seq++}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      core.render(() => { renders++; return core.html`<p>${state.n}</p>`; });
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        return () => { renders++; return core.html`<p>${state.n}</p>`; };
+      });
     }
   });
   const element = dom.window.document.createElement(tag);
@@ -290,9 +293,9 @@ test('an element in a window without requestAnimationFrame still re-runs on a wr
   frameless.window.document.body.append(el);
   const state = core.createStore({ n: 0 });
   const seen = [];
-  core.init(el);
-  core.useEffect(() => { seen.push(state.n); });
-  core.mount();
+  core.init(el, () => {
+    core.useEffect(() => { seen.push(state.n); });
+  });
   state.n = 1;
   /** The scheduler flushes as a microtask in every window (2026-10-08): a frame-less one no longer runs it synchronously. */
   await Promise.resolve();

@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 /**
  * Every shape where the user's slotted TEXT ends up adjacent to text the component contributed,
  * so the client's parser would merge them into one node and the `offset,count` mark would address
@@ -14,8 +14,10 @@ const SHAPES = {
 };
 export class SlotAdjacentSsr extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(SHAPES[this.getAttribute('shape') ?? 'tail'] ?? SHAPES.tail);
+    init(this, () => {
+      const view = SHAPES[this.getAttribute('shape') ?? 'tail'] ?? SHAPES.tail;
+      return typeof view === 'function' ? view : () => view;
+    });
   }
 }
 customElements.define('slot-adjacent-ssr', SlotAdjacentSsr);

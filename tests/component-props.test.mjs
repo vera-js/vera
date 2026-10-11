@@ -23,7 +23,7 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
                  'requestAnimationFrame', 'cancelAnimationFrame', 'CSSStyleSheet'])
   globalThis[k] = dom.window[k];
 
-const { html, wire, init, render, ref, createStore, useEffect } = await load('core');
+const { html, wire, init, ref, createStore, useEffect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { spread, props } = await load('renderer/spread');
 wire([renderer]);
@@ -39,8 +39,9 @@ const mount = () => {
 test('eager: an accessor read in render is tracked, and the parent’s next commit re-renders', async () => {
   customElements.define('cp-eager', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.n)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.n)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -64,8 +65,9 @@ test('lazy: the field-initializer clobber is repaired, in both field spellings �
     bare;                                  // the `item;` spelling — initializes to undefined
     defaulted = 'class-default';           // the `item = default` spelling — a plausible value
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.bare} ${this.defaulted}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.bare} ${this.defaulted}</p>`;
+      });
     }
   });
   dom.window.customElements.upgrade(host);
@@ -81,8 +83,9 @@ test('lazy: the field-initializer clobber is repaired, in both field spellings �
 test('a ref passed through props() stays live: mutating ref.value re-renders the child', async () => {
   customElements.define('cp-ref', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.box.value)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.box.value)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -99,8 +102,9 @@ test('a ref passed through props() stays live: mutating ref.value re-renders the
 test('a store passed through props() stays live: mutating the inner store re-renders', async () => {
   customElements.define('cp-store', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.model.n)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.model.n)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -121,8 +125,9 @@ test('a platform property on a lazy tag is never recorded, and survives the drai
   assert.equal(raw.title, 'tip', 'pre-upgrade, .title reached HTMLElement.prototype’s accessor');
   customElements.define('cp-platform', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.payload)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.payload)}</p>`;
+      });
     }
   });
   dom.window.customElements.upgrade(host);
@@ -173,8 +178,9 @@ test('the spread surface records through the same channel — the deliberate twi
   customElements.define('cp-spread', class extends HTMLElement {
     data;
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.data}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.data}</p>`;
+      });
     }
   });
   dom.window.customElements.upgrade(host);
@@ -187,11 +193,12 @@ test('a key arriving AFTER init() is adopted live — the conditional-keys idiom
   let effectRuns = 0;
   customElements.define('cp-late', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      useEffect(() => {
-        effectRuns++;
+      init({ host: this, shadow: 'open' }, () => {
+        useEffect(() => {
+          effectRuns++;
+        });
+        return () => html`<p>${String(this.a)} ${this.b === undefined ? 'no-b' : String(this.b)}</p>`;
       });
-      render(() => html`<p>${String(this.a)} ${this.b === undefined ? 'no-b' : String(this.b)}</p>`);
     }
   });
   const host = mount();
@@ -221,8 +228,9 @@ test('a component’s own accessor pair is handed the value, never hijacked by t
     get item() { return this.#item; }
     set item(value) { setterRan++; this.#item = value; }   // private-field pair — the drain must not shadow it
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.item}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.item}</p>`;
+      });
     }
   });
   dom.window.customElements.upgrade(host);
@@ -256,8 +264,9 @@ test('an accessor the instance defines on itself is handed the value, never repl
       });
     }
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.item}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.item}</p>`;
+      });
     }
   });
   dom.window.customElements.upgrade(host);
@@ -276,8 +285,9 @@ test('a getter-only property refuses by name instead of throwing out of init()',
   customElements.define('cp-readonly', class extends HTMLElement {
     get locked() { return 'immutable'; }
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.locked}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.locked}</p>`;
+      });
     }
   });
   dom.window.customElements.upgrade(host);
@@ -297,8 +307,9 @@ test('EAGER get-only refuses identically — one rule for both arrival orders, a
   customElements.define('cp-readonly-eager', class extends HTMLElement {
     get locked() { return 'immutable'; }
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.locked}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.locked}</p>`;
+      });
     }
   });
   const host = mount();
@@ -338,8 +349,9 @@ test('!prop on a component delivers the property — the client half of the SSR 
    *  so the component reads a plain own property. */
   customElements.define('cp-live', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.flag === undefined ? 'no-flag' : String(this.flag)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.flag === undefined ? 'no-flag' : String(this.flag)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -378,8 +390,9 @@ test('the whole JSX thread: bare-prop source compiles, renders, adopts, and stay
 
   customElements.define('cp-jsx-thread', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.model.label} ${String(this.count)} ${String(this.active)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.model.label} ${String(this.count)} ${String(this.active)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -401,8 +414,9 @@ test('the whole JSX thread: bare-prop source compiles, renders, adopts, and stay
 test('the drain runs once: a reconnect keeps the adopted values and their reactivity', async () => {
   customElements.define('cp-reconnect', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.n)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.n)}</p>`;
+      });
     }
   });
   const host = mount();

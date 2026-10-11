@@ -9,16 +9,16 @@
  * than at module scope. Reading it in `connectedCallback` is what makes one fixture serve both sides
  * of the boundary. This file is Node-only by construction, like the rest of `@verajs/ssr`.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 class DeepNest extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const stop = Number(process.env.VERA_SSR_DEPTH ?? 0);
-    const depth = Number(this.getAttribute('depth') ?? 0);
-    render(() =>
-      depth >= stop ? html`<span>leaf ${depth}</span>` : html`<deep-nest depth="${depth + 1}"></deep-nest>`
-    );
+    init({ host: this, shadow: 'open' }, () => {
+      const stop = Number(process.env.VERA_SSR_DEPTH ?? 0);
+      const depth = Number(this.getAttribute('depth') ?? 0);
+      return () =>
+        depth >= stop ? html`<span>leaf ${depth}</span>` : html`<deep-nest depth="${depth + 1}"></deep-nest>`;
+    });
   }
 }
 

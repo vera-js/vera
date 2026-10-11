@@ -32,7 +32,7 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
   'CustomEvent', 'DocumentFragment', 'Text', 'Comment', 'requestAnimationFrame', 'cancelAnimationFrame',
   'MutationObserver', 'CSSStyleSheet']) globalThis[k] = dom.window[k];
 
-const { html, init, render, createStore, useEffect, wire } = await load('core');
+const { html, init, createStore, useEffect, wire } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
@@ -42,10 +42,11 @@ const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => se
 let effectRuns = 0, cleanups = 0;
 class StatefulItem extends HTMLElement {
   connectedCallback() {
-    init(this);
-    this.store ??= createStore({ n: 0 });
-    useEffect(() => { void this.store.n; effectRuns++; return () => cleanups++; });
-    render(() => html`<b>n=${this.store.n}</b>`);
+    init(this, () => {
+      this.store ??= createStore({ n: 0 });
+      useEffect(() => { void this.store.n; effectRuns++; return () => cleanups++; });
+      return () => html`<b>n=${this.store.n}</b>`;
+    });
   }
 }
 customElements.define('stateful-item', StatefulItem);

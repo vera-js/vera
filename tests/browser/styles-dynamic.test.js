@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles, css } from '../../packages/styles/dist/development/vera-styles.js';
 
@@ -32,8 +32,9 @@ it('a var() in shadow-adopted styles tracks a change on the host', async () => {
   customElements.define(tag, class extends HTMLElement {
     static styles = css`p { color: var(--accent, rgb(0, 0, 255)); }`;
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>tinted</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>tinted</p>`;
+      });
     }
   });
   const el = mount(document.createElement(tag));
@@ -51,8 +52,9 @@ it('an inherited var from an ancestor reaches into the shadow root too', async (
   customElements.define(tag, class extends HTMLElement {
     static styles = css`p { color: var(--accent, rgb(0, 0, 255)); }`;
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>tinted</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>tinted</p>`;
+      });
     }
   });
   const wrapper = mount(document.createElement('div'));
@@ -69,8 +71,9 @@ it('the same holds for light-DOM styles hoisted under @scope', async () => {
   customElements.define(tag, class extends HTMLElement {
     static styles = css`p { color: var(--accent, rgb(0, 0, 255)); }`;
     connectedCallback() {
-      init(this);                       // no shadow root — the @scope hoist path
-      render(() => html`<p>tinted</p>`);
+      init(this, () => {
+        return () => html`<p>tinted</p>`;
+      });
     }
   });
   const el = mount(document.createElement(tag));
@@ -88,9 +91,10 @@ it('reactive state drives it through a style binding on an element in the templa
   customElements.define(tag, class extends HTMLElement {
     static styles = css`p { color: var(--accent, rgb(0, 0, 255)); }`;
     connectedCallback() {
-      init(this, { mode: 'open' });
-      state = createStore({ accent: 'rgb(0, 0, 255)' });
-      render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
+      init({ host: this, shadow: 'open' }, () => {
+        state = createStore({ accent: 'rgb(0, 0, 255)' });
+        return () => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`;
+      });
     }
   });
   const el = mount(document.createElement(tag));
@@ -108,8 +112,9 @@ it('the sheet itself is NOT reactive — replacing `static styles` after init do
   const Klass = class extends HTMLElement {
     static styles = css`p { color: rgb(0, 0, 255); }`;
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>tinted</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>tinted</p>`;
+      });
     }
   };
   customElements.define(tag, Klass);
@@ -129,8 +134,9 @@ it('a constructed sheet is shared by every instance, so it cannot carry per-inst
   customElements.define(tag, class extends HTMLElement {
     static styles = css`p { color: var(--accent, rgb(0, 0, 255)); }`;
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>tinted</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>tinted</p>`;
+      });
     }
   });
   const a = mount(document.createElement(tag));

@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 /** Records what attributeChangedCallback is told as it toggles its own observed attribute — see `ssr-node-insertion`. */
 class ToggleProbe extends HTMLElement {
@@ -7,8 +7,9 @@ class ToggleProbe extends HTMLElement {
     (globalThis.__toggleSeen ??= []).push(`${old}->${value}`);
   }
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>toggle</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>toggle</p>`;
+    });
     this.setAttribute('hidden', 'was');
     this.toggleAttribute('hidden');
     this.toggleAttribute('hidden');

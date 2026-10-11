@@ -121,8 +121,9 @@ if (process.env.VERA_THROWING_CLAIMS === 'no-chain') {
     const state = core.createStore({ n: 0 });
     customElements.define('x-claims-count', class extends HTMLElement {
       connectedCallback() {
-        core.init(this);
-        core.render(() => html`<b>${state.n}</b>`);
+        core.init(this, () => {
+          return () => html`<b>${state.n}</b>`;
+        });
       }
     });
     const counter = document.createElement('x-claims-count');

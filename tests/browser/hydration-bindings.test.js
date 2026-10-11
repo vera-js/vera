@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
 import { BINDINGS_HTML } from './fixtures/hello-ssr.html.js';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
@@ -28,10 +28,9 @@ customElements.define(
   'bindings-ssr',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ text: 'hello & <world>', count: 3, rows: ['a', 'b'] });
-      render(
-        () => html`<section id="root">
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ text: 'hello & <world>', count: 3, rows: ['a', 'b'] });
+        return () => html`<section id="root">
         <p id="text">${state.text}</p>
         <p id="multi">${state.text} and ${state.count}</p>
         <p id="falsy">[${0}][${false}][${null}]</p>
@@ -56,8 +55,8 @@ customElements.define(
         </ul>
         <ul id="empty">${[]}</ul>
         <p id="looksLikeAttr">total=${state.count}</p>
-      </section>`
-      );
+      </section>`;
+      });
     }
   }
 );

@@ -73,9 +73,10 @@ class Guarded extends dom.window.HTMLElement {
     this.state.label = value;
   }
   connectedCallback() {
-    core.init(this, { mode: 'open' });
-    this.state = core.createStore({ label: this.getAttribute('label') });
-    core.render(() => html`<p>${this.state.label}</p>`);
+    core.init({ host: this, shadow: 'open' }, () => {
+      this.state = core.createStore({ label: this.getAttribute('label') });
+      return () => html`<p>${this.state.label}</p>`;
+    });
   }
 }
 dom.window.customElements.define('attr-guarded', Guarded);
@@ -109,9 +110,10 @@ test('the unguarded version throws on upgrade, which is why the guard is documen
       this.state.label = value;
     }
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      this.state = core.createStore({ label: this.getAttribute('label') });
-      core.render(() => html`<p>${this.state.label}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        this.state = core.createStore({ label: this.getAttribute('label') });
+        return () => html`<p>${this.state.label}</p>`;
+      });
     }
   }
   dom.window.customElements.define('attr-unguarded', Unguarded);

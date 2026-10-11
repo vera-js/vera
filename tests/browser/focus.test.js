@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
@@ -20,9 +20,10 @@ const mount = (template) => {
   let state;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      state = createStore({ n: 0, rows: [1, 2, 3] });
-      render(() => template(state));
+      init({ host: this, shadow: 'open' }, () => {
+        state = createStore({ n: 0, rows: [1, 2, 3] });
+        return () => template(state);
+      });
     }
   });
   const el = document.createElement(tag);

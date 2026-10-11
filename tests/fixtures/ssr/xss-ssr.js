@@ -6,7 +6,7 @@
  * string, and an unescaped quote in an attribute closes it and opens a new one. That asymmetry is
  * why principle #8 calls out server/client escaping mismatches by name.
  */
-import { init, createStore, render, html } from '@verajs/core';
+import { init, createStore, html } from '@verajs/core';
 
 export const PAYLOAD = {
   text: '<img src=x onerror=alert(1)>',
@@ -16,17 +16,15 @@ export const PAYLOAD = {
 
 export default class XssSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ ...PAYLOAD });
-
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ ...PAYLOAD });
+      return () => html`
         <p>${state.text}</p>
         <div title=${state.attribute}>attribute position</div>
         <div data-x="${state.singleQuoted}">quoted attribute position</div>
         <input .value=${state.attribute} />
-      `
-    );
+      `;
+    });
   }
 }
 

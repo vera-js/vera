@@ -19,7 +19,7 @@ for (const key of [
 ]) {
   globalThis[key] = dom.window[key];
 }
-const { wire, html, init, render, createStore } = await load('core');
+const { wire, html, init, createStore } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
@@ -50,10 +50,11 @@ test('a parent setting a property on such a child renders once, not every frame'
   let renders = 0;
   customElements.define('x-parent', class extends HTMLElement {
     connectedCallback() {
-      init(this);
-      render(() => {
-        renders++;
-        return html`<x-copying .items=${parent.items.map((item) => item)}></x-copying>`;
+      init(this, () => {
+        return () => {
+          renders++;
+          return html`<x-copying .items=${parent.items.map((item) => item)}></x-copying>`;
+        };
       });
     }
   });

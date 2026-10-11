@@ -6,13 +6,14 @@
  * was skipped entirely. On the server that is deterministic rather than order-dependent, because
  * definitions always run base-first.
  */
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 
 class LightBase extends HTMLElement {
   static styles = 'p { color: red }';
   connectedCallback() {
-    init(this);
-    render(() => html`<p>${this.getAttribute('label') ?? this.localName}</p>`);
+    init(this, () => {
+      return () => html`<p>${this.getAttribute('label') ?? this.localName}</p>`;
+    });
   }
 }
 /** Overrides the styles, inherits the rest. */
@@ -25,8 +26,9 @@ class LightBare extends LightBase {}
 class ShadowBase extends HTMLElement {
   static styles = 'p { color: green }';
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>${this.getAttribute('label') ?? this.localName}</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>${this.getAttribute('label') ?? this.localName}</p>`;
+    });
   }
 }
 class ShadowFancy extends ShadowBase {
@@ -41,10 +43,9 @@ customElements.define('shadow-fancy', ShadowFancy);
 
 export default class InheritHost extends HTMLElement {
   connectedCallback() {
-    init(this);
-    render(
-      () => html`<light-base label="b"></light-base><light-fancy label="f"></light-fancy><light-bare label="r"></light-bare><shadow-base label="s"></shadow-base><shadow-fancy label="t"></shadow-fancy>`
-    );
+    init(this, () => {
+      return () => html`<light-base label="b"></light-base><light-fancy label="f"></light-fancy><light-bare label="r"></light-bare><shadow-base label="s"></shadow-base><shadow-fancy label="t"></shadow-fancy>`;
+    });
   }
 }
 customElements.define('inherit-host', InheritHost);

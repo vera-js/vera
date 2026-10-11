@@ -32,7 +32,7 @@ import { expect } from '@esm-bundle/chai';
 import { renderInto, renderer, hold } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 import { slots } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
-import { html, wire, init, render } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init } from '../../packages/core/dist/development/vera.js';
 
 wire([renderer, slots]);
 
@@ -56,14 +56,16 @@ const firing = () => html`<span &ref=${() => { const fire = fireNext; fireNext =
 for (const [name, template] of [['cf-card', card], ['cf-panel', panel], ['cf-box', box], ['cf-fire', firing]]) {
   customElements.define(`${name}-native`, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => template(this));
+      init({ host: this, shadow: 'open' }, () => {
+        return () => template(this);
+      });
     }
   });
   customElements.define(`${name}-light`, class extends HTMLElement {
     connectedCallback() {
-      init(this);
-      render(() => template(this));
+      init(this, () => {
+        return () => template(this);
+      });
     }
   });
 }

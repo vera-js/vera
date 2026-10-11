@@ -1,4 +1,4 @@
-import { init, createStore, render, useEffect, html } from '@verajs/core';
+import { init, createStore, useEffect, html } from '@verajs/core';
 import { initRouter } from '@verajs/router';
 
 /**
@@ -10,49 +10,43 @@ import { initRouter } from '@verajs/router';
  */
 class DemoApp extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ name: 'world', showCounter: false });
+      useEffect(() => {
+        console.log('name changed:', state.name);
+      });
+      useEffect(() => {
+        const router = initRouter(this, { view: 'main' });
 
-    const state = createStore({ name: 'world', showCounter: false });
+        router.addRoutes([
+          { path: '/', title: 'Home', component: () => html`<p>Pick a route above.</p>` },
+          {
+            path: '/hello',
+            title: 'Hello',
+            component: () => html`<p>Hello, ${state.name}!</p>`,
+          },
+          {
+            path: '/hello/:who',
+            title: 'Hello someone',
+            component: (params) => html`<p>Hello, ${params.who}!</p>`,
+          },
+          {
+            path: '/*missing',
+            title: 'Not found',
+            component: (params) => html`<p>No route for <code>${params.missing}</code>.</p>`,
+          },
+        ]);
+      });
+      const onName = (e) => {
+        state.name = e.target.value;
+      };
+      const toggleCounter = () => {
+        state.showCounter = !state.showCounter;
+      };
+      return () => {
+        const { name, showCounter } = state;
 
-    useEffect(() => {
-      console.log('name changed:', state.name);
-    });
-
-    useEffect(() => {
-      const router = initRouter(this, { view: 'main' });
-
-      router.addRoutes([
-        { path: '/', title: 'Home', component: () => html`<p>Pick a route above.</p>` },
-        {
-          path: '/hello',
-          title: 'Hello',
-          component: () => html`<p>Hello, ${state.name}!</p>`,
-        },
-        {
-          path: '/hello/:who',
-          title: 'Hello someone',
-          component: (params) => html`<p>Hello, ${params.who}!</p>`,
-        },
-        {
-          path: '/*missing',
-          title: 'Not found',
-          component: (params) => html`<p>No route for <code>${params.missing}</code>.</p>`,
-        },
-      ]);
-    });
-
-    const onName = (e) => {
-      state.name = e.target.value;
-    };
-
-    const toggleCounter = () => {
-      state.showCounter = !state.showCounter;
-    };
-
-    render(() => {
-      const { name, showCounter } = state;
-
-      return html`
+        return html`
         <nav>
           <a route href="./">home</a>
           <a route href="hello">hello</a>
@@ -77,6 +71,7 @@ class DemoApp extends HTMLElement {
 
         ${showCounter ? html`<demo-counter></demo-counter>` : ''}
       `;
+      };
     });
   }
 }

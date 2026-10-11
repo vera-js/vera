@@ -54,12 +54,13 @@ test('a component using core, renderer, styles, keyed and spread works with all 
   customElements.define('x-cdn-page', class extends HTMLElement {
     static styles = css`p { color: rgb(1, 2, 3) }`;
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ rows: ['a', 'b'], n: 1 });
-      this._state = state;
-      core.render(() => core.html`<div ${spread({ 'data-x': state.n })}>
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ rows: ['a', 'b'], n: 1 });
+        this._state = state;
+        return () => core.html`<div ${spread({ 'data-x': state.n })}>
         <ul>${state.rows.map((row) => keyed(row, core.html`<li data-id=${row}>${row}</li>`))}</ul>
-        <p>tinted</p></div>`);
+        <p>tinted</p></div>`;
+      });
     }
   });
   const element = dom.window.document.createElement('x-cdn-page');
@@ -114,13 +115,12 @@ test('and the router navigates and renders a route on the same page', async () =
 test('light-DOM slots work with every other module loaded, across bundles', async () => {
   customElements.define('x-cdn-card', class extends HTMLElement {
     connectedCallback() {
-      core.init(this); // LIGHT
-      core.render(
-        () => core.html`<article>
+      core.init(this, () => {
+        return () => core.html`<article>
           <header><slot name="title" @slotchange=${(event) => { this._seen = event.target.assignedElements().length; }}>untitled</slot></header>
           <main><slot>empty</slot></main>
-        </article>`
-      );
+        </article>`;
+      });
     }
   });
   const element = dom.window.document.createElement('x-cdn-card');
@@ -149,8 +149,9 @@ test('light-DOM slots work with every other module loaded, across bundles', asyn
 test('and a SHADOW component on the same page is untouched by the slots module', async () => {
   customElements.define('x-cdn-shadow', class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      core.render(() => core.html`<header><slot name="title">untitled</slot></header>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        return () => core.html`<header><slot name="title">untitled</slot></header>`;
+      });
     }
   });
   const element = dom.window.document.createElement('x-cdn-shadow');

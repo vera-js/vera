@@ -13,7 +13,7 @@
  * Each case does the thing a person would do, then hydrates, then asks what survived.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
@@ -51,18 +51,17 @@ const defineProbe = (tag) =>
     tag,
     class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ name: 'Ada', ticked: false, picked: 'a', note: 'server text', count: 0 });
-      this.state = state;
-      render(
-        () => html`<form id="root">
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ name: 'Ada', ticked: false, picked: 'a', note: 'server text', count: 0 });
+        this.state = state;
+        return () => html`<form id="root">
         <input id="text" .value=${state.name} />
         <input id="box" type="checkbox" .checked=${state.ticked} />
         <select id="pick"><option value="a" .selected=${state.picked === 'a'}>a</option><option value="b" .selected=${state.picked === 'b'}>b</option></select>
         <textarea id="area" .value=${state.note}></textarea>
         <p id="count">${state.count}</p>
-      </form>`
-      );
+      </form>`;
+      });
       }
     }
   );
@@ -194,15 +193,14 @@ describe('a live binding during hydration', () => {
       tag,
       class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const state = createStore({ picked: 'one' });
-          this.state = state;
-          render(
-            () => html`<form>
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ picked: 'one' });
+            this.state = state;
+            return () => html`<form>
         <input id="one" type="radio" name="pick" !checked=${state.picked === 'one'} />
         <input id="two" type="radio" name="pick" !checked=${state.picked === 'two'} />
-      </form>`
-          );
+      </form>`;
+          });
         }
       }
     );

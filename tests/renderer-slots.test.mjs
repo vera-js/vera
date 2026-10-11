@@ -22,7 +22,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire, html, init, render, createStore } = await load('core');
+const { wire, html, init, createStore } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { slots, slotted } = await load('renderer/slots');
 const { spread } = await load('renderer/spread');
@@ -204,11 +204,12 @@ test('branch-away parks user nodes; the branch returning restores them (same ide
 test('three-level slot chains survive a branch-away round trip, displaced or rendered', async () => {
   customElements.define('pk-host', class extends dom.window.HTMLElement {
     connectedCallback() {
-      init(this);
-      this.state = createStore({ shape: 'slots' });
-      render(() => this.state.shape === 'slots'
-        ? html`<div class="box"><slot name="o"><em>E</em><slot name="i"><i>F</i><slot name="x">X</slot></slot></slot></div>`
-        : html`<div class="gone">nothing</div>`);
+      init(this, () => {
+        this.state = createStore({ shape: 'slots' });
+        return () => this.state.shape === 'slots'
+          ? html`<div class="box"><slot name="o"><em>E</em><slot name="i"><i>F</i><slot name="x">X</slot></slot></slot></div>`
+          : html`<div class="gone">nothing</div>`;
+      });
     }
   });
   const make = async (assignO) => {
@@ -318,9 +319,10 @@ test('IDL property writes — element.slot and slotHandle.name — route like th
 test('a spread-driven slot name routes and re-routes', async () => {
   customElements.define('sp-host', class extends dom.window.HTMLElement {
     connectedCallback() {
-      init(this);
-      this.state = createStore({ attrs: { name: 'a' } });
-      render(() => html`<div class="box"><slot ${spread(this.state.attrs)}>FB</slot></div>`);
+      init(this, () => {
+        this.state = createStore({ attrs: { name: 'a' } });
+        return () => html`<div class="box"><slot ${spread(this.state.attrs)}>FB</slot></div>`;
+      });
     }
   });
   const el = doc.createElement('sp-host');
@@ -342,9 +344,10 @@ test('a spread-driven slot name routes and re-routes', async () => {
 test('keyed rows carrying slot attributes are own output — never captured, reorder intact', async () => {
   customElements.define('ky-host', class extends dom.window.HTMLElement {
     connectedCallback() {
-      init(this);
-      this.state = createStore({ order: ['1', '2', '3'] });
-      render(() => html`<section>${this.state.order.map((id) => keyed(id, html`<p slot="x">row${id}</p>`))}</section><div class="out"><slot name="x">none</slot></div>`);
+      init(this, () => {
+        this.state = createStore({ order: ['1', '2', '3'] });
+        return () => html`<section>${this.state.order.map((id) => keyed(id, html`<p slot="x">row${id}</p>`))}</section><div class="out"><slot name="x">none</slot></div>`;
+      });
     }
   });
   const el = doc.createElement('ky-host');
@@ -1084,8 +1087,9 @@ test('slotted() reads a CLOSED shadow root, not just an open one', async () => {
     tag,
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'closed' });
-        render(() => html`<header><slot name="h">fallback</slot></header>`);
+        init({ host: this, shadow: 'closed' }, () => {
+          return () => html`<header><slot name="h">fallback</slot></header>`;
+        });
       }
     }
   );
@@ -1325,7 +1329,9 @@ test('a user node moved to another host and back is shown by the host it is in (
 });
 
 test('a slot forwarded into a nested component keeps its place beside the content after it', async () => {
-  if (!customElements.get('fw-panel')) customElements.define('fw-panel', class extends HTMLElement { connectedCallback() { init(this); render(() => html`<section><slot>inner fb</slot></section>`); } });
+  if (!customElements.get('fw-panel')) customElements.define('fw-panel', class extends HTMLElement { connectedCallback() { init(this, () => {
+    return () => html`<section><slot>inner fb</slot></section>`;
+  }); } });
   const draw = (n) => html`<fw-panel><slot name="f">outer fb</slot>${n}</fw-panel>`;
   const h = host('<h3 slot="f">forwarded</h3>');
   const h3 = h.querySelector('h3');
@@ -1341,7 +1347,9 @@ test('a slot forwarded into a nested component keeps its place beside the conten
 
 test('a commit into a run during the host\'s own first render replaces what a slot already took', async () => {
   let fire = null;
-  if (!customElements.get('fw-fire')) customElements.define('fw-fire', class extends HTMLElement { connectedCallback() { init(this); render(() => html`<span &ref=${() => { const f = fire; fire = null; f?.(); }}></span><main><slot>HFB</slot></main>`); } });
+  if (!customElements.get('fw-fire')) customElements.define('fw-fire', class extends HTMLElement { connectedCallback() { init(this, () => {
+    return () => html`<span &ref=${() => { const f = fire; fire = null; f?.(); }}></span><main><slot>HFB</slot></main>`;
+  }); } });
   const parts = [];
   function later(part, previous) { if (previous) return previous; part._$commit$(html`<i>loading</i>`); parts.push(part); return {}; }
   const h = host();
@@ -1379,7 +1387,9 @@ test('a first render that throws, a user edit, then a render that completes: dis
  * forwarded unit — the whole range, or the content order breaks.
  */
 test('a filled forwarded slot moves as its range when content arrives ahead of it', async () => {
-  if (!customElements.get('fw-panel')) customElements.define('fw-panel', class extends HTMLElement { connectedCallback() { init(this); render(() => html`<section><slot>inner fb</slot></section>`); } });
+  if (!customElements.get('fw-panel')) customElements.define('fw-panel', class extends HTMLElement { connectedCallback() { init(this, () => {
+    return () => html`<section><slot>inner fb</slot></section>`;
+  }); } });
   const draw = (pre, n) => html`<fw-panel>${pre}<slot name="f">outer fb</slot>${n}</fw-panel>`;
   const h = host('<h3 slot="f">forwarded</h3>');
   renderInto(draw(null, 1), h); await settle();

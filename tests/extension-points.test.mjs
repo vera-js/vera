@@ -73,10 +73,11 @@ test('a store module built from the published collections descriptor tracks size
   const tag = 'x-extension-collection';
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ m: new Map([['a', 1]]) });
-      this._state = state;
-      core.render(() => core.html`<p>size:${state.m.size} a:${state.m.get('a')}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ m: new Map([['a', 1]]) });
+        this._state = state;
+        return () => core.html`<p>size:${state.m.size} a:${state.m.get('a')}</p>`;
+      });
     }
   });
   const element = dom.window.document.createElement(tag);

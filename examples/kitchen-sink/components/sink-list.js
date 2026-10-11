@@ -6,36 +6,33 @@
  * method so a test can drive it after hydration and check that adopted nodes *move* rather than
  * being rebuilt, which is the whole claim of a keyed renderer over server markup.
  */
-import { init, render, html, shallowRef, untrack } from '@verajs/core';
+import { init, html, shallowRef, untrack } from '@verajs/core';
 import { keyed } from '@verajs/renderer/keyed';
 
 export default class SinkList extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const rows = shallowRef([
-      { id: 'a', label: 'alpha' },
-      { id: 'b', label: 'beta' },
-      { id: 'c', label: 'gamma' },
-    ]);
-    this.rows = rows;
-
-    /** Reverse without subscribing to the read — the write is what re-renders. */
-    this.reverse = () => {
-      rows.value = [...untrack(() => rows.value)].reverse();
-    };
-    this.removeFirst = () => {
-      rows.value = untrack(() => rows.value).slice(1);
-    };
-    this.reset = () => {
-      rows.value = [
+    init({ host: this, shadow: 'open' }, () => {
+      const rows = shallowRef([
         { id: 'a', label: 'alpha' },
         { id: 'b', label: 'beta' },
         { id: 'c', label: 'gamma' },
-      ];
-    };
-
-    render(
-      () => html`<section id="list">
+      ]);
+      this.rows = rows;
+      /** Reverse without subscribing to the read — the write is what re-renders. */
+      this.reverse = () => {
+        rows.value = [...untrack(() => rows.value)].reverse();
+      };
+      this.removeFirst = () => {
+        rows.value = untrack(() => rows.value).slice(1);
+      };
+      this.reset = () => {
+        rows.value = [
+          { id: 'a', label: 'alpha' },
+          { id: 'b', label: 'beta' },
+          { id: 'c', label: 'gamma' },
+        ];
+      };
+      return () => html`<section id="list">
         <h2>Lists</h2>
         <h3>A keyed list moves the nodes it already has; the unkeyed one below is rebuilt from scratch</h3>
         <h4>Press reverse and watch both lists, then remove the first a few times to reach the empty state.</h4>
@@ -50,8 +47,8 @@ export default class SinkList extends HTMLElement {
         </ul>
         <p id="count">${rows.value.length}</p>
         <p id="empty" ?hidden=${rows.value.length > 0}>nothing here</p>
-      </section>`
-    );
+      </section>`;
+    });
   }
 }
 

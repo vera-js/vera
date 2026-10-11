@@ -13,7 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
-import { wire, init, render, html } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 import { adoptStyles, css } from '../../packages/styles/dist/development/vera-styles.js';
@@ -34,8 +34,9 @@ customElements.define(
       }
     `;
     connectedCallback() {
-      init(this);
-      render(() => html`<p class="scoped">scoped to the tag</p>`);
+      init(this, () => {
+        return () => html`<p class="scoped">scoped to the tag</p>`;
+      });
     }
   }
 );

@@ -3,7 +3,7 @@
  * The point is that a shared `?q=…&page=…` link arrives already filtered — the premise the pack
  * is built on, which it did not honor until the ssr declarations landed.
  */
-import { init, render, html, wire } from '@verajs/core';
+import { init, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { wireDirectives, directives, interactions, expressions, query, sensors } from '@verajs/directives';
 
@@ -13,9 +13,8 @@ wireDirectives([expressions, ...interactions, query, sensors]);
 
 export default class QuerySsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(
-      () => html`
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`
         <div data-vd-state="{ q: '', page: 1, counts: {}, seen: false }" data-vd-query="q page" data-vd-route>
           <ul data-vd-list="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
             <li>apple</li><li>banana</li><li>cherry</li><li>elderberry</li>
@@ -24,8 +23,8 @@ export default class QuerySsr extends HTMLElement {
           <i data-vd-text="@route.path"></i>
           <em data-vd-in-view="seen" data-vd-class="{ revealed: seen }">reveal me</em>
         </div>
-      `
-    );
+      `;
+    });
   }
 }
 

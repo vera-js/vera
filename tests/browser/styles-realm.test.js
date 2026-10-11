@@ -11,7 +11,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { html, wire, init, render } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init } from '../../packages/core/dist/development/vera.js';
 import { css, styles } from '../../packages/styles/dist/development/vera-styles.js';
 
 wire([renderer, styles]);
@@ -27,16 +27,18 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 80));
 customElements.define('x-realm-light-styled', class extends HTMLElement {
   static styles = css`p { color: rgb(1, 2, 3); }`;
   connectedCallback() {
-    init(this);
-    render(() => html`<p>light</p>`);
+    init(this, () => {
+      return () => html`<p>light</p>`;
+    });
   }
 });
 
 customElements.define('x-realm-shadow-styled', class extends HTMLElement {
   static styles = css`p { color: rgb(4, 5, 6); }`;
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>shadow</p>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>shadow</p>`;
+    });
   }
 });
 

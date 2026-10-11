@@ -7,7 +7,7 @@
  * these cases depend on.
  */
 import { expect } from '@esm-bundle/chai';
-import { html, wire, init, render, ref } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init, ref } from '../../packages/core/dist/development/vera.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { props } from '../../packages/renderer/dist/development/vera-renderer-spread.js';
 
@@ -24,8 +24,9 @@ const mount = () => {
 it('eager: a defined component reads bound props with no declaration, reactively', async () => {
   customElements.define('bp-eager', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.n)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.n)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -47,8 +48,9 @@ it('lazy: a late definitionâ€™s field initializers do not destroy bound values â
     bare;
     defaulted = 'class-default';
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.bare} ${this.defaulted}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.bare} ${this.defaulted}</p>`;
+      });
     }
   });
   await customElements.whenDefined('bp-lazy');
@@ -59,8 +61,9 @@ it('lazy: a late definitionâ€™s field initializers do not destroy bound values â
 it('a ref through props() stays reactive across the boundary', async () => {
   customElements.define('bp-ref', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.box.value)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.box.value)}</p>`;
+      });
     }
   });
   const host = mount();
@@ -81,8 +84,9 @@ it('a platform property on a lazy tag keeps its platform behavior after adoption
   expect(raw.title).to.equal('tip');
   customElements.define('bp-platform', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${String(this.payload)}</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${String(this.payload)}</p>`;
+      });
     }
   });
   await customElements.whenDefined('bp-platform');

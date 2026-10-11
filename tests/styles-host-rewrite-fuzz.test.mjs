@@ -34,7 +34,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire, init, render, html } = await load('core');
+const { wire, init, html } = await load('core');
 const { renderer } = await load('renderer');
 const { styles, css } = await load('styles');
 wire([renderer, styles]);
@@ -76,8 +76,9 @@ test('the :host rewrite never touches a value, an escaped identifier, or the rul
         class extends dom.window.HTMLElement {
           static styles = css([source]);
           connectedCallback() {
-            init(this); // LIGHT — the rewrite only runs for a host with no shadow root
-            render(() => html`<p>x</p>`);
+            init(this, () => {
+              return () => html`<p>x</p>`;
+            });
           }
         }
       );

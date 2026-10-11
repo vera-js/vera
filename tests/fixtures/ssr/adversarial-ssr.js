@@ -1,6 +1,8 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 customElements.define('mark-comp', class extends HTMLElement {
-  connectedCallback() { init(this, { mode: 'open' }); render(() => html`<b>MARK</b>`); }
+  connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+    return () => html`<b>MARK</b>`;
+  }); }
 });
 /**
  * Every place a component tag can hide from a scanner that reads markup as text.
@@ -13,8 +15,8 @@ customElements.define('mark-comp', class extends HTMLElement {
  */
 export default class AdversarialSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`
       <div id="a" title="a > b"><mark-comp></mark-comp></div>
       <mark-comp title="x > y"></mark-comp>
       <!-- <mark-comp></mark-comp> -->
@@ -23,7 +25,8 @@ export default class AdversarialSsr extends HTMLElement {
       <noscript><mark-comp></mark-comp></noscript>
       <template><template><mark-comp></mark-comp></template></template>
       <div data-x=mark-comp></div><mark-comp id="unquoted"></mark-comp>
-      <p>done</p>`);
+      <p>done</p>`;
+    });
   }
 }
 customElements.define('adversarial-ssr', AdversarialSsr);

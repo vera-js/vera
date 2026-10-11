@@ -5,7 +5,7 @@
  * `var()` re-resolves when one changes and inherits through the shadow boundary, which is the whole
  * reason the docs say `static styles` need not be reactive. Both halves are exercised here.
  */
-import { init, render, html, createStore } from '@verajs/core';
+import { init, html, createStore } from '@verajs/core';
 import { css } from '@verajs/styles';
 
 /** Cycled by the button below; `var()` re-resolves without the sheet being touched. */
@@ -27,20 +27,18 @@ export default class SinkStyled extends HTMLElement {
   `;
 
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ accent: 'teal' });
-    this.state = state;
-    let tint = 0;
-
-    render(
-      () => html`<div id="styled" style="--sink-accent: ${state.accent}">
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ accent: 'teal' });
+      this.state = state;
+      let tint = 0;
+      return () => html`<div id="styled" style="--sink-accent: ${state.accent}">
         <h2>Styles, in a shadow root</h2>
         <h3>A constructed stylesheet adopted once per element and shared by every instance of the class</h3>
         <h4>Press re-tint: the color changes through a custom property, and the sheet is never re-adopted.</h4>
         <button id="tint" @click=${() => (state.accent = ACCENTS[++tint % ACCENTS.length])}>re-tint (${state.accent})</button>
         <span class="badge"><span class="inner" data-kind="pill">styled</span></span>
-      </div>`
-    );
+      </div>`;
+    });
   }
 }
 

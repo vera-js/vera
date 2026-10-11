@@ -58,7 +58,7 @@ for (const key of [
 const core = await load('core');
 const { renderer } = await load('renderer');
 core.wire([renderer]);
-const { init, createStore, render, useEffect, html } = core;
+const { init, createStore, useEffect, html } = core;
 
 const D = dom.window.document;
 const one = D.getElementById('one');
@@ -89,16 +89,17 @@ test('every effect run is balanced by exactly one cleanup, through any lifecycle
         name,
         class extends dom.window.HTMLElement {
           connectedCallback() {
-            init(this, { mode: 'open' });
-            store = createStore({ n: 0 });
-            useEffect(() => {
-              counts.runs++;
-              void store.n;
-              return () => {
-                counts.cleanups++;
-              };
+            init({ host: this, shadow: 'open' }, () => {
+              store = createStore({ n: 0 });
+              useEffect(() => {
+                counts.runs++;
+                void store.n;
+                return () => {
+                  counts.cleanups++;
+                };
+              });
+              return () => html`<i>${store.n}</i>`;
             });
-            render(() => html`<i>${store.n}</i>`);
           }
         }
       );

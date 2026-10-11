@@ -7,7 +7,7 @@
  * Deterministic by construction — no clock, no randomness — because the same markup has to come out
  * of `renderToString` and out of a browser.
  */
-import { init, render, html, svg, mathml, createStore, ref } from '@verajs/core';
+import { init, html, svg, mathml, createStore, ref } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 
 export default class SinkBindings extends HTMLElement {
@@ -17,19 +17,17 @@ export default class SinkBindings extends HTMLElement {
      * anything a parent had already set on the element. `packages/eslint-config` refuses one.
      */
     this.captured = null;
-    init(this, { mode: 'open' });
-    const state = createStore({
-      text: 'hello & <world>',
-      count: 3,
-      title: 'a "quoted" title',
-      busy: false,
-    });
-    /** An object ref: the renderer assigns `.value`. A function ref is covered below it. */
-    const box = ref(null);
-    this.box = box;
-
-    render(
-      () => html`<section id="bindings">
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({
+        text: 'hello & <world>',
+        count: 3,
+        title: 'a "quoted" title',
+        busy: false,
+      });
+      /** An object ref: the renderer assigns `.value`. A function ref is covered below it. */
+      const box = ref(null);
+      this.box = box;
+      return () => html`<section id="bindings">
         <h2>Bindings, in full</h2>
         <h3>Every quoting style, spreads, element refs, SVG and MathML — including the shapes JSX cannot express</h3>
         <h4>Four controls, one for each value the panel binds — every binding below belongs to one of them.</h4>
@@ -92,8 +90,8 @@ export default class SinkBindings extends HTMLElement {
           ${svg`<circle id="circle" cx=${5} cy=${5} r=${state.count} fill="currentColor" />`}
         </svg>
         <math id="math">${mathml`<mi id="mi">${state.text}</mi>`}</math>
-      </section>`
-    );
+      </section>`;
+    });
   }
 }
 

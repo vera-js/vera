@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 
 /**
@@ -8,9 +8,8 @@ import { spread } from '@verajs/renderer/spread';
  */
 export default class SpreadSinksSsr extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(
-      () => html`<p class="sinks" ${spread({
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p class="sinks" ${spread({
         title: 'kept',
         srcdoc: '<script>1</script>',
         onclick: 'alert(1)',
@@ -25,8 +24,8 @@ export default class SpreadSinksSsr extends HTMLElement {
         'data-x="1" onmouseover="alert(2)" y': 'inj',
         'a\u0003b': 'ctl',
         '': 'empty',
-      })}>named</p>`
-    );
+      })}>named</p>`;
+    });
   }
 }
 customElements.define('spread-sinks-ssr', SpreadSinksSsr);
