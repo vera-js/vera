@@ -236,6 +236,8 @@ const settle = (element: ComponentElement, out: unknown, generation: number) => 
     }
     currentInstance.element = null;
     firstPasses(element);
+    /** Development: the first pass has committed, so there is a subtree to check for markup no module claimed. */
+    if (__DEV__) unclaimedMarkup(element);
   } finally {
     currentInstance.element = previous;
   }
