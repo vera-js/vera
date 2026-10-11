@@ -2,8 +2,8 @@
  * A component element, carrying what `init` and the hooks attach to it.
  *
  * **Every field core keeps on an element is SIGILED** (O4, 2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$p$` their
- * priorities, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$u$` the
- * subscription chain, `_$o$` its non-element owners. The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
+ * priorities, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$o$` the
+ * non-element owners its setup created. The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
  * letters production mangled the rest to, collided with a base class's own fields — and core reads them back, so a base
  * class's `_root` crashed the render. No mangling regex matches a sigil, so the names are also the cross-package
  * contract (styles, ui, hooks and directives read them) in every build. Short on purpose: each is written at every
@@ -55,8 +55,6 @@ export interface ComponentElement extends HTMLElement {
    * changes the value without notifying anything that read it — every write goes through the accessor.
    */
   _$raw$?: Record<string, unknown>;
-  /** The newest of this element's hook subscriptions, chained through `n` — what retiring it walks. */
-  _$u$?: Subscription;
   /** Non-element owners created while this element was being set up (a `computed`'s): retired with it. */
   _$o$?: ComponentElement[];
 }
@@ -86,22 +84,19 @@ export type Hooks = Set<HookCallback>[];
 /** One key's subscribers: each hook's single `WeakRef` (a hook's element holds the hook strongly, the store weakly). */
 export type Subscribers = Set<WeakRef<HookCallback>>;
 /**
- * **A hook's subscriptions, so it can leave them** (R1, exact unsubscription — regression #11, Brian 2026-10-10). It IS
- * the hook's one `WeakRef` for its whole life — what every Set it joined holds, so `delete(this)` finds it — and carries
- * the Sets it actually JOINED: `a` and `b` (a render reads one or two keys), then `d` from the third; `n` chains its
- * owner's subscriptions (`_$u$` is the head). ONE object per hook, and fields rather than arrays, both measured: the
- * first form kept a record beside the `WeakRef` and two pushed arrays per component (+413 B per live component, ~17
- * reserved slots per array), and its garbage drove Firefox's collector; this shape is +45 B per live component and
- * no array. Retiring removes it from each Set, so a removed component leaves nothing in a store and nothing is ever
- * swept. The joined Sets are held STRONGLY while the hook lives: bounded by what the component reads, released at
- * retirement — not a leak.
+ * **A hook's subscriptions, so it can leave them — kept ON the hook** (exact unsubscription, R1 #11; this shape R2.5,
+ * 2026-10-11): `w` is its one `WeakRef` (what a store's Sets hold), `a`/`b` the first two Sets it joined (a render reads
+ * one or two keys) and `d` the rest. Retiring deletes `w` from each, so a removed component leaves nothing in a store and
+ * nothing is ever swept — and a hook costs no object beyond the `WeakRef` it always had (a record beside it, and before
+ * that a `WeakRef` subclass with class fields, both paid per hook on Chrome's first render). The joined Sets are held STRONGLY while the hook lives: bounded by what the
+ * component reads, released at retirement — not a leak.
  */
-export interface Subscription extends WeakRef<HookCallback> {
-  a: Subscribers | undefined;
-  b: Subscribers | undefined;
-  d: Subscribers[] | undefined;
-  n: Subscription | undefined;
-}
+export type Subscription = HookCallback & {
+  w: WeakRef<HookCallback>;
+  a?: Subscribers;
+  b?: Subscribers;
+  d?: Subscribers[];
+};
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

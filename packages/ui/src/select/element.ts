@@ -767,9 +767,10 @@ export class VeraSelect extends HTMLElement {
           attributes: true,
           attributeFilter: ['selected', 'value', 'label', 'disabled', 'data-group', 'data-description', 'slot'],
         });
-        (this as { _$c$?: Set<() => void> })._$c$?.add(() => observer.disconnect());
+        ((this as { _$c$?: Set<() => void> })._$c$ ??= new Set()).add(() => observer.disconnect());
       }
-      (this as { _$c$?: Set<() => void> })._$c$?.add(() => {
+      /** Core's cleanup set exists once anything registers a cleanup — added to through `??=` (R2.5 contract). */
+      ((this as { _$c$?: Set<() => void> })._$c$ ??= new Set()).add(() => {
         clearTimeout(entry.hideTimer);
         clearTimeout(entry.timer); // the filter debounce must not fire on a detached element
       });

@@ -60,6 +60,11 @@ const UNWRITTEN = {
 const SHARED = {
   /** Directives' kill switch BUMPS core's generation on its own owners — core's stale guard as teardown. */
   _$g$: ['core', 'directives'],
+  /**
+   * Core's release-on-unmount Set is created on the FIRST cleanup (R2.5, 2026-10-11 — most components register none), by
+   * core or by a package that reaches in to register one — @verajs/hooks' useDismiss, ui's select — through `??=`.
+   */
+  _$c$: ['core', 'hooks', 'ui'],
   /** The template-result protocol (lit's interop name): core's `html` and the renderer's `tag()` build the same shape. */
   _$litType$: ['core', 'renderer'],
   /** The seams mark a pack's wire function tests for: directives' seams and motion's SSR seams carry it. */

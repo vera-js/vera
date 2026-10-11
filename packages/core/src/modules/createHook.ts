@@ -1,5 +1,5 @@
-import type { ComponentElement, Hook, HookCallback } from '../types.js';
-import { currentInstance, hooksQueue, Sub } from '../store/store.js';
+import type { ComponentElement, Hook, HookCallback, Subscription } from '../types.js';
+import { currentInstance, hooksQueue } from '../store/store.js';
 import { diagnostic, prioritySlot, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
@@ -71,16 +71,20 @@ export const RENDER_PRIORITY = 50;
  * removal and on a re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
  */
 export const retire = (owner: ComponentElement) => {
-  let sub = owner._$u$;
-  owner._$u$ = undefined;
-  /** A loop, never recursion: an element with thousands of hooks retires in constant stack. */
-  for (; sub !== undefined; sub = sub.n) {
-    const d = sub.d;
-    sub.a?.delete(sub);
-    sub.b?.delete(sub);
-    if (d !== undefined) for (let i = 0; i < d.length; i++) d[i]!.delete(sub);
-    sub.a = sub.b = sub.d = undefined;
-  }
+  /** Every hook the generation registered is in its priority Sets; each carries its record (`s`). */
+  const all = owner._$h$;
+  if (all !== undefined)
+    for (let i = 0; i < all.length; i++)
+      for (const hook of all[i]!) {
+        const sub = hook as Subscription;
+        const w = sub.w;
+        if (w === undefined) continue;
+        const d = sub.d;
+        sub.a?.delete(w);
+        sub.b?.delete(w);
+        if (d !== undefined) for (let k = 0; k < d.length; k++) d[k]!.delete(w);
+        sub.a = sub.b = sub.d = undefined;
+      }
   /** One level only: what a setup created is never itself an element being set up, so it owns no further owners. */
   const owned = owner._$o$;
   if (owned !== undefined) {
@@ -105,8 +109,8 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
       hooksQueue.pop();
     }
   };
-  const sub = new Sub(hook, owner._$u$);
-  owner._$u$ = sub;
+  const sub = hook as Subscription;
+  sub.w = new WeakRef(hook);
   /**
    * A hook created while a component is being set up, for an owner that is not an element — a `computed` in its setup
    * — is retired with that component. An element owner is never listed: it retires itself, and listing a live child

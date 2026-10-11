@@ -1,5 +1,5 @@
 import { createHook, reportHookError } from '../modules/createHook.js';
-import { currentInstance } from '../store/store.js';
+import { currentInstance, mine } from '../store/store.js';
 import { enqueue } from '../modules/scheduler.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
@@ -91,7 +91,8 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
         }
         if (cleanup) {
           if (owner?._$x$) runCleanup(cleanup, owner);
-          else owner?._$c$?.add(cleanup);
+          /** The Set on the FIRST cleanup — most components register none, so none pay for it. Elements `init` set up only. */
+          else if (owner != null && mine.has(owner)) (owner._$c$ ??= new Set()).add(cleanup);
         }
         return;
       }

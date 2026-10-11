@@ -1,9 +1,10 @@
 /** The shared vocabulary of the behavior controllers. */
 
 /**
- * An element that went through core's `init()`, which gives it the `_$c$` release-on-unmount
- * set. The member is part of core's tested structural contract (mangle-exempt), not a private we
- * happen to know about.
+ * An element that went through core's `init()`, whose `_$c$` release-on-unmount set its removal
+ * drains. The set exists once anything registers a cleanup (core creates it lazily), so a cleanup
+ * is added through `??=`. The member is part of core's tested structural contract (mangle-exempt),
+ * not a private we happen to know about.
  */
 export interface LifecycleElement extends HTMLElement {
   _$c$?: Set<() => void>;

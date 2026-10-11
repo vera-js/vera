@@ -1,5 +1,5 @@
 import { misuse, SHARED } from '@verajs/shared-utils';
-import type { ComponentElement, HookCallback, ResultType, Subscribers, Subscription, TemplateResult } from '../types.js';
+import type { ComponentElement, ResultType, Subscribers, Subscription, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
@@ -9,20 +9,13 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  * dependency. A stack rather than one slot because a hook can run inside another — a nested
  * component rendering in the middle of its parent's template.
  */
-export const hooksQueue: (Subscription | undefined)[] = [];
+/**
+ * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down, and the
+ * owners whose effects keep a cleanup Set. A page can load two copies of core (a bundle inlining it); each keeps its own.
+ */
+export const mine = new WeakSet<Element>();
 
-/** A hook's `WeakRef` and its subscriptions in one object — see `Subscription`. */
-export class Sub extends WeakRef<HookCallback> implements Subscription {
-  a: Subscribers | undefined = undefined;
-  b: Subscribers | undefined = undefined;
-  d: Subscribers[] | undefined = undefined;
-  constructor(
-    hook: HookCallback,
-    public n: Subscription | undefined
-  ) {
-    super(hook);
-  }
-}
+export const hooksQueue: (Subscription | undefined)[] = [];
 
 /**
  * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —

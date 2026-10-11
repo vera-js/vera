@@ -26,10 +26,15 @@ const track = (obj: object, prop: unknown) => {
    * A re-read — every update's — is ONE lookup, as a plain `add` was before exact unsubscription; only a real join adds
    * and is recorded (reading `size` around the `add` cost Chrome ≈1% on updates).
    */
-  if (hooks.has(sub)) return;
-  hooks.add(sub);
-  if (sub.a === undefined) sub.a = hooks;
-  else if (sub.b === undefined) sub.b = hooks;
+  const w = sub.w;
+  if (sub.a === undefined) {
+    hooks.add(w);
+    sub.a = hooks;
+    return;
+  }
+  if (hooks.has(w)) return;
+  hooks.add(w);
+  if (sub.b === undefined) sub.b = hooks;
   else (sub.d ??= []).push(hooks);
 };
 

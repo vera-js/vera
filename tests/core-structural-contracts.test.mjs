@@ -32,13 +32,15 @@ test('a component element carries _root and _cleanups under their unmangled name
   const element = dom.window.document.createElement('x-contract');
   dom.window.document.body.append(element);
 
-  assert.ok(element._$c$ instanceof Set, '_cleanups must be a Set the adapter can add to');
   assert.ok(element._$r$ && typeof element._$r$.querySelectorAll === 'function',
     '_root must be the shadow root the adapter hands to observe()');
-
-  /** And the drain reads the same name it wrote: an externally-added cleanup runs on disconnect. */
+  /**
+   * `_$c$` exists once a cleanup is registered (R2.5, 2026-10-11: most components register none, so none pay for the
+   * Set) — a consumer adds through `??=`, and the drain reads the same name it wrote.
+   */
+  assert.equal(element._$c$, undefined, 'no cleanup registered yet: no Set');
   let released = 0;
-  element._$c$.add(() => released++);
+  (element._$c$ ??= new Set()).add(() => released++);
   element.remove();
   assert.equal(released, 1, 'a cleanup registered structurally must run on disconnect');
 });
