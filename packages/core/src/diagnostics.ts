@@ -103,7 +103,8 @@ export const PROSE: Record<string, Prose> = {
       'hooks before the first `await`; or pass the element explicitly: `useEffect(fn, this)`.',
   ],
   'init-options': () => [
-    'its second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`).',
+    "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): " +
+      'it is ignored, in every build, so this component sets up with no shadow root.',
     "Options travel with the host: `init({ host: this, shadow: 'open' }, setup)`.",
   ],
 };

@@ -38,7 +38,7 @@
     {
       "code": "init-options",
       "params": [],
-      "message": "its second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`).",
+      "message": "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): it is ignored, in every build, so this component sets up with no shadow root.",
       "fix": "Options travel with the host: `init({ host: this, shadow: 'open' }, setup)`."
     },
     {

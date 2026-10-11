@@ -289,16 +289,21 @@ test('a rejected async setup is reported ONCE through the error chain — never 
   assert.equal(ran, 0, 'nothing it registered ran');
 });
 
-test('the old init(this, { mode }) is refused in development with the new spelling; production sets up without a root', async () => {
+test('the old init(this, { mode }) behaves the same in both builds — a setup-less init, no root; development names it once per class', async () => {
   let thrown;
-  const el = await mount(component((host) => { try { init(host, { mode: 'open' }); } catch (error) { thrown = error; } }));
-  if (isProduction) {
-    assert.equal(thrown, undefined, 'production: a setup-less init');
-    assert.equal(el.shadowRoot, null, 'and the object is not read as shadow options');
-  } else {
-    assert.ok(thrown instanceof TypeError, `refused: ${thrown}`);
-    assert.match(thrown.message, /init-options/);
-    assert.match(thrown.message, /init\(\{ host: this, shadow: 'open' \}, setup\)/, 'and names the new spelling');
+  const tag = component((host) => { try { init(host, { mode: 'open' }); } catch (error) { thrown = error; } });
+  let first;
+  const said = await listen(async () => {
+    first = await mount(tag);
+    await mount(tag);
+  });
+  assert.equal(thrown, undefined, 'never thrown, in either build');
+  assert.equal(first.shadowRoot, null, 'the object is not read as shadow options');
+  const named = said.filter((line) => line.includes('init-options'));
+  if (isProduction) assert.deepEqual(named, []);
+  else {
+    assert.equal(named.length, 1, `once per class: ${said.join(' | ')}`);
+    assert.match(named[0], /init\(\{ host: this, shadow: 'open' \}, setup\)/, 'and names the new spelling');
   }
 });
 

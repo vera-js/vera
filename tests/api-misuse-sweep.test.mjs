@@ -46,7 +46,6 @@ const skip = isProduction && 'development-only diagnostics';
 const CASES = [
   ['untrack(nonFunction)', () => core.untrack(42), /untrack: expected a function/],
   ['init(notAnElement)', () => core.init(null), /init: expected a component element/],
-  ['init(el, { mode }) — the old options position', () => core.init(document.createElement('div'), { mode: 'open' }), /init: its second argument is the SETUP/],
   ['createStore(notAnObject)', () => core.createStore(42), /createStore: expected an object/],
   ['applyStyles([notCSS], element)', () => styleModule.applyStyles([42], document.createElement('div')), /applyStyles: expected CSS/],
   ['a frozen store refusing a write', () => { const store = core.createStore(Object.freeze({ n: 1 })); store.n = 2; }, /createStore: this store's source object refused the write/],

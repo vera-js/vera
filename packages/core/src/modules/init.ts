@@ -69,6 +69,7 @@ const CLOSED: ShadowRootInit = { mode: 'closed' };
 /** Development: what was said once per component class — a static setup return, a near-miss `setup` spelling. */
 const saidStatic = new WeakSet<object>();
 const saidNearMiss = new WeakSet<object>();
+const saidOptions = new WeakSet<object>();
 /** Development: an invalid app default is said once per page (a component's own invalid option, at each connect). */
 let warnedAboutDefault = false;
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
@@ -105,9 +106,14 @@ export const init = (target: ComponentElement | InitOptions, setup?: Setup) =>
 export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
-  /** Development: the old `init(this, { mode })` — options travel WITH the host now. Production: a setup-less init. */
-  if (__DEV__ && given != null && typeof given !== 'function')
-    throw new TypeError(misuse('init', 'init-options', __DEV__ && PROSE['init-options']()));
+  /**
+   * The old `init(this, { mode })` — options travel WITH the host now. Both builds ignore the object (a setup-less init,
+   * no root); development says so, once per class — logged, not thrown, so the builds never behave differently.
+   */
+  if (__DEV__ && given != null && typeof given !== 'function' && !saidOptions.has(element.constructor)) {
+    saidOptions.add(element.constructor);
+    console.error(diagnostic('core', `<${element.localName}>`, 'init-options', __DEV__ && PROSE['init-options']()));
+  }
   mine.add(element);
   /**
    * The component's own `shadow` (an explicit `false` included), else the app default `renderer({ shadow })` set on the
