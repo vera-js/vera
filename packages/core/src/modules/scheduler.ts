@@ -1,6 +1,6 @@
 import { diagnostic, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
-import type { ComponentElement, HookPass, RenderScheduler } from '../types.js';
+import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js';
 
 /**
  * **One queue, drained by one flush.** Every deferred hook pass — a layout effect, a render, an effect — joins ONE
@@ -12,7 +12,7 @@ import type { ComponentElement, HookPass, RenderScheduler } from '../types.js';
  * next pass is taken — the built-in sort, which merges a sorted run and a few new passes in linear time (smaller than
  * a heap). Passes queued in creation order — a store write waking its readers — never sort at all.
  */
-let queue: HookPass[] = [];
+let queue: HookRecord[] = [];
 let next = 0;
 let unsorted = false;
 
@@ -77,14 +77,14 @@ let scheduled = false;
 let flushing = false;
 let flushes = 0;
 /** Development: the pass running now. */
-let running: HookPass | undefined;
+let running: HookRecord | undefined;
 
 /**
  * Queues a hook's pass, once, and makes sure a flush is coming. A pass already queued is not queued twice. A flush
  * already running drains it; otherwise one is scheduled — and if the scheduler throws, the pass stays queued and the
  * next write asks again, so a broken scheduler never freezes a component for good.
  */
-export const enqueue = (pass: HookPass) => {
+export const enqueue = (pass: HookRecord) => {
   /** Development: which pass's run queued this one — the hook a loop warning names is the one that WRITES. */
   if (__DEV__) pass._b = flushing ? running : undefined;
   if (!pass._in) {
@@ -111,7 +111,7 @@ export const enqueue = (pass: HookPass) => {
  * intended, and never freezes the tab. (Main ran it once per frame; Vue allows a hundred re-runs; React throws.) Each
  * held pass asks for its own frame: only a loop is ever held, so batching them is not worth its bytes.
  */
-const hold = (pass: HookPass) => {
+const hold = (pass: HookRecord) => {
   if (__DEV__) loopWarning(pass);
   frameOrTimer(() => {
     if (__DEV__) pass._hf = 1;
@@ -145,7 +145,7 @@ const drain = () => {
       if (++pass._r! > 2) hold(pass);
       else {
         if (__DEV__) running = pass;
-        pass();
+        pass.$q();
       }
     }
   } finally {
@@ -209,7 +209,7 @@ const warned = /* @__PURE__ */ new WeakSet<Element>();
 /** Which hook a priority is — the warning names the one that loops. */
 const LABELS: Record<number, string> = { 50: 'render', 60: 'useLayoutEffect', 75: 'useEffect' };
 
-const loopWarning = (pass: HookPass) => {
+const loopWarning = (pass: HookRecord) => {
   /** Held again after a run its last hold queued: one more consecutive frame. Anything else starts a new count. */
   pass._s = pass._hf ? pass._s! + 1 : 1;
   pass._hf = 0;

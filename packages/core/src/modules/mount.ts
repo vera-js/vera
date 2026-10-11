@@ -1,4 +1,4 @@
-import type { ComponentElement, HookCallback } from '../types.js';
+import type { ComponentElement, HookRecord } from '../types.js';
 
 /**
  * The first pass of every hook a component's setup registered, in priority order — what commits a setup (`init`'s
@@ -10,8 +10,8 @@ import type { ComponentElement, HookCallback } from '../types.js';
  * NOT frozen, so a mistaken write behaves the same on a first pass as on any later one (vera-5a).
  */
 const FIRST = {};
-const run = (hook: HookCallback) => hook(FIRST, true);
-const pass = (hooks: Set<HookCallback>) => hooks.forEach(run);
+const run = (hook: HookRecord) => hook.$n(FIRST, true);
+const pass = (hooks: Set<HookRecord>) => hooks.forEach(run);
 
 export const firstPasses = (element: ComponentElement) => {
   element._$h$!.forEach(pass);

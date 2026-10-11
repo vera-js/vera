@@ -1,5 +1,5 @@
 import { misuse, SHARED } from '@verajs/shared-utils';
-import type { ComponentElement, ResultType, Subscribers, Subscription, TemplateResult } from '../types.js';
+import type { ComponentElement, ResultType, HookRecord, Subscribers, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
@@ -15,7 +15,7 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  */
 export const mine = new WeakSet<Element>();
 
-export const hooksQueue: (Subscription | undefined)[] = [];
+export const hooksQueue: (HookRecord | undefined)[] = [];
 
 /**
  * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —

@@ -86,7 +86,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
      * Effects are not forced — a side effect must not re-fire because a prop arrived. During the drain
      * this is a no-op: `init()` has just reset the hooks.
      */
-    this._$h$?.[this._$p$!.indexOf(RENDER_PRIORITY)]?.forEach((hook) => hook({}, true));
+    this._$h$?.[this._$p$!.indexOf(RENDER_PRIORITY)]?.forEach((hook) => hook.$n({}, true));
 }
 
 export const adoptProps = (element: ComponentElement) => {

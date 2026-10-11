@@ -6,8 +6,7 @@ import { currentInstance, hooksQueue, mine } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
 import { firstPasses } from './mount.js';
 import { useRender } from '../hooks/useRender.js';
-import { runCleanup } from '../hooks/coalesce.js';
-import { reportHookError, retire } from './createHook.js';
+import { reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
 /**

@@ -80,22 +80,53 @@ export type HookCleanup = () => void;
 export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
 
 /** An element's hooks, dense and priority-sorted — `_$p$` runs parallel to it. */
-export type Hooks = Set<HookCallback>[];
+export type Hooks = Set<HookRecord>[];
 /** One key's subscribers: each hook's single `WeakRef` (a hook's element holds the hook strongly, the store weakly). */
-export type Subscribers = Set<WeakRef<HookCallback>>;
+export type Subscribers = Set<WeakRef<HookRecord>>;
+
 /**
- * **A hook's subscriptions, so it can leave them — kept ON the hook** (exact unsubscription, R1 #11; this shape R2.5,
- * 2026-10-11): `w` is its one `WeakRef` (what a store's Sets hold), `a`/`b` the first two Sets it joined (a render reads
- * one or two keys) and `d` the rest. Retiring deletes `w` from each, so a removed component leaves nothing in a store and
- * nothing is ever swept — and a hook costs no object beyond the `WeakRef` it always had (a record beside it, and before
- * that a `WeakRef` subclass with class fields, both paid per hook on Chrome's first render). The joined Sets are held STRONGLY while the hook lives: bounded by what the
- * component reads, released at retirement — not a leak.
+ * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two
+ * contexts and expandos on functions per hook. Core's `HookState` class is the only implementation; nothing outside
+ * core reads these fields except through `$n`.
+ *
+ * Subscriptions, kept ON the hook so it can leave them (exact unsubscription, R1 #11): `w` is its one `WeakRef` (what a
+ * store's Sets hold), `a`/`b` the first two Sets it joined (a render reads one or two keys) and `d` the rest. Retiring
+ * deletes `w` from each, so a removed component leaves nothing in a store and nothing is ever swept. The joined Sets
+ * are held STRONGLY while the hook lives: bounded by what the component reads, released at retirement — not a leak.
+ *
+ * The scheduler's fields: `_k` orders the queue (priority × 1e9 + the hook's creation sequence: parent-first, then
+ * registration order), `_o` is the owner whose window a deferred flush waits on, `_in` says it is queued now, and
+ * `_f`/`_r` are the flush its runs are counted in and the count.
  */
-export type Subscription = HookCallback & {
-  w: WeakRef<HookCallback>;
-  a?: Subscribers;
-  b?: Subscribers;
-  d?: Subscribers[];
+export type HookRecord = {
+  /** The owner: an element, or any object owning a value (a `computed`'s). */
+  _o: ComponentElement;
+  /** The owner's generation when the hook was made; any other value retires it. */
+  _g: number | undefined;
+  _k: number;
+  /** 0 raw (`createHook`: runs inside every write), 1 queued (one run per flush), 2 sync (`useSyncEffect`). */
+  _m: number;
+  /** The cleanup the last run returned, and the signal of the first write since the last run. */
+  _c: HookCleanup | undefined;
+  _q: Signal<unknown> | undefined;
+  _in: boolean;
+  _f: number;
+  _r: number;
+  w: WeakRef<HookRecord>;
+  a: Subscribers | undefined;
+  b: Subscribers | undefined;
+  d: Subscribers[] | undefined;
+  /** Development: the last run queued by a hold, its run of consecutive held frames, and the hook that queued it. */
+  _hf?: number;
+  _s?: number;
+  _b?: HookRecord;
+  /**
+   * **The ONE place a hook is handed a change** — a write reaching it, a first pass, or a caller running the hook
+   * `createHook`/`useHook` returned. The single tracked-run choke point native signals would plug into.
+   */
+  $n(signal?: Signal<unknown>, init?: boolean): void;
+  /** The queued pass: run once, with the first write's signal since the last run. */
+  $q(): void;
 };
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
@@ -148,26 +179,6 @@ export type Signal<V> = {
  * frame past it; `microtask` is exported (no budget).
  */
 export type RenderScheduler = (run: () => void, element?: Element) => void;
-
-/**
- * **A queued hook pass** — one per hook, reused for every run. Core's scheduler reads and writes these fields; nothing
- * else does. `_k` orders the queue: priority × 1e9 + the hook's creation sequence (parent-first, then registration order).
- */
-export type HookPass = (() => void) & {
-  /** The order key. */
-  _k: number;
-  /** The owner, whose window a deferred flush waits on. */
-  _o: ComponentElement | null | undefined;
-  /** In the queue now. */
-  _in?: boolean;
-  /** The flush `_r` counts runs in, and the count. */
-  _f?: number;
-  _r?: number;
-  /** Development: whether its last run was queued by a hold, its run of consecutive held frames, and the pass that queued it. */
-  _hf?: number;
-  _s?: number;
-  _b?: HookPass;
-};
 
 /** A reactive store over `T`. */
 export type Store<T extends object = object> = T;

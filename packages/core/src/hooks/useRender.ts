@@ -26,7 +26,7 @@ export const useRender = (template: unknown, element: ComponentElement) => {
    * paid once, not on every render.
    */
   let target: ShadowRoot | HTMLElement | undefined;
-  return coalesce(
+  coalesce(
     (signal) => {
       const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
       target ??= element._$r$ ?? element.shadowRoot ?? element;

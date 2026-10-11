@@ -47,7 +47,7 @@ const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown)
   for (const ref of hooks) {
     const hook = ref.deref();
     if (hook === undefined) hooks.delete(ref);
-    else hook((signal ??= { prop: prop as string, value, prevValue } as Signal<unknown>));
+    else hook.$n((signal ??= { prop: prop as string, value, prevValue } as Signal<unknown>));
   }
 };
 
