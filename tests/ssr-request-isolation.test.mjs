@@ -623,12 +623,13 @@ export default customElements.get('loc${i}-ssr');
      */
     writeFileSync(
       `${dir}/parts.js`,
-      `import { init, render, html } from '@verajs/core';
+      `import { init, html } from '@verajs/core';
 customElements.define('parts-ssr', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const l = globalThis.location;
-    render(() => html\`<p>\${[l.pathname, l.search, l.hash, l.host].join('|')}</p>\`);
+    init({ host: this, shadow: 'open' }, () => {
+      const l = globalThis.location;
+      return () => html\`<p>\${[l.pathname, l.search, l.hash, l.host].join('|')}</p>\`;
+    });
   }
 });
 export default customElements.get('parts-ssr');
@@ -661,12 +662,13 @@ export default customElements.get('parts-ssr');
   try {
     writeFileSync(
       `${dir}/titled.js`,
-      `import { init, render, html } from '@verajs/core';
+      `import { init, html } from '@verajs/core';
 customElements.define('titled-ssr', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    document.title = this.getAttribute('page-title') ?? 'untitled';
-    render(() => html\`<p>ok</p>\`);
+    init({ host: this, shadow: 'open' }, () => {
+      document.title = this.getAttribute('page-title') ?? 'untitled';
+      return () => html\`<p>ok</p>\`;
+    });
   }
 });
 export default customElements.get('titled-ssr');
@@ -692,12 +694,13 @@ export default customElements.get('titled-ssr');
      */
     writeFileSync(
       `${dir}/doomed.js`,
-      `import { init, render, html } from '@verajs/core';
+      `import { init, html } from '@verajs/core';
 customElements.define('doomed-ssr', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    document.title = 'set by a doomed render';
-    render(() => { throw new Error('boom'); });
+    init({ host: this, shadow: 'open' }, () => {
+      document.title = 'set by a doomed render';
+      return () => { throw new Error('boom'); };
+    });
   }
 });
 export default customElements.get('doomed-ssr');
@@ -734,15 +737,16 @@ export default customElements.get('doomed-ssr');
   try {
     writeFileSync(
       `${dir}/grow.js`,
-      `import { init, render, html } from '@verajs/core';
+      `import { init, html } from '@verajs/core';
 let n = 0;
 customElements.define('grow-ssr', class extends HTMLElement {
   connectedCallback() {
-    init(this);
-    const style = document.createElement('style');
-    style.textContent = \`.t\${n++} { color: red }\`;
-    document.head.appendChild(style);
-    render(() => html\`<p>x</p>\`);
+    init(this, () => {
+      const style = document.createElement('style');
+      style.textContent = \`.t\${n++} { color: red }\`;
+      document.head.appendChild(style);
+      return () => html\`<p>x</p>\`;
+    });
   }
 });
 export default customElements.get('grow-ssr');

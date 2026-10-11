@@ -41,38 +41,39 @@ interface Row { id: number; label: string }
 
 class Demo extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ n: 0, rows: [] as Row[], m: new Map<string, number>() });
-    const box = ref<HTMLInputElement | null>(null);
-    const shallow = shallowRef<Row[]>([]);
-    void shallow.value;
-    const total = computed(() => state.rows.length + state.n);
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ n: 0, rows: [] as Row[], m: new Map<string, number>() });
+      const box = ref<HTMLInputElement | null>(null);
+      const shallow = shallowRef<Row[]>([]);
+      void shallow.value;
+      const total = computed(() => state.rows.length + state.n);
 
-    useEffect((signal) => { void signal?.prop; return () => {}; });
-    useLayoutEffect(() => {});
-    useSyncEffect(() => {});
-    createHook({ element: this, priority: 10, callback: () => {} });
-    untrack(() => state.n);
+      useEffect((signal) => { void signal?.prop; return () => {}; });
+      useLayoutEffect(() => {});
+      useSyncEffect(() => {});
+      createHook({ element: this, priority: 10, callback: () => {} });
+      untrack(() => state.n);
 
-    render(() => html`
-      <input ${box} .value=${String(state.n)} ?disabled=${state.n > 3} @click=${() => state.n++}>
-      <ul>${state.rows.map((r) => keyed(r.id, html`<li ${spread({ 'data-id': r.id })}>${r.label}</li>`))}</ul>
-      <p>${hold(html`<em>${total.value}</em>`)}</p>
-      ${svg`<svg><circle r=${state.n}/></svg>`}
-      ${mathml`<math><mi>${state.n}</mi></math>`}
-    `);
+      return () => html`
+        <input ${box} .value=${String(state.n)} ?disabled=${state.n > 3} @click=${() => state.n++}>
+        <ul>${state.rows.map((r) => keyed(r.id, html`<li ${spread({ 'data-id': r.id })}>${r.label}</li>`))}</ul>
+        <p>${hold(html`<em>${total.value}</em>`)}</p>
+        ${svg`<svg><circle r=${state.n}/></svg>`}
+        ${mathml`<math><mi>${state.n}</mi></math>`}
+      `;
+    });
   }
   static styles = css`.a { color: red }`;
 }
 customElements.define('x-demo', Demo);
 
-/** A component with no markup: `mount()` commits the setup so the effect actually runs. */
+/** A component with no markup: a setup returning nothing commits its effects all the same. */
 class Headless extends HTMLElement {
   connectedCallback() {
-    init(this);
-    const state = createStore({ online: true });
-    useEffect(() => void state.online);
-    mount();
+    init(this, () => {
+      const state = createStore({ online: true });
+      useEffect(() => void state.online);
+    });
   }
 }
 customElements.define('x-headless', Headless);
@@ -118,9 +119,9 @@ import {
 
 class LateAdditions extends HTMLElement {
   connectedCallback() {
-    init(this);
-    allowRenderLoop(this);
-    mount();
+    init(this, () => {
+      allowRenderLoop(this);
+    });
   }
 }
 customElements.define('x-late', LateAdditions);

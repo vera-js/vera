@@ -28,7 +28,7 @@ const render = async (body, options) => {
   const file = `${dir}/${tag}.js`;
   writeFileSync(
     file,
-    `import { init, render, html, createStore } from '@verajs/core';\n` +
+    `import { init, html, createStore } from '@verajs/core';\n` +
       `class C extends HTMLElement {\n  connectedCallback() {${body}}\n}\n` +
       `customElements.define('${tag}', C);\nexport default C;\n`
   );
@@ -39,8 +39,7 @@ test.after(() => rmSync(dir, { recursive: true, force: true }));
 
 test('a node a component appends to its own root survives', async () => {
   const html = await render(
-    `init(this, { mode: 'open' });` +
-      `render(() => html\`<span>R</span>\`);` +
+    `init({ host: this, shadow: 'open' }, () => () => html\`<span>R</span>\`);` +
       `const kid = document.createElement('b'); kid.textContent = 'appended';` +
       `this.shadowRoot.appendChild(kid);`
   );
@@ -49,9 +48,8 @@ test('a node a component appends to its own root survives', async () => {
 
 test('and a re-render updates the range without disturbing it', async () => {
   const html = await render(
-    `init(this, { mode: 'open' });` +
-      `const s = createStore({ n: 0 });` +
-      `render(() => html\`<span>R\${s.n}</span>\`);` +
+    `const s = createStore({ n: 0 });` +
+      `init({ host: this, shadow: 'open' }, () => () => html\`<span>R\${s.n}</span>\`);` +
       `const kid = document.createElement('b'); kid.textContent = 'appended';` +
       `this.shadowRoot.appendChild(kid);` +
       `s.n = 1;`
@@ -60,12 +58,16 @@ test('and a re-render updates the range without disturbing it', async () => {
 });
 
 test('children reach a light-DOM component and survive its render', async () => {
-  const html = await render(`init(this); render(() => html\`<span>R</span>\`);`, { children: '<i>kid</i>' });
+  const html = await render(`init(this, () => {
+  return () => html\`<span>R</span>\`;
+});`, { children: '<i>kid</i>' });
   assert.match(html, /<i>kid<\/i><span>R<\/span>/, 'children come first, the rendered range after');
 });
 
 test('a shadow component is unaffected — its children are light DOM', async () => {
-  const html = await render(`init(this, { mode: 'open' }); render(() => html\`<slot></slot><span>R</span>\`);`, {
+  const html = await render(`init({ host: this, shadow: 'open' }, () => {
+  return () => html\`<slot></slot><span>R</span>\`;
+});`, {
     children: '<i>kid</i>',
   });
   assert.match(html, /<template shadowrootmode="open"><slot><\/slot><span>R<\/span><\/template><i>kid<\/i>/);
@@ -78,9 +80,8 @@ test('a container someone rewrote wholesale starts a fresh range', async () => {
    * puts it in a browser.
    */
   const html = await render(
-    `init(this, { mode: 'open' });` +
-      `const s = createStore({ n: 0 });` +
-      `render(() => html\`<span>R\${s.n}</span>\`);` +
+    `const s = createStore({ n: 0 });` +
+      `init({ host: this, shadow: 'open' }, () => () => html\`<span>R\${s.n}</span>\`);` +
       `this.shadowRoot.innerHTML = '<u>replaced</u>';` +
       `s.n = 1;`
   );

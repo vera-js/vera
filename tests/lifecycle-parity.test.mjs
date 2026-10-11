@@ -30,42 +30,48 @@ import { canonical } from './canonical.mjs';
  */
 const CASES = {
   'plain render': {
-    body: `init(this, { mode: 'open' }); render(() => html\`<p>hi</p>\`);`,
+    body: `init({ host: this, shadow: 'open' }, () => {
+  return () => html\`<p>hi</p>\`;
+});`,
   },
   'state settled after render()': {
     attributes: { n: '7' },
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ n: 0 });
-      render(() => html\`<p>n=\${state.n}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<p>n=\${state.n}</p>\`;
+      });
       state.n = Number(this.getAttribute('n'));
     `,
   },
   'state settled twice after render()': {
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ n: 0 });
-      render(() => html\`<p>n=\${state.n}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<p>n=\${state.n}</p>\`;
+      });
       state.n = 1;
       state.n = 2;
     `,
   },
   'useEffect derives state': {
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ n: 1, doubled: 0 });
-      useEffect(() => { state.doubled = state.n * 2; });
-      render(() => html\`<p>\${state.n}/\${state.doubled}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        useEffect(() => { state.doubled = state.n * 2; });
+        return () => html\`<p>\${state.n}/\${state.doubled}</p>\`;
+      });
       state.n = 4;
     `,
   },
   'useEffect that only reads': {
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ n: 1 });
-      const seen = [];
-      useEffect(() => { seen.push(state.n); });
-      render(() => html\`<p>\${state.n} seen=\${seen.length > 0}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const seen = [];
+        useEffect(() => { seen.push(state.n); });
+        return () => html\`<p>\${state.n} seen=\${seen.length > 0}</p>\`;
+      });
       state.n = 2;
     `,
   },
@@ -76,7 +82,9 @@ const CASES = {
       seen = [];
       attributeChangedCallback(name, previous, value) { this.seen.push(name + ':' + previous + '>' + value); }
     `,
-    body: `init(this, { mode: 'open' }); render(() => html\`<p>\${this.seen.join('|') || 'never fired'}</p>\`);`,
+    body: `init({ host: this, shadow: 'open' }, () => {
+  return () => html\`<p>\${this.seen.join('|') || 'never fired'}</p>\`;
+});`,
   },
   'attributeChangedCallback for an absent attribute stays silent': {
     statics: `
@@ -84,7 +92,9 @@ const CASES = {
       seen = [];
       attributeChangedCallback(name) { this.seen.push(name); }
     `,
-    body: `init(this, { mode: 'open' }); render(() => html\`<p>[\${this.seen.join('|')}]</p>\`);`,
+    body: `init({ host: this, shadow: 'open' }, () => {
+  return () => html\`<p>[\${this.seen.join('|')}]</p>\`;
+});`,
   },
   'attributeChangedCallback when the component changes its own attribute': {
     statics: `
@@ -93,13 +103,14 @@ const CASES = {
       attributeChangedCallback(name, previous, value) { this.seen.push(previous + '>' + value); }
     `,
     body: `
-      init(this, { mode: 'open' });
-      this.setAttribute('state', 'ready');
-      this.setAttribute('state', 'ready');
-      this.setAttribute('state', 'done');
-      this.removeAttribute('state');
-      this.toggleAttribute('state', true);
-      render(() => html\`<p>\${this.seen.join('|')}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        this.setAttribute('state', 'ready');
+        this.setAttribute('state', 'ready');
+        this.setAttribute('state', 'done');
+        this.removeAttribute('state');
+        this.toggleAttribute('state', true);
+        return () => html\`<p>\${this.seen.join('|')}</p>\`;
+      });
     `,
   },
   'attributeChangedCallback derives rendered state': {
@@ -109,20 +120,25 @@ const CASES = {
       count = 0;
       attributeChangedCallback(name, previous, value) { this.count = Number(value); }
     `,
-    body: `init(this, { mode: 'open' }); render(() => html\`<p>\${this.count}</p>\`);`,
+    body: `init({ host: this, shadow: 'open' }, () => {
+  return () => html\`<p>\${this.count}</p>\`;
+});`,
   },
   'attribute read straight from the host': {
     attributes: { greeting: 'hello & <you>' },
-    body: `init(this, { mode: 'open' }); render(() => html\`<p>\${this.getAttribute('greeting')}</p>\`);`,
+    body: `init({ host: this, shadow: 'open' }, () => {
+  return () => html\`<p>\${this.getAttribute('greeting')}</p>\`;
+});`,
   },
   'the component writes to its own host': {
     body: `
-      init(this, { mode: 'open' });
-      this.setAttribute('role', 'button');
-      this.classList.add('ready', 'themed');
-      this.dataset.state = 'open';
-      this.style.color = 'red';
-      render(() => html\`<p>host</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        this.setAttribute('role', 'button');
+        this.classList.add('ready', 'themed');
+        this.dataset.state = 'open';
+        this.style.color = 'red';
+        return () => html\`<p>host</p>\`;
+      });
     `,
   },
   /**
@@ -138,45 +154,49 @@ const CASES = {
    */
   'the component sets its reflected properties': {
     body: `
-      init(this, { mode: 'open' });
-      this.id = 'widget';
-      this.className = 'a b';
-      this.title = 'a & b';
-      this.role = 'button';
-      this.tabIndex = -1;
-      this.hidden = true;
-      this.draggable = true;
-      this.translate = false;
-      this.lang = 'en';
-      this.dir = 'ltr';
-      this.slot = 'main';
-      render(() => html\`<p>reflected</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        this.id = 'widget';
+        this.className = 'a b';
+        this.title = 'a & b';
+        this.role = 'button';
+        this.tabIndex = -1;
+        this.hidden = true;
+        this.draggable = true;
+        this.translate = false;
+        this.lang = 'en';
+        this.dir = 'ltr';
+        this.slot = 'main';
+        return () => html\`<p>reflected</p>\`;
+      });
     `,
   },
   'the component sets ARIA through properties': {
     body: `
-      init(this, { mode: 'open' });
-      this.ariaLabel = 'Close';
-      this.ariaExpanded = 'false';
-      this.ariaValueMax = '10';
-      render(() => html\`<p>aria</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        this.ariaLabel = 'Close';
+        this.ariaExpanded = 'false';
+        this.ariaValueMax = '10';
+        return () => html\`<p>aria</p>\`;
+      });
     `,
   },
   'a reflected property reads back what the attribute holds': {
     attributes: { id: 'from-markup', tabindex: '3', hidden: '' },
     body: `
-      init(this, { mode: 'open' });
-      const read = [this.id, this.tabIndex, this.hidden, this.className].join('|');
-      render(() => html\`<p>\${read}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const read = [this.id, this.tabIndex, this.hidden, this.className].join('|');
+        return () => html\`<p>\${read}</p>\`;
+      });
     `,
   },
   'clearing a reflected property removes the attribute': {
     attributes: { 'aria-label': 'gone' },
     body: `
-      init(this, { mode: 'open' });
-      this.ariaLabel = null;
-      this.hidden = false;
-      render(() => html\`<p>cleared</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        this.ariaLabel = null;
+        this.hidden = false;
+        return () => html\`<p>cleared</p>\`;
+      });
     `,
   },
   /**
@@ -186,19 +206,19 @@ const CASES = {
    */
   'a child built with createElement keeps what the parent gave it': {
     body: `
-      init(this, { mode: 'open' });
       const kid = document.createElement('lp-created-child');
       kid.rows = ['from', 'the', 'parent'];
       kid.setAttribute('label', 'set too');
-      render(() => html\`<div></div>\`);
+      init({ host: this, shadow: 'open' }, () => () => html\`<div></div>\`);
       (this.shadowRoot ?? this._$r$).appendChild(kid);
     `,
     defines: `
       class Child extends HTMLElement {
         rows = ['default'];
         connectedCallback() {
-          init(this, { mode: 'open' });
-          render(() => html\`<p>\${this.rows.join(',')}|\${this.getAttribute('label')}</p>\`);
+          init({ host: this, shadow: 'open' }, () => {
+            return () => html\`<p>\${this.rows.join(',')}|\${this.getAttribute('label')}</p>\`;
+          });
         }
       }
       customElements.define('lp-created-child', Child);
@@ -206,15 +226,18 @@ const CASES = {
   },
   'createElement of a registered tag builds the component': {
     body: `
-      init(this, { mode: 'open' });
-      const kid = document.createElement('lp-created-probe');
-      const plain = document.createElement('div');
-      render(() => html\`<p>\${kid instanceof HTMLElement}|\${kid.rows.join(',')}|\${plain.localName}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const kid = document.createElement('lp-created-probe');
+        const plain = document.createElement('div');
+        return () => html\`<p>\${kid instanceof HTMLElement}|\${kid.rows.join(',')}|\${plain.localName}</p>\`;
+      });
     `,
     defines: `
       class Child extends HTMLElement {
         rows = ['default'];
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<i></i>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<i></i>\`;
+        }); }
       }
       customElements.define('lp-created-probe', Child);
     `,
@@ -225,78 +248,98 @@ const CASES = {
    */
   'a child written in the parent template': {
     body: `
-      init(this, { mode: 'open' });
-      render(() => html\`<div><lp-nested-plain></lp-nested-plain></div>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<div><lp-nested-plain></lp-nested-plain></div>\`;
+      });
     `,
     defines: `
       class Plain extends HTMLElement {
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>plain child</p>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<p>plain child</p>\`;
+        }); }
       }
       customElements.define('lp-nested-plain', Plain);
     `,
   },
   'a child taking an attribute from the parent': {
     body: `
-      init(this, { mode: 'open' });
-      const label = 'a & b';
-      render(() => html\`<lp-nested-attr label=\${label}></lp-nested-attr>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const label = 'a & b';
+        return () => html\`<lp-nested-attr label=\${label}></lp-nested-attr>\`;
+      });
     `,
     defines: `
       class Attr extends HTMLElement {
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>[\${this.getAttribute('label')}]</p>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<p>[\${this.getAttribute('label')}]</p>\`;
+        }); }
       }
       customElements.define('lp-nested-attr', Attr);
     `,
   },
   'a list of children': {
     body: `
-      init(this, { mode: 'open' });
-      const rows = ['a', 'b', 'c'];
-      render(() => html\`<ul>\${rows.map((row) => html\`<lp-nested-row label=\${row}></lp-nested-row>\`)}</ul>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const rows = ['a', 'b', 'c'];
+        return () => html\`<ul>\${rows.map((row) => html\`<lp-nested-row label=\${row}></lp-nested-row>\`)}</ul>\`;
+      });
     `,
     defines: `
       class Row extends HTMLElement {
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<li>\${this.getAttribute('label')}</li>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<li>\${this.getAttribute('label')}</li>\`;
+        }); }
       }
       customElements.define('lp-nested-row', Row);
     `,
   },
   'a grandchild': {
     body: `
-      init(this, { mode: 'open' });
-      render(() => html\`<lp-nested-middle></lp-nested-middle>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<lp-nested-middle></lp-nested-middle>\`;
+      });
     `,
     defines: `
       class Deep extends HTMLElement {
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<b>deep</b>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<b>deep</b>\`;
+        }); }
       }
       customElements.define('lp-nested-deep', Deep);
       class Middle extends HTMLElement {
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<span><lp-nested-deep></lp-nested-deep></span>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<span><lp-nested-deep></lp-nested-deep></span>\`;
+        }); }
       }
       customElements.define('lp-nested-middle', Middle);
     `,
   },
   'a child with light-DOM content to slot': {
     body: `
-      init(this, { mode: 'open' });
-      render(() => html\`<lp-nested-slotter><em>slotted</em></lp-nested-slotter>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<lp-nested-slotter><em>slotted</em></lp-nested-slotter>\`;
+      });
     `,
     defines: `
       class Slotter extends HTMLElement {
-        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<div><slot></slot></div>\`); }
+        connectedCallback() { init({ host: this, shadow: 'open' }, () => {
+          return () => html\`<div><slot></slot></div>\`;
+        }); }
       }
       customElements.define('lp-nested-slotter', Slotter);
     `,
   },
   'a child that renders into the light DOM': {
     body: `
-      init(this, { mode: 'open' });
-      render(() => html\`<lp-nested-light></lp-nested-light>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<lp-nested-light></lp-nested-light>\`;
+      });
     `,
     defines: `
       class Light extends HTMLElement {
-        connectedCallback() { init(this); render(() => html\`<p>light</p>\`); }
+        connectedCallback() { init(this, () => {
+          return () => html\`<p>light</p>\`;
+        }); }
       }
       customElements.define('lp-nested-light', Light);
     `,
@@ -304,42 +347,48 @@ const CASES = {
   /** A component whose template is only a binding, and one that renders nothing at all. */
   'a component that renders only a binding': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ text: 'bare' });
-      render(() => html\`\${state.text}\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ text: 'bare' });
+        return () => html\`\${state.text}\`;
+      });
     `,
   },
   'a component that renders nothing': {
     body: `
-      init(this, { mode: 'open' });
-      render(() => html\`\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`\`;
+      });
     `,
   },
-  /** `render()` bare: the setup ends and the effects still run, but nothing is drawn. */
+  /** A setup returning nothing: it commits, the effects still run, and nothing is drawn. */
   'a component that draws nothing but still has effects': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ n: 0 });
-      useEffect(() => { void state.n; this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
-      render();
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ n: 0 });
+        useEffect(() => { void state.n; this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
+      });
     `,
   },
   'closed shadow root': {
-    body: `init(this, { mode: 'closed' }); render(() => html\`<p>closed</p>\`);`,
+    body: `init({ host: this, shadow: 'closed' }, () => {
+  return () => html\`<p>closed</p>\`;
+});`,
   },
   'a list built from an attribute': {
     attributes: { rows: 'a,b,c' },
     body: `
-      init(this, { mode: 'open' });
-      const rows = this.getAttribute('rows').split(',');
-      render(() => html\`<ul>\${rows.map((row) => html\`<li>\${row}</li>\`)}</ul>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const rows = this.getAttribute('rows').split(',');
+        return () => html\`<ul>\${rows.map((row) => html\`<li>\${row}</li>\`)}</ul>\`;
+      });
     `,
   },
   'a form control bound from state': {
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ text: 'v' });
-      render(() => html\`<input .value=\${state.text} ?disabled=\${false} />\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<input .value=\${state.text} ?disabled=\${false} />\`;
+      });
       state.text = 'changed';
     `,
   },
@@ -353,10 +402,11 @@ const CASES = {
    */
   'renders are coalesced the same way': {
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ n: 0 });
-      let renders = 0;
-      render(() => { renders++; return html\`<p>renders=\${renders} n=\${state.n}</p>\`; });
+      init({ host: this, shadow: 'open' }, () => {
+        let renders = 0;
+        return () => { renders++; return html\`<p>renders=\${renders} n=\${state.n}</p>\`; };
+      });
       state.n = 1;
       state.n = 2;
     `,
@@ -367,30 +417,33 @@ const CASES = {
    */
   'a frame scheduled during connectedCallback runs after it': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ when: 'not run' });
-      const root = this.shadowRoot ?? this._$r$;
-      requestAnimationFrame(() => { state.when = root.innerHTML.includes('<p>') ? 'after the render' : 'before it'; });
-      render(() => html\`<p>\${state.when}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ when: 'not run' });
+        const root = this.shadowRoot ?? this._$r$;
+        requestAnimationFrame(() => { state.when = root.innerHTML.includes('<p>') ? 'after the render' : 'before it'; });
+        return () => html\`<p>\${state.when}</p>\`;
+      });
     `,
   },
   /** A frame scheduled from inside a frame is the next frame — it runs, on both sides. */
   'a frame scheduled from inside a frame': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ depth: 0 });
-      requestAnimationFrame(() => { state.depth = 1; requestAnimationFrame(() => { state.depth = 2; }); });
-      render(() => html\`<p>depth=\${state.depth}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ depth: 0 });
+        requestAnimationFrame(() => { state.depth = 1; requestAnimationFrame(() => { state.depth = 2; }); });
+        return () => html\`<p>depth=\${state.depth}</p>\`;
+      });
     `,
   },
   /** A browser runs each frame callback independently; one throwing must not skip the next. */
   'a throwing frame does not take the next one down': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ ran: 'no' });
-      requestAnimationFrame(() => { throw new Error('ignored by this case'); });
-      requestAnimationFrame(() => { state.ran = 'yes'; });
-      render(() => html\`<p>ran=\${state.ran}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ ran: 'no' });
+        requestAnimationFrame(() => { throw new Error('ignored by this case'); });
+        requestAnimationFrame(() => { state.ran = 'yes'; });
+        return () => html\`<p>ran=\${state.ran}</p>\`;
+      });
     `,
     /** The server collects the throw and fails the render; the client only reports it. */
     serverThrows: /ignored by this case/,
@@ -398,103 +451,114 @@ const CASES = {
   /** cancelAnimationFrame is honored, not ignored. */
   'a canceled frame does not run': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ ran: 'no' });
-      const id = requestAnimationFrame(() => { state.ran = 'yes'; });
-      cancelAnimationFrame(id);
-      render(() => html\`<p>ran=\${state.ran}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ ran: 'no' });
+        const id = requestAnimationFrame(() => { state.ran = 'yes'; });
+        cancelAnimationFrame(id);
+        return () => html\`<p>ran=\${state.ran}</p>\`;
+      });
     `,
   },
   /** A component that listens to itself is ordinary; on the server the listener was a no-op. */
   'the component listens to its own event': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ heard: 'no' });
-      this.addEventListener('ping', (event) => { state.heard = event.detail; });
-      render(() => html\`<p>heard=\${state.heard}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ heard: 'no' });
+        this.addEventListener('ping', (event) => { state.heard = event.detail; });
+        return () => html\`<p>heard=\${state.heard}</p>\`;
+      });
       this.dispatchEvent(new CustomEvent('ping', { detail: 'yes' }));
     `,
   },
   'a removed listener stops hearing': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ count: 0 });
-      const onPing = () => { state.count++; };
-      this.addEventListener('ping', onPing);
-      this.dispatchEvent(new CustomEvent('ping'));
-      this.removeEventListener('ping', onPing);
-      this.dispatchEvent(new CustomEvent('ping'));
-      render(() => html\`<p>count=\${state.count}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ count: 0 });
+        const onPing = () => { state.count++; };
+        this.addEventListener('ping', onPing);
+        this.dispatchEvent(new CustomEvent('ping'));
+        this.removeEventListener('ping', onPing);
+        this.dispatchEvent(new CustomEvent('ping'));
+        return () => html\`<p>count=\${state.count}</p>\`;
+      });
     `,
   },
   'preventDefault reaches the dispatcher': {
     body: `
-      init(this, { mode: 'open' });
-      this.addEventListener('ping', (event) => event.preventDefault());
-      const delivered = this.dispatchEvent(new CustomEvent('ping', { cancelable: true }));
-      render(() => html\`<p>delivered=\${delivered}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        this.addEventListener('ping', (event) => event.preventDefault());
+        const delivered = this.dispatchEvent(new CustomEvent('ping', { cancelable: true }));
+        return () => html\`<p>delivered=\${delivered}</p>\`;
+      });
     `,
   },
   'the host reads its own light-DOM children': {
     children: '<span>kid</span>',
     body: `
       const kids = this.innerHTML;
-      init(this, { mode: 'open' });
-      render(() => html\`<p>[\${kids}]</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<p>[\${kids}]</p>\`;
+      });
     `,
   },
   /** Loosely coupled components talk through `window` and `document`; both were no-ops. */
   'a window event the component dispatches itself': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ heard: 'no' });
-      window.addEventListener('app:ping', (event) => { state.heard = event.detail; });
-      render(() => html\`<p>window=\${state.heard}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ heard: 'no' });
+        window.addEventListener('app:ping', (event) => { state.heard = event.detail; });
+        return () => html\`<p>window=\${state.heard}</p>\`;
+      });
       window.dispatchEvent(new CustomEvent('app:ping', { detail: 'yes' }));
     `,
   },
   'a document event the component dispatches itself': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ heard: 'no' });
-      document.addEventListener('app:ping', (event) => { state.heard = event.detail; });
-      render(() => html\`<p>document=\${state.heard}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ heard: 'no' });
+        document.addEventListener('app:ping', (event) => { state.heard = event.detail; });
+        return () => html\`<p>document=\${state.heard}</p>\`;
+      });
       document.dispatchEvent(new CustomEvent('app:ping', { detail: 'yes' }));
     `,
   },
   'a once listener fires once': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ count: 0 });
-      this.addEventListener('ping', () => { state.count++; }, { once: true });
-      this.dispatchEvent(new CustomEvent('ping'));
-      this.dispatchEvent(new CustomEvent('ping'));
-      render(() => html\`<p>count=\${state.count}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ count: 0 });
+        this.addEventListener('ping', () => { state.count++; }, { once: true });
+        this.dispatchEvent(new CustomEvent('ping'));
+        this.dispatchEvent(new CustomEvent('ping'));
+        return () => html\`<p>count=\${state.count}</p>\`;
+      });
     `,
   },
   'a handleEvent object is a listener': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ heard: 'no' });
-      this.addEventListener('ping', { handleEvent: () => { state.heard = 'yes'; } });
-      this.dispatchEvent(new CustomEvent('ping'));
-      render(() => html\`<p>object=\${state.heard}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ heard: 'no' });
+        this.addEventListener('ping', { handleEvent: () => { state.heard = 'yes'; } });
+        this.dispatchEvent(new CustomEvent('ping'));
+        return () => html\`<p>object=\${state.heard}</p>\`;
+      });
     `,
   },
   'the listener sees the target': {
     body: `
-      init(this, { mode: 'open' });
-      const state = createStore({ target: 'none' });
-      this.addEventListener('ping', (event) => { state.target = event.target === this ? 'self' : 'other'; });
-      this.dispatchEvent(new CustomEvent('ping'));
-      render(() => html\`<p>target=\${state.target}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ target: 'none' });
+        this.addEventListener('ping', (event) => { state.target = event.target === this ? 'self' : 'other'; });
+        this.dispatchEvent(new CustomEvent('ping'));
+        return () => html\`<p>target=\${state.target}</p>\`;
+      });
     `,
   },
-  'render() called bare, then again with a template': {
+  'two writes after the first render settle to the last': {
     body: `
-      init(this, { mode: 'open' });
       const state = createStore({ n: 1 });
-      render(() => html\`<p>\${state.n}</p>\`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html\`<p>\${state.n}</p>\`;
+      });
       state.n = 2;
       state.n = 3;
     `,
@@ -517,11 +581,12 @@ const KNOWN_DIVERGENCES = {
  */
 KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
   body: `
-    init(this, { mode: 'open' });
-    const state = createStore({ frames: 0 });
-    const loop = () => { state.frames++; if (state.frames < 25) requestAnimationFrame(loop); };
-    requestAnimationFrame(loop);
-    render(() => html\`<p>bounded=\${state.frames > 0 && state.frames < 25}</p>\`);
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ frames: 0 });
+      const loop = () => { state.frames++; if (state.frames < 25) requestAnimationFrame(loop); };
+      requestAnimationFrame(loop);
+      return () => html\`<p>bounded=\${state.frames > 0 && state.frames < 25}</p>\`;
+    });
   `,
   server: '<p >bounded=true</p>',
   client: '<p >bounded=true</p>',
@@ -535,10 +600,11 @@ KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
  */
 CASES['useLayoutEffect reaches the markup on the server, as on the client'] = {
   body: `
-    init(this, { mode: 'open' });
     const state = createStore({ label: 'start' });
-    useLayoutEffect(() => { if (state.label === 'start') state.label = 'layout-ran'; });
-    render(() => html\`<p>\${state.label}</p>\`);
+    init({ host: this, shadow: 'open' }, () => {
+      useLayoutEffect(() => { if (state.label === 'start') state.label = 'layout-ran'; });
+      return () => html\`<p>\${state.label}</p>\`;
+    });
     state.label = 'start';
   `,
 };
