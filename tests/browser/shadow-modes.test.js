@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html} from '../../packages/core/dist/development/vera.js';
+import { wire, init, html} from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
@@ -35,10 +35,11 @@ for (const { name, props, reachable } of MODES) {
     class extends HTMLElement {
       static styles = `.marker { color: rgb(1, 2, 3) }`;
       connectedCallback() {
-        init(this, props);
-        /** The element's own view of its root, which is the only handle a closed mode has. */
-        root = this._$r$ ?? this.shadowRoot;
-        render(() => html`<p class="marker">content</p>`);
+        init({ host: this, shadow: props ?? false }, () => {
+          /** The element's own view of its root, which is the only handle a closed mode has. */
+          root = this._$r$ ?? this.shadowRoot;
+          return () => html`<p class="marker">content</p>`;
+        });
       }
     }
   );
@@ -76,8 +77,9 @@ it('light DOM (no shadow props) still renders into the element', async () => {
     'shadow-none-el',
     class extends HTMLElement {
       connectedCallback() {
-        init(this);
-        render(() => html`<p>light</p>`);
+        init(this, () => {
+          return () => html`<p>light</p>`;
+        });
       }
     }
   );
@@ -127,8 +129,9 @@ it('a client-created root and a server-rendered one agree on their options', asy
     'options-parity-el',
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open', delegatesFocus: true, clonable: true, serializable: true });
-        render(() => html`<input />`);
+        init({ host: this, shadow: { mode: 'open', delegatesFocus: true, clonable: true, serializable: true } }, () => {
+          return () => html`<input />`;
+        });
       }
     }
   );

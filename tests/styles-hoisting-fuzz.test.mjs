@@ -44,7 +44,7 @@ const core = await load('core');
 const { renderer } = await load('renderer');
 const { styles, css } = await load('styles');
 core.wire([renderer, styles]);
-const { init, render, html } = core;
+const { init, html } = core;
 
 const D = dom.window.document;
 const host = D.getElementById('host');
@@ -101,8 +101,9 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
           : class extends dom.window.HTMLElement {
               static styles = css`.${'' + marker} { color: rgb(1, 2, 3); }`;
               connectedCallback() {
-                init(this, shadow ? { mode: 'open' } : undefined);
-                render(() => html`<i>${marker}</i>`);
+                init({ host: this, shadow: shadow ? 'open' : false }, () => {
+                  return () => html`<i>${marker}</i>`;
+                });
               }
             };
 
@@ -171,8 +172,9 @@ test('a light host is told about ::slotted(), and NOT about :host', { skip: isPr
       class extends dom.window.HTMLElement {
         static styles = css`:host { color: red } ::slotted(b) { color: blue } p { color: green }`;
         connectedCallback() {
-          core.init(this); // LIGHT
-          core.render(() => core.html`<p>own</p>`);
+          core.init(this, () => {
+            return () => core.html`<p>own</p>`;
+          });
         }
       }
     );
@@ -221,8 +223,9 @@ test('a stylesheet that only mentions ::slotted() in prose is not warned about',
           .badge::after { content: '::slotted(x)' }
         `;
         connectedCallback() {
-          core.init(this); // LIGHT
-          core.render(() => core.html`<p>own</p>`);
+          core.init(this, () => {
+            return () => core.html`<p>own</p>`;
+          });
         }
       }
     );
@@ -256,8 +259,9 @@ test('the light-DOM rewrite translates selectors and leaves values alone', async
           i { background: url(/x/:host.png) }
         `;
         connectedCallback() {
-          core.init(this); // LIGHT
-          core.render(() => core.html`<p>own</p>`);
+          core.init(this, () => {
+            return () => core.html`<p>own</p>`;
+          });
         }
       }
     );

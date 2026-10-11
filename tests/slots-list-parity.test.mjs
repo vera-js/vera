@@ -33,7 +33,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 for (const key of ['window','document','HTMLElement','customElements','CSSStyleSheet','Node','Element','DocumentFragment','Text','Comment','requestAnimationFrame','cancelAnimationFrame','Event','CustomEvent','MutationObserver','NodeFilter'])
   globalThis[key] = dom.window[key];
 
-const { init, html, render, wire } = await load('core');
+const { init, html, wire } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { slots, slotted } = await load('renderer/slots');
@@ -48,8 +48,9 @@ for (const [tag, mode] of [['p-light', undefined], ['p-shadow', { mode: 'open' }
     tag,
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this, mode);
-        render(() => html`<div class="box"><slot name="a">EMPTY</slot></div>`);
+        init({ host: this, shadow: mode ?? false }, () => {
+          return () => html`<div class="box"><slot name="a">EMPTY</slot></div>`;
+        });
       }
     }
   );
@@ -130,8 +131,9 @@ test('one keyed list feeding two different slots orders each of them independent
     'p-two',
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this); // LIGHT
-        render(() => html`<p class="A"><slot name="a">-</slot></p><q class="B"><slot name="b">-</slot></q>`);
+        init(this, () => {
+          return () => html`<p class="A"><slot name="a">-</slot></p><q class="B"><slot name="b">-</slot></q>`;
+        });
       }
     }
   );

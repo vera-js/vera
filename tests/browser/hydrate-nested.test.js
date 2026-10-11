@@ -8,7 +8,7 @@
  * if that handle is wrong, a closed component hydrates into nothing and says so nowhere.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 
@@ -20,10 +20,11 @@ const define = (tag, options, template) =>
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        init(this, options);
-        const state = createStore({ n: 0 });
-        this.state = state;
-        render(() => template(state, this));
+        init({ host: this, shadow: options ?? false }, () => {
+          const state = createStore({ n: 0 });
+          this.state = state;
+          return () => template(state, this);
+        });
       }
     }
   );

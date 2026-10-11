@@ -13,7 +13,7 @@
  * is usually right and the ordering is where a framework built on lifecycle callbacks breaks.
  */
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 
 wire({ on: 'render', fn: renderInto, priority: 50 });
@@ -36,12 +36,13 @@ const defineLogging = (tag, log, options = { mode: 'open' }) => {
       }
       connectedCallback() {
         log.push('connected');
-        init(this, options);
-        const state = createStore({ n: 0 });
-        this.bump = () => state.n++;
-        render(() => {
-          log.push(`render ${state.n}`);
-          return html`<i>${this.getAttribute('label') ?? 'none'}:${state.n}</i>`;
+        init({ host: this, shadow: options ?? false }, () => {
+          const state = createStore({ n: 0 });
+          this.bump = () => state.n++;
+          return () => {
+            log.push(`render ${state.n}`);
+            return html`<i>${this.getAttribute('label') ?? 'none'}:${state.n}</i>`;
+          };
         });
       }
       disconnectedCallback() {
@@ -133,8 +134,9 @@ it('a nested tree upgrades outermost first', async () => {
       class extends HTMLElement {
         connectedCallback() {
           order.push('inner');
-          init(this, { mode: 'open' });
-          render(() => html`<i>in</i>`);
+          init({ host: this, shadow: 'open' }, () => {
+            return () => html`<i>in</i>`;
+          });
         }
       }
     );
@@ -145,8 +147,9 @@ it('a nested tree upgrades outermost first', async () => {
           order.push('outer');
           /** What a parent sees of its child at setup time. */
           order.push(`child upgraded: ${host.querySelector(inner) instanceof customElements.get(inner)}`);
-          init(this);
-          render(() => html`<slot></slot>`);
+          init(this, () => {
+            return () => html`<slot></slot>`;
+          });
         }
       }
     );

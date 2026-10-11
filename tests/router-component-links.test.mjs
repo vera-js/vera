@@ -33,7 +33,7 @@ globalThis.requestAnimationFrame = (fn) => setTimeout(() => fn(0), 0);
 globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
 dom.window.scrollTo = () => {};
 
-const { wire, html, init, render } = await load('core');
+const { wire, html, init } = await load('core');
 const { renderer } = await load('renderer');
 const { initRouter, navigate, router: routerModule } = await load('router');
 /** The ROUTER module too, not just the renderer — it registers how a route's result is rendered. */
@@ -52,8 +52,9 @@ for (const [tag, options] of [
     tag,
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        init(this, options);
-        render(() => html`<nav><a route href="/other">go</a></nav>`);
+        init({ host: this, shadow: options ?? false }, () => {
+          return () => html`<nav><a route href="/other">go</a></nav>`;
+        });
       }
     }
   );

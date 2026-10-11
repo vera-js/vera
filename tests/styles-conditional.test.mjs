@@ -26,7 +26,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { init, render, html, wire } = core;
+const { init, html, wire } = core;
 const { styles, applyStyles, css } = await load('styles');
 const { renderer } = await load('renderer');
 wire([renderer, styles]);
@@ -44,8 +44,9 @@ const mountWith = async (value, { shadow = true } = {}) => {
   const tag = `x-cond-${seq++}`;
   const Component = class extends HTMLElement {
     connectedCallback() {
-      init(this, shadow ? { mode: 'open' } : undefined);
-      render(() => html`<i>x</i>`);
+      init({ host: this, shadow: shadow ? 'open' : false }, () => {
+        return () => html`<i>x</i>`;
+      });
     }
   };
   Component.styles = value;

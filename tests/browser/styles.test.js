@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles, applyStyles, css } from '../../packages/styles/dist/development/vera-styles.js';
 
@@ -21,9 +21,10 @@ const define = (body, options) => {
   customElements.define(tag, class extends HTMLElement {
     static styles = options;
     connectedCallback() {
-      init(this, body.shadow === false ? undefined : { mode: 'open' });
-      const state = createStore({ n: 0 });
-      render(() => body.template(state));
+      init({ host: this, shadow: (body.shadow === false ? undefined : { mode: 'open' }) ?? false }, () => {
+        const state = createStore({ n: 0 });
+        return () => body.template(state);
+      });
     }
   });
   const el = document.createElement(tag);
