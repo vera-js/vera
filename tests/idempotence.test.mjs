@@ -43,11 +43,11 @@ const element = () => dom.window.document.createElement('div');
 
 test('init twice attaches one shadow root', () => {
   const host = element();
-  core.init(host, { mode: 'open' });
+  core.init({ host: host, shadow: 'open' });
   assert.ok(host.shadowRoot, 'the first init attached one');
   const first = host.shadowRoot;
 
-  core.init(host, { mode: 'open' });
+  core.init({ host: host, shadow: 'open' });
   assert.equal(host.shadowRoot, first, 'the second init did not attach another');
 });
 

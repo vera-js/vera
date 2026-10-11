@@ -22,9 +22,11 @@ class MainElement extends HTMLElement {
   connectedCallback() {
     init(this, () => {
       useEffect(() => {});
+
       const template = () => {
         return html`<parent-element><div>HI FRIENDS!!</div></parent-element>`;
       };
+
       const view = template;
       return typeof view === 'function' ? view : () => view;
     });

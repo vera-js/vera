@@ -47,7 +47,7 @@ export const resetIds = () => { nextId = 1; };
  * renderer is an insert at priority 50, and registering at a taken priority replaces, which is
  * exactly what the old call did.
  */
-import { init, ref, shallowRef, render as veraRender, setRenderScheduler, microtask, wire } from '@verajs/core';
+import { init, ref, shallowRef, setRenderScheduler, microtask, wire } from '@verajs/core';
 import { html as litHtml, render as litRender, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 
@@ -78,12 +78,12 @@ const veraImpl = (mount) => {
   const rows = shallowRef([]);
   const selected = ref(-1);
 
-  init(host);
-  veraRender(() => {
-    const list = rows.value;
-    /** Read once, not once per row — the others close over a local too. */
-    const sel = selected.value;
-    return litHtml`<table><tbody>
+  init(host, () => {
+    return () => {
+      const list = rows.value;
+      /** Read once, not once per row — the others close over a local too. */
+      const sel = selected.value;
+      return litHtml`<table><tbody>
       ${repeat(
         list,
         (r) => r.id,
@@ -92,6 +92,7 @@ const veraImpl = (mount) => {
         </tr>`
       )}
     </tbody></table>`;
+    };
   });
 
   return {
@@ -301,16 +302,17 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
   const rows = shallowRef([]);
   const selected = ref(-1);
 
-  init(host);
-  veraRender(() => {
-    const list = rows.value;
-    const sel = selected.value;
-    return rawHtml`<table><tbody>${list.map((r) =>
+  init(host, () => {
+    return () => {
+      const list = rows.value;
+      const sel = selected.value;
+      return rawHtml`<table><tbody>${list.map((r) =>
       keyed(
         r.id,
         rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`
       )
     )}</tbody></table>`;
+    };
   });
 
   return {

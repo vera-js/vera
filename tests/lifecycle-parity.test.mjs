@@ -610,7 +610,7 @@ CASES['useLayoutEffect reaches the markup on the server, as on the client'] = {
 };
 
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
-const IMPORTS = `import { init, render, html, createStore, useEffect, useLayoutEffect } from '@verajs/core';`;
+const IMPORTS = `import { init, html, createStore, useEffect, useLayoutEffect } from '@verajs/core';`;
 const source = (name, spec) => `${IMPORTS}
 ${spec.defines ?? ''}
 class C extends HTMLElement {

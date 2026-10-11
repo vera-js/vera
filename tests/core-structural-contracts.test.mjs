@@ -27,7 +27,7 @@ const { init } = await load('core');
 
 test('a component element carries _root and _cleanups under their unmangled names', async () => {
   customElements.define('x-contract', class extends dom.window.HTMLElement {
-    connectedCallback() { init(this, { mode: 'open' }); }
+    connectedCallback() { init({ host: this, shadow: 'open' }); }
   });
   const element = dom.window.document.createElement('x-contract');
   dom.window.document.body.append(element);

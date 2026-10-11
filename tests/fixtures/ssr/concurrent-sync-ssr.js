@@ -15,10 +15,12 @@ export default class ConcurrentProbeSync extends HTMLElement {
     init({ host: this, shadow: 'open' }, () => {
       const marker = this.getAttribute('marker') ?? 'none';
       const depth = Number(this.getAttribute('depth') ?? '1');
+
       /** No suspension: this one is for the synchronous entry point, which refuses an async callback. */
 
 
       const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
+
       return () => html`
         <section data-marker=${state.marker}>
           <h1>${state.marker}</h1>

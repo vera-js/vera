@@ -393,11 +393,12 @@ const define = (setup) => {
   let effects = 0;
   let effectsWithoutSecondInit = 0;
   try {
+    /** The one form's only way to call it twice in one setup: `init` on the host from inside its own setup. */
     const lossy = define((element) => {
-      core.init(element, { mode: 'open' });
-      core.useEffect(() => { effects++; });
       core.init({ host: element, shadow: 'open' }, () => {
-        return () => core.html`<p>x</p>`;
+        core.useEffect(() => { effects++; });
+        core.init({ host: element, shadow: 'open' }, () => () => core.html`<p>x</p>`);
+        return () => core.html`<p>outer</p>`;
       });
     });
     const control = define((element) => {

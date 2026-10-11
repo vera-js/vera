@@ -11,10 +11,13 @@ import { initRouter } from '@verajs/router';
 class DemoApp extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
+
       const state = createStore({ name: 'world', showCounter: false });
+
       useEffect(() => {
         console.log('name changed:', state.name);
       });
+
       useEffect(() => {
         const router = initRouter(this, { view: 'main' });
 
@@ -37,12 +40,15 @@ class DemoApp extends HTMLElement {
           },
         ]);
       });
+
       const onName = (e) => {
         state.name = e.target.value;
       };
+
       const toggleCounter = () => {
         state.showCounter = !state.showCounter;
       };
+
       return () => {
         const { name, showCounter } = state;
 

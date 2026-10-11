@@ -16,12 +16,6 @@
       "fix": "To cancel it, write the effect as a plain function that starts the async work and returns a cleanup that stops it — for a fetch, `const c = new AbortController(); load(c.signal); return () => c.abort();`."
     },
     {
-      "code": "bare-render",
-      "params": [],
-      "message": "render() was called with no template. That works — the setup is committed and the hooks run, exactly as with a template — but mount() is the name for it, and says so at the call site.",
-      "fix": "`import { mount } from '@verajs/core'; mount();`"
-    },
-    {
       "code": "cleanup-threw",
       "params": [],
       "message": "threw (the function a hook returned, not the hook itself); its error is printed beside this line, and the rest of the teardown ran.",
@@ -40,6 +34,12 @@
       ],
       "message": "expected a component element and received {received}.",
       "fix": "Call it in connectedCallback with the component itself — `init(this)`."
+    },
+    {
+      "code": "init-options",
+      "params": [],
+      "message": "its second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`).",
+      "fix": "Options travel with the host: `init({ host: this, shadow: 'open' }, setup)`."
     },
     {
       "code": "init-twice",
@@ -64,8 +64,8 @@
     {
       "code": "no-owner",
       "params": [],
-      "message": "there is no component being set up. Hooks, `render()` and `mount()` belong to a component's setup, which runs synchronously from `init(this)` and ends at the first `await` — so after an `await` in setup, or later in a handler, there is no component to attach them to.",
-      "fix": "Setup ends at the first `render()` — to change what is shown later, write to a store, never render() again. Await BEFORE `init(this)`; or create hooks and call `render()` before the first `await` and write what you await into state; or pass the element explicitly: `useEffect(fn, this)`."
+      "message": "there is no component being set up. Hooks belong to a component's setup — the function `init` calls, synchronously — so after it returns, after an `await` inside it, or later in a handler, there is no component to attach them to.",
+      "fix": "To change what is shown later, write to a store. Await BEFORE `init(...)`, or inside an async setup with its hooks before the first `await`; or pass the element explicitly: `useEffect(fn, this)`."
     },
     {
       "code": "no-renderer",
@@ -110,14 +110,6 @@
       ],
       "message": "its setup returned {kind}, not a render function, so it rendered once and will never update.",
       "fix": "Return a render function — `return () => html`…`;` — the setup runs once, the render on every change."
-    },
-    {
-      "code": "setup-uncommitted",
-      "params": [
-        "hooks"
-      ],
-      "message": "registered {hooks} hook(s) but its setup was never committed, so none of them will ever run.",
-      "fix": "init() opens the setup and one of these closes it: `render(() => html`…`)` for a component with markup, `mount();` for one with none."
     },
     {
       "code": "shadow-option",

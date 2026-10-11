@@ -57,14 +57,18 @@ class GoodbyeComponent extends HTMLElement {
         bigTest: { littleTest: 'LITTLE TEST' },
         ...generateLargeObject(20, 100),
       });
+
       const testMap = createStore(new Map([['hello', 'Little Women']]));
+
       const testRef = ref(0);
+
       useEffect(() => {
         console.log(state.hello);
       });
       useEffect(() => {
         console.log('STATE CHANGED!!!', state.hello.name.last);
       });
+
       // const stateMachine = ref(new Map([['hello', 'goodbye']]));
 
       // useEffect(() => {
@@ -105,6 +109,7 @@ class GoodbyeComponent extends HTMLElement {
           },
         ]);
       });
+
       useEffect((signal) => {
         // const { hello: hello2 } = hello;
         void [state.hello.name.first, state.goodbye, state.color]; // reading them is what subscribes
@@ -122,24 +127,29 @@ class GoodbyeComponent extends HTMLElement {
       useEffect(() => {
         console.log('first run EFFECT');
       });
+
       this.cleanUp = () => {
         console.log('unmounting');
       };
+
       useLayoutEffect(() => {
         console.log('useLayoutEffect *** Global State Hello', globalState.hello);
       });
       useEffect(() => {
         console.log('useEffect *** Global State Hello', globalState.hello);
       });
+
       const inputHelloNameFirst = (e: Event) => {
         globalState.hello = (e.target as HTMLInputElement).value;
       };
       const inputHelloNameLast = (e: Event) => {
         state.hello.name.last = (e.target as HTMLInputElement).value;
       };
+
       const changeColor = () => {
         state.color = 'blue';
       };
+
       function randomString(length = 8) {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         let result = '';
@@ -148,6 +158,7 @@ class GoodbyeComponent extends HTMLElement {
         }
         return result;
       }
+
       const changeStateMachine = () => {
         state.testSet.delete('goodbye');
         state.map.set('hello', randomString());
@@ -155,6 +166,7 @@ class GoodbyeComponent extends HTMLElement {
         state.testObject = 'FKLAKLJSDF';
         // console.log(stateMachine.value);
       };
+
       useEffect(() => {
         discover(this.shadowRoot);
       });

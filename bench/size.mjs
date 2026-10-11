@@ -33,15 +33,16 @@ const LIST_CONTENDERS = [
     name: 'VeraJS + own renderer',
     note: 'core + @verajs/renderer + /keyed',
     code: `
-      import { init, createStore, render, wire, html } from '@verajs/core';
+      import { init, createStore, wire, html } from '@verajs/core';
       import { renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
       wire([renderer]);
       customElements.define('x-list', class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const s = createStore({ rows: [{ id: 1, label: 'a' }] });
-          render(() => html\`<ul>\${s.rows.map((r) => keyed(r.id, html\`<li @click=\${() => (r.label += '!')}>\${r.label}</li>\`))}</ul>\`);
+          init({ host: this, shadow: 'open' }, () => {
+            const s = createStore({ rows: [{ id: 1, label: 'a' }] });
+            return () => html\`<ul>\${s.rows.map((r) => keyed(r.id, html\`<li @click=\${() => (r.label += '!')}>\${r.label}</li>\`))}</ul>\`;
+          });
         }
       });`,
   },
@@ -80,14 +81,15 @@ const VARIANTS = [
     name: 'VeraJS, no reactive state',
     note: 'core + @verajs/renderer, tree-shaken — renders once, updates nothing',
     code: `
-      import { init, render, wire, html } from '@verajs/core';
+      import { init, wire, html } from '@verajs/core';
       import { renderer } from '@verajs/renderer';
       wire([renderer]);
       customElements.define('x-static', class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const items = ['a', 'b', 'c'];
-          render(() => html\`<ul>\${items.map((i) => html\`<li>\${i}</li>\`)}</ul>\`);
+          init({ host: this, shadow: 'open' }, () => {
+            const items = ['a', 'b', 'c'];
+            return () => html\`<ul>\${items.map((i) => html\`<li>\${i}</li>\`)}</ul>\`;
+          });
         }
       });`,
   },
@@ -99,15 +101,16 @@ const CONTENDERS = [
     name: 'VeraJS + own renderer',
     note: 'core + @verajs/renderer',
     code: `
-      import { init, createStore, render, wire, html } from '@verajs/core';
+      import { init, createStore, wire, html } from '@verajs/core';
       import { renderer } from '@verajs/renderer';
       wire([renderer]);
       // core's built-in html tag produces the shape the renderer accepts
       customElements.define('x-app', class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const s = createStore({ n: 0 });
-          render(() => html\`<button @click=\${() => s.n++}>\${s.n}</button>\`);
+          init({ host: this, shadow: 'open' }, () => {
+            const s = createStore({ n: 0 });
+            return () => html\`<button @click=\${() => s.n++}>\${s.n}</button>\`;
+          });
         }
       });`,
   },
@@ -115,14 +118,15 @@ const CONTENDERS = [
     name: 'VeraJS + lit-html',
     note: 'core + lit-html',
     code: `
-      import { init, createStore, render, wire } from '@verajs/core';
+      import { init, createStore, wire } from '@verajs/core';
       import { html, render as litRender } from 'lit-html';
       wire({ on: 'render', fn: litRender, priority: 50 });
       customElements.define('x-app', class extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const s = createStore({ n: 0 });
-          render(() => html\`<button @click=\${() => s.n++}>\${s.n}</button>\`);
+          init({ host: this, shadow: 'open' }, () => {
+            const s = createStore({ n: 0 });
+            return () => html\`<button @click=\${() => s.n++}>\${s.n}</button>\`;
+          });
         }
       });`,
   },

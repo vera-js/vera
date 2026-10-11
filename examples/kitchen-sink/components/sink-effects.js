@@ -24,6 +24,7 @@ export default class SinkEffects extends HTMLElement {
       let mark = { sync: 0, coalesced: 0, layout: 0 };
       this.state = state;
       this.counts = counts;
+
       useLayoutEffect(() => {
         void state.n;
         counts.layout++;
@@ -47,11 +48,13 @@ export default class SinkEffects extends HTMLElement {
         void state.n;
         counts.sync++;
       });
+
       /** Marks the counters before writing, so what the press caused can be reported on its own. */
       this.bump = (times = 1) => {
         mark = { sync: counts.sync, coalesced: counts.coalesced, layout: counts.layout };
         for (let i = 0; i < times; i++) state.n++;
       };
+
       return () => html`<section id="effects">
         <h2>Effects</h2>
         <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>

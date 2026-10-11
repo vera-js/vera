@@ -33,8 +33,6 @@ export { createHook } from './modules/createHook.js';
 export { useHook } from './hooks/coalesce.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
-export { mount } from './modules/mount.js';
-export { render } from './modules/render.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';

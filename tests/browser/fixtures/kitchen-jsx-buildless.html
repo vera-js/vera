@@ -27,7 +27,7 @@
     <jsx-app></jsx-app>
 
     <script type="text/vera-jsx">
-      import { init, createStore, render, wire, html } from '@verajs/core';
+      import { init, createStore, wire, html } from '@verajs/core';
       import { renderInto as renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
 
@@ -38,21 +38,22 @@
 
       class JsxApp extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const state = createStore({ rows: ['a', 'b', 'c'], picked: 'none', n: 0 });
-          this.state = state;
-          this.bump = () => state.n++;
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ rows: ['a', 'b', 'c'], picked: 'none', n: 0 });
+            this.state = state;
+            this.bump = () => state.n++;
 
-          render(() => (
-            <div id="app">
-              <p id="picked">{state.picked}</p>
-              <p id="n">{state.n}</p>
-              <b id="flag" hidden={state.n === 0}>visible once bumped</b>
-              <ul id="rows">
-                {state.rows.map((row) => keyed(row, <Row label={row} onPick={() => (state.picked = row)} />))}
-              </ul>
-            </div>
-          ));
+            return () => (
+              <div id="app">
+                <p id="picked">{state.picked}</p>
+                <p id="n">{state.n}</p>
+                <b id="flag" hidden={state.n === 0}>visible once bumped</b>
+                <ul id="rows">
+                  {state.rows.map((row) => keyed(row, <Row label={row} onPick={() => (state.picked = row)} />))}
+                </ul>
+              </div>
+            );
+          });
           void html;
         }
       }

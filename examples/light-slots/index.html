@@ -182,7 +182,7 @@ wire([renderer, slots, styles]);</pre>
     <p class="note" id="reach"></p>
 
     <script type="module">
-      import { html, init, createStore, render, wire } from '@verajs/core';
+      import { html, init, createStore, wire } from '@verajs/core';
       import { renderer } from '@verajs/renderer';
       import { slots, slotted } from '@verajs/renderer/slots';
       import { css, styles } from '@verajs/styles';
@@ -264,20 +264,19 @@ wire([renderer, slots, styles]);</pre>
            * The mode is the ONLY difference between the two cards. `init(element)` with nothing
            * after it renders into the element itself; a `ShadowRootInit` attaches a root.
            */
-          init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
+          init({ host: this, shadow: (this.hasAttribute('light') ? undefined : { mode: 'open' }) ?? false }, () => {
 
-          const state = createStore({ changes: 0 });
+            const state = createStore({ changes: 0 });
 
-          render(
-            () => html`
+            return () => html`
               <header><slot name="title">Untitled</slot></header>
               <div class="body">
                 <slot @slotchange=${() => state.changes++}>Nothing slotted here.</slot>
               </div>
               <footer><slot name="footer">—</slot></footer>
               <p class="meter">slotchange fired ${state.changes}×</p>
-            `
-          );
+            `;
+          });
         }
       }
       customElements.define('info-card', InfoCard);

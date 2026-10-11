@@ -1,4 +1,4 @@
-import { init, createStore, render, wire } from '@verajs/core';
+import { init, createStore, wire } from '@verajs/core';
 import { renderInto as renderer } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 wire({ on: 'render', fn: renderer, priority: 50 });
@@ -90,6 +90,8 @@ const App = () => (
 );
 
 class TarotApp extends HTMLElement {
-  connectedCallback() { init(this); render(() => <App />); }
+  connectedCallback() { init(this, () => {
+    return () => <App />;
+  }); }
 }
 customElements.define('tarot-app', TarotApp);

@@ -48,6 +48,7 @@ export default class SinkForm extends HTMLElement {
       this.internals = this.attachInternals();
       this.internals.setFormValue(this.getAttribute('value') ?? '');
       this.toggle = () => (state.editing = !state.editing);
+
       return () => html`<section id="form">
         <h2>Forms and held DOM</h2>
         <h3>hold() keeps a toggled-away subtree alive, and attributeChangedCallback is the only reactive-attribute mechanism a custom element has</h3>

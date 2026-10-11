@@ -180,6 +180,7 @@ export default class SinkShell extends HTMLElement {
       requestAnimationFrame(() => {
         state.mode = document.documentElement.dataset.sinkMode ?? 'server-rendered';
       });
+
       /**
        * `handleInitial: false` because the server has no navigation to perform and the client's
        * first route is driven by the test rather than by page load — the routes themselves are the
@@ -188,6 +189,7 @@ export default class SinkShell extends HTMLElement {
       const router = initRouter(this, { view: 'main', handleInitial: false });
       this.router = router;
       this.routeLog = [];
+
       router.addRoutes([
         { path: '/', name: 'home', title: 'Home', component: () => html`<p id="route">home</p>` },
         {
@@ -216,12 +218,14 @@ export default class SinkShell extends HTMLElement {
         },
         { path: '/*rest', name: 'missing', title: '404', component: (params) => html`<p id="route">missing ${params.rest.join('/')}</p>` },
       ]);
+
       router.on('before-route', (to) => {
         this.routeLog.push(`before:${to.path}`);
       });
       router.on('after-route', (to) => {
         this.routeLog.push(`after:${to.path}`);
       });
+
       return () => html`<div id="shell">
         <h1 id="heading">${state.heading}</h1>
         <!--

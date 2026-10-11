@@ -206,7 +206,7 @@ test('a component whose setup throws does not break the next component', async (
   await capture(async () => {
     const tag = `x-fault-bad-${seq++}`;
     customElements.define(tag, class extends HTMLElement {
-      connectedCallback() { init(this, { mode: 'open' }); throw new Error('setup-boom'); }
+      connectedCallback() { init({ host: this, shadow: 'open' }); throw new Error('setup-boom'); }
     });
     host.appendChild(document.createElement(tag));
     await settle();

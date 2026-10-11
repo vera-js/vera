@@ -90,7 +90,7 @@ check('createStore error has a message', msg.includes('object'));
 // ---- styles: shadow string path dedupe + light-DOM hoist ----
 class StyledEl extends window.HTMLElement {
   static styles = 'p { color: red }';
-  connectedCallback() { core.init(this, { mode: 'open' }); }
+  connectedCallback() { core.init({ host: this, shadow: 'open' }); }
 }
 window.customElements.define('styled-el', StyledEl);
 const s = window.document.createElement('styled-el');

@@ -62,10 +62,6 @@ export const PROSE: Record<string, Prose> = {
     'returned a promise — an async callback runs, but it cannot return a cleanup, and what it awaits may arrive after the component re-ran or was removed.',
     'To cancel it, write the effect as a plain function that starts the async work and returns a cleanup that stops it — for a fetch, `const c = new AbortController(); load(c.signal); return () => c.abort();`.',
   ],
-  'setup-uncommitted': (hooks) => [
-    `registered ${hooks} hook(s) but its setup was never committed, so none of them will ever run.`,
-    'init() opens the setup and one of these closes it: `render(() => html`…`)` for a component with markup, `mount();` for one with none.',
-  ],
   'init-twice': (hooks) => [
     `called init() twice in one setup, so the ${hooks} hook(s) registered since the first call were discarded and will never run.`,
     'init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount().',
@@ -81,10 +77,6 @@ export const PROSE: Record<string, Prose> = {
   'render-loop': (frames) => [
     `has re-run for ${frames} consecutive frames because it writes state it also reads — this will keep running for as long as the page is open.`,
     'Guard the write (`if (next !== state.x) state.x = next`), or move it out of the pass. More than one hook may be involved: a template reading what an effect writes is caught here too. If it is deliberate — an animation driven by one store write per frame — silence it with `allowRenderLoop(this)` from @verajs/core, or drive it with `requestAnimationFrame`.',
-  ],
-  'bare-render': () => [
-    'render() was called with no template. That works — the setup is committed and the hooks run, exactly as with a template — but mount() is the name for it, and says so at the call site.',
-    "`import { mount } from '@verajs/core'; mount();`",
   ],
   'unwired-styles': () => [
     'declares `static styles`, but nothing is adopting them, so it renders unstyled.',
@@ -104,11 +96,14 @@ export const PROSE: Record<string, Prose> = {
     'Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces.',
   ],
   'no-owner': () => [
-    `there is no component being set up. Hooks, \`render()\` and \`mount()\` belong to a component's setup, which runs ` +
-      `synchronously from \`init(this)\` and ends at the first \`await\` — so after an \`await\` in setup, or later in ` +
-      `a handler, there is no component to attach them to.`,
-    'Setup ends at the first `render()` — to change what is shown later, write to a store, never render() again. ' +
-      'Await BEFORE `init(this)`; or create hooks and call `render()` before the first `await` and write what you ' +
-      'await into state; or pass the element explicitly: `useEffect(fn, this)`.',
+    `there is no component being set up. Hooks belong to a component's setup — the function \`init\` calls, ` +
+      `synchronously — so after it returns, after an \`await\` inside it, or later in a handler, there is no component ` +
+      `to attach them to.`,
+    'To change what is shown later, write to a store. Await BEFORE `init(...)`, or inside an async setup with its ' +
+      'hooks before the first `await`; or pass the element explicitly: `useEffect(fn, this)`.',
+  ],
+  'init-options': () => [
+    'its second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`).',
+    "Options travel with the host: `init({ host: this, shadow: 'open' }, setup)`.",
   ],
 };

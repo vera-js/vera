@@ -19,7 +19,7 @@ let warnedNoRenderer = false;
  * land before it (`coalesce`). The hook belongs to the component being set up, whose lifecycle drives
  * it; `element` is only where it draws — usually the same element, and deliberately allowed not to be.
  */
-export const useRender = (template: unknown, element: ComponentElement, ...args: unknown[]) =>
+export const useRender = (template: unknown, element: ComponentElement) =>
   coalesce(
     (signal) => {
       const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
@@ -28,11 +28,11 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
       if (!renderers?.length) {
         if (!warnedNoRenderer) {
           warnedNoRenderer = true;
-          console.warn(diagnostic('core', 'render()', 'no-renderer', __DEV__ && PROSE['no-renderer']()));
+          console.warn(diagnostic('core', `<${element.localName}>`, 'no-renderer', __DEV__ && PROSE['no-renderer']()));
         }
         return;
       }
-      renderers.forEach((renderer) => (renderer as Renderer)(result, target, ...args));
+      renderers.forEach((renderer) => (renderer as Renderer)(result, target));
     },
     RENDER_PRIORITY,
     false

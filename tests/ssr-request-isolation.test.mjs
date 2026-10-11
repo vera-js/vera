@@ -595,9 +595,9 @@ for (const [what, file, message] of [
     for (let i = 0; i < paths.length; i++) {
       writeFileSync(
         `${dir}/loc${i}.js`,
-        `import { init, render, html } from '@verajs/core';
+        `import { init, html } from '@verajs/core';
 customElements.define('loc${i}-ssr', class extends HTMLElement {
-  connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>\${globalThis.location.pathname}</p>\`); }
+  connectedCallback() { init({ host: this, shadow: 'open' }, () => () => html\`<p>\${globalThis.location.pathname}</p>\`); }
 });
 export default customElements.get('loc${i}-ssr');
 `

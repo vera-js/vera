@@ -200,7 +200,7 @@ it('a prepended node precedes distributed content — light-tree order on the en
  * for any slot whose root is not a manual-assignment shadow tree, which a detached handle never
  * is. That is the same inertness a named-assignment shadow slot has, so it is parity, not a gap.
  * (`slotAssignment: 'manual'` itself is an `attachShadow` option: a shadow component passes it
- * through `init(this, { mode, slotAssignment })` and native slotting owns it; light has no
+ * through `init({ host: this, shadow: { mode, slotAssignment } }, setup)` and native slotting owns it; light has no
  * counterpart by construction.)
  */
 it('assign() is present and inert on the light handle, as on any named-assignment slot', async () => {

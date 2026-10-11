@@ -18,6 +18,7 @@ export default class SinkList extends HTMLElement {
         { id: 'c', label: 'gamma' },
       ]);
       this.rows = rows;
+
       /** Reverse without subscribing to the read — the write is what re-renders. */
       this.reverse = () => {
         rows.value = [...untrack(() => rows.value)].reverse();
@@ -32,6 +33,7 @@ export default class SinkList extends HTMLElement {
           { id: 'c', label: 'gamma' },
         ];
       };
+
       return () => html`<section id="list">
         <h2>Lists</h2>
         <h3>A keyed list moves the nodes it already has; the unkeyed one below is rebuilt from scratch</h3>

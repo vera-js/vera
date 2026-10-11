@@ -14,7 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { init, createStore, render, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, microtask, setRenderScheduler, svg, mathml, inserts, useRender, mount } from '@verajs/core';
+import { init, createStore, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -79,11 +79,11 @@ class Headless extends HTMLElement {
 customElements.define('x-headless', Headless);
 
 /**
- * The template is required, and this is the check that says so. A bare `render()` is exactly the
- * mistake `mount()` replaces; it still commits at runtime, but a typed caller is told at build time.
+ * The second argument is the SETUP. The old `init(this, { mode })` options object is refused at build time here and
+ * in development at runtime (`init-options`) — options travel with the host, `init({ host, shadow }, setup)`.
  */
-// @ts-expect-error render() needs a template — a component with no markup calls mount()
-render();
+// @ts-expect-error init's second argument is a setup function, not shadow-root options
+init(document.createElement('x-headless'), { mode: 'open' });
 
 const heading = tag`h1`;
 const named = tagHtml`<${heading} class=${jsxName('className')}>x</${heading}>`;

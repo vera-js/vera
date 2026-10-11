@@ -7,24 +7,29 @@ class HelloComponent extends HTMLElement {
     // const container = document.createElement('div');
     init({ host: this, shadow: 'open' }, () => {
       const state = createStore({ showGoodbye: false });
+
       // const { setGoodbye, setHello } = globalSetters;
 
       const toggleGoodbye = () => {
         state.showGoodbye = !state.showGoodbye;
       };
+
       // bindStore(globalState, this);
 
       const changeAlert = () => {
         globalState.goodbye = globalState.goodbye === 'success' ? 'danger' : 'success';
       };
+
       useEffect(() => {
         // const { goodbye } = globalState;
         console.log('CALLING THAT ONE FUNCTION');
       });
+
       useEffect(() => {
         discover(this.shadowRoot);
       });
       console.log('RIGHT BEFORE RENDER');
+
       return () => {
         return html`
         <div class="input-grid bg-red font-bold">

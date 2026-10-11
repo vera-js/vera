@@ -19,22 +19,29 @@ class QuantityPicker extends HTMLElement {
 
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
+
       const globalStore = createStore({ name: 'hello' });
+
       const counter = ref(0);
       const name = ref('hello friend');
+
       const incrementCounter = () => {
         console.log('hello');
         counter.value++;
         globalStore.name = 'goodbye';
       };
+
       const checked = ref(true);
+
       const setChecked = () => {
         checked.value = !checked.value;
       };
+
       const changeName = (e: Event) => {
         console.log(e);
         name.value = (e.target as HTMLInputElement).value;
       };
+
       return () => html`<div>
         <h2>here is some content</h2>
         <p>${counter.value}</p>

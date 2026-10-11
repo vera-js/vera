@@ -9,6 +9,7 @@ export default class HelloSsr extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
       const state = createStore({ greeting: 'hello from the server', count: 3 });
+
       return () => html`
         <section class="wrap">
           <h1>${state.greeting}</h1>

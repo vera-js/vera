@@ -22,8 +22,6 @@ const { init, html, createStore, useEffect, flush, wire, inserts } = core;
 const doc = dom.window.document;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let seq = 0;
-/** R2 removes the old `init(host, shadowProps)` window; until then its refusal is pending. */
-const R2 = { todo: 'R2: the old init(this, { mode }) form is refused once every call site is migrated' };
 const name = () => `x-setup-${seq++}`;
 
 /** Every console line while `run` runs. */
@@ -291,11 +289,17 @@ test('a rejected async setup is reported ONCE through the error chain — never 
   assert.equal(ran, 0, 'nothing it registered ran');
 });
 
-test('the old init(this, { mode }) is refused in development with the new spelling', R2, async () => {
-  const said = await listen(async () => {
-    await mount(component((host) => { try { init(host, { mode: 'open' }); } catch (error) { console.error(error.message); } }));
-  });
-  if (!isProduction) assert.ok(said.some((line) => line.includes('init-options')), `named: ${said.join(' | ')}`);
+test('the old init(this, { mode }) is refused in development with the new spelling; production sets up without a root', async () => {
+  let thrown;
+  const el = await mount(component((host) => { try { init(host, { mode: 'open' }); } catch (error) { thrown = error; } }));
+  if (isProduction) {
+    assert.equal(thrown, undefined, 'production: a setup-less init');
+    assert.equal(el.shadowRoot, null, 'and the object is not read as shadow options');
+  } else {
+    assert.ok(thrown instanceof TypeError, `refused: ${thrown}`);
+    assert.match(thrown.message, /init-options/);
+    assert.match(thrown.message, /init\(\{ host: this, shadow: 'open' \}, setup\)/, 'and names the new spelling');
+  }
 });
 
 test('a near-miss setup spelling is named once; a setup-less init and the consumer shape stay silent', async () => {

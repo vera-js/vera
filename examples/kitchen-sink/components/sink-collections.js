@@ -24,6 +24,7 @@ export default class SinkCollections extends HTMLElement {
       });
       this.state = state;
       this.weakKey = WEAK_KEY;
+
       /** Named so a reader can drive them from the page and a test can drive them directly. */
       let added = 0;
       this.addUser = () => state.users.set(`u${state.users.size + 1}-${added}`, `Person ${++added}`);
@@ -33,6 +34,7 @@ export default class SinkCollections extends HTMLElement {
         state.users.clear();
         state.tags.clear();
       };
+
       return () => html`<section id="collections">
         <h2>Collections</h2>
         <h3>Map, Set, WeakMap and WeakSet are reactive per key, with no module to install and nothing to wire</h3>

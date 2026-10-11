@@ -2,7 +2,7 @@
  * What a shadow root does to ARIA — the constraint a component framework that defaults to shadow DOM
  * owes its users an answer about.
  *
- * `docs/CODE-PRINCIPLES.md` says accessibility is not a follow-up, and `init(this, { mode: 'open' })`
+ * `docs/CODE-PRINCIPLES.md` says accessibility is not a follow-up, and `init({ host: this, shadow: 'open' }, setup)`
  * is the documented way to write a component. Every ID-based ARIA relationship — `aria-labelledby`,
  * `aria-describedby`, `<label for>` — resolves **within a single tree**, so a shadow boundary breaks
  * it silently: no error, no warning, and an element that simply has no accessible name.

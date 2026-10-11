@@ -2,8 +2,8 @@
  * A component element, carrying what `init` and the hooks attach to it.
  *
  * **Every field core keeps on an element is SIGILED** (O4, 2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$p$` their
- * priorities, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup (and
- * `_$k$`, committed, in development). The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
+ * priorities, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$u$` the
+ * subscription chain, `_$o$` its non-element owners. The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
  * letters production mangled the rest to, collided with a base class's own fields — and core reads them back, so a base
  * class's `_root` crashed the render. No mangling regex matches a sigil, so the names are also the cross-package
  * contract (styles, ui, hooks and directives read them) in every build. Short on purpose: each is written at every

@@ -25,7 +25,7 @@ const LIMITATIONS = [
     'ARIA does not cross a shadow boundary',
     'packages/core/README.md',
     'ARIA and the shadow boundary',
-    'init(this, { mode: "open" }) is the documented way to write a component, so we steer people into it',
+    'init({ host: this, shadow: "open" }, setup) is the documented way to write a component, so we steer people into it',
   ],
   [
     'and the same, for the AI-facing spec',

@@ -23,6 +23,7 @@ customElements.define(
     connectedCallback() {
       init({ host: this, shadow: 'open' }, () => {
         const state = createStore({ posts: [], terms: [], open: null, article: '' });
+
         reader.entries('posts', { sort: 'date:desc' }).then((posts) => {
           state.posts = posts;
         });
@@ -30,15 +31,18 @@ customElements.define(
         reader.terms('tags').then((terms) => {
           state.terms = terms.filter((term) => term.count > 0);
         });
+
         const open = async (post) => {
           state.open = post;
           const source = await fetch(`./content/posts/${post.slug}.md`).then((response) => response.text());
           state.article = serializeHtml(parseContent(source).root);
         };
+
         const close = () => {
           state.open = null;
           state.article = '';
         };
+
         return () => html`
           <header>
             <h1>A flat-file site</h1>

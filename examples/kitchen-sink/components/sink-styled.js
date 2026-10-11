@@ -31,6 +31,7 @@ export default class SinkStyled extends HTMLElement {
       const state = createStore({ accent: 'teal' });
       this.state = state;
       let tint = 0;
+
       return () => html`<div id="styled" style="--sink-accent: ${state.accent}">
         <h2>Styles, in a shadow root</h2>
         <h3>A constructed stylesheet adopted once per element and shared by every instance of the class</h3>

@@ -38,7 +38,7 @@ test('css interpolates an empty string as nothing', () => {
 test('a hook at priority 0 registers and runs', async () => {
   const el = document.createElement('div');
   document.body.append(el);
-  core.init(el, { mode: 'open' });
+  core.init({ host: el, shadow: 'open' });
   const state = core.createStore({ n: 0 });
   const order = [];
   core.createHook({ element: el, priority: 0, callback: () => order.push(`zero:${state.n}`) });
@@ -60,7 +60,7 @@ test('a hook at priority 0 registers and runs', async () => {
 test('a hook with a non-finite priority is refused', () => {
   const el = document.createElement('div');
   document.body.append(el);
-  core.init(el, { mode: 'open' });
+  core.init({ host: el, shadow: 'open' });
   assert.equal(core.createHook({ element: el, priority: NaN, callback: () => {} }), undefined);
 });
 
@@ -75,7 +75,7 @@ test('a hook with a non-finite priority is refused', () => {
 test('defineProperty inside a setter still notifies', async () => {
   const el = document.createElement('div');
   document.body.append(el);
-  core.init(el, { mode: 'open' });
+  core.init({ host: el, shadow: 'open' });
 
   const other = core.createStore({ shadow: 0 });
   const state = core.createStore({
@@ -99,7 +99,7 @@ test('defineProperty inside a setter still notifies', async () => {
 test('an ordinary assignment notifies exactly once', async () => {
   const el = document.createElement('div');
   document.body.append(el);
-  core.init(el, { mode: 'open' });
+  core.init({ host: el, shadow: 'open' });
   const state = core.createStore({ n: 0 });
   let runs = 0;
   core.createHook({
@@ -128,7 +128,7 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
   const { isProduction } = await import('./dist.mjs');
   const el = document.createElement('div');
   document.body.append(el);
-  core.init(el, { mode: 'open' });
+  core.init({ host: el, shadow: 'open' });
   const state = core.createStore({ n: 0 });
 
   const errors = [];
@@ -206,7 +206,7 @@ test('a store frozen through the store hands its object values back raw afterwar
 test('a sealed store still notifies on a write to an existing key', async () => {
   const el = document.createElement('div');
   document.body.append(el);
-  core.init(el, { mode: 'open' });
+  core.init({ host: el, shadow: 'open' });
   const state = core.createStore(Object.seal({ n: 0 }));
   const seen = [];
   core.createHook({ element: el, priority: 50, callback: () => seen.push(state.n) });

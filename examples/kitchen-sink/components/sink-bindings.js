@@ -27,6 +27,7 @@ export default class SinkBindings extends HTMLElement {
       /** An object ref: the renderer assigns `.value`. A function ref is covered below it. */
       const box = ref(null);
       this.box = box;
+
       return () => html`<section id="bindings">
         <h2>Bindings, in full</h2>
         <h3>Every quoting style, spreads, element refs, SVG and MathML — including the shapes JSX cannot express</h3>

@@ -89,7 +89,7 @@ test('these are handed back exactly as they went in', () => {
 test('mutating a Date in place does not notify; replacing it does', async () => {
   const element = document.createElement('div');
   document.body.append(element);
-  core.init(element, { mode: 'open' });
+  core.init({ host: element, shadow: 'open' });
   const state = core.createStore({ when: new Date(0) });
 
   const seen = [];

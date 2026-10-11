@@ -21,7 +21,9 @@ export default class ConcurrentProbe extends HTMLElement {
      */
     await new Promise((resolve) => setTimeout(resolve, depth % 3));
     init({ host: this, shadow: 'open' }, () => {
+
       const state = createStore({ marker, rows: Array.from({ length: depth }, (_, i) => `${marker}-${i}`) });
+
       return () => html`
         <section data-marker=${state.marker}>
           <h1>${state.marker}</h1>

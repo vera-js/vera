@@ -18,6 +18,7 @@ export default class XssSsr extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
       const state = createStore({ ...PAYLOAD });
+
       return () => html`
         <p>${state.text}</p>
         <div title=${state.attribute}>attribute position</div>

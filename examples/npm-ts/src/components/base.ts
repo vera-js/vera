@@ -62,7 +62,9 @@ class Base extends HTMLElement {
           console.log('before route!', params);
         });
       });
+
       const testingState = testingChunks();
+
       useLayoutEffect(() => {
         console.log('TESTING STATE CHUNK GLDKJGLDKGFJKL', testingState, testingState.test);
       });
@@ -71,6 +73,7 @@ class Base extends HTMLElement {
         hermione: { name: { name: 'hermione' } },
         showButton: false,
       });
+
       // bindStore(globalState, app);
       useLayoutEffect(() => {
         console.log('USE LAYOUT EFFECT');
@@ -94,18 +97,23 @@ class Base extends HTMLElement {
           console.log('hermione changed!', name2);
         }
       });
+
       const inputHarry = (e: Event) => {
         state.harry = (e.target as HTMLInputElement).value;
       };
+
       const inputHermione = (e: Event) => {
         state.hermione.name.name = (e.target as HTMLInputElement).value;
       };
+
       const toggleButton = () => {
         state.showButton = !state.showButton;
       };
+
       useEffect(() => {
         discover(this.shadowRoot);
       });
+
       const inputTestingState = (e: Event) => {
         testingState.test = (e.target as HTMLInputElement).value;
       };

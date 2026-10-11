@@ -38,7 +38,7 @@
     <buildless-card><h2 slot="title">Slotted title</h2>body text</buildless-card>
 
     <script type="module">
-      import { inserts, wire, init, render, html, createStore } from '@verajs/core';
+      import { inserts, wire, init, html, createStore } from '@verajs/core';
       import { renderInto as renderFn, renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
       import { spread } from '@verajs/renderer/spread';
@@ -82,23 +82,22 @@
 
         connectedCallback() {
           this.setAttribute('data-autoload', '');
-          init(this, { mode: 'open' });
-          const state = createStore({ rows: ['a', 'b', 'c'], n: 0, title: 'spread title' });
-          this.state = state;
-          this.bump = () => state.n++;
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ rows: ['a', 'b', 'c'], n: 0, title: 'spread title' });
+            this.state = state;
+            this.bump = () => state.n++;
 
-          const router = initRouter(this, { view: 'main', handleInitial: false });
-          this.router = router;
-          /** Exposed so a test drives the page's **own** module instance rather than a second one. */
-          this.navigate = navigate;
-          router.addRoutes([
-            { path: '/', component: () => html`<p id="route">home</p>` },
-            { path: '/user/:id', component: (params) => html`<p id="route">user ${params.id}</p>` },
-            { path: '/*rest', component: () => html`<p id="route">missing</p>` },
-          ]);
+            const router = initRouter(this, { view: 'main', handleInitial: false });
+            this.router = router;
+            /** Exposed so a test drives the page's **own** module instance rather than a second one. */
+            this.navigate = navigate;
+            router.addRoutes([
+              { path: '/', component: () => html`<p id="route">home</p>` },
+              { path: '/user/:id', component: (params) => html`<p id="route">user ${params.id}</p>` },
+              { path: '/*rest', component: () => html`<p id="route">missing</p>` },
+            ]);
 
-          render(
-            () => html`<div id="app">
+            return () => html`<div id="app">
               <nav><a route href="/">Home</a><a route href="/user/42">User</a></nav>
               <main view="main"></main>
               <p id="n">${state.n}</p>
@@ -108,8 +107,8 @@
                 ${state.rows.map((row) => keyed(row, html`<li data-id=${row}>${row}</li>`))}
               </ul>
               <sink-lazy></sink-lazy>
-            </div>`
-          );
+            </div>`;
+          });
         }
       }
       customElements.define('buildless-app', BuildlessApp);
@@ -117,13 +116,12 @@
       /** A LIGHT component distributing its own children, minified, resolved by the import map. */
       class BuildlessCard extends HTMLElement {
         connectedCallback() {
-          init(this); // light DOM — no shadow options
-          render(
-            () => html`<article>
+          init(this, () => {
+            return () => html`<article>
               <header><slot name="title" @slotchange=${() => { this.dataset.slotchanges = String(Number(this.dataset.slotchanges ?? 0) + 1); }}>untitled</slot></header>
               <main><slot>empty</slot></main>
-            </article>`
-          );
+            </article>`;
+          });
           this.readSlotted = (name) => slotted(this, name).map((node) => node.textContent).join('');
         }
       }

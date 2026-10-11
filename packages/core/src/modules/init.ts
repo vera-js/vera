@@ -21,12 +21,6 @@ import type { ComponentElement, InitOptions, Setup } from '../types.js';
  * @param element The element to init
  * @param shadowProps Any desired shadowProps. Passing in null will create a light DOM instance
  */
-/**
- * **Setup ends at the end of the microtask turn `init()` ran in** — ONE shared microtask per turn, armed only when not
- * already armed. A hook created after the first `await` in setup then always finds no component (and throws, naming
- * the fix), whatever connected in between; before, it attached to whichever component was set up last, or was dropped.
- */
-let ending = false;
 
 /**
  * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once (main had
@@ -39,17 +33,6 @@ let warnedAboutClaims = false;
 let warnedAboutStyles = false;
 const claimed = (prefix: string): boolean =>
   ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
-/**
- * Development, a microtask after `init()`: a setup that registered hooks and was never committed — neither `render()`
- * nor `mount()` — runs none of them, silently (main had this; it read the current instance, which the setup-end
- * microtask now clears, so `commit` marks the generation instead). Then the unclaimed-markup check.
- */
-const afterSetup = (element: ComponentElement) => {
-  const hooks = element._$h$?.reduce((n, set) => n + set.size, 0) ?? 0;
-  if (hooks && (element as { _$k$?: number })._$k$ !== element._$g$)
-    console.warn(diagnostic('core', `<${element.localName}>`, 'setup-uncommitted', __DEV__ && PROSE['setup-uncommitted'](String(hooks))));
-  unclaimedMarkup(element);
-};
 const unclaimedMarkup = (element: ComponentElement) => {
   if (warnedAboutClaims || claimed('data-vd-')) return;
   const root = (element.shadowRoot ?? element._$r$ ?? element) as ParentNode;
@@ -79,10 +62,6 @@ const unclaimedMarkup = (element: ComponentElement) => {
     el = next;
   }
 };
-const endSetup = () => {
-  ending = false;
-  currentInstance.element = null;
-};
 
 /** The two shadow roots by name, built once — `init` attaches from these, so no options object is made per connect. */
 const OPEN: ShadowRootInit = { mode: 'open' };
@@ -108,13 +87,13 @@ const callMethod = (element: ComponentElement) => (element as unknown as { setup
  * **Starts a component**: `init(host, setup?)` or `init({ host, …options }, setup?)` — the element, or an object carrying
  * it and its options, and the SETUP always second. The setup runs ONCE, untracked, inside this call — the window is the
  * call, so it ends exactly when the setup returns or throws, and nesting is the JavaScript stack — and returns its RENDER
- * function. With no setup, `init` calls the class's `setup()` method (Shape B). A setup returning nothing is a
- * side-effect setup; a promise, an async one (its synchronous part is the window).
+ * function. With no setup, `init` calls the class's `setup()` method (Shape B); with neither, the element is a
+ * component with nothing to set up — its root, its delivered props, the `'init'` inserts, committed at once. A setup
+ * returning nothing is a side-effect setup; a promise, an async one (its synchronous part is the window).
  *
- * Until R2 migrates every call site, `init(element)` with neither a setup nor a `setup()` method, and the old
- * `init(element, shadowProps)`, keep the earlier window — closed by `render()`/`mount()` or the microtask below.
+ * The legacy window — `init(this)`, hooks, then `render()` or `mount()` to close it — was removed in R2 (2026-10-10).
  */
-export const init = (target: ComponentElement | InitOptions, setup?: Setup | ShadowRootInit) =>
+export const init = (target: ComponentElement | InitOptions, setup?: Setup) =>
   (target as Partial<Node> | null)?.nodeType === 1
     ? initWith(target as ComponentElement, undefined, setup)
     : initWith((target as InitOptions | null)?.host as ComponentElement, target as InitOptions, setup);
@@ -123,9 +102,12 @@ export const init = (target: ComponentElement | InitOptions, setup?: Setup | Sha
  * The one entry `init` and (R3) `define` share: the host and its options SEPARATELY, so `define`'s generated class can
  * hand over one options object per tag and allocate nothing per connect.
  */
-export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | ShadowRootInit | undefined) => {
+export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
+  /** Development: the old `init(this, { mode })` — options travel WITH the host now. Production: a setup-less init. */
+  if (__DEV__ && given != null && typeof given !== 'function')
+    throw new TypeError(misuse('init', 'init-options', __DEV__ && PROSE['init-options']()));
   mine.add(element);
   /**
    * The component's own `shadow` (an explicit `false` included), else the app default `renderer({ shadow })` set on the
@@ -150,17 +132,23 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    */
   const root = shadow === 'open' ? OPEN : shadow === 'closed' ? CLOSED : (shadow as ShadowRootInit | undefined)?.mode ? (shadow as ShadowRootInit) : undefined;
   const setup = typeof given === 'function' ? given : typeof (element as { setup?: unknown }).setup === 'function' ? callMethod : undefined;
-  /** The earlier `init(element, shadowProps)` is explicit, so it wins over the app default. */
-  if (setup === undefined) return legacy(element, (typeof given === 'object' && given) || root);
   /**
    * Development: `init` on a host from inside ITS OWN setup starts a new generation and discards the hooks that setup
    * registered so far — the one form's only window-open second init (a sequential `init(this, s1); init(this, s2)`
    * is the old "render, then init again", which never warned; a reconnect is a legitimate restart). Moved from the
-   * legacy window in R2 (its inventory, #3); below the legacy branch until R2 deletes it, which warns on its own.
+   * legacy window in R2 (its inventory, #3).
    */
   if (__DEV__ && currentInstance.element === element && element._$h$?.length) {
     const count = element._$h$.reduce((n, set) => n + set.size, 0);
     console.warn(diagnostic('core', `<${element.localName}>`, 'init-twice', __DEV__ && PROSE['init-twice'](String(count))));
+  }
+  /** Nothing to set up: the component exists — a root, its props, the `'init'` inserts — and commits at once. */
+  if (setup === undefined) {
+    /** Development: a `setup()` method spelled another way would have been this init's setup (R2 inventory #4). */
+    if (__DEV__) nearMiss(element);
+    start(element, root);
+    settle(element, undefined, element._$g$!);
+    return;
   }
   start(element, root);
   /** The window: this component is the owner while its setup runs — untracked, restored in `finally`, on a throw too. */
@@ -287,27 +275,6 @@ const settle = (element: ComponentElement, out: unknown, generation: number) => 
   }
 };
 
-/** The earlier window (until R2): open until `render()`/`mount()` commits, or the shared microtask closes it. */
-const legacy = (element: ComponentElement, shadowProps: ShadowRootInit | undefined) => {
-  const current = currentInstance.element;
-  currentInstance.element = element;
-  /**
-   * **Development: a second `init()` in one setup discards the hooks registered since the first**, silently — correct
-   * on a reconnect (a fresh generation is what stops effects doubling), a mistake within one setup (main had this).
-   */
-  if (__DEV__ && current === element && element._$h$?.length) {
-    const count = element._$h$.reduce((n, set) => n + set.size, 0);
-    console.warn(diagnostic('core', `<${element.localName}>`, 'init-twice', __DEV__ && PROSE['init-twice'](String(count))));
-  }
-  if (__DEV__) nearMiss(element);
-  /** After the synchronous setup, so the first render has committed and there is a subtree to look at. */
-  if (__DEV__) queueMicrotask(() => afterSetup(element));
-  if (!ending) {
-    ending = true;
-    queueMicrotask(endSetup);
-  }
-  start(element, shadowProps);
-};
 
 /**
  * Development: `init(this)` found no setup, and the class has a member that is `setup` in another spelling (`setUp`,

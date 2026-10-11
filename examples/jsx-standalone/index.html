@@ -34,7 +34,7 @@
     <todo-list autofill></todo-list>
 
     <script type="text/vera-jsx">
-      import { init, createStore, render, wire } from '@verajs/core';
+      import { init, createStore, wire } from '@verajs/core';
       import { renderer } from '@verajs/renderer';
 
       wire([renderer]);
@@ -44,39 +44,40 @@
 
       class TodoList extends HTMLElement {
         connectedCallback() {
-          init(this, { mode: 'open' });
-          const state = createStore({ draft: '', todos: [] });
-          if (this.hasAttribute('autofill')) state.todos.push({ id: 1, text: 'try the playground', done: true });
+          init({ host: this, shadow: 'open' }, () => {
+            const state = createStore({ draft: '', todos: [] });
+            if (this.hasAttribute('autofill')) state.todos.push({ id: 1, text: 'try the playground', done: true });
 
-          const add = () => {
-            if (!state.draft.trim()) return;
-            state.todos.push({ id: Date.now(), text: state.draft, done: false });
-            state.draft = '';
-          };
+            const add = () => {
+              if (!state.draft.trim()) return;
+              state.todos.push({ id: Date.now(), text: state.draft, done: false });
+              state.draft = '';
+            };
 
-          render(() => (
-            <section>
-              <input
-                value={state.draft}
-                placeholder="What needs doing?"
-                onInput={(e) => (state.draft = e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && add()}
-              />
-              <button onClick={add} disabled={state.draft.trim() === ''}>add</button>
-              {state.todos.length === 0 && <Empty>nothing yet — type above</Empty>}
-              <ul>
-                {state.todos.map((todo) => (
-                  <li key={todo.id} style={todo.done ? 'text-decoration: line-through' : ''}>
-                    <label>
-                      <input checked={todo.done} onChange={() => (todo.done = !todo.done)} type="checkbox" />
-                      {todo.text}
-                    </label>
-                    <button onClick={() => (state.todos = state.todos.filter((t) => t.id !== todo.id))}>x</button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ));
+            return () => (
+              <section>
+                <input
+                  value={state.draft}
+                  placeholder="What needs doing?"
+                  onInput={(e) => (state.draft = e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && add()}
+                />
+                <button onClick={add} disabled={state.draft.trim() === ''}>add</button>
+                {state.todos.length === 0 && <Empty>nothing yet — type above</Empty>}
+                <ul>
+                  {state.todos.map((todo) => (
+                    <li key={todo.id} style={todo.done ? 'text-decoration: line-through' : ''}>
+                      <label>
+                        <input checked={todo.done} onChange={() => (todo.done = !todo.done)} type="checkbox" />
+                        {todo.text}
+                      </label>
+                      <button onClick={() => (state.todos = state.todos.filter((t) => t.id !== todo.id))}>x</button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          });
         }
       }
       customElements.define('todo-list', TodoList);

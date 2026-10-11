@@ -26,7 +26,7 @@
  * bans instance fields on custom elements (a field initializer runs at upgrade and clobbers any
  * property assigned before it), and `declare` cannot carry the values these need.
  */
-import { createStore, html, init, render, useEffect } from '@verajs/core';
+import { createStore, html, init, useEffect } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 import { keyed } from '@verajs/renderer/keyed';
 import { useSelect, type SelectOption } from '@verajs/hooks';
@@ -622,221 +622,221 @@ export class VeraSelect extends HTMLElement {
         if (light) for (const node of parsed.consumed) node.remove();
       }
     }
-    init(this, light ? undefined : { mode: 'open' });
-    const root = (this as { _$r$?: ShadowRoot })._$r$ ?? this.shadowRoot ?? this;
-    const entry = internal(this);
-    /**
-     * Everything seed-shaped below runs only on the controller's FIRST creation. A reconnect
-     * re-enters this callback with live state, and re-seeding from pending (long since consumed)
-     * wiped options and value to empty, while re-reading the value attribute clobbered a live
-     * selection - all three measured before this guard existed.
-     */
-    const created = !entry.select;
+    init({ host: this, shadow: light ? false : 'open' }, () => {
+      const root = (this as { _$r$?: ShadowRoot })._$r$ ?? this.shadowRoot ?? this;
+      const entry = internal(this);
+      /**
+       * Everything seed-shaped below runs only on the controller's FIRST creation. A reconnect
+       * re-enters this callback with live state, and re-seeding from pending (long since consumed)
+       * wiped options and value to empty, while re-reading the value attribute clobbered a live
+       * selection - all three measured before this guard existed.
+       */
+      const created = !entry.select;
 
-    const attrs = () => entry.host.attrs;
-    /** The search line exists for explicit searchers; `creatable` and `remote` both need it. */
-    const searchable = () => attrs()['searchable'] != null || attrs()['creatable'] != null || attrs()['remote'] != null;
+      const attrs = () => entry.host.attrs;
+      /** The search line exists for explicit searchers; `creatable` and `remote` both need it. */
+      const searchable = () => attrs()['searchable'] != null || attrs()['creatable'] != null || attrs()['remote'] != null;
 
-    /** ToggleEvent where the platform has it (the popover/details vocabulary); a shaped CustomEvent elsewhere. */
-    const toggleEvent = (type: string, oldState: string, newState: string, cancelable: boolean) =>
-      typeof ToggleEvent !== 'undefined'
-        ? new ToggleEvent(type, { oldState, newState, cancelable, bubbles: false })
-        : new CustomEvent(type, { detail: { oldState, newState }, cancelable });
+      /** ToggleEvent where the platform has it (the popover/details vocabulary); a shaped CustomEvent elsewhere. */
+      const toggleEvent = (type: string, oldState: string, newState: string, cancelable: boolean) =>
+        typeof ToggleEvent !== 'undefined'
+          ? new ToggleEvent(type, { oldState, newState, cancelable, bubbles: false })
+          : new CustomEvent(type, { detail: { oldState, newState }, cancelable });
 
-    const select = (entry.select ??= useSelect(this, {
-      ids: () => `${entry.uid}-`,
-      multi: () => this.hasAttribute('multi'),
-      disabled: () => this.hasAttribute('disabled') || entry.host.formDisabled,
-      creatable: () => this.hasAttribute('creatable'),
-      remote: () => this.hasAttribute('remote'),
-      clearable: () => this.hasAttribute('clearable'),
-      canToggle: (next) =>
-        this.dispatchEvent(toggleEvent('beforetoggle', next === 'open' ? 'closed' : 'open', next, true)),
-      onToggle: (next) => {
-        syncStates(this);
-        /**
-         * The anchor tier promotes the menu to the top layer. Open: show, then the transition
-         * plays from @starting-style. Close: the data-state transition plays while still
-         * popover-open; the popover hides after it settles (a fixed timer — transitionend never
-         * fires under reduced motion). A reopen inside the window cancels the pending hide.
-         */
-        const menu = root.querySelector?.('[part="menu"]') as
-          | (HTMLElement & { showPopover?: () => void; hidePopover?: () => void })
-          | null;
-        if (ANCHOR_TIER && !entry.slottedTrigger && menu?.hasAttribute('popover')) {
-          clearTimeout(entry.hideTimer);
-          try {
-            if (next === 'open') menu.showPopover?.();
-            else
-              entry.hideTimer = setTimeout(() => {
-                try {
-                  menu.hidePopover?.();
-                } catch {
-                  /* detached or already hidden - the UA force-hid it */
-                }
-              }, 180);
-          } catch {
-            /* already in the requested state — nothing to do */
+      const select = (entry.select ??= useSelect(this, {
+        ids: () => `${entry.uid}-`,
+        multi: () => this.hasAttribute('multi'),
+        disabled: () => this.hasAttribute('disabled') || entry.host.formDisabled,
+        creatable: () => this.hasAttribute('creatable'),
+        remote: () => this.hasAttribute('remote'),
+        clearable: () => this.hasAttribute('clearable'),
+        canToggle: (next) =>
+          this.dispatchEvent(toggleEvent('beforetoggle', next === 'open' ? 'closed' : 'open', next, true)),
+        onToggle: (next) => {
+          syncStates(this);
+          /**
+           * The anchor tier promotes the menu to the top layer. Open: show, then the transition
+           * plays from @starting-style. Close: the data-state transition plays while still
+           * popover-open; the popover hides after it settles (a fixed timer — transitionend never
+           * fires under reduced motion). A reopen inside the window cancels the pending hide.
+           */
+          const menu = root.querySelector?.('[part="menu"]') as
+            | (HTMLElement & { showPopover?: () => void; hidePopover?: () => void })
+            | null;
+          if (ANCHOR_TIER && !entry.slottedTrigger && menu?.hasAttribute('popover')) {
+            clearTimeout(entry.hideTimer);
+            try {
+              if (next === 'open') menu.showPopover?.();
+              else
+                entry.hideTimer = setTimeout(() => {
+                  try {
+                    menu.hidePopover?.();
+                  } catch {
+                    /* detached or already hidden - the UA force-hid it */
+                  }
+                }, 180);
+            } catch {
+              /* already in the requested state — nothing to do */
+            }
           }
+          this.dispatchEvent(toggleEvent('toggle', next === 'open' ? 'closed' : 'open', next, false));
+        },
+        onChange: (selectedOptions) => {
+          reflectForm(this, selectedOptions);
+          syncStates(this);
+          /** input then change, the platform's order; input carries no detail, exactly like native. */
+          this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+          this.dispatchEvent(
+            new CustomEvent('change', {
+              detail: { value: this.value, selectedOptions: [...selectedOptions] },
+              bubbles: true,
+              composed: true,
+            })
+          );
+        },
+        onCreate: (label) => {
+          const detail = { label, option: { label, value: label } as SelectOption };
+          /** Cancelable: a host may claim creation (async ids, dedup). Uncanceled, the option joins. */
+          if (!this.dispatchEvent(new CustomEvent('create', { detail, bubbles: true, composed: true, cancelable: true })))
+            return;
+          select.setOptions([...select.state.options, detail.option]);
+          select.state.search = '';
+          select.pick(detail.option);
+        },
+        onSearch: (query) => {
+          /** The remote seam: a debounced `filter` event — the host fetches and sets `.options`. */
+          clearTimeout(entry.timer);
+          const wait = Number(this.getAttribute('debounce') ?? (this.hasAttribute('remote') ? 250 : 0));
+          entry.timer = setTimeout(() => {
+            this.dispatchEvent(new CustomEvent('filter', { detail: { query }, bubbles: true, composed: true }));
+          }, wait);
+        },
+      }));
+      if (created) {
+        select.setOptions(entry.pending.options);
+        entry.pending.options = [];
+        /**
+         * The value attribute is single-mode initial value, native-input style: it applies only
+         * when nothing else (property, selected markup) claimed the selection, and it doubles as
+         * the reset default when the markup declared none.
+         */
+        const valueAttribute = this.getAttribute('value');
+        if (valueAttribute && !entry.pending.value.length && !entry.defaults.length) {
+          entry.pending.value = [valueAttribute];
+          entry.defaults = resolveSelection([valueAttribute], select.state.options, []);
         }
-        this.dispatchEvent(toggleEvent('toggle', next === 'open' ? 'closed' : 'open', next, false));
-      },
-      onChange: (selectedOptions) => {
-        reflectForm(this, selectedOptions);
-        syncStates(this);
-        /** input then change, the platform's order; input carries no detail, exactly like native. */
-        this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-        this.dispatchEvent(
-          new CustomEvent('change', {
-            detail: { value: this.value, selectedOptions: [...selectedOptions] },
-            bubbles: true,
-            composed: true,
-          })
-        );
-      },
-      onCreate: (label) => {
-        const detail = { label, option: { label, value: label } as SelectOption };
-        /** Cancelable: a host may claim creation (async ids, dedup). Uncanceled, the option joins. */
-        if (!this.dispatchEvent(new CustomEvent('create', { detail, bubbles: true, composed: true, cancelable: true })))
-          return;
-        select.setOptions([...select.state.options, detail.option]);
-        select.state.search = '';
-        select.pick(detail.option);
-      },
-      onSearch: (query) => {
-        /** The remote seam: a debounced `filter` event — the host fetches and sets `.options`. */
-        clearTimeout(entry.timer);
-        const wait = Number(this.getAttribute('debounce') ?? (this.hasAttribute('remote') ? 250 : 0));
-        entry.timer = setTimeout(() => {
-          this.dispatchEvent(new CustomEvent('filter', { detail: { query }, bubbles: true, composed: true }));
-        }, wait);
-      },
-    }));
-    if (created) {
-      select.setOptions(entry.pending.options);
-      entry.pending.options = [];
-      /**
-       * The value attribute is single-mode initial value, native-input style: it applies only
-       * when nothing else (property, selected markup) claimed the selection, and it doubles as
-       * the reset default when the markup declared none.
-       */
-      const valueAttribute = this.getAttribute('value');
-      if (valueAttribute && !entry.pending.value.length && !entry.defaults.length) {
-        entry.pending.value = [valueAttribute];
-        entry.defaults = resolveSelection([valueAttribute], select.state.options, []);
+        select.state.value = resolveSelection(entry.pending.value, select.state.options, select.state.value);
+        entry.pending.value = [];
+        reflectForm(this, select.state.value);
       }
-      select.state.value = resolveSelection(entry.pending.value, select.state.options, select.state.value);
-      entry.pending.value = [];
-      reflectForm(this, select.state.value);
-    }
-    syncStates(this);
+      syncStates(this);
 
-    /**
-     * Markup stays live in shadow mode — but the observer exists ONLY for markup-sourced selects:
-     * a property-driven one (the common JS path) pays zero observer. htmlSourced also gates the
-     * callback, so a later property assignment retires an existing observer's effect; it is
-     * released for real through the _$c$ contract on disconnect.
-     */
-    if (entry.htmlSourced && typeof MutationObserver !== 'undefined' && !entry.light) {
-      const observer = new MutationObserver(() => {
-        if (!entry.htmlSourced) return;
-        const parsed = parseLightOptions(this);
-        if (parsed) {
-          select.setOptions(parsed.options);
-          entry.defaults = parsed.selected;
-        }
-      });
       /**
-       * **Only the attributes a parse actually reads.** `attributes: true` watched the whole host
-       * subtree — which includes the ARIA this component stamps onto a SLOTTED trigger. Stamping
-       * woke the observer, the observer re-parsed and re-seeded, re-seeding re-rendered, the render
-       * stamped again: an infinite synchronous loop inside one frame, so the page never painted
-       * again.
-       *
-       * It needed all three of authored options, a `selected` among them, and a slotted trigger —
-       * each supported, each harmless alone, and the default shadow mode. Without `selected` the
-       * re-parse settled on an equal value and stopped; with it, every pass wrote fresh defaults.
-       *
-       * These are exactly the attributes `parse-options.ts` reads. A filter is the fix rather than
-       * an equality check on the result, because the loop should not start: nothing the component
-       * writes to its own assigned nodes is a reason to re-read the author's options.
+       * Markup stays live in shadow mode — but the observer exists ONLY for markup-sourced selects:
+       * a property-driven one (the common JS path) pays zero observer. htmlSourced also gates the
+       * callback, so a later property assignment retires an existing observer's effect; it is
+       * released for real through the _$c$ contract on disconnect.
        */
-      observer.observe(this, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['selected', 'value', 'label', 'disabled', 'data-group', 'data-description', 'slot'],
+      if (entry.htmlSourced && typeof MutationObserver !== 'undefined' && !entry.light) {
+        const observer = new MutationObserver(() => {
+          if (!entry.htmlSourced) return;
+          const parsed = parseLightOptions(this);
+          if (parsed) {
+            select.setOptions(parsed.options);
+            entry.defaults = parsed.selected;
+          }
+        });
+        /**
+         * **Only the attributes a parse actually reads.** `attributes: true` watched the whole host
+         * subtree — which includes the ARIA this component stamps onto a SLOTTED trigger. Stamping
+         * woke the observer, the observer re-parsed and re-seeded, re-seeding re-rendered, the render
+         * stamped again: an infinite synchronous loop inside one frame, so the page never painted
+         * again.
+         *
+         * It needed all three of authored options, a `selected` among them, and a slotted trigger —
+         * each supported, each harmless alone, and the default shadow mode. Without `selected` the
+         * re-parse settled on an equal value and stopped; with it, every pass wrote fresh defaults.
+         *
+         * These are exactly the attributes `parse-options.ts` reads. A filter is the fix rather than
+         * an equality check on the result, because the loop should not start: nothing the component
+         * writes to its own assigned nodes is a reason to re-read the author's options.
+         */
+        observer.observe(this, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['selected', 'value', 'label', 'disabled', 'data-group', 'data-description', 'slot'],
+        });
+        (this as { _$c$?: Set<() => void> })._$c$?.add(() => observer.disconnect());
+      }
+      (this as { _$c$?: Set<() => void> })._$c$?.add(() => {
+        clearTimeout(entry.hideTimer);
+        clearTimeout(entry.timer); // the filter debounce must not fire on a detached element
       });
-      (this as { _$c$?: Set<() => void> })._$c$?.add(() => observer.disconnect());
-    }
-    (this as { _$c$?: Set<() => void> })._$c$?.add(() => {
-      clearTimeout(entry.hideTimer);
-      clearTimeout(entry.timer); // the filter debounce must not fire on a detached element
-    });
-    const { state, handlers } = select;
+      const { state, handlers } = select;
 
-    /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land.
-     *  `slotted()` answers in BOTH modes: shadow via native assignment, light via the wired slots
-     *  module's capture map — so this one code path serves every corner. */
-    const refresh = () => {
-      const assignedTo = (name: string) => slotted(this, name).find((node) => node.nodeType === 1) as Element | undefined;
-      const slottedTrigger = assignedTo('trigger');
-      entry.slottedTrigger = slottedTrigger !== undefined;
+      /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land.
+       *  `slotted()` answers in BOTH modes: shadow via native assignment, light via the wired slots
+       *  module's capture map — so this one code path serves every corner. */
+      const refresh = () => {
+        const assignedTo = (name: string) => slotted(this, name).find((node) => node.nodeType === 1) as Element | undefined;
+        const slottedTrigger = assignedTo('trigger');
+        entry.slottedTrigger = slottedTrigger !== undefined;
+        /**
+         * A `[slot="value"]` may sit INSIDE a slotted trigger rather than as a direct host child —
+         * the natural authoring shape (`<button slot="trigger"><span slot="value">`). Slot
+         * assignment only reaches direct children, so the shadow `<slot name="value">` never gets
+         * it; find it in the slotted trigger's subtree so its data-label is still stamped (the demo
+         * card renders its label from exactly this, and it silently never updated — measured).
+         */
+        const slottedValue =
+          assignedTo('value') ?? (slottedTrigger?.querySelector?.('[slot="value"]') as Element | undefined) ?? undefined;
+        select.attach({
+          trigger: slottedTrigger,
+          value: slottedValue,
+          search: assignedTo('search'),
+          fallbackTrigger: root.querySelector?.('[part="trigger"]') ?? undefined,
+        });
+      };
+
       /**
-       * A `[slot="value"]` may sit INSIDE a slotted trigger rather than as a direct host child —
-       * the natural authoring shape (`<button slot="trigger"><span slot="value">`). Slot
-       * assignment only reaches direct children, so the shadow `<slot name="value">` never gets
-       * it; find it in the slotted trigger's subtree so its data-label is still stamped (the demo
-       * card renders its label from exactly this, and it silently never updated — measured).
+       * The search line takes focus when the menu opens. Registered before render(), like every
+       * hook — which is exactly why the focus itself is DEFERRED a frame: this effect runs in the
+       * flush that opens the menu, before the template commits data-state="open", so the input is
+       * still under the closed state's visibility:hidden and a real engine REFUSES the focus.
+       * jsdom focuses anything, so only a browser shows it; found by typing into the creatable
+       * demo card and watching every keystroke land on the trigger's typeahead instead.
        */
-      const slottedValue =
-        assignedTo('value') ?? (slottedTrigger?.querySelector?.('[slot="value"]') as Element | undefined) ?? undefined;
-      select.attach({
-        trigger: slottedTrigger,
-        value: slottedValue,
-        search: assignedTo('search'),
-        fallbackTrigger: root.querySelector?.('[part="trigger"]') ?? undefined,
-      });
-    };
+      /**
+       * One guaranteed wiring pass after the first render, in BOTH modes.
+       *
+       * The `@slotchange` bindings below now cover every mode — light-DOM slots dispatch it on the
+       * slot element exactly as the platform does — but `slotchange` only ever fires for a slot that
+       * HAS an assignment, in a shadow root as much as here. A component given nothing to slot would
+       * otherwise never wire at all, so this runs once regardless. Idempotent: `refresh` is
+       * re-entrant by design and re-attach is guarded.
+       */
+      useEffect(() => refresh(), this);
 
-    /**
-     * The search line takes focus when the menu opens. Registered before render(), like every
-     * hook — which is exactly why the focus itself is DEFERRED a frame: this effect runs in the
-     * flush that opens the menu, before the template commits data-state="open", so the input is
-     * still under the closed state's visibility:hidden and a real engine REFUSES the focus.
-     * jsdom focuses anything, so only a browser shows it; found by typing into the creatable
-     * demo card and watching every keystroke land on the trigger's typeahead instead.
-     */
-    /**
-     * One guaranteed wiring pass after the first render, in BOTH modes.
-     *
-     * The `@slotchange` bindings below now cover every mode — light-DOM slots dispatch it on the
-     * slot element exactly as the platform does — but `slotchange` only ever fires for a slot that
-     * HAS an assignment, in a shadow root as much as here. A component given nothing to slot would
-     * otherwise never wire at all, so this runs once regardless. Idempotent: `refresh` is
-     * re-entrant by design and re-attach is guarded.
-     */
-    useEffect(() => refresh(), this);
+      useEffect(() => {
+        if (!state.open) return;
+        requestAnimationFrame(() => {
+          if (!state.open || !this.isConnected) return;
+          const search =
+            (slotted(this, 'search').find((node) => node.nodeType === 1) as HTMLElement | undefined) ??
+            (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
+          search?.focus?.();
+        });
+      }, this);
 
-    useEffect(() => {
-      if (!state.open) return;
-      requestAnimationFrame(() => {
-        if (!state.open || !this.isConnected) return;
-        const search =
-          (slotted(this, 'search').find((node) => node.nodeType === 1) as HTMLElement | undefined) ??
-          (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
-        search?.focus?.();
-      });
-    }, this);
+      /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
+      useEffect(() => {
+        if (state.open && state.active >= 0)
+          root.querySelector?.('[part="option"][data-active]')?.scrollIntoView?.({ block: 'nearest' });
+      }, this);
 
-    /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
-    useEffect(() => {
-      if (state.open && state.active >= 0)
-        root.querySelector?.('[part="option"][data-active]')?.scrollIntoView?.({ block: 'nearest' });
-    }, this);
-
-    /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */
-    const row = (option: SelectOption, index: number, active: number) => keyed(option.value, html`
+      /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */
+      const row = (option: SelectOption, index: number, active: number) => keyed(option.value, html`
       <div
         id=${`${entry.uid}-opt-${index}`}
         part="option"
@@ -854,26 +854,26 @@ export class VeraSelect extends HTMLElement {
       </div>
     `);
 
-    render(() => {
-      const rows = select.matches();
-      const creating = select.createLabel();
-      const count = rows.length + (creating ? 1 : 0);
-      const active = Math.min(state.active, Math.max(count - 1, 0));
-      const activeId =
-        count === 0 || active < 0
-          ? null
-          : `${entry.uid}-opt-${active === rows.length ? 'create' : active}`;
-      const labels = state.value.map((option) => option.label).join(', ');
-      /**
-       * The value span must stay WHITESPACE-TIGHT in the template: static text nodes inside it —
-       * even pure indentation — defeat :empty, and :empty is what the placeholder's ::before
-       * hangs on. A multi-line span here erased every placeholder on the page (found by Brian's
-       * screenshot; engines do not ship Selectors 4's whitespace-tolerant :empty).
-       */
-      const valueContent =
-        attrs()['multi'] != null
-          ? state.value.map(
-              (option) => html`
+      return () => {
+        const rows = select.matches();
+        const creating = select.createLabel();
+        const count = rows.length + (creating ? 1 : 0);
+        const active = Math.min(state.active, Math.max(count - 1, 0));
+        const activeId =
+          count === 0 || active < 0
+            ? null
+            : `${entry.uid}-opt-${active === rows.length ? 'create' : active}`;
+        const labels = state.value.map((option) => option.label).join(', ');
+        /**
+         * The value span must stay WHITESPACE-TIGHT in the template: static text nodes inside it —
+         * even pure indentation — defeat :empty, and :empty is what the placeholder's ::before
+         * hangs on. A multi-line span here erased every placeholder on the page (found by Brian's
+         * screenshot; engines do not ship Selectors 4's whitespace-tolerant :empty).
+         */
+        const valueContent =
+          attrs()['multi'] != null
+            ? state.value.map(
+                (option) => html`
                 <span part="pill">
                   ${option.iconBefore != null ? html`<span part="pill-icon" aria-hidden="true">${pillIcon(option.iconBefore)}</span>` : null}
                   ${option.label}
@@ -890,18 +890,18 @@ export class VeraSelect extends HTMLElement {
                   </button>
                 </span>
               `
-            )
-          : labels;
-      /**
-       * **`clearable`: back to nothing chosen** — shown only while something is (single mode: the one choice; multi: all
-       * of them), and never on a disabled select. Named for the FIELD ("Clear Tone"), as the pills are named for their
-       * option; `clear-message` rewords it. Clearing fires `input` then `change` with an empty value, as removing the
-       * last pill does.
-       */
-      const label = labelOf(this);
-      const clearControl =
-        attrs()['clearable'] != null && state.value.length > 0 && attrs()['disabled'] == null && !entry.host.formDisabled
-          ? html`<button
+              )
+            : labels;
+        /**
+         * **`clearable`: back to nothing chosen** — shown only while something is (single mode: the one choice; multi: all
+         * of them), and never on a disabled select. Named for the FIELD ("Clear Tone"), as the pills are named for their
+         * option; `clear-message` rewords it. Clearing fires `input` then `change` with an empty value, as removing the
+         * last pill does.
+         */
+        const label = labelOf(this);
+        const clearControl =
+          attrs()['clearable'] != null && state.value.length > 0 && attrs()['disabled'] == null && !entry.host.formDisabled
+            ? html`<button
               part="clear"
               type="button"
               aria-label=${(attrs()['clear-message'] ?? (label === null ? 'Clear selection' : 'Clear {label}')).replace('{label}', label ?? '')}
@@ -912,31 +912,31 @@ export class VeraSelect extends HTMLElement {
             >
               ✕
             </button>`
-          : null;
-      const loading = attrs()['loading'] != null;
-      const overflow = attrs()['overflow-message'] ?? null;
-      /**
-       * Consecutive options sharing a `group` render inside one labeled role="group" — a real
-       * group (never a heading faked as an option), invisible to the keyboard model because rows
-       * keep their flat data-index and ids. The visible heading is aria-hidden; the group's
-       * aria-label is what announces.
-       */
-      const segments: { group: string | null; rows: { option: SelectOption; index: number }[] }[] = [];
-      rows.forEach((option, index) => {
-        const group = option.group ?? null;
-        const last = segments[segments.length - 1];
-        if (last && last.group === group) last.rows.push({ option, index });
-        else segments.push({ group, rows: [{ option, index }] });
-      });
-      const loadingMessage = attrs()['loading-message'] ?? 'Loading…';
-      const status = !state.open
-        ? ''
-        : loading
-          ? loadingMessage
-          : searchable()
-            ? (attrs()['results-message'] ?? '{count} options').replace('{count}', String(count))
-            : '';
-      return html`
+            : null;
+        const loading = attrs()['loading'] != null;
+        const overflow = attrs()['overflow-message'] ?? null;
+        /**
+         * Consecutive options sharing a `group` render inside one labeled role="group" — a real
+         * group (never a heading faked as an option), invisible to the keyboard model because rows
+         * keep their flat data-index and ids. The visible heading is aria-hidden; the group's
+         * aria-label is what announces.
+         */
+        const segments: { group: string | null; rows: { option: SelectOption; index: number }[] }[] = [];
+        rows.forEach((option, index) => {
+          const group = option.group ?? null;
+          const last = segments[segments.length - 1];
+          if (last && last.group === group) last.rows.push({ option, index });
+          else segments.push({ group, rows: [{ option, index }] });
+        });
+        const loadingMessage = attrs()['loading-message'] ?? 'Loading…';
+        const status = !state.open
+          ? ''
+          : loading
+            ? loadingMessage
+            : searchable()
+              ? (attrs()['results-message'] ?? '{count} options').replace('{count}', String(count))
+              : '';
+        return html`
         <slot name="trigger" @slotchange=${refresh}>
           <div
             part="trigger"
@@ -1025,6 +1025,7 @@ export class VeraSelect extends HTMLElement {
           <p part="overflow" data-state=${overflow ? 'visible' : 'hidden'}>${overflow ?? ''}</p>
         </div>
       `;
+      };
     });
   }
 }

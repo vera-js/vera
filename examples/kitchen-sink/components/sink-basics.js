@@ -17,6 +17,7 @@ export default class SinkBasics extends HTMLElement {
         title: 'a "quoted" title',
         busy: false,
       });
+
       return () => html`<section id="basics">
         <h2>Bindings, the JSX-comparable subset</h2>
         <h3>Exactly what JSX can express, so the same component can be written both ways and diffed</h3>
