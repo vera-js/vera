@@ -27,7 +27,7 @@ Two things register into `'render'`:
 **Nothing is registered until an app wires it.** Core used to self-register a default renderer
 (`template.innerHTML = content`) at module scope; it was removed in 0.2.0, because it was safe only
 inside core's own bundle and every app paid for a renderer it immediately replaced. With nothing on
-`'render'`, `render()` warns once in development rather than drawing through an escaping default.
+`'render'`, a component warns once rather than drawing through an escaping default.
 
 Wiring a second callback at 50 **replaces** the first, because a taken priority replaces rather than
 appends — that is how a renderer is swapped, and the duplicate is named in a development warning so
@@ -58,7 +58,7 @@ knowing anything about the autoloader.
 
 The renderer chain is **global mutable state** (`wire`), so a component that defines itself
 before configuration runs renders with nothing on the `'render'` chain. Core ships no default
-renderer — it did once, was removed in 0.2.0, and with nothing registered `render()` warns once in
+renderer — it did once, was removed in 0.2.0, and with nothing registered a component warns once in
 development and paints nothing.
 
 This bites in a way that is easy to miss, because **static `import` declarations are hoisted**:
@@ -112,8 +112,8 @@ by making bundles share global state.
 
 ## Effect ordering
 
-`init()` seeds `element._$h$`; `mount()` runs the first pass of every hook and clears the instance, and
-`render()` is `useRender` followed by that same commit.
+`init()` seeds `element._$h$` and calls the setup with the element as the owner; when it returns, the first pass of
+every hook it registered runs, then the render it returned is installed through `useRender`.
 Hooks carry a priority, and lower runs first:
 
 | Priority | Hook |

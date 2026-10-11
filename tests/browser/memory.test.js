@@ -99,7 +99,7 @@ const cycleComponent = async (setup, { times = 40 } = {}) => {
     connectedCallback() {
       /**
        * `setup` is the component's whole setup: it returns its render, or nothing (an effect-only component — the one
-       * form commits it all the same). Under the legacy window an effect-only shape had to call `mount()`, and once it
+       * form commits it all the same). Under the legacy window an effect-only shape used to call `mount()`, and once it
        * did not, so the shapes most likely to retain something measured components whose effects never ran.
        */
       init({ host: this, shadow: 'open' }, () => setup(this));

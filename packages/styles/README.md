@@ -1,6 +1,6 @@
 # @verajs/styles
 
-Styles for VeraJS components (<!--size:styles.gzip-->875 B<!--/size:styles.gzip--> gzip): the `css` tag, and
+Styles for VeraJS components (<!--size:styles.gzip-->876 B<!--/size:styles.gzip--> gzip): the `css` tag, and
 `static styles` adopted into every component as it comes to life — constructed stylesheets in a shadow
 root, `@scope`-wrapped hoisting for light DOM, in whatever window the component lives in.
 
@@ -20,7 +20,7 @@ development says so, once.
 ## Writing styles
 
 ```js
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 import { css } from '@verajs/styles';
 
 class Card extends HTMLElement {
@@ -29,8 +29,9 @@ class Card extends HTMLElement {
     h2 { margin: 0; }
   `;
   connectedCallback() {
-    init(this, { mode: 'open' });                 // or init(this) for light DOM — the same sheet works
-    render(() => html`<h2>Title</h2><slot></slot>`);
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`<h2>Title</h2><slot></slot>`;
+    });
   }
 }
 customElements.define('x-card', Card);
@@ -105,7 +106,7 @@ changes, and custom properties inherit through the shadow boundary.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, html, wire } from '@verajs/core';
+import { init, createStore, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { css, styles } from '@verajs/styles';
 
@@ -117,16 +118,15 @@ customElements.define(
     static styles = css`p { color: var(--accent, blue); }`;
 
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ accent: 'blue' });
-      render(
-        () => html`
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ accent: 'blue' });
+        return () => html`
           <div style="--accent: ${state.accent}">
             <p>tinted</p>
             <button @click=${() => (state.accent = 'red')}>Redden</button>
           </div>
-        `
-      );
+        `;
+      });
     }
   }
 );

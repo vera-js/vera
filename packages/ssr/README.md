@@ -114,15 +114,15 @@ on 'Node'…`) stay exactly those: this is a DOM, and it answers as the browser 
 
 **A wait on a child only the browser defines costs the whole `timeout`, on every request** — and since renders take
 turns, every request queued behind it waits too. The warning names the component waiting and the child it waits on.
-Return before that wait on the server:
+Don't make the setup wait for it — write the result into state when it arrives:
 
 ```js
-async connectedCallback() {
-  init(this, { mode: 'open' });
-  render(() => html`<p>${state.ready ? 'map ready' : 'loading map'}</p><x-map></x-map>`);
-  if (globalThis.__veraSsrShimmed) return;   // the server serves the state before the wait
-  await customElements.whenDefined('x-map');
-  state.ready = true;
+connectedCallback() {
+  init({ host: this, shadow: 'open' }, () => {
+    const state = createStore({ ready: false });
+    customElements.whenDefined('x-map').then(() => (state.ready = true));   // not awaited: the server serves 'loading map'
+    return () => html`<p>${state.ready ? 'map ready' : 'loading map'}</p><x-map></x-map>`;
+  });
 }
 ```
 
@@ -164,7 +164,7 @@ render here, so every failure — a throwing hook or `connectedCallback`, a `set
 throws — rejects the render, naming the component (and how many more failed), with the original
 error as `cause`. Catch it to fall back to a client-rendered shell, as you would with React or Vue.
 
-**`render()` owns its own range and nothing else**, as in a browser: content already in the
+**A component's render owns its own range and nothing else**, as in a browser: content already in the
 container stays before it, a node the component appends to its own root stays after it, and both
 survive every re-render. So `children` reach a light-DOM component and are still there after it
 renders.

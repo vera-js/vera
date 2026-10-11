@@ -85,11 +85,11 @@ const CLAIMS = new Map([
   ['packages/core/README.md#7233d48beb', 'pinned by tests/diagnostics-line-forms.test.mjs: the thrown forms — the link, the bare code, the subject before the link — each one form, misuse()/misuseAbout() asserted to write them'], // A thrown error names its function and then the link …
   ['packages/core/README.md#f803f7a757', 'pinned by tests/jsx-coded-errors.test.mjs: a compile error names its position and its code'], // A JSX compile error names its position …
   ['packages/core/README.md#abc9affc7d', 'pinned by tests/diagnostics-docs-pages.test.mjs: every code has a page to generate at that address (the hosting is the docs-site release item)'], // Whichever form you hold, the full explanation of a code is at …
-  ['README.md#bfb75ca50a', 'no-renderer'], // `@verajs/core` ships **no renderer of its own** — `render()` without one warns (in every b
+  ['README.md#53f9cc96eb', 'no-renderer'], // `@verajs/core` ships **no renderer of its own** — a component without one warns (in every build) and displays nothing.
   ['README.md#b0878705a3', 'slots-unwired'], // It is <!--size:module.renderer-slots.kb-->4.08 KB<!--/size:module.renderer-slots.kb--> gzi
-  ['llms.txt#460739a32e', 'no-renderer'], // **Core ships no renderer.** `render()` with none registered paints nothing and warns once 
-  ['llms.txt#279a321f77', 'no-renderer'], // **Order matters.** A component that defines itself before `wire([renderer])` renders with 
-  ['llms.txt#b927ee73a9', 'bare-render'], // Calling `render()` bare still works and warns. |
+  ['llms.txt#01ce1a2ab3', 'no-renderer'], // **Core ships no renderer.** A component with none registered paints nothing and warns once
+  ['llms.txt#342b08b81b', 'no-renderer'], // **Order matters.** A component that defines itself before `wire([renderer])` renders with nothing on the chain
+  ['llms.txt#8dddb34e3f', 'setup-rejected'], // An async setup is atomic: … a rejection is reported once through the error chain and draws nothing.
   ['llms.txt#2f0d102cd1', 'nested-flush'], // Inside a running flush (a hook, a render, an event one fired) it does nothing; the DOM upd
   ['llms.txt#039251dcd1', 'sync-loop'], // Development stops and names the recursion at depth 50.
   ['llms.txt#bef8ab79bd', 'render-loop'], // Development **warns without stopping it** after 50 consecutive held frames, naming the hoo
@@ -119,9 +119,10 @@ const CLAIMS = new Map([
   ['llms.txt#347dad05df', 'attribute-value'], // On an HTML tag, `rows={data}` is still an attribute, and the renderer names any non-primit
   ['llms.txt#461d362f95', 'boolean-child'], // A **hand-written** `html` template has the identical hazard with no compiler in front of i
   ['llms.txt#c23d8dc6f5', 'tag-inner-html'], // **`key` and `ref` work on a runtime `tag` component exactly as on a written element** (`<H
-  ['llms.txt#8a42e4218c', 'no-renderer'], // Defining a component before `wire([renderer])` → with nothing on the `'render'` chain, `re
+  ['llms.txt#52f968bc4d', 'no-renderer'], // Defining a component before `wire([renderer])` → … it warns once (in every build) and draws nothing.
   ['llms.txt#b9de104cbe', 'wire-replaced'], // Registering at an **occupied** priority replaces that entry (this is how a renderer is swa
-  ['llms.txt#7cdcce9c98', 'setup-uncommitted'], // Development warns if neither happens, and names both. 7.
+  ['llms.txt#1a3f259341', 'setup-returned-value'], // Returning a TEMPLATE from the setup instead of a function → drawn once, never updated (development says so).
+  ['llms.txt#307971fff7', 'init-options'], // The old `init(this, { mode })` → the object is ignored in every build … development names the fix once
   ['llms.txt#bf52103f92', 'autoloader-not-defined'], // An autoloaded file that loads and defines a different tag than its name → reported via `ve
   ['llms.txt#7fae901481', 'boolean-child'], // Development names it.
   ['llms.txt#9d82b4cb6b', 'attribute-value'], // Development names any non-primitive that reaches an attribute sink. 13.
@@ -135,7 +136,9 @@ const CLAIMS = new Map([
   ['packages/core/README.md#aad1748cf2', 'render-loop'], // `allowRenderLoop(element)` silences the warning for that component, and is a no-op in prod
   ['packages/core/README.md#a7abca6089', 'render-loop'], // | An update loop throws "Maximum update depth exceeded" | It never freezes the page: a sel
   ['packages/core/README.md#922a99a86a', 'nested-flush'], // Inside a running flush (a hook, a render, or an event one of them fired) it does nothing —
-  ['packages/core/README.md#37e87470fe', 'setup-uncommitted'], // Hooks that are never committed never run: no error, no render, an effect that simply does 
+  ['packages/core/README.md#f8bddc3085', 'setup-returned-value'], // Return a template itself instead of a function and it is drawn once, never updated, and development says so
+  ['packages/core/README.md#7c694968c1', 'setup-near-miss'], // Development names a near-miss spelling (`setUp`, `Setup`, `set_up`) once.
+  ['packages/core/README.md#4490c41be0', 'setup-rejected'], // An async setup is atomic: … a rejection is reported once through the error chain
   ['packages/core/README.md#e8129f5cea', 'not a promise: says nothing can warn'], // Without the guard the component still renders, because a custom-element reaction that thro
   ['packages/core/README.md#b9d5123713', 'not a promise: says there is no warning'], // **Every ID-based ARIA relationship resolves within a single tree, so a shadow root breaks 
   ['packages/core/README.md#10b78df7ea', 'upgrade-clobber'], // An element that never calls `init()` (a plain custom element a vera template binds) keeps 
@@ -160,7 +163,7 @@ const CLAIMS = new Map([
   ['packages/jsx/README.md#724b1c3ce0', 'not a promise: says the bundler reports it, not vera'], // The cost is that a genuinely unclosed element (`<p>x` with no `</p>`) reaches your bundler
   ['packages/jsx/README.md#f816cb75b4', 'event-name-typo'], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.
-  ['packages/renderer/README.md#2b44911726', 'no-renderer'], // Without it, core has no renderer at all: `render()` warns once (in every build) and puts n
+  ['packages/renderer/README.md#953b888443', 'no-renderer'], // Without it, core has no renderer at all: a component warns once (in every build) and puts nothing on the page.
   ['packages/renderer/README.md#24226b7ae7', 'not-a-listener'], // Anything else that cannot listen — a string, a number, an object with no `handleEvent` — i
   ['packages/renderer/README.md#c3769d8d67', 'select-multiple'], // Development says so.
   ['packages/renderer/README.md#a75ef39c09', 'boolean-child'], // | `true`, `false` | as text — **and development says so**; see below |

@@ -22,7 +22,7 @@ npm i @verajs/core @verajs/renderer @verajs/directives
 
 <!-- recipe -->
 ```js
-import { wire, init, render, html } from '@verajs/core';
+import { wire, init, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { directives, wireDirectives, expressions, interactions, stateOf, settled } from '@verajs/directives';
 
@@ -32,12 +32,13 @@ wireDirectives([expressions, ...interactions]);
 
 customElements.define('menu-bar', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`
+    init({ host: this, shadow: 'open' }, () => {
+      return () => html`
       <div data-vd-state="{ open: false, count: 0 }">
         <button data-vd-on-click="{ open: !open, count: count + 1 }">Menu</button>
         <nav data-vd-show="open" data-vd-class="{ busy: count > 3 }">…</nav>
-      </div>`);
+      </div>`;
+    });
   }
 });
 
@@ -58,14 +59,14 @@ an app using motion pays more than everything else combined.
 
 | entry | gzip | what it is |
 | --- | --- | --- |
-| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->6 158 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 275 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->6 332 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 983 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 361 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 942 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 202 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 165 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
-| `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 888 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->26 564 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
+| `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 872 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->26 551 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 

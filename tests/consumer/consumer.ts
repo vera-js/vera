@@ -79,7 +79,7 @@ class Headless extends HTMLElement {
 customElements.define('x-headless', Headless);
 
 /**
- * The second argument is the SETUP. The old `init(this, { mode })` options object is refused at build time here and
+ * The second argument is the SETUP. The old `init(this, { mode })` options object, which used to go there, is refused at build time here and
  * in development at runtime (`init-options`) — options travel with the host, `init({ host, shadow }, setup)`.
  */
 // @ts-expect-error init's second argument is a setup function, not shadow-root options

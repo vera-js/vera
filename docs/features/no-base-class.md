@@ -11,9 +11,10 @@ means reactivity can be added to components you did not write.
 // VeraJS — a plain custom element
 class Counter extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ count: 0 });
-    render(() => html`<button @click=${() => state.count++}>${state.count}</button>`);
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ count: 0 });
+      return () => html`<button @click=${() => state.count++}>${state.count}</button>`;
+    });
   }
 }
 ```

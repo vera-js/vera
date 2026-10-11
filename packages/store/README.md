@@ -9,7 +9,7 @@ would otherwise pay for.
 | Entry | | |
 | --- | ---: | --- |
 | `@verajs/store/computed` | <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> | memoized derived values |
-| `@verajs/store/collections` | <!--size:collections.gzip-->714 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
+| `@verajs/store/collections` | <!--size:collections.gzip-->665 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
 subpath and a buildless page downloads only that one. Both entries are **additive**: neither inlines
@@ -30,7 +30,7 @@ npm i @verajs/store
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, wire, html } from '@verajs/core';
+import { init, createStore, wire, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { computed } from '@verajs/store';
 
@@ -40,15 +40,16 @@ customElements.define(
   'x-cart',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const cart = createStore({ items: [{ price: 3 }, { price: 4 }], coupon: '' });
-      const total = computed(() => cart.items.reduce((n, item) => n + item.price, 0));
+      init({ host: this, shadow: 'open' }, () => {
+        const cart = createStore({ items: [{ price: 3 }, { price: 4 }], coupon: '' });
+        const total = computed(() => cart.items.reduce((n, item) => n + item.price, 0));
 
-      render(() => html`
+        return () => html`
         <p>Total: ${total.value}</p>
         <button @click=${() => cart.items.push({ price: 5 })}>Add</button>
         <input .value=${cart.coupon} @input=${(e) => (cart.coupon = e.target.value)} />
-      `);
+      `;
+      });
     }
   }
 );

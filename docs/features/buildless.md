@@ -31,15 +31,16 @@ Verified against the shipped bundles: zero bundler artifacts, zero bare imports.
 </script>
 
 <script type="module">
-  import { init, createStore, render, html, wire } from '@verajs/core';
+  import { init, createStore, html, wire } from '@verajs/core';
   import { renderer } from '@verajs/renderer';
   wire([renderer]);
 
   customElements.define('click-counter', class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ count: 0 });
-      render(() => html`<button @click=${() => state.count++}>${state.count}</button>`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ count: 0 });
+        return () => html`<button @click=${() => state.count++}>${state.count}</button>`;
+      });
     }
   });
 </script>

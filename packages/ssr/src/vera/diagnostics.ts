@@ -72,7 +72,7 @@ export const PROSE: Record<string, Prose> = {
     "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring (`if (!globalThis.__veraSsrShimmed)`).",
   ],
   'ssr-timeout': (timeout, pendingIn, waitingOn) => [
-    `was served after its ${timeout} ms \`timeout\` with a promise still pending${pendingIn ? ` in ${pendingIn}` : ''} (an async connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.${waitingOn ? ` Still waiting on customElements.whenDefined for ${waitingOn}, which the server never defined.` : ''}`,
+    `was served after its ${timeout} ms \`timeout\` with a promise still pending${pendingIn ? ` in ${pendingIn}` : ''} (an async setup or connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.${waitingOn ? ` Still waiting on customElements.whenDefined for ${waitingOn}, which the server never defined.` : ''}`,
     `${waitingOn ? 'If only the browser defines it, return before that wait on the server — `if (globalThis.__veraSsrShimmed) return;` — so the server serves what the component shows before the wait, as the browser does first. ' : ''}Raise \`timeout\` if the wait is real, or find the promise that never settles. Said once per component for the life of the process.`,
   ],
   'ssr-static-write': (prop) => [

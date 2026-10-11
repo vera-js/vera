@@ -8,44 +8,44 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 5.71 KB | **2.54 KB** |
-| `@verajs/renderer` | 12.46 KB | 4.78 KB |
-| `@verajs/router` | 10.66 KB | 4.45 KB |
-| `@verajs/autoloader` | 3.83 KB | 1.64 KB |
-| `@verajs/styles` | 1.58 KB | 875 B |
-| `@verajs/renderer/spread` | 3.18 KB | 1.58 KB |
-| `@verajs/renderer/tag` | 4.41 KB | 2.19 KB |
-| `@verajs/store` | 1.55 KB | 812 B |
-| `@verajs/jsx` | 14.57 KB | 5.60 KB |
-| `@verajs/jsx/standalone` | 4.63 KB | 2.18 KB |
+| `@verajs/core` | 8.85 KB | **3.84 KB** |
+| `@verajs/renderer` | 12.58 KB | 5.28 KB |
+| `@verajs/router` | 10.65 KB | 4.42 KB |
+| `@verajs/autoloader` | 3.85 KB | 1.58 KB |
+| `@verajs/styles` | 1.58 KB | 876 B |
+| `@verajs/renderer/spread` | 3.18 KB | 1.60 KB |
+| `@verajs/renderer/tag` | 4.78 KB | 2.35 KB |
+| `@verajs/store` | 1.48 KB | 766 B |
+| `@verajs/jsx` | 15.40 KB | 5.88 KB |
+| `@verajs/jsx/standalone` | 4.35 KB | 2.05 KB |
 | `@verajs/store/computed` | 293 B | 238 B |
-| `@verajs/store/collections` | 1.34 KB | 714 B |
-| `@verajs/renderer/keyed` | 1.96 KB | 923 B |
-| `@verajs/renderer/slots` | 10.72 KB | 4.08 KB |
-| `@verajs/renderer/namespaces` | 1.28 KB | 742 B |
-| `@verajs/renderer/elements` | 931 B | 530 B |
-| `@verajs/renderer/hydration` | 7.98 KB | 3.37 KB |
-| `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.64 KB |
+| `@verajs/store/collections` | 1.27 KB | 665 B |
+| `@verajs/renderer/keyed` | 1.18 KB | 632 B |
+| `@verajs/renderer/slots` | 12.52 KB | 4.65 KB |
+| `@verajs/renderer/namespaces` | 1.09 KB | 667 B |
+| `@verajs/renderer/elements` | 1.51 KB | 800 B |
+| `@verajs/renderer/hydration` | 8.02 KB | 3.38 KB |
+| `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.63 KB |
 | `@verajs/inserts` | 464 B | 344 B |
-| `@verajs/directives` | 15.59 KB | 6.01 KB |
-| `@verajs/directives/directives-standalone` | 18.62 KB | 7.10 KB |
+| `@verajs/directives` | 15.82 KB | 6.18 KB |
+| `@verajs/directives/directives-standalone` | 20.39 KB | 7.80 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
 | `@verajs/directives/directives-sensors` | 7.77 KB | 3.09 KB |
-| `@verajs/directives/directives-remote` | 9.31 KB | 3.80 KB |
-| `@verajs/directives/directives-motion` | 79.01 KB | 25.94 KB |
-| `@verajs/motion` | 37.18 KB | 12.33 KB |
-| `@verajs/motion/motion-ssr` | 37.54 KB | 12.16 KB |
-| `@verajs/motion/motion-client` | 8.34 KB | 3.07 KB |
+| `@verajs/directives/directives-remote` | 9.31 KB | 3.78 KB |
+| `@verajs/directives/directives-motion` | 79.05 KB | 25.93 KB |
+| `@verajs/motion` | 37.20 KB | 12.31 KB |
+| `@verajs/motion/motion-ssr` | 37.66 KB | 12.20 KB |
+| `@verajs/motion/motion-client` | 8.36 KB | 3.08 KB |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->7.2 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->8.6 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
-`@verajs/core` ships **no renderer of its own** — `render()` without one warns (in every build) and
+`@verajs/core` ships **no renderer of its own** — a component without one warns (in every build) and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->7.2 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->8.6 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
@@ -123,7 +123,7 @@ That includes reaching *inside* slotted content, which shadow DOM cannot express
 ordering of late insertions, `assignedNodes()`-equivalent reads, SSR and hydration are each verified
 against a real shadow root given the identical input — the suite renders one component both ways and
 asserts they agree, rather than asserting a table of expected strings. It is
-<!--size:module.renderer-slots.kb-->4.08 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
+<!--size:module.renderer-slots.kb-->4.65 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
 opt-in: an app that never wires it pays nothing, and the renderer treats a `<slot>` it cannot
 distribute as inert markup with a development warning.
 
@@ -147,7 +147,7 @@ Runnable: [`examples/light-slots/`](examples/light-slots/) — `npm run dev:slot
 </script>
 
 <script type="module">
-  import { init, createStore, render, wire, html } from '@verajs/core';
+  import { init, createStore, wire, html } from '@verajs/core';
   import { renderer } from '@verajs/renderer';
 
   /** Core ships no renderer. Wire one once, here, and nothing else needs to know. */
@@ -157,12 +157,13 @@ Runnable: [`examples/light-slots/`](examples/light-slots/) — `npm run dev:slot
     'click-counter',
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        const state = createStore({ count: 0 });
+        init({ host: this, shadow: 'open' }, () => {
+          const state = createStore({ count: 0 });
 
-        render(() => html`
+          return () => html`
           <button @click=${() => state.count++}>Clicked ${state.count} times</button>
-        `);
+        `;
+        });
       }
     }
   );
@@ -181,30 +182,31 @@ npm install @verajs/core @verajs/renderer
 ```
 
 ```ts
-import { init, createStore, render, useEffect, wire, html } from '@verajs/core';
+import { init, createStore, useEffect, wire, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ count: 0 });
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ count: 0 });
 
-    useEffect(() => {
-      console.log('count is now', state.count);
-    });
+      useEffect(() => {
+        console.log('count is now', state.count);
+      });
 
-    render(() => html`
+      return () => html`
       <button @click=${() => state.count++}>Clicked ${state.count} times</button>
-    `);
+    `;
+    });
   }
 }
 
 customElements.define('click-counter', ClickCounter);
 ```
 
-Reactivity is transparent — read `state.count` inside `render` or `useEffect` and that effect
+Reactivity is transparent — read `state.count` inside the render or a `useEffect` and that one
 re-runs when it changes. There is no dependency array to maintain.
 
 ### Passing data to a child component
@@ -214,19 +216,18 @@ no `static properties`, no props argument, no base class — and what arrives is
 an array, a `Date` or a store stays what it is and stays live:
 
 ```ts
-// parent
-render(() => html`<order-row .item=${row}></order-row>`);
+// parent, in its render
+html`<order-row .item=${row}></order-row>`
 
 // child — no declaration anywhere
 class OrderRow extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>${this.item.label}</p>`);   // reading this.item tracks it
+    init({ host: this, shadow: 'open' }, () => () => html`<p>${this.item.label}</p>`);   // reading this.item tracks it
   }
 }
 ```
 
-Reading a bound property inside `render` subscribes to it, so the parent's next render updates the
+Reading a bound property inside the render subscribes to it, so the parent's next render updates the
 child. It works the same when the child's module loads late, and `@verajs/ssr` delivers the same
 values to the child's server render.
 

@@ -12,17 +12,6 @@ import { reportHookError, retire } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
 /**
- * Opens a component's setup: hooks registered from here attach to `element`, until the `render()`
- * that commits it. Attaches a shadow root when `shadowProps` asks for one; without them the
- * component renders into its light DOM.
- *
- * The returned root is **kept** on `_$r$`, because `element.shadowRoot` is null for a closed one.
- *
- * @param element The element to init
- * @param shadowProps Any desired shadowProps. Passing in null will create a light DOM instance
- */
-
-/**
  * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once (main had
  * this; the lean rebuild dropped the reading half — `@verajs/directives` still claims `data-vd-` from both its doors).
  * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
@@ -107,7 +96,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
   /**
-   * The old `init(this, { mode })` — options travel WITH the host now. Both builds ignore the object (a setup-less init,
+   * The old `init(this, { mode })`, where options used to go — they travel WITH the host now. Both builds ignore the object (a setup-less init,
    * no root); development says so, once per class — logged, not thrown, so the builds never behave differently.
    */
   if (__DEV__ && given != null && typeof given !== 'function' && !saidOptions.has(element.constructor)) {

@@ -472,7 +472,7 @@ test('useHook and createHook take `element` alike: outside setup, the element gi
   doc.body.append(el);
   /**
    * Called after setup: with no element being set up, only the one passed owns each hook — and nothing runs a first
-   * pass for a hook made after `mount()`, so both return the hook and the caller runs it, which subscribes it.
+   * pass for a hook made after the setup returned, so both return the hook and the caller runs it, which subscribes it.
    */
   const scheduled = core.useHook(() => { const n = state.n; log.push(`scheduled ${n}`); return () => log.push(`clean ${n}`); }, 65, el);
   const raw = core.createHook({ element: el, priority: 65, callback: () => { log.push(`raw ${state.n}`); } });

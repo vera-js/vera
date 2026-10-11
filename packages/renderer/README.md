@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.78 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->5.28 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -18,7 +18,7 @@ there is no second call to make.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, wire, html } from '@verajs/core';
+import { init, createStore, wire, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -27,9 +27,10 @@ customElements.define(
   'click-counter',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ count: 0 });
-      render(() => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ count: 0 });
+        return () => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`;
+      });
     }
   }
 );
@@ -37,13 +38,13 @@ customElements.define(
 document.body.append(document.createElement('click-counter'));
 ```
 
-Without it, core has no renderer at all: `render()` warns once (in every build) and puts
+Without it, core has no renderer at all: a component warns once (in every build) and puts
 nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
 
 ### `renderInto(result, container)`
 
 The same write, called directly — no reactivity, no lifecycle, no custom element. `wire([renderer])`
-registers exactly this function, so a component's `render()` ends up here; calling it yourself is how
+registers exactly this function, so every component's render ends up here; calling it yourself is how
 you draw into a plain node, which is the incremental-adoption path and the way to test a template
 without spinning up an element.
 
@@ -60,9 +61,9 @@ content before and after that range stays — whatever was already in the contai
 code (a script, a browser extension) appends to it later, survives every re-render, a template swap
 included. It is not reactive — call it again to update, or use a component and let a store do it.
 
-It was named `render` until 0.2.0, which collided with core's `render` — a different function, with
-a different arity, that declares a *reactive* template and commits a component's setup. Both are
-public and both are documented, so a reader who knew one misread the other.
+It was named `render` until 0.2.0, which collided with core's `render` of the time — a different function, with
+a different arity, that declared a *reactive* template and committed a component's setup (a setup now returns its
+render instead). Both were public and both were documented, so a reader who knew one misread the other.
 
 ## Bindings
 
@@ -265,7 +266,7 @@ instead of rebuilding them — form state, scroll position and running animation
 not survive a MOVE: the platform blurs any node that is re-inserted, framework or not (pinned in the
 browser suite), so only the elements that actually moved lose it.
 It is its own entry because most apps never reorder a list, and the algorithm that makes reordering
-cheap is <!--size:keyed.gzip-->923 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
+cheap is <!--size:keyed.gzip-->632 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
 nothing registers, and there is no `wire()` call — the marker stamps each result with the strategy
 that understands it, so a list always names its own reconciler and two strategies cannot disagree
 about one. Lit splits `repeat` out for the same reason; the difference is that this one arrives on
@@ -510,7 +511,7 @@ Given this markup:
 
 <!-- recipe -->
 ```js
-import { init, render, wire, html } from '@verajs/core';
+import { init, wire, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { slots, slotted } from '@verajs/renderer/slots';
 
@@ -520,13 +521,10 @@ customElements.define(
   'my-card',
   class extends HTMLElement {
     connectedCallback() {
-      init(this); // LIGHT DOM — no shadow options
-      render(
-        () => html`<article>
+      init(this, () => () => html`<article>
           <header><slot name="header" @slotchange=${(e) => this.onHeader(e.target)}>Untitled</slot></header>
           <main><slot>Nothing here yet.</slot></main>
-        </article>`
-      );
+        </article>`);   // LIGHT DOM — no shadow option
     }
     /** Written exactly as it would be against a shadow root, and it runs in both. */
     onHeader(slot) {
@@ -665,10 +663,10 @@ A slot is not only a position, and a component that keeps up with what it was gi
 element itself. All of that means here what it means in a shadow root:
 
 ```js
-render(() => html`<header>
+return () => html`<header>
   <slot name=${section} &ref=${(el) => (this.slot = el)}
         @slotchange=${(e) => wire(e.target.assignedElements())}>Nothing yet</slot>
-</header>`);
+</header>`;
 ```
 
 - **`@slotchange`** fires on first assignment and on every change after it — and only then, so a
@@ -724,7 +722,7 @@ builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->4.65 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.
@@ -814,7 +812,7 @@ Spread a props object onto an element, with names resolved at runtime.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, wire, html } from '@verajs/core';
+import { init, createStore, wire, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { spread } from '@verajs/renderer/spread';
 
@@ -824,16 +822,17 @@ customElements.define(
   'x-field',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ disabled: false });
-      const props = {
-        id: 'email',                                  // attribute
-        placeholder: 'you@example.com',               //   "
-        '.value': '',                                 // property
-        '?disabled': state.disabled,                  // boolean attribute
-        onInput: (e) => console.log(e.target.value),  // event — @input works too
-      };
-      render(() => html`<input ${spread(props)} />`);
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ disabled: false });
+        const props = {
+          id: 'email',                                  // attribute
+          placeholder: 'you@example.com',               //   "
+          '.value': '',                                 // property
+          '?disabled': state.disabled,                  // boolean attribute
+          onInput: (e) => console.log(e.target.value),  // event — @input works too
+        };
+        return () => html`<input ${spread(props)} />`;
+      });
     }
   }
 );
@@ -960,7 +959,7 @@ measured 2026-09-28 by deleting the `_$apply$` branch and its teardown guard (a 
 write `.value = null` onto an object that applies itself) and rebuilding, as a **difference** rather
 than a pair of totals — the totals move with every change to this package and the difference does not.
 Nothing regenerates it, so it is dated; re-measure the same way if it matters.
-The entry itself is **<!--size:spread.gzip-->1.58 KB<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->1.60 KB<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -1161,7 +1160,7 @@ life of three defects.
   writing tests for it.
 - HTML only. There is no `svg`/`mathml` equivalent yet.
 
-<!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+<!--size:tag.gzip-->2.35 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 

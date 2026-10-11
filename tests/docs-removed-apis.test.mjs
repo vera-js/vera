@@ -89,7 +89,7 @@ const REMOVED = {
   setHtml: "a different renderer's templates use that renderer's own tag",
   setCss: "@verajs/styles' css",
   'deps(': 'a read inside the hook — `void state.x` — is what subscribes',
-  runHooks: 'mount()',
+  runHooks: 'a setup returning nothing — its hooks run, it draws nothing',
   /** Rehomed: static mode is @verajs/ssr's own 'store' insert, read per operation. */
   setStaticStores: 'renderToString(url, { static: true })',
   /** Light slots' carrier (Brian, 2026-10-08): the dashed `<vm-unassigned>` was never defined, so it matched
@@ -97,6 +97,13 @@ const REMOVED = {
   '<vm-unassigned': '<ins hidden data-vm-unassigned>',
   '(vm-unassigned)': ':not([data-vm-unassigned])',
   "'vm-unassigned'": "'[data-vm-unassigned]' — the carrier is a standard <ins>",
+  /** R2 (2026-10-10): a component is ONE setup that returns its render. Core's `render` and `mount` are gone; the bare
+   *  words are ordinary prose (and `mount` is still an element behavior's hook), so the keys are the CALL forms. */
+  'render(() =>': 'return the render from the setup — init(this, () => () => html`…`)',
+  'render(template': 'return the render from the setup — init(this, () => () => html`…`)',
+  'mount()': 'a setup returning nothing — init(this, () => { useEffect(…); })',
+  'init(this, { mode': "init({ host: this, shadow: 'open' }, setup)",
+  'shadowProps': "init({ host, shadow }, setup) — the options travel with the host",
 };
 
 /**

@@ -1,12 +1,13 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.54 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->3.84 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
 There is no `Component` to extend and no compiler to run. A VeraJS component is a custom element
-that calls `init()` and then `render()`; everything reactive follows from the store it reads.
+that calls `init()` with its setup — a function that runs once and returns what to draw; everything
+reactive follows from the store it reads.
 
 ```sh
 npm i @verajs/core @verajs/renderer
@@ -24,7 +25,7 @@ foreign renderer through it — but no alternative renderer is offered as a supp
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, wire, html, useEffect } from '@verajs/core';
+import { init, createStore, wire, html, useEffect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);   // once, at your app entry, before any component defines itself
@@ -33,14 +34,15 @@ customElements.define(
   'click-counter',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });               // shadow DOM; omit the second argument for light DOM
-      const state = createStore({ count: 0 });
+      init({ host: this, shadow: 'open' }, () => {   // shadow DOM; init(this, () => …) for light DOM
+        const state = createStore({ count: 0 });        // the setup runs once
 
-      useEffect(() => {
-        document.title = `${state.count} clicks`; // re-runs whenever what it read changes
+        useEffect(() => {
+          document.title = `${state.count} clicks`; // re-runs whenever what it read changes
+        });
+
+        return () => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`;
       });
-
-      render(() => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`);
     }
   }
 );
@@ -48,8 +50,9 @@ customElements.define(
 document.body.append(document.createElement('click-counter'));
 ```
 
-Nothing here declares a dependency. `render` and `useEffect` subscribe to whatever they read while
-they run, so a write to `state.count` schedules exactly the work that read it.
+Nothing here declares a dependency. The returned render and `useEffect` subscribe to whatever they
+read while they run, so a write to `state.count` schedules exactly the work that read it — and the
+setup around them, which reads nothing tracked, never runs again.
 
 ## Props — what a parent passes in
 
@@ -58,7 +61,7 @@ side — no `static properties`, no props argument to `init()`:
 
 <!-- recipe -->
 ```js
-import { init, render, wire, html } from '@verajs/core';
+import { init, wire, html } from '@verajs/core';
 import { renderer, renderInto } from '@verajs/renderer';
 import { props } from '@verajs/renderer/spread';
 
@@ -68,8 +71,9 @@ customElements.define(
   'order-summary',
   class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => html`<p>${this.customer} — ${this.items.length} items</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        return () => html`<p>${this.customer} — ${this.items.length} items</p>`;
+      });
     }
   }
 );
@@ -262,9 +266,10 @@ never trips it at any threshold: only a pass whose own body writes what it reads
 loop is plainest written with `requestAnimationFrame`; if a self-feeding effect is deliberate, say so:
 
 ```js
-init(this);
-allowRenderLoop(this);           // an animation driven by its own writes, on purpose
-useEffect(() => { state.t = state.t + 1 });
+init(this, () => {
+  allowRenderLoop(this);         // an animation driven by its own writes, on purpose
+  useEffect(() => { state.t = state.t + 1 });
+});
 ```
 
 `allowRenderLoop(element)` silences the warning for that component, and is a no-op in production —
@@ -283,7 +288,7 @@ per write, so it sees every one.
 | `useLayoutEffect` runs after the DOM update, before paint | The same. |
 | `useEffect` usually runs after paint (before it, after a click or a key press) | Always before paint, in the same flush as the render — so an effect's write never flashes, and a slow effect delays its update's paint. |
 | An effect re-runs when its dependency array changes | There is no dependency array: an effect re-runs when a store value it **read** changes. |
-| The component function re-runs on every update | Setup runs once; only `render()` and the hooks re-run. State lives in `createStore`. |
+| The component function re-runs on every update | The setup runs once; only the render it returns and the hooks re-run. State lives in `createStore`. |
 | Several handlers for one event render once (React routes events through the root) | Each listener that writes state renders on its own microtask — handle a hot event with one listener making one write. |
 | An update loop throws "Maximum update depth exceeded" | It never freezes the page: a self-feeding hook runs twice per flush, then once per frame, and development warns after 50 frames. |
 | React owns the DOM | A light host changed directly by page code is redistributed by the next microtask — read it after `await`. |
@@ -292,24 +297,23 @@ per write, so it sees every one.
 
 | | |
 | --- | --- |
-| `init(element, shadowProps?)` | call first in `connectedCallback`. `{ mode: 'open' }` for shadow DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary) |
-| `render(template?, ...args)` | draw, and commit the setup. See below |
+| `init(element, setup?)` | in `connectedCallback`. `setup(host)` runs once and returns the render — a function returning a template — or nothing. See below |
+| `init({ host, shadow }, setup?)` | the same with options: `shadow` is `'open'`, `'closed'`, `false` (light DOM) or a `ShadowRootInit`; omitted, the app default `renderer({ shadow })`, else light DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary) |
 | `html` | the template tag. `@verajs/renderer` takes what it produces with no configuration |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
-| `mount()` | commit the setup for a component that draws nothing |
-| `useRender(template, element, ...args)` | the lower-level half of `render`: registers a render on the component being set up that draws into `element` — which may be a different element |
+| `useRender(template, element)` | inside a setup: registers a second render, on this component's lifecycle, that draws into `element` — which may be a different element |
 | `wire([renderer])` | choose what writes to the DOM |
 | `flush()` | run every queued render and effect now, synchronously — a test, or work that must see the DOM settled (a View Transition's callback). Inside a running flush (a hook, a render, or an event one of them fired) it does nothing — the DOM updates when that flush ends; development says so once. To read what a render made from a hook, use `useLayoutEffect` |
 | `setRenderScheduler(fn)` | when a FLUSH runs. The default, `microtask`, runs every flush at once. `frameBudget` opts into merging bursts of data: a microtask within about 4 ms of flush work per frame, and past it the **element's own window's** next frame (a component in a popped-out window or an iframe waits on that window's frames). A scheduler receives `(run, element)` and returns the one it replaced |
 
 ```js
-import { init, mount, useRender, useEffect, mathml, html, flush } from '@verajs/core';
+import { init, useRender, useEffect, mathml, html, flush } from '@verajs/core';
 
 class TickerLogger extends HTMLElement {
   connectedCallback() {
-    init(this);                          // light DOM: no second argument
-    useEffect(() => console.log(state.tick));
-    mount();                             // commits the setup — this component draws nothing
+    init(this, () => {                   // light DOM: no options
+      useEffect(() => console.log(state.tick));
+    });                                  // returns nothing — this component draws nothing
   }
 }
 
@@ -320,14 +324,31 @@ useRender(() => html`<p>${state.n}</p>`, element);  // during setup: draw into a
 document.startViewTransition(() => { state.rows = next; flush(); });  // the DOM settled inside the snapshot
 ```
 
-**`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the
-first pass of every hook registered since `init()` and clears the instance. `render(template)` is
-exactly `useRender(template)` followed by that same commit — a compound over the base operation, not
-a second way to do the same thing, which is why a component only ever calls one of them.
+**The setup is the component, and its return decides what is drawn.** `init` calls it once, with the
+element as its argument (`host`), untracked — a read in it subscribes nothing. Every hook it registers
+belongs to that element; when it returns, the first pass of each runs, then the render it returned.
+Return a function and that function is the render, re-run when what it read changes. Return nothing and
+the component draws nothing — its effects still run. Return a template itself instead of a function and
+it is drawn once, never updated, and development says so: write `return () => html…`.
 
-Use `mount()` when a component has no markup of its own. Hooks that are never committed never run:
-no error, no render, an effect that simply does not happen — so in development a component that
-finishes `connectedCallback` without reaching either call warns and names both.
+The one mistake the shape invites is state in the render: `return () => { const s = createStore(…); … }`
+creates a new store on every render. State and hooks go in the setup, above the `return`.
+
+**A class can keep a method instead.** `init(this)` with no setup calls the element's own `setup()`,
+so this is the same component as the first one above:
+
+```js
+class ClickCounter extends HTMLElement {
+  connectedCallback() { init({ host: this, shadow: 'open' }); }
+  setup() {
+    const state = createStore({ count: 0 });
+    return () => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`;
+  }
+}
+```
+
+`init(this, () => this.setup())` is the same thing spelled out. Development names a near-miss
+spelling (`setUp`, `Setup`, `set_up`) once.
 
 **Set up on every connection, not once.** `connectedCallback` runs again each time the element is put
 back in the page after leaving it — removed and re-appended later, or taken into a popped-out window.
@@ -347,22 +368,27 @@ connected when its `disconnectedCallback` runs. Taking the element out first (`r
 both. This applies to components — elements that have called `init()`; any other custom element
 gets the platform's callbacks untouched.
 
-**Setup is one synchronous block, which matters for `async connectedCallback()`.** It starts at `init()` and ends
-at the end of that microtask turn, so a hook, `render()` or `mount()` after an `await` in setup finds no component
-and **throws** (`no-owner`) — every time, whatever else is on the page. Await *before* `init()`:
+**Hooks register while the setup runs, which matters for an async setup.** A setup may be `async`: its
+hooks belong to the component up to its first `await`, and a hook after it finds no component and
+**throws** (`no-owner`) — every time, whatever else is on the page. An async setup is atomic: nothing it
+registered runs until it resolves, a write while it is pending does not run it again, and a rejection is
+reported once through the error chain and draws nothing.
 
 ```js
-async connectedCallback() {
-  const data = await fetch(this.dataset.url).then((r) => r.json());   // await first
-  init(this, { mode: 'open' });                                       // then set up, synchronously
-  const state = createStore({ data });
-  render(() => html`<p>${state.data.title}</p>`);
+connectedCallback() {
+  init({ host: this, shadow: 'open' }, async () => {
+    const state = createStore({ data: null });
+    useEffect(() => { document.title = state.data?.title ?? '…'; });   // hooks before the first await
+    state.data = await fetch(this.dataset.url).then((r) => r.json());
+    return () => html`<p>${state.data.title}</p>`;
+  });
 }
 ```
 
-Or set up first and write what arrives into state: `init(this)`, `const state = createStore({ data: null })`,
-`render(…)`, then `state.data = await load()`. A hook created later can still be given its element explicitly
-(`useEffect(fn, this)`). Server-side, `renderToStringAsync` awaits `connectedCallback` either way.
+Or keep the setup synchronous and write what arrives into state: create `state` with `data: null`, return
+the render, and assign `state.data` when the fetch resolves — the component shows its empty state first.
+A hook created later can still be given its element explicitly (`useEffect(fn, this)`). Server-side,
+`renderToStringAsync` awaits an async setup either way.
 
 **Taking input from an attribute.** Attributes are the other half of how a web component receives
 anything — [Props](#props--what-a-parent-passes-in) is the half that carries *values*, and an
@@ -384,9 +410,10 @@ attributeChangedCallback(name, previous, value) {
 }
 
 connectedCallback() {
-  init(this, { mode: 'open' });
-  this.state = createStore({ label: this.getAttribute('label') });   // the initial value
-  render(() => html`<p>${this.state.label}</p>`);
+  init({ host: this, shadow: 'open' }, () => {
+    this.state = createStore({ label: this.getAttribute('label') });   // the initial value
+    return () => html`<p>${this.state.label}</p>`;
+  });
 }
 ```
 
@@ -399,11 +426,11 @@ fixed afterwards, so `html` alone produces an `HTMLUnknownElement` named `circle
 fine and never draws anything.
 
 ```js
-render(() => html`
+return () => html`
   <svg viewBox="0 0 10 10">
     ${svg`<circle cx=${x} cy=${y} r=${r} fill=${color} />`}
   </svg>
-`);
+`;
 ```
 
 The tag is chosen where a template is WRITTEN, not where it lands, so a template handed across a
@@ -458,7 +485,7 @@ platform's rule, not this framework's.
 ```js
 // Broken: the label is in the page, the input is in the shadow root.
 <label for="email">Email</label>
-<my-field></my-field>            //  init(this, { mode: 'open' }); render(() => html`<input id="email">`)
+<my-field></my-field>            //  init({ host: this, shadow: 'open' }, () => () => html`<input id="email">`)
 ```
 
 Three ways through, in the order worth reaching for:
@@ -473,10 +500,10 @@ Three ways through, in the order worth reaching for:
      this._internals ??= this.attachInternals();
      this._internals.role = 'button';
      this._internals.ariaLabel = 'Save';
-     init(this, { mode: 'open' });
+     init({ host: this, shadow: 'open' }, setup);
    }
    ```
-3. **Use light DOM** — omit the second argument to `init` — when a component's whole job is to
+3. **Use light DOM** — no `shadow` option — when a component's whole job is to
    participate in relationships the page owns. Style isolation is what you give up; `static styles`
    still works, hoisted once per class.
 

@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->7.2 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->8.6 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -39,9 +39,9 @@ lit's own output rather than asserting it. VeraJS ships its own renderer and nee
 
 Four things, and that is the whole framework:
 
-1. `init(this)` in `connectedCallback` attaches VeraJS to a plain custom element.
+1. `init(this, setup)` in `connectedCallback` attaches VeraJS to a plain custom element. The setup runs ONCE.
 2. `createStore(obj)` / `ref(v)` make state reactive. **Reading a property subscribes to it.**
-3. `render(() => template)` re-runs whenever anything it read changes.
+3. The setup RETURNS its render, `() => template`, which re-runs whenever anything it read changes.
 4. `useEffect(fn)` does the same for side effects.
 
 There are no dependency arrays, no reactive-property declarations, and no base class.
@@ -49,19 +49,20 @@ There are no dependency arrays, no reactive-property declarations, and no base c
 ## Minimal component
 
 ```js
-import { init, createStore, render, html, wire } from '@verajs/core';
+import { init, createStore, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]); // once, at startup — see "Setup" below
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });          // omit the options object for light DOM
-    const state = createStore({ count: 0 });
+    init({ host: this, shadow: 'open' }, () => {   // init(this, () => …) for light DOM
+      const state = createStore({ count: 0 });     // the setup runs once
 
-    render(() => html`
-      <button @click=${() => state.count++}>Clicked ${state.count} times</button>
-    `);
+      return () => html`
+        <button @click=${() => state.count++}>Clicked ${state.count} times</button>
+      `;                                           // its render re-runs on change
+    });
   }
 }
 customElements.define('click-counter', ClickCounter);
@@ -76,7 +77,7 @@ import { renderer } from '@verajs/renderer';
 wire([renderer]);       // what writes to the DOM. Core's `html` already produces what it accepts.
 ```
 
-**Core ships no renderer.** `render()` with none registered paints nothing and warns once — in
+**Core ships no renderer.** A component with none registered paints nothing and warns once — in
 every build, since a CDN page never runs development — naming the two lines to add. Wire one at your app entry:
 
 ```js
@@ -89,7 +90,7 @@ Core's `html` already produces the shape `@verajs/renderer` accepts, so the one 
 whole of the setup.
 
 **Order matters.** A component that defines itself before `wire([renderer])` renders with nothing on
-the `'render'` chain — `render()` warns once (in every build) and draws nothing. Static
+the `'render'` chain — it warns once (in every build) and draws nothing. Static
 `import` declarations are **hoisted**, so this is wrong:
 
 ```js
@@ -110,7 +111,24 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `init` | `(element, shadowProps?) => void` | Call first in `connectedCallback`. Pass `{ mode: 'open' }` for shadow DOM; omit for light DOM. |
+| `init` | `(element \| { host, shadow? }, setup?) => void` | Call in `connectedCallback`. `setup(host)` runs once, untracked, and returns the render function — or nothing, for a component whose whole job is a side effect. `shadow`: `'open'`, `'closed'`, `false` (light) or a `ShadowRootInit`; omitted, the app default from `renderer({ shadow })`, else light DOM. With no setup, `init` calls the class's own `setup()` method. |
+
+**The setup is the whole component, and it runs once.** Everything in it — stores, hooks, helpers — is created on
+connect; only the function it returns re-runs. Hooks register while it runs: one registered after an `await` in an
+async setup, or from a handler later, throws `no-owner` in every build (pass the element explicitly —
+`useEffect(fn, this)` — when that is what you mean). An async setup is atomic: nothing it registered runs until it
+resolves, and a rejection is reported once through the error chain and draws nothing.
+
+```js
+// the same component, written with a method — init(this) finds it
+class ClickCounter extends HTMLElement {
+  connectedCallback() { init({ host: this, shadow: 'open' }); }
+  setup() {
+    const state = createStore({ count: 0 });
+    return () => html`<button @click=${() => state.count++}>${state.count}</button>`;
+  }
+}
+```
 
 ### State
 
@@ -130,8 +148,6 @@ the right tool.
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `render` | `(template, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. **Required** — it is exactly `useRender(template)` followed by `mount()`. |
-| `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders — unless `@verajs/renderer/namespaces` is wired, which parses an `html` template where it lands. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | What you use. |
@@ -140,7 +156,7 @@ the right tool.
 | `setRenderScheduler` | `(scheduler) => previous` | When a FLUSH runs. Default: `microtask`. A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | THE DEFAULT: every flush as a microtask. |
 | `frameBudget` | `RenderScheduler` | Opt-in, for bursts of data: a microtask within ~4 ms of flush work per frame; past it the element's own window's next frame (or a short timer where there are none). After `await` the DOM may not be current yet — `flush()` first. |
-| `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
+| `useRender` | `(template, element) => void` | Lower-level, inside a setup: registers a second render that draws into `element`, on this component's lifecycle. |
 
 ### Props — passing data to a child component
 
@@ -156,8 +172,7 @@ html`<order-row ${props({ item: row, index: i })}></order-row>` // props(), from
 // child — no declaration anywhere
 customElements.define('order-row', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html`<p>${this.index}: ${this.item.label}</p>`);   // reading this.item TRACKS it
+    init({ host: this, shadow: 'open' }, () => () => html`<p>${this.index}: ${this.item.label}</p>`);   // reading this.item TRACKS it
   }
 });
 ```
@@ -227,9 +242,10 @@ The count is per hook, and resets on the first pass that does not feed itself �
 scheduled from your own `requestAnimationFrame`, a timer or an event never trips it.
 
 ```js
-init(this);
-allowRenderLoop(this);
-useEffect(() => { state.t = state.t + 1 });   // an animation, not a bug
+init(this, () => {
+  allowRenderLoop(this);
+  useEffect(() => { state.t = state.t + 1 });   // an animation, not a bug
+});
 ```
 
 ### SVG and MathML
@@ -240,11 +256,12 @@ markup is parsed and cannot be fixed afterwards:
 ```js
 import { html, svg } from '@verajs/core';
 
-render(() => html`
+// inside a setup
+return () => html`
   <svg viewBox="0 0 10 10">
     ${svg`<circle cx=${x} cy=${y} r=${r} fill=${color} />`}
   </svg>
-`);
+`;
 ```
 
 This is a TEMPLATE rule, and it has a switch. **Wire `@verajs/renderer/namespaces`**
@@ -397,8 +414,8 @@ changes, custom properties inherit through the shadow boundary, and neither need
 
 ```js
 static styles = css`p { color: var(--accent, blue); }`;
-// …
-render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
+// … and in the setup:
+return () => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`;
 ```
 
 ### Keyed lists (`@verajs/renderer/keyed`)
@@ -409,7 +426,7 @@ renderInto(html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</
 ```
 
 Its own entry since 0.2.0: reordering is what makes lists expensive, most apps never do it, and the
-algorithm is <!--size:keyed.gzip-->923 B<!--/size:keyed.gzip--> gzipped. Importing `keyed` is the entire installation — the marker stamps each
+algorithm is <!--size:keyed.gzip-->632 B<!--/size:keyed.gzip--> gzipped. Importing `keyed` is the entire installation — the marker stamps each
 result with the strategy that reconciles it, so there is nothing to `wire()` and a list always names
 its own reconciler. Additive like `/spread`: it imports nothing and works alongside `/hydrate`. A reorder MOVES
 nodes, so form state and scroll survive — focus on a moved node does not (the platform blurs it). One
@@ -426,9 +443,8 @@ import { slots, slotted } from '@verajs/renderer/slots';
 wire([renderer, slots]);
 
 // <user-card><h2 slot="title">Ada</h2>a bio</user-card>
-init(this);                     // light DOM — no shadow options
-render(() => html`<article><header><slot name="title">Untitled</slot></header>
-                  <main><slot>No bio.</slot></main></article>`);
+init(this, () => () => html`<article><header><slot name="title">Untitled</slot></header>
+                  <main><slot>No bio.</slot></main></article>`);   // light DOM — no shadow option
 ```
 
 Assignment follows the platform: `slot="x"` goes to the first `<slot name="x">` in tree order,
@@ -506,7 +522,7 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into, and the module is
-<!--size:slots.gzip-->4.08 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->4.65 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive — with one more module wired where both are used:
 `wire([renderer, hydration, slots, hydrateSlots])` (`import { hydrateSlots } from '@verajs/renderer/hydrate-slots'`;
@@ -553,7 +569,7 @@ Bindings whose names are not known when the template is parsed.
 ```js
 import { spread } from '@verajs/renderer/spread';
 
-render(() => html`<input ${spread({
+return () => html`<input ${spread({
   id: 'email',                    // attribute
   '.value': draft,                // property
   '?disabled': busy,              // boolean attribute
@@ -566,7 +582,7 @@ thing — including `&ref` for an element ref. A key that cannot be written into
 (whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
 those and markup cannot carry them, so both sides refuse them rather than disagreeing.
 `@verajs/renderer` costs 25 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->1.58 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+is <!--size:spread.gzip-->1.60 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
@@ -629,19 +645,19 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.78 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->5.28 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts (lit-html templates also work,
 being structurally identical).
 
 ```js
-import { init, createStore, render as show, wire, html } from '@verajs/core';
-/** `renderer`, not `render`. The module is what `wire` takes; `render` is the function it registers. */
+import { init, createStore, wire, html } from '@verajs/core';
+/** `renderer`, not `renderInto`. The module is what `wire` takes; `renderInto` is the function it registers. */
 import { renderer } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 wire([renderer]);
 
-// keyed lists: no repeat() import — key all items or none
-show(() => html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`);
+// keyed lists: no repeat() import — key all items or none. Inside a setup:
+return () => html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`;
 ```
 
 Semantics that differ from lit-html — state these rather than assuming lit's:
@@ -696,10 +712,10 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   bracketed by two empty comments. A custom element is never owned (a light component renders into its children).
 - **ARIA does not cross a shadow boundary.** `aria-labelledby`, `aria-describedby` and `<label for>`
   all match by ID, and IDs are scoped to their tree — so a page-level label cannot name a control
-  inside `init(this, { mode: 'open' })`. No error, no warning, no accessible name. Three ways through:
+  inside `init({ host: this, shadow: 'open' }, setup)`. No error, no warning, no accessible name. Three ways through:
   keep the relationship inside one template; put a role and name on the **host** with
   `ElementInternals` (`this.attachInternals()` before `init`, which does not clobber it); or use light
-  DOM (`init(this)` with no second argument), where `static styles` still applies, hoisted per class.
+  DOM (no `shadow`), where `static styles` still applies, hoisted per class.
   `delegatesFocus: true` forwards host focus to the first focusable child. All verified in Chromium,
   Firefox and WebKit — `tests/browser/aria-shadow-boundary.test.js`.
 - `@event` accepts **both shapes `addEventListener` accepts** — a function (called with the element
@@ -1489,8 +1505,8 @@ is probably a mistake (a controlled `value` with nothing keeping it in step).
 <my-app></my-app>
 
 <script type="text/vera-jsx">
-  import { init, createStore, render, wire } from '@verajs/core';
-  import { renderer } from '@verajs/renderer';   // the MODULE. `render` is the function it registers.
+  import { init, createStore, wire } from '@verajs/core';
+  import { renderer } from '@verajs/renderer';   // the MODULE wire takes — not a function you call
   import { keyed } from '@verajs/renderer/keyed';
   wire([renderer]);
 
@@ -1505,16 +1521,14 @@ is probably a mistake (a controlled `value` with nothing keeping it in step).
      declared here, and the parent's next render updates it. */
   class TallyBadge extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      render(() => <b>picked: {String(this.count)}</b>);
+      init({ host: this, shadow: 'open' }, () => () => <b>picked: {String(this.count)}</b>);
     }
   }
   customElements.define('tally-badge', TallyBadge);
 
   class MyApp extends HTMLElement {
     connectedCallback() {
-      init(this);                       // light DOM; init(this, { mode: 'open' }) for shadow
-      render(() => (
+      init(this, () => () => (            // light DOM; init({ host: this, shadow: 'open' }, …) for shadow
         <ul>
           {[1, 2, 3].map((i) => keyed(i, <Row label={`row ${i}`} onPick={() => state.n = i} />))}
           <tally-badge count={state.n} />
@@ -1542,7 +1556,7 @@ is loaded from beside the mapped renderer; relative imports, `import()` in any f
    only applies across separate files.
 3. **Function components are not elements.** They compile to plain calls returning templates.
    Children arrive as `props.children`, an **array**. No hooks-in-function-components; state lives
-   in a store and reactivity comes from the `render()` call in the custom element.
+   in a store and reactivity comes from the render the custom element's setup returns.
 4. **`style` must be a string.** `style={{color:'red'}}` is a compile error; use
    `` style={`color:${c}`} ``.
 5. **`{...props}` works on an element and on a component.** On an element it compiles to
@@ -1715,21 +1729,21 @@ form you hold, the full explanation of a code is at `https://verajs.dev/e/<code>
 ## Common mistakes
 
 1. Defining a component before `wire([renderer])` → with nothing on the `'render'`
-   chain, `render()` warns once (in every build) and draws nothing. (`mount()` is unaffected — it
-   commits the setup and never reaches a renderer.)
+   chain, it warns once (in every build) and draws nothing. (A setup returning nothing is
+   unaffected — it never reaches a renderer.)
 2. Static `import` for components in the entry file → hoisted, same failure.
 3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
    an **occupied** priority replaces that entry (this is how a renderer is swapped), and the
    replacement is named in a development warning.
 4. `createStore` for large lists → use `shallowRef`.
-5. Forgetting `init(this)` before `render` → nothing renders.
-6. **Registering hooks and never committing the setup → none of them ever run.** `init()` opens a
-   component's setup and one of two calls closes it: `render(template)` for a component with markup,
-   `mount()` for one whose whole job is a side effect. Both run the first pass of every hook
-   registered since `init()`. Development warns if neither happens, and names both.
-7. A hook, `render()` or `mount()` after the setup has closed (after an `await`, or from a handler) →
-   throws `no-owner`, in every build. Register hooks between `init()` and the `render()` or `mount()`
-   that closes it, await before `init()`, or pass the element explicitly.
+5. Returning a TEMPLATE from the setup instead of a function → drawn once, never updated (development says
+   so). Return `() => html\`…\``.
+6. **Creating state inside the render instead of the setup → it resets on every render.** The setup runs once; the
+   function it returns runs on every change. `createStore` and hooks belong in the setup, above the `return`.
+7. A hook after the setup has returned (after an `await` in an async setup, or from a handler) →
+   throws `no-owner`, in every build. Register hooks before the first `await`, or pass the element explicitly.
+   The old `init(this, { mode })` → the object is ignored in every build (no shadow root) and development names
+   the fix once: `init({ host: this, shadow: 'open' }, setup)`.
 8. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
 9. An autoloaded file that loads and defines a different tag than its name → reported via
    `vera:autoload-error` and the console; the module must define the element it is named for.

@@ -41,11 +41,13 @@ const root = new URL('..', import.meta.url).pathname;
  * purpose and watching the test **not** fail; a green check nobody has seen go red is not evidence.
  */
 const RENDERER_SOURCE = /^renderer(?:\/|$)|@verajs\/renderer|vera-renderer|packages\/renderer\//;
+/** Core, however it is spelled — the same three forms, plus its bundle (`vera.min.js`, the one not named after its package). */
+const CORE_SOURCE = /^core$|@verajs\/core|packages\/core\/|(?:^|\/)vera(?:\.min)?\.js(?:\?|$)/;
 
 /** `import { … } from '<spec>'`, `await import('<spec>')`, `await load('renderer…')`. */
 const BINDING = new RegExp(
   String.raw`\{([^}]*)\}\s*=?\s*(?:from\s*)?` +
-    String.raw`(?:['"]([^'"]*)['"]|await\s+import\(\s*['"]([^'"]*)['"]|.*?await\s+load\(\s*['"](renderer[^'"]*)['"])`,
+    String.raw`(?:['"]([^'"]*)['"]|await\s+import\(\s*['"]([^'"]*)['"]|.*?await\s+load\(\s*['"]((?:renderer|core)[^'"]*)['"])`,
   'g'
 );
 
@@ -72,7 +74,7 @@ files.push(
 
 const self = (file) => file.endsWith('docs-moved-render.test.mjs');
 
-test('nothing binds `render` from a renderer entry', () => {
+test('nothing binds `render` from a renderer entry, nor `render` or `mount` from core', () => {
   assert.ok(files.length > 10, `expected to find the tree, found ${files.length}`);
   const problems = [];
   for (const file of files) {
@@ -82,14 +84,23 @@ test('nothing binds `render` from a renderer entry', () => {
     for (const match of text.matchAll(BINDING)) {
       const [clause, ...specifiers] = [match[1], match[2], match[3], match[4]];
       const specifier = specifiers.find(Boolean);
-      if (!specifier || !RENDERER_SOURCE.test(specifier)) continue;
-      /** `render as something` is a local alias and binds no name called `render`. */
-      if (!/(?<![\w$])render\s*(?![\w$]|\s+as\b|\s*:)/.test(clause)) continue;
+      if (!specifier) continue;
+      /**
+       * The renderer's draw is `renderInto`; core's `render` and `mount` were removed in R2 (a setup returns its render).
+       * From core, an alias binds the removed name too (`render as show` reads an export that is gone).
+       */
+      const fromCore = CORE_SOURCE.test(specifier);
+      if (!fromCore && !RENDERER_SOURCE.test(specifier)) continue;
+      /** `render as something` from a RENDERER is a local alias of a foreign `render` and binds no name called `render`. */
+      const binds = fromCore
+        ? /(?<![\w$])(render|mount)(?![\w$])(?!\s*:)/.test(clause)
+        : /(?<![\w$])render\s*(?![\w$]|\s+as\b|\s*:)/.test(clause);
+      if (!binds) continue;
       const line = text.slice(0, match.index).split('\n').length;
       problems.push(`${relative(root, file)}:${line}  { ${clause.trim()} } from ${specifier}`);
     }
   }
-  assert.deepEqual(problems, [], `the renderer's draw is \`renderInto\`:\n  ${problems.join('\n  ')}`);
+  assert.deepEqual(problems, [], `the renderer's draw is \`renderInto\`, and core's setup returns its render:\n  ${problems.join('\n  ')}`);
 });
 
 test('no prose teaches `render(result, container)`', () => {
