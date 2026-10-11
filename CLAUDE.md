@@ -78,7 +78,8 @@ code, so they are not re-litigated.
   design** (Brian, 2026-10-10): `tests/core-subscription-sweep.test.mjs` forces gc in an ISOLATED child process whose
   only job is to measure — gc is the instrument there, never a crutch inside the logic under test — with both controls
   (a dropped object that must die, live readers that must stay). It is the only thing that holds the store's
-  dead-subscription sweep in the gate. A new gc row needs the same shape and the same justification, or it belongs in
+  exact unsubscription in the gate (a removed component leaves nothing in a store; it replaced a sweep that cost
+  Firefox 3–13% on creation, 2026-10-10). A new gc row needs the same shape and the same justification, or it belongs in
   `.probe/`.
 - **jsdom cannot measure retention of anything a `MutationObserver` watches.** jsdom's observer keeps every observed
   node in a strong list until `disconnect()`; browsers hold them weakly. Slots' two shared observers never disconnect,
