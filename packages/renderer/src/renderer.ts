@@ -1734,8 +1734,15 @@ const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed
 let declined = false;
 
 type Registry = { get(name: never): unknown; $S?: unknown };
-type RendererModule = ((given?: { shadow?: unknown }) => unknown[] | void) & {
-  on: 'render' | undefined;
+/**
+ * What a consumer's TypeScript sees — the shape `wire` accepts (`Wireable`, structurally: this package imports no
+ * types from `@verajs/inserts`): a DESCRIPTOR, `on: 'render'`, callable with options to give `[renderer, a connector]`.
+ * On a server `on` is in fact `undefined` (decided at load, below) — a runtime decision the type does not carry, as
+ * the previous `on: 'render' | undefined` did: that matched neither a descriptor nor a connector, so `wire([renderer])`
+ * stopped compiling in a consumer's project (tests/consumer, 2026-10-10).
+ */
+type RendererModule = ((options?: { shadow?: 'open' | 'closed' | false | ShadowRootInit }) => readonly [RendererModule, (registry: Registry) => void]) & {
+  readonly on: 'render';
   fn: never;
   priority: number;
   connect: (given: Registry) => void;
@@ -1755,7 +1762,7 @@ type RendererModule = ((given?: { shadow?: unknown }) => unknown[] | void) & {
  * does) — and only the render INSERT is declined, so one shared `wire([renderer({ shadow })])` carries the same default
  * to both sides. Development says so once per process.
  */
-export const renderer: RendererModule = Object.assign(
+export const renderer = Object.assign(
   (given?: { shadow?: unknown } | Registry) => {
     if ((given as Registry | undefined)?.get) {
       connectTo(given as Registry);
@@ -1781,7 +1788,7 @@ export const renderer: RendererModule = Object.assign(
     ];
   },
   { on: onServer ? undefined : ('render' as const), fn: renderInto as never, priority: 50, connect: connectTo }
-);
+) as unknown as RendererModule;
 /** Development: the name the collision warning reports (`wire`'s name bookkeeping is development-only). */
 if (__DEV__) Object.defineProperty(renderer, 'name', { value: '@verajs/renderer' });
 
