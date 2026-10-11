@@ -74,13 +74,14 @@ code, so they are not re-litigated.
   a bounded framework hold. Only the no-framework control settles it: the same harness with plain
   `innerHTML` and no vera at all reports the same lone survivor.
   **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
-  `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`. **One exception, by
-  design** (Brian, 2026-10-10): `tests/core-subscription-sweep.test.mjs` forces gc in an ISOLATED child process whose
-  only job is to measure — gc is the instrument there, never a crutch inside the logic under test — with both controls
-  (a dropped object that must die, live readers that must stay). It is the only thing that holds the store's
-  exact unsubscription in the gate (a removed component leaves nothing in a store; it replaced a sweep that cost
-  Firefox 3–13% on creation, 2026-10-10). A new gc row needs the same shape and the same justification, or it belongs in
-  `.probe/`.
+  `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`. **The exception, by design**
+  (Brian, 2026-10-10; generalized 2026-10-11): **isolated measuring child processes that use gc as the instrument, with
+  retained and dropped controls, are allowed in tests; forced gc inside a suite's own process is not.** gc is the
+  instrument there, never a crutch inside the logic under test, and it is for what nothing observable can pin:
+  `tests/core-subscription-sweep.test.mjs` holds the store's exact unsubscription (a removed component leaves nothing
+  in a store; it replaced a sweep that cost Firefox 3–13% on creation), and `tests/renderer-release-gc.test.mjs` holds
+  the renderer's release of a removed component's applier state. A row without both controls, or one that runs gc in
+  the suite's own process, belongs in `.probe/`.
 - **jsdom cannot measure retention of anything a `MutationObserver` watches.** jsdom's observer keeps every observed
   node in a strong list until `disconnect()`; browsers hold them weakly. Slots' two shared observers never disconnect,
   so under jsdom every light host ever observed stays reachable — a gc probe reports a leak the browser does not have,
