@@ -1698,6 +1698,8 @@ if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer
 const connectTo = (given: { get(name: never): unknown }) => {
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
+    /** Defined up front, so every render's `_$done$` read is a HIT on a page without slots — not a miss down the Map's chain. */
+    (given as { _$done$?: unknown })._$done$ ??= undefined;
     /**
      * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
      * bundled module cannot import them, and production mangles their names): only values the renderer already holds,

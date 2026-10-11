@@ -19,11 +19,17 @@ let warnedNoRenderer = false;
  * land before it (`coalesce`). The hook belongs to the component being set up, whose lifecycle drives
  * it; `element` is only where it draws — usually the same element, and deliberately allowed not to be.
  */
-export const useRender = (template: unknown, element: ComponentElement) =>
-  coalesce(
+export const useRender = (template: unknown, element: ComponentElement) => {
+  /**
+   * The render target, found on the FIRST render and kept: a hook lives one generation, and the root is attached before
+   * its setup — so the `_$r$` miss (a light component's walk down the DOM prototype chain) and the `shadowRoot` getter are
+   * paid once, not on every render.
+   */
+  let target: ShadowRoot | HTMLElement | undefined;
+  return coalesce(
     (signal) => {
       const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
-      const target = element._$r$ ?? element.shadowRoot ?? element;
+      target ??= element._$r$ ?? element.shadowRoot ?? element;
       const renderers = inserts.get('render');
       if (!renderers?.length) {
         if (!warnedNoRenderer) {
@@ -32,8 +38,10 @@ export const useRender = (template: unknown, element: ComponentElement) =>
         }
         return;
       }
-      renderers.forEach((renderer) => (renderer as Renderer)(result, target));
+      /** A plain loop — a `forEach` arrow here was a closure on every render of every component. */
+      for (let i = 0; i < renderers.length; i++) (renderers[i] as Renderer)(result, target);
     },
     RENDER_PRIORITY,
     false
   );
+};

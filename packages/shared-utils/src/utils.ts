@@ -15,7 +15,15 @@ export const getType = (obj: unknown) => Object.prototype.toString.call(obj).sli
  * holds `obj` and defeats the whole point of the type. Checked by type string rather than
  * `instanceof`, which fails across realms (iframes, `vm`).
  */
-export const isWeakCollection = (item: unknown) => getType(item)[0] === 'w';
+/**
+ * A WeakMap or WeakSet (or WeakRef) — read from `Symbol.toStringTag`, the tag `Object.prototype.toString` itself reads, so
+ * the answer is the same (another realm's collections included) without building and lower-casing a string on every first
+ * tracked read of every object.
+ */
+export const isWeakCollection = (item: unknown) => {
+  const tag = (item as { [Symbol.toStringTag]?: unknown } | null)?.[Symbol.toStringTag];
+  return typeof tag === 'string' && (tag[0] === 'W' || tag[0] === 'w');
+};
 
 /**
  * Remove a trailing slash from an url if its not root url (`/`).

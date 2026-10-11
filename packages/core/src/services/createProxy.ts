@@ -42,10 +42,12 @@ const track = (obj: object, prop: unknown) => {
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
   const hooks = proxyCallbacks.get(obj)?.get(prop);
   if (hooks === undefined) return;
+  /** ONE signal per write, shared by every subscriber — it is read, never written (a write to a key with 500 readers made 500). */
+  let signal: Signal<unknown> | undefined;
   for (const ref of hooks) {
     const hook = ref.deref();
     if (hook === undefined) hooks.delete(ref);
-    else hook({ prop: prop as string, value, prevValue } as Signal<unknown>);
+    else hook((signal ??= { prop: prop as string, value, prevValue } as Signal<unknown>));
   }
 };
 
