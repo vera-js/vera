@@ -185,6 +185,14 @@ code, so they are not re-litigated.
   error's construction is the usual candidate — out of line. `tests/ssr-inlining-budget.test.mjs` guards
   `serializeValue` and prints its headroom every run. A size cliff shows in no code read and no correctness test; and
   Firefox and Safari inline on different rules, so in the browser the three-engine race is the only oracle.
+- **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
+  remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
+  it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
+  Chrome: the one new deopt R1 introduced sat on `untracked`; folding untracking into `initWith` moved the same deopt to
+  `initWith`, and the first-render cost it seemed to explain did not move (64.6 → 64.1 ms, pre-R1 60.6). Before treating
+  a deopt as the cause, change it and race it: a deopt that moves while the timing stays put is a symptom of the
+  allocation pattern, not the cost. The tools: V8's `--log-code --log-deopt --logfile=…` passed through Chrome's
+  `--js-flags` (renderer stdout is closed on macOS, so `--trace-opt` prints nothing), mapped through the dist source maps.
 - **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
   create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
   class defines is work the engine does for every instance; never add one speculatively.
