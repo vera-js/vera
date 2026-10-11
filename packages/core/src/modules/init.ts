@@ -126,6 +126,16 @@ export const init = (target: ComponentElement | InitOptions, setup?: Setup | Sha
 export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | ShadowRootInit | undefined) => {
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
+  /**
+   * Development: `init` on a host from inside ITS OWN setup starts a new generation and discards the hooks that setup
+   * registered so far — the one form's only window-open second init (a sequential `init(this, s1); init(this, s2)`
+   * is the old "render, then init again", which never warned; a reconnect is a legitimate restart). Moved from the
+   * legacy window in R2 (its inventory, #3).
+   */
+  if (__DEV__ && currentInstance.element === element && element._$h$?.length) {
+    const count = element._$h$.reduce((n, set) => n + set.size, 0);
+    console.warn(diagnostic('core', `<${element.localName}>`, 'init-twice', __DEV__ && PROSE['init-twice'](String(count))));
+  }
   mine.add(element);
   /**
    * The component's own `shadow` (an explicit `false` included), else the app default `renderer({ shadow })` set on the

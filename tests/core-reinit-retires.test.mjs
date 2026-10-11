@@ -80,3 +80,53 @@ test("a throwing cleanup does not abort the re-init: it is reported once, the ne
     chain._p.splice(at, 1);
   }
 });
+
+/** `init-twice`, moved from the legacy window (R2's inventory #3): the one form's trigger set is exactly the legacy's. */
+const said = async (run) => {
+  const lines = [];
+  const warn = console.warn;
+  console.warn = (...a) => lines.push(a.join(' '));
+  try { await run(); } finally { console.warn = warn; }
+  return lines.filter((line) => line.includes('init-twice'));
+};
+const isDev = !(await import('./dist.mjs')).isProduction;
+
+test('init on its own host from INSIDE its setup is named once in development (init-twice)', async () => {
+  const tag = `ri-nested-${seq++}`;
+  const lines = await said(async () => {
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        init(this, (host) => {
+          useEffect(() => {});
+          init(host, () => () => html`<p>inner</p>`);
+          return () => html`<p>outer</p>`;
+        });
+      }
+    });
+    doc.body.append(doc.createElement(tag));
+    await tick();
+  });
+  assert.equal(lines.length, isDev ? 1 : 0, lines.join(' | '));
+});
+
+test('a SEQUENTIAL re-init, and a reconnect, are not init-twice', async () => {
+  const tag = `ri-quiet-${seq++}`;
+  const lines = await said(async () => {
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        init(this, () => { useEffect(() => {}); return () => html`<p>s1</p>`; });
+        init(this, () => () => html`<p>s2</p>`);
+      }
+    });
+    const el = doc.createElement(tag);
+    doc.body.append(el);
+    await tick();
+    el.remove();
+    await tick();
+    doc.body.append(el);
+    await tick();
+    assert.equal(el.textContent, 's2', 'CONTROL: it reconnected and rendered');
+    el.remove();
+  });
+  assert.deepEqual(lines, []);
+});
