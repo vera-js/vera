@@ -83,6 +83,8 @@ const CASES = [
   ['wire(a descriptor whose fn is undefined)', () => core.wire({ on: 'render', fn: undefined, priority: 50 }), /wire: that object is not an insert descriptor/],
   ['wire(renderInto) — a function named like a module', () => core.wire(renderInto), /wire: `renderInto` is not a module — did you mean `renderer`\?/],
   ['wire({ priority: NaN })', () => core.wire({ on: 'probe-insert', fn: () => {}, priority: Number.NaN }), /wire: priority must be a finite number/],
+  ['useHook(fn, NaN)', () => core.useHook(() => {}, Number.NaN, {}), /useHook: the priority must be a finite number, and NaN is not/],
+  ['createHook({ priority: Infinity })', () => core.createHook({ element: {}, priority: Infinity, callback: () => {} }), /createHook: the priority must be a finite number, and Infinity is not/],
   ['computed(notAFunction)', () => reactivity.computed(42), /computed: expected a function to derive the value from/],
   ['setRenderScheduler(notAFunction)', () => core.setRenderScheduler(42), /setRenderScheduler: expected a function/],
   ['setRouterRenderer(notAFunction)', () => routerModule.setRouterRenderer(42), /setRouterRenderer: expected a function/],

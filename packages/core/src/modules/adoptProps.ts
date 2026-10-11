@@ -90,8 +90,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
     if (hooks !== undefined)
       for (let i = 0; i < hooks.length; i++) {
         const hook = hooks[i]!;
-        /** The render band: a key is priority × 1e9 + creation, so a priority-50 hook's key is in [50e9, 51e9). */
-        if (hook._k >= RENDER_PRIORITY * 1e9 && hook._k < (RENDER_PRIORITY + 1) * 1e9) hook.$n({}, true);
+        if (hook._y === RENDER_PRIORITY) hook.$n({}, true);
       }
 }
 

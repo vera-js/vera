@@ -44,6 +44,10 @@ export const PROSE: Record<string, Prose> = {
     `expected a component element and received ${received}.`,
     'Call it in connectedCallback with the component itself — `init(this)`.',
   ],
+  'priority-not-finite': (received) => [
+    `the priority must be a finite number, and ${received} is not — the hook was not registered.`,
+    'Lower runs first: 25 runs before the render, 50 is the render, 60 useLayoutEffect, 75 useEffect. A priority read from config with `parseInt` is NaN when the value is missing.',
+  ],
   'scheduler-not-function': (received) => [
     `expected a function and received ${received}.`,
     'It receives the flush and decides when to run it — `microtask` (the default) and `frameBudget` are exported for that.',

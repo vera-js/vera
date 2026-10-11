@@ -1,4 +1,4 @@
-import { callable, MODE_QUEUED, MODE_SYNC, noOwner, register } from '../modules/createHook.js';
+import { callable, finite, MODE_QUEUED, MODE_SYNC, noOwner, register } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
 import type { ComponentElement, HookCallback } from '../types.js';
 
@@ -21,8 +21,7 @@ import type { ComponentElement, HookCallback } from '../types.js';
 export const coalesce = (callback: HookCallback, priority: number, sync: boolean, element?: ComponentElement) => {
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
-  /** Refused, as `createHook` refuses: `NaN` is what `parseInt` of a config value produces. */
-  if (!Number.isFinite(priority)) return;
+  finite(priority, 'useHook');
   return register(owner, callback, priority, sync ? MODE_SYNC : MODE_QUEUED);
 };
 
@@ -36,7 +35,5 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
  * @param priority Where it runs in a flush — lower first
  * @param element The owner, instead of the element being set up
  */
-export const useHook = (callback: HookCallback, priority: number, element?: ComponentElement) => {
-  const hook = coalesce(callback, priority, false, element);
-  return hook && (callable(hook) as HookCallback);
-};
+export const useHook = (callback: HookCallback, priority: number, element?: ComponentElement) =>
+  callable(coalesce(callback, priority, false, element)) as HookCallback;

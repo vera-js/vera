@@ -224,7 +224,7 @@ measured, the click still paints a frame sooner than frame scheduling did, but t
 best handled by one listener making one write.
 
 `useLayoutEffect`, `useEffect` and `useSyncEffect` take `(callback, element?)`, and `useHook` takes
-`(callback, priority, element?)` — the same shape with the one thing it adds (`createHook`, the raw primitive under
+`(callback, priority, element?)` — the same shape with the one thing it adds (a priority is any finite number; anything else throws, as it does for `wire`. `createHook`, the raw primitive under
 all of them, takes an options object instead: it is the building block for modules, not a hook to call in setup). All four treat a returned function as
 cleanup — run before the next pass, **and on element removal**. No `disconnectedCallback` is needed for it; if the component has
 one of its own, it still runs first.

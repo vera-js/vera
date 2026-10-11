@@ -13,6 +13,9 @@ import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js'
  * a heap). Passes queued in creation order — a store write waking its readers — never sort at all.
  */
 let queue: HookRecord[] = [];
+/** Run order: priority (`_y`), then creation (`_k`) — two fields, never packed into one number (see `HookRecord`). */
+const order = (a: HookRecord, b: HookRecord) => a._y - b._y || a._k - b._k;
+const runsBefore = (a: HookRecord, b: HookRecord) => a._y < b._y || (a._y === b._y && a._k < b._k);
 let next = 0;
 let unsorted = false;
 
@@ -90,7 +93,7 @@ export const enqueue = (pass: HookRecord) => {
   if (!pass._in) {
     pass._in = true;
     /** Only a pass arriving OUT of key order needs a sort — passes queued in creation order never pay one. */
-    if (next < queue.length && pass._k < queue[queue.length - 1]._k) unsorted = true;
+    if (next < queue.length && runsBefore(pass, queue[queue.length - 1]!)) unsorted = true;
     queue.push(pass);
   }
   if (scheduled || flushing) return;
@@ -132,7 +135,7 @@ const drain = () => {
   try {
     while (next < queue.length) {
       if (unsorted) {
-        queue = queue.slice(next).sort((a, b) => a._k - b._k);
+        queue = queue.slice(next).sort(order);
         next = 0;
         unsorted = false;
       }
@@ -218,7 +221,7 @@ const loopWarning = (pass: HookRecord) => {
   warned.add(element);
   const writer = pass._b ?? pass;
   console.warn(
-    diagnostic('core', `${LABELS[Math.floor(writer._k / 1e9)] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && PROSE['render-loop'](String(LIMIT)))
+    diagnostic('core', `${LABELS[writer._y] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && PROSE['render-loop'](String(LIMIT)))
   );
 };
 

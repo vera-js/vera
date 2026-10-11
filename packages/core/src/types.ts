@@ -91,8 +91,10 @@ export type Subscribers = Set<WeakRef<HookRecord>>;
  * deletes `w` from each, so a removed component leaves nothing in a store and nothing is ever swept. The joined Sets
  * are held STRONGLY while the hook lives: bounded by what the component reads, released at retirement — not a leak.
  *
- * The scheduler's fields: `_k` orders the queue (priority × 1e9 + the hook's creation sequence: parent-first, then
- * registration order), `_o` is the owner whose window a deferred flush waits on, `_in` says it is queued now, and
+ * **Run order is `_y` (priority), then `_k` (creation sequence: parent-first, then registration order) — two fields,
+ * never one packed number.** A packed `priority × 1e9 + sequence` (2026-10-08 → 10-11) misordered close fractional
+ * priorities, collided past priority ≈ 9e6 (2^53), and — the sequence being global — read a priority-50 hook as 51 once
+ * a page had created 1e9 hooks. The scheduler's fields: `_o` is the owner whose window a deferred flush waits on, `_in` says it is queued now, and
  * `_f`/`_r` are the flush its runs are counted in and the count.
  */
 export type HookRecord = {
@@ -100,6 +102,8 @@ export type HookRecord = {
   _o: ComponentElement;
   /** The owner's generation when the hook was made; any other value retires it. */
   _g: number | undefined;
+  /** Its priority (lower runs first) and its creation sequence — two fields, compared in that order. */
+  _y: number;
   _k: number;
   /** 0 raw (`createHook`: runs inside every write), 1 queued (one run per flush), 2 sync (`useSyncEffect`). */
   _m: number;

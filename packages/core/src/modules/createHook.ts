@@ -1,7 +1,7 @@
 import type { ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal, Subscribers } from '../types.js';
 import { currentInstance, hooksQueue, mine } from '../store/store.js';
 import { enqueue } from './scheduler.js';
-import { diagnostic, reportUncaught } from '@verajs/shared-utils';
+import { diagnostic, misuse, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { ErrorInsert } from '@verajs/inserts';
@@ -88,7 +88,7 @@ const SYNC = 2;
 export const MODE_QUEUED = QUEUED;
 export const MODE_SYNC = SYNC;
 
-/** Every hook's creation, in order: the second half of the queue's key (`_k`). */
+/** Every hook's creation, in order: `_k`, which breaks ties within one priority. */
 let created = 0;
 
 /**
@@ -111,6 +111,7 @@ let created = 0;
 class HookState implements HookRecord {
   declare _o: ComponentElement;
   declare _g: number | undefined;
+  declare _y: number;
   declare _k: number;
   declare _m: number;
   declare _c: HookCleanup | undefined;
@@ -134,7 +135,8 @@ class HookState implements HookRecord {
   constructor(owner: ComponentElement, callback: HookCallback, priority: number, mode: number) {
     this._o = owner;
     this._g = owner._$g$;
-    this._k = priority * 1e9 + ++created;
+    this._y = priority;
+    this._k = ++created;
     this._m = mode;
     this._c = undefined;
     this._q = undefined;
@@ -217,7 +219,7 @@ class HookState implements HookRecord {
       this._c = cleanup;
       if (__DEV__ && !this._wa && typeof (out as { then?: unknown } | undefined)?.then === 'function') {
         this._wa = true;
-        const priority = Math.floor(this._k / 1e9);
+        const priority = this._y;
         const hook = priority === 60 ? 'useLayoutEffect' : priority === 75 ? (this._m === SYNC ? 'useSyncEffect' : 'useEffect') : 'useHook';
         console.warn(diagnostic('core', `${hook}${owner.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
       }
@@ -245,18 +247,29 @@ export const register = (owner: ComponentElement, callback: HookCallback, priori
   if (host !== null && host !== owner && (owner as Partial<Node>).nodeType === undefined)
     (host._$o$ ??= []).push(owner);
   /**
-   * ONE flat list in run order. Keys only grow, so a hook joins at the end — unless a LOWER priority arrives after a
-   * higher one (a `useHook(…, 25)` registered after the render): then it moves back past the hooks that run after it.
+   * ONE flat list in run order. Sequences only grow, so a hook joins at the end — unless a LOWER priority arrives after
+   * a higher one (a `useHook(…, 25)` registered after the render): then it moves back past the hooks that run after it.
+   * An equal priority never moves: the one already there was created first.
    */
   const hooks = (owner._$h$ ??= []);
   let at = hooks.length;
   hooks.push(hook);
-  while (at > 0 && hooks[at - 1]!._k > hook._k) {
+  while (at > 0 && hooks[at - 1]!._y > hook._y) {
     hooks[at] = hooks[at - 1]!;
     at--;
   }
   hooks[at] = hook;
   return hook;
+};
+
+/**
+ * **A priority must be a finite number — THROWS otherwise, in every build**, as `wire` does (Brian, 2026-10-11: one rule
+ * for a priority wherever it is given). It was refused silently, so a `NaN` read from config left an effect that simply
+ * never ran, with nothing said in either build.
+ */
+export const finite = (priority: unknown, subject: string) => {
+  if (!Number.isFinite(priority))
+    throw new TypeError(misuse(subject, 'priority-not-finite', __DEV__ && PROSE['priority-not-finite'](String(priority))));
 };
 
 /** What `createHook` and `useHook` hand their caller: a function running the hook — `run(undefined, true)` is its first pass. */
@@ -272,12 +285,13 @@ export const callable = (hook: HookRecord) => (signal?: Signal<unknown>, init?: 
  * holds one weak reference to it — one per hook, so repeated runs add the same entry to a subscription set. The
  * generation and out-of-tree rules are the hook's (`HookState`).
  *
- * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the
- * priority is not a finite number — `NaN` is what `parseInt` of a config value produces.
+ * THROWS when there is no owner (`noOwner`, above) or the priority is not a finite number (`finite`, below — `NaN` is
+ * what `parseInt` of a missing config value produces). Refused, returning `undefined`, when there is no callback.
  */
 export const createHook = ({ callback, priority, element }: Hook): HookCallback | undefined => {
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
-  if (!callback || !Number.isFinite(priority)) return;
+  if (!callback) return;
+  finite(priority, 'createHook');
   return callable(register(owner, callback, priority as number, RAW)) as HookCallback;
 };
