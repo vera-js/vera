@@ -58,9 +58,10 @@ const buildTree = (random, prefix) => {
     parts.push(
       `customElements.define('${tag}', class extends HTMLElement {\n` +
         `  connectedCallback() {\n` +
-        `    init(this${shadow ? ", { mode: 'open' }" : ''});\n` +
-        `    const state = createStore({ n: ${counter} });\n` +
-        `    render(() => html\`<div class="${tag}" data-n=\${state.n}>${body}</div>\`);\n` +
+        `    init({ host: this, shadow: ${shadow ? "'open'" : 'false'} }, () => {\n` +
+        `      const state = createStore({ n: ${counter} });\n` +
+        `      return () => html\`<div class="${tag}" data-n=\${state.n}>${body}</div>\`;\n` +
+        `    });\n` +
         `  }\n` +
         `});`
     );
@@ -68,7 +69,7 @@ const buildTree = (random, prefix) => {
   };
 
   const root = make(0);
-  return { root, source: `import { init, createStore, render, html } from '@verajs/core';\n${parts.join('\n')}\n` };
+  return { root, source: `import { init, createStore, html } from '@verajs/core';\n${parts.join('\n')}\n` };
 };
 
 const SEEDS = extendSeeds([5, 21, 47, 88, 150, 1618]);

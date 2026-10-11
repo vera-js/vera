@@ -23,7 +23,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { html, init, render, createStore, useEffect, wire, mount: commit } = core;
+const { html, init, createStore, useEffect, wire } = core;
 const { renderer } = await load('renderer');
 wire([renderer]);
 
@@ -37,9 +37,11 @@ const define = (body, { renders = true } = {}) => {
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        body(this);
-        if (!renders) commit();
+        /** The body IS the setup; an effect-only body's value (an expression arrow returns its hook) is not a render. */
+        init({ host: this, shadow: 'open' }, () => {
+          const view = body(this);
+          return renders ? view : undefined;
+        });
       }
     }
   );
@@ -142,7 +144,7 @@ test('a component survives a ref callback that throws', async () => {
   const state = createStore({ n: 0 });
   let element;
   const said = await capture(async () => {
-    element = define(() => render(() => html`<i ${() => { throw new Error('ref-boom'); }}>${state.n}</i>`));
+    element = define(() => (() => html`<i ${() => { throw new Error('ref-boom'); }}>${state.n}</i>`));
     await settle();
     state.n = 4;
     await settle();
@@ -157,7 +159,7 @@ test('a component survives a ref callback that throws', async () => {
 
 test('the control: the same component with a ref that does not throw', async () => {
   const state = createStore({ n: 0 });
-  const element = define(() => render(() => html`<i ${() => {}}>${state.n}</i>`));
+  const element = define(() => (() => html`<i ${() => {}}>${state.n}</i>`));
   await settle();
   state.n = 4;
   await settle();
@@ -169,7 +171,7 @@ test('a component recovers when its template function throws', async () => {
   const state = createStore({ n: 0, fail: true });
   let element;
   await capture(async () => {
-    element = define(() => render(() => {
+    element = define(() => (() => {
       if (state.fail) throw new Error('render-boom');
       return html`<i>${state.n}</i>`;
     }));
@@ -210,7 +212,7 @@ test('a component whose setup throws does not break the next component', async (
     await settle();
   });
   const state = createStore({ n: 1 });
-  const good = define(() => render(() => html`<i>${state.n}</i>`));
+  const good = define(() => (() => html`<i>${state.n}</i>`));
   await settle();
   assert.equal(good.shadowRoot.textContent.trim(), '1');
   state.n = 2;

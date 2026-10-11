@@ -46,8 +46,9 @@ const other = dom.window.document.getElementById('other');
 const store = core.createStore({ n: 1 });
 customElements.define('live-thing', class extends HTMLElement {
   connectedCallback() {
-    core.init(this, { mode: 'open' });
-    core.render(() => html`<p>${store.n}</p>`);
+    core.init({ host: this, shadow: 'open' }, () => {
+      return () => html`<p>${store.n}</p>`;
+    });
   }
 });
 
@@ -94,9 +95,8 @@ test('and after a move between parents with a write in between', async () => {
  */
 test('a write to a disconnected element renders nothing, which is what makes the catch-up necessary', async () => {
   const detached = dom.window.document.createElement('div');
-  core.init(detached, { mode: 'open' });
   const local = core.createStore({ n: 1 });
-  core.render(() => html`<p>${local.n}</p>`);
+  core.init({ host: detached, shadow: 'open' }, () => () => html`<p>${local.n}</p>`);
   await frame();
   assert.equal(shown(detached), '1', 'the first render happens regardless');
 

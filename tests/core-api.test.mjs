@@ -22,7 +22,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
 
 const core = await load('core');
 const {
-  init, createStore, render, useEffect, useSyncEffect, useLayoutEffect, useRender,
+  init, createStore, useEffect, useSyncEffect, useLayoutEffect, useRender,
   ref, shallowRef, untrack, html,
   setRenderScheduler, microtask, wire} = core;
 
@@ -41,8 +41,8 @@ const mount = (body) => {
   const tag = `x-api-${seq++}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      init(this, { mode: 'open' });
-      body(this);
+      /** The body IS the setup: it returns its render. */
+      init({ host: this, shadow: 'open' }, () => body(this));
     }
   });
   const el = document.createElement(tag);
@@ -62,7 +62,7 @@ test('untrack reads the current value without subscribing', async () => {
       seenB = untrack(() => state.b);     // read, but not subscribed
       runs++;
     });
-    render(() => html`<i>${state.a}</i>`);
+    return () => html`<i>${state.a}</i>`;
   });
   await settle();
   const baseline = runs;
@@ -85,7 +85,7 @@ test('ref is reactive through nested properties', async () => {
   const box = ref({ nested: { n: 0 } });
   mount(() => {
     useSyncEffect(() => { void box.value.nested.n; runs++; });
-    render(() => html`<i>x</i>`);
+    return () => html`<i>x</i>`;
   });
   await settle();
   const baseline = runs;
@@ -99,7 +99,7 @@ test('shallowRef does not proxy what it holds, but replacing .value notifies', a
   const box = shallowRef({ nested: { n: 0 } });
   mount(() => {
     useSyncEffect(() => { void box.value; runs++; });
-    render(() => html`<i>x</i>`);
+    return () => html`<i>x</i>`;
   });
   await settle();
 
@@ -122,7 +122,7 @@ test('setRenderScheduler(microtask) renders before the next animation frame', as
   try {
     const state = createStore({ n: 0 });
     wire({ on: 'render', fn: () => order.push('render'), priority: 50 });
-    mount(() => { render(() => html`<i>${state.n}</i>`); });
+    mount(() => { return () => html`<i>${state.n}</i>`; });
     await settle();
 
     order.length = 0;
@@ -164,7 +164,7 @@ test('a userland flushSync renders synchronously and restores the scheduler', as
   const order = [];
   wire({ on: 'render', fn: () => order.push('render'), priority: 50 });
   const state = createStore({ n: 0 });
-  mount(() => { render(() => html`<i>${state.n}</i>`); });
+  mount(() => { return () => html`<i>${state.n}</i>`; });
   await settle();
 
   const flushSync = (fn) => {
@@ -196,7 +196,7 @@ test('useLayoutEffect runs, and before useEffect', async () => {
   mount(() => {
     useLayoutEffect(() => { void state.n; order.push('layout'); });
     useEffect(() => { void state.n; order.push('effect'); });
-    render(() => html`<i>${state.n}</i>`);
+    return () => html`<i>${state.n}</i>`;
   });
   await settle();
   assert.ok(order.includes('layout'), 'useLayoutEffect ran');
@@ -216,9 +216,9 @@ test('useRender draws into the element given, driven by the component being set 
   const owner = document.createElement('div');
   const target = document.createElement('div');
   host.append(owner, target);
-  init(owner);
-  useRender(() => html`<i>elsewhere</i>`, target);
-  core.mount();
+  init(owner, () => {
+    useRender(() => html`<i>elsewhere</i>`, target);
+  });
   await settle();
   assert.ok(seen.includes(target), 'the owner\'s commit drew into the element given');
   wire({ on: 'render', fn: () => {}, priority: 51 });
@@ -229,10 +229,9 @@ test('useRender renders into an element given explicitly', async () => {
   wire({ on: 'render', fn: (result, element) => seen.push({ result, element }), priority: 50 });
   const el = document.createElement('div');
   host.appendChild(el);
-  init(el, { mode: 'open' });
-  useRender(() => html`<b>direct</b>`, el);
-  /** `mount()` is the commit: it runs the first pass of every hook registered since `init()`. */
-  core.mount();
+  init({ host: el, shadow: 'open' }, () => {
+    useRender(() => html`<b>direct</b>`, el);
+  });
   await settle();
   /**
    * The render insert is handed `element.shadowRoot ?? element`, so a component with a shadow

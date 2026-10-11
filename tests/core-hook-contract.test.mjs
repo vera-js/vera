@@ -37,11 +37,12 @@ const element = () => {
 test('hooks run by priority, not by registration order', () => {
   const el = element();
   const order = [];
-  core.init(el);
-  core.createHook({ priority: 60, callback: () => order.push('sixty') });
-  core.createHook({ priority: 0, callback: () => order.push('zero') });
-  core.createHook({ priority: 25, callback: () => order.push('twenty-five') });
-  core.render(() => null);
+  core.init(el, () => {
+    core.createHook({ priority: 60, callback: () => order.push('sixty') });
+    core.createHook({ priority: 0, callback: () => order.push('zero') });
+    core.createHook({ priority: 25, callback: () => order.push('twenty-five') });
+    return () => null;
+  });
   assert.deepEqual(order, ['zero', 'twenty-five', 'sixty'], 'lower priority first, whatever the registration order');
 });
 
@@ -54,13 +55,15 @@ test('a reconnect retires the previous connection\'s hooks', () => {
   const el = element();
   const state = core.createStore({ n: 0 });
   let runs = 0;
-  core.init(el);
-  core.createHook({ priority: 75, callback: () => void (state.n, runs++) });
-  core.render(() => null);
+  core.init(el, () => {
+    core.createHook({ priority: 75, callback: () => void (state.n, runs++) });
+    return () => null;
+  });
   assert.equal(runs, 1, 'CONTROL: the first pass ran and subscribed');
 
-  core.init(el);
-  core.render(() => null);
+  core.init(el, () => {
+    return () => null;
+  });
   state.n = 1;
   assert.equal(runs, 1, 'the retired hook did not run on a write');
 });
@@ -93,12 +96,12 @@ test('an effect that writes what it read steps twice per flush, then a frame, ra
   const el = element();
   const state = core.createStore({ go: false, n: 0 });
   let runs = 0;
-  core.init(el);
-  core.useEffect(() => {
-    runs++;
-    if (state.go && state.n < 3) state.n++;
+  core.init(el, () => {
+    core.useEffect(() => {
+      runs++;
+      if (state.go && state.n < 3) state.n++;
+    });
   });
-  core.mount();
   assert.equal(runs, 1, 'CONTROL: the first pass ran');
   state.go = true;
   assert.equal(state.n, 0, 'the write queued a run — nothing ran inside it');
@@ -116,14 +119,14 @@ test('an effect that writes what it read steps twice per flush, then a frame, ra
  */
 test('a coalesced effect receives the signal of the write that queued it', async () => {
   const el = element();
-  core.init(el);
   const state = core.createStore({ n: 0 });
   const seen = [];
-  core.useEffect((signal) => {
-    void state.n;
-    seen.push(signal?.prop === undefined ? 'init' : `${signal.prop}=${signal.value}`);
+  core.init(el, () => {
+    core.useEffect((signal) => {
+      void state.n;
+      seen.push(signal?.prop === undefined ? 'init' : `${signal.prop}=${signal.value}`);
+    });
   });
-  core.mount();
   state.n = 5;
   await nextFrame();
   assert.deepEqual(seen, ['init', 'n=5'], 'the queued pass carried the write that scheduled it');

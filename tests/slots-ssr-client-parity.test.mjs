@@ -91,9 +91,9 @@ const server = (tag, template, children, shadow = false) => {
   const file = join(dir, `${tag}.js`);
   writeFileSync(
     file,
-    `import { init, render, html } from '@verajs/core';\n` +
+    `import { init, html } from '@verajs/core';\n` +
       `export default class S extends HTMLElement {\n` +
-      `  connectedCallback() { init(this${shadow ? ", { mode: 'open' }" : ''}); render(() => html\`${template}\`); }\n` +
+      `  connectedCallback() { init({ host: this, shadow: ${shadow ? "'open'" : 'false'} }, () => () => html\`${template}\`); }\n` +
       `}\n` +
       `customElements.define('${tag}', S);\n`
   );

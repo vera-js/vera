@@ -53,11 +53,10 @@ test('a render function that throws does not stop the next render', async () => 
   let boom = false;
   const host = dom.window.document.createElement('div');
   app.appendChild(host);
-  core.init(host, { mode: 'open' });
-  core.render(() => {
+  core.init({ host, shadow: 'open' }, () => () => {
     if (boom) throw new Error('user template threw');
     return html`<p>${store.n}</p>`;
-  }, host);
+  });
   await frame();
   assert.equal(host.shadowRoot.textContent.trim(), '0', 'the control rendered');
 
@@ -74,10 +73,11 @@ test('an effect that throws stops neither its sibling nor the next run', async (
   let boom = false;
   const host = dom.window.document.createElement('div');
   app.appendChild(host);
-  core.init(host, { mode: 'open' });
-  core.useEffect(() => { ran.throwing++; store.n; if (boom) throw new Error('effect threw'); });
-  core.useEffect(() => { ran.quiet++; store.n; });
-  core.render(() => html`<p>${store.n}</p>`, host);
+  core.init({ host, shadow: 'open' }, () => {
+    core.useEffect(() => { ran.throwing++; store.n; if (boom) throw new Error('effect threw'); });
+    core.useEffect(() => { ran.quiet++; store.n; });
+    return () => html`<p>${store.n}</p>`;
+  });
   await frame();
   assert.deepEqual(ran, { throwing: 1, quiet: 1 }, 'both effects ran once — the control');
 
@@ -97,10 +97,11 @@ test('and neither does a sync effect that throws', async () => {
   let boom = false;
   const host = dom.window.document.createElement('div');
   app.appendChild(host);
-  core.init(host, { mode: 'open' });
-  core.useSyncEffect(() => { ran.throwing++; store.n; if (boom) throw new Error('sync effect threw'); });
-  core.useSyncEffect(() => { ran.quiet++; store.n; });
-  core.render(() => html`<p>${store.n}</p>`, host);
+  core.init({ host, shadow: 'open' }, () => {
+    core.useSyncEffect(() => { ran.throwing++; store.n; if (boom) throw new Error('sync effect threw'); });
+    core.useSyncEffect(() => { ran.quiet++; store.n; });
+    return () => html`<p>${store.n}</p>`;
+  });
   await frame();
   assert.deepEqual(ran, { throwing: 1, quiet: 1 }, 'both ran once — the control');
 
@@ -121,12 +122,13 @@ test('a cleanup that throws stops neither its siblings nor the next element', as
 
   class Leaky extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
       const name = this.getAttribute('name');
-      core.useEffect(() => () => { cleaned.push(`${name}-1`); });
-      core.useEffect(() => () => { cleaned.push(`${name}-2`); throw new Error(`cleanup ${name} threw`); });
-      core.useEffect(() => () => { cleaned.push(`${name}-3`); });
-      core.render(() => html`<p>${name}</p>`, this);
+      core.init({ host: this, shadow: 'open' }, () => {
+        core.useEffect(() => () => { cleaned.push(`${name}-1`); });
+        core.useEffect(() => () => { cleaned.push(`${name}-2`); throw new Error(`cleanup ${name} threw`); });
+        core.useEffect(() => () => { cleaned.push(`${name}-3`); });
+        return () => html`<p>${name}</p>`;
+      });
     }
   }
   customElements.define('leaky-thing', Leaky);

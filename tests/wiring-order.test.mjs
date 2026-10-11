@@ -99,8 +99,7 @@ class Thing extends HTMLElement {
   static styles = ':host{color:red}';
   connectedCallback() {
     const store = core.createStore({ n: 1 });
-    core.init(this, { mode: 'open' });
-    core.render(() => html\`<p class="v" data-n=\${store.n}>\${store.n}</p><unknown-tag></unknown-tag>\`);
+    core.init({ host: this, shadow: 'open' }, () => () => html\`<p class="v" data-n=\${store.n}>\${store.n}</p><unknown-tag></unknown-tag>\`);
     this._store = store;
   }
 }

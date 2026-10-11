@@ -21,7 +21,7 @@ let observed;
 try {
   writeFileSync(
     `${dir}/probe.js`,
-    `import { init, render, html, createStore, wire } from '@verajs/core';
+    `import { init, html, createStore, wire } from '@verajs/core';
 export const observed = { reads: 0, writes: 0, inits: 0, order: [], errors: [] };
 wire({ on: 'store', priority: 30, fn: (type, handler) => handler?.set && {
   ...handler,
@@ -33,10 +33,11 @@ wire({ on: 'init', fn: () => { observed.order.push('init@70'); }, priority: 70 }
 wire({ on: 'error', fn: (error) => { observed.errors.push(String(error.message)); }, priority: 30 });
 customElements.define('insert-probe', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ n: 0 });
-    state.n = 1;
-    render(() => html\`<p>\${state.n}</p>\`);
+    init({ host: this, shadow: 'open' }, () => {
+      const state = createStore({ n: 0 });
+      state.n = 1;
+      return () => html\`<p>\${state.n}</p>\`;
+    });
   }
 });
 export default customElements.get('insert-probe');

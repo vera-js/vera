@@ -40,12 +40,12 @@ const watch = async (read) => {
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        core.init(this);
-        core.useSyncEffect(() => {
-          read();
-          counter.runs++;
+        core.init(this, () => {
+          core.useSyncEffect(() => {
+            read();
+            counter.runs++;
+          });
         });
-        core.render();
       }
     }
   );

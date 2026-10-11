@@ -31,7 +31,7 @@ console.warn = (...a) => said.push(a.join(' '));
 /** Four components, nothing wired. */
 for (let i = 0; i < 4; i++) {
   customElements.define('x-bare-' + i, class extends HTMLElement {
-    connectedCallback() { core.init(this, { mode: 'open' }); core.render(() => core.html\`<p>x</p>\`); }
+    connectedCallback() { core.init({ host: this, shadow: 'open' }, () => () => core.html\`<p>x</p>\`); }
   });
   dom.window.document.body.appendChild(dom.window.document.createElement('x-bare-' + i));
 }

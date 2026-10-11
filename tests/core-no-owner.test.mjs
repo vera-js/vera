@@ -1,9 +1,10 @@
 /**
- * **A hook, `render()` or `mount()` with no component being set up THROWS, in every build** (Brian, 2026-10-09: one
- * rule for every "no owner" case). Setup runs synchronously from `init(this)` and ends at the end of that microtask
- * turn, so a hook after the first `await` in setup fails the SAME way whether or not another component connected in
- * between — before, it attached to whichever component was set up last, or was dropped silently (the old async-setup
- * row). The pair of rows "with" and "without" another component is what proves the microtask, not luck, decides.
+ * **A hook with no component being set up THROWS, in every build** (Brian, 2026-10-09: one rule for every "no owner"
+ * case). A setup is the synchronous body of its `init(...)` call (R1) — and a setup-less `init(this)` has none — so a
+ * hook after an `await` fails the SAME way whether or not another component connected in between; before R1 the
+ * legacy window stayed open until the microtask turn ended, and before that a stray hook attached to whichever
+ * component was set up last, or was dropped silently. The pair of rows "with" and "without" another component is what
+ * proves nothing but the call decides. (`render()` and `mount()`, which this rule also covered, were removed in R2.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -59,14 +60,14 @@ test('…and throws the SAME way when another component connected in between', a
   b.remove();
 });
 
-test('render() and mount() after setup throw the same code — from a handler, later', async () => {
+test('a hook after setup throws no-owner — from a handler, later', async () => {
   const name = `x-no-owner-${seq++}`;
-  customElements.define(name, class extends HTMLElement { connectedCallback() { core.init(this); core.render(() => core.html`<p>x</p>`); } });
+  customElements.define(name, class extends HTMLElement { connectedCallback() { core.init(this, () => {
+    return () => core.html`<p>x</p>`;
+  }); } });
   const el = doc.createElement(name);
   doc.body.append(el);
   await null;
-  assert.throws(() => core.render(() => core.html`<p>again</p>`), NO_OWNER, 'render()');
-  assert.throws(() => core.mount(), NO_OWNER, 'mount()');
   assert.throws(() => core.useEffect(() => {}), NO_OWNER, 'a hook');
   el.remove();
 });
@@ -78,8 +79,7 @@ test('with the element given explicitly, a hook works anywhere — after an `awa
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
       this.ready = (async () => {
-        core.init(this);
-        core.mount();
+        core.init(this, () => {});
         await null;
         const run = core.useHook(() => { runs.push(state.n); }, 65, this);
         run(undefined, true);
@@ -101,7 +101,6 @@ test('an element from ANOTHER window is a component element — init and allowRe
   const el = other.window.document.createElement('div');
   other.window.document.body.append(el);
   assert.equal(el instanceof dom.window.Element, false, 'CONTROL: it is not an instance of this window\'s Element');
-  assert.doesNotThrow(() => core.init(el), 'init accepts it');
+  assert.doesNotThrow(() => core.init(el, () => {}), 'init accepts it');
   assert.doesNotThrow(() => core.allowRenderLoop(el), 'and allowRenderLoop');
-  core.mount();
 });

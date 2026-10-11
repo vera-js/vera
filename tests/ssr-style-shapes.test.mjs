@@ -20,7 +20,7 @@ let results;
 try {
   writeFileSync(
     `${dir}/shapes.js`,
-    `import { init, render, html } from '@verajs/core';
+    `import { init, html } from '@verajs/core';
 import { css } from '@verajs/styles';
 const KINDS = {
   'shape-result': css\`.a { color: red }\`,
@@ -35,7 +35,7 @@ const KINDS = {
 for (const [tag, styles] of Object.entries(KINDS)) {
   customElements.define(tag, class extends HTMLElement {
     static styles = styles;
-    connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>\${tag}</p>\`); }
+    connectedCallback() { init({ host: this, shadow: 'open' }, () => () => html\`<p>\${tag}</p>\`); }
   });
 }
 export default customElements.get('shape-result');

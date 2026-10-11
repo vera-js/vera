@@ -30,14 +30,13 @@ const check = (name, condition, extra = '') => (condition ? pass++ : failures.pu
        * One literal per level, written out: a level's child tag is part of its markup, and markup comes from a tagged
        * template — `html([string])` is data shaped like a template, which renders as text.
        */
-      `import { init, render, html } from '@verajs/core';
+      `import { init, html } from '@verajs/core';
 ${Array.from({ length: DEPTH }, (_, index) => {
   const level = DEPTH - index;
   const child = level < DEPTH ? `<nest-${level + 1}></nest-${level + 1}>` : '';
   return `customElements.define('nest-${level}', class extends HTMLElement {
   connectedCallback() {
-    init(this, { mode: 'open' });
-    render(() => html\`<div data-level="${level}">${child}</div>\`);
+    init({ host: this, shadow: 'open' }, () => () => html\`<div data-level="${level}">${child}</div>\`);
   }
 });`;
 }).join('\n')}

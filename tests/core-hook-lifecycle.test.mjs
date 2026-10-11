@@ -37,11 +37,12 @@ const define = (setup) => {
 {
   let renders = 0, effects = 0, cleanups = 0;
   const el = define((element) => {
-    core.init(element, { mode: 'open' });
-    const state = core.createStore({ n: 0 });
-    element._state = state;
-    core.useEffect(() => { effects++; return () => { cleanups++; }; });
-    core.render(() => { renders++; return core.html`<p>${state.n}</p>`; });
+    core.init({ host: element, shadow: 'open' }, () => {
+      const state = core.createStore({ n: 0 });
+      element._state = state;
+      core.useEffect(() => { effects++; return () => { cleanups++; }; });
+      return () => { renders++; return core.html`<p>${state.n}</p>`; };
+    });
   });
   await frame();
   check('mounting runs the render and the effect once', renders === 1 && effects === 1 && cleanups === 0);
@@ -65,10 +66,11 @@ const define = (setup) => {
 {
   let renders = 0;
   const el = define((element) => {
-    core.init(element, { mode: 'open' });
-    const state = core.createStore({ n: 0 });
-    element._state = state;
-    core.render(() => { renders++; return core.html`<p>${state.n}</p>`; });
+    core.init({ host: element, shadow: 'open' }, () => {
+      const state = core.createStore({ n: 0 });
+      element._state = state;
+      return () => { renders++; return core.html`<p>${state.n}</p>`; };
+    });
   });
   for (let i = 0; i < 3; i++) { await frame(); body.removeChild(el); await frame(); body.appendChild(el); }
   await frame();
@@ -88,13 +90,14 @@ const define = (setup) => {
   core.wire({ on: 'error', fn: (error) => reported.push(error?.message), priority: 25 });
   let before = 0, after = 0;
   const el = define((element) => {
-    core.init(element, { mode: 'open' });
-    const state = core.createStore({ n: 0 });
-    element._state = state;
-    core.useEffect(() => { before++; void state.n; });
-    core.useEffect(() => { void state.n; throw new Error('middle hook'); });
-    core.useEffect(() => { after++; void state.n; });
-    core.render(() => core.html`<p>${state.n}</p>`);
+    core.init({ host: element, shadow: 'open' }, () => {
+      const state = core.createStore({ n: 0 });
+      element._state = state;
+      core.useEffect(() => { before++; void state.n; });
+      core.useEffect(() => { void state.n; throw new Error('middle hook'); });
+      core.useEffect(() => { after++; void state.n; });
+      return () => core.html`<p>${state.n}</p>`;
+    });
   });
   await frame();
   el._state.n = 1;
@@ -109,11 +112,12 @@ const define = (setup) => {
 {
   let runs = 0;
   const el = define((element) => {
-    core.init(element, { mode: 'open' });
-    const state = core.createStore({ seen: 0, hidden: 0 });
-    element._state = state;
-    core.useEffect(() => { runs++; void state.seen; core.untrack(() => void state.hidden); });
-    core.render(() => core.html`<p>${state.seen}</p>`);
+    core.init({ host: element, shadow: 'open' }, () => {
+      const state = core.createStore({ seen: 0, hidden: 0 });
+      element._state = state;
+      core.useEffect(() => { runs++; void state.seen; core.untrack(() => void state.hidden); });
+      return () => core.html`<p>${state.seen}</p>`;
+    });
   });
   await frame();
 
@@ -129,39 +133,24 @@ const define = (setup) => {
   body.removeChild(el);
 }
 
-/* ── mount(): committing a component that draws nothing ─────────────────────────────────────── */
+/* ── a setup that draws nothing ─────────────────────────────────────────────────────────────────── */
 {
   /**
-   * **A separate function for this was built and rejected once, and the decision was reversed.**
-   *
-   * The original reasoning is worth keeping because half of it still holds. A standalone `commit()`
-   * measured 25 B against a bare `render()`'s 6 B, and it added a second function to choose
-   * between; committing automatically at the end of `connectedCallback` measured 31 B and, worse,
-   * ran a headless component's effects a microtask later than a rendering component's — identical
-   * code with two orderings depending on whether it drew anything. That last option stays rejected.
-   *
-   * What the size comparison could not measure is that **a bare `render()` is undiscoverable**. It
-   * is legal, documented, and guessed by nobody, because "render" names the one thing the call is
-   * not doing. Hooks that are never committed never run — no error, no render, an effect that
-   * simply does not happen — so the cost of not finding it is silent and total.
-   *
-   * `mount()` is also no longer the 25 B the rejected `commit()` was: it shares `setupTarget` and
-   * `commit` with `render`, which is the same split that makes `render` exactly `useRender` plus
-   * `mount` rather than a parallel implementation.
-   *
-   * A bare `render()` still commits, and warns. Refusing would turn a naming preference into
-   * effects that never run, which is the failure this exists to prevent.
+   * **A setup returning nothing commits its hooks, like one returning a render** (R2, 2026-10-10). The legacy window had
+   * to be closed by hand — `render()` for a component with markup, `mount()` for one without — and a setup that called
+   * neither registered hooks that silently never ran (`setup-uncommitted`, a development warning, retired with the
+   * window: the one form always commits). This block was `mount()`'s; its checks hold unchanged for the one form.
    */
   let ran = 0;
   const el = define((element) => {
-    core.init(element);
-    const state = core.createStore({ n: 0 });
-    element._state = state;
-    element.innerHTML = '<span>pre-existing</span>';
-    core.useEffect(() => { ran++; void state.n; });
-    core.mount();
+    core.init(element, () => {
+      const state = core.createStore({ n: 0 });
+      element._state = state;
+      element.innerHTML = '<span>pre-existing</span>';
+      core.useEffect(() => { ran++; void state.n; });
+    });
   });
-  check('mount() runs the first pass synchronously', ran === 1);
+  check('a setup returning nothing runs its first pass synchronously', ran === 1);
 
   el._state.n = 1;
   await frame();
@@ -169,70 +158,9 @@ const define = (setup) => {
   check('light DOM is untouched — nothing rendered', el.innerHTML === '<span>pre-existing</span>', el.innerHTML);
   body.removeChild(el);
 
-  /** The old spelling, kept working on purpose: it commits, and says what to write instead. */
-  let bare = 0;
-  const said = [];
-  const realWarn = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
-  const legacy = define((element) => {
-    core.init(element);
-    core.useEffect(() => { bare++; });
-    core.render();
-  });
-  console.warn = realWarn;
-  check('a bare render() still commits', bare === 1);
-  if (isProduction) {
-    check('production says nothing about it', said.length === 0);
-  } else {
-    /**
-     * **Asserted for substance, not for wording.** This used to match the literal string
-     * "render() needs a template", which is what let that message drift into saying something false:
-     * it claimed a bare `render()` no longer commits, two lines below a check proving it does. The
-     * message now has to name `mount()` and must not contradict the line above it.
-     */
-    check('and warns, naming mount()', said.some((l) => l.includes('mount()')), said.join(' | '));
-    check(
-      'and the warning does not claim the hooks failed to run',
-      said.every((l) => !/needs a template|used to do|will not run|never run/.test(l)),
-      said.join(' | ')
-    );
-  }
-  body.removeChild(legacy);
-
   /** Since 2026-10-09 (Brian): no component being set up THROWS, in every build — it used to do nothing, silently. */
   const throwsNoOwner = (call) => { try { call(); return false; } catch (error) { return /no-owner/.test(String(error)); } };
-  check('a bare render() outside a component throws no-owner', throwsNoOwner(() => core.render()));
-  check('mount() outside a component throws no-owner', throwsNoOwner(() => core.mount()));
-}
-
-/* ── the silent case: the setup is never committed ──────────────────────────────────────────── */
-{
-  let ran = 0;
-  const said = [];
-  const realWarn = console.warn;
-  console.warn = (...args) => said.push(args.join(' '));
-  const el = define((element) => {
-    core.init(element, { mode: 'open' });
-    const state = core.createStore({ n: 0 });
-    element._state = state;
-    core.useEffect(() => { ran++; void state.n; });
-    /** Neither render() nor mount() is called, which is the mistake. */
-  });
-  await frame();
-  console.warn = realWarn;
-
-  check('an uncommitted hook never runs', ran === 0);
-  if (isProduction) {
-    check('production says nothing about it', said.length === 0);
-  } else {
-    const warned = said.filter((line) => line.includes('setup was never committed'));
-    check('development warns it will never run', warned.length === 1, said.join(' | '));
-    check('and names render() for a component with markup', warned[0]?.includes('render(()'));
-    check('and mount() for one without', warned[0]?.includes('mount();'));
-    check('and names the component', warned[0]?.includes(el.localName));
-    check('by its code', warned[0]?.endsWith('(setup-uncommitted)'));
-  }
-  body.removeChild(el);
+  check('a hook outside a component throws no-owner', throwsNoOwner(() => core.useEffect(() => {})));
 }
 
 /* ── createHook runs at the priority it was given ──────────────────────────────────────────────
@@ -244,11 +172,12 @@ const define = (setup) => {
   const order = [];
   class Ordered extends HTMLElement {
     connectedCallback() {
-      core.init(this);
-      core.createHook({ callback: () => order.push('early'), priority: 10 });
-      core.createHook({ callback: () => order.push('late'), priority: 90 });
-      core.useEffect(() => order.push('effect'));
-      core.render(() => '');
+      core.init(this, () => {
+        core.createHook({ callback: () => order.push('early'), priority: 10 });
+        core.createHook({ callback: () => order.push('late'), priority: 90 });
+        core.useEffect(() => order.push('effect'));
+        return () => '';
+      });
     }
   }
   customElements.define('hook-order-probe', Ordered);
@@ -287,14 +216,15 @@ const define = (setup) => {
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        core.init(this, { mode: 'open' });
-        core.useEffect(() => {
-          void state.n;
-          effects++;
-        });
-        core.render(() => {
-          renders++;
-          return core.html`<b>${state.n}</b>`;
+        core.init({ host: this, shadow: 'open' }, () => {
+          core.useEffect(() => {
+            void state.n;
+            effects++;
+          });
+          return () => {
+            renders++;
+            return core.html`<b>${state.n}</b>`;
+          };
         });
       }
     }
@@ -348,12 +278,13 @@ const define = (setup) => {
   const order = [];
   class Torn extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      core.useLayoutEffect(() => () => order.push('layout cleanup'));
-      core.useEffect(() => () => order.push('effect cleanup'));
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        core.useLayoutEffect(() => () => order.push('layout cleanup'));
+        core.useEffect(() => () => order.push('effect cleanup'));
+        return () => core.html`<p>${state.n}</p>`;
+      });
     }
     disconnectedCallback() { order.push('author disconnectedCallback'); }
   }
@@ -381,11 +312,12 @@ const define = (setup) => {
   let runs = 0, cleanups = 0;
   class Cycled extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      const state = core.createStore({ n: 0 });
-      this._state = state;
-      core.useEffect(() => { runs++; void state.n; return () => { cleanups++; }; });
-      core.render(() => core.html`<p>${state.n}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        core.useEffect(() => { runs++; void state.n; return () => { cleanups++; }; });
+        return () => core.html`<p>${state.n}</p>`;
+      });
     }
   }
   customElements.define('teardown-cycle-probe', Cycled);
@@ -424,10 +356,11 @@ const define = (setup) => {
   core.wire({ on: 'error', fn: (error) => said.push(String(error?.message ?? error)), priority: 90 });
   class Throwing extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      core.useEffect(() => () => { done.push('first'); throw new Error('cleanup exploded'); });
-      core.useEffect(() => () => done.push('second'));
-      core.render(() => core.html`<p>x</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        core.useEffect(() => () => { done.push('first'); throw new Error('cleanup exploded'); });
+        core.useEffect(() => () => done.push('second'));
+        return () => core.html`<p>x</p>`;
+      });
     }
   }
   customElements.define('teardown-throw-probe', Throwing);
@@ -463,13 +396,15 @@ const define = (setup) => {
     const lossy = define((element) => {
       core.init(element, { mode: 'open' });
       core.useEffect(() => { effects++; });
-      core.init(element, { mode: 'open' });
-      core.render(() => core.html`<p>x</p>`);
+      core.init({ host: element, shadow: 'open' }, () => {
+        return () => core.html`<p>x</p>`;
+      });
     });
     const control = define((element) => {
-      core.init(element, { mode: 'open' });
-      core.useEffect(() => { effectsWithoutSecondInit++; });
-      core.render(() => core.html`<p>x</p>`);
+      core.init({ host: element, shadow: 'open' }, () => {
+        core.useEffect(() => { effectsWithoutSecondInit++; });
+        return () => core.html`<p>x</p>`;
+      });
     });
     await frame();
     void lossy;
@@ -499,9 +434,10 @@ const define = (setup) => {
     const tag = `x-reconnect-${Math.random().toString(36).slice(2, 8)}`;
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
-        core.init(this, { mode: 'open' });
-        core.useEffect(() => { runs++; });
-        core.render(() => core.html`<p>x</p>`);
+        core.init({ host: this, shadow: 'open' }, () => {
+          core.useEffect(() => { runs++; });
+          return () => core.html`<p>x</p>`;
+        });
       }
     });
     const element = dom.window.document.createElement(tag);
@@ -535,12 +471,13 @@ const define = (setup) => {
     const tag = `x-selfrm-${when}-${Math.random().toString(36).slice(2, 8)}`;
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
-        core.init(this, { mode: 'open' });
-        core.useEffect(() => {
-          if (when === 'in-effect') this.remove();
-          return () => { cleanups++; };
+        core.init({ host: this, shadow: 'open' }, () => {
+          core.useEffect(() => {
+            if (when === 'in-effect') this.remove();
+            return () => { cleanups++; };
+          });
+          return () => core.html`<p>x</p>`;
         });
-        core.render(() => core.html`<p>x</p>`);
       }
     });
     const element = dom.window.document.createElement(tag);
@@ -591,12 +528,13 @@ const define = (setup) => {
   const tag = `toast-throwing-${Date.now().toString(36)}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      core.useEffect(() => {
-        this.remove();
-        return () => { ran.push('cleanup'); throw new Error('toast cleanup threw'); };
+      core.init({ host: this, shadow: 'open' }, () => {
+        core.useEffect(() => {
+          this.remove();
+          return () => { ran.push('cleanup'); throw new Error('toast cleanup threw'); };
+        });
+        return () => core.html`<p>t</p>`;
       });
-      core.render(() => core.html`<p>t</p>`);
     }
   });
 
@@ -608,8 +546,9 @@ const define = (setup) => {
   const afterTag = `after-${Date.now().toString(36)}`;
   customElements.define(afterTag, class extends HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      core.render(() => core.html`<p>after</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        return () => core.html`<p>after</p>`;
+      });
     }
   });
   const after = dom.window.document.createElement(afterTag);
@@ -647,9 +586,10 @@ const define = (setup) => {
   const baseTag = `sub-base-${Date.now().toString(36)}`;
   class SubBase extends dom.window.HTMLElement {
     connectedCallback() {
-      core.init(this, { mode: 'open' });
-      core.useEffect(() => { runs.base++; });
-      core.render(() => core.html`<p>${this.localName}</p>`);
+      core.init({ host: this, shadow: 'open' }, () => {
+        core.useEffect(() => { runs.base++; });
+        return () => core.html`<p>${this.localName}</p>`;
+      });
     }
   }
   class SubChild extends SubBase {

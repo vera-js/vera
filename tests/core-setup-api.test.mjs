@@ -65,6 +65,19 @@ test('the setup runs once, its render on every change — setup ×1, render ×1 
   assert.equal(el.textContent, '1');
 });
 
+/** The ordinary path stays silent, or every warning is noise (ported from the retired core-render-noop, R2). */
+test('an ordinary setup returning its render says nothing, in either build', async () => {
+  let el;
+  const said = await listen(async () => {
+    el = await mount(component((host) => init({ host, shadow: 'open' }, () => {
+      const state = createStore({ n: 0 });
+      return () => html`<p>${state.n}</p>`;
+    })));
+  });
+  assert.equal(el.shadowRoot.textContent, '0', 'CONTROL: it rendered');
+  assert.deepEqual(said, []);
+});
+
 test('the setup receives its element as `host`', async () => {
   let seen = null;
   const tag = component((host) => init(host, (h) => { seen = h; return () => html`<i></i>`; }));

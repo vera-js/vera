@@ -60,9 +60,9 @@ const serve = (name, tag, source, state, children, extra = '') => {
   const file = join(dir, `${name}.js`);
   writeFileSync(
     file,
-    `import { init, render, html } from '@verajs/core';\nimport { keyed } from '@verajs/renderer/keyed';\n${extra}\n` +
+    `import { init, html } from '@verajs/core';\nimport { keyed } from '@verajs/renderer/keyed';\n${extra}\n` +
       `const S = ${JSON.stringify(state)};\n` +
-      `customElements.define('${tag}', class extends HTMLElement { connectedCallback() { init(this); render(() => html\`${source}\`); } });\n`
+      `customElements.define('${tag}', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`${source}\`); } });\n`
   );
   const script =
     `import { renderToString } from '@verajs/ssr';\nimport { wire } from '@verajs/core';\n` +
@@ -115,7 +115,7 @@ const run = async ({ source, state, children, steps, inner, innerFirst = false }
   const innerTag = inner ? `hc-inner-${n}` : null;
   const outerSource = inner ? source.replaceAll('INNER', innerTag) : source;
   const extra = inner
-    ? `customElements.define('${innerTag}', class extends HTMLElement { connectedCallback() { init(this); render(() => html\`${inner}\`); } });`
+    ? `customElements.define('${innerTag}', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`${inner}\`); } });`
     : '';
   const serverHtml = serve(`s${n}`, tag, outerSource, state, children, extra);
   const draw = drawFrom(outerSource);

@@ -27,16 +27,16 @@ test('every attribute name an engine accepts survives the nested-component rebui
     const child = new URL(`child-${i}.js`, dir);
     const parent = new URL(`parent-${i}.js`, dir);
     writeFileSync(child, `
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 customElements.define('attr-child-${i}', class extends HTMLElement {
-  connectedCallback() { init(this); render(() => html\`<i>\${this.getAttribute(${JSON.stringify(name)}) ?? 'MISSING'}</i>\`); }
+  connectedCallback() { init(this, () => () => html\`<i>\${this.getAttribute(${JSON.stringify(name)}) ?? 'MISSING'}</i>\`); }
 });
 `);
     writeFileSync(parent, `
-import { init, render, html } from '@verajs/core';
+import { init, html } from '@verajs/core';
 import './child-${i}.js';
 export default class P extends HTMLElement {
-  connectedCallback() { init(this); render(() => html\`<div><attr-child-${i} ${name}="VALUE"></attr-child-${i}></div>\`); }
+  connectedCallback() { init(this, () => () => html\`<div><attr-child-${i} ${name}="VALUE"></attr-child-${i}></div>\`); }
 }
 customElements.define('attr-parent-${i}', P);
 `);

@@ -4,19 +4,18 @@
  * `@verajs/ssr` treats this as an expected shape — `renderToStringAsync` exists to await it, and
  * three fixtures and two suites cover it. **The client side had no test at all.**
  *
- * ## The constraint, and since 2026-10-09 a deterministic one
+ * ## The constraint, deterministic since 2026-10-09
  *
- * Setup is one synchronous block: `init()` starts it and it ends at the end of that microtask turn. A hook,
- * `render()` or `mount()` after an `await` in setup therefore finds no component and THROWS (`no-owner`, every
- * build) — the same way whether or not another component connected meanwhile. Before, the outcome depended on
- * what else initialized during the suspension: alone it worked, overtaken it rendered nothing (Brian: async must be
+ * A setup is the synchronous body of its `init(...)` call (R1). An ASYNC setup is supported — its part before the
+ * first `await` is the window — and a hook made after the `await` finds no component and throws `no-owner`, which
+ * rejects the setup and is reported once (`setup-rejected`), the same way whether or not another component connected
+ * meanwhile. Before, the outcome depended on what else initialized during the suspension (Brian: async must be
  * predictable without reading docs).
  *
  * ## The rule
  *
- * **Await before `init()`, never between `init()` and `render()`.** Two components written that way
- * both render, with no warnings, however their fetches interleave — which is the case that matters and
- * the first assertion below.
+ * **Await before `init()`, or inside an async setup with its hooks before the first `await`.** Both shapes render with
+ * no warnings however their fetches interleave — the first rows below.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,10 +51,11 @@ test('awaiting before init lets concurrent async components both render', async 
     class extends dom.window.HTMLElement {
       async connectedCallback() {
         const data = await new Promise((resolve) => setTimeout(() => resolve(value), delay));
-        core.init(this, { mode: 'open' });
-        const store = core.createStore({ v: data });
-        core.useEffect(() => { void store.v; });
-        core.render(() => html`<p>${store.v}</p>`);
+        core.init({ host: this, shadow: 'open' }, () => {
+          const store = core.createStore({ v: data });
+          core.useEffect(() => { void store.v; });
+          return () => html`<p>${store.v}</p>`;
+        });
       }
     };
   customElements.define('await-first-a', build('A', 20));
@@ -74,47 +74,76 @@ test('awaiting before init lets concurrent async components both render', async 
   assert.deepEqual(said, [], 'with nothing to warn about');
 });
 
-test('a single component awaiting between init and render now throws — it no longer works by luck', async () => {
-  customElements.define('await-solo', class extends dom.window.HTMLElement {
+/**
+ * The one form's async setup (R1): `init(this, async () => { …hooks…; await …; return render; })` is supported — the
+ * part before the first `await` is the window. What still fails is a HOOK made after the `await`: no component is
+ * being set up any more, so it throws `no-owner`, which rejects the setup, which is reported once as `setup-rejected`
+ * (through the error chain, never an unhandled rejection) — the same way alone or overtaken. (The legacy rows here
+ * were "`render()` after an `await` between init and render throws"; `render()` was removed in R2.)
+ */
+const reported = (run) => {
+  const causes = [];
+  const handler = (error) => causes.push(String(error?.message ?? error));
+  core.wire({ on: 'error', fn: handler, priority: 79 });
+  return Promise.resolve(run()).then(() => causes, (error) => { throw error; }).finally(() => {
+    const chain = core.inserts.get('error');
+    const at = chain.indexOf(handler);
+    chain.splice(at, 1);
+    chain._p.splice(at, 1);
+  });
+};
+
+test('an async setup awaiting before its render renders — hooks before the await, the render after', async () => {
+  customElements.define('await-inside', class extends dom.window.HTMLElement {
     connectedCallback() {
-      this.ready = (async () => {
-        core.init(this, { mode: 'open' });
+      core.init({ host: this, shadow: 'open' }, async () => {
+        const store = core.createStore({ n: 1 });
+        core.useEffect(() => { void store.n; });
         await Promise.resolve();
-        core.render(() => html`<p>1</p>`);
-      })();
+        return () => html`<p>${store.n}</p>`;
+      });
     }
   });
-  const element = dom.window.document.createElement('await-solo');
-  app.appendChild(element);
-  await assert.rejects(element.ready, /no-owner|no component being set up/, 'alone, it throws — as it would if overtaken');
+  const element = dom.window.document.createElement('await-inside');
+  const said = await quietly(async () => { app.appendChild(element); await settle(); });
+  assert.equal(element.shadowRoot?.textContent.trim(), '1', 'it rendered once its promise settled');
+  assert.deepEqual(said, [], 'with nothing to warn about');
+});
+
+test('a hook made AFTER the await in an async setup is reported once (no-owner, setup-rejected) and nothing renders', async () => {
+  customElements.define('await-hook-solo', class extends dom.window.HTMLElement {
+    connectedCallback() {
+      core.init({ host: this, shadow: 'open' }, async () => {
+        await Promise.resolve();
+        core.useEffect(() => {});
+        return () => html`<p>1</p>`;
+      });
+    }
+  });
+  const element = dom.window.document.createElement('await-hook-solo');
+  const causes = await reported(async () => { app.appendChild(element); await settle(); });
+  assert.equal(causes.length, 1, causes.join(' | '));
+  assert.match(causes[0], /no-owner|no component being set up/);
   assert.equal(element.shadowRoot?.textContent.trim(), '', 'and renders nothing');
 });
 
-/** Two of them, interleaving: BOTH throw — the outcome no longer depends on which resumed first. */
-test('two components awaiting between init and render both throw, whichever resumes first', async () => {
+/** Two of them, interleaving: BOTH are reported — the outcome does not depend on which resumed first. */
+test('two async setups making a hook after their await are both reported, whichever resumes first', async () => {
   const build = (delay) =>
     class extends dom.window.HTMLElement {
       connectedCallback() {
-        this.ready = (async () => {
-          core.init(this, { mode: 'open' });
+        core.init({ host: this, shadow: 'open' }, async () => {
           await new Promise((resolve) => setTimeout(resolve, delay));
-          core.render(() => html`<p>x</p>`);
-        })();
+          core.useEffect(() => {});
+          return () => html`<p>x</p>`;
+        });
       }
     };
   customElements.define('await-mid-a', build(20));
   customElements.define('await-mid-b', build(5));
   const a = dom.window.document.createElement('await-mid-a');
   const b = dom.window.document.createElement('await-mid-b');
-  app.appendChild(a);
-  app.appendChild(b);
-  /**
-   * Both handlers attached EAGERLY. Awaiting b's before attaching a's left a's rejection unhandled whenever a resumed
-   * first — under load the two timers can be scheduled more than 15 ms apart, so the 20 ms one expires before the 5 ms
-   * one (seen once in a full production run, 2026-10-09; vera-5a). Which resumes first is not what this asserts.
-   */
-  const first = assert.rejects(b.ready, /no-owner|no component being set up/, 'the one that resumed first');
-  const second = assert.rejects(a.ready, /no-owner|no component being set up/, 'and the one it would have overtaken');
-  await first;
-  await second;
+  const causes = await reported(async () => { app.appendChild(a); app.appendChild(b); await settle(); });
+  assert.equal(causes.length, 2, causes.join(' | '));
+  assert.ok(causes.every((cause) => /no-owner|no component being set up/.test(cause)), causes.join(' | '));
 });

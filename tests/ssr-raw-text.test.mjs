@@ -24,12 +24,13 @@ const component = (body) => {
   const file = join(dir, `c${Math.abs(body.length)}-${Date.now()}-${Math.floor(performance.now() * 1000)}.js`);
   writeFileSync(
     file,
-    `import { init, render, html } from '@verajs/core';\n` +
+    `import { init, html } from '@verajs/core';\n` +
       `export default class C extends HTMLElement {\n` +
       `  connectedCallback() {\n` +
-      `    init(this, { mode: 'open' });\n` +
-      `    const v = this.getAttribute('v') ?? '';\n` +
-      `    render(() => html\`${body}\`);\n` +
+      `    init({ host: this, shadow: 'open' }, () => {\n` +
+      `      const v = this.getAttribute('v') ?? '';\n` +
+      `      return () => html\`${body}\`;\n` +
+      `    });\n` +
       `  }\n` +
       `}\n` +
       `customElements.define('c-${Math.abs(body.length)}-${process.hrtime.bigint()}', C);\n`
@@ -119,16 +120,15 @@ test('a tag whose name merely starts with "template" does not extend the skip', 
   const file = join(dir, 'template-boundary.js');
   writeFileSync(
     file,
-    `import { init, render, html } from '@verajs/core';\n` +
+    `import { init, html } from '@verajs/core';\n` +
       `class After extends HTMLElement {\n` +
-      `  connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<i>RENDERED</i>\`); }\n` +
+      `  connectedCallback() { init({ host: this, shadow: 'open' }, () => () => html\`<i>RENDERED</i>\`); }\n` +
       `}\n` +
       `customElements.define('tpl-after', After);\n` +
       `export default class Host extends HTMLElement {\n` +
       `  connectedCallback() {\n` +
-      `    init(this, { mode: 'open' });\n` +
       /** Unbalanced on purpose: `<templates>` never closes. */
-      `    render(() => html\`<template><templates></template><tpl-after></tpl-after>\`);\n` +
+      `    init({ host: this, shadow: 'open' }, () => () => html\`<template><templates></template><tpl-after></tpl-after>\`);\n` +
       `  }\n` +
       `}\n` +
       `customElements.define('tpl-host', Host);\n`

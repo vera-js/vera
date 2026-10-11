@@ -25,7 +25,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { init, createStore, createHook, render, wire, html, useEffect } = await load('core');
+const { init, createStore, createHook, wire, html, useEffect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 
@@ -96,11 +96,12 @@ test('a hook that throws does not, and the hooks beside it still run', async () 
   console.error = (...args) => reported.push(args[0]);
   try {
     mount(function () {
-      init(this, { mode: 'open' });
-      useEffect(() => { ran.push('a'); throw new Error('from the hook'); });
-      useEffect(() => ran.push('b'));
-      useEffect(() => ran.push('c'));
-      render(() => html`<p>x</p>`);
+      init({ host: this, shadow: 'open' }, () => {
+        useEffect(() => { ran.push('a'); throw new Error('from the hook'); });
+        useEffect(() => ran.push('b'));
+        useEffect(() => ran.push('c'));
+        return () => html`<p>x</p>`;
+      });
     });
     await frame();
     await frame();
@@ -118,9 +119,8 @@ test('a render that throws leaves the page as it was, and recovers on the next w
   let element;
   try {
     element = mount(function () {
-      init(this, { mode: 'open' });
       const state = createStore({ n: 0 });
-      render(() => {
+      init({ host: this, shadow: 'open' }, () => () => {
         if (state.n === 1) throw new Error('from the render');
         return html`<p>${state.n}</p>`;
       });

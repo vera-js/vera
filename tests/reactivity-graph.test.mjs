@@ -24,7 +24,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { createStore, useSyncEffect, useEffect, init, render, mount: commit, html, wire } = core;
+const { createStore, useSyncEffect, useEffect, init, html, wire } = core;
 const { renderer } = await load('renderer');
 const { computed } = await load('store');
 wire([renderer]);
@@ -41,9 +41,11 @@ const mount = (body, { renders = false } = {}) => {
     tag,
     class extends HTMLElement {
       connectedCallback() {
-        init(this, { mode: 'open' });
-        body(this);
-        if (!renders) commit();
+        /** The body IS the setup; an effect-only body's value (an expression arrow returns its hook) is not a render. */
+        init({ host: this, shadow: 'open' }, () => {
+          const view = body(this);
+          return renders ? view : undefined;
+        });
       }
     }
   );
@@ -64,7 +66,7 @@ test('nothing that renders can observe a half-settled diamond', async () => {
   const { state, sum } = diamond();
   const painted = [];
   const element = mount(
-    () => render(() => { painted.push(sum.value); return html`<i>${sum.value}</i>`; }),
+    () => (() => { painted.push(sum.value); return html`<i>${sum.value}</i>`; }),
     { renders: true }
   );
   await settle();
