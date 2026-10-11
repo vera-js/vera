@@ -56,15 +56,18 @@ test('a hook at priority 0 registers and runs', async () => {
   assert.deepEqual(order, ['zero:1', 'ten:1'], 'and its dependency was tracked');
 });
 
-/**
- * `NaN` is what `parseInt` of a config value produces, and it is the case that must be refused — LOUDLY, in every
- * build, as `wire` refuses it (Brian, 2026-10-11); it was refused silently, so the hook simply never ran.
- */
-test('a hook with a non-finite priority throws, and registers nothing', () => {
+/** `NaN` is what `parseInt` of a config value produces, and it is the case that must be refused (development says why). */
+test('a hook with a non-finite priority is refused, and registers nothing', () => {
   const el = document.createElement('div');
   document.body.append(el);
   core.init({ host: el, shadow: 'open' });
-  assert.throws(() => core.createHook({ element: el, priority: NaN, callback: () => {} }), /priority-not-finite/);
+  const error = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(core.createHook({ element: el, priority: NaN, callback: () => {} }), undefined);
+  } finally {
+    console.error = error;
+  }
   assert.equal(el._$h$, undefined, 'nothing was registered');
 });
 

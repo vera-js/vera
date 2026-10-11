@@ -141,13 +141,16 @@ const register = <K extends keyof InsertFunctionMap>(
    * `indexOf(NaN)` is always `-1`, so "a taken priority replaces" stops holding and the same
    * registration stacks up on every call; and `order[slot] < NaN` is false immediately, so it lands
    * at the front of the chain and runs before the renderer. `parseInt` of a config value and
-   * `Number(undefined)` both produce it. Nothing throws today and the chain simply misbehaves.
+   * `Number(undefined)` both produce it.
    *
-   * `__DEV__`-only, so a production bundle carries neither the check nor the text — the same trade
-   * `@verajs/autoloader` makes for `rootDir`.
+   * **So it is REFUSED, in both builds — nothing is wired — and development says why** (Brian, 2026-10-11, option (b):
+   * one rule for a priority wherever it is given, the same as core's hooks). It used to throw in development only, so
+   * production wired it and the chain misbehaved: the builds disagreed.
    */
-  if (__DEV__ && !Number.isFinite(priority))
-    throw new Error(misuse('wire', 'wire-priority', __DEV__ && PROSE['wire-priority'](String(priority))));
+  if (!Number.isFinite(priority)) {
+    if (__DEV__) console.error(diagnostic('wire', `'${insertName}'`, 'wire-priority', __DEV__ && PROSE['wire-priority'](String(priority))));
+    return;
+  }
 
   let chain = inserts.get(insertName) as Chain | undefined;
   if (!chain) inserts.set(insertName, (chain = []));

@@ -71,25 +71,22 @@ check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get
  * immediately, so it lands at the front and runs before the renderer. `parseInt` of a config value
  * produces exactly that.
  *
- * Development-only, so the production build is checked for the opposite: it must carry neither the
- * check nor the message.
+ * **Refused in BOTH builds — nothing is wired — and development says why** (Brian, 2026-10-11, option (b): one rule for
+ * a priority, the same as core's hooks). It used to throw in development only, and production wired it and misbehaved.
  */
 {
   const bad = [NaN, undefined, null, 'fifty', {}, Infinity, -Infinity];
-  if (!isProduction) {
-    let threw = 0;
-    for (const priority of bad) {
-      try {
-        wire({ on: 'render', fn: () => {}, priority: priority });
-      } catch {
-        threw++;
-      }
-    }
-    check(`every non-finite priority is refused (${threw}/${bad.length})`, threw === bad.length);
-  } else {
-    /** Production keeps the bytes out; the behavior is undefined there and that is the trade. */
-    check('production carries no priority check', true);
+  const said = [];
+  const error = console.error;
+  console.error = (...args) => said.push(String(args[0]));
+  try {
+    for (const priority of bad) wire({ on: 'probe-bad-priority', fn: () => {}, priority: priority });
+  } finally {
+    console.error = error;
   }
+  check(`every non-finite priority is refused — nothing wired (${inserts.get('probe-bad-priority')?.length ?? 0} wired)`, inserts.get('probe-bad-priority') === undefined);
+  if (!isProduction) check(`development says why for each (${said.length}/${bad.length})`, said.length === bad.length && said.every((line) => line.endsWith('(wire-priority)')));
+  else check('production refuses silently', said.length === 0);
 }
 
 

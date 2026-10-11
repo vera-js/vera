@@ -108,15 +108,39 @@ test('a render hook is priority 50 by its priority, never by its creation count 
   el.remove();
 });
 
-test('a priority that is not a finite number THROWS from useHook and createHook, and registers nothing', () => {
+/**
+ * **A priority that is not a finite number is REFUSED in both builds, and development says why** (Brian, 2026-10-11,
+ * option (b)): the same behavior in both builds — nothing registered — with the coded line in development only. One rule
+ * for a priority wherever it is given, `wire` included.
+ */
+const errors = (run) => {
+  const said = [];
+  const error = console.error;
+  console.error = (...a) => said.push(String(a[0]));
+  try { run(); } finally { console.error = error; }
+  return said;
+};
+
+test('a priority that is not a finite number registers NOTHING from useHook and createHook — development says why', () => {
   const el = host();
   const before = el._$h$?.length ?? 0;
   for (const priority of [NaN, Infinity, -Infinity]) {
-    assert.throws(() => core.useHook(() => {}, priority, el), /priority-not-finite/, `useHook(${priority})`);
-    assert.throws(() => core.createHook({ element: el, priority, callback: () => {} }), /priority-not-finite/, `createHook(${priority})`);
+    const said = errors(() => {
+      assert.equal(core.useHook(() => {}, priority, el), undefined, `useHook(${priority}) returns undefined`);
+      assert.equal(core.createHook({ element: el, priority, callback: () => {} }), undefined, `createHook(${priority}) returns undefined`);
+    });
+    if (isProduction) assert.deepEqual(said, [], 'production refuses silently');
+    else assert.ok(said.length === 2 && said.every((line) => line.startsWith('[vera]') && line.endsWith('(priority-not-finite)')), said.join(' | '));
   }
   assert.equal(el._$h$?.length ?? 0, before, 'no hook was added');
   el.remove();
+});
+
+test('wire refuses a non-finite priority the same way — nothing wired, in both builds; development says why', () => {
+  const said = errors(() => core.wire({ on: 'probe-priority', fn: () => {}, priority: Number.NaN }));
+  assert.equal(core.inserts.get('probe-priority'), undefined, 'nothing was wired');
+  if (isProduction) assert.deepEqual(said, [], 'production refuses silently');
+  else assert.ok(said.length === 1 && said[0].startsWith('[vera] wire:') && said[0].endsWith('(wire-priority)'), said.join(' | '));
 });
 
 /**

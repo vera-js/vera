@@ -1,7 +1,7 @@
 import type { ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal, Subscribers } from '../types.js';
 import { currentInstance, hooksQueue } from '../store/store.js';
 import { enqueue } from './scheduler.js';
-import { diagnostic, misuse, reportUncaught } from '@verajs/shared-utils';
+import { diagnostic, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { ErrorInsert } from '@verajs/inserts';
@@ -275,13 +275,15 @@ export const register = (owner: ComponentElement, callback: HookCallback, priori
 };
 
 /**
- * **A priority must be a finite number — THROWS otherwise, in every build**, as `wire` does (Brian, 2026-10-11: one rule
- * for a priority wherever it is given). It was refused silently, so a `NaN` read from config left an effect that simply
- * never ran, with nothing said in either build.
+ * **A priority must be a finite number — otherwise the hook is REFUSED, in both builds, and development says why**
+ * (Brian, 2026-10-11, option (b): the same behavior in both builds, the words only in development — one rule for a
+ * priority wherever it is given, `wire` included). Refused silently before, so a `NaN` read from config left an effect
+ * that never ran with nothing said; production still refuses silently (documented), development names it.
  */
 export const finite = (priority: unknown, subject: string) => {
-  if (!Number.isFinite(priority))
-    throw new TypeError(misuse(subject, 'priority-not-finite', __DEV__ && PROSE['priority-not-finite'](String(priority))));
+  if (Number.isFinite(priority)) return true;
+  if (__DEV__) console.error(diagnostic('core', subject, 'priority-not-finite', __DEV__ && PROSE['priority-not-finite'](String(priority))));
+  return false;
 };
 
 /** What `createHook` and `useHook` hand their caller: a function running the hook — `run(undefined, true)` is its first pass. */
@@ -297,13 +299,13 @@ export const callable = (hook: HookRecord) => (signal?: Signal<unknown>, init?: 
  * holds one weak reference to it — one per hook, so repeated runs add the same entry to a subscription set. The
  * generation and out-of-tree rules are the hook's (`HookState`).
  *
- * THROWS when there is no owner (`noOwner`, above) or the priority is not a finite number (`finite`, below — `NaN` is
- * what `parseInt` of a missing config value produces). Refused, returning `undefined`, when there is no callback.
+ * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the
+ * priority is not a finite number (`finite`, below — `NaN` is what `parseInt` of a missing config value produces;
+ * development says so).
  */
 export const createHook = ({ callback, priority, element }: Hook): HookCallback | undefined => {
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
-  if (!callback) return;
-  finite(priority, 'createHook');
+  if (!callback || !finite(priority, 'createHook')) return;
   return callable(register(owner, callback, priority as number, RAW)) as HookCallback;
 };

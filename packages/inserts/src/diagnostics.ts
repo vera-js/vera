@@ -14,7 +14,7 @@ export const PROSE: Record<string, Prose> = {
     `\`${name}\` is not a module — did you mean \`${meant}\`?`,
     'A bare function is wired as a connector and handed the registry, so this would have registered nothing and thrown nothing.',
   ],
-  'wire-priority': (priority) => [`priority must be a finite number, and "${priority}" is not.`, 'Lower runs first; a renderer registers at 50.'],
+  'wire-priority': (priority) => [`priority must be a finite number, and "${priority}" is not — nothing was wired (in production too, silently).`, 'Lower runs first; a renderer registers at 50.'],
   'wire-replaced': (insert, priority, replacing) => [
     `two things were wired to '${insert}' at priority ${priority}, so the second replaced the first${replacing}.`,
     'If both are meant to run, give them different priorities; lower runs first.',

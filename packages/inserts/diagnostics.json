@@ -32,7 +32,7 @@
       "params": [
         "priority"
       ],
-      "message": "priority must be a finite number, and \"{priority}\" is not.",
+      "message": "priority must be a finite number, and \"{priority}\" is not — nothing was wired (in production too, silently).",
       "fix": "Lower runs first; a renderer registers at 50."
     },
     {

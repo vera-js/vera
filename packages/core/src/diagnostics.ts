@@ -45,7 +45,7 @@ export const PROSE: Record<string, Prose> = {
     'Call it in connectedCallback with the component itself — `init(this)`.',
   ],
   'priority-not-finite': (received) => [
-    `the priority must be a finite number, and ${received} is not — the hook was not registered.`,
+    `the priority must be a finite number, and ${received} is not — the hook was not registered (in production too, silently).`,
     'Lower runs first: 25 runs before the render, 50 is the render, 60 useLayoutEffect, 75 useEffect. A priority read from config with `parseInt` is NaN when the value is missing.',
   ],
   'scheduler-not-function': (received) => [

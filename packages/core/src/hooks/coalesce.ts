@@ -21,7 +21,7 @@ import type { ComponentElement, HookCallback } from '../types.js';
 export const coalesce = (callback: HookCallback, priority: number, sync: boolean, element?: ComponentElement) => {
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
-  finite(priority, 'useHook');
+  if (!finite(priority, 'useHook')) return;
   return register(owner, callback, priority, sync ? MODE_SYNC : MODE_QUEUED);
 };
 
@@ -35,5 +35,7 @@ export const coalesce = (callback: HookCallback, priority: number, sync: boolean
  * @param priority Where it runs in a flush — lower first
  * @param element The owner, instead of the element being set up
  */
-export const useHook = (callback: HookCallback, priority: number, element?: ComponentElement) =>
-  callable(coalesce(callback, priority, false, element)) as HookCallback;
+export const useHook = (callback: HookCallback, priority: number, element?: ComponentElement) => {
+  const hook = coalesce(callback, priority, false, element);
+  return hook && (callable(hook) as HookCallback);
+};

@@ -76,8 +76,19 @@ test('wire says what it was handed, not what it failed to read off it', { skip: 
       `wire(${JSON.stringify(notADescriptor)}) reported the wrong cause`
     );
   }
-  /** A descriptor that *is* one still gets the priority message, which is the check that was there. */
-  assert.throws(() => wire([{ on: 'render', fn: () => {}, priority: Number('x') }]), /priority must be a finite number/);
+  /**
+   * A descriptor that *is* one still gets the priority message — now as a refusal in both builds with the line in
+   * development (Brian, 2026-10-11, option (b)), not a development-only throw. Nothing is wired.
+   */
+  const said = [];
+  const error = console.error;
+  console.error = (...args) => said.push(String(args[0]));
+  try {
+    wire([{ on: 'probe-misuse-priority', fn: () => {}, priority: Number('x') }]);
+  } finally {
+    console.error = error;
+  }
+  assert.ok(said.length === 1 && /priority must be a finite number/.test(said[0]), said.join(' | '));
 });
 
 test('initRouter names an option it does not have', { skip: isProduction && 'development-only diagnostics' }, () => {
