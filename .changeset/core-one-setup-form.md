@@ -31,6 +31,9 @@ Migrating:
   (`init-options`); TypeScript refuses it at build time.
 - **Extra arguments to `render(template, …args)`** were forwarded to the renderer, which never read them. Capture
   anything the render needs in the setup instead. `useRender(template, element)` takes exactly two.
+- **`useRender` returns nothing (`void`)**, as its docs always said. Its TypeScript type had declared the hook it
+  registered (`HookCallback | undefined`), and calling that ran a render pass by hand; a render re-runs when state it
+  read changes, so write to that state instead.
 - **A class can keep a method.** `init(this)` with no setup calls `this.setup()`, so
   `connectedCallback() { init(this); }` plus `setup() { …; return () => html`…`; }` is the same component.
   `init({ host: this, shadow: 'open' })` does the same with a shadow root. Development names a near-miss
