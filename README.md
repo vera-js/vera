@@ -8,7 +8,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 9.05 KB | **3.87 KB** |
+| `@verajs/core` | 9.15 KB | **3.91 KB** |
 | `@verajs/renderer` | 12.60 KB | 5.28 KB |
 | `@verajs/router` | 10.65 KB | 4.42 KB |
 | `@verajs/autoloader` | 3.85 KB | 1.58 KB |
@@ -28,7 +28,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.63 KB |
 | `@verajs/inserts` | 464 B | 344 B |
 | `@verajs/directives` | 15.82 KB | 6.18 KB |
-| `@verajs/directives/directives-standalone` | 20.40 KB | 7.78 KB |
+| `@verajs/directives/directives-standalone` | 20.42 KB | 7.79 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
@@ -40,12 +40,12 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/motion/motion-client` | 8.36 KB | 3.08 KB |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->8.6 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->8.7 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — a component without one warns (in every build) and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->8.6 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->8.7 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 

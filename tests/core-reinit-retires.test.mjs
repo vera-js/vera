@@ -130,3 +130,35 @@ test('a SEQUENTIAL re-init, and a reconnect, are not init-twice', async () => {
   });
   assert.deepEqual(lines, []);
 });
+
+/**
+ * **A removed component holds no hook lists** (R2.5, 2026-10-11). Its hooks are closures over the element, so a removed
+ * element still carrying them is a DOM↔JS cycle only Firefox's CYCLE collector can free — measured as 1.4 s pauses and a
+ * doubled churn page. Dropped at teardown, the component is plain garbage; a reconnect rebuilds them.
+ */
+test('a removed component drops its hook lists — and a reconnect rebuilds them and renders', async () => {
+  const tag = `ri-drop-${seq++}`;
+  const store = createStore({ n: 1 });
+  customElements.define(tag, class extends HTMLElement {
+    connectedCallback() {
+      init(this, () => {
+        useEffect(() => {});
+        return () => html`<p>${store.n}</p>`;
+      });
+    }
+  });
+  const el = doc.createElement(tag);
+  doc.body.append(el);
+  await tick();
+  assert.ok(Array.isArray(el._$h$) && el._$h$.length > 0, 'CONTROL: a live component has its hook lists');
+  el.remove();
+  await tick();
+  assert.equal(el._$h$, undefined, 'removed: no hook lists');
+  assert.equal(el._$p$, undefined, 'removed: no priorities');
+  doc.body.append(el);
+  await tick();
+  store.n = 2;
+  await tick();
+  assert.equal(el.textContent, '2', 'reconnected: rebuilt, subscribed, rendering');
+  el.remove();
+});

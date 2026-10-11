@@ -84,13 +84,21 @@ const callMethod = (element: ComponentElement) => (element as unknown as { setup
  * The legacy window — `init(this)`, hooks, then `render()` or `mount()` to close it — was removed in R2 (2026-10-10).
  */
 export const init = (target: ComponentElement | InitOptions, setup?: Setup) =>
-  /**
-   * An options object is a plain object; an element never is. `constructor` is an ordinary read (a hit on the class's
-   * prototype) — where `nodeType` would be a DOM getter, a call into the engine on every connect.
-   */
-  (target as { constructor?: unknown } | null)?.constructor === Object
+  isOptions(target)
     ? initWith((target as InitOptions).host as ComponentElement, target as InitOptions, setup)
     : initWith(target as ComponentElement, undefined, setup);
+
+/**
+ * An options object is a plain object; an element never is. `constructor` is an ordinary read (a hit on the class's
+ * prototype) — where `nodeType` would be a DOM getter, a call into the engine on every connect. Two plain objects carry
+ * no `Object` of THIS realm: one made with `Object.create(null)` (no constructor) and a literal written in another
+ * window (a pop-out's own `Object`) — both still options. An author class literally named `Object` would be misread; it
+ * is not supported.
+ */
+const isOptions = (target: unknown) => {
+  const made = (target as { constructor?: { name?: string } } | null)?.constructor;
+  return made === Object || (target != null && (made === undefined || made.name === 'Object'));
+};
 
 /**
  * The one entry `init` and (R3) `define` share: the host and its options SEPARATELY, so `define`'s generated class can
@@ -341,9 +349,17 @@ if (typeof customElements !== 'undefined') {
     const proto = Class.prototype as Moving & { connectedCallback?: () => unknown };
     const own = proto.disconnectedCallback;
     const connected = proto.connectedCallback;
+    /**
+     * A removal: the author's own callback, the generation retired (cleanups run, hooks out of every store) — and the hook
+     * lists DROPPED. Each hook is a closure over its element, so a removed element still holding them is a DOM↔JS cycle
+     * that only Firefox's CYCLE collector can free: 10 000 removed components per frame cost it 1.4 s pauses and doubled
+     * a churn page's time (R2.5, 2026-10-11, measured with Firefox's own profiler). Dropped, a removed component is
+     * plain garbage the ordinary collector frees; a reconnect's `init` rebuilds them.
+     */
     const teardown = (element: Moving) => {
       own?.call(element);
       retireGeneration(element);
+      element._$h$ = element._$p$ = undefined;
       element._$x$ = true;
     };
     /**

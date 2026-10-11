@@ -349,3 +349,24 @@ test('an async setup: the resolved render is installed; a write while it is pend
   await tick();
   assert.equal(el.textContent, '2', 'and follows the store');
 });
+
+test('an options object with no Object of this realm is still options — Object.create(null), and another realm', async () => {
+  const { runInNewContext } = await import('node:vm');
+  const bare = component((host) => {
+    const options = Object.create(null);
+    options.host = host;
+    options.shadow = 'open';
+    init(options, () => () => html`<p>bare</p>`);
+  });
+  const foreign = component((host) => {
+    const options = runInNewContext('({ shadow: "open" })');
+    options.host = host;
+    init(options, () => () => html`<p>foreign</p>`);
+  });
+  const a = await mount(bare);
+  const b = await mount(foreign);
+  assert.ok(a.shadowRoot, 'a null-prototype options object: its shadow root attached');
+  assert.equal(a.shadowRoot.textContent, 'bare');
+  assert.ok(b.shadowRoot, "another realm's literal: its shadow root attached");
+  assert.equal(b.shadowRoot.textContent, 'foreign');
+});
