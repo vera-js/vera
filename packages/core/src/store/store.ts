@@ -1,5 +1,5 @@
 import { misuse, SHARED } from '@verajs/shared-utils';
-import type { ComponentElement, ResultType, Subscribers, Subscription, TemplateResult } from '../types.js';
+import type { ComponentElement, HookCallback, ResultType, Subscribers, Subscription, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
@@ -10,6 +10,19 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  * component rendering in the middle of its parent's template.
  */
 export const hooksQueue: (Subscription | undefined)[] = [];
+
+/** A hook's `WeakRef` and its subscriptions in one object — see `Subscription`. */
+export class Sub extends WeakRef<HookCallback> implements Subscription {
+  a: Subscribers | undefined = undefined;
+  b: Subscribers | undefined = undefined;
+  d: Subscribers[] | undefined = undefined;
+  constructor(
+    hook: HookCallback,
+    public n: Subscription | undefined
+  ) {
+    super(hook);
+  }
+}
 
 /**
  * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —

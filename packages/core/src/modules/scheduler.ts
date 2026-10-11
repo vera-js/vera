@@ -149,6 +149,15 @@ const drain = () => {
       }
     }
   } finally {
+    /**
+     * Development: `running` and each pass's `_b` are read only DURING a flush (the loop warning names the writer), and
+     * left set they kept the last hooks that ran — and through them their components — alive after removal, in
+     * development only (found 2026-10-10 by tests/core-subscription-sweep's re-render row: one hook left, dev only).
+     */
+    if (__DEV__) {
+      for (let i = 0; i < queue.length; i++) queue[i]._b = undefined;
+      running = undefined;
+    }
     queue = [];
     next = 0;
     flushing = false;

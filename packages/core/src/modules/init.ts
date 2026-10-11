@@ -157,7 +157,11 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
  * delivered props adopted, and the `'init'` inserts — shared by the setup path and the earlier window.
  */
 const start = (element: ComponentElement, root: ShadowRootInit | undefined) => {
-  /** A new generation: the previous connection's hooks go inert — see `createHook` — and leave the store. */
+  /**
+   * A new generation: the previous connection's hooks go inert — see `createHook` — and leave the store. (Skipping this on
+   * a first setup and writing `_$u$` up front, to spare two missing-field reads, cost Firefox's collector 35% on
+   * create + remove over a long run — raced 2026-10-10. Leave it as it is.)
+   */
   retire(element);
   element._$g$ = (element._$g$ ?? 0) + 1;
   element._$h$ = [];

@@ -55,8 +55,10 @@ export interface ComponentElement extends HTMLElement {
    * changes the value without notifying anything that read it — every write goes through the accessor.
    */
   _$raw$?: Record<string, unknown>;
-  /** The subscriptions retired with this element: its own hooks', and any hook created while it was being set up. */
-  _$u$?: Subscription[];
+  /** The newest of this element's hook subscriptions, chained through `n` — what retiring it walks. */
+  _$u$?: Subscription;
+  /** Non-element owners created while this element was being set up (a `computed`'s): retired with it. */
+  _$o$?: ComponentElement[];
 }
 
 /** What `createHook` registers: the callback, its priority, and optionally its owner. */
@@ -84,13 +86,22 @@ export type Hooks = Set<HookCallback>[];
 /** One key's subscribers: each hook's single `WeakRef` (a hook's element holds the hook strongly, the store weakly). */
 export type Subscribers = Set<WeakRef<HookCallback>>;
 /**
- * **A hook's subscriptions, so it can leave them** (R1, exact unsubscription — regression #11, Brian 2026-10-10). `r` is
- * the hook's ONE `WeakRef` for its whole life — what every Set it joined holds, so `delete(r)` finds it — and `d` the
- * Sets it actually JOINED (made on the first join). Retiring the hook removes `r` from each, so a removed component
- * leaves nothing behind in a store and nothing ever needs sweeping. `d` holds those Sets STRONGLY while the hook lives:
- * bounded by what the component reads, released at retirement — not a leak.
+ * **A hook's subscriptions, so it can leave them** (R1, exact unsubscription — regression #11, Brian 2026-10-10). It IS
+ * the hook's one `WeakRef` for its whole life — what every Set it joined holds, so `delete(this)` finds it — and carries
+ * the Sets it actually JOINED: `a` and `b` (a render reads one or two keys), then `d` from the third; `n` chains its
+ * owner's subscriptions (`_$u$` is the head). ONE object per hook, and fields rather than arrays, both measured: the
+ * first form kept a record beside the `WeakRef` and two pushed arrays per component (+413 B per live component, ~17
+ * reserved slots per array), and its garbage drove Firefox's collector; this shape is +45 B per live component and
+ * no array. Retiring removes it from each Set, so a removed component leaves nothing in a store and nothing is ever
+ * swept. The joined Sets are held STRONGLY while the hook lives: bounded by what the component reads, released at
+ * retirement — not a leak.
  */
-export type Subscription = { r: WeakRef<HookCallback>; d: Subscribers[] | undefined };
+export interface Subscription extends WeakRef<HookCallback> {
+  a: Subscribers | undefined;
+  b: Subscribers | undefined;
+  d: Subscribers[] | undefined;
+  n: Subscription | undefined;
+}
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

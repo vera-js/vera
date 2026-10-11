@@ -1,5 +1,5 @@
-import type { ComponentElement, Hook, HookCallback, Subscription } from '../types.js';
-import { currentInstance, hooksQueue } from '../store/store.js';
+import type { ComponentElement, Hook, HookCallback } from '../types.js';
+import { currentInstance, hooksQueue, Sub } from '../store/store.js';
 import { diagnostic, prioritySlot, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
@@ -71,13 +71,21 @@ export const RENDER_PRIORITY = 50;
  * removal and on a re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
  */
 export const retire = (owner: ComponentElement) => {
-  const list = owner._$u$;
-  if (list === undefined) return;
+  let sub = owner._$u$;
   owner._$u$ = undefined;
-  for (let i = 0; i < list.length; i++) {
-    const { r, d } = list[i]!;
-    if (d !== undefined) for (let j = 0; j < d.length; j++) d[j]!.delete(r);
-    list[i]!.d = undefined;
+  /** A loop, never recursion: an element with thousands of hooks retires in constant stack. */
+  for (; sub !== undefined; sub = sub.n) {
+    const d = sub.d;
+    sub.a?.delete(sub);
+    sub.b?.delete(sub);
+    if (d !== undefined) for (let i = 0; i < d.length; i++) d[i]!.delete(sub);
+    sub.a = sub.b = sub.d = undefined;
+  }
+  /** One level only: what a setup created is never itself an element being set up, so it owns no further owners. */
+  const owned = owner._$o$;
+  if (owned !== undefined) {
+    owner._$o$ = undefined;
+    for (let i = 0; i < owned.length; i++) retire(owned[i]!);
   }
 };
 
@@ -97,11 +105,16 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
       hooksQueue.pop();
     }
   };
-  const sub: Subscription = { r: new WeakRef(hook), d: undefined };
-  (owner._$u$ ??= []).push(sub);
-  /** A hook created while a component is being set up — a `computed` in its setup — is retired with that component. */
+  const sub = new Sub(hook, owner._$u$);
+  owner._$u$ = sub;
+  /**
+   * A hook created while a component is being set up, for an owner that is not an element — a `computed` in its setup
+   * — is retired with that component. An element owner is never listed: it retires itself, and listing a live child
+   * component here would strip its subscriptions when the parent left.
+   */
   const host = currentInstance.element;
-  if (host !== null && host !== owner) (host._$u$ ??= []).push(sub);
+  if (host !== null && host !== owner && (owner as Partial<Node>).nodeType === undefined)
+    (host._$o$ ??= []).push(owner);
   prioritySlot((owner._$h$ ??= []), (owner._$p$ ??= []), priority as number, newSet).add(hook);
   return hook;
 };

@@ -22,10 +22,15 @@ const track = (obj: object, prop: unknown) => {
   }
   let hooks = props.get(prop);
   if (hooks === undefined) props.set(prop, (hooks = new Set()));
-  /** Only a REAL join is recorded — a deduped re-read (the same hook's one `WeakRef`) leaves the size as it was. */
-  const size = hooks.size;
-  hooks.add(sub.r);
-  if (hooks.size !== size) (sub.d ??= []).push(hooks);
+  /**
+   * A re-read — every update's — is ONE lookup, as a plain `add` was before exact unsubscription; only a real join adds
+   * and is recorded (reading `size` around the `add` cost Chrome ≈1% on updates).
+   */
+  if (hooks.has(sub)) return;
+  hooks.add(sub);
+  if (sub.a === undefined) sub.a = hooks;
+  else if (sub.b === undefined) sub.b = hooks;
+  else (sub.d ??= []).push(hooks);
 };
 
 /** Wakes every live hook that read `obj[prop]`, dropping the ones whose element is gone. */

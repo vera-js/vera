@@ -74,7 +74,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent'])
     globalThis[k] = dom.window[k] ?? globalThis[k];
   const { load } = await import('./tests/dist.mjs');
-  const { init, html, wire, createStore } = await load('core');
+  const { init, html, wire, createStore, useEffect } = await load('core');
   const { renderer } = await load('renderer');
   const { computed } = await load('store/computed');
   wire([renderer]);
@@ -91,6 +91,10 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   customElements.define('g-one', class extends HTMLElement { connectedCallback() { this.setUp(); } setUp() {
     init(this, () => () => html\`<i>\${config.label}\${tick.n}</i>\`);
   } });
+  /** many: ONE component with 5000 hooks, each reading the key — retired in a loop, never recursion. */
+  customElements.define('g-many', class extends HTMLElement { connectedCallback() {
+    init(this, () => { for (let i = 0; i < 5000; i++) useEffect(() => { void config.label; }); return () => html\`<i>many</i>\`; });
+  } });
   customElements.define('g-keep', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`<b>\${config.label}</b>\`); } });
   const settle = () => new Promise((r) => setImmediate(r));
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
@@ -100,21 +104,29 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   for (let i = 0; i < 100; i++) keep.append(document.createElement('g-keep'));
   await settle();
   const dropped = new WeakRef({ plain: true });
-  if (mode === 'rerun' || mode === 'reinit') {
+  /**
+   * rerun / reinit / many: components held by NO variable (only by the page, then by nothing), so nothing the probe
+   * keeps can pass for a subscription. rerun: 100 components each re-rendered 10×, removed. reinit: 100 LIVE components
+   * counted before and after each is set up again 10× — the old generations must already be gone while they live —
+   * then removed. many: one component with 5000 hooks, removed.
+   */
+  if (mode === 'many' || mode === 'rerun' || mode === 'reinit') {
     await gc();
-    const before = count();
-    const one = document.createElement('g-one');
-    churn.append(one);
+    const start = count();
+    const tag = mode === 'many' ? 'g-many' : 'g-one';
+    for (let i = 0; i < (mode === 'many' ? 1 : 100); i++) churn.append(document.createElement(tag));
     await settle();
+    await gc();
+    const living0 = count() - start;
     if (mode === 'rerun') for (let i = 0; i < 10; i++) { tick.n++; await settle(); }
-    else for (let i = 0; i < 10; i++) { one.setUp(); await settle(); }
+    if (mode === 'reinit') for (let i = 0; i < 10; i++) { for (const el of churn.children) el.setUp(); await settle(); }
     await gc();
-    const living = count() - before;
-    const text = one.textContent;
-    one.remove();
+    const living10 = count() - start;
+    const text = churn.firstElementChild.textContent;
+    churn.replaceChildren();
     await settle();
     await gc();
-    process.stdout.write(JSON.stringify({ living, retired: count() - before, text, droppedDied: dropped.deref() === undefined, keptLive: [...keep.children].every((el) => el.textContent === config.label) }));
+    process.stdout.write(JSON.stringify({ living0, living10, left: count() - start, text, droppedDied: dropped.deref() === undefined, keptLive: [...keep.children].every((el) => el.textContent === config.label) }));
     process.exit(0);
   }
   for (let i = 0; i < 5000; i += 100) {
@@ -155,6 +167,15 @@ test("a computed created in a component's setup leaves with the component", () =
   assert.ok(inner.weakRefs - baseline.weakRefs <= 2, `${inner.weakRefs - baseline.weakRefs} over the baseline`);
 });
 
+/**
+ * The two documented residuals of exact unsubscription. (1) A FREE-STANDING computed — created outside any setup, owned
+ * by nothing that is ever removed — has no retirement point, so dropped ones stay subscribed until the key is next
+ * written, exactly as every subscription did before (the bound this row pins). (2) What a setup creates is retired
+ * with its component ONE level deep: a non-element owner created during a setup (a computed's) is listed on the
+ * component and retired with it; an element owner never is (it retires itself — listing a live child here would strip
+ * its subscriptions when the parent left), and a listed owner is never itself a component being set up, so nothing
+ * nests further.
+ */
 test('free-standing computeds have no removal — the documented residual — and a write to the key prunes them, as before', () => {
   const free = child('free');
   assert.ok(free.droppedDied && free.keptLive, 'CONTROLS');
@@ -164,24 +185,38 @@ test('free-standing computeds have no removal — the documented residual — an
 
 /**
  * ONE `WeakRef` per hook for its whole life — `retire` deletes exactly the ref it recorded, so a hook that made a new
- * one per run would leave the rest behind. A living component re-rendered 10× while reading the key holds as many refs
- * as it has hooks (one per hook, whatever the runs), and none once it is removed.
+ * one per run would leave the rest behind: 100 components re-rendered 10× each, removed, leave nothing.
+ *
+ * In the DEVELOPMENT build this row also holds the scheduler's diagnostics to the same bar: its `running` and each
+ * pass's `_b` (the loop warning's "who wrote") were never cleared after a flush, so the last hooks run — and their
+ * components — stayed reachable after removal, in development only. This row found it (one hook left, dev only) and
+ * goes red in development if the scheduler's `finally` stops clearing them.
  */
-test('a component re-rendered 10× holds one subscription per hook, and none once removed', () => {
+test('100 components re-rendered 10× each leave nothing in the store once removed', () => {
   const rerun = child('rerun');
   assert.ok(rerun.droppedDied && rerun.keptLive, 'CONTROLS');
-  assert.ok(rerun.text.endsWith('10'), `CONTROL: it re-rendered 10 times (${rerun.text})`);
-  assert.ok(rerun.living >= 1 && rerun.living <= 3, `its hooks' refs while living, independent of runs: ${rerun.living}`);
-  assert.ok(rerun.retired <= 0, `none once removed: ${rerun.retired}`);
+  assert.ok(rerun.text.endsWith('10'), `CONTROL: they re-rendered (${rerun.text})`);
+  assert.ok(rerun.living10 - rerun.living0 <= 2, `re-runs add no subscriptions: ${JSON.stringify(rerun)}`);
+  assert.ok(rerun.left <= 2, `nothing left once removed: ${JSON.stringify(rerun)}`);
 });
 
 /**
- * The second retirement point: a component set up AGAIN in place (a new generation on a live element) leaves the old
- * generation's subscriptions — ten set-ups hold one generation's worth, not ten.
+ * The second retirement point, measured WHILE LIVING — that is where it matters: a component set up again in place
+ * leaves its old generation's subscriptions at once (else every old generation stays subscribed, woken by every write,
+ * until removal finally sweeps the chain). 100 live components set up again 10× each hold one generation's worth.
  */
-test('a component set up again in place keeps only its newest generation subscribed', () => {
+test('100 live components set up again 10× each hold only their newest generation — and nothing once removed', () => {
   const reinit = child('reinit');
   assert.ok(reinit.droppedDied && reinit.keptLive, 'CONTROLS');
-  assert.ok(reinit.living >= 1 && reinit.living <= 3, `one generation's refs after 10 set-ups: ${reinit.living}`);
-  assert.ok(reinit.retired <= 0, `none once removed: ${reinit.retired}`);
+  assert.ok(reinit.living0 >= 100, `CONTROL: 100 living components subscribed (${reinit.living0})`);
+  assert.ok(reinit.living10 - reinit.living0 <= 2, `old generations gone while living: ${JSON.stringify(reinit)}`);
+  assert.ok(reinit.left <= 2, `nothing left once removed: ${JSON.stringify(reinit)}`);
+});
+
+test('one component with 5000 hooks on the key retires them all, in a loop — no stack limit, nothing left', () => {
+  const many = child('many');
+  assert.ok(many.droppedDied && many.keptLive, 'CONTROLS');
+  assert.equal(many.text, 'many', 'CONTROL: it rendered');
+  assert.ok(many.living0 >= 5000, `CONTROL: all 5000 subscribed while living (${many.living0})`);
+  assert.ok(many.left <= 2, `nothing left once removed: ${JSON.stringify(many)}`);
 });
