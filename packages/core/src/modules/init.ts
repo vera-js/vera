@@ -360,6 +360,8 @@ if (typeof customElements !== 'undefined') {
       own?.call(element);
       retireGeneration(element);
       element._$h$ = element._$p$ = undefined;
+      /** The renderer drops what its part holds of the component's JS (work queue 0d) — absent on a server, a no-op. */
+      (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
       element._$x$ = true;
     };
     /**

@@ -1161,6 +1161,8 @@ class ChildPart {
   /** Whatever the last `_$child$` applier returned here (its continuity), and which applier that was. */
   $z: unknown = undefined;
   $a: unknown = undefined;
+  /** Released: its component was removed, and every user value it held dropped (see `releaseRoot`). */
+  $x = false;
   /** The container whose render attached the applier — a later `_$commit$` runs as a render of it. */
   declare $R?: Node | null;
 
@@ -1659,10 +1661,56 @@ export const expectContainer = (container: unknown) => {
  * and commit only the values. Content already in the container stays, and so does content other code adds
  * after it — the render owns its range, never the container. lit-html's argument order.
  */
+/**
+ * **A removed component's root part, RELEASED** (work queue 0d, 2026-10-11). Core's teardown calls `$x(container)` (the
+ * registry sigil this renderer publishes at connect): every user value the part's tree holds is dropped — each event
+ * `Slot`'s handler, each binding's committed value, nested parts, keyed items, `hold()`-parked instances — so the
+ * removed DOM keeps no path back into the component's JS (its handlers close over the whole setup scope, and the DOM's
+ * own listener lists hold the Slots). That cycle was Firefox's CYCLE collector's to free: with host-capturing handlers,
+ * 20 s of CC on a churn page against vanilla `addEventListener`'s 1 s. The DOM itself is LEFT as it is (code holding a
+ * removed element still sees its content); the stripped part stays in `rootParts`, flagged, so a RE-ADD finds it,
+ * clears its range and renders fresh — never a second copy, and never taken for a server page by hydration.
+ */
+const releaseItem = (item: Item): void => {
+  if (item instanceof ChildPart) {
+    if (item.$n !== null) releaseItem(item.$n);
+    const items = item.$i;
+    if (items !== null) for (let i = 0; i < items.length; i++) releaseItem(items[i]!);
+    item._held?.forEach(releaseItem);
+    item.$v = item.$z = item.$a = undefined;
+    item.$n = null;
+    item.$i = null;
+    item._held = null;
+    return;
+  }
+  const bindings = item._bindings;
+  for (let i = 0; i < bindings.length; i += 2) {
+    const target = bindings[i];
+    if (target instanceof Slot) target._handler = null;
+    else if (target instanceof ChildPart) releaseItem(target);
+    bindings[i + 1] = undefined;
+  }
+};
+/**
+ * Called with the removed ELEMENT: a light component's part is keyed by the element itself (a hit); a shadow one's by its
+ * root. The part STAYS in `rootParts`, stripped and flagged (`$x`) — no map work per removal; a re-add finds the flag.
+ */
+const releaseRoot = (element: Node) => {
+  const part = rootParts.get(element) ?? rootParts.get((element as Element).shadowRoot ?? element);
+  if (part === undefined || part.$x) return;
+  releaseItem(part);
+  part.$x = true;
+};
+
 export const renderInto = (result: unknown, container: Node) => {
   if (__DEV__) expectContainer(container);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
+  /** A RE-ADDED component: its released part's old range is cleared, and it renders fresh into it. */
+  if (part?.$x) {
+    part.$x = false;
+    part._clear();
+  }
   /**
    * A container's FIRST render, with something already in it: `hydration` (when wired) may adopt that as server output
    * of this template — then it is committed, and the render is done. Asked only on a first render, never on the hot
@@ -1700,6 +1748,8 @@ const connectTo = (given: { get(name: never): unknown }) => {
     untracked = (given as { $t?: Untracked }).$t ?? call;
     /** Defined up front, so every render's `_$done$` read is a HIT on a page without slots — not a miss down the Map's chain. */
     (given as { _$done$?: unknown })._$done$ ??= undefined;
+    /** The release core's teardown calls with a removed component (see `releaseRoot`). */
+    (given as { $x?: (container: Node) => void }).$x = releaseRoot;
     /**
      * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
      * bundled module cannot import them, and production mangles their names): only values the renderer already holds,
