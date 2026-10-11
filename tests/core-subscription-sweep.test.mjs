@@ -197,7 +197,9 @@ test('100 components re-rendered 10× each leave nothing in the store once remov
   assert.ok(rerun.droppedDied && rerun.keptLive, 'CONTROLS');
   assert.ok(rerun.text.endsWith('10'), `CONTROL: they re-rendered (${rerun.text})`);
   assert.ok(rerun.living10 - rerun.living0 <= 2, `re-runs add no subscriptions: ${JSON.stringify(rerun)}`);
-  assert.ok(rerun.left <= 2, `nothing left once removed: ${JSON.stringify(rerun)}`);
+  /** EXACTLY zero, not "≤ 2": development's scheduler leak kept ONE hook (the last one run), which a slack absorbs. No
+   *  element is held by a variable here, so the last-binding artifact the slack elsewhere allows does not arise. */
+  assert.equal(rerun.left, 0, `nothing left once removed: ${JSON.stringify(rerun)}`);
 });
 
 /**
