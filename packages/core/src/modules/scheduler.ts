@@ -8,16 +8,65 @@ import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js'
  * flood probe in the scheduler plan). The queue runs in KEY order: a pass's PRIORITY (render 50 → layout
  * 60 → effect 75), then its hook's CREATION — a parent's hooks are created before the children its render makes, so a child
  * re-rendered by its parent's new props runs once, after the parent; and one component's hooks run in the order it
- * registered them. A pass that arrives OUT of key order marks the queue, and the rest of it is sorted again before the
- * next pass is taken — the built-in sort, which merges a sorted run and a few new passes in linear time (smaller than
- * a heap). Passes queued in creation order — a store write waking its readers — never sort at all.
+ * registered them. Passes queued in key order — a store write waking renders — never reorder at all: that path is one
+ * comparison per pass. A pass arriving OUT of order marks the queue, and the rest of it is REGROUPED before the next
+ * pass is taken (`regroup`, below) — linear, where a sort was n log n.
  */
 let queue: HookRecord[] = [];
 /** Run order: priority (`_y`), then creation (`_k`) — two fields, never packed into one number (see `HookRecord`). */
-const order = (a: HookRecord, b: HookRecord) => a._y - b._y || a._k - b._k;
 const runsBefore = (a: HookRecord, b: HookRecord) => a._y < b._y || (a._y === b._y && a._k < b._k);
 let next = 0;
 let unsorted = false;
+/** The array a regroup fills, swapped with `queue` — kept, so a regroup allocates nothing. */
+let spare: HookRecord[] = [];
+/** The distinct priorities a regroup found, ascending — in practice two or three. */
+const priorities: number[] = [];
+const created = (a: HookRecord, b: HookRecord) => a._k - b._k;
+
+/**
+ * **Puts the rest of the queue back in run order — in linear time, without a sort** (work queue 6, A11, 2026-10-16). A
+ * write read by components that each render AND run an effect queues render, effect, render, effect…: out of order at
+ * every second pass, so every such flush copied and SORTED the whole queue (2–10% of the flush, measured at 10, 50 and
+ * 1000 components). But within one priority, passes arrive in creation order (a write wakes its readers in the order
+ * they subscribed) — only the priorities interleave. So the rest is regrouped: one walk per priority present (in
+ * practice two or three), each appending its passes in the order they stand, which keeps creation order. A group whose
+ * creation order WAS broken — rare — is sorted on its own. Appending in order keeps the array dense (a counting sort's
+ * scattered writes would leave holes, which tax every read). A flush in key order never reaches this.
+ */
+const regroup = () => {
+  const end = queue.length;
+  priorities.length = 0;
+  for (let i = next; i < end; i++) {
+    const y = queue[i]!._y;
+    let at = priorities.length;
+    while (at > 0 && priorities[at - 1]! > y) at--;
+    if (priorities[at - 1] !== y) priorities.splice(at, 0, y);
+  }
+  spare.length = 0;
+  for (let p = 0; p < priorities.length; p++) {
+    const y = priorities[p]!;
+    const start = spare.length;
+    let previous = -1;
+    let broken = false;
+    for (let i = next; i < end; i++) {
+      const pass = queue[i]!;
+      if (pass._y !== y) continue;
+      if (pass._k < previous) broken = true;
+      previous = pass._k;
+      spare.push(pass);
+    }
+    if (broken) {
+      const group = spare.splice(start).sort(created);
+      for (let i = 0; i < group.length; i++) spare.push(group[i]!);
+    }
+  }
+  const taken = queue;
+  queue = spare;
+  spare = taken;
+  spare.length = 0;
+  next = 0;
+  unsorted = false;
+};
 
 /**
  * **The element window's next frame, or ~100 ms — whichever comes first** (the other is canceled). Where work that
@@ -134,11 +183,7 @@ const drain = () => {
   const flushId = ++flushes;
   try {
     while (next < queue.length) {
-      if (unsorted) {
-        queue = queue.slice(next).sort(order);
-        next = 0;
-        unsorted = false;
-      }
+      if (unsorted) regroup();
       const pass = queue[next++];
       pass._in = false;
       if (pass._f !== flushId) {
