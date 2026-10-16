@@ -58,6 +58,8 @@ const best = (fn, reps, rounds = 7) => {
 const bestRatio = (dear, cheap, reps, rounds = 7) => {
   let ratio = 0;
   let sample = [0, 0];
+  /** Every round's ratio too, so a caller can report the MEDIAN — the figure the docs quote; the best is for the floor. */
+  const ratios = [];
   for (let round = 0; round < rounds; round++) {
     const dearStarted = performance.now();
     for (let i = 0; i < reps; i++) dear(i);
@@ -67,12 +69,14 @@ const bestRatio = (dear, cheap, reps, rounds = 7) => {
     for (let i = 0; i < reps; i++) cheap(i);
     const cheapCost = (performance.now() - cheapStarted) * 1e6;
 
+    if (cheapCost > 0) ratios.push(dearCost / cheapCost);
     if (cheapCost > 0 && dearCost / cheapCost > ratio) {
       ratio = dearCost / cheapCost;
       sample = [dearCost / reps, cheapCost / reps];
     }
   }
-  return { ratio, dear: sample[0], cheap: sample[1] };
+  const median = [...ratios].sort((a, b) => a - b)[ratios.length >> 1] ?? 0;
+  return { ratio, median, dear: sample[0], cheap: sample[1] };
 };
 
 /** Accumulated into a global so nothing can be optimized away as unused. */
@@ -83,12 +87,12 @@ const walk = (list) => {
   globalThis.__perfSink += sum;
 };
 
-test('a deep store is far more expensive to walk than a shallowRef, which is why the docs say so', () => {
+test('a deep store is far more expensive to walk than a shallowRef, which is why the docs say so', (t) => {
   const rows = () => Array.from({ length: 1000 }, (_, i) => ({ id: i, label: `row ${i}` }));
   const deep = core.createStore({ rows: rows() });
   const shallow = core.shallowRef(rows());
 
-  const { ratio, dear: deepCost, cheap: shallowCost } = bestRatio(
+  const { ratio, median, dear: deepCost, cheap: shallowCost } = bestRatio(
     () => walk(deep.rows),
     () => walk(shallow.value),
     200
@@ -99,8 +103,11 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
    * cell instead of a stack — a deep read outside a component costs ~41% less). Asserted at 5x: far enough below to
    * survive any machine and further read-path wins, and far enough above 1x to fail loudly if `_ignore` ever stops being
    * honored — which it did once before, when only the returned value was checked and never the owner, and `shallowRef`
-   * silently did nothing at all. llms.txt quotes the figure; update both together.
+   * silently did nothing at all. The floor guards a RATIO COLLAPSING TO ~1x (shallowRef gone deep) — do not tighten it
+   * to the measured figure on a fast machine. llms.txt and the core README quote the MEDIAN this row prints (with date and
+   * machine); update them together.
    */
+  t.diagnostic(`deep store vs shallowRef walk: median ${median.toFixed(1)}x across rounds (the figure the docs quote), best ${ratio.toFixed(1)}x (what the floor asserts)`);
   assert.ok(
     ratio > 5,
     `a deep store should be far costlier to walk than a shallowRef; measured ${ratio.toFixed(1)}x ` +

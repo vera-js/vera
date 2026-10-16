@@ -186,9 +186,10 @@ matrix: every container kind crossed with every way of mutating it, against the 
 (`tests/core-reactivity-matrix.test.mjs`).
 
 **Use `shallowRef` for list data.** Putting 1 000 row objects through `createStore` proxies every one
-of them, and reading every field back through those proxies measures 20–30× the cost of the same
-read on a plain array (three runs, 2026-09-05 — an earlier pass of this doc said 60×, which the
-store has since outgrown). When rows are replaced rather than mutated — which is the usual case —
+of them, and reading every field back through those proxies costs about 15× the same read on a plain array
+(the median ratio, 2026-10-16, Apple M1, Node 24 — `VERA_DIST=production node --test tests/perf-claims.test.mjs` prints
+it; the gate requires at least 5× on every run). Earlier passes of this doc said 60× and then 20–30×: the store has
+outgrown both as its reads got cheaper. When rows are replaced rather than mutated — which is the usual case —
 `shallowRef` is the right tool.
 
 ## Effects
