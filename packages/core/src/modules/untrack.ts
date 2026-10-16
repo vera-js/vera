@@ -1,6 +1,6 @@
 import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
-import { hooksQueue } from '../store/store.js';
+import { tracking } from '../store/store.js';
 import type { Untracked } from '@verajs/shared-utils';
 
 /**
@@ -14,7 +14,7 @@ import type { Untracked } from '@verajs/shared-utils';
  * });
  * ```
  *
- * An empty entry on top of the tracking stack: a read records whatever hook is on top, and there is none.
+ * The tracking cell cleared: a read subscribes whatever hook the cell holds, and it holds none.
  *
  * @param fn Function to run without tracking
  * @return Whatever `fn` returns
@@ -26,15 +26,16 @@ export const untrack = <T>(fn: () => T): T => {
 };
 
 /**
- * `fn(a, b, c)` with nothing on top of the tracking stack — `untrack` with its arguments passed through, so a hot
+ * `fn(a, b, c)` with no hook reading (the tracking cell cleared, then restored) — `untrack` with its arguments passed through, so a hot
  * caller allocates no closure. Core hands it to the modules it is wired to: the renderer runs a ref, and reads a
  * component's getter on the parent's behalf, through it — that code's reads must not subscribe the render.
  */
 export const untracked: Untracked = (fn, a, b, c) => {
-  hooksQueue.push(undefined);
+  const reader = tracking.hook;
+  tracking.hook = undefined;
   try {
     return fn(a!, b!, c!);
   } finally {
-    hooksQueue.pop();
+    tracking.hook = reader;
   }
 };

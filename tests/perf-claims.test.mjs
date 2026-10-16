@@ -95,13 +95,14 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
   );
 
   /**
-   * Measured at ~300x. Asserted at 20x, which is far enough below to survive any machine and far
-   * enough above 1x to fail loudly if `_ignore` ever stops being honored — which it did once
-   * before, when only the returned value was checked and never the owner, and `shallowRef` silently
-   * did nothing at all.
+   * Measured at ~300x once, 20-30x on 2026-09-05, ~15x on 2026-10-16 (the tracked-read path got cheaper: one tracking
+   * cell instead of a stack — a deep read outside a component costs ~41% less). Asserted at 5x: far enough below to
+   * survive any machine and further read-path wins, and far enough above 1x to fail loudly if `_ignore` ever stops being
+   * honored — which it did once before, when only the returned value was checked and never the owner, and `shallowRef`
+   * silently did nothing at all. llms.txt quotes the figure; update both together.
    */
   assert.ok(
-    ratio > 20,
+    ratio > 5,
     `a deep store should be far costlier to walk than a shallowRef; measured ${ratio.toFixed(1)}x ` +
       `(deep ${deepCost.toFixed(0)} ns/row, shallow ${shallowCost.toFixed(0)} ns/row). ` +
       `If this dropped, shallowRef has stopped being shallow.`

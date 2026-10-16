@@ -1,4 +1,4 @@
-import { hooksQueue, proxyCallbacks } from '../store/store.js';
+import { proxyCallbacks, tracking } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
@@ -13,7 +13,7 @@ import { PROSE } from '../diagnostics.js';
  * the first tracked read of the object.
  */
 const track = (obj: object, prop: unknown) => {
-  const sub = hooksQueue[hooksQueue.length - 1];
+  const sub = tracking.hook;
   if (sub === undefined) return;
   let props = proxyCallbacks.get(obj);
   if (props === undefined) {

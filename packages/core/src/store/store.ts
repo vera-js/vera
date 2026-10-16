@@ -15,7 +15,14 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  */
 export const mine = new WeakSet<Element>();
 
-export const hooksQueue: (HookRecord | undefined)[] = [];
+/**
+ * **The hook reading right now — ONE cell, not a stack** (work queue 6, A14a, 2026-10-16). Every tracked store read asks
+ * it who to subscribe (`track`). Each place that starts a run — a hook's run (`$t`), `untracked`, `init`'s setup window —
+ * saves the cell, sets it, and restores it in its `finally`, so nesting (a `computed` read inside a render) lives on the
+ * call stack and a throw restores the outer reader. The one "current subscriber" signals-readiness asks for. An exported
+ * CONST object with a mutable field — never an exported `let`, which would be a live binding on the read path.
+ */
+export const tracking: { hook: HookRecord | undefined } = { hook: undefined };
 
 /**
  * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —

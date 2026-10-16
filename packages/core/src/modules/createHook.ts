@@ -1,5 +1,5 @@
 import type { ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal, Subscribers } from '../types.js';
-import { currentInstance, hooksQueue } from '../store/store.js';
+import { currentInstance, tracking } from '../store/store.js';
 import { enqueue } from './scheduler.js';
 import { diagnostic, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
@@ -222,7 +222,8 @@ class HookState implements HookRecord {
    */
   $t(signal?: Signal<unknown>, init?: boolean) {
     const owner = this._o;
-    hooksQueue.push(this);
+    const outer = tracking.hook;
+    tracking.hook = this;
     try {
       if (this._m === RAW) {
         this._cb(signal, init);
@@ -243,7 +244,7 @@ class HookState implements HookRecord {
     } catch (error) {
       threw(error, owner);
     } finally {
-      hooksQueue.pop();
+      tracking.hook = outer;
     }
   }
 }

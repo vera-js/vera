@@ -40,7 +40,7 @@ import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
 /**
  * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
- * not an extension point — it is core's own tracking stack, and nothing wired later may replace it. `$`-named, so it
+ * not an extension point — it is core's own tracking cell, and nothing wired later may replace it. `$`-named, so it
  * survives mangling.
  */
 (inserts as unknown as { $t: typeof untracked }).$t = untracked;

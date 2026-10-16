@@ -41,8 +41,8 @@ const PROD = {
  * inlining it.
  *
  * This is not a preference. `createStore` and `createHook` reach module-level state inside core —
- * `hooksQueue`, `proxyCallbacks` — so a bundle carrying its own copy would push onto a *different*
- * hook queue and register into a *different* callback map. Every computed would evaluate once and
+ * the tracking cell, `proxyCallbacks` — so a bundle carrying its own copy would set a *different*
+ * tracking cell and register into a *different* callback map. Every computed would evaluate once and
  * then never invalidate again: no error, no warning, and only in a production build. That is the
  * exact failure `@verajs/styles` shipped once already.
  *
@@ -156,7 +156,7 @@ test('@verajs/store imports core in production rather than inlining it', () => {
     assert.match(
       read(path),
       /from\s*["']@verajs\/core["']/,
-      `${name}: must import core — a second copy means a second hooksQueue, and computeds that ` +
+      `${name}: must import core — a second copy means a second tracking cell, and computeds that ` +
         `evaluate once and never invalidate, silently and in production only`
     );
   }

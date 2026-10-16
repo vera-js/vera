@@ -2,7 +2,7 @@ import { diagnostic, misuse, SHARED } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { InitInsert } from '@verajs/inserts';
-import { currentInstance, hooksQueue, mine } from '../store/store.js';
+import { currentInstance, mine, tracking } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
 import { firstPasses } from './mount.js';
 import { useRender } from '../hooks/useRender.js';
@@ -174,22 +174,23 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element);
   if (__DEV__) unwiredStyles(element);
   /**
-   * **The setup: this component is the owner while it runs, and nothing it reads is tracked** (the `undefined` on the
-   * tracking stack). A setup that throws is rethrown (the author's own call) with the outer owner restored, and commits
+   * **The setup: this component is the owner while it runs, and nothing it reads is tracked** (the tracking cell is
+   * cleared for it). A setup that throws is rethrown (the author's own call) with the outer owner restored, and commits
    * nothing — the hooks it registered never run; the next connect resets them.
    */
   const previous = currentInstance.element;
   currentInstance.element = element;
   let out: unknown;
   if (setup !== undefined) {
-    hooksQueue.push(undefined);
+    const reader = tracking.hook;
+    tracking.hook = undefined;
     try {
       out = (setup as (e: ComponentElement) => unknown)(element);
     } catch (error) {
       currentInstance.element = previous;
       throw error;
     } finally {
-      hooksQueue.pop();
+      tracking.hook = reader;
     }
   }
   /** A render function — the common return — is never a promise: one `typeof`, not a `.then` miss on every component. */

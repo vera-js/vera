@@ -85,7 +85,7 @@ export const computed = <T>(evaluate: () => T) => {
 
   /**
    * The evaluation happens *inside* the hook, which is what records the dependencies: tracking is
-   * live only while `hooksQueue` holds this hook's entry, and that is only true within the wrapper
+   * live only while core's tracking cell holds this hook, and that is only true within the wrapper
    * `createHook` returns. Running `evaluate()` outside it would produce the right value and
    * subscribe to nothing.
    */
