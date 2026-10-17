@@ -1676,6 +1676,10 @@ const owned = (container: Node) => {
  * root's direct children; its records are sorted at each commit's start and end — so whatever arrives between renders is
  * foreign, and whatever a render inserts is not — and once more at a clear, which then names a foreign node it is about to
  * remove. Production keeps none of it: the clear is the same in both builds, only the line is development's.
+ * **Best-effort across windows:** ONE observer serves every window, so a root that moves to another window stays on the
+ * observer that sweeps it (one per window would sweep the new window's while the records sat in the old one's, and call
+ * the root's own renders foreign). Should the window it was built from go away and take the observer with it, the
+ * warning goes quiet; what a clear removes never depends on it.
  */
 const strays = __DEV__ ? new WeakSet<Node>() : null;
 const ownedRoots = __DEV__ ? new WeakSet<Node>() : null;
