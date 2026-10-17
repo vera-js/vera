@@ -2,7 +2,8 @@ import { diagnostic, misuse, SHARED } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { InitInsert } from '@verajs/inserts';
-import { currentInstance, mine, tracking } from '../store/store.js';
+import { currentInstance, MINE, tracking } from '../store/store.js';
+import type { Mine } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
 import { firstPasses } from './mount.js';
 import { drawInto } from '../hooks/useRender.js';
@@ -129,7 +130,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
     saidOptions.add(element.constructor);
     console.error(diagnostic('core', `<${element.localName}>`, 'init-options', __DEV__ && PROSE['init-options']()));
   }
-  mine.add(element);
+  (element as Mine)[MINE] = true;
   const setup = typeof given === 'function' ? given : typeof (element as { setup?: unknown }).setup === 'function' ? callMethod : undefined;
   /**
    * Development: `init` on a host from inside ITS OWN setup starts a new generation and discards the hooks that setup
@@ -406,7 +407,7 @@ if (typeof customElements !== 'undefined') {
      * real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup.
      */
     proto.disconnectedCallback = function (this: Moving) {
-      if (!mine.has(this)) return own?.call(this);
+      if ((this as Mine)[MINE] === undefined) return own?.call(this);
       this._$m$ = this.isConnected;
       if (!this._$m$) teardown(this);
     };
@@ -418,7 +419,7 @@ if (typeof customElements !== 'undefined') {
      * — and that is correct: a first connect has nothing to keep. Do not move `init` earlier to "fix" it.
      */
     proto.connectedCallback = function (this: Moving) {
-      if (mine.has(this) && this._$m$) {
+      if ((this as Mine)[MINE] !== undefined && this._$m$) {
         this._$m$ = false;
         if (this.ownerDocument === this._$d$) return;
         teardown(this);

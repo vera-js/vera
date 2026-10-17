@@ -10,10 +10,13 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
  * component rendering in the middle of its parent's template.
  */
 /**
- * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down, and the
- * owners whose effects keep a cleanup Set. A page can load two copies of core (a bundle inlining it); each keeps its own.
+ * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down: a field
+ * under a `Symbol` private to this copy of core (a page can load two copies — a bundle inlining it — and each must know
+ * only its own). It was a WeakSet keyed by the element; a weak collection keyed by DOM nodes costs both engines'
+ * collectors per entry (the renderer's root parts measured ~10%, 2026-10-17).
  */
-export const mine = new WeakSet<Element>();
+export const MINE = Symbol();
+export type Mine = { [MINE]?: true };
 
 /**
  * **The hook reading right now — ONE cell, not a stack** (work queue 6, A14a, 2026-10-16). Every tracked store read asks
