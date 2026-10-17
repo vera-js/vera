@@ -1653,7 +1653,23 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
 };
 
 
-const rootParts = new WeakMap<Node, ChildPart>();
+/**
+ * **Each root's part, kept ON the root** — under this renderer copy's own `Symbol` (2026-10-17). It was a WeakMap keyed
+ * by DOM nodes, and that cost every component's creation and removal in both engines' collectors: fresh-browser races
+ * of shadow components put it at ~11% in Firefox and ~9% in Chrome (Firefox's sweep and mark phases, per entry). A field
+ * is an ordinary property, freed with its root. **A Symbol, never a string:** a page can hold two renderer copies (a CDN
+ * bundle beside an app's, two versions), and a string-named field — lit's `_$litPart$` — would hand one copy the
+ * other's part; per-copy, each sees only its own, as with the WeakMap. Root → part → root is a DOM↔JS cycle only
+ * Firefox's cycle collector frees, so a released root's part lets go of its root (`releaseRoot`).
+ */
+const PART = Symbol();
+type Rooted = Node & { [PART]?: ChildPart };
+const rootParts = {
+  get: (node: Node) => (node as Rooted)[PART],
+  set: (node: Node, part: ChildPart) => {
+    (node as Rooted)[PART] = part;
+  },
+};
 
 /**
  * **A root the template OWNS** (`foreignNodes: 'drop'`, step 1 of 2026-10-16: shadow component roots). Core's render hook
@@ -1779,6 +1795,12 @@ const releaseRoot = (element: Node) => {
   if (part === undefined || part.$x) return;
   releaseItem(part);
   part.$x = true;
+  /**
+   * An OWNED root's part lets go of its root, so the removed root and its part are no cycle for Firefox's cycle collector
+   * (−113 ms of incremental CC on a churn page, 2026-10-17); `reviveRoot` gives it back. A markered part keeps its two
+   * markers: a re-add clears between them.
+   */
+  if (part.$s === null) part.$w = part.$l = part.$R = null;
 };
 /**
  * **A released component is coming back** — core calls `$y(element)` as a re-init starts, BEFORE its `'init'` inserts:
@@ -1788,12 +1810,14 @@ const releaseRoot = (element: Node) => {
  * nodes cost Firefox's churn 2.3%, 2026-10-16). The first render then draws into an empty part.
  */
 const reviveRoot = (element: Node) => {
-  const part = rootParts.get(element) ?? rootParts.get((element as Element).shadowRoot ?? element);
+  const container = rootParts.get(element) !== undefined ? element : (element as Element).shadowRoot ?? element;
+  const part = rootParts.get(container);
   /**
-   * OWNED roots only (`$w`): a markered root's own clear stops at its marker, so it waits for the next render as it always
-   * did — and a re-init that renders nothing (`init(this)` with no setup, its content drawn by someone else) keeps it.
+   * OWNED roots only (no markers): a markered root's own clear stops at its marker, so it waits for the next render as it
+   * always did — and a re-init that renders nothing (`init(this)` with no setup, its content drawn by someone else) keeps it.
    */
-  if (part === undefined || !part.$x || part.$w === null) return;
+  if (part === undefined || !part.$x || part.$s !== null) return;
+  part.$w = container;
   part.$x = false;
   part._clear();
 };
@@ -1804,6 +1828,8 @@ export const renderInto = (result: unknown, container: Node, owns?: boolean) => 
   let part = rootParts.get(container);
   /** A RE-ADDED component: its released part's old range is cleared, and it renders fresh into it. */
   if (part?.$x) {
+    /** An owned part let go of its root at the release; it is this container. */
+    if (part.$s === null) part.$w = container;
     part.$x = false;
     part._clear();
   }

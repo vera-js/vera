@@ -85,7 +85,7 @@ type Handoff = [
   commitAs: (root: Node | null, part: ChildPart, value: unknown, home?: Node | null) => void,
   hookUp: (instance: Instance, root: Node | readonly Element[], adopted: boolean) => void,
   resolve: (template: Template, parent: Node) => Template,
-  roots: WeakMap<Node, ChildPart>,
+  roots: { set(node: Node, part: ChildPart): void },
   toText: (value: unknown) => string,
   removalWork: () => void,
 ];

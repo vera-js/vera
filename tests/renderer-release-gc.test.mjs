@@ -87,3 +87,48 @@ test("a removed component's applier state is freed by the release — the elemen
   assert.deepEqual({ root: r.rootReleased, kept: r.keptReleased }, { root: true, kept: true },
     "each removed component's applier state was freed — rootParts holding the root part, the applier holding the nested one");
 });
+
+/**
+ * **A removed component's ROOT PART is collected with it** (2026-10-17): the part now lives ON its root (a per-copy
+ * Symbol field, no longer a WeakMap entry), so it must go when nothing holds the removed element. Nothing in this child
+ * binds a removed element — they are written as markup and removed by emptying their container — so the "last binding
+ * stays alive" artifact cannot apply. Light roots (markered) in both builds; SHADOW roots (owned) in production only:
+ * development watches owned roots with a MutationObserver for its dropped-node warning, and jsdom holds observed nodes
+ * strongly (a fake leak). Controls: a still-connected component's part stays alive; a dropped plain object dies.
+ */
+const partChild = () => JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--expose-gc', '--no-warnings', '--input-type=module', '-e', `
+  import { JSDOM } from 'jsdom';
+  const dom = new JSDOM('<!doctype html><body><div id="live"></div><div id="gone"></div></body>');
+  for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent'])
+    globalThis[k] = dom.window[k] ?? globalThis[k];
+  const { load, isProduction } = await import('./tests/dist.mjs');
+  const { init, wire } = await load('core');
+  const { renderer } = await load('renderer');
+  wire([renderer]);
+  /** The ROOT part, handed to an applier the render returns — held only weakly here. */
+  const parts = { light: [], shadow: [], live: [] };
+  const record = (kind) => ({ _$child$(part) { parts[kind].push(new WeakRef(part)); part._$commit$('x'); } });
+  customElements.define('rp-light', class extends HTMLElement { connectedCallback() { init(this, () => () => record(this.parentNode.id === 'live' ? 'live' : 'light')); } });
+  customElements.define('rp-shadow', class extends HTMLElement { connectedCallback() { init({ host: this, shadow: 'open' }, () => () => record('shadow')); } });
+  const settle = () => new Promise((r) => setImmediate(r));
+  const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
+  const dropped = new WeakRef({ plain: true });
+  document.getElementById('live').innerHTML = '<rp-light></rp-light>';
+  document.getElementById('gone').innerHTML = '<rp-light></rp-light>'.repeat(6) + (isProduction ? '<rp-shadow></rp-shadow>'.repeat(6) : '');
+  await settle();
+  const counts = { light: parts.light.length, shadow: parts.shadow.length, live: parts.live.length };
+  document.getElementById('gone').replaceChildren();
+  await settle();
+  await gc();
+  const dead = (list) => list.filter((ref) => ref.deref() === undefined).length;
+  process.stdout.write(JSON.stringify({ counts, lightDead: dead(parts.light), shadowDead: dead(parts.shadow), liveAlive: parts.live.length - dead(parts.live), droppedDied: dropped.deref() === undefined }));
+`], { cwd: new URL('..', import.meta.url), encoding: 'utf8' }));
+
+test("a removed component's root part is collected with its root — light and shadow — nothing holding it but the element", () => {
+  const r = partChild();
+  assert.equal(r.droppedDied, true, 'CONTROL: gc ran — a dropped plain object died');
+  assert.deepEqual(r.counts, { light: 6, shadow: isProduction ? 6 : 0, live: 1 }, 'CONTROL: every component rendered its root once');
+  assert.equal(r.liveAlive, 1, "CONTROL: a connected component's root part stays alive");
+  assert.equal(r.lightDead, 6, 'every removed light root part was collected');
+  assert.equal(r.shadowDead, isProduction ? 6 : 0, 'every removed shadow root part was collected (production; development observes owned roots)');
+});
