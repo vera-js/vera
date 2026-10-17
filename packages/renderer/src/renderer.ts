@@ -1201,18 +1201,21 @@ class ChildPart {
   _clear() {
     if (notifyOnRemoval) this._detach();
     const owner = this.$w;
-    const start = this.$s!;
+    const start = this.$s;
     const end = this.$e;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
-    if (owner !== null) owner.textContent = '';
-    else if (start.previousSibling === null && end!.nextSibling === null) {
-      const parent = start.parentNode!;
+    if (owner !== null) {
+      if (__DEV__ && ownedRoots!.has(owner)) saidDrop(owner);
+      owner.textContent = '';
+    }
+    else if (start!.previousSibling === null && end!.nextSibling === null) {
+      const parent = start!.parentNode!;
       parent.textContent = '';
-      parent.appendChild(start);
+      parent.appendChild(start!);
       parent.appendChild(end!);
     } else {
-      const parent = start.parentNode!;
-      let node = start.nextSibling;
+      const parent = start!.parentNode!;
+      let node = start!.nextSibling;
       /** `node !== null` is a backstop: a detached boundary leaves nodes behind rather than throwing mid-render. */
       while (node !== null && node !== end) {
         const next = node.nextSibling;
@@ -1629,10 +1632,20 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   renderRoot = root;
   /** A document's own `ownerDocument` is null — so a document container is its own. */
   if (home !== null) passDoc = home.ownerDocument ?? (home as Document);
+  /** Development: a commit into an owned root is that root's own work (see `strays`). */
+  const marking = __DEV__ && root !== null && ownedRoots!.has(root) && !rendering!.has(root);
+  if (marking) {
+    sweepStrays();
+    rendering!.add(root!);
+  }
   try {
     part.$p(value);
   } finally {
     flush(selectsMark, refsMark);
+    if (marking) {
+      sweepStrays();
+      rendering!.delete(root!);
+    }
     renderRoot = outer;
     passDoc = outerDoc;
     scope = outerScope;
@@ -1641,6 +1654,66 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
 
 
 const rootParts = new WeakMap<Node, ChildPart>();
+
+/**
+ * **A root the template OWNS** (`foreignNodes: 'drop'`, step 1 of 2026-10-16: shadow component roots). Core's render hook
+ * says so with its third argument — a container handed to `renderInto` directly never does — and it is taken only for a
+ * SHADOW root EMPTY at its first render: a declarative (server) root and one holding styles' text fallback are not empty,
+ * and keep their markers. No marker comments: the part owns the root's whole content (`$w`, as a sole binding owns its
+ * element), so a template change clears it with one `textContent = ''` — foreign nodes included — and an ordinary
+ * re-render touches nothing it did not render. Where new content lands relative to a foreign node is not promised.
+ */
+const owned = (container: Node) => {
+  const part = new ChildPart(null, null);
+  part.$w = container;
+  if (__DEV__) watchOwned(container);
+  return part;
+};
+
+/**
+ * **Development: what an owned root's clear drops.** Nodes the RENDER placed are its own; anything placed while no render
+ * of that root was running is foreign. One observer (built from the first owned root's own window) watches every owned
+ * root's direct children; its records are sorted at each commit's start and end — so whatever arrives between renders is
+ * foreign, and whatever a render inserts is not — and once more at a clear, which then names a foreign node it is about to
+ * remove. Production keeps none of it: the clear is the same in both builds, only the line is development's.
+ */
+const strays = __DEV__ ? new WeakSet<Node>() : null;
+const ownedRoots = __DEV__ ? new WeakSet<Node>() : null;
+const rendering = __DEV__ ? new Set<Node>() : null;
+let strayWatch: MutationObserver | null | undefined;
+let warnedDrop = false;
+const sortStrays = (records: MutationRecord[]) => {
+  for (const record of records) {
+    const own = rendering!.has(record.target);
+    for (const node of record.addedNodes)
+      if (own) strays!.delete(node);
+      else strays!.add(node);
+  }
+};
+const sweepStrays = () => {
+  if (strayWatch) sortStrays(strayWatch.takeRecords());
+};
+const watchOwned = (container: Node) => {
+  ownedRoots!.add(container);
+  if (strayWatch === undefined) {
+    const View = (container.ownerDocument?.defaultView as (typeof globalThis) | null | undefined)?.MutationObserver;
+    strayWatch = View ? new View(sortStrays) : null;
+  }
+  strayWatch?.observe(container, { childList: true });
+};
+const saidDrop = (owner: Node) => {
+  sweepStrays();
+  if (warnedDrop) return;
+  for (let node = owner.firstChild; node !== null; node = node.nextSibling)
+    if (strays!.has(node)) {
+      warnedDrop = true;
+      const host = (owner as ShadowRoot).host;
+      console.warn(diagnostic('renderer', host ? `<${host.localName}>` : 'renderInto', 'foreign-dropped', __DEV__ && PROSE['foreign-dropped'](describe(node))));
+      return;
+    }
+};
+/** Development: a node named in the drop warning — its tag, or its kind. */
+const describe = (node: Node) => (node.nodeType === 1 ? `<${(node as Element).localName}>` : node.nodeType === 3 ? 'a text node' : 'a comment');
 
 /** `hydration`'s adoption, installed through the hand-off (`$Y`): true when it adopted the container. */
 let adopt: ((result: unknown, container: Node) => boolean) | undefined;
@@ -1659,7 +1732,9 @@ export const expectContainer = (container: unknown) => {
  * Writes a template result into a container — the renderer's imperative draw: no reactivity, no
  * lifecycle. The first call appends two markers and anchors a root part between them; later calls reuse it
  * and commit only the values. Content already in the container stays, and so does content other code adds
- * after it — the render owns its range, never the container. lit-html's argument order.
+ * after it — the render owns its range, never the container. lit-html's argument order. The third argument, `owns`, is
+ * core's: its render hook passes a component's `foreignNodes: 'drop'` with every render, and a shadow root that is empty
+ * at its first render is then the template's whole (`owned`). A direct call is a container's, and keeps its markers.
  */
 /**
  * **A removed component's root part, RELEASED** (work queue 0d, 2026-10-11). Core's teardown calls `$x(container)` (the
@@ -1701,8 +1776,25 @@ const releaseRoot = (element: Node) => {
   releaseItem(part);
   part.$x = true;
 };
+/**
+ * **A released component is coming back** — core calls `$y(element)` as a re-init starts, BEFORE its `'init'` inserts:
+ * an OWNED released root is cleared now, so what those inserts put in the root (styles' `<style>` fallback in a window that
+ * cannot adopt the sheet) is never in the way of the clear. An owned root has no markers to bound it, so this is the
+ * only moment its own content and theirs are told apart without holding a node (a part holding the removed root's
+ * nodes cost Firefox's churn 2.3%, 2026-10-16). The first render then draws into an empty part.
+ */
+const reviveRoot = (element: Node) => {
+  const part = rootParts.get(element) ?? rootParts.get((element as Element).shadowRoot ?? element);
+  /**
+   * OWNED roots only (`$w`): a markered root's own clear stops at its marker, so it waits for the next render as it always
+   * did — and a re-init that renders nothing (`init(this)` with no setup, its content drawn by someone else) keeps it.
+   */
+  if (part === undefined || !part.$x || part.$w === null) return;
+  part.$x = false;
+  part._clear();
+};
 
-export const renderInto = (result: unknown, container: Node) => {
+export const renderInto = (result: unknown, container: Node, owns?: boolean) => {
   if (__DEV__) expectContainer(container);
   if (__DEV__ && profileHook !== null) profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
@@ -1722,7 +1814,7 @@ export const renderInto = (result: unknown, container: Node) => {
     if (part === undefined) {
       /** Nothing adopts: whatever recognizes server markup is told before this render would append beside it (light slots). */
       if (adopt === undefined) (registry as { _$unadopted$?: (container: Node) => void } | null)?._$unadopted$?.(container);
-      rootParts.set(container, (part = markered(container, null)));
+      rootParts.set(container, (part = owns === true && container.nodeType === 11 && container.firstChild === null ? owned(container) : markered(container, null)));
     }
     commitAs(container, part, result);
   }
@@ -1750,6 +1842,8 @@ const connectTo = (given: { get(name: never): unknown }) => {
     (given as { _$done$?: unknown })._$done$ ??= undefined;
     /** The release core's teardown calls with a removed component (see `releaseRoot`). */
     (given as { $x?: (container: Node) => void }).$x = releaseRoot;
+    /** …and the revival core's re-init calls before its `'init'` inserts (see `reviveRoot`). */
+    (given as { $y?: (container: Node) => void }).$y = reviveRoot;
     /**
      * **The hydration hand-off** — the one door `hydration` reaches this renderer's internals through (a separately
      * bundled module cannot import them, and production mangles their names): only values the renderer already holds,
@@ -1785,7 +1879,7 @@ const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed
 /** Development: the decline is said once per process. */
 let declined = false;
 
-type Registry = { get(name: never): unknown; $S?: unknown };
+type Registry = { get(name: never): unknown; $S?: unknown; $F?: unknown };
 /**
  * What a consumer's TypeScript sees — the shape `wire` accepts (`Wireable`, structurally: this package imports no
  * types from `@verajs/inserts`): a DESCRIPTOR, `on: 'render'`, callable with options to give `[renderer, a connector]`.
@@ -1793,7 +1887,7 @@ type Registry = { get(name: never): unknown; $S?: unknown };
  * the previous `on: 'render' | undefined` did: that matched neither a descriptor nor a connector, so `wire([renderer])`
  * stopped compiling in a consumer's project (tests/consumer, 2026-10-10).
  */
-type RendererModule = ((options?: { shadow?: 'open' | 'closed' | false | ShadowRootInit }) => readonly [RendererModule, (registry: Registry) => void]) & {
+type RendererModule = ((options?: { shadow?: 'open' | 'closed' | false | ShadowRootInit; foreignNodes?: 'preserve' | 'drop' }) => readonly [RendererModule, (registry: Registry) => void]) & {
   readonly on: 'render';
   fn: never;
   priority: number;
@@ -1803,7 +1897,8 @@ type RendererModule = ((options?: { shadow?: 'open' | 'closed' | false | ShadowR
 /**
  * **`renderer` is a DUAL** — `wire([renderer])` as it always was, or `wire([renderer({ shadow: 'open' })])` to set the
  * app's default root: every component whose own `shadow` option says nothing gets it (core's `init` reads it after the
- * component's own and before light DOM). Called, it returns `[renderer, a connector setting the default]` — `wire`
+ * component's own and before light DOM). `renderer({ foreignNodes: 'preserve' })` is the same for `foreignNodes`, and sets
+ * COMPONENT roots only — a container handed to `renderInto` (`document.body`, `#app`) always keeps foreign nodes. Called, it returns `[renderer, a connector setting the default]` — `wire`
  * takes nested arrays — so the module is one function with its descriptor fields on it, and nothing is made per call
  * but that connector.
  *
@@ -1830,12 +1925,15 @@ export const renderer = Object.assign(
     }
     if (__DEV__)
       for (const key in given as object)
-        if (key !== 'shadow') console.warn(diagnostic('renderer', 'renderer()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'shadow')));
+        if (key !== 'shadow' && key !== 'foreignNodes')
+          console.warn(diagnostic('renderer', 'renderer()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'foreignNodes, shadow')));
     const shadow = (given as { shadow?: unknown } | undefined)?.shadow;
+    const foreignNodes = (given as { foreignNodes?: unknown } | undefined)?.foreignNodes;
     return [
       renderer,
       (registry: Registry) => {
         if (shadow !== undefined) registry.$S = shadow;
+        if (foreignNodes !== undefined) registry.$F = foreignNodes;
       },
     ];
   },

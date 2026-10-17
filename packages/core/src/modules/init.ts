@@ -5,7 +5,7 @@ import type { InitInsert } from '@verajs/inserts';
 import { currentInstance, mine, tracking } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
 import { firstPasses } from './mount.js';
-import { useRender } from '../hooks/useRender.js';
+import { drawInto } from '../hooks/useRender.js';
 import { reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
@@ -52,6 +52,8 @@ const unclaimedMarkup = (element: ComponentElement) => {
 
 /** The two shadow roots by name, built once — `init` attaches from these, so no options object is made per connect. */
 (inserts as unknown as { $S?: unknown }).$S = undefined;
+/** Defined up front like `$S`, so every connect's read of the `foreignNodes` default is a hit. */
+(inserts as unknown as { $F?: unknown }).$F = undefined;
 const OPEN: ShadowRootInit = { mode: 'open' };
 const CLOSED: ShadowRootInit = { mode: 'closed' };
 /** Development: what was said once per component class — a static setup return, a near-miss `setup` spelling. */
@@ -63,6 +65,10 @@ let warnedAboutDefault = false;
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
 const validShadow = (value: unknown) =>
   value === false || value === 'open' || value === 'closed' || (value as ShadowRootInit | null)?.mode === 'open' || (value as ShadowRootInit | null)?.mode === 'closed';
+/** What `foreignNodes` may be. */
+const validForeign = (value: unknown) => value === 'preserve' || value === 'drop';
+/** Development: an invalid `foreignNodes` app default is said once per page, like `shadow`'s. */
+let warnedAboutForeignDefault = false;
 /** Development: how a `shadow` value is shown in shadow-option, and whether it is the platform's to refuse (it names a mode). */
 const shown = (value: unknown) => {
   const mode = (value as ShadowRootInit | null)?.mode;
@@ -147,6 +153,8 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
     element._$x$ = false;
     /** The old generation's list goes; the new one is made by its first hook (`register`), so a fresh element writes none. */
     element._$h$ = undefined;
+    /** A released root is cleared NOW, before the `'init'` inserts below put anything in it (the renderer's `$y`). */
+    (inserts as unknown as { $y?: (element: Node) => void }).$y?.(element);
   }
   element._$g$ = (generation ?? 0) + 1;
   /** The document it was set up in: a move into another one is a teardown and a fresh setup (see the wrapper below). */
@@ -159,7 +167,15 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    */
   const shadow =
     options !== undefined && options.shadow !== undefined ? options.shadow : (inserts as unknown as { $S?: InitOptions['shadow'] }).$S;
-  if (__DEV__) checkShadow(element, options, shadow);
+  /**
+   * **Whether the template owns the root** — `foreignNodes` (nodes placed in a component's root by anything other than its
+   * own template): the component's own, else the app default `renderer({ foreignNodes })` (`$F`, which sets component
+   * roots only — never a container handed to `renderInto`), else `'drop'`. Any value but `'preserve'` owns.
+   */
+  const owns =
+    (options !== undefined && options.foreignNodes !== undefined ? options.foreignNodes : (inserts as unknown as { $F?: InitOptions['foreignNodes'] }).$F) !==
+    'preserve';
+  if (__DEV__) checkOptions(element, options, shadow);
   if (shadow) {
     const root = shadow === 'open' ? OPEN : shadow === 'closed' ? CLOSED : (shadow as ShadowRootInit).mode ? (shadow as ShadowRootInit) : undefined;
     if (root && !element.shadowRoot && !element._$r$) element._$r$ = element.attachShadow(root);
@@ -196,10 +212,10 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   /** A render function — the common return — is never a promise: one `typeof`, not a `.then` miss on every component. */
   if (typeof out !== 'function' && typeof (out as PromiseLike<unknown> | null)?.then === 'function') {
     currentInstance.element = previous;
-    pending(element, out as PromiseLike<unknown>, element._$g$);
+    pending(element, out as PromiseLike<unknown>, element._$g$, owns);
     return;
   }
-  commit(element, out);
+  commit(element, out, owns);
   currentInstance.element = previous;
 };
 
@@ -209,9 +225,9 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
  * says why), then every first pass runs with NO owner — a hook created inside a render belongs to no one. The caller
  * restores the outer owner. No try/finally: nothing here throws to its caller — every hook reports its own error.
  */
-const commit = (element: ComponentElement, out: unknown) => {
+const commit = (element: ComponentElement, out: unknown, owns: boolean) => {
   if (out != null) {
-    useRender(out, element);
+    drawInto(out, element, owns);
     if (__DEV__ && typeof out !== 'function') staticReturn(element, out);
   }
   currentInstance.element = null;
@@ -230,7 +246,7 @@ let anyAsync = false;
  * chain, so it never rejects: a setup that rejects commits nothing (like one that throws) and is reported once through
  * the `'error'` chain — never as an unhandled rejection.
  */
-const pending = (element: ComponentElement, out: PromiseLike<unknown>, generation: number) => {
+const pending = (element: ComponentElement, out: PromiseLike<unknown>, generation: number, owns: boolean) => {
   anyAsync = true;
   (element as Moving)._$s$ = out.then(
     (value) => {
@@ -238,7 +254,7 @@ const pending = (element: ComponentElement, out: PromiseLike<unknown>, generatio
       const previous = currentInstance.element;
       currentInstance.element = element;
       try {
-        commit(element, value);
+        commit(element, value, owns);
       } finally {
         currentInstance.element = previous;
       }
@@ -265,19 +281,30 @@ const retireGeneration = (element: ComponentElement) => {
   }
 };
 
-/** Development: an invalid app default or own `shadow`, and an unknown option key — said by name, before the fallback. */
-const checkShadow = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
+/**
+ * Development: an invalid app default or own `shadow` or `foreignNodes`, and an unknown option key — said by name, before
+ * the fallback (light DOM for `shadow`; `'drop'` for `foreignNodes`, the built-in default).
+ */
+const checkOptions = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
   const own = options?.shadow;
   if (own === undefined && shadow !== undefined && !warnedAboutDefault && !validShadow(shadow)) {
     warnedAboutDefault = true;
     console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
   }
+  const ownForeign = options?.foreignNodes;
+  const foreign = (inserts as unknown as { $F?: unknown }).$F;
+  if (ownForeign === undefined && foreign !== undefined && !warnedAboutForeignDefault && !validForeign(foreign)) {
+    warnedAboutForeignDefault = true;
+    console.warn(diagnostic('core', 'renderer({ foreignNodes })', 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(foreign))));
+  }
   if (options) {
     for (const key in options)
-      if (key !== 'host' && key !== 'shadow')
-        console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'host, shadow')));
+      if (key !== 'host' && key !== 'shadow' && key !== 'foreignNodes')
+        console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'foreignNodes, host, shadow')));
     if (own !== undefined && !validShadow(own))
       console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(own), platformRefuses(own))));
+    if (ownForeign !== undefined && !validForeign(ownForeign))
+      console.warn(diagnostic('core', `<${element.localName}>`, 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(ownForeign))));
   }
 };
 

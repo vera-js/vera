@@ -11,8 +11,12 @@ export const PROSE: Record<string, Prose> = {
     "Pass an object: renderer({ shadow: 'open' }).",
   ],
   'renderer-on-server': () => [
-    'is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only the shadow default was taken.',
+    'is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only its defaults (shadow, foreignNodes) were taken.',
     'Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process.',
+  ],
+  'foreign-dropped': (node) => [
+    `its template changed, and the root it owns was cleared — ${node}, which the template did not render, went with it (foreignNodes: 'drop', the default for a component's root).`,
+    "To keep nodes something else places in this root, set foreignNodes: 'preserve' on the component — init({ host: this, foreignNodes: 'preserve' }) — or for every component, renderer({ foreignNodes: 'preserve' }).",
   ],
   'ref-threw': () => [
     'threw; its error is printed beside this line, and the render continued without it.',

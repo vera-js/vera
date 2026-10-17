@@ -61,6 +61,19 @@ content before and after that range stays — whatever was already in the contai
 code (a script, a browser extension) appends to it later, survives every re-render, a template swap
 included. It is not reactive — call it again to update, or use a component and let a store do it.
 
+**A component's shadow root is different: by default its template owns it** (`foreignNodes: 'drop'`). Foreign nodes
+— nodes placed in a component's root by anything other than its own template — are left alone by an ordinary
+re-render, and cleared with everything else when the template changes (a different template, text, a list, nothing);
+development says so the first time. The root then needs no marker comments, which makes every shadow component
+cheaper to create. A component that must keep what something else puts in its root says
+`init({ host: this, shadow: 'open', foreignNodes: 'preserve' }, setup)`; `wire([renderer({ foreignNodes: 'preserve' })])`
+makes that every component's default. Either way it covers component roots only: a container handed to `renderInto`
+(`document.body`, `#app`) always keeps foreign nodes, as above. A shadow root that already holds something at its first
+render (a server's declarative root, styles' `<style>` fallback) keeps its markers too. Light-DOM component roots are
+not affected yet. One corner: a `hold()` at an owned root parks the root's whole content with the branch it parks, so
+a foreign node there goes away with that branch and comes back with it rather than being dropped — as with a plain
+element whose whole content is one binding.
+
 It was named `render` until 0.2.0, which collided with core's `render` of the time — a different function, with
 a different arity, that declared a *reactive* template and committed a component's setup (a setup now returns its
 render instead). Both were public and both were documented, so a reader who knew one misread the other.

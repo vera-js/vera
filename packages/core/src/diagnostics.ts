@@ -32,6 +32,10 @@ export const PROSE: Record<string, Prose> = {
       : `\`shadow: ${value}\` is not a root this element can have, so it renders into its light DOM.`,
     "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }.",
   ],
+  'foreign-nodes-option': (value) => [
+    `\`foreignNodes: ${value}\` is not a setting, so the template owns this root (the default, 'drop').`,
+    "Use 'drop' (the template owns the root: foreign nodes are cleared when the template changes) or 'preserve' (the root keeps them where they are).",
+  ],
   'setup-near-miss': (name) => [
     `it has a \`${name}\` method and no \`setup\`, so init found nothing to run.`,
     'Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns.',

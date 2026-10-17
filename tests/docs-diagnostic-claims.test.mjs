@@ -166,6 +166,7 @@ const CLAIMS = new Map([
   ['packages/jsx/README.md#724b1c3ce0', 'not a promise: says the bundler reports it, not vera'], // The cost is that a genuinely unclosed element (`<p>x` with no `</p>`) reaches your bundler
   ['packages/jsx/README.md#f816cb75b4', 'event-name-typo'], // TypeScript cannot refuse it beside the permissive props, so the renderer names it instead 
   ['packages/jsx/README.md#0b7d099fba', 'not a promise: TypeScript names the misspelling, not a vera message'], // Custom event names, including ones that extend a real event (`onChanged`), are left alone.
+  ['packages/renderer/README.md#7388d9e0a4', 'foreign-dropped'], // Foreign nodes … are left alone by an ordinary re-render, and cleared with everything else when the template changes …; development says so the first time.
   ['packages/renderer/README.md#953b888443', 'no-renderer'], // Without it, core has no renderer at all: a component warns once (in every build) and puts nothing on the page.
   ['packages/renderer/README.md#24226b7ae7', 'not-a-listener'], // Anything else that cannot listen — a string, a number, an object with no `handleEvent` — i
   ['packages/renderer/README.md#c3769d8d67', 'select-multiple'], // Development says so.

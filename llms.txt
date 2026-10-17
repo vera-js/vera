@@ -111,7 +111,7 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `init` | `(element \| { host, shadow? }, setup?) => void` | Call in `connectedCallback`. `setup(host)` runs once, untracked, and returns the render function — or nothing, for a component whose whole job is a side effect. `shadow`: `'open'`, `'closed'`, `false` (light) or a `ShadowRootInit`; omitted, the app default from `renderer({ shadow })`, else light DOM. With no setup, `init` calls the class's own `setup()` method. |
+| `init` | `(element \| { host, shadow?, foreignNodes? }, setup?) => void` | Call in `connectedCallback`. `setup(host)` runs once, untracked, and returns the render function — or nothing, for a component whose whole job is a side effect. `shadow`: `'open'`, `'closed'`, `false` (light) or a `ShadowRootInit`; omitted, the app default from `renderer({ shadow })`, else light DOM. `foreignNodes`: `'drop'` (default — the template owns a shadow root that is empty at its first render: no markers, and nodes something else put there are cleared when the template changes, never by an ordinary re-render) or `'preserve'`; omitted, the app default from `renderer({ foreignNodes })`, which covers component roots only — a container handed to `renderInto` always preserves. With no setup, `init` calls the class's own `setup()` method. |
 
 **The setup is the whole component, and it runs once.** Everything in it — stores, hooks, helpers — is created on
 connect; only the function it returns re-runs. Hooks register while it runs: one registered after an `await` in an
@@ -711,6 +711,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - A PLAIN element whose whole content is one `${…}` belongs to it: `<ul>${rows}</ul>` renders with no marker
   nodes, and nodes other code adds to that `<ul>` are removed when the value changes. Elsewhere a position is
   bracketed by two empty comments. A custom element is never owned (a light component renders into its children).
+  A shadow component's root is owned the same way by default (`foreignNodes: 'drop'`); `'preserve'` keeps the markers.
 - **ARIA does not cross a shadow boundary.** `aria-labelledby`, `aria-describedby` and `<label for>`
   all match by ID, and IDs are scoped to their tree — so a page-level label cannot name a control
   inside `init({ host: this, shadow: 'open' }, setup)`. No error, no warning, no accessible name. Three ways through:

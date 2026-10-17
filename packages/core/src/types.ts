@@ -140,9 +140,19 @@ export type RenderTemplate = <V>(signal?: Signal<V>) => any;
 /** The root a component renders into: `'open'` / `'closed'` shadow, `false` for light DOM, or any `ShadowRootInit`. */
 export type ShadowOption = 'open' | 'closed' | false | ShadowRootInit;
 /** `init({ host, …options }, setup?)`'s first argument: the element, with the options that travel with it. */
+/**
+ * What happens to FOREIGN NODES — nodes placed in a component's root by anything other than its own template (a browser
+ * extension, a third-party script, code appending by hand). `'drop'` (the default): the template owns the root — an
+ * ordinary re-render touches nothing it did not render, and a template CHANGE (a different template, text, a list,
+ * nothing) clears the root, foreign nodes included; development says so. `'preserve'`: the root keeps two marker
+ * comments around the template's range, and everything outside the range stays where it is. A container handed to
+ * `renderInto` directly (`document.body`, `#app`) always preserves.
+ */
+export type ForeignNodesOption = 'preserve' | 'drop';
 export type InitOptions = {
   host: ComponentElement;
   shadow?: ShadowOption;
+  foreignNodes?: ForeignNodesOption;
 };
 /**
  * A component's setup: runs ONCE per connect, untracked, with the element as `host`, and returns its render function

@@ -14,12 +14,12 @@ import { PROSE } from '../diagnostics.js';
 let warnedNoRenderer = false;
 
 /**
- * Registers a render hook on the component being set up that draws the template into `element` through
- * every `'render'` insert, and draws it again when anything it read changes — once, however many writes
- * land before it (`coalesce`). The hook belongs to the component being set up, whose lifecycle drives
- * it; `element` is only where it draws — usually the same element, and deliberately allowed not to be.
+ * The render hook. `owns` is the component's resolved `foreignNodes` — true for `'drop'`: the template owns its root —
+ * and travels to the render insert WITH every render (its third argument), so the renderer never reads it from the DOM.
+ * Whether a root CAN be owned (a shadow root, empty at its first render) is the renderer's decision. Only `init` passes
+ * it; the public `useRender` below is this same function, typed without it.
  */
-export const useRender = (template: unknown, element: ComponentElement) => {
+export const drawInto = (template: unknown, element: ComponentElement, owns?: boolean) => {
   /**
    * The render target, found on the FIRST render and kept: a hook lives one generation, and the root is attached before
    * its setup — so the `_$r$` miss (a light component's walk down the DOM prototype chain) and the `shadowRoot` getter are
@@ -39,9 +39,18 @@ export const useRender = (template: unknown, element: ComponentElement) => {
         return;
       }
       /** A plain loop — a `forEach` arrow here was a closure on every render of every component. */
-      for (let i = 0; i < renderers.length; i++) (renderers[i] as Renderer)(result, target);
+      for (let i = 0; i < renderers.length; i++) (renderers[i] as Renderer)(result, target, owns);
     },
     RENDER_PRIORITY,
     false
   );
 };
+
+/**
+ * Registers a render hook on the component being set up that draws the template into `element` through
+ * every `'render'` insert, and draws it again when anything it read changes — once, however many writes
+ * land before it (`coalesce`). The hook belongs to the component being set up, whose lifecycle drives
+ * it; `element` is only where it draws — usually the same element, and deliberately allowed not to be.
+ * Drawn this way, `element`'s root is a CONTAINER: what else is in it stays (`foreignNodes: 'preserve'`).
+ */
+export const useRender: (template: unknown, element: ComponentElement) => void = drawInto;

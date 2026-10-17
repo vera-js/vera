@@ -63,6 +63,14 @@
       "fix": "A custom event by this name is fine, and this is said only in development."
     },
     {
+      "code": "foreign-dropped",
+      "params": [
+        "node"
+      ],
+      "message": "its template changed, and the root it owns was cleared — {node}, which the template did not render, went with it (foreignNodes: 'drop', the default for a component's root).",
+      "fix": "To keep nodes something else places in this root, set foreignNodes: 'preserve' on the component — init({ host: this, foreignNodes: 'preserve' }) — or for every component, renderer({ foreignNodes: 'preserve' })."
+    },
+    {
       "code": "foreign-raw-text",
       "params": [
         "tag"
@@ -103,7 +111,7 @@
     {
       "code": "renderer-on-server",
       "params": [],
-      "message": "is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only the shadow default was taken.",
+      "message": "is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only its defaults (shadow, foreignNodes) were taken.",
       "fix": "Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process."
     },
     {
