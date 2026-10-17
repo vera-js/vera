@@ -194,6 +194,22 @@ code, so they are not re-litigated.
   a deopt as the cause, change it and race it: a deopt that moves while the timing stays put is a symptom of the
   allocation pattern, not the cost. The tools: V8's `--log-code --log-deopt --logfile=…` passed through Chrome's
   `--js-flags` (renderer stdout is closed on macOS, so `--trace-opt` prints nothing), mapped through the dist source maps.
+- **Time Firefox with a FRESH BROWSER PER PAGE — never many pages in one instance.** Same-site pages in one Firefox
+  share a content process, so a page's leftover garbage is collected inside the NEXT page's timed window, and a cyclic
+  rotation pins each variant behind the same neighbor: results then follow the variant list, not the code. Measured
+  2026-10-17: one probe read +3.6%, +3.2%, then −4.5% when a fifth variant changed its neighbors, and a committed
+  "Firefox −10%" was in fact +8% (fresh browser per page, both ways). Chrome gives each page its own context, but
+  verify rather than assume. Report ELAPSED time with the frame gaps too: a change can move a collection out of the
+  timed window without removing it.
+- **A WeakMap / WeakSet keyed by DOM nodes on a PER-COMPONENT hot path can cost both engines' collectors per entry —
+  measure it, and the per-copy `Symbol` field is the candidate to race.** Measured 2026-10-17: the renderer's root-part
+  WeakMap cost ~10% of shadow-component creation and churn in Firefox (GC sweep + mark) and ~9% in Chrome; a field on
+  the root under a `Symbol` private to each module copy (two copies on a page must never see each other's entries —
+  never a string name) removed it, and core's `mine` WeakSet the same way gave −5–6%. **It is not a rule to replace
+  weak collections:** slots' seven node-keyed maps measured a TIE as fields, and dropping the per-hook `WeakRef` bought
+  −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe (kept, Brian). A field that points back at its
+  node's DOM (root → part → root) is a DOM↔JS cycle Firefox's cycle collector must break — null the back-pointer at
+  release. Race the field against the collection, both engines, fresh browser, before moving one.
 - **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
   create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
   class defines is work the engine does for every instance; never add one speculatively.
