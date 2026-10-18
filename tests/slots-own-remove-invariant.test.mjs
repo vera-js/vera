@@ -12,7 +12,8 @@ import { readFileSync } from 'node:fs';
 
 const ALLOWED = {
   'packages/renderer/src/slots.ts': {
-    'light.holding.remove();': 'the holding element (an <ins>), never a slot',
+    'holding.remove();': "the holding element (an <ins>, unpark's local), never a slot",
+    'light.holding?.remove();': 'the holding element (an <ins>, at release), never a slot',
     'stand.remove();': 'a stand-in comment',
     'rec.rs.remove();': "a slot region's start comment",
     'rec.re!.remove();': "a slot region's end comment",

@@ -40,7 +40,7 @@ type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
  * `wait`: captured by a template that placed runs into this host during hydration, before the host's own slots exist —
  * nothing distributes until the first of them mounts, so the nodes stay exactly where the server put them.
  */
-type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: MutationObserver; ex?: boolean; hw?: boolean; ho?: boolean; cw?: boolean; hh?: boolean };
+type Light = { host: Element; units: Unit[]; holding?: HTMLElement; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: MutationObserver; ex?: boolean; hw?: boolean; ho?: boolean; cw?: boolean; hh?: boolean };
 
 /**
  * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<ins hidden data-vm-unassigned>`, the
@@ -59,17 +59,20 @@ type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirt
 const UNASSIGNED = 'data-vm-unassigned';
 /** Into the page before a light node moves in, so the move is connected → connected. */
 const park = (light: Light) => {
-  if (light.holding.parentNode !== light.host) light.host.insertBefore(light.holding, light.host.firstChild);
+  const holding = holdingOf(light);
+  if (holding.parentNode !== light.host) light.host.insertBefore(holding, light.host.firstChild);
   watchHolding(light);
-  return light.holding;
+  return holding;
 };
 /**
  * At the end of every pass: in the page exactly while it holds a light node — out once only comments remain, and IN if
  * the renderer wrote a new node straight into a run waiting here while it was out (that node's first connection).
  */
 const unpark = (light: Light) => {
-  for (let node = light.holding.firstChild; node !== null; node = node.nextSibling) if (node.nodeType !== 8) return void park(light);
-  light.holding.remove();
+  const holding = light.holding;
+  if (holding === undefined) return;
+  for (let node = holding.firstChild; node !== null; node = node.nextSibling) if (node.nodeType !== 8) return void park(light);
+  holding.remove();
 };
 
 /**
@@ -156,7 +159,7 @@ const toHolding = (light: Light, node: Node) => {
     unstand(node);
     PLACED.delete(node);
   } else {
-    move(park(light), node, light.holding.lastChild);
+    move(park(light), node, light.holding!.lastChild);
     PLACED.set(node, null);
   }
 };
@@ -286,7 +289,6 @@ const distribute = (light: Light) => {
 };
 const place = (light: Light) => {
   light.dirty = false;
-  const holding = light.holding;
   /**
    * **THE INVARIANT: a slotted node moves in ONE DOM operation, connected → connected.** Core tells a move from a removal
    * by `isConnected` at `disconnectedCallback` (the platform runs it after the operation), so one `insertBefore` from
@@ -312,7 +314,8 @@ const place = (light: Light) => {
    */
   if (ending) light.fresh = false;
   const host = light.host;
-  const home = (node: Node) => firstOf(node).parentNode === holding || (fresh && firstOf(node).parentNode === host);
+  /** Re-read, never a copy: holding is built at its first use (`holdingOf`), possibly during this pass. */
+  const home = (node: Node) => firstOf(node).parentNode === light.holding || (fresh && firstOf(node).parentNode === host);
   light.units = light.units.filter((unit) => (unit.a === unit.z ? isWhere(unit.a, light) || (fresh && firstOf(unit.a).parentNode === host) : home(unit.a) && home(unit.z)));
   for (const unit of light.units)
     if (unit.a !== unit.z)
@@ -397,6 +400,7 @@ const place = (light: Light) => {
           run.push(node);
           if (node === unit.z) break;
         }
+        const holding = holdingOf(light);
         for (const node of run) (node.nodeType === 8 ? holding : park(light)).insertBefore(node, holding.lastChild);
       watchHolding(light);
       }
@@ -747,7 +751,7 @@ const adopt = (light: Light, node: Node) => {
     return;
   /** Before the render's range is ahead of everything distributed away; after it, behind. Read before it moves. */
   const ahead = first !== null && follows(node, first);
-  park(light).insertBefore(node, light.holding.lastChild);
+  park(light).insertBefore(node, light.holding!.lastChild);
   PLACED.set(node, null);
   own(light, node);
   if (ahead) {
@@ -799,6 +803,7 @@ const settleIn = (light: Light, node: Node) => {
  * its place. Called on its own for a host's own records while its first render runs, when a run still sits in the host.
  */
 const unrun = (light: Light, record: MutationRecord) => {
+  /** A reader: nothing can be in a holding not yet built, so `undefined` compares false. */
   const holding = light.holding;
   for (const node of record.removedNodes) {
     const real = REAL.get(node);
@@ -823,7 +828,8 @@ const unrun = (light: Light, record: MutationRecord) => {
 };
 
 const replay = (light: Light, record: MutationRecord) => {
-  const holding = light.holding;
+  /** A writer (runs move into holding below): built before it is captured. */
+  const holding = holdingOf(light);
   unrun(light, record);
   for (const node of record.addedNodes) {
     if (node.parentNode !== record.target) continue;
@@ -874,7 +880,7 @@ const release = (light: Light) => {
       node = next;
     }
   }
-  light.holding.remove();
+  light.holding?.remove();
   HOSTS.delete(light.host);
   work.delete(light);
   /**
@@ -911,7 +917,7 @@ const register = (light: Light) => {
     /** `hydrate-slots` writes runs straight into holding and relies on it being watched (hydrate-slots.ts, "holding is watched"). */
     (wired as { _$hydrateSlots$?: unknown } | undefined)?._$hydrateSlots$ !== undefined ||
     light.units.some((unit) => unit.a !== unit.z) ||
-    light.holding.childNodes.length > 2
+    (light.holding?.childNodes.length ?? 0) > 2
   )
     watchHolding(light);
 };
@@ -923,7 +929,7 @@ const register = (light: Light) => {
 const watchHolding = (light: Light) => {
   if (light.ho !== true || light.hh === true) return;
   light.hh = true;
-  watch(light.holding, light);
+  watch(holdingOf(light), light);
 };
 /**
  * **What changed while a light was not yet observed — its first render** — read off the DOM once, at that render's end
@@ -1013,13 +1019,13 @@ const answerAssigned = (win: typeof globalThis) => {
     });
   }
 };
-const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = null): Light => {
-  const doc = host.ownerDocument;
-  const win = doc.defaultView as typeof globalThis | null;
-  if (win !== null) answerAssigned(win);
-  arm();
-  /** The server's carrier, adopted, is the same element a client render makes: given the same style and anchors. */
-  const holding = carrier ?? (doc.createElement('ins') as HTMLElement);
+/**
+ * **Holding, built at its FIRST use** (2026-10-18): a host whose light children are all assigned never needs it, and
+ * building it for every host was ~82 ms of Chrome's slotted creation at 10 000 hosts. Every WRITER goes through here;
+ * readers compare against `light.holding`, which is simply `undefined` until then — nothing can be in it.
+ */
+const dress = (holding: HTMLElement) => {
+  const doc = holding.ownerDocument;
   holding.setAttribute('hidden', '');
   holding.setAttribute(UNASSIGNED, '');
   /**
@@ -1030,7 +1036,34 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   holding.style.setProperty('display', 'none', 'important');
   holding.insertBefore(doc.createComment(''), holding.firstChild);
   holding.append(doc.createComment(''));
-  const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
+  return holding;
+};
+const holdingOf = (light: Light): HTMLElement => (light.holding ??= dress(light.host.ownerDocument.createElement('ins')));
+/**
+ * The capture hydration is handed: hydrate-slots writes a served host's runs straight into holding (and reads its
+ * anchors), so a light captured through the protocol has its holding built at once — a client-only light builds it lazily.
+ */
+/** The lights hydration reads: each with its holding built (it reads the anchors), whichever capture made it. */
+const SERVED_HOSTS = {
+  get: (host: Element) => {
+    const light = HOSTS.get(host);
+    if (light !== undefined) holdingOf(light);
+    return light;
+  },
+  has: (host: Element) => HOSTS.has(host),
+};
+const captureServed: typeof capture = (...args) => {
+  const light = capture(...args);
+  holdingOf(light);
+  return light;
+};
+const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = null): Light => {
+  const doc = host.ownerDocument;
+  const win = doc.defaultView as typeof globalThis | null;
+  if (win !== null) answerAssigned(win);
+  arm();
+  /** The server's carrier, adopted at once; otherwise holding is built at its first use (`holdingOf`). */
+  const light: Light = { host, units: [], holding: carrier === null ? undefined : dress(carrier), recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
   return light;
 };
@@ -1394,7 +1427,7 @@ export const slotDiscovery = [
   (registry: Map<string, unknown[]>) => {
     /** Hydration's seam — off-chain like `_$done$`, stamped with this package's seam protocol: capture a served host. */
     wired = registry as unknown as { _$hydrating$?: boolean };
-    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
+    (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, captureServed, lightNodes, SERVED_HOSTS, standIn, PLACED, ADOPTED];
     (registry as unknown as { _$unadopted$?: (container: Node) => void })._$unadopted$ = unadopted;
     (registry as unknown as { _$parked$?: (root: Node, owner: Node | null) => void })._$parked$ = (root, owner) => {
       arm();

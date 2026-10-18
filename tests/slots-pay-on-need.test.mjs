@@ -62,11 +62,13 @@ customElements.define('pon-slotted', class extends HTMLElement {
   connectedCallback() { init(this, () => () => html`<em><slot></slot></em>`); }
 });
 
-test('CONTROL: a host with a slot is observed and gets a holding element — the counters count', async () => {
+test('CONTROL: a host with a slot is observed, and one with an UNASSIGNED child gets a holding element — the counters count', async () => {
   const before = observes;
   const made = holdings;
   const el = document.createElement('pon-slotted');
-  el.append(document.createElement('b'));
+  const nowhere = document.createElement('i');
+  nowhere.setAttribute('slot', 'nowhere');
+  el.append(document.createElement('b'), nowhere);
   document.body.append(el);
   flush();
   await settle();
@@ -198,4 +200,44 @@ test('a child PREPENDED by hand to a slotless host is hidden by the next re-rend
   assert.ok(tickRenders > before, 'CONTROL: it re-rendered');
   assert.equal(child.parentNode !== el, true, `hidden after a re-render with no slot: ${el.innerHTML}`);
   el.remove();
+});
+
+test('a light host whose children are ALL assigned builds no holding element; one re-slotted away builds it then, hidden', async () => {
+  const made = holdings;
+  const el = document.createElement('pon-slotted');
+  const b = document.createElement('b');
+  el.append(b);
+  document.body.append(el);
+  flush();
+  await settle();
+  assert.ok(el.querySelector('em b') === b, 'CONTROL: assigned');
+  assert.equal(holdings - made, 0, 'no holding element for a fully assigned host');
+  b.setAttribute('slot', 'nowhere');
+  flush();
+  await settle();
+  assert.equal(holdings - made, 1, 'built when a child first has nowhere to go');
+  assert.ok(b.closest('ins[data-vm-unassigned]') !== null || !b.isConnected, `and it waits there, hidden: ${el.innerHTML}`);
+  el.remove();
+});
+
+test("a RUN (an outer template's part, its marker comment first) on a host with no holding yet builds holding and distributes", async () => {
+  customElements.define('pon-runhost', class extends HTMLElement {
+    connectedCallback() { init(this, () => () => html`<em><slot>none</slot></em>`); }
+  });
+  const root = document.createElement('div');
+  document.body.append(root);
+  const errors = [];
+  const keep = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  try {
+    renderInto(html`<pon-runhost>${'run text'}</pon-runhost>`, root);
+    flush();
+    await settle();
+  } finally {
+    console.error = keep;
+  }
+  const host = root.querySelector('pon-runhost');
+  assert.equal(host.querySelector('em')?.textContent, 'run text', `the run is distributed: ${host.innerHTML}`);
+  assert.deepEqual(errors, [], 'nothing reported');
+  root.remove();
 });
