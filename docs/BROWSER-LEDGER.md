@@ -64,7 +64,11 @@ from another machine, or after that is undone, has a variable changed.
 - **Firefox and WebKit clamp `performance.now()` to whole milliseconds** (a fingerprinting defense) on an ordinary
   page; Chrome is sub-ms. The clamp is CONDITIONAL: a cross-origin-isolated page (COOP `same-origin` + COEP
   `require-corp`) gets finer timers (Firefox ~20 µs, Chrome ~5 µs, per the engines' documentation, not yet measured
-  here; WebKit unknown). Serving bench pages isolated may fix whole-ms sampling at the source, and needs one probe.
+  here; WebKit unknown). **Measured 2026-10-18 (headed):** the smallest `performance.now()` step on a PLAIN page is
+  0.1 ms in headed Chrome (not finer) and 1 ms in Firefox and WebKit; on an ISOLATED page it is 0.005 ms in Chrome and
+  0.02 ms in Firefox and WebKit. **But isolation changes performance, not only the clock:** on Firefox, a 1000-row
+  select ran 7% (Vera) and 13% (Solid) faster isolated, so cross-framework ratios moved. Consequence: isolation is a
+  resolution tool for small-operation diagnostics; headline timing stays on plain pages, as users run them.
   One ~3 ms operation is mostly rounding there; a 50 ms sample resolves ~2%; two equal medians there mean "within the
   step", not zero. Consequence: samples are tens of ms; small operations repeat inside a time-boxed sample; an
   operation whose work changes with the run index (a growing label, a shrinking table) gets a FIXED repeat count, never
