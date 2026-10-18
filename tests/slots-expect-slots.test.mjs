@@ -1,8 +1,9 @@
 /**
- * **`static observeSlots = true`** (2026-10-17): that component is observed from its first render, as native shadow DOM
- * follows every host — so a child appended BY HAND before it has rendered a slot is hidden (light content), where a
- * component without it shows the child until a slot renders (`tests/slots-pay-on-need.test.mjs`). Only the component
- * that asks pays: a plain one beside it still makes no observer registration.
+ * **`init({ host, expectSlots: true }, setup)`** (2026-10-17): that component is captured and observed from its first
+ * render, as native shadow DOM follows every host — so a child appended BY HAND before it has rendered a slot is hidden
+ * (light content), where a component without it shows the child until a slot renders (`tests/slots-pay-on-need.test.mjs`).
+ * Only the component that asks pays: a plain one beside it still makes no observer registration. Core hands the option
+ * through to slots' `'init'` hook; the app default (`slots({ expectSlots })`) is `tests/slots-expect-slots-default.test.mjs`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 const { init, html, wire, ref, flush } = await load('core');
-const { renderer } = await load('renderer');
+const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 
 wire([renderer, slots]);
@@ -33,11 +34,10 @@ customElements.define('oa-plain', class extends HTMLElement {
   connectedCallback() { init(this, () => () => html`<p>plain</p>`); }
 });
 customElements.define('oa-late', class extends HTMLElement {
-  static observeSlots = true;
-  connectedCallback() { init(this, () => () => html`<main>${open.value ? html`<em><slot>fallback</slot></em>` : null}</main>`); }
+  connectedCallback() { init({ host: this, expectSlots: true }, () => () => html`<main>${open.value ? html`<em><slot>fallback</slot></em>` : null}</main>`); }
 });
 
-test('observeSlots — a child appended by hand to an empty slotless component is hidden, then slotted once a slot renders', async () => {
+test('expectSlots — a child appended by hand to an empty slotless component is hidden, then slotted once a slot renders', async () => {
   const el = document.createElement('oa-late');
   document.body.append(el);
   flush();
@@ -71,3 +71,43 @@ test('a plain component beside it still pays nothing — CONTROL: the opted-in o
   plain.remove();
   opted.remove();
 });
+
+test('expectSlots on a component a TEMPLATE creates with no children: still captured, so a child appended by hand is hidden', async () => {
+  open.value = false;
+  flush();
+  const list = document.createElement('div');
+  document.body.append(list);
+  renderInto(html`<oa-late></oa-late>`, list);
+  flush();
+  await settle();
+  const el = list.querySelector('oa-late');
+  assert.ok(el.querySelector('main') !== null, 'CONTROL: it rendered');
+  const child = document.createElement('b');
+  child.textContent = 'LIGHT';
+  el.append(child);
+  flush();
+  await settle();
+  assert.equal(child.parentNode !== el, true, `hidden, as native: ${el.innerHTML}`);
+  open.value = true;
+  flush();
+  await settle();
+  assert.equal(el.querySelector('em')?.textContent, 'LIGHT', `slotted once a slot renders: ${el.innerHTML}`);
+  list.remove();
+});
+
+test('the option reaches no warning in development — core accepts the key slots claims', async () => {
+  const warnings = [];
+  const saved = console.warn;
+  console.warn = (...a) => warnings.push(a.join(' '));
+  try {
+    const el = document.createElement('oa-late');
+    document.body.append(el);
+    flush();
+    await settle();
+    el.remove();
+  } finally {
+    console.warn = saved;
+  }
+  assert.deepEqual(warnings, []);
+});
+

@@ -693,8 +693,10 @@ return () => html`<header>
   through a `&ref`, or `slotted(host, name)` from outside.
 - **Only a component that needs slotting pays for it.** One with no light content and no `<slot>` gets no observer and
   no hidden element; a component is observed from its first `<slot>`. So a child appended by hand to a component that
-  has neither shows until a slot renders — native hides it. Put `static observeSlots = true` on that component's class
-  to observe it from its first render instead, as a shadow root follows every host.
+  has neither shows until a slot renders — native hides it. A component that expects slots says so —
+  `init({ host: this, expectSlots: true }, setup)` — and is observed from its first render, as a shadow root follows
+  every host; `wire([renderer, slots({ expectSlots: true })])` makes that every light component's default (its own
+  `expectSlots` wins), at an observer per component.
 - **Add or remove `<slot>`s through the template, not by hand.** A slot with content has stepped out of
   the page, so removing it by hand changes nothing and its content stays shown; a `<slot>` inserted by
   hand is not one the template rendered, so it stays empty. In a shadow root both take effect at once.
@@ -743,7 +745,7 @@ builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->5.35 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->5.41 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.

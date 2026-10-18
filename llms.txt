@@ -457,8 +457,8 @@ matches — slot forwarding and `hold()` inside content placed into a nested com
 listed there: `node.assignedSlot` answers `null` (ask the slot: `slot.assignedNodes()`), a `<slot>` removed or
 inserted BY HAND is not followed (render slots from the template, e.g. `${open ? html`<slot></slot>` : null}`), and a
 child appended by hand to a component with neither a slot nor light content shows until a slot renders — only a
-component that needs slotting is observed, from its first `<slot>`; `static observeSlots = true` on a class observes
-it from its first render.
+component that needs slotting is observed, from its first `<slot>`; `init({ host: this, expectSlots: true }, setup)`
+observes it from its first render, and `slots({ expectSlots: true })` makes that the app's default.
 
 **`slotted(host, name?)`** is the accessor a component uses to read what its user gave it — native
 assignment in a shadow root, the capture map in light DOM, so component code does not branch on
@@ -528,7 +528,7 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into, and the module is
-<!--size:slots.gzip-->5.35 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->5.41 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive — with one more module wired where both are used:
 `wire([renderer, hydration, slots, hydrateSlots])` (`import { hydrateSlots } from '@verajs/renderer/hydrate-slots'`;

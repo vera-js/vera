@@ -149,11 +149,22 @@ export type ShadowOption = 'open' | 'closed' | false | ShadowRootInit;
  * `renderInto` directly (`document.body`, `#app`) always preserves.
  */
 export type ForeignNodesOption = 'preserve' | 'drop';
-export type InitOptions = {
+declare global {
+  /**
+   * **The option keys modules own** — empty here; a module adds its key with `declare global { interface
+   * VeraInitOptions { expectSlots?: boolean } }` (slots does), so the key exists only where that module is imported, and
+   * core hands it through to the module's `'init'` hook. GLOBAL rather than `declare module '@verajs/core'`: a module
+   * that does not depend on core (the renderer's) cannot augment a module it cannot resolve (TS2664).
+   */
+  // eslint-disable-next-line no-restricted-syntax, @typescript-eslint/no-empty-object-type -- merging IS the point: modules add their keys
+  interface VeraInitOptions {}
+}
+/** Core's own options, and every key a wired module added to `VeraInitOptions`. */
+export interface InitOptions extends VeraInitOptions {
   host: ComponentElement;
   shadow?: ShadowOption;
   foreignNodes?: ForeignNodesOption;
-};
+}
 /**
  * A component's setup: runs ONCE per connect, untracked, with the element as `host`, and returns its render function
  * (or nothing, for a side-effect setup; or a promise of either, for an async one).

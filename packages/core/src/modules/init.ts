@@ -188,7 +188,8 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    */
   const initInserts = inserts.get('init');
   /** A plain loop: no closure per connect (a `forEach` arrow captured `element` on every connect of every styled app). */
-  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element);
+  /** Each is handed the component's options object too: a module's own key travels on it (`expectSlots`, slots). */
+  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element, options);
   if (__DEV__) unwiredStyles(element);
   /**
    * **The setup: this component is the owner while it runs, and nothing it reads is tracked** (the tracking cell is
@@ -286,6 +287,35 @@ const retireGeneration = (element: ComponentElement) => {
  * Development: an invalid app default or own `shadow` or `foreignNodes`, and an unknown option key — said by name, before
  * the fallback (light DOM for `shadow`; `'drop'` for `foreignNodes`, the built-in default).
  */
+/**
+ * Development: the option keys the wired `'init'` hooks claim (`$keys` on the hook function — never on its descriptor,
+ * which `chain()` does not reach), each with the module that claims it. Two modules claiming one key, or a module
+ * claiming one of core's, is said once per page; both hooks still get the object (core cannot know which one meant it).
+ */
+/** Nothing at module scope is constructed: production keeps a constructor call it cannot prove unused (+7 B measured). */
+let claimedFor: unknown[] | undefined;
+let claimedSize = -1;
+let optionKeys: Map<string, string> | undefined;
+let warnedClaims = false;
+const claims = (): Map<string, string> => {
+  const hooks = inserts.get('init') as unknown[] | undefined;
+  if (optionKeys !== undefined && hooks === claimedFor && (hooks?.length ?? 0) === claimedSize) return optionKeys;
+  claimedFor = hooks;
+  claimedSize = hooks?.length ?? 0;
+  optionKeys = new Map();
+  for (const hook of hooks ?? []) {
+    const { $keys, $module } = hook as { $keys?: string[]; $module?: string };
+    for (const key of $keys ?? []) {
+      const other = key === 'host' || key === 'shadow' || key === 'foreignNodes' ? 'core' : optionKeys!.get(key);
+      if (other !== undefined && !warnedClaims) {
+        warnedClaims = true;
+        console.warn(diagnostic('core', 'init()', 'option-claimed-twice', __DEV__ && PROSE['option-claimed-twice'](key, other, $module ?? 'a module')));
+      }
+      optionKeys!.set(key, $module ?? 'a module');
+    }
+  }
+  return optionKeys;
+};
 const checkOptions = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
   const own = options?.shadow;
   if (own === undefined && shadow !== undefined && !warnedAboutDefault && !validShadow(shadow)) {
@@ -299,9 +329,10 @@ const checkOptions = (element: ComponentElement, options: InitOptions | undefine
     console.warn(diagnostic('core', 'renderer({ foreignNodes })', 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(foreign))));
   }
   if (options) {
+    const keys = claims();
     for (const key in options)
-      if (key !== 'host' && key !== 'shadow' && key !== 'foreignNodes')
-        console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'foreignNodes, host, shadow')));
+      if (key !== 'host' && key !== 'shadow' && key !== 'foreignNodes' && !keys.has(key))
+        console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, ['foreignNodes', 'host', 'shadow', ...keys.keys()].sort().join(', '))));
     if (own !== undefined && !validShadow(own))
       console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(own), platformRefuses(own))));
     if (ownForeign !== undefined && !validForeign(ownForeign))

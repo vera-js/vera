@@ -14,7 +14,7 @@
  * fallback. What the page's template later does inside a unit is seen by a `MutationObserver` and re-distributed —
  * synchronously after every component render (core's `'render'` insert), and at the latest by the next microtask.
  */
-import { diagnostic, isCustomElementName } from '@verajs/shared-utils';
+import { diagnostic, isCustomElementName, SHARED } from '@verajs/shared-utils';
 import { PROSE } from './slots-diagnostics.js';
 import { elements } from './elements.js';
 import { PROTOCOL } from './kinds.js';
@@ -40,7 +40,7 @@ type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
  * `wait`: captured by a template that placed runs into this host during hydration, before the host's own slots exist —
  * nothing distributes until the first of them mounts, so the nodes stay exactly where the server put them.
  */
-type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: MutationObserver; hw?: boolean; ho?: boolean; cw?: boolean; hh?: boolean };
+type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: MutationObserver; ex?: boolean; hw?: boolean; ho?: boolean; cw?: boolean; hh?: boolean };
 
 /**
  * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<ins hidden data-vm-unassigned>`, the
@@ -792,14 +792,6 @@ const release = (light: Light) => {
   light.obs = undefined;
 };
 
-/**
- * **A component observed from its first render** — `static observeSlots = true` on its class (2026-10-17). Every other
- * light component is observed from its first `<slot>`, and one with neither a slot nor light content gets nothing at all
- * (wiring slots made plain components 2.1–2.7× slower to create when every one was captured and observed). Observed from
- * the start, a child appended by hand before any slot renders is hidden and a `<slot>` inserted by hand is seen — what
- * native shadow DOM does for every host, at an observer per component. Read from the class, as `static styles` is.
- */
-const strict = (host: Element) => (host.constructor as { observeSlots?: unknown }).observeSlots === true;
 
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
 
@@ -1190,6 +1182,33 @@ let wired: { _$hydrating$?: boolean } | null = null;
 const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => null, priority: 50 };
 
 /** Discovery: `<slot>` elements and dashed hosts claimed in templates, through `elements`. */
+/**
+ * **`expectSlots`** — a component's own option (`init({ host, expectSlots: true }, …)`, `define({ tag, expectSlots })`),
+ * else the app's default (`slots({ expectSlots: true })`), else off; resolved ONCE here and kept on the light. By default
+ * a component is observed from its first `<slot>`, and one with neither a slot nor light content gets nothing at all
+ * (wiring slots made plain components 2.1–2.7× slower to create when every one was captured and observed). Expecting
+ * slots, it is captured and observed from its first render: a child appended by hand before any slot renders is hidden
+ * and a `<slot>` inserted by hand is seen — what native shadow DOM does for every host, at an observer per component.
+ */
+const captureAtInit = (element: Element, options: object | undefined) => {
+  const own = (options as { expectSlots?: unknown } | undefined)?.expectSlots;
+  const expect = own !== undefined ? own === true : (wired as { _$expectSlots$?: unknown } | undefined)?._$expectSlots$ === true;
+  /** Nothing to hide and nothing expected (the cheap tests first — they settle every plain component). */
+  if (element.firstChild === null && !expect) return;
+  /**
+   * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
+   * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
+   */
+  if ((element as unknown as Record<string, unknown>)['_$r$'] != null || element.shadowRoot !== null) return;
+  /** A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption). */
+  if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) {
+    const light = capture(element);
+    if (expect) light.ex = true;
+  }
+};
+/** Development: the option key this hook reads, so core's unknown-option check accepts it (`$keys` sits on the FUNCTION). */
+if (__DEV__) Object.assign(captureAtInit, { $keys: ['expectSlots'], $module: '@verajs/renderer/slots' });
+
 export const slotDiscovery = [
   elements,
   /**
@@ -1200,21 +1219,7 @@ export const slotDiscovery = [
   {
     name: '@verajs/renderer/slots-capture',
     on: 'init' as const,
-    fn: (element: Element) => {
-      /** Nothing to hide and nothing expected (the cheap test first — it settles every plain component). */
-      if (element.firstChild === null && !strict(element)) return;
-      /**
-       * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
-       * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
-       */
-      if ((element as unknown as Record<string, unknown>)['_$r$'] != null || element.shadowRoot !== null) return;
-      /**
-       * A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption).
-       * An EMPTY host is not captured: with nothing to hide it needs slots only once its template renders a `<slot>`
-       * (`mount` makes its light then). One an outer template fills always has that part's markers by now.
-       */
-      if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
-    },
+    fn: captureAtInit,
     priority: 10,
   },
   {
@@ -1250,7 +1255,7 @@ export const slotDiscovery = [
        * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
        */
       let own = HOSTS.get(container as Element);
-      if (container.nodeType === 1 && (own?.late ?? (container.firstChild !== start || strict(container as Element))) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName)) {
+      if (container.nodeType === 1 && (own?.late ?? container.firstChild !== start) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName)) {
         capture(container as Element, start);
         own = HOSTS.get(container as Element);
       }
@@ -1276,10 +1281,43 @@ export const slotDiscovery = [
         ending = false;
       }
       /** Observed from here on — after this module's own moves above, which then make no records. */
-      if (own !== undefined && own.ho !== true && (slotted || strict(own.host))) register(own);
+      if (own !== undefined && own.ho !== true && (slotted || own.ex === true)) register(own);
     };
   },
 ];
 
-/** `wire([renderer, slots])`. */
-export const slots = [slotDiscovery, serve];
+const parts = [slotDiscovery, serve];
+/** What `wire` hands a connector: the registry (told apart from options by its `get`) and `wire` itself. */
+type Registry = { get(name: never): unknown };
+type Wire = (item: never) => void;
+type SlotsOptions = { expectSlots?: boolean };
+type SlotsConnector = (registry: Registry, wire: Wire) => void;
+/** Two call signatures: as `wire` calls it (bare), and as an app calls it (with options) — both a module to `wire`. */
+type SlotsModule = { (options?: SlotsOptions): SlotsConnector; (registry: Registry, wire: Wire): void };
+/**
+ * **`slots` is a DUAL** — `wire([renderer, slots])`, or `wire([renderer, slots({ expectSlots: true })])` to make expecting
+ * slots every light component's default (a component's own `expectSlots` wins either way). Bare, `wire` hands it the
+ * registry and `wire` itself, and it wires its parts; called, it returns a connector doing the same and writing the
+ * default on that registry — two cores on one page keep their own.
+ */
+export const slots = ((given?: SlotsOptions | Registry, w?: (item: unknown) => void): SlotsConnector | undefined => {
+  if (typeof w === 'function') {
+    w(parts);
+    return undefined;
+  }
+  const options = given as SlotsOptions | undefined;
+  if (__DEV__) for (const key in options) if (key !== 'expectSlots') console.warn(diagnostic('slots', 'slots()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'expectSlots')));
+  const expect = options?.expectSlots;
+  return (registry, wire) => {
+    (wire as (item: unknown) => void)(parts);
+    if (expect !== undefined) (registry as unknown as { _$expectSlots$?: boolean })._$expectSlots$ = expect;
+  };
+}) as SlotsModule;
+
+/** Its option's type, where slots is imported: `init({ host, expectSlots: true }, …)` (core's `VeraInitOptions`). */
+declare global {
+  // eslint-disable-next-line no-restricted-syntax -- merging IS the point: slots adds its key to core's options
+  interface VeraInitOptions {
+    expectSlots?: boolean;
+  }
+}

@@ -73,8 +73,13 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  *
  * Core dispatches it and knows nothing about what is registered. With nothing registered it is one
  * `Map.get` returning `undefined`, once per element.
+ *
+ * **It is handed the component's options object** — `init({ host, … })`'s, or `define({ tag, … })`'s — or `undefined`.
+ * A module reads only its OWN key there (`options?.expectSlots`); core never reads, copies or validates one. A module
+ * augments `InitOptions` in `@verajs/core` for its key's type, and marks its hook with `$keys` (development only) so
+ * core's unknown-option check accepts the key.
  */
-export type InitInsert = (element: HTMLElement) => void;
+export type InitInsert = (element: HTMLElement, options: object | undefined) => void;
 
 /**
  * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.
@@ -233,10 +238,12 @@ export type InsertDescriptor = {
 };
 /**
  * A function handed the registry instead of a chain entry — how a package that registers nothing
- * still gets a reference to the map core reads. It is told apart from a descriptor structurally:
+ * still gets a reference to the map core reads. It is handed `wire` too — core's, the one that writes
+ * the map core reads — so a module made of several insert points can wire its parts from a function
+ * that also takes options (`slots` bare, or `slots({ expectSlots: true })`). It is told apart from a descriptor structurally:
  * a function whose `on` is `undefined` is a connector.
  */
-export type Connector = (registry: Inserts) => void;
+export type Connector = (registry: Inserts, wire: (item: Wireable) => void) => void;
 
 /** Either form {@link wire} accepts, so a module can ship as whichever one suits it. */
 export type Registerable = InsertDescriptor | Connector;

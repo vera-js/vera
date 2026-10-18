@@ -134,9 +134,11 @@ const el = (tag, attrs = {}, content = '') => {
  * page settles, and both views are read. `detached` leaves the hosts off the page until a step
  * attaches them; `side.parts` collects the parts of every `later()` applier, in the order attached.
  */
-/** `strict`: the light side's host class sets `static observeSlots = true` — observed from its first render, slot or not. */
+/** `strict`: the light side's host is a component that expects slots — `init({ host, expectSlots: true })`, no setup. */
 customElements.define('x-conf-strict', class extends HTMLElement {
-  static observeSlots = true;
+  connectedCallback() {
+    init({ host: this, expectSlots: true });
+  }
 });
 const run = async ({ draw, children = () => [], hosts = 1, detached = false, steps, probe, strict = false }) => {
   const sides = ['native', 'light'].map((mode) => {
@@ -181,10 +183,10 @@ const KNOWN = new Map([
   ['assignedSlot names the slot a light child is in', 'assignedSlot is not emulated: a light child reads null (2026-10-17 baseline)'],
   ['the user removes a slot by hand', 'an assigned <slot> has stepped out of the page, so removing it by hand changes nothing: its content stays shown (2026-10-17 baseline)'],
   ['the user inserts a slot by hand', 'only <slot>s a template renders take part; one inserted by hand stays empty (2026-10-17 baseline)'],
-  ['observeSlots: the user inserts a slot by hand into a component that has never rendered one', 'the same: a <slot> inserted by hand is not claimed yet (2026-10-17; the hand-insertion fix closes both)'],
+  ['expectSlots: the user inserts a slot by hand into a component that has never rendered one', 'the same: a <slot> inserted by hand is not claimed yet (2026-10-17; the hand-insertion fix closes both)'],
   [
     'the user appends a child to a component with no slot and no light content',
-    "observe: 'slotted' (the default) follows a component from its first <slot>: the child shows until a slot renders, then is slotted; observe: 'all' hides it, as native (2026-10-17)",
+    'a component is observed from its first <slot> by default: the child shows until a slot renders, then is slotted; one with expectSlots hides it, as native (2026-10-17)',
   ],
 ]);
 
@@ -896,7 +898,7 @@ scenario('the user appends a child to a component with no slot and no light cont
   ],
 });
 
-scenario('observeSlots: the user appends a child to a component with no slot and no light content', {
+scenario('expectSlots: the user appends a child to a component with no slot and no light content', {
   strict: true,
   draw: (s) => html`<main>${s.open ? html`<slot>fallback</slot>` : null}</main>`,
   steps: [
@@ -906,7 +908,7 @@ scenario('observeSlots: the user appends a child to a component with no slot and
   ],
 });
 
-scenario('observeSlots: the user inserts a slot by hand into a component that has never rendered one', {
+scenario('expectSlots: the user inserts a slot by hand into a component that has never rendered one', {
   strict: true,
   draw: () => html`<main></main>`,
   children: () => [el('b', {}, 'B')],

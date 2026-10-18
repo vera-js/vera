@@ -164,6 +164,17 @@ wire([renderer, slots]);
 wire([renderer, hydration, slots, hydrateSlots]);
 
 /**
+ * **`slots` is a dual, and its option is a module-owned key** (2026-10-17): called with options it is still a module to
+ * `wire`, and `expectSlots` exists on `init`'s options because slots is imported here (core's `VeraInitOptions`, merged
+ * globally — the renderer does not depend on core, so it cannot augment `@verajs/core` itself). A misspelled key is an
+ * error, as any unknown option is.
+ */
+wire([renderer, slots({ expectSlots: true })]);
+init({ host: document.createElement('x-expecting'), expectSlots: true }, () => () => null);
+// @ts-expect-error a misspelled module key is not an option
+init({ host: document.createElement('x-expecting'), expectSlot: true }, () => () => null);
+
+/**
  * **`@verajs/renderer/namespaces`, wired the documented way.** Its descriptor is `on: 'template'`,
  * and that point had to be added to `InsertFunctionMap` for this line to compile — `slots` was the
  * precedent: the insert existed at runtime while every TypeScript consumer failed to wire it.

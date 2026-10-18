@@ -32,8 +32,8 @@ type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[]; _n?
  * Three shapes, and every package exports one of the first two rather than registering itself:
  *
  * - a **descriptor** — `{ on, fn, priority }` — naming the insert point it belongs to
- * - a **connector** — a function handed the registry, which is how a package that imports nothing
- *   gets wired to it
+ * - a **connector** — a function handed the registry (and `wire` itself), which is how a package that
+ *   imports nothing gets wired to it
  * - an **array** of any of these, nested arrays included — which is also how a module that
  *   registers on more than one insert point ships: `@verajs/renderer/slots` is its `'element'` claimant
  *   plus its `'slot'` marker for the server, and an app still writes `wire([renderer, slots])`
@@ -110,7 +110,8 @@ const apply = (item: Registerable) => {
       if (meant !== undefined)
         throw new Error(misuse('wire', 'wire-function-not-module', __DEV__ && PROSE['wire-function-not-module'](item.name || 'that function', meant)));
     }
-    item(inserts);
+    /** Handed `wire` itself: a module of several parts wires them from here — nothing is inferred from a return value. */
+    item(inserts, wire);
   } else {
     item = item as InsertDescriptor;
     item.connect?.(inserts);

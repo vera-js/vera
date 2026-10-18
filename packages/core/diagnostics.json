@@ -82,6 +82,16 @@
       "fix": "Wire one once, at your app entry: `import { renderer } from '@verajs/renderer'; wire([renderer]);`"
     },
     {
+      "code": "option-claimed-twice",
+      "params": [
+        "key",
+        "first",
+        "second"
+      ],
+      "message": "`{key}` is claimed by {first} and by {second}, so both are handed it and either may read it.",
+      "fix": "Wire only one module that takes this option, or ask the module to rename its key."
+    },
+    {
       "code": "priority-not-finite",
       "params": [
         "received"

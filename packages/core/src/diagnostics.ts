@@ -32,6 +32,10 @@ export const PROSE: Record<string, Prose> = {
       : `\`shadow: ${value}\` is not a root this element can have, so it renders into its light DOM.`,
     "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }.",
   ],
+  'option-claimed-twice': (key, first, second) => [
+    `\`${key}\` is claimed by ${first} and by ${second}, so both are handed it and either may read it.`,
+    'Wire only one module that takes this option, or ask the module to rename its key.',
+  ],
   'foreign-nodes-option': (value) => [
     `\`foreignNodes: ${value}\` is not a setting, so the template owns this root (the default, 'drop').`,
     "Use 'drop' (the template owns the root: foreign nodes are cleared when the template changes) or 'preserve' (the root keeps them where they are).",

@@ -21,12 +21,12 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/store/computed` | 293 B | 238 B |
 | `@verajs/store/collections` | 1.27 KB | 665 B |
 | `@verajs/renderer/keyed` | 1.18 KB | 632 B |
-| `@verajs/renderer/slots` | 14.80 KB | 5.35 KB |
+| `@verajs/renderer/slots` | 14.97 KB | 5.41 KB |
 | `@verajs/renderer/namespaces` | 1.09 KB | 667 B |
 | `@verajs/renderer/elements` | 1.51 KB | 800 B |
 | `@verajs/renderer/hydration` | 8.02 KB | 3.38 KB |
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.63 KB |
-| `@verajs/inserts` | 494 B | 362 B |
+| `@verajs/inserts` | 496 B | 363 B |
 | `@verajs/directives` | 15.82 KB | 6.18 KB |
 | `@verajs/directives/directives-standalone` | 22.08 KB | 8.47 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
@@ -123,7 +123,7 @@ That includes reaching *inside* slotted content, which shadow DOM cannot express
 ordering of late insertions, `assignedNodes()`-equivalent reads, SSR and hydration are each verified
 against a real shadow root given the identical input — the suite renders one component both ways and
 asserts they agree, rather than asserting a table of expected strings. It is
-<!--size:module.renderer-slots.kb-->5.35 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
+<!--size:module.renderer-slots.kb-->5.41 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
 opt-in: an app that never wires it pays nothing, and the renderer treats a `<slot>` it cannot
 distribute as inert markup with a development warning.
 
