@@ -72,7 +72,25 @@ const unpark = (light: Light) => {
   light.holding.remove();
 };
 
-const HOSTS = new WeakMap<Element, Light>();
+/**
+ * **Each host's light, kept ON the host** — under this module copy's own `Symbol` (2026-10-17, candidate B): every
+ * component's render end asks whether its container has a light (`_$done$`), and for one that does not — a plain
+ * component — that is now a missing-property read, never a WeakMap lookup. Only a host that gets a light carries the
+ * field; host → light → host is a DOM↔JS cycle, so `release` clears it. The same get/has/set/delete surface as the
+ * WeakMap it replaces, so hydrate-slots, handed it through the protocol, is unchanged.
+ */
+const LIGHT = Symbol();
+type Lit = Element & { [LIGHT]?: Light };
+const HOSTS = {
+  get: (host: Element) => (host as Lit)[LIGHT],
+  has: (host: Element) => (host as Lit)[LIGHT] !== undefined,
+  set: (host: Element, light: Light) => {
+    (host as Lit)[LIGHT] = light;
+  },
+  delete: (host: Element) => {
+    (host as Lit)[LIGHT] = undefined;
+  },
+};
 /** The static children an outer template gave a host, recorded when its instance was created (see `hostBehavior`). */
 const STATICS = new WeakMap<Element, Set<Node>>();
 /** A run's node in a slot, and the comment holding its place in the run — both ways. */
