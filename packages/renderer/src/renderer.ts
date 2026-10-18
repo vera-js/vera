@@ -1384,12 +1384,15 @@ class ChildPart {
 
   /** Commits `value` into an item; returns the item now standing there (an instance whose shape changed becomes a part). */
   $u(item: Item, value: unknown): Item {
+    /**
+     * PROBE (marked): the very result committed last time, and marked reusable: nothing to do. Asked FIRST: it is the
+     * common case of a keyed list's unchanged rows, and a part never records one (`$j` stays undefined).
+     */
+    if (value === (item as { $j?: unknown }).$j && value !== undefined) return item;
     if (item instanceof ChildPart) {
       item.$p(value);
       return item;
     }
-    /** PROBE (marked): the very result committed last time, and marked reusable: nothing to do. */
-    if (value === item.$j) return item;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._strings) {
       update(item, (value as TemplateResult).values);
       if ((value as { _$same$?: unknown })._$same$ === 1) item.$j = value;

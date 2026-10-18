@@ -26,12 +26,15 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
    * removals (a row deleted) or only insertions (rows appended, prepended, inserted), it is settled here;
    * a same-order update is the case where nothing remains at all.
    */
+  /** A row whose value is the result committed last time (an `each` row that did not re-render) is not even asked. */
   while (start <= oldEnd && start <= newEnd && items[start].$k === key(start)) {
-    items[start] = part.$u(items[start], values[start]);
+    const value = values[start];
+    if (value === undefined || value !== (items[start] as { $j?: unknown }).$j) items[start] = part.$u(items[start], value);
     start++;
   }
   while (start <= oldEnd && start <= newEnd && items[oldEnd].$k === key(newEnd)) {
-    items[oldEnd] = part.$u(items[oldEnd], values[newEnd]);
+    const value = values[newEnd];
+    if (value === undefined || value !== (items[oldEnd] as { $j?: unknown }).$j) items[oldEnd] = part.$u(items[oldEnd], value);
     oldEnd--;
     newEnd--;
   }
