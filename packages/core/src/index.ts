@@ -39,8 +39,8 @@ import { untracked, untrack as untrackFn } from './modules/untrack.js';
 import { walkItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
-import { register as registerHook, callable, retire, RENDER_PRIORITY, MODE_QUEUED } from './modules/createHook.js';
-import type { ComponentElement, HookCallback } from './types.js';
+import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED } from './modules/createHook.js';
+import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 /**
  * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
  * not an extension point — it is core's own tracking cell, and nothing wired later may replace it. `$`-named, so it
@@ -50,10 +50,11 @@ import type { ComponentElement, HookCallback } from './types.js';
 /**
  * PROBE (P1, 2026-10-18): core's hook machinery handed to the renderer the same way, so a keyed list can give a row its
  * own QUEUED hook (an explicit owner, chained to the running host by `register`) and retire it. Nothing new: the existing
- * `register` / `callable` / `retire`, exposed. `$`-named, so it survives mangling.
+ * `register` / `retire`, exposed. `$`-named, so it survives mangling.
  */
-(inserts as unknown as { $q: (owner: ComponentElement, callback: HookCallback) => HookCallback }).$q = (owner, callback) =>
-  callable(registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED)) as HookCallback;
+(inserts as unknown as { $q: (owner: ComponentElement, callback: HookCallback) => HookRecord }).$q = (owner, callback) =>
+  /** The record itself, not a `callable` wrapper: one closure fewer per keyed row (`each` calls its `$n`). */
+  registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED);
 (inserts as unknown as { $z: typeof retire }).$z = retire;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so `each` can walk

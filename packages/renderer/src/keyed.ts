@@ -168,13 +168,15 @@ export const keyed = <T>(key: unknown, result: T): T => {
  */
 type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown };
 type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string; readonly isConnected: boolean; readonly ownerDocument: Document };
-type Row = { k: unknown; item: unknown; row: (item: unknown) => unknown; result: KeyedResult | null; inst: Item | undefined; owner: Owner; t: number; run: (signal?: unknown, init?: boolean) => void };
+/** The row's hook, as core's `$q` hands it back: the record itself, run through its `$n` (a `$`-name: survives mangling). */
+type RowHook = { $n(signal?: unknown, init?: boolean): void };
+type Row = { k: unknown; item: unknown; row: (item: unknown) => unknown; result: KeyedResult | null; inst: Item | undefined; owner: Owner; t: number; h: RowHook };
 type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row>; $L?: Row[] };
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
   ({ _$each$: 1, items, key, row }) as EachValue;
 
 /** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
-let hook: ((owner: Owner, callback: () => void) => (signal?: unknown, init?: boolean) => void) | undefined;
+let hook: ((owner: Owner, callback: () => void) => RowHook) | undefined;
 let retire: ((owner: Owner) => void) | undefined;
 /** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
 let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void) => boolean) | undefined;
@@ -193,26 +195,40 @@ const stamp = (rec: Row) => {
   r._$same$ = 1;
   return r;
 };
+/**
+ * The row's OWNER, what core's hooks expect of an element: `_$g$` its generation (bumped by `drop`, which retires the
+ * hook), `_$x$` / `localName` the fields core reads, `_$h$` the hook list core keeps on it (declared, so its first
+ * write is no shape change), `isConnected` (core skips a disconnected owner's writes; the row is connected while its
+ * rendered node is) and `ownerDocument` (the scheduler uses the element's own window). A CLASS, its getters on the
+ * prototype: an object literal with getters built two new functions per row (measured: 37 ms of 120 thousand-row
+ * creates, the largest line of `each`'s own setup).
+ */
+class RowOwner {
+  _$g$ = 1;
+  _$x$ = false;
+  _$h$: unknown[] | undefined = undefined;
+  localName = 'each-row';
+  $row: Row;
+  constructor(rec: Row) {
+    this.$row = rec;
+  }
+  get isConnected() {
+    const node = (this.$row.inst as { $R?: Node } | undefined)?.$R;
+    return node === undefined || node.isConnected;
+  }
+  get ownerDocument() {
+    return (this.$row.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document;
+  }
+}
 const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown): Row => {
-  const rec = { k, item, row, result: null, inst: undefined, t: tick } as unknown as Row;
-  /**
-   * The row's OWNER, what core's hooks expect of an element: `_$g$` its generation (bumped by `drop`, which retires the
-   * hook), `_$x$` / `localName` the fields core reads, `isConnected` (core skips a disconnected owner's writes; the row
-   * is connected while its rendered node is) and `ownerDocument` (the scheduler uses the element's own window).
-   */
-  rec.owner = {
-    _$g$: 1,
-    _$x$: false,
-    localName: 'each-row',
-    get isConnected() { const node = (rec.inst as { $R?: Node } | undefined)?.$R; return node === undefined || node.isConnected; },
-    get ownerDocument() { return (rec.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document; },
-  };
+  const rec = { k, item, row, result: null, inst: undefined, t: tick, owner: undefined, h: undefined } as unknown as Row;
+  rec.owner = new RowOwner(rec);
   /**
    * The row's own hook: a write the row's render read wakes exactly this row. It re-stamps and commits its new result
    * into its OWN instance in place (`part.$u`); if the instance had to be replaced (the row's shape changed), the list
    * part's item array is patched to point at the new one.
    */
-  const run = hook!(rec.owner, () => {
+  const h = hook!(rec.owner, () => {
     const r = stamp(rec);
     const was = rec.result;
     rec.result = r;
@@ -225,9 +241,9 @@ const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown)
       }
     }
   });
-  rec.run = run;
+  rec.h = h;
   /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
-  run(undefined, true);
+  h.$n(undefined, true);
   return rec;
 };
 /** A row that left the list: its owner's generation moves on (its hook goes inert) and core retires it. */
@@ -280,7 +296,7 @@ const eachValue = (part: object, value: unknown) => {
         /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
         rec.item = item;
         rec.row = row;
-        rec.run(undefined, true);
+        rec.h.$n(undefined, true);
       }
     }
     rec.t = t;
