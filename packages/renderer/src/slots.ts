@@ -984,23 +984,20 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
  */
 const FED = new WeakMap<Node, WeakRef<Element>[]>();
 /**
- * A dashed element its template gives NO children is skipped by both: no outer template can ever write into it, so
- * there is nothing to record — an app's list of `<x-row></x-row>` paid a child scan and a Set per row at create, and a
- * WeakRef per row in its root's `FED` at mount, which that root's every render then filtered (Chrome 274 ms over a
- * churned list, 2026-10-17). Decided at `create`, before the element renders: by `mount` its own render is in it.
+ * Only for a dashed element its TEMPLATE gives children (slot-discovery decides once per template, at preparation): no
+ * outer template can write into one it gives none, so there is nothing to record — an app's list of `<x-row></x-row>`
+ * paid a child scan and a Set per row at create, and a WeakRef per row in its root's `FED` at mount, which that root's
+ * every render then filtered (wiring slots made such a list ~9× slower to create, 2026-10-17).
  */
-const FEEDS = Symbol();
-type Fed = Element & { [FEEDS]?: true };
 const hostBehavior = {
   mount: (element: Element, { root }: { root: Node | null }) => {
-    if (root === null || (element as Fed)[FEEDS] !== true) return;
+    if (root === null) return;
     let fed = FED.get(root);
     if (fed === undefined) FED.set(root, (fed = []));
     fed.push(new WeakRef(element));
   },
   create: (element: Element, adopted: boolean) => {
-    if (adopted || element.firstChild !== null) (element as Fed)[FEEDS] = true;
-    if (adopted || element.firstChild === null) return;
+    if (adopted) return;
     const statics = new Set<Node>();
     let hole = false;
     for (const child of [...element.childNodes]) {
@@ -1221,7 +1218,7 @@ export const slotDiscovery = [
     name: '@verajs/renderer/slot-discovery',
     on: 'element' as const,
     fn: (el: Element) =>
-      el.localName === 'slot' ? slotBehavior : isCustomElementName(el.localName) ? hostBehavior : undefined,
+      el.localName === 'slot' ? slotBehavior : el.firstChild !== null && isCustomElementName(el.localName) ? hostBehavior : undefined,
     priority: 10,
   },
   /**
