@@ -583,17 +583,27 @@ const flush = (context?: Light, root?: Node) => {
   const near: Light[] = [];
   if (context !== undefined) near.push(context);
   const fed = root === undefined ? undefined : FED.get(root);
-  if (fed !== undefined)
-    FED.set(
-      root!,
-      fed.filter((ref) => {
-        const element = ref.deref();
-        if (element === undefined) return false;
-        const light = HOSTS.get(element);
-        if (light !== undefined) near.push(light);
-        return true;
-      })
-    );
+  if (fed !== undefined) {
+    /** A plain loop, no closure: an arrow capturing `root` would tax every call of this function (CLAUDE.md, V8). */
+    const kept: WeakRef<Element>[] = [];
+    const rooted = root!.isConnected;
+    for (let i = 0; i < fed.length; i++) {
+      const element = fed[i].deref();
+      if (element === undefined) continue;
+      /**
+       * A host that LEFT a connected root is dropped now, not at a collection: a churned list re-filtered an array growing
+       * with every removed row until GC (2026-10-18). Put back by hand it is still followed — by its own observer from its
+       * first slot (a microtask later; a slots-API read flushes it at once), or by its first slot's reconcile. A render
+       * into a DETACHED root keeps every entry (nothing of it is connected). A host moved by hand to another, connected
+       * root stays here, distributed at this root's renders too: bounded and harmless.
+       */
+      if (!element.isConnected && rooted) continue;
+      kept.push(fed[i]);
+      const light = HOSTS.get(element);
+      if (light !== undefined) near.push(light);
+    }
+    FED.set(root!, kept);
+  }
   /** Each light's records, read by that light (they arrive knowing whose they are), then the parked branches'. */
   for (const light of near) note(light, take(light));
   /**
@@ -1279,6 +1289,8 @@ export const slotDiscovery = [
     };
     /** Development only: how many lights wait for work — 0 once every rendered host is distributed (a retention pin). */
     if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
+    /** Development only: how many hosts a root's renders have fed, as recorded — bounded by its live rows (a growth pin). */
+    if (__DEV__) (registry as unknown as { _$slotsFed$?: (root: Node) => number })._$slotsFed$ = (root) => FED.get(root)?.length ?? 0;
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it

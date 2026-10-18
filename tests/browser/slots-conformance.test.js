@@ -457,6 +457,33 @@ scenario('a component in the template receives the children the template wrote f
   ],
 });
 
+/**
+ * vera-5a, 2026-10-18: a component the template created, removed BY HAND and put back under the same root, then its
+ * children changed by the outer template. Light slots follow it by the host's own observer: a microtask later, where
+ * the host used to stay on its root's synchronous list, and the read here is after the page settles, as for every hand
+ * edit to a light host.
+ */
+scenario('a component the template created, removed by hand and put back, still receives what the template writes', {
+  draw: (s, side) =>
+    side.mode === 'native'
+      ? html`<cf-card-native><h2 slot="h">${s.title}</h2>${s.body}</cf-card-native>`
+      : html`<cf-card-light><h2 slot="h">${s.title}</h2>${s.body}</cf-card-light>`,
+  steps: [
+    ['first', (side) => side.render({ title: 'one', body: 'b1' })],
+    [
+      'removed by hand',
+      (side) => {
+        side.card = side.targets[0].querySelector(side.mode === 'native' ? 'cf-card-native' : 'cf-card-light');
+        side.anchor = side.card.nextSibling;
+        side.card.remove();
+      },
+    ],
+    ['a render while it is out', (side) => side.render({ title: 'one', body: 'b1' })],
+    ['put back', (side) => side.anchor.parentNode.insertBefore(side.card, side.anchor)],
+    ['the template changes its children', (side) => side.render({ title: 'two', body: 'b2' })],
+  ],
+});
+
 scenario('a slot forwarded into a nested component\'s slot', {
   draw: (s, side) =>
     side.mode === 'native'

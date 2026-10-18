@@ -700,6 +700,9 @@ return () => html`<header>
   starts at the first `<slot>` or light child and is fully correct for everything a template renders. A value it does
   not have reads as `'lazy'` — the built-in default, even where the app's is `'eager'`, as `foreignNodes` does — and
   development says so.
+- **A component you remove by hand and put back follows the hand-edit rule.** What its outer template then writes into
+  it is distributed by the component's own observer, a microtask later, not by the end of that template's render; the
+  slots API reads it at once (it flushes), and a direct DOM read in the same task can still see the old content.
 - **Add or remove `<slot>`s through the template, not by hand.** A slot with content has stepped out of
   the page, so removing it by hand changes nothing and its content stays shown; a `<slot>` inserted by
   hand is not one the template rendered, so it stays empty. In a shadow root both take effect at once.
@@ -748,7 +751,7 @@ builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->5.48 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->5.51 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.
