@@ -26,6 +26,20 @@ const variants = args.slice(1).filter((a) => !a.startsWith('--')).map((a) => { c
 const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const only = flag('only') ?? 'VeraJS own,VeraJS default';
 const ops = flag('ops');
+/**
+ * **One implementation per fresh browser** (vera-5a, 2026-10-18): implementations sharing a page left their garbage in
+ * the next one's timed window, and a rotation that was the same every session put each behind the same neighbor (the
+ * A/A split 5/5: clear10k 70 vs 35 ms). Each (variant, implementation) page is its own browser now, in a seeded order
+ * per session, so the A/A is two independent browsers running the same bundle.
+ */
+const impls = only.split(',');
+const shuffle = (list, seed) => {
+  let x = (seed + 1) * 2654435761 >>> 0;
+  const rand = () => ((x = (x ^ (x << 13)) >>> 0, x = (x ^ (x >>> 17)) >>> 0, x = (x ^ (x << 5)) >>> 0) / 4294967296);
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
+};
 const engines = (flag('engines') ?? 'chrome,firefox,webkit').split(',');
 const directory = new URL('.', import.meta.url).pathname;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
@@ -79,11 +93,11 @@ for (const engine of engines) {
     const top = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 4).map((l) => { const m = l.trim().match(/^([\d.]+)\s+(.*)$/); return `${m[1]} ${m[2].split('/').pop()}`; }).join(', ');
     const pressure = execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1];
     console.log(`${engine}/${session}: thermal ${pressure} | ${top}`);
-    for (const [name, file, query] of variants.map((_, i) => variants[(i + session) % variants.length])) {
+    for (const [[name, file, query], impl] of shuffle(variants.flatMap((v) => impls.map((i) => [v, i])), session)) {
       const browser = await launch(engine);
       const page = await browser.newPage();
       await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
-      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(only)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}`);
+      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(impl)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}`);
       await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Ready.', null, { timeout: 60000 });
       await page.click('#run');
       await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
@@ -92,7 +106,8 @@ for (const engine of engines) {
       const wiring = await page.evaluate(() => window.__VERA_WIRING__);
       const mode = new URLSearchParams(query).get('vera');
       const expected = mode === 'slots' ? 'slots+slots' : mode === null ? 'legacy' : mode;
-      if (wiring !== expected) throw new Error(`${engine}/${session} ${name}: the page wired ${wiring}, the variant asks for ${expected}`);
+      /** Only a Vera page wires Vera; a competitor's page has nothing to prove. */
+      if (impl.startsWith('VeraJS') && wiring !== expected) throw new Error(`${engine}/${session} ${name}: the page wired ${wiring}, the variant asks for ${expected}`);
       await browser.close();
       for (const [op, byImpl] of Object.entries(results))
         for (const [impl, r] of Object.entries(byImpl)) {
@@ -107,7 +122,7 @@ for (const engine of engines) {
   if (variants.length === 1) {
     /** One build: compare the IMPLEMENTATIONS — median of session medians, and sessions each was fastest in. */
     const impls = Object.keys(data);
-    console.log(`\n== ${engine}: ms to paint, median of ${sessions} session medians (sessions fastest)`);
+    console.log(`\n== ${engine}: ms per op (${/layout=1/.test(variants[0][2]) ? 'script + DOM + layout, paint excluded; +paint rows to paint' : 'to paint'}), median of ${sessions} session medians (sessions fastest)`);
     console.log('  ' + 'operation'.padEnd(13) + impls.map((n) => n.slice(0, 14).padStart(17)).join(''));
     for (const op of Object.keys(data[impls[0]])) {
       const meds = impls.map((n) => med(data[n][op][base]));

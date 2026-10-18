@@ -91,6 +91,8 @@ const OPERATIONS = [
     { key: 'noop',     label: `nothing, ${BATCH}× (the floor)`, setup: (a) => a.create(1000, 11), run: () => {}, each: () => {} },
     { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear() },
   ] : []),
+  /** Under `layout`, one row still timed through to paint, as the reference for what the paint-excluded column leaves out. */
+  ...(LAYOUT ? [{ key: 'create1k+paint', label: 'create 1 000 rows, to paint', setup: (a) => a.clear(), run: (a) => a.create(1000, 1), paint: true }] : []),
   ...[5, 50].map((k) => ({
     key: `flood${k}`,
     label: `${k} events, each updating every 10th row`,
@@ -139,9 +141,19 @@ async function measure(impl, op) {
     if (!(BATCH && op.each)) {
       const t0 = performance.now();
       await op.run(app); // resolves when this framework has finished writing the DOM
-      if (LAYOUT) void document.body.offsetHeight;
-      await painted();
-      dt = performance.now() - t0;
+      if (LAYOUT && !op.paint) {
+        /**
+         * Under `layout`, a heavy op is script + DOM + layout, and the paint's frame wait is outside the sample:
+         * headed Chrome landed whole frames in it (create10k ~220 or ~445 ms by session, clear10k 35 or 70). Paint is
+         * then excluded for every framework, and the painted DOM is identical (the parity probe), so its cost is too.
+         */
+        void document.body.offsetHeight;
+        dt = performance.now() - t0;
+        await painted();
+      } else {
+        await painted();
+        dt = performance.now() - t0;
+      }
     } else {
       /** The paint is OUTSIDE a batched sample: a frame's wait spread over N runs was as large as the op itself. */
       const t0 = performance.now();
