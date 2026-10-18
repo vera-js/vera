@@ -166,7 +166,7 @@ export const keyed = <T>(key: unknown, result: T): T => {
 type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown };
 type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string; readonly isConnected: boolean; readonly ownerDocument: Document };
 type Row = { k: unknown; item: unknown; row: (item: unknown) => unknown; result: KeyedResult | null; inst: Item | undefined; owner: Owner; t: number; run: (signal?: unknown, init?: boolean) => void };
-type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row> };
+type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row>; $L?: Row[] };
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
   ({ _$each$: 1, items, key, row }) as EachValue;
 
@@ -226,21 +226,39 @@ const eachValue = (part: object, value: unknown) => {
   let made = false;
   let i = 0;
   /**
+   * **Last render's rows, in order** (`$L`): an item still where it was, or where it was shifted by the change in length
+   * (everything after one insert or removal), is its own row again with no key read and no lookup. Only the slots near
+   * a change go through the key.
+   */
+  const prev = p.$L;
+  const shift = prev === undefined ? 0 : prev.length - n;
+  /**
    * `source` is what the key is read from: the RAW slot when the list is a store array (`walk`, core's `$w`), so a
    * key read is a plain read, untracked; `item` is what the row renders and tracks through.
    */
   const visit = (source: unknown, item: unknown) => {
-    const k = key(source);
-    let rec = cache.get(k);
+    let rec: Row | undefined;
+    if (prev !== undefined) {
+      const at = prev[i];
+      if (at !== undefined && at.item === item && at.t !== t) rec = at;
+      else {
+        const moved = prev[i + shift];
+        if (moved !== undefined && moved.item === item && moved.t !== t) rec = moved;
+      }
+    }
     if (rec === undefined) {
-      rec = makeRow(p, k, item, row);
-      cache.set(k, rec);
-      made = true;
-    } else if (rec.item !== item) {
-      /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
-      rec.item = item;
-      rec.row = row;
-      rec.run(undefined, true);
+      const k = key(source);
+      rec = cache.get(k);
+      if (rec === undefined) {
+        rec = makeRow(p, k, item, row);
+        cache.set(k, rec);
+        made = true;
+      } else if (rec.item !== item) {
+        /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
+        rec.item = item;
+        rec.row = row;
+        rec.run(undefined, true);
+      }
     }
     rec.t = t;
     recs[i] = rec;
@@ -251,7 +269,16 @@ const eachValue = (part: object, value: unknown) => {
       const item = items[j];
       visit(item, item);
     }
-  if (made || cache.size !== n) for (const [k, rec] of cache) if (rec.t !== t) { cache.delete(k); drop(rec); }
+  /** The rows not met this render are last render's that were not visited: swept from that array, not the whole map. */
+  if (prev !== undefined && (made || cache.size !== n))
+    for (let j = 0; j < prev.length; j++) {
+      const rec = prev[j];
+      if (rec.t !== t) {
+        cache.delete(rec.k);
+        drop(rec);
+      }
+    }
+  p.$L = recs;
   p.$p(values);
   const its = p.$i;
   if (its !== undefined) for (let i = 0; i < n; i++) if (recs[i].inst !== its[i]) recs[i].inst = its[i];

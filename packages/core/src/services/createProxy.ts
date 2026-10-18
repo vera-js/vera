@@ -120,7 +120,17 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
         const hooks = keys.get(key);
         if (hooks !== undefined) wake(hooks, signal, seen);
       };
-      for (let i = lo; i < hi; i++) send(String(i));
+      /**
+       * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. A list rendered
+       * through a raw walk subscribes no index at all (`ITEMS` instead), so its splice checks a handful of keys, not 1000.
+       */
+      if (keys.size < hi - lo) {
+        for (const key of keys.keys())
+          if (typeof key === 'string') {
+            const index = +key;
+            if (index >= lo && index < hi) send(key);
+          }
+      } else for (let i = lo; i < hi; i++) send(String(i));
       send(ITEMS);
       if (after !== before) {
         send('length');
