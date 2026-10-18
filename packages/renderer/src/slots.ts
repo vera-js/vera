@@ -211,7 +211,8 @@ const region = (rec: Rec) => {
   rec.re = doc.createComment(RANGE_END);
   parent.insertBefore(rec.rs, rec.slot);
   parent.insertBefore(rec.re, rec.slot);
-  rec.slot.remove();
+  /** `removeChild`, never `remove()`: a kept slot's own `remove()` is the USER's (it unregions first, `removeSlot`). */
+  parent.removeChild(rec.slot);
   watch(parent, rec.light);
 };
 const unregion = (rec: Rec) => {
@@ -477,10 +478,63 @@ const watchedBy = (light: Light, node: Node) =>
   (node === light.host && light.hw === true) ||
   (node as Kept).$rec?.light === light ||
   light.recs.some((rec) => rec.re !== null && rec.re.parentNode === node);
+/**
+ * The top of `node`'s tree as slots sees it: a FILLED slot has stepped out of the page, so from it the walk continues at
+ * its region (where it stands in the page) — a slot in another slot's fallback is still the host's, though detached.
+ */
+const topOf = (node: Node) => {
+  let at = node;
+  for (;;) {
+    const rec: Rec | undefined = (at as Kept).$rec;
+    const up: Node | null = rec !== undefined && rec.rs !== null && rec.slot === at ? rec.rs : at.parentNode;
+    if (up === null) return at;
+    at = up;
+  }
+};
+/** A slot the user removed: unmounted as the template's own teardown does, inside a flush (its records then dropped). */
+/** Whether `node` is the host's, walking through filled slots to where their regions stand. */
+const insideHost = (node: Node, host: Element) => {
+  for (let at: Node | null = node; at !== null; ) {
+    if (at === host) return true;
+    const rec: Rec | undefined = (at as Kept).$rec;
+    at = rec !== undefined && rec.rs !== null && rec.slot === at ? rec.rs : at.parentNode;
+  }
+  return false;
+};
+const handRemoved = (rec: Rec) => {
+  const light = rec.light;
+  light.recs.splice(light.recs.indexOf(rec), 1);
+  for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
+  unregion(rec);
+  mark(light);
+};
+/**
+ * A FILLED slot is not in the page (its region stands in its place), so its own `remove()` / `replaceWith()` cannot reach
+ * what it shows: these put its content back to holding and the slot back in place first, then do what was asked — the
+ * host's observer then finds it gone (`handRemoved`). ONE function each, shared by every slot (`this`, no closure).
+ */
+function removeSlot(this: Kept) {
+  const rec = this.$rec;
+  if (rec !== undefined && rec.rs !== null) {
+    for (const node of lightOf(rec.light)) if (PLACED.get(node) === rec) toHolding(rec.light, node);
+    unregion(rec);
+  }
+  (this.ownerDocument.defaultView as typeof globalThis).Element.prototype.remove.call(this);
+}
+function replaceSlot(this: Kept, ...nodes: (Node | string)[]) {
+  const rec = this.$rec;
+  if (rec !== undefined && rec.rs !== null) {
+    for (const node of lightOf(rec.light)) if (PLACED.get(node) === rec) toHolding(rec.light, node);
+    unregion(rec);
+  }
+  (this.ownerDocument.defaultView as typeof globalThis).Element.prototype.replaceWith.apply(this, nodes);
+}
 const note = (light: Light, records: MutationRecord[]) => {
   lead = new WeakMap();
+  let removed = false;
   for (const record of records) {
     const target: Node = record.target;
+    if (record.removedNodes.length > 0) removed = true;
     /** An attribute record names the element: a slot's own name, or a node under something this light watches. */
     if (record.type === 'attributes') {
       const rec = (target as Kept).$rec;
@@ -519,6 +573,18 @@ const note = (light: Light, records: MutationRecord[]) => {
       if (light.fresh) unrun(light, record);
       for (const node of record.addedNodes) adopt(light, node);
     }
+  }
+  /**
+   * **A `<slot>` removed BY HAND** (KNOWN fix, 2026-10-18) — it, or its region, left the host with something the user
+   * removed (the slot, its parent, an ancestor). The template's own teardown unmounts a slot before removing it, and a
+   * `hold()`-parked one stays registered, so whatever is gone from the host otherwise was removed by hand: unmounted like
+   * the template's, its content back to holding, as natively it is unassigned. Checked once per batch that removed
+   * anything, over this light's slots.
+   */
+  if (removed) for (let i = light.recs.length - 1; i >= 0; i--) {
+    const rec = light.recs[i];
+    const anchor = rec.rs ?? rec.slot;
+    if (!insideHost(anchor, light.host) && !PARKED.has(topOf(anchor))) handRemoved(rec);
   }
 };
 /**
@@ -1098,6 +1164,8 @@ const slotBehavior = {
       watch(rec.re.parentNode!, light);
     }
     kept.assignedNodes = (options?: AssignedNodesOptions) => assigned(rec, false, options?.flatten);
+    kept.remove = removeSlot;
+    kept.replaceWith = replaceSlot;
     kept.assignedElements = (options?: AssignedNodesOptions) => assigned(rec, true, options?.flatten) as Element[];
     light.recs.push(rec);
     light.wait = false;

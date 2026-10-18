@@ -1288,7 +1288,7 @@ class ChildPart {
               root.appendChild(node!);
               node = next;
             }
-          } else (root as ChildNode).remove();
+          } else root.parentNode?.removeChild(root);
           /**
            * Off the page now: slots watches what a parked branch's slots hold (`_$parked$`, off-chain like `_$done$`), told
            * WHOSE render parked it — the branch has left that host's subtree, where its one registration cannot see it.
@@ -1391,7 +1391,8 @@ class ChildPart {
     const part = markered(element.parentNode!, element);
     /** The row's shape changed: the instance is gone for good, so what it holds is told. */
     if (notifyOnRemoval) teardown(item);
-    element.remove();
+    /** `removeChild`, never `remove()`: the element may be a light slot, whose own `remove()` is the user's (slots). */
+    element.parentNode?.removeChild(element);
     part.$k = item.$k;
     part.$p(value);
     return part;

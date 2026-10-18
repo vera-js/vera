@@ -181,7 +181,7 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
  */
 const KNOWN = new Map([
   ['assignedSlot names the slot a light child is in', 'assignedSlot is not emulated: a light child reads null (2026-10-17 baseline)'],
-  ['the user removes a slot by hand', 'an assigned <slot> has stepped out of the page, so removing it by hand changes nothing: its content stays shown (2026-10-17 baseline)'],
+  ['the user removes a FILLED slot through its parent', "a filled <slot> has stepped out of the page (its region stands in its place), so `slot.parentNode.removeChild(slot)` finds no parent: use slot.remove() / replaceWith(), or remove its parent (2026-10-18, the residue of the hand-removal fix)"],
   ['the user inserts a slot by hand', 'only <slot>s a template renders take part; one inserted by hand stays empty (2026-10-17 baseline)'],
   ['the user prepends a child to a slotless host, a re-render, then a slot renders', "a child prepended by hand to a component with neither a slot nor light content shows only until its next render, which hides it (as native does), then a slot takes it (2026-10-17; D, which kept it visible, was raced and dropped)"],
   ['observeSlots eager: the user inserts a slot by hand into a component that has never rendered one', 'the same: a <slot> inserted by hand is not claimed yet (2026-10-17; the hand-insertion fix closes both)'],
@@ -977,6 +977,25 @@ scenario('the user prepends a child to a slotless host, a re-render, then a slot
     ['prepend a child by hand', (side) => side.targets[0].prepend(el('b', {}, 'B'))],
     ['a re-render, still no slot', (side) => side.render({ open: false })],
     ['a slot renders', (side) => side.render({ open: true })],
+  ],
+});
+
+scenario('the user removes a slot by hand, through its parent and by removing that parent', {
+  draw: (state, side) => named(side),
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['remove the default slot\'s parent (main)', (side) => side.targets[0].querySelector('main').remove()],
+    ['replace the named slot', (side) => side.slots.h.replaceWith(el('u', {}, 'U'))],
+  ],
+});
+
+scenario('the user removes a FILLED slot through its parent', {
+  draw: (state, side) => named(side),
+  children: () => [el('b', { slot: 'h' }, 'H')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['parentNode.removeChild(slot)', (side) => side.slots.h.parentNode?.removeChild(side.slots.h)],
   ],
 });
 
