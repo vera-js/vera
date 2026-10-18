@@ -8,7 +8,8 @@
  * the session medians per variant, the change against the first variant, and how many sessions it was faster in — the
  * typical case, never a best-of-N. Name a byte-identical copy as a variant for the A/A control. Chrome is the installed
  * one, headed; the race waits for a quiet machine before each session. A variant may carry a query for the page
- * (`slots=bundle.js?vera=slots`), so one bundle can be raced wired two ways. **Every page gets a fresh browser**
+ * (`'slots=bundle.js?vera=slots'`, QUOTED: zsh globs an unquoted `?` and the race never starts), so one bundle can be
+ * raced wired two ways. **Every page gets a fresh browser**
  * (2026-10-18): same-site pages in one Firefox share a content process, so a page's garbage was collected inside the
  * next page's timed window and results followed the rotation, not the code.
  */
