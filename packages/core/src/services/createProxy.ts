@@ -121,6 +121,7 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
         if (hooks !== undefined) wake(hooks, signal, seen);
       };
       for (let i = lo; i < hi; i++) send(String(i));
+      send(ITEMS);
       if (after !== before) {
         send('length');
         send(GLOBAL);
@@ -436,10 +437,22 @@ const wrap = (data: object, chosen: ProxyHandler<object>) => {
  * no receiver: an array's slots and `length` are data, and `Reflect.get` with a receiver cost 22% of every read
  * (measured, V8). An accessor DEFINED on a store array runs with the raw array as `this`, untracked: a documented edge.
  * The whole-array methods are recognized here only, so a record's function-valued read no longer tests for them.
+ *
+ * Every change to an array's CONTENTS also wakes its `ITEMS` channel: an index written, defined or deleted, `length`
+ * moved (a truncating `length = 0` included), a whole-array method. A walk subscribes there ONCE (`walkItems`) instead of
+ * once per index. Records never pay for it: only these traps fire it.
  */
+const ITEMS = Symbol();
+/** Read through an array store only: its raw array, so a walk can skip the per-index trap. */
+const RAW = Symbol();
+const items = (obj: object) => {
+  const hooks = proxyCallbacks.get(obj)?.get(ITEMS);
+  if (hooks !== undefined) wake(hooks, { prop: GLOBAL, value: obj } as Signal<unknown>);
+};
 const arrayHandler: ProxyHandler<object> = {
   ...handler,
   get(obj: object, prop, receiver) {
+    if (prop === RAW) return obj;
     const value = (obj as Record<PropertyKey, unknown>)[prop];
     track(obj, prop);
     if (value === null || typeof value !== 'object' || FIXED.has(obj))
@@ -449,6 +462,43 @@ const arrayHandler: ProxyHandler<object> = {
         : value;
     return nested(obj, prop, value);
   },
+  set(obj, prop, value, receiver) {
+    const before = (obj as Record<PropertyKey, unknown>)[prop];
+    const length = (obj as unknown[]).length;
+    const written = handler.set!(obj, prop, value, receiver);
+    if (written && ((obj as Record<PropertyKey, unknown>)[prop] !== before || (obj as unknown[]).length !== length)) items(obj);
+    return written;
+  },
+  defineProperty(obj, prop, descriptor) {
+    const defined = handler.defineProperty!(obj, prop, descriptor);
+    /** The `set` trap's own re-entry is reported by `set`. */
+    if (defined && !(obj === writingObj && prop === writingProp)) items(obj);
+    return defined;
+  },
+  deleteProperty(obj, prop) {
+    const had = prop in obj;
+    const deleted = handler.deleteProperty!(obj, prop);
+    if (deleted && had) items(obj);
+    return deleted;
+  },
+};
+
+/**
+ * **Walks a store array's RAW slots under ONE subscription** — what a keyed list's render does on every update. Through
+ * the proxy each slot costs a trap (≈ 33 ns in V8 even with no trap function) plus a per-index subscription; here the
+ * running hook subscribes to `ITEMS` once and `visit` gets each slot raw and as a read would hand it back. `false` when
+ * `list` is not an array store (a plain array, a subclass): the caller walks it itself. Handed to modules as `$w`.
+ */
+export const walkItems = (list: unknown, visit: (raw: unknown, item: unknown) => void): boolean => {
+  const raw = list !== null && typeof list === 'object' ? (list as Record<symbol, unknown[] | undefined>)[RAW] : undefined;
+  if (raw === undefined || Object.getPrototypeOf(raw) !== Array.prototype) return false;
+  track(raw, ITEMS);
+  const fixed = FIXED.has(raw);
+  for (let i = 0; i < raw.length; i++) {
+    const value = raw[i];
+    visit(value, value === null || typeof value !== 'object' || fixed ? value : nested(raw, i, value));
+  }
+  return true;
 };
 
 /**

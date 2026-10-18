@@ -172,6 +172,8 @@ export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (it
 
 let hook: ((owner: Owner, callback: () => void) => (signal?: unknown, init?: boolean) => void) | undefined;
 let retire: ((owner: Owner) => void) | undefined;
+/** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
+let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void) => boolean) | undefined;
 let tick = 0;
 
 const stamp = (rec: Row) => {
@@ -222,9 +224,13 @@ const eachValue = (part: object, value: unknown) => {
   const recs: Row[] = new Array(n);
   const values: unknown[] = new Array(n);
   let made = false;
-  for (let i = 0; i < n; i++) {
-    const item = items[i];
-    const k = key(item);
+  let i = 0;
+  /**
+   * `source` is what the key is read from: the RAW slot when the list is a store array (`walk`, core's `$w`), so a
+   * key read is a plain read, untracked; `item` is what the row renders and tracks through.
+   */
+  const visit = (source: unknown, item: unknown) => {
+    const k = key(source);
     let rec = cache.get(k);
     if (rec === undefined) {
       rec = makeRow(p, k, item, row);
@@ -238,8 +244,13 @@ const eachValue = (part: object, value: unknown) => {
     }
     rec.t = t;
     recs[i] = rec;
-    values[i] = rec.result;
-  }
+    values[i++] = rec.result;
+  };
+  if (walk === undefined || !walk(items, visit))
+    for (let j = 0; j < n; j++) {
+      const item = items[j];
+      visit(item, item);
+    }
   if (made || cache.size !== n) for (const [k, rec] of cache) if (rec.t !== t) { cache.delete(k); drop(rec); }
   p.$p(values);
   const its = p.$i;
@@ -247,8 +258,9 @@ const eachValue = (part: object, value: unknown) => {
   return true;
 };
 /** Wire it: `wire([renderer, eachList])`. A connector: core's registry hands it the hook machinery. */
-export const eachList = (registry: { $q?: unknown; $z?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $q?: unknown; $z?: unknown; $w?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   retire = registry.$z as typeof retire;
+  walk = registry.$w as typeof walk;
   w({ on: 'value', fn: eachValue, priority: 50 });
 };

@@ -36,6 +36,7 @@ export { init } from './modules/init.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
+import { walkItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
 import { register as registerHook, callable, retire, RENDER_PRIORITY, MODE_QUEUED } from './modules/createHook.js';
@@ -54,6 +55,8 @@ import type { ComponentElement, HookCallback } from './types.js';
 (inserts as unknown as { $q: (owner: ComponentElement, callback: HookCallback) => HookCallback }).$q = (owner, callback) =>
   callable(registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED)) as HookCallback;
 (inserts as unknown as { $z: typeof retire }).$z = retire;
+/** PROBE (store speed step 2): a store array's raw walk under one subscription, for a keyed list (`walkItems`). */
+(inserts as unknown as { $w: typeof walkItems }).$w = walkItems;
 /**
  * Core's store machinery, handed the same way to a module that keeps stores of its own (`@verajs/directives`): a
  * production directives bundle inlines its own copy of core, and without this its stores and the page's hooks lived in
