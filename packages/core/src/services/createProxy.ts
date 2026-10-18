@@ -395,8 +395,10 @@ const handler: ProxyHandler<object> = {
      */
     /** `cached` reads a field, so `prevValue` must be an object first (a primitive has no store). */
     if (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value) return true;
-    const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-    const added = own === undefined;
+    /** A data record needs no descriptor: no setter can run, and "added" is just "not own" (`dataRecord`). */
+    const fast = prop !== '__proto__' && dataRecord(obj);
+    const own = fast ? undefined : Reflect.getOwnPropertyDescriptor(obj, prop);
+    const added = fast ? !Object.hasOwn(obj, prop) : own === undefined;
     /**
      * Assigning past the end of an array moves `length` as an internal consequence, never through
      * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write.
@@ -415,7 +417,7 @@ const handler: ProxyHandler<object> = {
        * no setter, so it is written directly — measured: a write 55% faster, a write-to-render update
        * 45% (448 → 200 ns, 609 → 332 ns). An own or inherited accessor keeps the receiver.
        */
-      written = (own ? own.writable === true : !(prop in obj))
+      written = (fast || (own ? own.writable === true : !(prop in obj)))
         ? Reflect.set(obj, prop, value)
         : Reflect.set(obj, prop, value, receiver);
     } finally {
@@ -436,6 +438,8 @@ const handler: ProxyHandler<object> = {
    */
   defineProperty(obj, prop, descriptor) {
     if (obj === writingObj && prop === writingProp) return Reflect.defineProperty(obj, prop, descriptor);
+    /** An accessor or a read-only property may make it no longer a data record (`dataRecord`). */
+    if (descriptor.get !== undefined || descriptor.set !== undefined || descriptor.writable === false) unclassify(obj);
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
     const defined = Reflect.defineProperty(obj, prop, descriptor);
     if (defined) {
@@ -449,6 +453,11 @@ const handler: ProxyHandler<object> = {
    * Where a target stops being extensible through the store — `Object.preventExtensions`, and
    * `Object.freeze`/`Object.seal`, which call it first — so `get` knows (`FIXED`).
    */
+  /** A new prototype may carry setters: the record is asked again (`dataRecord`). */
+  setPrototypeOf(obj, proto) {
+    unclassify(obj);
+    return Reflect.setPrototypeOf(obj, proto);
+  },
   preventExtensions(obj) {
     FIXED.add(obj);
     /** The cache field leaves first, for the WeakMap: a non-extensible target's keys could no longer hide it. */
@@ -489,13 +498,52 @@ const proxies = new WeakMap<object, object | null>();
  * frozen, sealed or non-extensible object), the WeakMap above keeps the answer.
  */
 const PROXY = Symbol();
-type Slot = { o: object; p: object | null };
+/**
+ * `o` the owner (inheritance-safe), `p` its store (or `null`: hand back verbatim), `d` whether it is a DATA RECORD —
+ * `1` yes, `0` no, `undefined` not yet asked (`dataRecord`, on its first write through the store).
+ */
+type Slot = { o: object; p: object | null; d: 0 | 1 | undefined };
 const cached = (value: object): object | null | undefined => {
   const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
   return slot !== undefined && slot.o === value ? slot.p : proxies.get(value);
 };
+/**
+ * **Is a write to `obj` free of setters, so it needs no property descriptor?** (2026-10-18) A DATA RECORD — its
+ * prototype `Object.prototype`, `Array.prototype` or `null`, every own property a writable data property — has no
+ * setter anywhere a write can reach (`__proto__` aside, which `set` routes the full way). Decided once, on the first
+ * write through the store, and remembered on its field: the `set` trap's descriptor read was 5% of a store-row update
+ * (measured: update every 10th, Chrome 189 → 180 µs, Firefox 222 → 210). What makes a record otherwise THROUGH the
+ * store — defining an accessor or a read-only property, replacing the prototype — clears it (`defineProperty`,
+ * `setPrototypeOf`). Done to the raw object behind the store's back, an accessor added later runs with the raw object
+ * as `this`: a documented edge. An object without a field (frozen, sealed) is never one.
+ */
+const dataRecord = (obj: object): boolean => {
+  const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
+  if (slot === undefined || slot.o !== obj) return false;
+  let d = slot.d;
+  if (d === undefined) {
+    const proto = Object.getPrototypeOf(obj);
+    d = 0;
+    if (proto === Object.prototype || proto === Array.prototype || proto === null) {
+      d = 1;
+      const all = Object.getOwnPropertyDescriptors(obj) as Record<PropertyKey, PropertyDescriptor>;
+      for (const key of Reflect.ownKeys(all))
+        if (all[key].writable !== true) {
+          d = 0;
+          break;
+        }
+    }
+    slot.d = d;
+  }
+  return d === 1;
+};
+/** A record's classification is dropped where it may have stopped being one (it is asked again on the next write). */
+const unclassify = (obj: object) => {
+  const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
+  if (slot !== undefined && slot.o === obj) slot.d = undefined;
+};
 const remember = (value: object, proxy: object | null) => {
-  if (!Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy } satisfies Slot, writable: true, configurable: true }))
+  if (!Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy, d: undefined } satisfies Slot, writable: true, configurable: true }))
     proxies.set(value, proxy);
 };
 

@@ -131,3 +131,38 @@ test('a store Map (the collections module) is stored as a proxy, as before', asy
   assert.equal(rawBox.m, m, 'the collections handler does not answer RAW, so the proxy is kept');
   assert.equal(state.box2.m.get(1), 'a');
 });
+
+test('a data record\'s fast write still runs a setter defined THROUGH the store with the store as `this`', () => {
+  const state = createStore({ o: { a: 1, seen: 0 } });
+  const o = state.o;
+  o.a = 2; // classified a data record
+  Object.defineProperty(o, 'b', { get() { return this.a; }, set(v) { this.a = v; this.seen++; }, configurable: true });
+  o.b = 5;
+  assert.equal(o.a, 5);
+  assert.equal(o.seen, 1, 'the setter ran once, with the proxy as `this` (its writes went through the store)');
+});
+
+test("'__proto__' assigned through a data record goes the full way: a later setter write still notifies", async () => {
+  const { createHook } = await load('core');
+  const state = createStore({ o: { a: 1, n: 0 } });
+  state.o.a = 2; // classified a data record
+  state.o.__proto__ = { set x(v) { this.n = v; } };
+  let runs = 0;
+  const owner = { _$g$: 1, _$x$: false, localName: 'probe', isConnected: true };
+  createHook({ priority: 50, element: owner, callback: () => { runs++; void state.o.n; } })();
+  runs = 0;
+  state.o.x = 7;
+  assert.equal(state.o.n, 7);
+  assert.equal(runs, 1, 'the setter ran with the store as `this`, so its write was heard');
+  assert.equal(({}).x, undefined, 'Object.prototype untouched');
+});
+
+test('a prototype replaced THROUGH the store is honored: its setter gets the store as `this`', () => {
+  const state = createStore({ o: { a: 1, n: 0 } });
+  const o = state.o;
+  o.a = 2; // classified
+  Object.setPrototypeOf(o, { set x(v) { this.n = v; } });
+  o.x = 7;
+  assert.equal(o.n, 7);
+  assert.equal(Object.hasOwn(o, 'x'), false, 'the setter ran, nothing was defined on the record');
+});
