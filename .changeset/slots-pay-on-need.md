@@ -29,3 +29,7 @@ the way (an HTML rewriter, an edge transform) while its `data-vm-light` statemen
 used to be refused with `hydration-unwired`. Nothing can be duplicated or lost when the host is empty, so there is
 nothing for the refusal to protect.
 
+
+A page that wires slots but has nothing slotted yet now pays nothing per render: slots installs its render-end hook at
+the first component that needs it. Firefox creates plain components 4.4% faster on such a page, and Chrome is
+unchanged within noise.

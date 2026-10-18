@@ -192,7 +192,8 @@ const saySlotless = () => {
   const host = renderRoot;
   if (host === null || host.nodeType !== 1) return;
   const tag = (host as Element).localName;
-  const late = (registry as { _$done$?: unknown } | null)?._$done$ !== undefined;
+  /** Slots wired = its protocol entry (`_$capture$`, set at wire); `_$done$` is installed only at slots' first need (A19). */
+  const late = (registry as { _$capture$?: unknown } | null)?._$capture$ !== undefined;
   if (warnedSlotless.has(tag + late)) return;
   warnedSlotless.add(tag + late);
   /** Late: the same fact core says at wire time (`late-template-module`), seen here at the host it bit. */
@@ -572,7 +573,7 @@ class Template {
     if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope, root);
     this.$X = !!(this._$at$ || this._$inst$ || this._$ns$);
     /** Light-DOM slots claims a `<slot>` as the template is built — so a template built before it is wired never will. */
-    if (__DEV__ && (root as ParentNode).querySelector?.('slot') && (registry as { _$done$?: unknown } | null)?._$done$ === undefined)
+    if (__DEV__ && (root as ParentNode).querySelector?.('slot') && (registry as { _$capture$?: unknown } | null)?._$capture$ === undefined)
       this._slotless = true;
   }
 }

@@ -1017,6 +1017,7 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   const doc = host.ownerDocument;
   const win = doc.defaultView as typeof globalThis | null;
   if (win !== null) answerAssigned(win);
+  arm();
   /** The server's carrier, adopted, is the same element a client render makes: given the same style and anchors. */
   const holding = carrier ?? (doc.createElement('ins') as HTMLElement);
   holding.setAttribute('hidden', '');
@@ -1112,7 +1113,10 @@ const hostBehavior = {
   mount: (element: Element, { root }: { root: Node | null }) => {
     if (root === null) return;
     let fed = FED.get(root);
-    if (fed === undefined) FED.set(root, (fed = []));
+    if (fed === undefined) {
+      arm();
+      FED.set(root, (fed = []));
+    }
     fed.push(new WeakRef(element));
   },
   create: (element: Element, adopted: boolean) => {
@@ -1241,7 +1245,20 @@ const slotBehavior = {
  * as served and the coded error names what to wire. Development warns once per page.
  */
 let warnedUnadopted = false;
+/**
+ * **The render-end hook, installed at the first thing that needs it** (A19, 2026-10-18): until then the renderer's
+ * `_$done$` read finds `undefined` and every render ends without calling slots — a page that wired slots but has nothing
+ * slotted yet pays nothing per render. Armed by the first light (`lightFor`), the first host a template feeds (FED), the
+ * first park, and the first render of a dashed element that already holds something (`unadopted`, the renderer-alone path,
+ * which captures at render end).
+ */
+let done: ((container: Node, start: Node) => void) | undefined;
+let doneOn: { _$done$?: unknown } | undefined;
+const arm = () => {
+  if (doneOn !== undefined && doneOn._$done$ !== done) doneOn._$done$ = done;
+};
 const unadopted = (container: Node) => {
+  if (container.nodeType === 1 && isCustomElementName((container as Element).localName)) arm();
   /** Asked only for a container with something in it (the renderer skips an empty one: no server markup to append beside). */
   const spec = container.nodeType === 1 ? (container as Element).getAttribute(LIGHT_ATTR) : null;
   if (spec === null) return;
@@ -1380,6 +1397,7 @@ export const slotDiscovery = [
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
     (registry as unknown as { _$unadopted$?: (container: Node) => void })._$unadopted$ = unadopted;
     (registry as unknown as { _$parked$?: (root: Node, owner: Node | null) => void })._$parked$ = (root, owner) => {
+      arm();
       if (owner !== null) PARKED.set(root, owner);
       (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(parkedHandle)).observe(root, {
         attributes: true,
@@ -1392,7 +1410,8 @@ export const slotDiscovery = [
     if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
     /** Development only: how many hosts a root's renders have fed, as recorded — bounded by its live rows (a growth pin). */
     if (__DEV__) (registry as unknown as { _$slotsFed$?: (root: Node) => number })._$slotsFed$ = (root) => FED.get(root)?.length ?? 0;
-    (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
+    doneOn = registry as unknown as { _$done$?: unknown };
+    done = (container: Node, start: Node) => {
       /**
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
        * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
@@ -1426,6 +1445,7 @@ export const slotDiscovery = [
       /** Observed from here on — after this module's own moves above, which then make no records. */
       if (own !== undefined && own.ho !== true && (slotted || own.ex === true)) register(own);
     };
+    /** A page whose components never needed slotting keeps `_$done$` undefined: their renders never call into slots (A19). */
   },
 ];
 
