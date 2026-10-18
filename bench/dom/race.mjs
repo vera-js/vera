@@ -81,8 +81,15 @@ const dump = {};
 const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
 const contended = [];
 
+/**
+ * update10's fixed N per ENGINE (vera-5a, 2026-10-18): set in advance, the same for every implementation on that engine,
+ * never derived from anyone's speed. WebKit runs update10 at ~0.1 ms/op, so 200 runs was a ~20 ms sample and one clock
+ * tick was ~5%; 1000 makes it ~100 ms. Chrome and Firefox run it at ~5–6 ms/op with layout, already ~1 s at 200.
+ */
+const N10 = { chrome: 200, firefox: 200, webkit: 1000 };
 const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch() : webkit.launch();
 for (const engine of engines) {
+  console.log(`${engine}: update10 fixed N = ${N10[engine]}`);
   const data = {};
   /** Each session's fastest run, kept for the reference column (the typical case, `data`, is the claim). */
   const fastest = {};
@@ -97,7 +104,7 @@ for (const engine of engines) {
       const browser = await launch(engine);
       const page = await browser.newPage();
       await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
-      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(impl)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}`);
+      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(impl)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}&n10=${N10[engine]}`);
       await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Ready.', null, { timeout: 60000 });
       await page.click('#run');
       await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
