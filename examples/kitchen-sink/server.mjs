@@ -154,4 +154,7 @@ createServer(async (request, response) => {
       mapped: wantsScript,
     })
   );
-}).listen(PORT, () => console.log(`kitchen sink at http://localhost:${PORT} (/ hydrate, /csr, /ssr, /buildless, /jsx)`));
+}).listen(PORT, function () {
+  /** The port it BOUND, not the one asked for: `PORT=0` lets the OS pick a free one (tests/kitchen-server reads this line). */
+  console.log(`kitchen sink at http://localhost:${this.address().port} (/ hydrate, /csr, /ssr, /buildless, /jsx)`);
+});

@@ -17,7 +17,11 @@
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 
-const PORT = 3210;
+/**
+ * The server binds a port the OS picks (`PORT=0`) and prints it: two runs at once — the dev and production suites in
+ * parallel, as the test lane runs them, or CI later — never fight over one fixed port (a fixed 3210 refused one of them).
+ */
+let PORT = 0;
 
 let chromium;
 try {
@@ -29,11 +33,17 @@ try {
 
 const server = spawn(process.execPath, [new URL('../examples/kitchen-sink/server.mjs', import.meta.url).pathname], {
   cwd: new URL('..', import.meta.url).pathname,
-  env: { ...process.env, PORT: String(PORT) },
+  env: { ...process.env, PORT: '0' },
   stdio: 'pipe',
 });
 let serverOutput = '';
-server.stdout.on('data', (chunk) => (serverOutput += chunk));
+let bound;
+const listening = new Promise((resolve) => (bound = resolve));
+server.stdout.on('data', (chunk) => {
+  serverOutput += chunk;
+  const port = /localhost:(\d+)/.exec(serverOutput)?.[1];
+  if (port !== undefined) bound(Number(port));
+});
 server.stderr.on('data', (chunk) => (serverOutput += chunk));
 
 const reach = async (url) => {
@@ -64,6 +74,8 @@ let pass = 0;
 const check = (name, condition, extra = '') => (condition ? pass++ : failures.push(`${name} — ${extra}`));
 
 try {
+  PORT = await Promise.race([listening, new Promise((resolve) => setTimeout(() => resolve(0), 10000))]);
+  if (PORT === 0) throw new Error(`the server never said which port it bound:\n${serverOutput}`);
   await reach(`http://localhost:${PORT}/`);
   try {
     browser = await chromium.launch();
