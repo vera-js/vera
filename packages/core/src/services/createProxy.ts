@@ -173,7 +173,7 @@ const broken = new WeakSet<StoreInsert>();
 /** What the chain chooses for a type (by its tag): core's handler or nothing, then each insert in turn. */
 const decide = (tag: string) => {
   const type = tag.slice(8, -1).toLowerCase();
-  let chosen: ProxyHandler<object> | undefined = type === 'object' || type === 'array' ? handler : undefined;
+  let chosen: ProxyHandler<object> | undefined = type === 'array' ? arrayHandler : type === 'object' ? handler : undefined;
   /** A plain loop: `forEach` allocated a closure per decision — measured, once any module is wired. */
   const chain = inserts.get('store') as StoreInsert[] | undefined;
   if (chain)
@@ -296,6 +296,17 @@ export const redecideStores = () => settle([...types.keys()]);
  * or through the store.
  */
 const FIXED = new WeakSet<object>();
+/** An object-valued read hands back its store: cached per value, decided on the first miss. */
+const nested = (obj: object, prop: PropertyKey, value: object) => {
+  let proxy = proxies.get(value);
+  if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
+  if (proxy === undefined) {
+    const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+    const owned = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
+    proxies.set(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
+  }
+  return proxy ?? value;
+};
 const handler: ProxyHandler<object> = {
   get(obj: object, prop, receiver) {
     const value = Reflect.get(obj, prop, receiver);
@@ -309,19 +320,7 @@ const handler: ProxyHandler<object> = {
      * caught on the cache miss and remembered as `null` — "never wrap" — so the descriptor is read once
      * per value, never per read. A value of a type nothing claims is remembered the same way.
      */
-    if (value === null || typeof value !== 'object' || FIXED.has(obj))
-      /** A built-in that writes several slots, on an array: run whole, notify once (`atomic`, above). */
-      return typeof value === 'function' && Array.isArray(obj) && MUTATORS.has(prop as string)
-        ? atomic(obj as unknown[], prop as string, value as (...args: unknown[]) => unknown, receiver)
-        : value;
-    let proxy = proxies.get(value);
-    if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
-    if (proxy === undefined) {
-      const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-      const owned = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
-      proxies.set(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
-    }
-    return proxy ?? value;
+    return value === null || typeof value !== 'object' || FIXED.has(obj) ? value : nested(obj, prop, value);
   },
   /** `key in state.form` decides what renders, so it subscribes like a read. */
   has(obj, prop) {
@@ -430,6 +429,26 @@ const wrap = (data: object, chosen: ProxyHandler<object>) => {
   const proxy = new Proxy(data, chosen);
   if (!Object.isExtensible(data)) FIXED.add(data);
   return proxy;
+};
+
+/**
+ * **An array's own handler** (2026-10-18): the object handler with a read path for arrays alone. A read is `obj[prop]`,
+ * no receiver: an array's slots and `length` are data, and `Reflect.get` with a receiver cost 22% of every read
+ * (measured, V8). An accessor DEFINED on a store array runs with the raw array as `this`, untracked: a documented edge.
+ * The whole-array methods are recognized here only, so a record's function-valued read no longer tests for them.
+ */
+const arrayHandler: ProxyHandler<object> = {
+  ...handler,
+  get(obj: object, prop, receiver) {
+    const value = (obj as Record<PropertyKey, unknown>)[prop];
+    track(obj, prop);
+    if (value === null || typeof value !== 'object' || FIXED.has(obj))
+      /** A built-in that writes several slots: run whole, notify once (`atomic`, above). */
+      return typeof value === 'function' && MUTATORS.has(prop as string)
+        ? atomic(obj as unknown[], prop as string, value as (...args: unknown[]) => unknown, receiver)
+        : value;
+    return nested(obj, prop, value);
+  },
 };
 
 /**
