@@ -153,3 +153,101 @@ export const keyed = <T>(key: unknown, result: T): T => {
   (result as KeyedResult).$r = reconcile;
   return result;
 };
+
+/**
+ * **PROBE (P1, 2026-10-18): `each(items, key, row)`, a keyed list whose rows track themselves** (DESIGN-FINE-GRAINED).
+ * Built from what exists: the renderer's `'value'` insert hands this module the list part; core's hook machinery
+ * (`$q` queued hook with an explicit owner, `$z` retire) gives each row its own subscriber; the list part's existing
+ * reconcile and the marked identity skip do the walk and the moves. A row's result is reused (the same object) while its
+ * item is `===` and nothing it read changed; a write a row read wakes exactly that row, which re-commits itself in
+ * place through `part.$u`. `row` must depend only on its item and REACTIVE reads (a plain value closed over from the
+ * parent's render goes stale: documented, React.memo's pitfall).
+ */
+type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown };
+type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string; readonly isConnected: boolean; readonly ownerDocument: Document };
+type Row = { k: unknown; item: unknown; row: (item: unknown) => unknown; result: KeyedResult | null; inst: Item | undefined; owner: Owner; t: number; run: () => void };
+type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row> };
+export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
+  ({ _$each$: 1, items, key, row }) as EachValue;
+
+let hook: ((owner: Owner, callback: () => void) => () => void) | undefined;
+let retire: ((owner: Owner) => void) | undefined;
+let tick = 0;
+
+const stamp = (rec: Row) => {
+  const r = rec.row(rec.item) as KeyedResult & { _$same$?: number };
+  r.key = rec.k;
+  r.$r = reconcile;
+  r._$same$ = 1;
+  return r;
+};
+const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown): Row => {
+  const rec = { k, item, row, result: null, inst: undefined, t: tick } as unknown as Row;
+  rec.owner = {
+    _$g$: 1,
+    _$x$: false,
+    localName: 'each-row',
+    get isConnected() { return rec.inst === undefined || (rec.inst as { $R: Node }).$R.isConnected; },
+    get ownerDocument() { return rec.inst === undefined ? document : (rec.inst as { $R: Node }).$R.ownerDocument!; },
+  };
+  const run = hook!(rec.owner, () => {
+    const r = stamp(rec);
+    const was = rec.result;
+    rec.result = r;
+    if (was !== null && rec.inst !== undefined) {
+      const out = part.$u(rec.inst, r);
+      if (out !== rec.inst) {
+        const items = part.$i!;
+        items[items.indexOf(rec.inst)] = out;
+        rec.inst = out;
+      }
+    }
+  });
+  rec.run = run;
+  run();
+  return rec;
+};
+const drop = (rec: Row) => {
+  rec.owner._$g$++;
+  retire!(rec.owner);
+};
+const eachValue = (part: object, value: unknown) => {
+  if (value === null || typeof value !== 'object' || (value as EachValue)._$each$ !== 1) return false;
+  const p = part as EachPart;
+  const { items, key, row } = value as EachValue;
+  const cache = (p.$E ??= new Map());
+  const t = ++tick;
+  const n = items.length;
+  const recs: Row[] = new Array(n);
+  const values: unknown[] = new Array(n);
+  let made = false;
+  for (let i = 0; i < n; i++) {
+    const item = items[i];
+    const k = key(item);
+    let rec = cache.get(k);
+    if (rec === undefined) {
+      rec = makeRow(p, k, item, row);
+      cache.set(k, rec);
+      made = true;
+    } else if (rec.item !== item) {
+      /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
+      rec.item = item;
+      rec.row = row;
+      rec.run();
+    }
+    rec.t = t;
+    recs[i] = rec;
+    values[i] = rec.result;
+  }
+  if (made || cache.size !== n) for (const [k, rec] of cache) if (rec.t !== t) { cache.delete(k); drop(rec); }
+  p.$p(values);
+  const its = p.$i;
+  if (its !== undefined) for (let i = 0; i < n; i++) if (recs[i].inst !== its[i]) recs[i].inst = its[i];
+  return true;
+};
+/** Wire it: `wire([renderer, eachList])`. A connector: core's registry hands it the hook machinery. */
+export const eachList = (registry: { $q?: unknown; $z?: unknown }, w: (item: unknown) => void) => {
+  hook = registry.$q as typeof hook;
+  retire = registry.$z as typeof retire;
+  w({ on: 'value', fn: eachValue, priority: 50 });
+};
