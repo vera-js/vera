@@ -6,7 +6,7 @@
 A module can own a key on a component's options: core hands `init({ host, … })`'s object to every `'init'` hook, and `wire` hands a connector itself
 
 **Feature (for module authors):** an `'init'` hook now receives the component's options object beside the element, or
-`undefined`. A module reads only its own key (slots reads `expectSlots`), and core never reads, copies or validates one.
+`undefined`. A module reads only its own key (slots reads `observeSlots`), and core never reads, copies or validates one.
 For the key's type, a module adds it to the global `VeraInitOptions` interface that `InitOptions` extends
 (`declare global { interface VeraInitOptions { myKey?: boolean } }`), so the key exists only where that module is
 imported. For development's unknown-option check, it sets `$keys` on its hook function. Two modules claiming one key are

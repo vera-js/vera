@@ -152,7 +152,7 @@ export type ForeignNodesOption = 'preserve' | 'drop';
 declare global {
   /**
    * **The option keys modules own** — empty here; a module adds its key with `declare global { interface
-   * VeraInitOptions { expectSlots?: boolean } }` (slots does), so the key exists only where that module is imported, and
+   * VeraInitOptions { observeSlots?: 'lazy' | 'eager' } }` (slots does), so the key exists only where that module is imported, and
    * core hands it through to the module's `'init'` hook. GLOBAL rather than `declare module '@verajs/core'`: a module
    * that does not depend on core (the renderer's) cannot augment a module it cannot resolve (TS2664).
    */

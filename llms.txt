@@ -457,8 +457,8 @@ matches — slot forwarding and `hold()` inside content placed into a nested com
 listed there: `node.assignedSlot` answers `null` (ask the slot: `slot.assignedNodes()`), a `<slot>` removed or
 inserted BY HAND is not followed (render slots from the template, e.g. `${open ? html`<slot></slot>` : null}`), and a
 child appended by hand to a component with neither a slot nor light content shows until a slot renders — only a
-component that needs slotting is observed, from its first `<slot>`; `init({ host: this, expectSlots: true }, setup)`
-observes it from its first render, and `slots({ expectSlots: true })` makes that the app's default.
+component that needs slotting is observed, from its first `<slot>`; `init({ host: this, observeSlots: 'eager' }, setup)`
+observes it from its first render (default `'lazy'`), and `slots({ observeSlots: 'eager' })` makes that the app's default.
 
 **`slotted(host, name?)`** is the accessor a component uses to read what its user gave it — native
 assignment in a shadow root, the capture map in light DOM, so component code does not branch on

@@ -10,9 +10,9 @@ export const PROSE: Record<string, Prose> = {
     'the `wire` that called slots did not hand it `wire` itself, so none of slots was wired: that core is older than this module.',
     'Update `@verajs/core` (and `@verajs/inserts`) to the version that passes `wire` to connectors, beside this renderer.',
   ],
-  'expect-slots-option': (value) => [
-    `\`expectSlots: ${value}\` is not a boolean, so it reads as off: this component is observed from its first \`<slot>\`.`,
-    'Set `expectSlots: true` to observe it from its first render, or leave it out.',
+  'observe-slots-option': (value) => [
+    `\`observeSlots: ${value}\` is not a setting, so it reads as 'lazy' (the default): this component is observed from its first \`<slot>\` or light child.`,
+    "Set `observeSlots: 'eager'` to observe it from its first render, or leave it out.",
   ],
   /** Two outcomes of one fact — a served page nothing hydrates — so one page, the outcome a parameter. */
   'hydration-unwired': (outcome) => [

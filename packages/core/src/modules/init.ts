@@ -188,7 +188,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    */
   const initInserts = inserts.get('init');
   /** A plain loop: no closure per connect (a `forEach` arrow captured `element` on every connect of every styled app). */
-  /** Each is handed the component's options object too: a module's own key travels on it (`expectSlots`, slots). */
+  /** Each is handed the component's options object too: a module's own key travels on it (`observeSlots`, slots). */
   if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element, options);
   if (__DEV__) unwiredStyles(element);
   /**

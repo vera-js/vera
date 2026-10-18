@@ -257,20 +257,20 @@
       "fix": "Claim elements through the `element` insert instead of a second instance hook."
     },
     {
-      "code": "expect-slots-option",
-      "params": [
-        "value"
-      ],
-      "message": "`expectSlots: {value}` is not a boolean, so it reads as off: this component is observed from its first `<slot>`.",
-      "fix": "Set `expectSlots: true` to observe it from its first render, or leave it out."
-    },
-    {
       "code": "hydration-unwired",
       "params": [
         "outcome"
       ],
       "message": "this page was server-rendered and nothing hydrates it, so {outcome}.",
       "fix": "Wire `hydration` beside the renderer — `wire([renderer, hydration])` — and, where a light host holds the page's content, `hydrateSlots` with `slots`: `wire([renderer, hydration, slots, hydrateSlots])`."
+    },
+    {
+      "code": "observe-slots-option",
+      "params": [
+        "value"
+      ],
+      "message": "`observeSlots: {value}` is not a setting, so it reads as 'lazy' (the default): this component is observed from its first `<slot>` or light child.",
+      "fix": "Set `observeSlots: 'eager'` to observe it from its first render, or leave it out."
     },
     {
       "code": "slot-attributes",

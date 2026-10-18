@@ -12,12 +12,13 @@ One with light children has them hidden from the start, as a shadow root does. A
 `<slot>`, decided once per template, not per element.
 
 **Behavior:** one difference from native shadow DOM follows. A child appended by hand to a component that has neither
-a slot nor light content shows until a slot renders, where a shadow root hides it. A component that expects slots says
-so, and is then observed from its first render as a shadow root follows every host:
+a slot nor light content shows until a slot renders, where a shadow root hides it. A component can be observed from its first
+render instead, as a shadow root follows every host — `observeSlots: 'eager'` (the default is `'lazy'`, as HTML's
+`loading` pairs them; lazy is fully correct for everything a template renders):
 
 ```js
-init({ host: this, expectSlots: true }, setup);
-wire([renderer, slots({ expectSlots: true })]); // every light component's default; its own expectSlots wins
+init({ host: this, observeSlots: 'eager' }, setup);
+wire([renderer, slots({ observeSlots: 'eager' })]); // every light component's default; its own observeSlots wins
 ```
 
 `slots` stays usable bare, `wire([renderer, slots])`. Called with options, it needs a `@verajs/core` whose `wire` hands

@@ -1183,24 +1183,27 @@ const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => n
 
 /** Discovery: `<slot>` elements and dashed hosts claimed in templates, through `elements`. */
 /**
- * **`expectSlots`** — a component's own option (`init({ host, expectSlots: true }, …)`, `define({ tag, expectSlots })`),
- * else the app's default (`slots({ expectSlots: true })`), else off; resolved ONCE here and kept on the light. By default
- * a component is observed from its first `<slot>`, and one with neither a slot nor light content gets nothing at all
- * (wiring slots made plain components 2.1–2.7× slower to create when every one was captured and observed). Expecting
- * slots, it is captured and observed from its first render: a child appended by hand before any slot renders is hidden
- * and a `<slot>` inserted by hand is seen — what native shadow DOM does for every host, at an observer per component.
+ * **`observeSlots: 'lazy' | 'eager'`** (paired as HTML's `loading` pairs them) — a component's own option
+ * (`init({ host, observeSlots: 'eager' }, …)`, `define({ tag, observeSlots })`), else the app's default
+ * (`slots({ observeSlots: 'eager' })`), else `'lazy'`; resolved ONCE here and kept on the light.
+ * - `'lazy'`: observed from its first `<slot>` or light child, and a component with neither gets nothing at all (wiring
+ *   slots made plain components 2.1–2.7× slower to create when every one was captured and observed). Fully correct for
+ *   everything a template renders.
+ * - `'eager'`: captured and observed from its first render, so a child appended by hand before any slot renders is
+ *   hidden and a `<slot>` inserted by hand is seen — what native shadow DOM does for every host, at an observer per
+ *   component.
  */
-/** Development: `expectSlots` is a boolean; anything else reads as off, and says so — as core does for `shadow`. */
-const checkExpect = (subject: string, value: unknown) => {
-  if (value !== undefined && typeof value !== 'boolean')
-    console.warn(diagnostic('slots', subject, 'expect-slots-option', __DEV__ && PROSE['expect-slots-option'](typeof value === 'string' ? `'${value}'` : String(value))));
+/** Development: `observeSlots` is `'lazy'` or `'eager'`; anything else reads as `'lazy'`, and says so — as core does for `foreignNodes`. */
+const checkObserve = (subject: string, value: unknown) => {
+  if (value !== undefined && value !== 'lazy' && value !== 'eager')
+    console.warn(diagnostic('slots', subject, 'observe-slots-option', __DEV__ && PROSE['observe-slots-option'](typeof value === 'string' ? `'${value}'` : String(value))));
 };
 const captureAtInit = (element: Element, options: object | undefined) => {
-  const own = (options as { expectSlots?: unknown } | undefined)?.expectSlots;
-  if (__DEV__) checkExpect(`<${element.localName}>`, own);
-  const expect = own !== undefined ? own === true : (wired as { _$expectSlots$?: unknown } | undefined)?._$expectSlots$ === true;
+  const own = (options as { observeSlots?: unknown } | undefined)?.observeSlots;
+  if (__DEV__) checkObserve(`<${element.localName}>`, own);
+  const eager = (own !== undefined ? own : (wired as { _$observeSlots$?: unknown } | undefined)?._$observeSlots$) === 'eager';
   /** Nothing to hide and nothing expected (the cheap tests first — they settle every plain component). */
-  if (element.firstChild === null && !expect) return;
+  if (element.firstChild === null && !eager) return;
   /**
    * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
    * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
@@ -1209,11 +1212,11 @@ const captureAtInit = (element: Element, options: object | undefined) => {
   /** A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption). */
   if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) {
     const light = capture(element);
-    if (expect) light.ex = true;
+    if (eager) light.ex = true;
   }
 };
 /** Development: the option key this hook reads, so core's unknown-option check accepts it (`$keys` sits on the FUNCTION). */
-if (__DEV__) Object.assign(captureAtInit, { $keys: ['expectSlots'], $module: '@verajs/renderer/slots' });
+if (__DEV__) Object.assign(captureAtInit, { $keys: ['observeSlots'], $module: '@verajs/renderer/slots' });
 
 export const slotDiscovery = [
   elements,
@@ -1296,13 +1299,14 @@ const parts = [slotDiscovery, serve];
 /** What `wire` hands a connector: the registry (told apart from options by its `get`) and `wire` itself. */
 type Registry = { get(name: never): unknown };
 type Wire = (item: never) => void;
-type SlotsOptions = { expectSlots?: boolean };
+type ObserveSlots = 'lazy' | 'eager';
+type SlotsOptions = { observeSlots?: ObserveSlots };
 type SlotsConnector = (registry: Registry, wire: Wire) => void;
 /** Two call signatures: as `wire` calls it (bare), and as an app calls it (with options) — both a module to `wire`. */
 type SlotsModule = { (options?: SlotsOptions): SlotsConnector; (registry: Registry, wire: Wire): void };
 /**
- * **`slots` is a DUAL** — `wire([renderer, slots])`, or `wire([renderer, slots({ expectSlots: true })])` to make expecting
- * slots every light component's default (a component's own `expectSlots` wins either way). Bare, `wire` hands it the
+ * **`slots` is a DUAL** — `wire([renderer, slots])`, or `wire([renderer, slots({ observeSlots: 'eager' })])` to make
+ * observing from the first render every light component's default (a component's own `observeSlots` wins either way). Bare, `wire` hands it the
  * registry and `wire` itself, and it wires its parts; called, it returns a connector doing the same and writing the
  * default on that registry — two cores on one page keep their own.
  */
@@ -1322,21 +1326,21 @@ export const slots = ((given?: SlotsOptions | Registry, w?: (item: unknown) => v
   }
   const options = given as SlotsOptions | undefined;
   if (__DEV__) {
-    for (const key in options) if (key !== 'expectSlots') console.warn(diagnostic('slots', 'slots()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'expectSlots')));
-    checkExpect('slots()', options?.expectSlots);
+    for (const key in options) if (key !== 'observeSlots') console.warn(diagnostic('slots', 'slots()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'observeSlots')));
+    checkObserve('slots()', options?.observeSlots);
   }
-  const expect = options?.expectSlots;
+  const observe = options?.observeSlots;
   return (registry, wire) => {
     if (typeof wire !== 'function') tooOld();
     (wire as (item: unknown) => void)(parts);
-    if (expect !== undefined) (registry as unknown as { _$expectSlots$?: boolean })._$expectSlots$ = expect;
+    if (observe !== undefined) (registry as unknown as { _$observeSlots$?: unknown })._$observeSlots$ = observe;
   };
 }) as SlotsModule;
 
-/** Its option's type, where slots is imported: `init({ host, expectSlots: true }, …)` (core's `VeraInitOptions`). */
+/** Its option's type, where slots is imported: `init({ host, observeSlots: 'eager' }, …)` (core's `VeraInitOptions`). */
 declare global {
   // eslint-disable-next-line no-restricted-syntax -- merging IS the point: slots adds its key to core's options
   interface VeraInitOptions {
-    expectSlots?: boolean;
+    observeSlots?: 'lazy' | 'eager';
   }
 }

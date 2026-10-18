@@ -693,10 +693,11 @@ return () => html`<header>
   through a `&ref`, or `slotted(host, name)` from outside.
 - **Only a component that needs slotting pays for it.** One with no light content and no `<slot>` gets no observer and
   no hidden element; a component is observed from its first `<slot>`. So a child appended by hand to a component that
-  has neither shows until a slot renders — native hides it. A component that expects slots says so —
-  `init({ host: this, expectSlots: true }, setup)` — and is observed from its first render, as a shadow root follows
-  every host; `wire([renderer, slots({ expectSlots: true })])` makes that every light component's default (its own
-  `expectSlots` wins), at an observer per component.
+  has neither shows until a slot renders — native hides it. `observeSlots: 'eager'` observes a component
+  from its first render instead — `init({ host: this, observeSlots: 'eager' }, setup)` — as a shadow root follows
+  every host; `wire([renderer, slots({ observeSlots: 'eager' })])` makes that every light component's default (its own
+  `observeSlots` wins), at an observer per component. The default, `'lazy'` (paired as HTML's `loading` pairs them),
+  starts at the first `<slot>` or light child and is fully correct for everything a template renders.
 - **Add or remove `<slot>`s through the template, not by hand.** A slot with content has stepped out of
   the page, so removing it by hand changes nothing and its content stays shown; a `<slot>` inserted by
   hand is not one the template rendered, so it stays empty. In a shadow root both take effect at once.

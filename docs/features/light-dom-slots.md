@@ -47,7 +47,7 @@ npm run test:browser:all                                # includes tests/browser
 Every scenario there matches native on Chromium, Firefox and WebKit, except four it lists as known
 divergences — `assignedSlot` (deliberately not emulated: ask the slot), a `<slot>` removed or inserted
 by hand rather than through the template, and a child appended by hand to a component that has neither a slot nor
-light content yet (shown until a slot renders; `init({ host, expectSlots: true }, setup)` closes it). An entry asserts that it still diverges, so a shape cannot
+light content yet (shown until a slot renders; `init({ host, observeSlots: 'eager' }, setup)` closes it). An entry asserts that it still diverges, so a shape cannot
 quietly regress into it, nor be fixed without the list changing.
 
 Content a binding writes is distributed node by node, exactly as the same markup written by hand —
@@ -137,8 +137,9 @@ comparison or a property read at those points and nothing else.
   create (Firefox +170%, Chrome +112%), and now costs them 0–2% in Chrome. A component is observed from its first
   `<slot>`; one with light children but no slot has them hidden from the start, as native does. The one difference
   this leaves: a child appended BY HAND to a component with neither is shown until a slot renders, where native hides
-  it. A component that expects slots — `init({ host: this, expectSlots: true }, setup)` — is observed from its first
-  render, which closes that; `slots({ expectSlots: true })` makes it every light component's default.
+  it. `observeSlots: 'eager'` — `init({ host: this, observeSlots: 'eager' }, setup)` — observes a component from
+  its first render, which closes that; `slots({ observeSlots: 'eager' })` makes it every light component's default. The
+  default, `'lazy'`, starts at the first `<slot>` or light child, and is fully correct for everything a template renders.
 - **`<slot>`s come from the template.** Removing an assigned `<slot>` by hand leaves its content shown
   (it has already stepped out of the page), and a `<slot>` inserted by hand stays empty; a shadow root
   reacts to both. Render slots conditionally from the template instead, which behaves the same in both modes.

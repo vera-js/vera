@@ -1,9 +1,9 @@
 /**
- * **`init({ host, expectSlots: true }, setup)`** (2026-10-17): that component is captured and observed from its first
+ * **`init({ host, observeSlots: 'eager' }, setup)`** (2026-10-17): that component is captured and observed from its first
  * render, as native shadow DOM follows every host — so a child appended BY HAND before it has rendered a slot is hidden
  * (light content), where a component without it shows the child until a slot renders (`tests/slots-pay-on-need.test.mjs`).
  * Only the component that asks pays: a plain one beside it still makes no observer registration. Core hands the option
- * through to slots' `'init'` hook; the app default (`slots({ expectSlots })`) is `tests/slots-expect-slots-default.test.mjs`.
+ * through to slots' `'init'` hook; the app default (`slots({ observeSlots })`) is `tests/slots-observe-slots-default.test.mjs`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,10 +34,10 @@ customElements.define('oa-plain', class extends HTMLElement {
   connectedCallback() { init(this, () => () => html`<p>plain</p>`); }
 });
 customElements.define('oa-late', class extends HTMLElement {
-  connectedCallback() { init({ host: this, expectSlots: true }, () => () => html`<main>${open.value ? html`<em><slot>fallback</slot></em>` : null}</main>`); }
+  connectedCallback() { init({ host: this, observeSlots: 'eager' }, () => () => html`<main>${open.value ? html`<em><slot>fallback</slot></em>` : null}</main>`); }
 });
 
-test('expectSlots — a child appended by hand to an empty slotless component is hidden, then slotted once a slot renders', async () => {
+test("observeSlots: 'eager' — a child appended by hand to an empty slotless component is hidden, then slotted once a slot renders", async () => {
   const el = document.createElement('oa-late');
   document.body.append(el);
   flush();
@@ -72,7 +72,7 @@ test('a plain component beside it still pays nothing — CONTROL: the opted-in o
   opted.remove();
 });
 
-test('expectSlots on a component a TEMPLATE creates with no children: still captured, so a child appended by hand is hidden', async () => {
+test("observeSlots: 'eager' on a component a TEMPLATE creates with no children: still captured, so a child appended by hand is hidden", async () => {
   open.value = false;
   flush();
   const list = document.createElement('div');

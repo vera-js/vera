@@ -75,7 +75,7 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  * `Map.get` returning `undefined`, once per element.
  *
  * **It is handed the component's options object** — `init({ host, … })`'s, or `define({ tag, … })`'s — or `undefined`.
- * A module reads only its OWN key there (`options?.expectSlots`); core never reads, copies or validates one. A module
+ * A module reads only its OWN key there (`options?.observeSlots`); core never reads, copies or validates one. A module
  * adds its key's type to core's GLOBAL `VeraInitOptions` (`declare global { interface VeraInitOptions { … } }` — not
  * `declare module '@verajs/core'`, which a module that does not depend on core cannot resolve: TS2664), and marks its
  * hook FUNCTION with `$keys` (development only) so core's unknown-option check accepts the key.
@@ -241,7 +241,7 @@ export type InsertDescriptor = {
  * A function handed the registry instead of a chain entry — how a package that registers nothing
  * still gets a reference to the map core reads. It is handed `wire` too — core's, the one that writes
  * the map core reads — so a module made of several insert points can wire its parts from a function
- * that also takes options (`slots` bare, or `slots({ expectSlots: true })`). It is told apart from a descriptor structurally:
+ * that also takes options (`slots` bare, or `slots({ observeSlots: 'eager' })`). It is told apart from a descriptor structurally:
  * a function whose `on` is `undefined` is a connector.
  */
 export type Connector = (registry: Inserts, wire: (item: Wireable) => void) => void;
