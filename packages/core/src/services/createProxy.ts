@@ -90,6 +90,11 @@ const kit: StoreKit = { track, trigger, shape: GLOBAL };
  * mutator hands back a new function (`state.rows.push !== state.rows.push`).
  */
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
+/**
+ * A store proxy → the raw object it wraps; anything else as it is. Used where a whole-array method INSERTS values, so
+ * raw data never holds a proxy (why: see the `set` trap's "stored RAW"). A proxy of another kind or another copy of core
+ * does not answer `RAW` and passes through unchanged.
+ */
 const unwrap = (value: unknown) =>
   value !== null && typeof value === 'object' ? ((value as Record<symbol, unknown>)[RAW] ?? value) : value;
 const toStore = (value: unknown) => (value !== null && typeof value === 'object' ? createProxy(value) : value);
@@ -188,6 +193,10 @@ const broken = new WeakSet<StoreInsert>();
 /** What the chain chooses for a type (by its tag): core's handler or nothing, then each insert in turn. */
 const decide = (tag: string) => {
   const type = tag.slice(8, -1).toLowerCase();
+  /**
+   * Arrays get their own handler (`arrayHandler`: a leaner read, the whole-array methods, the `ITEMS` channel); records
+   * keep the full one. Both are core's defaults and every `'store'` insert still sees and may wrap either.
+   */
   let chosen: ProxyHandler<object> | undefined = type === 'array' ? arrayHandler : type === 'object' ? handler : undefined;
   /** A plain loop: `forEach` allocated a closure per decision — measured, once any module is wired. */
   const chain = inserts.get('store') as StoreInsert[] | undefined;
@@ -311,7 +320,10 @@ export const redecideStores = () => settle([...types.keys()]);
  * or through the store.
  */
 const FIXED = new WeakSet<object>();
-/** An object-valued read hands back its store: cached per value, decided on the first miss. */
+/**
+ * An object-valued read hands back its store: cached per value, decided on the first miss. ONE function for the object
+ * handler, the array handler and the raw walk, so the frozen-slot and store-in-a-store rules cannot diverge between them.
+ */
 const nested = (obj: object, prop: PropertyKey, value: object) => {
   let proxy = cached(value);
   /** A store in a slot answers itself: remembered in the WeakMap, never by defining through it (a trap). */
@@ -325,6 +337,10 @@ const nested = (obj: object, prop: PropertyKey, value: object) => {
 };
 const handler: ProxyHandler<object> = {
   get(obj: object, prop, receiver) {
+    /**
+     * Core's two private keys, answered before anything is tracked: the cache field is never visible through a store
+     * (and reading it on a proxy must not subscribe), and `RAW` is how core turns a store back into its object (`set`).
+     */
     if (prop === PROXY) return undefined;
     if (prop === RAW) return obj;
     const value = Reflect.get(obj, prop, receiver);
@@ -377,6 +393,7 @@ const handler: ProxyHandler<object> = {
      * — and `state.items = update(state.items)`, returning its input when there is nothing to do, is
      * how "no change" is normally written. It also stops the proxy being written into the target.
      */
+    /** `cached` reads a field, so `prevValue` must be an object first (a primitive has no store). */
     if (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value) return true;
     const own = Reflect.getOwnPropertyDescriptor(obj, prop);
     const added = own === undefined;
@@ -500,8 +517,12 @@ const wrap = (data: object, chosen: ProxyHandler<object>) => {
  * once per index. Records never pay for it: only these traps fire it.
  */
 const ITEMS = Symbol();
-/** Read through an array store only: its raw array, so a walk can skip the per-index trap. */
+/**
+ * Answered by the object and array handlers (core's own stores): the raw object behind the proxy. Two uses: a walk
+ * reads a list's raw array in one trap (`walkItems`), and a store written into a store is stored raw (`set`).
+ */
 const RAW = Symbol();
+/** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
   const hooks = proxyCallbacks.get(obj)?.get(ITEMS);
   if (hooks !== undefined) wake(hooks, { prop: GLOBAL, value: obj } as Signal<unknown>);
@@ -509,6 +530,7 @@ const items = (obj: object) => {
 const arrayHandler: ProxyHandler<object> = {
   ...handler,
   get(obj: object, prop, receiver) {
+    /** The private keys, as in the object handler. */
     if (prop === RAW) return obj;
     if (prop === PROXY) return undefined;
     const value = (obj as Record<PropertyKey, unknown>)[prop];
@@ -520,6 +542,11 @@ const arrayHandler: ProxyHandler<object> = {
         : value;
     return nested(obj, prop, value);
   },
+  /**
+   * The three write traps add ONE thing to the object handler's: waking `ITEMS` when the contents actually changed. A
+   * write of the same value, or a refused one, wakes nothing; `length` is compared too, since a truncating
+   * `length = n` deletes indices without any index trap firing.
+   */
   set(obj, prop, value, receiver) {
     const before = (obj as Record<PropertyKey, unknown>)[prop];
     const length = (obj as unknown[]).length;
@@ -534,6 +561,7 @@ const arrayHandler: ProxyHandler<object> = {
     return defined;
   },
   deleteProperty(obj, prop) {
+    /** Only a key that was there: deleting a missing index changes nothing anyone walked. */
     const had = prop in obj;
     const deleted = handler.deleteProperty!(obj, prop);
     if (deleted && had) items(obj);

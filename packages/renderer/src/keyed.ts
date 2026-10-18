@@ -173,12 +173,19 @@ type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
   ({ _$each$: 1, items, key, row }) as EachValue;
 
+/** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
 let hook: ((owner: Owner, callback: () => void) => (signal?: unknown, init?: boolean) => void) | undefined;
 let retire: ((owner: Owner) => void) | undefined;
 /** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
 let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void) => boolean) | undefined;
+/** The render counter: a row stamped with this render's `t` was met in it; one not met is swept (`eachValue`). */
 let tick = 0;
 
+/**
+ * A row's template result, ready for the list part: its `key` (what reconcile matches on), `$r` (the keyed strategy, so
+ * the part reconciles by key) and `_$same$` (opts the result into the identity skip: the renderer may do nothing when
+ * the SAME result object comes back, which `each` guarantees for a row that did not re-render).
+ */
 const stamp = (rec: Row) => {
   const r = rec.row(rec.item) as KeyedResult & { _$same$?: number };
   r.key = rec.k;
@@ -188,6 +195,11 @@ const stamp = (rec: Row) => {
 };
 const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown): Row => {
   const rec = { k, item, row, result: null, inst: undefined, t: tick } as unknown as Row;
+  /**
+   * The row's OWNER, what core's hooks expect of an element: `_$g$` its generation (bumped by `drop`, which retires the
+   * hook), `_$x$` / `localName` the fields core reads, `isConnected` (core skips a disconnected owner's writes; the row
+   * is connected while its rendered node is) and `ownerDocument` (the scheduler uses the element's own window).
+   */
   rec.owner = {
     _$g$: 1,
     _$x$: false,
@@ -195,6 +207,11 @@ const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown)
     get isConnected() { const node = (rec.inst as { $R?: Node } | undefined)?.$R; return node === undefined || node.isConnected; },
     get ownerDocument() { return (rec.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document; },
   };
+  /**
+   * The row's own hook: a write the row's render read wakes exactly this row. It re-stamps and commits its new result
+   * into its OWN instance in place (`part.$u`); if the instance had to be replaced (the row's shape changed), the list
+   * part's item array is patched to point at the new one.
+   */
   const run = hook!(rec.owner, () => {
     const r = stamp(rec);
     const was = rec.result;
@@ -213,6 +230,7 @@ const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown)
   run(undefined, true);
   return rec;
 };
+/** A row that left the list: its owner's generation moves on (its hook goes inert) and core retires it. */
 const drop = (rec: Row) => {
   rec.owner._$g$++;
   retire!(rec.owner);
@@ -221,6 +239,7 @@ const eachValue = (part: object, value: unknown) => {
   if (value === null || typeof value !== 'object' || (value as EachValue)._$each$ !== 1) return false;
   const p = part as EachPart;
   const { items, key, row } = value as EachValue;
+  /** Key → row record, per list part (`$E`): how a row is found again when it moved or the list was replaced. */
   const cache = (p.$E ??= new Map());
   const t = ++tick;
   const n = items.length;
@@ -284,11 +303,15 @@ const eachValue = (part: object, value: unknown) => {
     }
   p.$L = recs;
   p.$p(values);
+  /** After reconcile, each row learns the instance it was committed into, which its own hook updates in place. */
   const its = p.$i;
   if (its !== undefined) for (let i = 0; i < n; i++) if (recs[i].inst !== its[i]) recs[i].inst = its[i];
   return true;
 };
-/** Wire it: `wire([renderer, eachList])`. A connector: core's registry hands it the hook machinery. */
+/**
+ * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
+ * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
+ */
 export const eachList = (registry: { $q?: unknown; $z?: unknown; $w?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   retire = registry.$z as typeof retire;

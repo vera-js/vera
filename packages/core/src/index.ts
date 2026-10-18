@@ -55,7 +55,11 @@ import type { ComponentElement, HookCallback } from './types.js';
 (inserts as unknown as { $q: (owner: ComponentElement, callback: HookCallback) => HookCallback }).$q = (owner, callback) =>
   callable(registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED)) as HookCallback;
 (inserts as unknown as { $z: typeof retire }).$z = retire;
-/** PROBE (store speed step 2): a store array's raw walk under one subscription, for a keyed list (`walkItems`). */
+/**
+ * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so `each` can walk
+ * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;
+ * `each` store swap 232 → 55 µs and remove 287 → 58 in Chrome once it walks raw). Without it `each` walks the proxy.
+ */
 (inserts as unknown as { $w: typeof walkItems }).$w = walkItems;
 /**
  * Core's store machinery, handed the same way to a module that keeps stores of its own (`@verajs/directives`): a

@@ -673,7 +673,11 @@ const applyRef = (callback: (element: Element | null) => void, element: Element 
  */
 class Instance {
   $k: unknown = undefined;
-  /** PROBE (identity skip, 2026-10-18): the result last committed into this instance as a list item. */
+  /**
+   * The result last committed into this instance as a list item, recorded ONLY for a result marked `_$same$` (what
+   * `each` stamps). Always-on, the skip changed two contracts (a live `!value` binding re-syncing after typing; a result
+   * mutated in place re-rendering), so it is opt-in: an unmarked result never takes it (vera-5a, 2026-10-18).
+   */
   $j: unknown = undefined;
   _template: Template;
   /** The strings this instance was built from — the same-shape identity. */
