@@ -293,6 +293,136 @@ const veraAblationImpl = ({ store, split, hook }) => (mount) => {
   };
 };
 
+/**
+ * **S6(a): O(changed) by ITEM IDENTITY** (DESIGN-FINE-GRAINED S6, 2026-10-18). `eachList(keyOf, renderRow)` keeps one
+ * result per key and reuses it (the same object, marked reusable) while the row's item is the same object and the key
+ * wasn't invalidated; the renderer's opt-in identity skip then passes it with one `===`. Immutable updates rebuild only
+ * the rows whose item changed; select invalidates the old and new keys (the selector's whole job) and re-runs the list
+ * once, so it's O(n) identity checks with 2 rows rebuilt. Needs the MARKED renderer (probe/marked): built through
+ * scratch/s6/build-s6.mjs. Prototype: the cache keeps keys of removed rows (pruned by size only).
+ */
+const eachList = (keyOf, renderRow) => {
+  let cache = new Map();
+  let dirty = null;
+  const list = (items) => {
+    const out = new Array(items.length);
+    const next = items.length < cache.size / 2 ? new Map() : cache;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const k = keyOf(item);
+      let c = cache.get(k);
+      if (c === undefined || c.item !== item || (dirty !== null && dirty.has(k))) {
+        const r = keyed(k, renderRow(item));
+        r._$same$ = 1;
+        c = { item, result: r };
+      }
+      if (next !== cache || c !== cache.get(k)) next.set(k, c);
+      out[i] = c.result;
+    }
+    cache = next;
+    dirty = null;
+    return out;
+  };
+  list.invalidate = (...keys) => { dirty ??= new Set(); for (const k of keys) dirty.add(k); };
+  return list;
+};
+
+const veraS6aImpl = (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const rows = shallowRef([]);
+  const selected = ref(-1);
+  const list = eachList((r) => r.id, (r) => rawHtml`<tr class="${selected.value === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`);
+  init(host, () => () => { void selected.value; return rawHtml`<table><tbody>${list(rows.value)}</tbody></table>`; });
+  return {
+    create: (n, seed) => { rows.value = buildData(n, seed); },
+    append: (n, seed) => { rows.value = rows.value.concat(buildData(n, seed)); },
+    updateEvery10th: () => {
+      const next = rows.value.slice();
+      for (let i = 0; i < next.length; i += 10) next[i] = { ...next[i], label: next[i].label + ' !!!' };
+      rows.value = next;
+    },
+    swap: () => {
+      const next = rows.value.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      rows.value = next;
+    },
+    select: (i) => { const id = rows.value[i]?.id ?? -1; list.invalidate(selected.value, id); selected.value = id; },
+    remove: (i) => { const next = rows.value.slice(); next.splice(i, 1); rows.value = next; },
+    clear: () => { rows.value = []; },
+    teardown: () => { host.remove(); },
+  };
+};
+
+/**
+ * **P1: `each` + a selector on `createStore`** (worktree probe/p1; DESIGN-FINE-GRAINED §P1). The selector is a store
+ * of per-key flags: a row reads `flags[id]`, so core's per-key Set wakes exactly the old and the new row on a select.
+ * `store` builds the rows in a `createStore` (mutated in place: Brian's idiom); otherwise rows are plain objects in a
+ * shallowRef, replaced on update. Only in bundle-p1.js; elsewhere the entries are skipped.
+ */
+const veraP1Impl = (store) => (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  wire([keyedModule.eachList]);
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const flags = createStore({});
+  let selected;
+  const state = store ? createStore({ rows: [] }) : null;
+  const plain = store ? null : shallowRef([]);
+  const rowsOf = () => (store ? state.rows : plain.value);
+  const key = (r) => r.id;
+  const row = (r) => rawHtml`<tr class="${flags[r.id] === true ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`;
+  init(host, () => () => rawHtml`<table><tbody>${keyedModule.each(rowsOf(), key, row)}</tbody></table>`);
+  const set = (next) => { if (store) state.rows = next; else plain.value = next; };
+  return {
+    create: (n, seed) => { selected = undefined; set(buildData(n, seed)); },
+    append: (n, seed) => { if (store) state.rows.push(...buildData(n, seed)); else plain.value = plain.value.concat(buildData(n, seed)); },
+    updateEvery10th: () => {
+      if (store) { const r = state.rows; for (let i = 0; i < r.length; i += 10) r[i].label += ' !!!'; }
+      else { const next = plain.value.slice(); for (let i = 0; i < next.length; i += 10) next[i] = { ...next[i], label: next[i].label + ' !!!' }; plain.value = next; }
+    },
+    swap: () => {
+      if (store) { const r = state.rows; if (r.length > 998) { const t = r[1]; r[1] = r[998]; r[998] = t; } }
+      else { const next = plain.value.slice(); if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; } plain.value = next; }
+    },
+    select: (i) => {
+      const id = rowsOf()[i]?.id;
+      if (selected !== undefined) flags[selected] = false;
+      selected = id;
+      if (id !== undefined) flags[id] = true;
+    },
+    remove: (i) => { if (store) state.rows.splice(i, 1); else { const next = plain.value.slice(); next.splice(i, 1); plain.value = next; } },
+    clear: () => { selected = undefined; set([]); },
+    teardown: () => { host.remove(); },
+  };
+};
+
+/** Today's idiom with `createStore` rows (no `each`): the fair baseline for a store app. */
+const veraStoreDefaultImpl = (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const state = createStore({ rows: [], selected: -1 });
+  init(host, () => () => {
+    const sel = state.selected;
+    return rawHtml`<table><tbody>${state.rows.map((r) => keyed(r.id, rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`))}</tbody></table>`;
+  });
+  return {
+    create: (n, seed) => { state.rows = buildData(n, seed); },
+    append: (n, seed) => { state.rows.push(...buildData(n, seed)); },
+    updateEvery10th: () => { const r = state.rows; for (let i = 0; i < r.length; i += 10) r[i].label += ' !!!'; },
+    swap: () => { const r = state.rows; if (r.length > 998) { const t = r[1]; r[1] = r[998]; r[998] = t; } },
+    select: (i) => { state.selected = state.rows[i]?.id ?? -1; },
+    remove: (i) => { state.rows.splice(i, 1); },
+    clear: () => { state.rows = []; },
+    teardown: () => { host.remove(); },
+  };
+};
+
 /** Vue as its own benchmark entry writes it: a compiled template with keyed v-for and v-memo, labels edited in place. */
 import VueRows from './vue/Rows.vue';
 import { rows as vueRows, selected as vueSelected } from './vue/state.js';
@@ -482,6 +612,8 @@ const reactImpl = (mount) => {
 
 import { renderInto as veraDomRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
+/** P1 probe only: `each` / `eachList` exist in the P1 worktree's keyed build (bundle-p1.js); undefined elsewhere. */
+import * as keyedModule from '@verajs/renderer/keyed';
 import { renderer as veraRenderer } from '@verajs/renderer';
 import { slots as veraSlots } from '@verajs/renderer/slots';
 
@@ -863,6 +995,12 @@ export const IMPLEMENTATIONS = [
   /** The same entry again: the A/A control a race needs to tell a real gap from noise. */
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
+  { name: 'VeraJS store default', note: "today's idiom with createStore rows (the store app's baseline)", factory: veraStoreDefaultImpl },
+  ...(keyedModule.each ? [
+    { name: 'VeraJS each', note: 'P1: each + a store selector, plain rows', factory: veraP1Impl(false) },
+    { name: 'VeraJS each store', note: 'P1: each + a store selector, createStore rows', factory: veraP1Impl(true) },
+  ] : []),
+  { name: 'VeraJS S6a', note: 'S6(a): rows reused by item identity (marked renderer)', factory: veraS6aImpl },
   { name: 'abl inline', note: 'ablation: today, through the same factory', factory: veraAblationImpl({}) },
   { name: 'abl store', note: 'ablation: a store per row', factory: veraAblationImpl({ store: true }) },
   { name: 'abl split', note: 'ablation: shell + cells instance', factory: veraAblationImpl({ split: true }) },
