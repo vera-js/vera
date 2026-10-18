@@ -292,26 +292,24 @@ const retireGeneration = (element: ComponentElement) => {
  * which `chain()` does not reach), each with the module that claims it. Two modules claiming one key, or a module
  * claiming one of core's, is said once per page; both hooks still get the object (core cannot know which one meant it).
  */
-/** Nothing at module scope is constructed: production keeps a constructor call it cannot prove unused (+7 B measured). */
-let claimedFor: unknown[] | undefined;
-let claimedSize = -1;
-let optionKeys: Map<string, string> | undefined;
+/**
+ * Read fresh each time, never cached: a hook REPLACED at a taken priority keeps the array's identity and length, so a
+ * cache keyed on them goes stale (vera-5a). Development only, once per `init` that has options. Nothing at module scope
+ * is constructed: production keeps a constructor call it cannot prove unused (+8 B measured).
+ */
 let warnedClaims = false;
 const claims = (): Map<string, string> => {
   const hooks = inserts.get('init') as unknown[] | undefined;
-  if (optionKeys !== undefined && hooks === claimedFor && (hooks?.length ?? 0) === claimedSize) return optionKeys;
-  claimedFor = hooks;
-  claimedSize = hooks?.length ?? 0;
-  optionKeys = new Map();
+  const optionKeys = new Map<string, string>();
   for (const hook of hooks ?? []) {
     const { $keys, $module } = hook as { $keys?: string[]; $module?: string };
     for (const key of $keys ?? []) {
-      const other = key === 'host' || key === 'shadow' || key === 'foreignNodes' ? 'core' : optionKeys!.get(key);
+      const other = key === 'host' || key === 'shadow' || key === 'foreignNodes' ? 'core' : optionKeys.get(key);
       if (other !== undefined && !warnedClaims) {
         warnedClaims = true;
         console.warn(diagnostic('core', 'init()', 'option-claimed-twice', __DEV__ && PROSE['option-claimed-twice'](key, other, $module ?? 'a module')));
       }
-      optionKeys!.set(key, $module ?? 'a module');
+      optionKeys.set(key, $module ?? 'a module');
     }
   }
   return optionKeys;

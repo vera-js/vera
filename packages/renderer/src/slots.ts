@@ -1190,8 +1190,14 @@ const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => n
  * slots, it is captured and observed from its first render: a child appended by hand before any slot renders is hidden
  * and a `<slot>` inserted by hand is seen — what native shadow DOM does for every host, at an observer per component.
  */
+/** Development: `expectSlots` is a boolean; anything else reads as off, and says so — as core does for `shadow`. */
+const checkExpect = (subject: string, value: unknown) => {
+  if (value !== undefined && typeof value !== 'boolean')
+    console.warn(diagnostic('slots', subject, 'expect-slots-option', __DEV__ && PROSE['expect-slots-option'](typeof value === 'string' ? `'${value}'` : String(value))));
+};
 const captureAtInit = (element: Element, options: object | undefined) => {
   const own = (options as { expectSlots?: unknown } | undefined)?.expectSlots;
+  if (__DEV__) checkExpect(`<${element.localName}>`, own);
   const expect = own !== undefined ? own === true : (wired as { _$expectSlots$?: unknown } | undefined)?._$expectSlots$ === true;
   /** Nothing to hide and nothing expected (the cheap tests first — they settle every plain component). */
   if (element.firstChild === null && !expect) return;
@@ -1300,15 +1306,28 @@ type SlotsModule = { (options?: SlotsOptions): SlotsConnector; (registry: Regist
  * registry and `wire` itself, and it wires its parts; called, it returns a connector doing the same and writing the
  * default on that registry — two cores on one page keep their own.
  */
+/**
+ * A `wire` that hands a connector only the registry — a core older than this module, or code calling connectors itself —
+ * can wire nothing of slots: said, in both builds, rather than leaving every slot quietly undistributed (vera-5a).
+ */
+const tooOld = () => {
+  throw new Error(__DEV__ ? diagnostic('slots', 'wire([slots])', 'slots-wire-too-old', __DEV__ && PROSE['slots-wire-too-old']()) : '[vera] slots-wire-too-old');
+};
 export const slots = ((given?: SlotsOptions | Registry, w?: (item: unknown) => void): SlotsConnector | undefined => {
-  if (typeof w === 'function') {
-    w(parts);
+  /** Told apart by the REGISTRY (its `get`), as the module rule says — never by whether a second argument came. */
+  if (typeof (given as Registry | undefined)?.get === 'function') {
+    if (typeof w !== 'function') tooOld();
+    w!(parts);
     return undefined;
   }
   const options = given as SlotsOptions | undefined;
-  if (__DEV__) for (const key in options) if (key !== 'expectSlots') console.warn(diagnostic('slots', 'slots()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'expectSlots')));
+  if (__DEV__) {
+    for (const key in options) if (key !== 'expectSlots') console.warn(diagnostic('slots', 'slots()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'expectSlots')));
+    checkExpect('slots()', options?.expectSlots);
+  }
   const expect = options?.expectSlots;
   return (registry, wire) => {
+    if (typeof wire !== 'function') tooOld();
     (wire as (item: unknown) => void)(parts);
     if (expect !== undefined) (registry as unknown as { _$expectSlots$?: boolean })._$expectSlots$ = expect;
   };

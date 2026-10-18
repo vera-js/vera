@@ -76,8 +76,9 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  *
  * **It is handed the component's options object** — `init({ host, … })`'s, or `define({ tag, … })`'s — or `undefined`.
  * A module reads only its OWN key there (`options?.expectSlots`); core never reads, copies or validates one. A module
- * augments `InitOptions` in `@verajs/core` for its key's type, and marks its hook with `$keys` (development only) so
- * core's unknown-option check accepts the key.
+ * adds its key's type to core's GLOBAL `VeraInitOptions` (`declare global { interface VeraInitOptions { … } }` — not
+ * `declare module '@verajs/core'`, which a module that does not depend on core cannot resolve: TS2664), and marks its
+ * hook FUNCTION with `$keys` (development only) so core's unknown-option check accepts the key.
  */
 export type InitInsert = (element: HTMLElement, options: object | undefined) => void;
 

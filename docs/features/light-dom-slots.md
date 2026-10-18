@@ -108,7 +108,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->5.41 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->5.45 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>` and each host, capturing the host's
 children, replaying what templates later write among them, the distribution itself — and the
 renderer carries only generic hooks it plugs into (an instance hook on the template, an element's

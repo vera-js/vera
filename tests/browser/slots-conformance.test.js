@@ -416,6 +416,30 @@ scenario('an applier commits during another host\'s render', {
   ],
 });
 
+/**
+ * vera-5a, 2026-10-17: a light whose FIRST slot mounts inside another container's render is observed from a microtask
+ * after it — but native assigns synchronously, so a slot read INLINE, right after that render and before the microtask,
+ * must already show its assignment. The read is the step's own, before the harness settles.
+ */
+const lateSlottedRef = (side) => html`<div><slot &ref=${refSlot(side, 'late')}>late fb</slot></div>`;
+const elsewhereRef = (side) => html`<u &ref=${() => side.parts[0]._$commit$(lateSlottedRef(side))}>x</u>`;
+scenario('a slot mounted during another host\'s render is read inline, before any microtask', {
+  draw: (s, side) => html`<header>${s.n}</header>${later(side, loading())}`,
+  children: () => [el('b', {}, 'user')],
+  probe: (side) => `inline=${side.inline ?? '-'}`,
+  steps: [
+    ['render', (side) => side.render({ n: 1 })],
+    [
+      'commit inside another render, read at once',
+      (side) => {
+        renderInto(elsewhereRef(side), (side.other ??= document.createElement('div')));
+        side.inline = side.slots.late.assignedNodes().map((n) => n.textContent).join(',');
+      },
+    ],
+    ['user adds', (side) => side.hosts[0].appendChild(el('i', {}, 'late'))],
+  ],
+});
+
 /* ------------------------------------------------------------------------------------------------ */
 /* Hosts inside hosts — the redesign's open risk, and round 2 B7 (slot forwarding)                   */
 /* ------------------------------------------------------------------------------------------------ */

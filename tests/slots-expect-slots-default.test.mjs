@@ -61,3 +61,29 @@ test('an option slots() does not have is reported, in development', { skip: isPr
   assert.equal(warnings.length, 1, warnings.join('\n'));
   assert.ok(warnings[0].startsWith('[vera]') && /`nope` is not an option/.test(warnings[0]), warnings[0]);
 });
+
+test('a wire that hands slots only the registry is refused out loud, in both builds — never a silent no-op', () => {
+  assert.throws(() => slots(new Map()), /slots-wire-too-old/, 'bare, called the old way');
+  assert.throws(() => slots({ expectSlots: true })(new Map()), /slots-wire-too-old/, 'called, its connector the old way');
+});
+
+test('a non-boolean expectSlots reads as off and says so, in development — the app default and a component\'s own', { skip: isProduction }, async () => {
+  const said = [];
+  const keep = console.warn;
+  console.warn = (...a) => said.push(a.join(' '));
+  try {
+    slots({ expectSlots: 'yes' });
+    customElements.define('ed-own-yes', class extends HTMLElement {
+      connectedCallback() { init({ host: this, expectSlots: 'yes' }, () => () => html`<main></main>`); }
+    });
+    const el = document.createElement('ed-own-yes');
+    document.body.append(el);
+    flush();
+    await settle();
+    el.remove();
+  } finally {
+    console.warn = keep;
+  }
+  assert.equal(said.length, 2, said.join('\n'));
+  assert.ok(said.every((w) => w.startsWith('[vera]') && /`expectSlots: 'yes'` is not a boolean/.test(w)), said.join('\n'));
+});
