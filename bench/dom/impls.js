@@ -260,6 +260,39 @@ const veraFineP1eImpl = (mount) => {
   };
 };
 
+/**
+ * **The creation ablation of P1e** (2026-10-18): which part of a reactive row costs at creation? `store` gives each row a
+ * `createStore`; `split` renders the row as a `<tr>` shell plus its cells in a second instance (`renderInto` at ref time);
+ * `hook` makes the cells a `createHook` scope (reading the store when there is one). Creation rows only; timing probe.
+ */
+const veraAblationImpl = ({ store, split, hook }) => (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const rows = shallowRef([]);
+  const cells = (rec) => rawHtml`<td>${rec.id}</td><td><a>${store ? rec.s.label : rec.label}</a></td><td><a>x</a></td>`;
+  const recs = (data) => data.map((d) => {
+    const rec = { id: d.id, label: d.label, el: null };
+    if (store) rec.s = createStore({ label: d.label, sel: false });
+    if (split) rec.ref = { get value() { return rec.el; }, set value(el) {
+      if (el === null || rec.el !== null) return;
+      rec.el = el;
+      if (hook) createHook({ priority: 50, element: rec.owner = {}, callback: () => veraDomRender(cells(rec), el) })();
+      else veraDomRender(cells(rec), el);
+    } };
+    return rec;
+  });
+  init(host, () => () => rawHtml`<table><tbody>${rows.value.map((r) => keyed(r.id, split ? rawHtml`<tr ${r.ref}></tr>` : rawHtml`<tr>${cells(r)}</tr>`))}</tbody></table>`);
+  return {
+    create: (n, seed) => { rows.value = recs(buildData(n, seed)); },
+    append: (n, seed) => { rows.value = rows.value.concat(recs(buildData(n, seed))); },
+    updateEvery10th: () => {}, swap: () => {}, select: () => {}, remove: () => {},
+    clear: () => { rows.value = []; },
+    teardown: () => { host.remove(); },
+  };
+};
+
 /** Vue as its own benchmark entry writes it: a compiled template with keyed v-for and v-memo, labels edited in place. */
 import VueRows from './vue/Rows.vue';
 import { rows as vueRows, selected as vueSelected } from './vue/state.js';
@@ -830,6 +863,11 @@ export const IMPLEMENTATIONS = [
   /** The same entry again: the A/A control a race needs to tell a real gap from noise. */
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
+  { name: 'abl inline', note: 'ablation: today, through the same factory', factory: veraAblationImpl({}) },
+  { name: 'abl store', note: 'ablation: a store per row', factory: veraAblationImpl({ store: true }) },
+  { name: 'abl split', note: 'ablation: shell + cells instance', factory: veraAblationImpl({ split: true }) },
+  { name: 'abl split+hook', note: 'ablation: shell + cells as a hook', factory: veraAblationImpl({ split: true, hook: true }) },
+  { name: 'abl full', note: 'ablation: split + hook + store (= P1e creation)', factory: veraAblationImpl({ split: true, hook: true, store: true }) },
   { name: 'VeraJS fine P1e', note: 'P1 emulated with public APIs: table rows, a store + createHook per row', factory: veraFineP1eImpl },
   { name: 'VeraJS fine P0', note: 'userland ceiling: rows as init components with their own store; select / update write rows directly', factory: veraFineImpl },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
