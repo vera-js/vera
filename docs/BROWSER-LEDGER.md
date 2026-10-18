@@ -134,6 +134,11 @@ from another machine, or after that is undone, has a variable changed.
   Chrome +14% on pages without the feature; an expando on every new `Set` cost Firefox creation +6–13%. It holds for
   SpiderMonkey and JSC too. Consequence: race it, weighting the common path. (Chrome headed / Firefox headless;
   2026-10-07 / 2026-10-10)
+- **Fields declared at creation help objects that GAIN them later and cost objects that never do.** Declaring `key`
+  and a reconcile stamp on every template result (so `keyed()` stops transitioning each object's shape) made building
+  1000 rows 33% cheaper in Firefox in isolation, but on the real path it traded: keyed select −7% (Chrome) / −10%
+  (Firefox), keyed CREATE +0.8% / +5.5%, and ~0 elsewhere. A fuller object costs at creation. Consequence: not landed;
+  shape changes are raced on the real path, creation rows first. (Headless, 5 fresh-browser pairs; 2026-10-18)
 - **A timing window after a fixed warm-up measures WHEN V8 tiers up.** A faster build sat in a middle tier for calls
   20–80 and read 28% slower over exactly that window. Consequence: report the cold total and a steady time, and the
   per-batch curve when they disagree. (Node; 2026-10-01)
