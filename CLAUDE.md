@@ -200,7 +200,16 @@ code, so they are not re-litigated.
   2026-10-17: one probe read +3.6%, +3.2%, then −4.5% when a fifth variant changed its neighbors, and a committed
   "Firefox −10%" was in fact +8% (fresh browser per page, both ways). Chrome gives each page its own context, but
   verify rather than assume. Report ELAPSED time with the frame gaps too: a change can move a collection out of the
-  timed window without removing it.
+  timed window without removing it. (Measured headless — Playwright Firefox through `firefox.launch()`'s default;
+  the direction is expected to hold, to be re-confirmed headed.) The same trap holds INSIDE one page: frameworks run
+  one after another on a shared page left their garbage in the next one's window, and a byte-identical A/A copy split
+  5/5 (2026-10-18), so a cross-framework race runs each implementation in its own fresh browser.
+- **Time in headed browsers; headless is for profiling and jitless iteration only** (Brian, 2026-10-18). Playwright's
+  `firefox.launch()` and `webkit.launch()` are HEADLESS by default, and a headless browser's frames are not tied to a
+  real compositor, so a paint or layout row there may measure no paint at all. Found 2026-10-18: `bench/dom/run.mjs`
+  (the public table's command) ran bundled Chromium headless, and the harness behind every slots race ran all three
+  engines headless. Read a harness's launch line before reading its numbers, print the mode and version in its header,
+  and label the engines for what they are — installed Chrome, Playwright Firefox, Playwright WebKit (not Safari).
 - **A WeakMap / WeakSet keyed by DOM nodes on a PER-COMPONENT hot path can cost both engines' collectors per entry —
   measure it, and the per-copy `Symbol` field is the candidate to race.** Measured 2026-10-17: the renderer's root-part
   WeakMap cost ~10% of shadow-component creation and churn in Firefox (GC sweep + mark) and ~9% in Chrome; a field on
@@ -209,7 +218,8 @@ code, so they are not re-litigated.
   weak collections:** slots' seven node-keyed maps measured a TIE as fields, and dropping the per-hook `WeakRef` bought
   −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe (kept, Brian). A field that points back at its
   node's DOM (root → part → root) is a DOM↔JS cycle Firefox's cycle collector must break — null the back-pointer at
-  release. Race the field against the collection, both engines, fresh browser, before moving one.
+  release. Race the field against the collection, both engines, fresh browser, before moving one. (Measured headless,
+  on all engines; to be re-confirmed headed.)
 - **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
   create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
   class defines is work the engine does for every instance; never add one speculatively.
