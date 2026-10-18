@@ -40,7 +40,7 @@ type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
  * `wait`: captured by a template that placed runs into this host during hydration, before the host's own slots exist —
  * nothing distributes until the first of them mounts, so the nodes stay exactly where the server put them.
  */
-type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: Pair; hw?: boolean };
+type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: Pair; hw?: boolean; ho?: boolean; cw?: boolean; hh?: boolean };
 
 /**
  * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<ins hidden data-vm-unassigned>`, the
@@ -60,6 +60,7 @@ const UNASSIGNED = 'data-vm-unassigned';
 /** Into the page before a light node moves in, so the move is connected → connected. */
 const park = (light: Light) => {
   if (light.holding.parentNode !== light.host) light.host.insertBefore(light.holding, light.host.firstChild);
+  watchHolding(light);
   return light.holding;
 };
 /**
@@ -378,6 +379,7 @@ const place = (light: Light) => {
           if (node === unit.z) break;
         }
         for (const node of run) (node.nodeType === 8 ? holding : park(light)).insertBefore(node, holding.lastChild);
+      watchHolding(light);
       }
   for (const { rec } of live) if (!wanted.has(rec)) unregion(rec);
   unpark(light);
@@ -424,12 +426,21 @@ const parkedHandle = (records: MutationRecord[]) => {
   flush();
 };
 /** A light's pending records — returned, or dropped by a caller that ignores them (this module's own moves). */
-const take = (light: Light): MutationRecord[] => {
+const take = (light: Light, names = true): MutationRecord[] => {
   if (light.obs === undefined) return [];
   const [children, attributes] = light.obs;
-  const records = children.takeRecords();
-  for (const record of attributes.takeRecords()) records.push(record);
+  const records = light.ho === true || light.cw === true ? children.takeRecords() : [];
+  if (names) for (const record of attributes.takeRecords()) records.push(record);
   return records;
+};
+/**
+ * **This module's own moves, dropped** — childList only: a move never changes an attribute, and what was pending before
+ * it was read at the start of the same pass. Nothing to drop while the light has no childList registration (its first
+ * render, unless a region in a slot's fallback is watched): `takeRecords()` on every host every pass was ~114 ms of
+ * Chrome's slots creation at 10 000 hosts (2026-10-17).
+ */
+const drop = (light: Light) => {
+  if (light.obs !== undefined && (light.ho === true || light.cw === true)) light.obs[0].takeRecords();
 };
 /** A render is ending (the renderer's `_$done$`): captured children no slot took are parked now, not before. */
 let ending = false;
@@ -561,17 +572,22 @@ const flush = (context?: Light, root?: Node) => {
     );
   /** Each light's records, read by that light (they arrive knowing whose they are), then the parked branches'. */
   for (const light of near) note(light, take(light));
-  for (const light of work) note(light, take(light));
+  /**
+   * The work set's NAME records stay with their callback: distribution reads `slot=` from the DOM as it is, so a rename is
+   * only a trigger — and a light being READ (`near`: the slots API, a mount, its own render) takes them now, so a read
+   * right after a rename is current (tests/slots-sync-reads.test.mjs). ChildList records are taken in order, always.
+   */
+  for (const light of work) note(light, take(light, false));
   if (parkedObserver !== undefined) noteParked(parkedObserver.takeRecords());
   for (const light of work) {
     if (light.dirty || (ending && light.fresh)) {
       distribute(light);
-      take(light);
+      drop(light);
     }
     if (!light.dirty && (!light.fresh || !light.host.isConnected)) work.delete(light);
   }
   /** What this module just moved, recorded on the lights it read: not news. */
-  for (const light of near) take(light);
+  for (const light of near) drop(light);
 };
 /** Whether `node` sits outside the host's subtree registration — detached, or inside a slot (which steps out with its content). */
 const outside = (node: Node, host: Element) => {
@@ -595,7 +611,10 @@ const watch = (node: Node, light: Light) => {
     return;
   }
   /** Holding (out of the page while empty) and a region's parent inside a slot's fallback (out with that slot): on themselves. */
-  if (node === light.holding || outside(node, light.host)) children.observe(node, { childList: true });
+  if (node === light.holding || outside(node, light.host)) {
+    light.cw = true;
+    children.observe(node, { childList: true });
+  }
 };
 /** A light element's own `slot=` — registered at capture and on every arrival (`adopt`, `replay`, `settleIn`). */
 const OWN = Symbol();
@@ -768,6 +787,97 @@ const release = (light: Light) => {
 
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * **A light's childList registrations, once its first render has ENDED** (observer redesign step 3, "3c", 2026-10-17).
+ * ONE over the host's subtree — its own children and every region and slot inside it: what native slotting reacts to,
+ * wherever it sits, so a region's parent needs no registration of its own — and its holding (out of the page while empty).
+ * Not before: the first render's own writes would make a record each for nothing (`reconcile` covers that window).
+ * Attribute changes are registered per NODE (`own`, a slot's `name` in `watch`): one subtree attribute registration made
+ * Firefox check every attribute write inside the host (−17.7% of light-slots creation).
+ */
+const register = (light: Light) => {
+  if (light.ho === true) return;
+  light.ho = true;
+  observersOf(light)[0].observe(light.host, { childList: true, subtree: true });
+  /**
+   * A light with a RUN (a part an outer template writes into, for as long as the host lives) has its holding watched
+   * from now — the run moves there, and is written into there, even while holding holds nothing else. One with static
+   * light children only is watched once something is parked (`park`), or never.
+   */
+  if (
+    /** `hydrate-slots` writes runs straight into holding and relies on it being watched (hydrate-slots.ts, "holding is watched"). */
+    (wired as { _$hydrateSlots$?: unknown } | undefined)?._$hydrateSlots$ !== undefined ||
+    light.units.some((unit) => unit.a !== unit.z) ||
+    light.holding.childNodes.length > 2
+  )
+    watchHolding(light);
+};
+/**
+ * **Holding, watched once anything lives in it** — a run's markers and stand-ins, or a parked node — since the outer
+ * template keeps writing into a run there, in or out of the page. An empty holding (every light node took a slot) is
+ * never written into, so it costs no registration (2026-10-17).
+ */
+const watchHolding = (light: Light) => {
+  if (light.ho !== true || light.hh === true) return;
+  light.hh = true;
+  watch(light.holding, light);
+};
+/**
+ * **What changed while a light was not yet observed — its first render** — read off the DOM once, at that render's end
+ * (3c, vera-5a): who made the change does not matter, the renderer or user code (a child's `connectedCallback`, a
+ * directive). A stand-in gone takes its node with it, as `unrun` does for a removal record; a host child nothing knows
+ * of is a light child added meanwhile (`adopt`) — unless it is the render's own (between its markers: `adopt` checks the
+ * range), one of the captured units, or a member of a captured run.
+ */
+const reconcile = (light: Light) => {
+  for (const rec of light.recs)
+    for (const node of [...rec.shown]) {
+      const stand = STAND.get(node);
+      if (stand === undefined) continue;
+      if (node.parentNode === null) {
+        PLACED.delete(node);
+        unstand(node);
+        continue;
+      }
+      const parent = stand.parentNode;
+      if (parent === null) node.parentNode.removeChild(node);
+      else if (parent.nodeType === 11) parent.insertBefore(node, stand);
+      else continue;
+      PLACED.delete(node);
+      unstand(node);
+    }
+  /**
+   * A node written INTO a slot's region meanwhile — a keyed row inserted beside a slotted neighbor follows it there
+   * (`into`) — is handed to `replay` as the record it would have been: its parent, itself, its neighbors now.
+   */
+  for (const rec of light.recs) {
+    if (rec.rs === null || rec.re === null) continue;
+    for (let node = rec.rs.nextSibling; node !== null && node !== rec.re; ) {
+      const next = node.nextSibling;
+      if (!PLACED.has(node) && node.nodeType !== 8)
+        replay(light, { type: 'childList', target: rec.re.parentNode!, addedNodes: [node] as unknown as NodeList, removedNodes: [] as unknown as NodeList, previousSibling: node.previousSibling, nextSibling: node.nextSibling } as unknown as MutationRecord);
+      node = next;
+    }
+  }
+  const host = light.host;
+  /** The render's range, once: its first and last comment that is not a captured unit's (as `adopt` reads it). */
+  const ours = new Set<Node>();
+  for (const unit of light.units) ours.add(unit.a).add(unit.z);
+  let first: Node | null = null;
+  let last: Node | null = null;
+  for (let child = host.firstChild; child !== null; child = child.nextSibling)
+    if (child.nodeType === 8 && !ours.has(child)) {
+      first ??= child;
+      last = child;
+    }
+  const ranged = first !== null && first !== last;
+  for (const child of [...host.childNodes]) {
+    if (child.nodeType === 8 || child === light.holding || ours.has(child) || PLACED.has(child)) continue;
+    if (ranged && follows(first!, child) && follows(child, last!)) continue;
+    if (light.units.some((unit) => unit.a !== unit.z && follows(unit.a, child) && follows(child, unit.z))) continue;
+    adopt(light, child);
+  }
+};
 /** A host's light record, new: its holding (bracketed by two comments, so `lastChild` is always an anchor), watched. */
 const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = null): Light => {
   const doc = host.ownerDocument;
@@ -785,14 +895,6 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   holding.append(doc.createComment(''));
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
-  watch(holding, light);
-  /**
-   * **ONE registration over the host's subtree** (observer redesign step 2, 2026-10-17): its own children and every region
-   * and slot inside it — what native slotting reacts to, wherever it sits, so a region's parent needs no registration of
-   * its own. Attribute changes are registered per NODE instead (`own`, a slot's `name` in `watch`): one subtree attribute
-   * registration made Firefox check every attribute write inside the host (−17.7% of light-slots creation).
-   */
-  observersOf(light)[0].observe(host, { childList: true, subtree: true });
   return light;
 };
 
@@ -958,7 +1060,7 @@ const slotBehavior = {
     light.wait = false;
     watch(kept, light);
     distribute(light);
-    take(light);
+    drop(light);
     return rec;
   },
   /** Torn down: its content goes back to holding first, and the element back in its place, before the renderer removes it. */
@@ -969,7 +1071,7 @@ const slotBehavior = {
     for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
     unregion(rec);
     distribute(light);
-    take(light);
+    drop(light);
   },
 };
 
@@ -1109,12 +1211,16 @@ export const slotDiscovery = [
       /** Its own render ended: a fresh light that left the work set (disconnected meanwhile) is distributed now. */
       const own = HOSTS.get(container as Element);
       if (own?.fresh && !own.wait) work.add(own);
+      /** Its first render ending: what changed while it was unobserved is read once, before the distribution below. */
+      if (own !== undefined && own.ho !== true) reconcile(own);
       ending = true;
       try {
         flush(own, container);
       } finally {
         ending = false;
       }
+      /** Observed from here on — after this module's own moves above, which then make no records. */
+      if (own !== undefined) register(own);
     };
   },
 ];
