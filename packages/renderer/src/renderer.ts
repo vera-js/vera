@@ -1371,7 +1371,8 @@ class ChildPart {
         into(parent, ref).insertBefore(instance.$R, ref);
         if (__DEV__) checkForeign(parent, [instance.$R]);
         instance.$k = value.key;
-        instance.$j = value;
+        /** PROBE (marked): only a result the app marked as reusable records its identity. */
+        if ((value as { _$same$?: unknown })._$same$ === 1) instance.$j = value;
         return instance;
       }
     }
@@ -1387,11 +1388,12 @@ class ChildPart {
       item.$p(value);
       return item;
     }
-    /** PROBE: the very result committed last time: nothing to do. */
+    /** PROBE (marked): the very result committed last time, and marked reusable: nothing to do. */
     if (value === item.$j) return item;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._strings) {
       update(item, (value as TemplateResult).values);
-      item.$j = value;
+      if ((value as { _$same$?: unknown })._$same$ === 1) item.$j = value;
+      else if (item.$j !== undefined) item.$j = undefined;
       return item;
     }
     const element = item.$R as Element;
