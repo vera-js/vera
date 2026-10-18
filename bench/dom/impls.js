@@ -285,7 +285,7 @@ import { slots as veraSlots } from '@verajs/renderer/slots';
 const wireVera = () => {
   const mode = new URLSearchParams(location.search).get('vera');
   /** What actually got wired, read off the registry (`_$capture$` is slots' protocol), for `race.mjs` to check against the variant. */
-  const seen = (label) => (registry) => { window.__VERA_WIRING__ = registry._$capture$ !== undefined ? `${label}+slots` : label; };
+  const seen = (label) => (registry) => { window.__VERA_WIRING__ = registry._$capture$ !== undefined ? `${label}+slots` : label; window.__VERA_REGISTRY__ = registry; };
   if (mode === 'slots') wire([veraRenderer, veraSlots, seen('slots')]);
   else if (mode === 'app') wire([veraRenderer, seen('app')]);
   else wire([{ on: 'render', fn: veraDomRender, priority: 50 }, seen('legacy')]);
