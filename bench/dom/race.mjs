@@ -15,7 +15,7 @@
  */
 import { chromium, firefox, webkit } from 'playwright';
 import { createServer } from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -59,12 +59,19 @@ console.log(`tree ${execSync('git rev-parse --short HEAD', { cwd: root }).toStri
 for (const [name, file, query] of variants) console.log(`  ${name}: ${join(directory, file)} sha ${sha(join(directory, file))}${query ? ` ?${query}` : ''}`);
 for (const dist of ['core/dist/vera.min.js', 'renderer/dist/vera-renderer.min.js', 'renderer/dist/vera-renderer-slots.min.js', 'renderer/dist/vera-renderer-keyed.min.js'])
   console.log(`  ${dist} sha ${sha(join(root, 'packages', dist))}`);
+/** Batched ops are tens of µs per op: three decimals below 10 ms, or they all print as 0.1. */
+const fmt = (m) => (m < 10 ? m.toFixed(3) : m.toFixed(1));
+/** `--json=path` writes every session's medians and fastest runs, per engine, for a report to compute from. */
+const json = flag('json');
+const dump = {};
 const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
 const contended = [];
 
 const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch() : webkit.launch();
 for (const engine of engines) {
   const data = {};
+  /** Each session's fastest run, kept for the reference column (the typical case, `data`, is the claim). */
+  const fastest = {};
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
@@ -88,19 +95,24 @@ for (const engine of engines) {
       if (wiring !== expected) throw new Error(`${engine}/${session} ${name}: the page wired ${wiring}, the variant asks for ${expected}`);
       await browser.close();
       for (const [op, byImpl] of Object.entries(results))
-        for (const [impl, r] of Object.entries(byImpl)) ((data[impl] ??= {})[op] ??= {})[name] = [...(data[impl][op][name] ?? []), r?.median ?? NaN];
+        for (const [impl, r] of Object.entries(byImpl)) {
+          ((data[impl] ??= {})[op] ??= {})[name] = [...(data[impl][op][name] ?? []), r?.median ?? NaN];
+          ((fastest[impl] ??= {})[op] ??= {})[name] = [...(fastest[impl][op][name] ?? []), r?.min ?? NaN];
+        }
     }
   }
+  dump[engine] = { data, fastest };
+  if (json) writeFileSync(json, JSON.stringify(dump));
   const base = variants[0][0];
   if (variants.length === 1) {
     /** One build: compare the IMPLEMENTATIONS — median of session medians, and sessions each was fastest in. */
     const impls = Object.keys(data);
     console.log(`\n== ${engine}: ms to paint, median of ${sessions} session medians (sessions fastest)`);
-    console.log('  ' + 'operation'.padEnd(10) + impls.map((n) => n.slice(0, 14).padStart(17)).join(''));
+    console.log('  ' + 'operation'.padEnd(13) + impls.map((n) => n.slice(0, 14).padStart(17)).join(''));
     for (const op of Object.keys(data[impls[0]])) {
       const meds = impls.map((n) => med(data[n][op][base]));
       const wins = impls.map((n) => data[n][op][base].filter((x, s) => impls.every((m) => data[m][op][base][s] >= x)).length);
-      console.log('  ' + op.padEnd(10) + meds.map((m, j) => `${m.toFixed(1)} (${wins[j]})`.padStart(17)).join(''));
+      console.log('  ' + op.padEnd(13) + meds.map((m, j) => `${fmt(m)} (${wins[j]})`.padStart(17)).join(''));
     }
     continue;
   }
