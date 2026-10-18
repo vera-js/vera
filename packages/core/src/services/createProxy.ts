@@ -2,7 +2,7 @@ import { proxyCallbacks, tracking } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { Signal } from '../types.js';
+import type { HookRecord, Signal } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
@@ -38,17 +38,27 @@ const track = (obj: object, prop: unknown) => {
   else (sub.d ??= []).push(hooks);
 };
 
-/** Wakes every live hook that read `obj[prop]`, dropping the ones whose element is gone. */
-const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
-  const hooks = proxyCallbacks.get(obj)?.get(prop);
-  if (hooks === undefined) return;
-  /** ONE signal per write, shared by every subscriber — it is read, never written (a write to a key with 500 readers made 500). */
-  let signal: Signal<unknown> | undefined;
+/**
+ * Wakes every live hook in `hooks` with `signal`, dropping the refs whose hook is gone. The ONE place a notification
+ * goes out, for a single write and a whole-array operation alike. `seen` is the operation's: a hook it already woke
+ * through another key is skipped. ONE signal per write, shared by every subscriber — it is read, never written (a
+ * write to a key with 500 readers made 500).
+ */
+const wake = (hooks: Set<WeakRef<HookRecord>>, signal: Signal<unknown>, seen?: Set<HookRecord>) => {
   for (const ref of hooks) {
     const hook = ref.deref();
     if (hook === undefined) hooks.delete(ref);
-    else hook.$n((signal ??= { prop: prop as string, value, prevValue } as Signal<unknown>));
+    else if (seen === undefined || !seen.has(hook)) {
+      seen?.add(hook);
+      hook.$n(signal);
+    }
   }
+};
+
+/** Wakes every live hook that read `obj[prop]`. */
+const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
+  const hooks = proxyCallbacks.get(obj)?.get(prop);
+  if (hooks !== undefined) wake(hooks, { prop: prop as string, value, prevValue } as Signal<unknown>);
 };
 
 /**
@@ -62,6 +72,63 @@ const GLOBAL = '_global';
 
 /** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 const kit: StoreKit = { track, trigger, shape: GLOBAL };
+
+/**
+ * **A built-in that writes several slots notifies ONCE, after it finishes** (2026-10-18). Called through the proxy,
+ * `splice`, `shift`, `sort` … write index by index through the `set` trap: a hook that runs on each write (a raw
+ * `createHook`, `useSyncEffect`) ran BETWEEN those writes and saw the array half-shifted, a value twice or a hole, and
+ * `splice(400, 1)` on 1000 rows sent 601 notifications. Here the method runs on the RAW array, so no trap fires midway,
+ * and every hook subscribed to anything it changed (an index in the range; `length` and the shape when the length
+ * moved) is told once, with one signal. What crosses back goes through the store as a read would: removed values and
+ * `sort`'s comparator arguments are proxies, and the array itself comes back as the store array.
+ *
+ * What it does NOT cover, on purpose: a user's own multi-statement write (`Object.assign(store, …)`) is several writes
+ * in the language's terms and stays so; a method called OFF the array (`Array.prototype.push.apply(state.rows, more)`)
+ * never reads it through the store, so it still writes index by index — call `state.rows.push(...more)`; `sort` on a
+ * SPARSE array moves its holes without changing its length, and enumeration readers are not told; a `sort` comparator
+ * that WRITES to the store (caching a key on a row) is notified mid-sort, as any write is. Each read of a
+ * mutator hands back a new function (`state.rows.push !== state.rows.push`).
+ */
+const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
+const toStore = (value: unknown) => (value !== null && typeof value === 'object' ? createProxy(value) : value);
+const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => unknown, proxy: unknown) =>
+  function (this: unknown, ...args: unknown[]) {
+    /** Borrowed onto something else (`state.rows.push.call(other, x)`): that is not this store's write. */
+    if (this !== proxy) return method.apply(this, args);
+    const before = obj.length;
+    const compare = args[0];
+    if (name === 'sort' && typeof compare === 'function') args[0] = (a: unknown, b: unknown) => compare(toStore(a), toStore(b));
+    const result = method.apply(obj, args);
+    const after = obj.length;
+    const keys = proxyCallbacks.get(obj);
+    if (keys !== undefined) {
+      /**
+       * The indices that can have changed, to the longer end: an append's and a pop's start at the tail; everything
+       * else from 0. `splice` could start at its own start, but that cost 47 B and saves only a re-run of a hook that
+       * reads an index BELOW it (`each` rows read their item, never an index: measured, the same rows re-render).
+       */
+      const lo = name === 'push' ? before : name === 'pop' ? after : 0;
+      const hi = before > after ? before : after;
+      /**
+       * ONE signal for the whole operation, on the shape channel with the array as its value: "the contents changed,
+       * re-read". Not `length`: `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would
+       * read as nothing happened.
+       */
+      const signal = { prop: GLOBAL, value: obj } as Signal<unknown>;
+      const seen = new Set<HookRecord>();
+      const send = (key: unknown) => {
+        const hooks = keys.get(key);
+        if (hooks !== undefined) wake(hooks, signal, seen);
+      };
+      for (let i = lo; i < hi; i++) send(String(i));
+      if (after !== before) {
+        send('length');
+        send(GLOBAL);
+      }
+    }
+    if (result === obj) return proxy;
+    return name === 'splice' ? (result as unknown[]).map(toStore) : toStore(result);
+  };
 
 /**
  * The exact property the `set` trap is writing, which `defineProperty` reads to recognize its own
@@ -242,7 +309,11 @@ const handler: ProxyHandler<object> = {
      * caught on the cache miss and remembered as `null` — "never wrap" — so the descriptor is read once
      * per value, never per read. A value of a type nothing claims is remembered the same way.
      */
-    if (value === null || typeof value !== 'object' || FIXED.has(obj)) return value;
+    if (value === null || typeof value !== 'object' || FIXED.has(obj))
+      /** A built-in that writes several slots, on an array: run whole, notify once (`atomic`, above). */
+      return typeof value === 'function' && Array.isArray(obj) && MUTATORS.has(prop as string)
+        ? atomic(obj as unknown[], prop as string, value as (...args: unknown[]) => unknown, receiver)
+        : value;
     let proxy = proxies.get(value);
     if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
     if (proxy === undefined) {
