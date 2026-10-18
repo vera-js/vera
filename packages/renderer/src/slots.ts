@@ -1121,7 +1121,8 @@ const slotBehavior = {
  */
 let warnedUnadopted = false;
 const unadopted = (container: Node) => {
-  const spec = container.nodeType === 1 ? (container as Element).getAttribute(LIGHT_ATTR) : null;
+  /** An empty container holds no server markup to append beside: no attribute read for it (every component's first render). */
+  const spec = container.nodeType === 1 && container.firstChild !== null ? (container as Element).getAttribute(LIGHT_ATTR) : null;
   if (spec === null) return;
   if (!spec.endsWith(':'))
     /**
@@ -1200,6 +1201,8 @@ export const slotDiscovery = [
     name: '@verajs/renderer/slots-capture',
     on: 'init' as const,
     fn: (element: Element) => {
+      /** Nothing to hide and nothing expected (the cheap test first — it settles every plain component). */
+      if (element.firstChild === null && !strict(element)) return;
       /**
        * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
        * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
@@ -1210,7 +1213,7 @@ export const slotDiscovery = [
        * An EMPTY host is not captured: with nothing to hide it needs slots only once its template renders a `<slot>`
        * (`mount` makes its light then). One an outer template fills always has that part's markers by now.
        */
-      if ((element.firstChild !== null || strict(element)) && isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
+      if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
     },
     priority: 10,
   },
