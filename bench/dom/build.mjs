@@ -57,6 +57,24 @@ const solidPlugin = () => ({
   },
 });
 
+/**
+ * Vue single-file components compiled the way Vue ships them (`@vitejs/plugin-vue` in production): the template
+ * inlined into the setup function, with patch flags, hoisting and v-memo.
+ */
+const vuePlugin = () => ({
+  name: 'vue',
+  setup(build) {
+    build.onLoad({ filter: /\.vue$/ }, async (args) => {
+      const sfc = require(process.cwd() + '/bench/node_modules/@vue/compiler-sfc');
+      const { readFileSync } = await import('node:fs');
+      const { dirname } = await import('node:path');
+      const { descriptor } = sfc.parse(readFileSync(args.path, 'utf8'), { filename: args.path });
+      const { content } = sfc.compileScript(descriptor, { id: 'bench', inlineTemplate: true, isProd: true });
+      return { contents: content, loader: 'js', resolveDir: dirname(args.path) };
+    });
+  },
+});
+
 const out = await esbuild.build({
   entryPoints: ['bench/dom/main.js'],
   /**
@@ -72,8 +90,9 @@ const out = await esbuild.build({
   target: 'es2022',
   write: false,
   absWorkingDir: process.cwd(),
-  define: { 'process.env.NODE_ENV': '"production"' },
-  plugins: [sveltePlugin(), solidPlugin()],
+  /** Vue's feature flags as `@vitejs/plugin-vue` sets them for production; undefined, Vue falls back at runtime. */
+  define: { 'process.env.NODE_ENV': '"production"', __VUE_OPTIONS_API__: 'true', __VUE_PROD_DEVTOOLS__: 'false', __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false' },
+  plugins: [sveltePlugin(), solidPlugin(), vuePlugin()],
 });
 
 const code = out.outputFiles[0].text;

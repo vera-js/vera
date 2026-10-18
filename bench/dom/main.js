@@ -27,6 +27,9 @@
  */
 import { IMPLEMENTATIONS as ALL, resetIds } from './impls.js';
 
+/** For probes that drive an implementation directly (the markup-parity check). */
+window.__BENCH__ = { IMPLEMENTATIONS: ALL, resetIds };
+
 /** `?only=VeraJS own,Lit` runs those implementations alone — a race compares builds, not the whole table. */
 const only = new URLSearchParams(location.search).get('only')?.split(',');
 const IMPLEMENTATIONS = only ? ALL.filter((impl) => only.includes(impl.name)) : ALL;

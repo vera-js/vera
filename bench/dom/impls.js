@@ -126,15 +126,12 @@ const litImpl = (mount) => {
     createRenderRoot() { return this; }
     constructor() { super(); this.rows = []; this.selected = -1; }
     render() {
-      return litHtml`<table><tbody>
-        ${repeat(
+      return litHtml`<table><tbody>${repeat(
           this.rows,
           (r) => r.id,
-          (r) => litHtml`<tr class=${this.selected === r.id ? 'selected' : nothing}>
-            <td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td>
-          </tr>`
-        )}
-      </tbody></table>`;
+          /** One line: the indentation was whitespace text nodes in every row, DOM no other implementation built (2026-10-18). */
+          (r) => litHtml`<tr class=${this.selected === r.id ? 'selected' : nothing}><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`
+      )}</tbody></table>`;
     }
   }
   if (!customElements.get('bench-table')) customElements.define('bench-table', BenchTable);
@@ -163,9 +160,88 @@ const litImpl = (mount) => {
   };
 };
 
+/** Vue as its own benchmark entry writes it: a compiled template with keyed v-for and v-memo, labels edited in place. */
+import VueRows from './vue/Rows.vue';
+import { rows as vueRows, selected as vueSelected } from './vue/state.js';
+
+const vueCompiledImpl = (mount) => {
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  vueRows.value = [];
+  vueSelected.value = -1;
+  const app = createApp(VueRows);
+  app.mount(host);
+  const settle = () => nextTick();
+  const setRows = (next = vueRows.value.slice()) => { vueRows.value = next; };
+  return {
+    create: (n, seed) => { setRows(buildData(n, seed)); return settle(); },
+    append: (n, seed) => { setRows(vueRows.value.concat(buildData(n, seed))); return settle(); },
+    updateEvery10th: () => { const r = vueRows.value; for (let i = 0; i < r.length; i += 10) r[i].label += ' !!!'; setRows(); return settle(); },
+    swap: () => { const r = vueRows.value; if (r.length > 998) { const t = r[1]; r[1] = r[998]; r[998] = t; setRows(); } return settle(); },
+    select: (i) => { vueSelected.value = vueRows.value[i]?.id ?? -1; return settle(); },
+    remove: (i) => { vueRows.value.splice(i, 1); setRows(); return settle(); },
+    clear: () => { setRows([]); return settle(); },
+    teardown: () => { app.unmount(); host.remove(); },
+  };
+};
+
 /* ── Van.js ─────────────────────────────────────────────────────────────────── */
 
 import van from 'vanjs-core';
+
+/**
+ * Van.js as its own benchmark entry writes it (krausest/js-framework-benchmark frameworks/keyed/vanjs/src/Main.js,
+ * checked 2026-10-18): rows are added one by one, each a binding over a per-row `deleted` state, labels are states,
+ * selection is ONE derive that touches the old and new row, and swap moves two DOM nodes. Van has no keyed list, so this
+ * is how its authors write one. Adapted to this harness's markup: no ids or handlers on rows, and the old row's class
+ * is removed (not set to "") so an unselected row carries no class attribute, as in every other implementation. The
+ * harness removes by INDEX where upstream removes by row, so deleted rows are filtered before each op (upstream filters
+ * lazily, at half deleted): one pass over the rows, a few µs.
+ */
+const vanIdiomaticImpl = (mount) => {
+  const { table, tbody, tr, td, a } = van.tags;
+  const body = tbody();
+  mount.appendChild(table(body));
+  let rows = [];
+  let numDeleted = 0;
+  /** Upstream finds a row's element by its `id` attribute; this markup has none, so a map does the same O(1) lookup. */
+  const byId = new Map();
+  const selected = van.state(-1);
+  van.derive(() => {
+    const { val, oldVal } = selected;
+    byId.get(oldVal)?.el?.removeAttribute('class');
+    const now = byId.get(val);
+    if (now?.el) now.el.className = 'selected';
+  });
+  const live = () => { if (numDeleted) { rows = rows.filter((r) => !r.deleted.val); numDeleted = 0; } };
+  const addRows = (data) => {
+    for (const { id, label } of data) {
+      const row = { id, label: van.state(label), deleted: van.state(false), el: null };
+      van.add(body, () => (row.deleted.val ? null : (row.el = tr(td(String(id)), td(a(row.label)), td(a('x'))))));
+      rows.push(row);
+      byId.set(id, row);
+    }
+  };
+  const clear = () => { body.textContent = ''; rows = []; byId.clear(); numDeleted = 0; };
+  return {
+    create: (n, seed) => { clear(); addRows(buildData(n, seed)); },
+    append: (n, seed) => { addRows(buildData(n, seed)); },
+    updateEvery10th: () => { live(); for (let i = 0; i < rows.length; i += 10) rows[i].label.val += ' !!!'; },
+    swap: () => {
+      live();
+      if (rows.length > 998) {
+        const t = rows[1]; rows[1] = rows[998]; rows[998] = t;
+        const spare = document.createElement('span');
+        const dom1 = body.childNodes[1], dom2 = body.childNodes[998];
+        dom1.replaceWith(spare); dom2.replaceWith(dom1); spare.replaceWith(dom2);
+      }
+    },
+    select: (i) => { live(); selected.val = rows[i]?.id ?? -1; },
+    remove: (i) => { live(); rows[i].deleted.val = true; numDeleted++; },
+    clear,
+    teardown: () => { mount.textContent = ''; },
+  };
+};
 
 const vanImpl = (mount) => {
   const { table, tbody, tr, td, a } = van.tags;
@@ -621,6 +697,32 @@ const svelteImpl = (mount) => {
   };
 };
 
+import SvelteRowsRunes from './svelte/RowsRunes.svelte';
+import { runes as svelteRunes, Row as SvelteRow } from './svelte/runes-state.svelte.js';
+
+/** Svelte as its own benchmark entry writes it: runes mode, `$state.raw` rows and selection, a `$state.raw` label per row. */
+const svelteRunesImpl = (mount) => {
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  svelteRunes.rows = [];
+  svelteRunes.selected = -1;
+  const app = svelteMount(SvelteRowsRunes, { target: host });
+  const rowsOf = (data) => data.map((d) => new SvelteRow(d.id, d.label));
+  return {
+    create: (n, seed) => { const next = rowsOf(buildData(n, seed)); svelteFlush(() => (svelteRunes.rows = next)); },
+    append: (n, seed) => { const more = rowsOf(buildData(n, seed)); svelteFlush(() => (svelteRunes.rows = [...svelteRunes.rows, ...more])); },
+    updateEvery10th: () => svelteFlush(() => { const r = svelteRunes.rows; for (let i = 0; i < r.length; i += 10) r[i].label = r[i].label + ' !!!'; }),
+    swap: () => svelteFlush(() => {
+      const r = svelteRunes.rows;
+      if (r.length > 998) { const next = r.slice(); const t = next[1]; next[1] = next[998]; next[998] = t; svelteRunes.rows = next; }
+    }),
+    select: (i) => svelteFlush(() => (svelteRunes.selected = svelteRunes.rows[i]?.id ?? -1)),
+    remove: (i) => svelteFlush(() => { const next = svelteRunes.rows.slice(); next.splice(i, 1); svelteRunes.rows = next; }),
+    clear: () => svelteFlush(() => (svelteRunes.rows = [])),
+    teardown: () => { svelteUnmount(app); host.remove(); },
+  };
+};
+
 export const IMPLEMENTATIONS = [
   { name: 'VeraJS', note: 'core + lit-html', factory: veraImpl },
   { name: 'VeraJS own', note: 'core + @verajs/renderer', factory: veraOwnImpl },
@@ -631,9 +733,12 @@ export const IMPLEMENTATIONS = [
   { name: 'Lit', note: 'LitElement', factory: litImpl },
   { name: 'Solid', note: 'solid-js compiled (babel-preset-solid), For + createSelector', factory: solidCompiledImpl },
   { name: 'Solid (h)', note: 'solid-js/h, no compiler (the race used this one until 2026-10-18)', factory: solidImpl },
-  { name: 'Vue', note: 'vue runtime, h()', factory: vueImpl },
-  { name: 'Van.js', note: 'vanjs-core', factory: vanImpl },
-  { name: 'Svelte', note: 'svelte 5 runes (needs a compiler)', factory: svelteImpl },
+  { name: 'Vue', note: 'vue compiled template, keyed v-for + v-memo', factory: vueCompiledImpl },
+  { name: 'Vue (h)', note: 'vue h(), no compiler or memo (the race used this one until 2026-10-18)', factory: vueImpl },
+  { name: 'Van.js', note: 'vanjs-core, per-row states (its benchmark entry)', factory: vanIdiomaticImpl },
+  { name: 'Van.js (rebuild)', note: 'vanjs-core, whole list rebuilt (the race used this one until 2026-10-18)', factory: vanImpl },
+  { name: 'Svelte', note: 'svelte 5 runes, $state.raw (its benchmark entry)', factory: svelteRunesImpl },
+  { name: 'Svelte (legacy)', note: 'svelte 5 legacy mode, deep $state (the race used this one until 2026-10-18)', factory: svelteImpl },
   { name: 'Preact', note: 'preact + hooks', factory: preactImpl },
   { name: 'React', note: 'react-dom, flushSync', factory: reactImpl },
 ];
