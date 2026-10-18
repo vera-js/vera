@@ -230,7 +230,8 @@ const eachValue = (part: object, value: unknown) => {
   let i = 0;
   /**
    * **Last render's rows, in order** (`$L`): an item still where it was, or where it was shifted by the change in length
-   * (everything after one insert or removal), is its own row again with no key read and no lookup. Only the slots near
+   * (everything after one insert or removal) and the SAME item (`===`, the store hands back one proxy per object), is
+   * its own row again with no key read and no lookup. Only the slots near
    * a change go through the key.
    */
   const prev = p.$L;
