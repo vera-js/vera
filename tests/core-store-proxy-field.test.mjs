@@ -84,3 +84,28 @@ test('two copies of core keep separate fields on one shared raw object', async (
   assert.equal(two.o, two.o);
   assert.equal(Object.getOwnPropertySymbols(raw).length, 2);
 });
+
+test('a store written into a store is stored RAW, and reads back as the same proxy', () => {
+  const rawO = { a: 1 };
+  const rawList = [{ id: 1 }, { id: 2 }];
+  const state = createStore({ o: rawO, list: rawList });
+  const o = state.o;
+  state.list[0] = o;
+  assert.equal(rawList[0], rawO, 'assignment stored the raw object');
+  assert.equal(state.list[0], o, 'and a read hands back the same proxy');
+  state.list.push(o);
+  assert.equal(rawList[2], rawO, 'push stored it raw too');
+  state.list.splice(1, 0, o);
+  assert.equal(rawList[1], rawO, 'and splice');
+  state.other = state.list;
+  assert.equal(state.other, state.list);
+});
+
+test('a store of another kind (shallow) is kept as it is', async () => {
+  const { shallowRef } = await load('core');
+  const ref = shallowRef({ deep: { x: 1 } });
+  const raw = {};
+  const state = createStore({ box: raw });
+  state.box.ref = ref;
+  assert.equal(raw.ref, ref, 'a shallow ref is not unwrapped');
+});

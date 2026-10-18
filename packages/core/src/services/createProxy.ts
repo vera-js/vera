@@ -90,6 +90,8 @@ const kit: StoreKit = { track, trigger, shape: GLOBAL };
  * mutator hands back a new function (`state.rows.push !== state.rows.push`).
  */
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
+const unwrap = (value: unknown) =>
+  value !== null && typeof value === 'object' ? ((value as Record<symbol, unknown>)[RAW] ?? value) : value;
 const toStore = (value: unknown) => (value !== null && typeof value === 'object' ? createProxy(value) : value);
 const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => unknown, proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
@@ -98,6 +100,8 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     const before = obj.length;
     const compare = args[0];
     if (name === 'sort' && typeof compare === 'function') args[0] = (a: unknown, b: unknown) => compare(toStore(a), toStore(b));
+    /** What the method INSERTS is stored raw, as a `set` stores it (`push(state.rows[0])` hands in a proxy). */
+    else for (let i = name === 'splice' ? 2 : 0; i < (name === 'fill' ? 1 : args.length); i++) args[i] = unwrap(args[i]);
     const result = method.apply(obj, args);
     const after = obj.length;
     const keys = proxyCallbacks.get(obj);
@@ -322,6 +326,7 @@ const nested = (obj: object, prop: PropertyKey, value: object) => {
 const handler: ProxyHandler<object> = {
   get(obj: object, prop, receiver) {
     if (prop === PROXY) return undefined;
+    if (prop === RAW) return obj;
     const value = Reflect.get(obj, prop, receiver);
     track(obj, prop);
     /**
@@ -354,6 +359,16 @@ const handler: ProxyHandler<object> = {
     return keys;
   },
   set(obj, prop, value, receiver) {
+    /**
+     * **A store written into a store is stored RAW** (2026-10-18): what a read hands back is unchanged (one proxy per
+     * object, from the cache), but the raw data never holds a proxy, so a walk over it never meets one (a read on a
+     * proxy is a trap call the engine cannot cache: Chrome's swap paid +12% for two such slots). A store of another
+     * kind (`createShallow`) does not answer `RAW` and is kept as it is.
+     */
+    if (value !== null && typeof value === 'object') {
+      const raw = (value as Record<symbol, object | undefined>)[RAW];
+      if (raw !== undefined) value = raw;
+    }
     const prevValue = Reflect.get(obj, prop, receiver);
     if (prevValue === value) return true;
     /**
@@ -539,7 +554,15 @@ export const walkItems = (list: unknown, visit: (raw: unknown, item: unknown) =>
   const fixed = FIXED.has(raw);
   for (let i = 0; i < raw.length; i++) {
     const value = raw[i];
-    visit(value, value === null || typeof value !== 'object' || fixed ? value : nested(raw, i, value));
+    if (value === null || typeof value !== 'object' || fixed) visit(value, value);
+    else {
+      /**
+       * The cache field read HERE, not through `cached`: this site only ever meets one list's items, so the engine keeps
+       * the read monomorphic; `cached`, shared by every object in the app, goes megamorphic (measured: Chrome swap +12%).
+       */
+      const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
+      visit(value, slot !== undefined && slot.o === value ? (slot.p ?? value) : nested(raw, i, value));
+    }
   }
   return true;
 };
