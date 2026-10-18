@@ -40,7 +40,7 @@ type Kept = HTMLSlotElement & { $rec?: Rec; _$region$?: [Comment, Comment] };
  * `wait`: captured by a template that placed runs into this host during hydration, before the host's own slots exist —
  * nothing distributes until the first of them mounts, so the nodes stay exactly where the server put them.
  */
-type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: Pair };
+type Light = { host: Element; units: Unit[]; holding: Element; recs: Rec[]; dirty: boolean; fresh: boolean; late: boolean; wait: boolean; obs?: Pair; hw?: boolean };
 
 /**
  * **Unassigned content stays CONNECTED, as under native slots** — it waits in `<ins hidden data-vm-unassigned>`, the
@@ -74,8 +74,6 @@ const unpark = (light: Light) => {
 const HOSTS = new WeakMap<Element, Light>();
 /** The static children an outer template gave a host, recorded when its instance was created (see `hostBehavior`). */
 const STATICS = new WeakMap<Element, Set<Node>>();
-/** Which light a node that might change belongs to — a holding fragment, or a parent a region lives in. */
-const WATCHED = new WeakMap<Node, Set<Light>>();
 /** A run's node in a slot, and the comment holding its place in the run — both ways. */
 const STAND = new WeakMap<Node, Comment>();
 const REAL = new WeakMap<Node, Node>();
@@ -402,6 +400,15 @@ const place = (light: Light) => {
 type Pair = [MutationObserver, MutationObserver];
 const observersOf = (light: Light): Pair => {
   const Observer = globalThis.MutationObserver ?? (light.host.ownerDocument.defaultView as typeof globalThis).MutationObserver;
+  /**
+   * Bound to their light (2026-10-17): a record can only reach a light through what THAT light registered, so it arrives
+   * already knowing whose it is — no node → lights lookup, and no per-node bookkeeping (a WeakMap entry and a Set for every
+   * watched node were ~164 ms of Chrome's slots creation at 10 000 hosts).
+   */
+  const handle = (records: MutationRecord[]) => {
+    note(light, records);
+    flush();
+  };
   return (light.obs ??= [new Observer(handle), new Observer(handle)]);
 };
 /**
@@ -410,42 +417,54 @@ const observersOf = (light: Light): Pair => {
  * One observer for every parked root (the renderer's `_$parked$`), registering the same root again when it parks again.
  */
 let parkedObserver: MutationObserver | undefined;
-/** A light's pending records, onto `into` — or dropped, without `into` (this module's own moves). */
-const take = (light: Light, into?: MutationRecord[]) => {
-  if (light.obs !== undefined)
-    for (const observer of light.obs) {
-      const records = observer.takeRecords();
-      if (into !== undefined) for (const record of records) into.push(record);
-    }
+const parkedHandle = (records: MutationRecord[]) => {
+  noteParked(records);
+  flush();
+};
+/** A light's pending records — returned, or dropped by a caller that ignores them (this module's own moves). */
+const take = (light: Light): MutationRecord[] => {
+  if (light.obs === undefined) return [];
+  const [children, attributes] = light.obs;
+  const records = children.takeRecords();
+  for (const record of attributes.takeRecords()) records.push(record);
+  return records;
 };
 /** A render is ending (the renderer's `_$done$`): captured children no slot took are parked now, not before. */
 let ending = false;
 /** Records of this module's own moves, taken and dropped once it is done — they are not news. */
 /** How many nodes this batch has put ahead of everything, per host — so a batch's front insertions keep their order. */
 let lead = new WeakMap<Light, number>();
-const note = (records: MutationRecord[]) => {
+/** Whether THIS light watches `node` — its holding, a region's parent, one of its slots, or its host as a region parent. */
+const watchedBy = (light: Light, node: Node) =>
+  node === light.holding ||
+  (node === light.host && light.hw === true) ||
+  (node as Kept).$rec?.light === light ||
+  light.recs.some((rec) => rec.re !== null && rec.re.parentNode === node);
+const note = (light: Light, records: MutationRecord[]) => {
   lead = new WeakMap();
   for (const record of records) {
-    let target: Node | null = record.target;
-    /** An attribute record names the element; its light is found through the parent it sits in. */
+    const target: Node = record.target;
+    /** An attribute record names the element: a slot's own name, or a node under something this light watches. */
     if (record.type === 'attributes') {
       const rec = (target as Kept).$rec;
       if (rec !== undefined) {
         mark(rec.light);
         continue;
       }
-      while (target !== null && !WATCHED.has(target)) target = target.parentNode;
-      if (target === null) continue;
+      for (let node: Node | null = target; node !== null; node = node.parentNode)
+        if (watchedBy(light, node)) {
+          mark(light);
+          break;
+        }
+      continue;
     }
-    const lights = WATCHED.get(target);
-    if (lights !== undefined)
-      for (const light of lights) {
-        mark(light);
-        if (record.type === 'childList') replay(light, record);
-      }
+    /** A watched node's children: replayed into the runs (the host too, when a region sits directly in it). */
+    if (target !== light.host || light.hw === true) {
+      mark(light);
+      replay(light, record);
+    }
     /** A host's own children: an addition outside its render's range is a new light child. */
-    const light = HOSTS.get(record.target as Element);
-    if (light !== undefined && record.type === 'childList') {
+    if (target === light.host) {
       /**
        * Until its first render ends, a run still sits IN the host — so what the renderer takes from it there (a node a slot
        * already took, through its stand-in) is read back as it is in holding. Missed, the stand-in went and its node stayed
@@ -465,9 +484,24 @@ const note = (records: MutationRecord[]) => {
     }
   }
 };
-const handle = (records: MutationRecord[]) => {
-  note(records);
-  flush();
+/**
+ * A `hold()`-parked branch's renames (`parkedObserver`, one for every parked root): routed by the node's own marks — a
+ * slot's light, a placed node's slot's light, or the host it sits in — since no per-node watcher list exists any more.
+ */
+const noteParked = (records: MutationRecord[]) => {
+  for (const record of records)
+    for (let node: Node | null = record.target; node !== null; node = node.parentNode) {
+      const own = (node as Kept).$rec ?? PLACED.get(node);
+      if (own) {
+        mark(own.light);
+        break;
+      }
+      const light = HOSTS.get(node as Element);
+      if (light !== undefined) {
+        mark(light);
+        break;
+      }
+    }
 };
 /**
  * **The lights that need work** — dirty, or fresh until their first render ends, never one waiting for its own slots
@@ -492,7 +526,6 @@ const mark = (light: Light) => {
  */
 const flush = (context?: Light, root?: Node) => {
   if (busy) return;
-  const records: MutationRecord[] = [];
   const near: Light[] = [];
   if (context !== undefined) near.push(context);
   const fed = root === undefined ? undefined : FED.get(root);
@@ -507,10 +540,10 @@ const flush = (context?: Light, root?: Node) => {
         return true;
       })
     );
-  for (const light of near) take(light, records);
-  for (const light of work) take(light, records);
-  if (parkedObserver !== undefined) for (const record of parkedObserver.takeRecords()) records.push(record);
-  note(records);
+  /** Each light's records, read by that light (they arrive knowing whose they are), then the parked branches'. */
+  for (const light of near) note(light, take(light));
+  for (const light of work) note(light, take(light));
+  if (parkedObserver !== undefined) noteParked(parkedObserver.takeRecords());
   for (const light of work) {
     if (light.dirty || (ending && light.fresh)) {
       distribute(light);
@@ -522,10 +555,8 @@ const flush = (context?: Light, root?: Node) => {
   for (const light of near) take(light);
 };
 const watch = (node: Node, light: Light) => {
-  let set = WATCHED.get(node);
-  if (set === undefined) WATCHED.set(node, (set = new Set()));
-  if (set.has(light)) return;
-  set.add(light);
+  /** Registering a node again on the same observer with the same options is a no-op, so no "already watched" record is kept. */
+  if (node === light.host) light.hw = true;
   const [children, attributes] = observersOf(light);
   children.observe(node, { childList: true });
   /** A slot steps OUT of the page while it has content, out of its host's subtree: its own name (and its fallback's slots) are watched on it. */
@@ -678,6 +709,13 @@ const release = (light: Light) => {
   light.holding.remove();
   HOSTS.delete(light.host);
   work.delete(light);
+  /**
+   * Its observers go with it. Bound to their light, they would otherwise keep handling the host's records as this light's
+   * — adopting the platform's own light children into a holding that no longer exists (renderer-slots' native-sequence
+   * row, 2026-10-17). Before the binding, a released light's records were simply not found and dropped.
+   */
+  if (light.obs !== undefined) for (const observer of light.obs) observer.disconnect();
+  light.obs = undefined;
 };
 
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
@@ -1003,7 +1041,7 @@ export const slotDiscovery = [
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
     (registry as unknown as { _$unadopted$?: (container: Node) => void })._$unadopted$ = unadopted;
     (registry as unknown as { _$parked$?: (root: Node) => void })._$parked$ = (root) =>
-      (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(handle)).observe(root, {
+      (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(parkedHandle)).observe(root, {
         attributes: true,
         attributeFilter: ['slot'],
         subtree: true,
