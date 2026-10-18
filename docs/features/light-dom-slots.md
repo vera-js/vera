@@ -44,9 +44,10 @@ counts as a difference:
 npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
 ```
 
-Every scenario there matches native on Chromium, Firefox and WebKit. The file keeps a list of known
-divergences, empty today: an entry asserts that it still diverges, so a shape cannot quietly regress
-into it, nor be fixed without the list changing.
+Every scenario there matches native on Chromium, Firefox and WebKit, except three it lists as known
+divergences — `assignedSlot` (deliberately not emulated: ask the slot), and a `<slot>` removed or inserted
+by hand rather than through the template. An entry asserts that it still diverges, so a shape cannot
+quietly regress into it, nor be fixed without the list changing.
 
 Content a binding writes is distributed node by node, exactly as the same markup written by hand —
 a keyed list whose rows name different slots, rows reordered, inserted, removed, re-slotted or
@@ -130,6 +131,9 @@ comparison or a property read at those points and nothing else.
   suppresses the default fallback, exactly as it does in a shadow root; and re-slotting a node
   (`slot="a"` → `"b"`) puts it back in light-tree order rather than the order it arrived, so an item
   toggled into a "pinned" slot holds its place instead of jumping to the end.
+- **`<slot>`s come from the template.** Removing an assigned `<slot>` by hand leaves its content shown
+  (it has already stepped out of the page), and a `<slot>` inserted by hand stays empty; a shadow root
+  reacts to both. Render slots conditionally from the template instead, which behaves the same in both modes.
 - **A `<slot>` cannot sit inside table markup** — `<table><tbody><slot></slot></tbody></table>`
   does not do what it looks like, in EITHER mode. The HTML parser's table insertion mode rejects a
   `<slot>` element and foster-parents it out, so the slot and everything distributed into it end up

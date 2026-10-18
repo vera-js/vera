@@ -134,7 +134,7 @@ const el = (tag, attrs = {}, content = '') => {
  * page settles, and both views are read. `detached` leaves the hosts off the page until a step
  * attaches them; `side.parts` collects the parts of every `later()` applier, in the order attached.
  */
-const run = async ({ draw, children = () => [], hosts = 1, detached = false, steps }) => {
+const run = async ({ draw, children = () => [], hosts = 1, detached = false, steps, probe }) => {
   const sides = ['native', 'light'].map((mode) => {
     const side = { mode, ids: new Map(), count: 0, hosts: [], targets: [], parts: [] };
     for (let i = 0; i < hosts; i++) {
@@ -155,7 +155,7 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
         try {
           await step(side);
           await settle();
-          trace[side.mode].push(`${label}: ${view(side)}`);
+          trace[side.mode].push(`${label}: ${view(side)}${probe ? ` | ${probe(side)}` : ''}`);
         } catch (error) {
           trace[side.mode].push(`${label}: THREW ${error.name}: ${error.message}`);
         }
@@ -174,6 +174,9 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
  * changes all three in the same commit.
  */
 const KNOWN = new Map([
+  ['assignedSlot names the slot a light child is in', 'assignedSlot is not emulated: a light child reads null (2026-10-17 baseline)'],
+  ['the user removes a slot by hand', 'an assigned <slot> has stepped out of the page, so removing it by hand changes nothing: its content stays shown (2026-10-17 baseline)'],
+  ['the user inserts a slot by hand', 'only <slot>s a template renders take part; one inserted by hand stays empty (2026-10-17 baseline)'],
 ]);
 
 const scenario = (name, spec) =>
@@ -747,5 +750,88 @@ scenario('a discarded part\'s applier commits during another host\'s render', {
     ['X with the applier', (side) => side.render({ a: true }, 0)],
     ['X swaps it out', (side) => side.render({ a: false }, 0)],
     ['Y renders, the stale part commits', (side) => { side.hosts[1].append(el('b', {}, 'Y-USER')); side.render({ y: true }, 1); }],
+  ],
+});
+
+/* ------------------------------------------------------------------------------------------------ */
+/* The user acting on <slot> elements themselves, and the slot APIs (2026-10-17, before the observer */
+/* redesign — the baseline it is checked against: DESIGN-SLOTS-OBSERVERS)                            */
+/* ------------------------------------------------------------------------------------------------ */
+
+/**
+ * The slot APIs, read the same way on both sides: each referenced slot's `assignedNodes()` (as element numbers and
+ * text), each user child's `assignedSlot` (by the slot's ref name), and how many `slotchange` events each slot fired.
+ */
+const apis = (side) => {
+  const name = (node) => (node.nodeType === 1 ? `#${side.ids.get(node) ?? '?'}` : JSON.stringify(node.data ?? ''));
+  const refs = side.slots ?? {};
+  const assigned = Object.keys(refs).sort().map((k) => `${k}=[${(refs[k].assignedNodes?.() ?? ['NO-API']).map((n) => (typeof n === 'string' ? n : name(n))).join(',')}]`);
+  const fired = Object.keys(refs).sort().map((k) => `${k}:${side.fired?.[k] ?? 0}`);
+  return `${assigned.join(' ')} ; slotchange ${fired.join(' ')}`;
+};
+/** Each user child's `assignedSlot`, by the slot's ref name. */
+const owners = (side) => {
+  const refs = side.slots ?? {};
+  return side.user.filter((n) => n.nodeType === 1).map((n) => {
+    const slot = n.assignedSlot;
+    return `${n.localName}->${slot == null ? 'null' : (Object.keys(refs).find((k) => refs[k] === slot) ?? 'other')}`;
+  }).join(' ');
+};
+/** A slot the template hands to the scenario, by name, with its slotchange counted. */
+const refSlot = (side, key) => (el) => {
+  if (el === null || (side.slots ??= {})[key] === el) return;
+  side.slots[key] = el;
+  el.addEventListener('slotchange', () => { (side.fired ??= {})[key] = ((side.fired ??= {})[key] ?? 0) + 1; });
+};
+const named = (side) => html`<header><slot name="h" &ref=${refSlot(side, 'h')}>fh</slot></header><main><slot &ref=${refSlot(side, 'd')}>fd</slot></main>`;
+
+scenario('the slot APIs agree with native while children change', {
+  draw: (state, side) => named(side),
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
+  probe: apis,
+  steps: [
+    ['render', (side) => side.render()],
+    ['add a named child', (side) => side.hosts[0].append(el('u', { slot: 'h' }, 'U'))],
+    ['re-slot it', (side) => side.hosts[0].querySelector('u').setAttribute('slot', 'nowhere')],
+    ['remove the first', (side) => side.hosts[0].querySelector('b').remove()],
+  ],
+});
+
+scenario('assignedSlot names the slot a light child is in', {
+  draw: (state, side) => named(side),
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
+  probe: owners,
+  steps: [
+    ['render', (side) => side.render()],
+    ['re-slot b away', (side) => side.hosts[0].querySelector('b').setAttribute('slot', 'nowhere')],
+  ],
+});
+
+scenario('the user renames a slot by hand', {
+  draw: (state, side) => named(side),
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', { slot: 'x' }, 'X')],
+  probe: apis,
+  steps: [
+    ['render', (side) => side.render()],
+    ['rename h → x', (side) => { side.slots.h.name = 'x'; }],
+    ['rename back with setAttribute', (side) => side.slots.h.setAttribute('name', 'h')],
+  ],
+});
+
+scenario('the user removes a slot by hand', {
+  draw: (state, side) => named(side),
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['remove the named slot', (side) => side.slots.h.remove()],
+  ],
+});
+
+scenario('the user inserts a slot by hand', {
+  draw: (state, side) => html`<header><slot name="h">fh</slot></header><main></main>`,
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['append a default slot into main', (side) => side.targets[0].querySelector('main').append(document.createElement('slot'))],
   ],
 });

@@ -691,6 +691,10 @@ return () => html`<header>
   platform accessor tied to real shadow assignment, and overriding it on YOUR nodes is an intrusion
   this module refuses. The forward reads carry the same fact: `slot.assignedNodes().includes(node)`
   through a `&ref`, or `slotted(host, name)` from outside.
+- **Add or remove `<slot>`s through the template, not by hand.** A slot with content has stepped out of
+  the page, so removing it by hand changes nothing and its content stays shown; a `<slot>` inserted by
+  hand is not one the template rendered, so it stays empty. In a shadow root both take effect at once.
+  Render the slot conditionally instead (`${open ? html`<slot></slot>` : null}`), which works in both.
 - **Bind `slotchange` directly — do not count on it reaching the host.** In a shadow root one listener
   on the root hears every slot by bubbling. Here a slot with content is out of the document, so the
   event fired as it fills has no tree to climb, while the one fired as it empties — the slot is back
