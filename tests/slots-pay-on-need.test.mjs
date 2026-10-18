@@ -159,3 +159,43 @@ test('a list a TEMPLATE renders, of components it gives no children, makes slots
   list.remove();
 });
 
+
+test('a child PREPENDED by hand to a slotless host is slotted once a re-render brings a slot (the late light captures it)', async () => {
+  open.value = false;
+  flush();
+  const el = document.createElement('pon-late');
+  document.body.append(el);
+  flush();
+  await settle();
+  const child = document.createElement('b');
+  child.textContent = 'FIRST';
+  el.prepend(child);
+  open.value = true;
+  flush();
+  await settle();
+  assert.equal(el.querySelector('em')?.textContent, 'FIRST', `slotted: ${el.innerHTML}`);
+  assert.ok(el.querySelector('main')?.parentNode === el, "the component's own content is not swallowed");
+  el.remove();
+});
+
+const tick = ref(0);
+let tickRenders = 0;
+customElements.define('pon-tick', class extends HTMLElement {
+  connectedCallback() { init(this, () => () => { tickRenders++; return html`<main>${tick.value}</main>`; }); }
+});
+test('a child PREPENDED by hand to a slotless host is hidden by the next re-render, as native hides it (vera-5a: not left visible)', async () => {
+  const el = document.createElement('pon-tick');
+  document.body.append(el);
+  flush();
+  await settle();
+  const child = document.createElement('b');
+  child.textContent = 'EARLY';
+  el.prepend(child);
+  const before = tickRenders;
+  tick.value++;
+  flush();
+  await settle();
+  assert.ok(tickRenders > before, 'CONTROL: it re-rendered');
+  assert.equal(child.parentNode !== el, true, `hidden after a re-render with no slot: ${el.innerHTML}`);
+  el.remove();
+});
