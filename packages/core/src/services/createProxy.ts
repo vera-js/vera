@@ -309,17 +309,19 @@ export const redecideStores = () => settle([...types.keys()]);
 const FIXED = new WeakSet<object>();
 /** An object-valued read hands back its store: cached per value, decided on the first miss. */
 const nested = (obj: object, prop: PropertyKey, value: object) => {
-  let proxy = proxies.get(value);
+  let proxy = cached(value);
+  /** A store in a slot answers itself: remembered in the WeakMap, never by defining through it (a trap). */
   if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
   if (proxy === undefined) {
     const own = Reflect.getOwnPropertyDescriptor(obj, prop);
     const owned = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
-    proxies.set(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
+    remember(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
   }
   return proxy ?? value;
 };
 const handler: ProxyHandler<object> = {
   get(obj: object, prop, receiver) {
+    if (prop === PROXY) return undefined;
     const value = Reflect.get(obj, prop, receiver);
     track(obj, prop);
     /**
@@ -340,7 +342,16 @@ const handler: ProxyHandler<object> = {
   },
   ownKeys(obj) {
     track(obj, GLOBAL);
-    return Reflect.ownKeys(obj);
+    const keys = Reflect.ownKeys(obj);
+    /**
+     * The cache field is left out only while that is LEGAL: a proxy must list every key of a non-extensible target, so
+     * on an object frozen after the field was defined (outside the store, too) the field shows rather than throwing.
+     */
+    if (Object.isExtensible(obj)) {
+      const at = keys.indexOf(PROXY);
+      if (at !== -1) keys.splice(at, 1);
+    }
+    return keys;
   },
   set(obj, prop, value, receiver) {
     const prevValue = Reflect.get(obj, prop, receiver);
@@ -351,7 +362,7 @@ const handler: ProxyHandler<object> = {
      * — and `state.items = update(state.items)`, returning its input when there is nothing to do, is
      * how "no change" is normally written. It also stops the proxy being written into the target.
      */
-    if (value !== null && typeof value === 'object' && proxies.get(prevValue as object) === value) return true;
+    if (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value) return true;
     const own = Reflect.getOwnPropertyDescriptor(obj, prop);
     const added = own === undefined;
     /**
@@ -408,6 +419,9 @@ const handler: ProxyHandler<object> = {
    */
   preventExtensions(obj) {
     FIXED.add(obj);
+    /** The cache field leaves first, for the WeakMap: a non-extensible target's keys could no longer hide it. */
+    const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
+    if (slot !== undefined && slot.o === obj && Reflect.deleteProperty(obj, PROXY)) proxies.set(obj, slot.p);
     return Reflect.preventExtensions(obj);
   },
   /** Deleting a key changes both the key's value (to `undefined`, what a read now returns) and the shape. */
@@ -434,6 +448,24 @@ const handler: ProxyHandler<object> = {
  * a second time, which tracked every read twice and notified every write twice.
  */
 const proxies = new WeakMap<object, object | null>();
+/**
+ * **The same cache, kept ON the raw object** where the language allows (Brian, 2026-10-18): a field under a Symbol
+ * private to this copy of core, defined non-enumerable, so `Object.keys`, `for…in`, spreading and `JSON.stringify`
+ * never see it (`Object.getOwnPropertySymbols` on the RAW object does; the store's `ownKeys` filters it). A WeakMap
+ * lookup was most of a store list's walk in Firefox (measured: swap −30%, remove −25%). The field names its owner, so
+ * an object that merely INHERITS from a stored one never answers with the parent's proxy. Where it can't be defined (a
+ * frozen, sealed or non-extensible object), the WeakMap above keeps the answer.
+ */
+const PROXY = Symbol();
+type Slot = { o: object; p: object | null };
+const cached = (value: object): object | null | undefined => {
+  const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
+  return slot !== undefined && slot.o === value ? slot.p : proxies.get(value);
+};
+const remember = (value: object, proxy: object | null) => {
+  if (!Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy } satisfies Slot, writable: true, configurable: true }))
+    proxies.set(value, proxy);
+};
 
 /** A new proxy over `data` — over a non-extensible one, marked `FIXED`. */
 const wrap = (data: object, chosen: ProxyHandler<object>) => {
@@ -463,6 +495,7 @@ const arrayHandler: ProxyHandler<object> = {
   ...handler,
   get(obj: object, prop, receiver) {
     if (prop === RAW) return obj;
+    if (prop === PROXY) return undefined;
     const value = (obj as Record<PropertyKey, unknown>)[prop];
     track(obj, prop);
     if (value === null || typeof value !== 'object' || FIXED.has(obj))
@@ -529,7 +562,7 @@ export const createShallow = <T extends object>(data: T): T => wrap(data, shallo
 
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
 export const createProxy = <T extends object>(data: T): T => {
-  let proxy = proxies.get(data);
+  let proxy = cached(data);
   if (proxy) return proxy as T;
   if (MARK in data) return data;
   /**
@@ -539,6 +572,6 @@ export const createProxy = <T extends object>(data: T): T => {
    * afresh, since a frozen *slot* says nothing about the object itself.
    */
   proxy = wrap(data, handlerFor(data));
-  if (proxies.get(data) === undefined) proxies.set(data, proxy);
+  if (cached(data) === undefined) remember(data, proxy);
   return proxy as T;
 };
