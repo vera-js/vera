@@ -273,6 +273,21 @@ const reactImpl = (mount) => {
 
 import { renderInto as veraDomRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
+import { renderer as veraRenderer } from '@verajs/renderer';
+import { slots as veraSlots } from '@verajs/renderer/slots';
+
+/**
+ * How the Vera implementations are wired, chosen by the page's `?vera=` (2026-10-18), so ONE bundle races wired two
+ * ways: absent, the bare render descriptor this benchmark has always used; `app`, `wire([renderer])`, what an app
+ * writes; `slots`, `wire([renderer, slots])`. Every page is its own browser in `race.mjs`, so a wiring never leaks
+ * into the next variant.
+ */
+const wireVera = () => {
+  const mode = new URLSearchParams(location.search).get('vera');
+  if (mode === 'slots') wire([veraRenderer, veraSlots]);
+  else if (mode === 'app') wire([veraRenderer]);
+  else wire({ on: 'render', fn: veraDomRender, priority: 50 });
+};
 
 /**
  * The configuration the project advertises: core plus `@verajs/renderer`, no lit-html.
@@ -294,7 +309,7 @@ setRenderScheduler(DEFAULT_SCHEDULER);
 const veraOwnImpl = (mount, scheduler = microtask) => {
   /** Microtask scheduling, matching Lit and Vue — see the note in veraImpl. */
   setRenderScheduler(scheduler);
-  wire({ on: 'render', fn: veraDomRender, priority: 50 });
+  wireVera();
 
   const host = document.createElement('div');
   mount.appendChild(host);
@@ -312,6 +327,65 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
         rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`
       )
     )}</tbody></table>`;
+    };
+  });
+
+  return {
+    create: (n, seed) => { rows.value = buildData(n, seed); },
+    append: (n, seed) => { rows.value = rows.value.concat(buildData(n, seed)); },
+    updateEvery10th: () => {
+      const next = rows.value.slice();
+      for (let i = 0; i < next.length; i += 10) next[i] = { ...next[i], label: next[i].label + ' !!!' };
+      rows.value = next;
+    },
+    swap: () => {
+      const next = rows.value.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      rows.value = next;
+    },
+    select: (i) => { selected.value = rows.value[i]?.id ?? -1; },
+    remove: (i) => { const next = rows.value.slice(); next.splice(i, 1); rows.value = next; },
+    clear: () => { rows.value = []; },
+    teardown: () => { host.remove(); },
+  };
+};
+
+/**
+ * **Each row a LIGHT custom element** (vera-5a, 2026-10-18): a plain `init` component with no slot, the shape a real
+ * app's list has. Raced with slots unwired and wired, it is where slots' tax on plain components (#16) shows, which
+ * the template rows above cannot. Rows are `<div>`s, since a custom element inside `<tbody>` is foster-parented out of
+ * the table when a template is parsed.
+ */
+class VeraBenchRow extends HTMLElement {
+  constructor() { super(); this.r = shallowRef(undefined); this.s = ref(false); this.started = false; }
+  set row(value) { this.r.value = value; }
+  set sel(value) { this.s.value = value; }
+  connectedCallback() {
+    if (this.started) return;
+    this.started = true;
+    init(this, () => () => {
+      const row = this.r.value;
+      return rawHtml`<div class="${this.s.value ? 'selected' : null}"><span>${row.id}</span><a>${row.label}</a><a>x</a></div>`;
+    });
+  }
+}
+
+const veraComponentsImpl = (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  if (!customElements.get('vb-row')) customElements.define('vb-row', VeraBenchRow);
+
+  const host = document.createElement('div');
+  mount.appendChild(host);
+
+  const rows = shallowRef([]);
+  const selected = ref(-1);
+
+  init(host, () => {
+    return () => {
+      const list = rows.value;
+      const sel = selected.value;
+      return rawHtml`<div>${list.map((r) => keyed(r.id, rawHtml`<vb-row .row=${r} .sel=${sel === r.id}></vb-row>`))}</div>`;
     };
   });
 
@@ -547,6 +621,7 @@ export const IMPLEMENTATIONS = [
   { name: 'VeraJS default', note: 'core + @verajs/renderer, default scheduler', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   /** The same entry again: the A/A control a race needs to tell a real gap from noise. */
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
+  { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
   { name: 'Solid', note: 'solid-js, no JSX', factory: solidImpl },
   { name: 'Vue', note: 'vue runtime, h()', factory: vueImpl },

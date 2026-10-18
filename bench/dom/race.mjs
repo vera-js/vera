@@ -7,17 +7,21 @@
  * once per engine (order rotated), and each operation's MEDIAN of the page's repeats is kept. Reported: the median of
  * the session medians per variant, the change against the first variant, and how many sessions it was faster in — the
  * typical case, never a best-of-N. Name a byte-identical copy as a variant for the A/A control. Chrome is the installed
- * one, headed; the race waits for a quiet machine before each session.
+ * one, headed; the race waits for a quiet machine before each session. A variant may carry a query for the page
+ * (`slots=bundle.js?vera=slots`), so one bundle can be raced wired two ways. **Every page gets a fresh browser**
+ * (2026-10-18): same-site pages in one Firefox share a content process, so a page's garbage was collected inside the
+ * next page's timed window and results followed the rotation, not the code.
  */
 import { chromium, firefox, webkit } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const args = process.argv.slice(2);
 const sessions = Number(args[0]);
-const variants = args.slice(1).filter((a) => !a.startsWith('--')).map((a) => a.split('='));
+const variants = args.slice(1).filter((a) => !a.startsWith('--')).map((a) => { const [name, spec] = a.split('='); const [file, query = ''] = spec.split('?'); return [name, file, query]; });
 const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const only = flag('only') ?? 'VeraJS own,VeraJS default';
 const ops = flag('ops');
@@ -33,7 +37,8 @@ const server = createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(8098, resolve));
 
-const BASELINE = /claude|Code Helper|WindowServer|\/ps$|Google Chrome|firefox|Firefox|WebKit|Playwright|node/;
+/** OS daemons are ignored, never waited on (Brian, 2026-10-18): media/photo analysis and Spotlight run when they like. */
+const BASELINE = /claude|Code Helper|WindowServer|\/ps$|Google Chrome|firefox|Firefox|WebKit|Playwright|node|mediaanalysisd|photoanalysisd|mds|mdworker|mds_stores|corespotlightd|spotlightknowledged|fseventsd/;
 const quiet = async () => {
   for (let tries = 0; tries < 12; tries++) {
     const rows = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 6).map((l) => l.trim().match(/^([\d.]+)\s+(.*)$/)).filter(Boolean);
@@ -43,29 +48,39 @@ const quiet = async () => {
     await new Promise((r) => setTimeout(r, 10000));
   }
 };
+/**
+ * **What each number describes** (vera-5a, 2026-10-18): the tree, and a hash of every bundle and of the shipped Vera
+ * dists it inlined, printed before anything runs, so a later reader can tell which source a record measured.
+ */
+const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12);
+const root = new URL('../..', import.meta.url).pathname;
+console.log(`tree ${execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim()}${execSync('git status --porcelain -- packages', { cwd: root }).toString().trim() ? ' (packages/ DIRTY)' : ''} at ${root}`);
+for (const [name, file, query] of variants) console.log(`  ${name}: ${join(directory, file)} sha ${sha(join(directory, file))}${query ? ` ?${query}` : ''}`);
+for (const dist of ['core/dist/vera.min.js', 'renderer/dist/vera-renderer.min.js', 'renderer/dist/vera-renderer-slots.min.js', 'renderer/dist/vera-renderer-keyed.min.js'])
+  console.log(`  ${dist} sha ${sha(join(root, 'packages', dist))}`);
 const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
 const contended = [];
 
+const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch() : webkit.launch();
 for (const engine of engines) {
-  const browser = engine === 'chrome' ? await chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? await firefox.launch() : await webkit.launch();
   const data = {};
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
-    for (const [name, file] of variants.map((_, i) => variants[(i + session) % variants.length])) {
+    for (const [name, file, query] of variants.map((_, i) => variants[(i + session) % variants.length])) {
+      const browser = await launch(engine);
       const page = await browser.newPage();
       await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
-      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(only)}${ops ? `&ops=${ops}` : ''}`);
+      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(only)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}`);
       await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Ready.', null, { timeout: 60000 });
       await page.click('#run');
       await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
       const results = await page.evaluate(() => window.__RESULTS__);
-      await page.close();
+      await browser.close();
       for (const [op, byImpl] of Object.entries(results))
         for (const [impl, r] of Object.entries(byImpl)) ((data[impl] ??= {})[op] ??= {})[name] = [...(data[impl][op][name] ?? []), r?.median ?? NaN];
     }
   }
-  await browser.close();
   const base = variants[0][0];
   if (variants.length === 1) {
     /** One build: compare the IMPLEMENTATIONS — median of session medians, and sessions each was fastest in. */
