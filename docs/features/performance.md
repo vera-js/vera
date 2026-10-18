@@ -5,60 +5,23 @@
 **Fast enough that size is the reason to choose it, not a compromise you pay for.** Not the fastest
 — see the ceiling below.
 
-## Against the field, in a real browser
+## Against the field: withdrawn, being re-measured
 
-Nine implementations, all emitting identical markup from one seeded generator. Each figure is the
-**fastest run across twenty-one sessions** (three seven-session runs) — every operation is timed
-through to paint, and noise here is one-sided, so the minimum is the cleanest estimate of what a
-framework actually costs.
+The cross-framework table that stood here was taken on 2026-08-21, and it is **withdrawn**, because it was wrong in
+ways that all flattered VeraJS:
 
-> **Re-run it yourself:** `node bench/dom/build.mjs && node bench/dom/run.mjs 7` — three times, on
-> a machine that is not allowed to sleep (`caffeinate -dims` on macOS; a display that sleeps
-> mid-run drops CPU power states and one throttled window measured a framework 57% slower than its
-> own minimum an hour earlier).
->
-> **Use several sessions and read the minimum.** These operations are small enough that one session
-> is mostly noise: the same build measured `swap` at 12.1, 3.3 and 3.6 ms across three consecutive
-> sessions. Absolute numbers are machine-specific; the ratios are the claim.
->
-> **The VeraJS implementations schedule on a microtask** (`setRenderScheduler(microtask)`), the
-> same flush model Lit and Vue use in this table, so no row contains a frame boundary for one
-> framework and not another. Since 2026-10-09 `microtask` is also core's default scheduler, so the
-> table times exactly what an app gets.
+- **Four of its seven competitors were not written at their best.** Solid was hyperscript without its compiler, Vue
+  a hand-written render function without `v-memo`, Svelte compiled in legacy mode, and Van.js rebuilt every row on
+  every change. Each is now written the way that framework's own
+  [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark) entry writes it.
+- **It ran in a headless build of Chromium**, not the browsers people use.
+- **It reported each framework's fastest run**, not the typical one, and it described a default scheduler VeraJS no
+  longer has.
 
-`@verajs/core` + `@verajs/renderer` — the default pairing:
-
-| Operation | VeraJS | Lit | Solid | Vue | Preact | Svelte | Van.js | React | vs fastest |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| create 1 000 | **13.3** | 14.4 | 15.8 | 13.6 | 15.0 | 16.1 | 17.6 | 16.6 | **wins** |
-| create 10 000 | **161.9** | 167.5 | 185.8 | 163.4 | 181.2 | 311.5 | 182.2 | 301.3 | **wins** |
-| append 1 000 | **21.6** | 22.8 | 23.1 | 22.2 | 23.2 | 28.7 | 35.1 | 24.4 | **wins** |
-| update every 10th | **2.2** | 2.3 | 4.7 | 3.2 | 2.9 | 4.0 | 17.5 | 3.3 | **wins** |
-| select row | **0.2** | 0.2 | 0.6 | 0.9 | 0.6 | 0.6 | 0.5 | 0.6 | **ties** |
-| swap 2 rows | 2.5 | 2.8 | 2.5 | 2.5 | 2.3 | 3.5 | 17.1 | 16.4 | 1.09x |
-| remove row | 3.1 | 3.2 | 3.2 | 3.7 | 3.3 | 4.9 | 18.6 | 3.0 | 1.03x |
-| clear 1 000 | 2.5 | 9.2 | 2.9 | 2.4 | 2.5 | 2.9 | 2.4 | 4.0 | 1.04x |
-
-**Four operations won outright, a fifth tied at the measurement floor, and no operation is more
-than 9% — 0.2 ms — from the fastest.** No other framework in the table wins more than one row.
-That is competitive with Lit, Solid and Vue on their own terms — not "good for something this
-small".
-
-### Running on lit-html instead
-
-Core accepts lit-html as its renderer, and the benchmark measures that pairing too. It is close
-everywhere except `clear`:
-
-| Operation | VeraJS + `@verajs/renderer` | VeraJS + lit-html | Lit |
-| --- | ---: | ---: | ---: |
-| clear 1 000 | **2.5** | 9.3 | 9.2 |
-| swap 2 rows | **2.5** | 2.7 | 2.8 |
-| update every 10th | **2.2** | 2.7 | 2.3 |
-| remove row | **3.1** | 3.4 | 3.2 |
-
-`clear` is **lit-html's cost, not VeraJS's** — Lit itself scores 9.6 on the same test, because
-lit-html removes list nodes one at a time where the others replace the subtree. It was the one
-operation the old table had to apologize for, and switching to `@verajs/renderer` removes it.
+Re-measured against the corrected field, VeraJS wins creating rows and loses outright on some updates: selecting a
+row (to Solid and Van.js), swapping two rows, and removing one. Those losses are being worked on. A new table will
+stand here once the core is finished. It will be measured in headed browsers (installed Chrome, Firefox and
+WebKit), report the median across sessions, and show every loss.
 
 ## The numbers
 
@@ -115,33 +78,20 @@ benchmarked against Solid and judged to have lost something you never claimed.
 
 ## Measuring this honestly
 
-**Report the fastest run, not the median.** Noise in a DOM benchmark is one-sided — a garbage
-collection can only make a run slower — so the minimum is the cleanest estimate of real cost.
-
-This was learned the hard way. Across three runs of the same build, the *median* handed the
-10 000-row win to a different framework each time (Vue, Solid, then VeraJS) at an almost identical
-~392 ms, while every framework's *minimum* held stable within 1–2%. The median was measuring the
-garbage collector. Any published number should say which statistic it is.
-
-**`@verajs/renderer` was rebuilt from the ground up and is browser-confirmed.** Template-identity
-architecture, keyed reconciliation built in, element-mode list items, comment-free templates,
-whole-range fast clear. The table at the top of this page is that renderer's standing against eight
-other implementations, and **it beats the lit-html pairing on nearly every row** — so the size/speed
-trade is not merely resolved but inverted: `core + @verajs/renderer` is the smaller pairing *and* the
-faster one.
-
-Earlier revisions of this page carried a second copy of those results, taken on different hardware
-and never updated alongside the first. Two tables making one claim with two sets of numbers is how a
-document stops being evidence, so there is one table now and everything else points at it.
+**Report the typical case, across many sessions, in the browsers people use.** Each framework runs in its own fresh
+browser, with a byte-identical copy of VeraJS as the noise control, and the reported figure is the median of the
+session medians, with how many sessions each framework won. The fastest run is shown for reference only. Garbage
+collection is one-sided noise, so the minimum is tempting, but it describes a run users rarely get. Same-page
+comparisons are biased too: one framework's garbage is collected inside the next one's timed window, and an
+implementation that always runs after the same neighbor keeps paying for it.
 
 ## Caveats
 
 - **The reactivity figures are jsdom on V8**, and only those. Proxy, allocation and `Map` costs are
   representative of a browser; layout and paint are not modeled, which is exactly why the
   cross-framework table is measured in a real one instead.
-- **The browser table is one machine.** Absolute milliseconds are machine-specific and the ratios
-  are the claim. `node bench/dom/run.mjs 7` reproduces it; fewer sessions than that will not, because
-  the sub-millisecond operations are dominated by noise until the minimum settles.
+- **Cross-framework numbers are one machine.** Absolute milliseconds are machine-specific; the ratios
+  are the claim.
 - Reads cost ~100x a plain property access. That is the price of automatic tracking, and it is the
   same trade Vue makes.
 
