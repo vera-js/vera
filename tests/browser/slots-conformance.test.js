@@ -828,7 +828,7 @@ scenario('the user removes a slot by hand', {
 });
 
 scenario('the user inserts a slot by hand', {
-  draw: (state, side) => html`<header><slot name="h">fh</slot></header><main></main>`,
+  draw: () => html`<header><slot name="h">fh</slot></header><main></main>`,
   children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
   steps: [
     ['render', (side) => side.render()],
