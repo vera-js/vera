@@ -25,6 +25,14 @@ from another machine, or after that is undone, has a variable changed.
   `a(b)`, `a|b`, `a?b` and ~50 more; Chrome, Firefox and WebKit reject only `a b`, `a>b`, `a=b`, `a/b`. Consequence: the
   spread denylist follows the engines; `tests/browser/spread-names.test.js` records their rule; a jsdom-only probe of
   attribute names is not evidence. (2026-09)
+- **A custom element moved by one `insertBefore` stays connected through its reactions**: they run after the DOM
+  operation completes, so `disconnectedCallback` reads `isConnected === true` and core keeps the component (measured:
+  no re-init on a keyed swap, on every engine). Callbacks are captured when the element is DEFINED, so patching the
+  prototype afterwards doesn't change what the engine calls (and a counter installed that way reads 0). (2026-10-18)
+- **1000 `<div>` rows cost far more forced layout than 1000 table rows** on a move or a removal (swap 2 ms vs 1 ms in
+  Chrome, 11 ms vs 2 ms in Firefox, with `offsetHeight` after each op), with script time equal. Since a custom element
+  can't be a table row, comparing component rows against table rows under forced layout measures markup, not
+  framework. (Headless; 2026-10-18)
 - **A light slot that has content has stepped out of the page**, so `slot.parentNode.removeChild(slot)` finds no parent
   there. Consequence: slots gives each kept slot its own `remove()` / `replaceWith()`; the renderer and slots never
   call either on a node that can be a slot (they use `parentNode.removeChild`; `tests/slots-own-remove-invariant`
