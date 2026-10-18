@@ -673,6 +673,8 @@ const applyRef = (callback: (element: Element | null) => void, element: Element 
  */
 class Instance {
   $k: unknown = undefined;
+  /** PROBE (identity skip, 2026-10-18): the result last committed into this instance as a list item. */
+  $j: unknown = undefined;
   _template: Template;
   /** The strings this instance was built from — the same-shape identity. */
   _strings: TemplateStringsArray;
@@ -1369,6 +1371,7 @@ class ChildPart {
         into(parent, ref).insertBefore(instance.$R, ref);
         if (__DEV__) checkForeign(parent, [instance.$R]);
         instance.$k = value.key;
+        instance.$j = value;
         return instance;
       }
     }
@@ -1384,8 +1387,11 @@ class ChildPart {
       item.$p(value);
       return item;
     }
+    /** PROBE: the very result committed last time: nothing to do. */
+    if (value === item.$j) return item;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._strings) {
       update(item, (value as TemplateResult).values);
+      item.$j = value;
       return item;
     }
     const element = item.$R as Element;
