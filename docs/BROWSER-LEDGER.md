@@ -147,6 +147,25 @@ from another machine, or after that is undone, has a variable changed.
   1000 rows 33% cheaper in Firefox in isolation, but on the real path it traded: keyed select −7% (Chrome) / −10%
   (Firefox), keyed CREATE +0.8% / +5.5%, and ~0 elsewhere. A fuller object costs at creation. Consequence: not landed;
   shape changes are raced on the real path, creation rows first. (Headless, 5 fresh-browser pairs; 2026-10-18)
+- **A Proxy trap call has a floor in V8 that no trap body removes.** Walking 1000 indices of an array proxy: plain
+  array 0.5 µs; a proxy with NO get trap 65; a trap returning `o[p]` 88–110; a trap returning `Reflect.get(o, p, r)`
+  113–140. So a transparent proxy costs ~33 ns per read, and `Reflect.get` with a receiver adds ~22%. How the handler
+  object was built made no difference (a literal and one assembled by `Object.assign` cost the same). Consequence: a
+  hot walk over store data must read the RAW data, never through the proxy; and only reads that may meet an accessor
+  pay for the receiver. (Node; 2026-10-18)
+- **A helper shared by every object in an app goes megamorphic in the browser, and can be slower than the WeakMap it
+  replaced, while the same code is faster in Node.** A Symbol-field read in one shared `cached()` sped every
+  through-proxy read in Node (index 67 → 63 ns) and cost Chrome's store-list swap +12% and remove +6%, because in the
+  benchmark page rows, arrays, the root state and the selection store all meet that one load. Reading the field at the
+  walk's OWN site (it only meets one list's items) removed the cost. Consequence: a hot read that sees one kind of
+  object gets its own site; check a DRY helper on a hot path against a page with many object shapes, not a probe with
+  one. (Chrome headless, 2026-10-18)
+- **Firefox pays more than Chrome for a WeakMap lookup on a hot path.** Caching a store row's proxy on the row under
+  a private Symbol, instead of in a WeakMap, made Firefox's store-list swap −29% and remove −24%, against Chrome's
+  −10% / −10%. Same direction as the renderer's root-part WeakMap (2026-10-17). (Headless, both; 2026-10-18)
+- **A proxy stored INSIDE raw data makes every later read of that slot a trap the engine cannot cache.** After a swap
+  wrote store proxies into a raw array, the walk's field read met a proxy in two of 1000 slots, and Chrome's swap paid
+  +9% for it. Consequence: a store stores raw objects, never proxies (2026-10-18). (Chrome headless)
 - **A timing window after a fixed warm-up measures WHEN V8 tiers up.** A faster build sat in a middle tier for calls
   20–80 and read 28% slower over exactly that window. Consequence: report the cold total and a steady time, and the
   per-batch curve when they disagree. (Node; 2026-10-01)
