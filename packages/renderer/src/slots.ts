@@ -622,11 +622,12 @@ const watch = (node: Node, light: Light) => {
     observer.observe(node, { childList: true });
   }
 };
-/** A light element's own `slot=` — registered at capture and on every arrival (`adopt`, `replay`, `settleIn`). */
+/** A light element's own `slot=` — registered when its light is first observed (`register`) and on every arrival after (`adopt`, `replay`, `settleIn`). */
 const OWN = Symbol();
 const mineAlready = (node: Node) => (node as Node & { [OWN]?: boolean })[OWN] === true;
 const own = (light: Light, node: Node) => {
-  if (node.nodeType !== 1) return;
+  /** Not before the light is observed (`register`, at its first slot), which registers every light element it has then. */
+  if (node.nodeType !== 1 || light.ho !== true) return;
   (node as Node & { [OWN]?: boolean })[OWN] = true;
   observerOf(light).observe(node, { attributes: true, attributeFilter: (node as Kept).$rec !== undefined ? ['slot', 'name'] : ['slot'] });
 };
@@ -791,6 +792,15 @@ const release = (light: Light) => {
   light.obs = undefined;
 };
 
+/**
+ * **A component observed from its first render** — `static observeSlots = true` on its class (2026-10-17). Every other
+ * light component is observed from its first `<slot>`, and one with neither a slot nor light content gets nothing at all
+ * (wiring slots made plain components 2.1–2.7× slower to create when every one was captured and observed). Observed from
+ * the start, a child appended by hand before any slot renders is hidden and a `<slot>` inserted by hand is seen — what
+ * native shadow DOM does for every host, at an observer per component. Read from the class, as `static styles` is.
+ */
+const strict = (host: Element) => (host.constructor as { observeSlots?: unknown }).observeSlots === true;
+
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
 
 /**
@@ -805,6 +815,7 @@ const register = (light: Light) => {
   if (light.ho === true) return;
   light.ho = true;
   observerOf(light).observe(light.host, { childList: true, subtree: true });
+  for (const node of lightOf(light)) own(light, node);
   /**
    * A light with a RUN (a part an outer template writes into, for as long as the host lives) has its holding watched
    * from now — the run moves there, and is written into there, even while holding holds nothing else. One with static
@@ -1067,6 +1078,19 @@ const slotBehavior = {
     watch(kept, light);
     distribute(light);
     drop(light);
+    /**
+     * Its FIRST slot, after its first render — in a later render of its own, or in ANOTHER container's (an applier
+     * committing there, which never reaches this host's `_$done$`): once that render is over — a microtask, which no
+     * render is ever halfway through — read what changed while it was unobserved, and observe it from then. Inside its
+     * first render, its own `_$done$` does both.
+     */
+    if (!light.fresh && light.ho !== true)
+      queueMicrotask(() => {
+        if (light.ho === true || HOSTS.get(light.host) !== light) return;
+        reconcile(light);
+        flush(light);
+        register(light);
+      });
     return rec;
   },
   /** Torn down: its content goes back to holding first, and the element back in its place, before the renderer removes it. */
@@ -1175,8 +1199,12 @@ export const slotDiscovery = [
        * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
        */
       if ((element as unknown as Record<string, unknown>)['_$r$'] != null || element.shadowRoot !== null) return;
-      /** A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption). */
-      if (isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
+      /**
+       * A SERVER host waits: whether its marks are trusted is the following render's to decide (`read`, under adoption).
+       * An EMPTY host is not captured: with nothing to hide it needs slots only once its template renders a `<slot>`
+       * (`mount` makes its light then). One an outer template fills always has that part's markers by now.
+       */
+      if ((element.firstChild !== null || strict(element)) && isCustomElementName(element.localName) && !HOSTS.has(element) && !(wired?._$hydrating$ === true && element.hasAttribute(LIGHT_ATTR))) capture(element);
     },
     priority: 10,
   },
@@ -1212,13 +1240,18 @@ export const slotDiscovery = [
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
        * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
        */
-      if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? true) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName))
+      if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? (container.firstChild !== start || strict(container as Element))) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName))
         capture(container as Element, start);
       /** Its own render ended: a fresh light that left the work set (disconnected meanwhile) is distributed now. */
       const own = HOSTS.get(container as Element);
       if (own?.fresh && !own.wait) work.add(own);
-      /** Its first render ending: what changed while it was unobserved is read once, before the distribution below. */
-      if (own !== undefined && own.ho !== true) reconcile(own);
+      /**
+       * Unobserved until it has a slot: what changed meanwhile is read once — at its first render's end, and at the end of
+       * the render that mounted its first slot — before the distribution below. A light with no slot shows nothing, so
+       * nothing about it needs following until then.
+       */
+      const slotted = own !== undefined && own.recs.length > 0;
+      if (own !== undefined && own.ho !== true && (own.fresh || slotted)) reconcile(own);
       ending = true;
       try {
         flush(own, container);
@@ -1226,7 +1259,7 @@ export const slotDiscovery = [
         ending = false;
       }
       /** Observed from here on — after this module's own moves above, which then make no records. */
-      if (own !== undefined) register(own);
+      if (own !== undefined && own.ho !== true && (slotted || strict(own.host))) register(own);
     };
   },
 ];

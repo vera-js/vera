@@ -134,11 +134,15 @@ const el = (tag, attrs = {}, content = '') => {
  * page settles, and both views are read. `detached` leaves the hosts off the page until a step
  * attaches them; `side.parts` collects the parts of every `later()` applier, in the order attached.
  */
-const run = async ({ draw, children = () => [], hosts = 1, detached = false, steps, probe }) => {
+/** `strict`: the light side's host class sets `static observeSlots = true` — observed from its first render, slot or not. */
+customElements.define('x-conf-strict', class extends HTMLElement {
+  static observeSlots = true;
+});
+const run = async ({ draw, children = () => [], hosts = 1, detached = false, steps, probe, strict = false }) => {
   const sides = ['native', 'light'].map((mode) => {
     const side = { mode, ids: new Map(), count: 0, hosts: [], targets: [], parts: [] };
     for (let i = 0; i < hosts; i++) {
-      const host = document.createElement('x-conf-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
+      const host = document.createElement(strict && mode === 'light' ? 'x-conf-strict' : 'x-conf-host'); // a CUSTOM element, by name: light slots capture only those (ruling 4)
       side.hosts.push(host);
       side.targets.push(mode === 'native' ? host.attachShadow({ mode: 'open' }) : host);
     }
@@ -177,6 +181,11 @@ const KNOWN = new Map([
   ['assignedSlot names the slot a light child is in', 'assignedSlot is not emulated: a light child reads null (2026-10-17 baseline)'],
   ['the user removes a slot by hand', 'an assigned <slot> has stepped out of the page, so removing it by hand changes nothing: its content stays shown (2026-10-17 baseline)'],
   ['the user inserts a slot by hand', 'only <slot>s a template renders take part; one inserted by hand stays empty (2026-10-17 baseline)'],
+  ['observeSlots: the user inserts a slot by hand into a component that has never rendered one', 'the same: a <slot> inserted by hand is not claimed yet (2026-10-17; the hand-insertion fix closes both)'],
+  [
+    'the user appends a child to a component with no slot and no light content',
+    "observe: 'slotted' (the default) follows a component from its first <slot>: the child shows until a slot renders, then is slotted; observe: 'all' hides it, as native (2026-10-17)",
+  ],
 ]);
 
 const scenario = (name, spec) =>
@@ -785,6 +794,57 @@ const refSlot = (side, key) => (el) => {
 };
 const named = (side) => html`<header><slot name="h" &ref=${refSlot(side, 'h')}>fh</slot></header><main><slot &ref=${refSlot(side, 'd')}>fd</slot></main>`;
 
+/* Duplicate slot names: the first in TREE order takes the assignment, whichever mounted first. */
+scenario('duplicate slot names: the first in tree order takes the assignment', {
+  draw: () => html`<i><slot name="d">fa</slot></i><u><slot name="d">fb</slot></u>`,
+  children: () => [el('b', { slot: 'd' }, 'D')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['re-slot it away', (side) => side.user[0].setAttribute('slot', 'nowhere')],
+    ['re-slot it back', (side) => side.user[0].setAttribute('slot', 'd')],
+  ],
+});
+
+scenario('duplicate slot names: the winner removed by a condition hands it on, and takes it back', {
+  draw: (s) => html`<i>${s.first ? html`<slot name="d">A</slot>` : null}</i><u><slot name="d">B</slot></u>`,
+  children: () => [el('b', { slot: 'd' }, 'D')],
+  steps: [
+    ['both', (side) => side.render({ first: true })],
+    ['the first goes', (side) => side.render({ first: false })],
+    ['the first returns', (side) => side.render({ first: true })],
+  ],
+});
+
+scenario('duplicate slot names: one rendered EARLIER in tree order, after the other mounted, takes over', {
+  draw: (s) => html`<i>${s.early ? html`<slot name="d">A</slot>` : null}</i><u><slot name="d">B</slot></u>`,
+  children: () => [el('b', { slot: 'd' }, 'D'), el('s', { slot: 'd' }, 'S')],
+  steps: [
+    ['only the later', (side) => side.render({ early: false })],
+    ['the earlier arrives', (side) => side.render({ early: true })],
+  ],
+});
+
+scenario('duplicate default slots: the first takes every unnamed child', {
+  draw: (s) => html`<i><slot>fa</slot></i>${s.more ? html`<u><slot>fb</slot></u>` : null}`,
+  children: () => [el('b', {}, 'B'), document.createTextNode('t')],
+  steps: [
+    ['one', (side) => side.render({ more: false })],
+    ['a second, later in tree order', (side) => side.render({ more: true })],
+    ['an unnamed child added', (side) => side.hosts[0].append(el('s', {}, 'S'))],
+  ],
+});
+
+scenario('the user renames a slot by hand to collide with an earlier one', {
+  draw: (state, side) => html`<i><slot name="a" &ref=${refSlot(side, 'a')}>fa</slot></i><u><slot name="b" &ref=${refSlot(side, 'b')}>fb</slot></u>`,
+  children: () => [el('b', { slot: 'a' }, 'A'), el('s', { slot: 'b' }, 'B')],
+  probe: apis,
+  steps: [
+    ['render', (side) => side.render()],
+    ['rename b → a', (side) => { side.slots.b.name = 'a'; }],
+    ['rename a → b', (side) => { side.slots.a.name = 'b'; }],
+  ],
+});
+
 scenario('the slot APIs agree with native while children change', {
   draw: (state, side) => named(side),
   children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
@@ -824,6 +884,35 @@ scenario('the user removes a slot by hand', {
   steps: [
     ['render', (side) => side.render()],
     ['remove the named slot', (side) => side.slots.h.remove()],
+  ],
+});
+
+scenario('the user appends a child to a component with no slot and no light content', {
+  draw: (s) => html`<main>${s.open ? html`<slot>fallback</slot>` : null}</main>`,
+  steps: [
+    ['render', (side) => side.render({ open: false })],
+    ['append a child by hand', (side) => side.hosts[0].append(el('b', {}, 'B'))],
+    ['a slot renders', (side) => side.render({ open: true })],
+  ],
+});
+
+scenario('observeSlots: the user appends a child to a component with no slot and no light content', {
+  strict: true,
+  draw: (s) => html`<main>${s.open ? html`<slot>fallback</slot>` : null}</main>`,
+  steps: [
+    ['render', (side) => side.render({ open: false })],
+    ['append a child by hand', (side) => side.hosts[0].append(el('b', {}, 'B'))],
+    ['a slot renders', (side) => side.render({ open: true })],
+  ],
+});
+
+scenario('observeSlots: the user inserts a slot by hand into a component that has never rendered one', {
+  strict: true,
+  draw: () => html`<main></main>`,
+  children: () => [el('b', {}, 'B')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['append a default slot into main', (side) => side.targets[0].querySelector('main').append(document.createElement('slot'))],
   ],
 });
 

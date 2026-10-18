@@ -44,9 +44,10 @@ counts as a difference:
 npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
 ```
 
-Every scenario there matches native on Chromium, Firefox and WebKit, except three it lists as known
-divergences — `assignedSlot` (deliberately not emulated: ask the slot), and a `<slot>` removed or inserted
-by hand rather than through the template. An entry asserts that it still diverges, so a shape cannot
+Every scenario there matches native on Chromium, Firefox and WebKit, except four it lists as known
+divergences — `assignedSlot` (deliberately not emulated: ask the slot), a `<slot>` removed or inserted
+by hand rather than through the template, and a child appended by hand to a component that has neither a slot nor
+light content yet (shown until a slot renders; `static observeSlots = true` on that component's class closes it). An entry asserts that it still diverges, so a shape cannot
 quietly regress into it, nor be fixed without the list changing.
 
 Content a binding writes is distributed node by node, exactly as the same markup written by hand —
@@ -107,7 +108,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->5.22 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->5.32 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>` and each host, capturing the host's
 children, replaying what templates later write among them, the distribution itself — and the
 renderer carries only generic hooks it plugs into (an instance hook on the template, an element's
@@ -131,6 +132,12 @@ comparison or a property read at those points and nothing else.
   suppresses the default fallback, exactly as it does in a shadow root; and re-slotting a node
   (`slot="a"` → `"b"`) puts it back in light-tree order rather than the order it arrived, so an item
   toggled into a "pinned" slot holds its place instead of jumping to the end.
+- **Only a component that needs slotting pays for it.** One with no light content and no `<slot>` gets nothing from
+  this module — no hidden element, no observer: wiring slots used to make every plain component 2.1–2.7× slower to
+  create (Firefox +170%, Chrome +112%), and now costs them 0–2% in Chrome. A component is observed from its first
+  `<slot>`; one with light children but no slot has them hidden from the start, as native does. The one difference
+  this leaves: a child appended BY HAND to a component with neither is shown until a slot renders, where native hides
+  it. `static observeSlots = true` on a component's class observes it from its first render, which closes that.
 - **`<slot>`s come from the template.** Removing an assigned `<slot>` by hand leaves its content shown
   (it has already stepped out of the page), and a `<slot>` inserted by hand stays empty; a shadow root
   reacts to both. Render slots conditionally from the template instead, which behaves the same in both modes.

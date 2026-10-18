@@ -158,18 +158,18 @@ test('duplicate slot names in one template: first in tree order wins, the rest s
 
 test('the winning slot removed (branch-away) hands the assignment to the surviving duplicate', () => {
   const h = host('<b slot="dup">D</b>');
-  // The first slot lives behind a hold so it can be branched away, leaving the second to inherit.
-  // (Mount order: the held inner slot commits after the outer static one, so the outer wins first;
-  //  removing the winner promotes the survivor — native's next-in-tree-order.)
+  // The first slot lives behind a hold so it can be branched away, leaving the second to inherit. It commits AFTER the
+  // static one, and still wins: native assigns by TREE order, never by mount order.
   const draw = (first) => html`<i>${hold(first ? html`<slot name="dup">A</slot>` : null)}</i><u><slot name="dup">B</slot></u>`;
   renderInto(draw(true), h);
-  // whichever mounted first holds D; the other shows its fallback
-  const before = h.textContent;
-  assert.ok(before.includes('D'), 'assigned to a winner');
-  assert.ok(before.includes('A') || before.includes('B'), 'the loser shows fallback');
+  assert.equal(h.querySelector('i').textContent, 'D', 'the first in tree order holds it');
+  assert.equal(h.querySelector('u').textContent, 'B', 'the later duplicate shows its fallback');
   renderInto(draw(false), h); // tear down the held slot
-  const after = h.textContent;
-  assert.ok(after.includes('D'), 'the assignment survives on the remaining slot');
+  assert.equal(h.querySelector('i').textContent, '', 'gone with its branch');
+  assert.equal(h.querySelector('u').textContent, 'D', 'the survivor takes it');
+  renderInto(draw(true), h);
+  assert.equal(h.querySelector('i').textContent, 'D', 'back: the first in tree order takes it again');
+  assert.equal(h.querySelector('u').textContent, 'B', 'and the later one shows its fallback again');
   h.remove();
 });
 
