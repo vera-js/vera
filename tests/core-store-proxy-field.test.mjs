@@ -109,3 +109,25 @@ test('a store of another kind (shallow) is kept as it is', async () => {
   state.box.ref = ref;
   assert.equal(raw.ref, ref, 'a shallow ref is not unwrapped');
 });
+
+test("a store from ANOTHER copy of core is stored as given (it does not answer this copy's RAW)", async () => {
+  const other = await load('core', '?copy=raw');
+  const foreign = other.createStore({ x: 1 });
+  const raw = {};
+  const state = createStore({ box: raw });
+  state.box.f = foreign;
+  assert.equal(raw.f, foreign);
+});
+
+test('a store Map (the collections module) is stored as a proxy, as before', async () => {
+  const { collections } = await load('store/collections');
+  const { wire } = await load('core');
+  wire([collections]);
+  const state = createStore({ m: new Map([[1, 'a']]), box: {} });
+  const m = state.m;
+  const rawBox = {};
+  state.box2 = rawBox;
+  state.box2.m = m;
+  assert.equal(rawBox.m, m, 'the collections handler does not answer RAW, so the proxy is kept');
+  assert.equal(state.box2.m.get(1), 'a');
+});
