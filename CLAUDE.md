@@ -8,6 +8,10 @@ code, so they are not re-litigated.
   the import-graph root, single-file types local and unexported, `import type` for all
   type-only flow. Read it before writing code, every session.
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
+- **Browser and engine behaviors: `docs/BROWSER-LEDGER.md`.** Every platform behavior, caveat or engine quirk that a
+  design or a measurement choice rests on goes there THE MOMENT it is found, with the engines it was seen on, the date,
+  the evidence (a test, a commit, a measurement) and the consequence. It only grows: an entry found wrong is marked so
+  and kept. Read it before changing a choice it explains, and before calling an engine difference new.
 - **AI-facing API spec:** `llms.txt` at the root (convention puts it there, like `robots.txt`).
   Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source
   of truth. Update it in the same pass as any API change. It carries the complete **buildless JSX
