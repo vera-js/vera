@@ -1289,8 +1289,11 @@ class ChildPart {
               node = next;
             }
           } else (root as ChildNode).remove();
-          /** Off the page now: slots watches what a parked branch's slots hold (`_$parked$`, off-chain like `_$done$`). */
-          (registry as { _$parked$?: (root: Node) => void } | null)?._$parked$?.(root);
+          /**
+           * Off the page now: slots watches what a parked branch's slots hold (`_$parked$`, off-chain like `_$done$`), told
+           * WHOSE render parked it — the branch has left that host's subtree, where its one registration cannot see it.
+           */
+          (registry as { _$parked$?: (root: Node, owner: Node | null) => void } | null)?._$parked$?.(root, renderRoot);
           parked.set(current._strings, current);
           this.$o = EMPTY;
         }

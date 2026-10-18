@@ -417,6 +417,8 @@ const observersOf = (light: Light): Pair => {
  * One observer for every parked root (the renderer's `_$parked$`), registering the same root again when it parks again.
  */
 let parkedObserver: MutationObserver | undefined;
+/** Each parked branch's owner — the container whose render parked it (a WeakMap on the parked root: parking is rare). */
+const PARKED = new WeakMap<Node, Node>();
 const parkedHandle = (records: MutationRecord[]) => {
   noteParked(records);
   flush();
@@ -451,15 +453,15 @@ const note = (light: Light, records: MutationRecord[]) => {
         mark(rec.light);
         continue;
       }
-      for (let node: Node | null = target; node !== null; node = node.parentNode)
-        if (watchedBy(light, node)) {
-          mark(light);
-          break;
-        }
+      /** A light node's own `slot=` — acted on only while it is still THIS light's (a registration stays on a node that left). */
+      if (inLight(target, light) || target.parentNode === light.host) mark(light);
       continue;
     }
-    /** A watched node's children: replayed into the runs (the host too, when a region sits directly in it). */
-    if (target !== light.host || light.hw === true) {
+    /**
+     * A watched node's children — holding, a region's parent, a slot — replayed into the runs (the host too, when a region
+     * sits directly in it). Any other target in the host's subtree is the component's own template writing: not slotting.
+     */
+    if (target === light.host ? light.hw === true : watchedBy(light, target)) {
       mark(light);
       replay(light, record);
     }
@@ -489,7 +491,23 @@ const note = (light: Light, records: MutationRecord[]) => {
  * slot's light, a placed node's slot's light, or the host it sits in — since no per-node watcher list exists any more.
  */
 const noteParked = (records: MutationRecord[]) => {
-  for (const record of records)
+  for (const record of records) {
+    /**
+     * A write into a parked branch (an applier resolving into it, the outer template committing there): it has left its
+     * host's subtree, so it is replayed for the host whose render parked it — and only while it is still out (restored, the
+     * host's own registration sees it, and replaying it twice would place it twice).
+     */
+    if (record.type === 'childList') {
+      let top: Node = record.target;
+      while (top.parentNode !== null) top = top.parentNode;
+      const owner = PARKED.get(top);
+      const light = owner === undefined ? undefined : HOSTS.get(owner as Element);
+      if (light !== undefined && !light.host.contains(record.target) && watchedBy(light, record.target)) {
+        mark(light);
+        replay(light, record);
+      }
+      continue;
+    }
     for (let node: Node | null = record.target; node !== null; node = node.parentNode) {
       const own = (node as Kept).$rec ?? PLACED.get(node);
       if (own) {
@@ -502,6 +520,7 @@ const noteParked = (records: MutationRecord[]) => {
         break;
       }
     }
+  }
 };
 /**
  * **The lights that need work** — dirty, or fresh until their first render ends, never one waiting for its own slots
@@ -554,13 +573,37 @@ const flush = (context?: Light, root?: Node) => {
   /** What this module just moved, recorded on the lights it read: not news. */
   for (const light of near) take(light);
 };
+/** Whether `node` sits outside the host's subtree registration — detached, or inside a slot (which steps out with its content). */
+const outside = (node: Node, host: Element) => {
+  for (let at: Node | null = node; at !== host; at = at.parentNode) if (at === null || (at as Kept).$rec !== undefined) return true;
+  return false;
+};
 const watch = (node: Node, light: Light) => {
-  /** Registering a node again on the same observer with the same options is a no-op, so no "already watched" record is kept. */
-  if (node === light.host) light.hw = true;
+  /** The host's own subtree registration covers it; a region directly in the host also gets the region's handling. */
+  if (node === light.host) {
+    light.hw = true;
+    return;
+  }
   const [children, attributes] = observersOf(light);
-  children.observe(node, { childList: true });
-  /** A slot steps OUT of the page while it has content, out of its host's subtree: its own name (and its fallback's slots) are watched on it. */
-  if ((node as Kept).$rec !== undefined) attributes.observe(node, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
+  /**
+   * A slot: its own name only. A slot with content steps OUT of the page, so this is how a rename reaches it there; a
+   * nested slot in its fallback is claimed and registered on its own. Re-registering replaces the options, so a node that
+   * is also this light's light element keeps `slot=` too (the union; `own`).
+   */
+  if ((node as Kept).$rec !== undefined) {
+    attributes.observe(node, { attributes: true, attributeFilter: mineAlready(node) ? ['slot', 'name'] : ['name'] });
+    return;
+  }
+  /** Holding (out of the page while empty) and a region's parent inside a slot's fallback (out with that slot): on themselves. */
+  if (node === light.holding || outside(node, light.host)) children.observe(node, { childList: true });
+};
+/** A light element's own `slot=` — registered at capture and on every arrival (`adopt`, `replay`, `settleIn`). */
+const OWN = Symbol();
+const mineAlready = (node: Node) => (node as Node & { [OWN]?: boolean })[OWN] === true;
+const own = (light: Light, node: Node) => {
+  if (node.nodeType !== 1) return;
+  (node as Node & { [OWN]?: boolean })[OWN] = true;
+  observersOf(light)[1].observe(node, { attributes: true, attributeFilter: (node as Kept).$rec !== undefined ? ['slot', 'name'] : ['slot'] });
 };
 
 /**
@@ -586,6 +629,7 @@ const adopt = (light: Light, node: Node) => {
   const ahead = first !== null && follows(node, first);
   park(light).insertBefore(node, light.holding.lastChild);
   PLACED.set(node, null);
+  own(light, node);
   if (ahead) {
     const at = lead.get(light) ?? 0;
     light.units.splice(at, 0, { a: node, z: node });
@@ -618,6 +662,7 @@ const settleIn = (light: Light, node: Node) => {
     if (at < 0) light.units.push({ a: node, z: node });
     else light.units.splice(at, 0, { a: node, z: node });
     PLACED.set(node, rec);
+    own(light, node);
     return;
   }
 };
@@ -668,6 +713,8 @@ const replay = (light: Light, record: MutationRecord) => {
         PLACED.delete(node);
         unstand(node);
       }
+      /** A run's node written straight into holding (a row the outer template inserted) is a light node from now on. */
+      own(light, node);
       continue;
     }
     if (PLACED.get(node) !== undefined && !STAND.has(node)) continue;
@@ -690,6 +737,7 @@ const replay = (light: Light, record: MutationRecord) => {
     const stand = STAND.get(node);
     const run = place === null ? holding : place.parentNode!;
     (run === holding && stand === undefined ? park(light) : run).insertBefore(stand ?? node, place);
+    own(light, node);
   }
 };
 
@@ -738,14 +786,13 @@ const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = nu
   const light: Light = { host, units: [], holding, recs: [], dirty: false, fresh: false, late, wait: false };
   HOSTS.set(host, light);
   watch(holding, light);
-  const [children, attributes] = observersOf(light);
-  children.observe(host, { childList: true });
   /**
-   * Its names, ONCE over its whole subtree — holding, regions and slots are inside it — not on every node it watches
-   * (9 registrations per card host, not 13: `observe()` was 15% of Chrome's slot hydration). What leaves the subtree is
-   * watched where it goes: a slot that stepped out (`watch`), a `hold()`-parked branch (`_$parked$`).
+   * **ONE registration over the host's subtree** (observer redesign step 2, 2026-10-17): its own children and every region
+   * and slot inside it — what native slotting reacts to, wherever it sits, so a region's parent needs no registration of
+   * its own. Attribute changes are registered per NODE instead (`own`, a slot's `name` in `watch`): one subtree attribute
+   * registration made Firefox check every attribute write inside the host (−17.7% of light-slots creation).
    */
-  attributes.observe(host, { attributes: true, attributeFilter: ['slot', 'name'], subtree: true });
+  observersOf(light)[0].observe(host, { childList: true, subtree: true });
   return light;
 };
 
@@ -786,6 +833,7 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
     if (child === before) break;
     const parent = child.parentNode;
     if (parent !== host) PLACED.set(child, parent === light.holding ? null : ADOPTED);
+    own(light, child);
     if (statics === undefined || statics.has(child)) {
       close();
       light.units.push({ a: child, z: child });
@@ -1040,12 +1088,15 @@ export const slotDiscovery = [
     wired = registry as unknown as { _$hydrating$?: boolean };
     (registry as unknown as { _$capture$?: unknown })._$capture$ = [PROTOCOL, capture, lightNodes, HOSTS, standIn, PLACED, ADOPTED];
     (registry as unknown as { _$unadopted$?: (container: Node) => void })._$unadopted$ = unadopted;
-    (registry as unknown as { _$parked$?: (root: Node) => void })._$parked$ = (root) =>
+    (registry as unknown as { _$parked$?: (root: Node, owner: Node | null) => void })._$parked$ = (root, owner) => {
+      if (owner !== null) PARKED.set(root, owner);
       (parkedObserver ??= new (globalThis.MutationObserver ?? (root.ownerDocument!.defaultView as typeof globalThis).MutationObserver)(parkedHandle)).observe(root, {
         attributes: true,
         attributeFilter: ['slot'],
+        childList: true,
         subtree: true,
       });
+    };
     /** Development only: how many lights wait for work — 0 once every rendered host is distributed (a retention pin). */
     if (__DEV__) (registry as unknown as { _$slotsWork$?: () => number })._$slotsWork$ = () => work.size;
     (registry as unknown as { _$done$?: (container: Node, start: Node) => void })._$done$ = (container, start) => {
