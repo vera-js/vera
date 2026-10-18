@@ -35,6 +35,28 @@ const sveltePlugin = () => ({
   },
 });
 
+/**
+ * Solid compiled the way Solid ships: babel-preset-solid (bench/ devDependency), so "Solid" in the table is the
+ * framework at its best (templates cloned, fine-grained bindings), not hyperscript. 2026-10-18: the race had been
+ * comparing Vera against `solid-js/h`, a weaker Solid on every row.
+ */
+const solidPlugin = () => ({
+  name: 'solid',
+  setup(build) {
+    build.onLoad({ filter: /\.jsx$/ }, async (args) => {
+      const babel = require(process.cwd() + '/bench/node_modules/@babel/core');
+      const { readFileSync } = await import('node:fs');
+      const { code } = await babel.transformAsync(readFileSync(args.path, 'utf8'), {
+        filename: args.path,
+        babelrc: false,
+        configFile: false,
+        presets: [[process.cwd() + '/bench/node_modules/babel-preset-solid', { generate: 'dom' }]],
+      });
+      return { contents: code, loader: 'js' };
+    });
+  },
+});
+
 const out = await esbuild.build({
   entryPoints: ['bench/dom/main.js'],
   /**
@@ -51,7 +73,7 @@ const out = await esbuild.build({
   write: false,
   absWorkingDir: process.cwd(),
   define: { 'process.env.NODE_ENV': '"production"' },
-  plugins: [sveltePlugin()],
+  plugins: [sveltePlugin(), solidPlugin()],
 });
 
 const code = out.outputFiles[0].text;

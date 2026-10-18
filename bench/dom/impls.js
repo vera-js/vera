@@ -520,6 +520,10 @@ const solidImpl = (mount) => {
   };
 };
 
+/** Solid as Solid's own js-framework-benchmark entry writes it: compiled JSX, `<For>`, `createSelector`, a signal per label. */
+import { mountSolid } from './solid/Rows.jsx';
+const solidCompiledImpl = (mount) => { const host = document.createElement('div'); mount.appendChild(host); return mountSolid(host, buildData); };
+
 /* ── Preact ─────────────────────────────────────────────────────────────────── */
 
 import { createElement as ph, render as preactRender } from 'preact';
@@ -625,7 +629,8 @@ export const IMPLEMENTATIONS = [
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
-  { name: 'Solid', note: 'solid-js, no JSX', factory: solidImpl },
+  { name: 'Solid', note: 'solid-js compiled (babel-preset-solid), For + createSelector', factory: solidCompiledImpl },
+  { name: 'Solid (h)', note: 'solid-js/h, no compiler (the race used this one until 2026-10-18)', factory: solidImpl },
   { name: 'Vue', note: 'vue runtime, h()', factory: vueImpl },
   { name: 'Van.js', note: 'vanjs-core', factory: vanImpl },
   { name: 'Svelte', note: 'svelte 5 runes (needs a compiler)', factory: svelteImpl },

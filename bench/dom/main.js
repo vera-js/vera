@@ -34,6 +34,29 @@ const IMPLEMENTATIONS = only ? ALL.filter((impl) => only.includes(impl.name)) : 
 const REPEATS = 7;
 const WARMUP = 2;
 
+/**
+ * **`?batch=N` times the small ops N to a sample** (2026-10-18). One select or swap takes a few ms, and Firefox and
+ * WebKit report whole milliseconds, so a single-op sample is mostly rounding: Solid raced against itself swung up to
+ * 267%. Under `?batch` (N = 100 unless given), a sample of select / swap / update10 / remove is N runs back to back in
+ * ONE task, each awaited (every framework has written the DOM before the next run starts; `&verify=1` proves it), and
+ * is reported per op; the paint that follows is outside the sample. Batched,
+ * style and layout happen once for the net change, so the number is script + DOM writes per op; `&layout=1` forces
+ * layout after every run (an `offsetHeight` read), the per-interaction cost a real click pays. The race reports both
+ * as separate variants. `noop` (an op that does nothing) is the floor: each batched op is also reported as
+ * `<op>:net`, its per-op time minus noop's. Off by default, so older records stay comparable. update10 appends to
+ * labels each run, so the 20th run writes slightly longer strings than the 1st, the same for every framework.
+ */
+const params = new URLSearchParams(location.search);
+const BATCH = params.has('batch') ? Number(params.get('batch')) || 100 : 0;
+const LAYOUT = params.has('layout');
+/**
+ * `&verify=1` (a smoke, never timed): counts batched runs after which the DOM had NOT changed. It must be 0 for every
+ * op but noop, or a framework deferred its write past the await and the sample timed less than the op.
+ */
+const VERIFY = params.has('verify');
+const unchanged = {};
+let before;
+
 /** Resolves once the browser has painted. */
 const painted = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
@@ -49,11 +72,16 @@ const OPERATIONS = [
   { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1) },
   { key: 'create10k', label: 'create 10 000 rows',    setup: (a) => a.clear(),        run: (a) => a.create(10000, 2) },
   { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4) },
-  { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th() },
-  { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300) },
-  { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap() },
-  { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400) },
+  { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th() },
+  { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + k) },
+  { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap(), each: (a) => a.swap() },
+  { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400) },
   { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear() },
+  /** Batched runs only: clear can't repeat without a create, so its sample is made tens of ms by size instead. */
+  ...(BATCH ? [
+    { key: 'noop',     label: `nothing, ${BATCH}× (the floor)`, setup: (a) => a.create(1000, 11), run: () => {}, each: () => {} },
+    { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear() },
+  ] : []),
   ...[5, 50].map((k) => ({
     key: `flood${k}`,
     label: `${k} events, each updating every 10th row`,
@@ -98,10 +126,26 @@ async function measure(impl, op) {
     await painted();
     await settle();
 
-    const t0 = performance.now();
-    await op.run(app); // resolves when this framework has finished writing the DOM
-    await painted();
-    const dt = performance.now() - t0;
+    const runs = BATCH && op.each ? BATCH : 1;
+    let dt;
+    if (runs === 1) {
+      const t0 = performance.now();
+      await op.run(app); // resolves when this framework has finished writing the DOM
+      if (LAYOUT) void document.body.offsetHeight;
+      await painted();
+      dt = performance.now() - t0;
+    } else {
+      /** The paint is OUTSIDE a batched sample: a frame's wait spread over N runs was as large as the op itself. */
+      const t0 = performance.now();
+      for (let k = 0; k < runs; k++) {
+        if (VERIFY) before = mount.innerHTML;
+        await op.each(app, k);
+        if (LAYOUT) void document.body.offsetHeight;
+        if (VERIFY && mount.innerHTML === before) unchanged[op.key] = (unchanged[op.key] ?? 0) + 1;
+      }
+      dt = (performance.now() - t0) / runs;
+      await painted();
+    }
 
     app.teardown();
     mount.textContent = '';
@@ -163,6 +207,15 @@ async function runAll() {
   status.textContent =
     'Done. Lower is better. Headline is the fastest run; "med" underneath is the median.';
   runBtn.disabled = false;
+  /** Each batched op less the floor, per op: `noop` measures the awaits, the loop and the paint's share. */
+  if (results.noop)
+    for (const op of OPERATIONS)
+      if (op.each && op.key !== 'noop')
+        results[`${op.key}:net`] = Object.fromEntries(IMPLEMENTATIONS.map((i) => {
+          const r = results[op.key][i.name], floor = results.noop[i.name];
+          return [i.name, r && floor ? { median: r.median - floor.median, min: r.min - floor.min, max: r.max - floor.max } : null];
+        }));
+  if (VERIFY) window.__UNCHANGED__ = unchanged;
   window.__RESULTS__ = results;
   console.log(JSON.stringify(results, null, 2));
 }
