@@ -32,13 +32,26 @@ dom.window.Document.prototype.createElement = function (name, ...rest) {
   return createElement.call(this, name, ...rest);
 };
 
+/** WeakRefs made to a component a TEMPLATE created (slots' `FED` records one per element it feeds). */
+let rowRefs = 0;
+const NativeWeakRef = globalThis.WeakRef;
+globalThis.WeakRef = class extends NativeWeakRef {
+  constructor(target) {
+    super(target);
+    if (target?.localName === 'pon-row') rowRefs++;
+  }
+};
+
 const { init, html, wire, ref, flush } = await load('core');
-const { renderer } = await load('renderer');
+const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 const open = ref(false);
+customElements.define('pon-row', class extends HTMLElement {
+  connectedCallback() { init(this, () => () => html`<p>row</p>`); }
+});
 customElements.define('pon-plain', class extends HTMLElement {
   connectedCallback() { init(this, () => () => html`<p>plain</p>`); }
 });
@@ -121,3 +134,28 @@ test('KNOWN (native hides it): a child appended BY HAND to an empty slotless hos
   assert.ok(el.querySelector('main')?.parentNode === el, "the component's own content is not swallowed");
   el.remove();
 });
+
+test('a list a TEMPLATE renders, of components it gives no children, makes slots record nothing per row', async () => {
+  const list = document.createElement('div');
+  document.body.append(list);
+  const draw = (rows) => html`${rows.map(() => html`<pon-row></pon-row>`)}`;
+  const fed = (rows) => html`${rows.map(() => html`<pon-row><b>light</b></pon-row>`)}`;
+  const before = observes;
+  const made = holdings;
+  const refs = rowRefs;
+  renderInto(draw([1, 2, 3, 4, 5]), list);
+  flush();
+  await settle();
+  assert.equal(list.querySelectorAll('pon-row p').length, 5, 'they rendered');
+  assert.equal(observes - before, 0, 'observe() calls');
+  assert.equal(holdings - made, 0, 'holding elements');
+  assert.equal(rowRefs - refs, 0, 'WeakRefs to the rows');
+  renderInto(draw([]), list);
+  /** CONTROL: rows the template DOES give children are recorded — the counter counts. */
+  renderInto(fed([1, 2]), list);
+  flush();
+  await settle();
+  assert.ok(rowRefs - refs > 0, `WeakRefs to rows with template children: ${rowRefs - refs}`);
+  list.remove();
+});
+

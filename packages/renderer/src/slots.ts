@@ -983,15 +983,24 @@ const capture = (host: Element, before: Node | null = null, nodes: Node[] = [...
  * Weak both ways: a root or an element gone takes its entries with it, and a dead ref is dropped by the read itself.
  */
 const FED = new WeakMap<Node, WeakRef<Element>[]>();
+/**
+ * A dashed element its template gives NO children is skipped by both: no outer template can ever write into it, so
+ * there is nothing to record — an app's list of `<x-row></x-row>` paid a child scan and a Set per row at create, and a
+ * WeakRef per row in its root's `FED` at mount, which that root's every render then filtered (Chrome 274 ms over a
+ * churned list, 2026-10-17). Decided at `create`, before the element renders: by `mount` its own render is in it.
+ */
+const FEEDS = Symbol();
+type Fed = Element & { [FEEDS]?: true };
 const hostBehavior = {
   mount: (element: Element, { root }: { root: Node | null }) => {
-    if (root === null) return;
+    if (root === null || (element as Fed)[FEEDS] !== true) return;
     let fed = FED.get(root);
     if (fed === undefined) FED.set(root, (fed = []));
     fed.push(new WeakRef(element));
   },
   create: (element: Element, adopted: boolean) => {
-    if (adopted) return;
+    if (adopted || element.firstChild !== null) (element as Fed)[FEEDS] = true;
+    if (adopted || element.firstChild === null) return;
     const statics = new Set<Node>();
     let hole = false;
     for (const child of [...element.childNodes]) {
@@ -1240,10 +1249,18 @@ export const slotDiscovery = [
        * A CUSTOM element rendered into that `init` never captured (the renderer used on its own, without core): what it
        * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
        */
-      if (container.nodeType === 1 && (HOSTS.get(container as Element)?.late ?? (container.firstChild !== start || strict(container as Element))) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName))
+      let own = HOSTS.get(container as Element);
+      if (container.nodeType === 1 && (own?.late ?? (container.firstChild !== start || strict(container as Element))) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName)) {
         capture(container as Element, start);
+        own = HOSTS.get(container as Element);
+      }
+      /**
+       * Nothing of this module's here — no light, nothing waiting, no host this render fed, nothing parked: the render of
+       * every component that needs no slotting ends here (a full `flush` per render was most of what wiring slots still
+       * cost a plain component in Firefox).
+       */
+      if (own === undefined && work.size === 0 && parkedObserver === undefined && FED.get(container) === undefined) return;
       /** Its own render ended: a fresh light that left the work set (disconnected meanwhile) is distributed now. */
-      const own = HOSTS.get(container as Element);
       if (own?.fresh && !own.wait) work.add(own);
       /**
        * Unobserved until it has a slot: what changed meanwhile is read once — at its first render's end, and at the end of
