@@ -748,7 +748,7 @@ builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->5.45 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->5.44 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.
@@ -775,7 +775,10 @@ the client repairs its own anchors into the adopted DOM.
 The one case that can be: with slots wired, the server states every component host it renders, so on a client
 without `hydration` a host stated empty (no light content) is cleared and rendered once, and a host holding the page's
 light content stands exactly as served with a coded error (`hydration-unwired`; development names what to wire); development warns
-once per page.
+once per page. A host that arrives with no children at all is simply rendered fresh, whatever its statement says, since
+there is nothing to duplicate or lose. Its `data-vm-light` attribute is then left in place. That is harmless: only a
+host's first render ever reads it, and a server re-states it on every render, so a copy of the live page (an editor's
+save, a devtools copy of `outerHTML`) carrying it is no different from served markup.
 
 Any disagreement with the server markup clears the container (keeping `<style data-vm-sheet="styles">` tags)
 and renders fresh, so correctness never depends on the server output being right. A DOM node at a

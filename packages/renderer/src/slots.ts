@@ -1113,8 +1113,8 @@ const slotBehavior = {
  */
 let warnedUnadopted = false;
 const unadopted = (container: Node) => {
-  /** An empty container holds no server markup to append beside: no attribute read for it (every component's first render). */
-  const spec = container.nodeType === 1 && container.firstChild !== null ? (container as Element).getAttribute(LIGHT_ATTR) : null;
+  /** Asked only for a container with something in it (the renderer skips an empty one: no server markup to append beside). */
+  const spec = container.nodeType === 1 ? (container as Element).getAttribute(LIGHT_ATTR) : null;
   if (spec === null) return;
   if (!spec.endsWith(':'))
     /**

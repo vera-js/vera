@@ -27,7 +27,8 @@ const serve = (fixture, children) =>
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'requestAnimationFrame', 'cancelAnimationFrame', 'MutationObserver', 'CSSStyleSheet'])
   globalThis[k] = dom.window[k];
-const { wire, html } = await load('core');
+const { wire, html, init, flush } = await load('core');
+const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 /** Slots, and NO hydration — the misconfiguration under test. */
@@ -87,6 +88,51 @@ test('the clear keeps the host\'s SSR stylesheet, as a hydration fallback does',
   renderInto(plain(), host);
   assert.equal(host.querySelector('style'), sheet, 'the stylesheet stands');
   assert.equal(host.querySelectorAll('section').length, 1);
+});
+
+/**
+ * **A served light host with NO children has nothing of the server's to stand beside**, so the renderer does not ask
+ * (fcbb3f0, then the renderer's own `firstChild` test, 2026-10-17): rendered fresh, without the coded error a host
+ * holding the page's light content gets — two copies are impossible when there is nothing to copy.
+ */
+test('a served light host with no children at all is rendered fresh, whatever its statement says', () => {
+  const host = mount('<slot-card-ssr data-vm-light="1:0,1"></slot-card-ssr>');
+  assert.equal(host.firstChild, null, 'CONTROL: nothing in it');
+  renderInto(card(), host);
+  assert.ok(host.querySelector('article') !== null, `rendered: ${host.innerHTML}`);
+});
+
+/**
+ * **A stated-empty host keeps its statement when it has no children** (the renderer does not ask an empty container), so
+ * the statement must never be read LATER (vera-5a): a stale `1:` read as served markup would clear the component's own
+ * render. It cannot be: core rebuilds a reinserted or moved component (its DOM is not kept across moves today), and a
+ * released root is cleared before the `'init'` hooks run, so every later first render meets an EMPTY container, which
+ * the renderer never asks about. Reading the statement CONSUMES it, so the attribute still standing proves it was never
+ * read. A component, so a reconnect is core's own path.
+ */
+test("a stated-empty host with no children, removed and reinserted or moved, keeps its own render: never read as served", async () => {
+  if (!customElements.get('uw-empty')) customElements.define('uw-empty', class extends HTMLElement {
+    connectedCallback() { init(this, () => () => plain()); }
+  });
+  const before = said.length;
+  const host = mount('<uw-empty data-vm-light="1:"></uw-empty>');
+  flush();
+  await settle();
+  assert.ok(host.querySelector('section') !== null, 'CONTROL: it rendered');
+  host.remove();
+  doc.body.append(host);
+  flush();
+  await settle();
+  const elsewhere = doc.createElement('div');
+  doc.body.append(elsewhere);
+  elsewhere.append(host);
+  flush();
+  await settle();
+  assert.equal(host.querySelectorAll('section').length, 1, `one copy: ${host.innerHTML}`);
+  assert.equal(host.querySelector('section h1')?.textContent, 'Plain', 'its own render');
+  assert.equal(host.getAttribute('data-vm-light'), '1:', 'the statement was never read (reading consumes it)');
+  assert.deepEqual(said.slice(before), [], 'no hydration diagnostic');
+  elsewhere.remove();
 });
 
 test('development warns ONCE per page, however many hosts it re-rendered', { skip: isProduction && 'the warning is development-only' }, () => {

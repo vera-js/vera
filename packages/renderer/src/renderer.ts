@@ -1845,8 +1845,12 @@ export const renderInto = (result: unknown, container: Node, owns?: boolean) => 
     part = rootParts.get(container)!;
   else {
     if (part === undefined) {
-      /** Nothing adopts: whatever recognizes server markup is told before this render would append beside it (light slots). */
-      if (adopt === undefined) (registry as { _$unadopted$?: (container: Node) => void } | null)?._$unadopted$?.(container);
+      /**
+       * Nothing adopts: whatever recognizes server markup is told before this render would append beside it (light slots)
+       * — only a container that HAS something in it; an empty one (every plain component's first render) holds no
+       * server markup, and asking it cost Firefox a call per component (2026-10-17 profile).
+       */
+      if (adopt === undefined && container.firstChild !== null) (registry as { _$unadopted$?: (container: Node) => void } | null)?._$unadopted$?.(container);
       rootParts.set(container, (part = owns === true && container.nodeType === 11 && container.firstChild === null ? owned(container) : markered(container, null)));
     }
     commitAs(container, part, result);

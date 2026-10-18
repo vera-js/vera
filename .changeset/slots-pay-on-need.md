@@ -23,3 +23,9 @@ wire([renderer, slots({ observeSlots: 'eager' })]); // every light component's d
 
 `slots` stays usable bare, `wire([renderer, slots])`. Called with options, it needs a `@verajs/core` whose `wire` hands
 connectors `wire` itself (this release). An older one is refused with `slots-wire-too-old` instead of wiring nothing.
+
+**Behavior:** a server-rendered light host that reaches the client with NO children at all — its content stripped on
+the way (an HTML rewriter, an edge transform) while its `data-vm-light` statement was kept — is now rendered fresh. It
+used to be refused with `hydration-unwired`. Nothing can be duplicated or lost when the host is empty, so there is
+nothing for the refusal to protect.
+
