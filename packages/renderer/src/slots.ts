@@ -982,8 +982,41 @@ const reconcile = (light: Light) => {
   }
 };
 /** A host's light record, new: its holding (bracketed by two comments, so `lastChild` is always an anchor), watched. */
+/**
+ * **`node.assignedSlot`, answered for light slots** (Brian, 2026-10-18: race it). The platform's getter knows only shadow
+ * roots; ONE getter replaces it on the prototypes that define it (the Slottable mixin: `Element`, `Text`), per window,
+ * at that window's first light host. It answers from `PLACED` — what distribution already records, so nothing is written
+ * per node — for a node this copy placed in a slot's region, and otherwise defers to the getter it replaced (native, or
+ * another copy's), so shadow-DOM nodes and other copies answer as before. Never on a server: no window with these
+ * prototypes, nothing installed.
+ */
+const PATCHED = Symbol();
+const answerAssigned = (win: typeof globalThis) => {
+  const marked = win as unknown as { [PATCHED]?: true };
+  if (marked[PATCHED] === true) return;
+  marked[PATCHED] = true;
+  for (const proto of [win.Element?.prototype, win.Text?.prototype]) {
+    const before = proto === undefined ? undefined : Object.getOwnPropertyDescriptor(proto, 'assignedSlot');
+    const native = before?.get;
+    /** Where the platform puts no getter of its own, nothing is defined there (development says so): never a fresh property. */
+    if (native === undefined) {
+      if (__DEV__ && proto !== undefined) console.warn(diagnostic('slots', 'assignedSlot', 'assigned-slot-unpatched', __DEV__ && PROSE['assigned-slot-unpatched'](proto === win.Text?.prototype ? 'Text' : 'Element')));
+      continue;
+    }
+    Object.defineProperty(proto, 'assignedSlot', {
+      configurable: true,
+      enumerable: before!.enumerable,
+      get(this: Node) {
+        const rec = PLACED.get(this);
+        return rec !== undefined && rec !== null && rec !== ADOPTED ? (rec as Rec).slot : native.call(this);
+      },
+    });
+  }
+};
 const lightFor = (host: Element, late: boolean, carrier: HTMLElement | null = null): Light => {
   const doc = host.ownerDocument;
+  const win = doc.defaultView as typeof globalThis | null;
+  if (win !== null) answerAssigned(win);
   /** The server's carrier, adopted, is the same element a client render makes: given the same style and anchors. */
   const holding = carrier ?? (doc.createElement('ins') as HTMLElement);
   holding.setAttribute('hidden', '');

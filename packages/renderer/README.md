@@ -687,10 +687,13 @@ return () => html`<header>
   `assignedNodes()` are asserted against real shadow DOM, which is the oracle for this. It fires
   for a slot whose rendering is currently displaced too (assignment is independent of rendering),
   exactly as native does for a slot that is not on screen.
-- **`node.assignedSlot` answers `null` — ask the slot, not the node.** The reverse lookup is a
-  platform accessor tied to real shadow assignment, and overriding it on YOUR nodes is an intrusion
-  this module refuses. The forward reads carry the same fact: `slot.assignedNodes().includes(node)`
-  through a `&ref`, or `slotted(host, name)` from outside.
+- **`node.assignedSlot` answers light slots too.** The platform's getter knows only shadow roots, so slots replaces it
+  once per window, at that window's first light host. It answers for the nodes slots placed, from what distribution
+  already records (nothing is written per node), and defers to the getter it replaced for every other node, so
+  shadow-DOM nodes, other copies of Vera, and other code that patched it answer as before. One case stays native: a node
+  created in another window (an iframe's parent) and placed into a light host here reads `null` unless its own window
+  also has a light host. The forward reads carry the same fact: `slot.assignedNodes()` through a `&ref`, or
+  `slotted(host, name)` from outside.
 - **Only a component that needs slotting pays for it.** One with no light content and no `<slot>` gets no observer and
   no hidden element; a component is observed from its first `<slot>`. So a child appended by hand to a component that
   has neither shows until a slot renders — native hides it. `observeSlots: 'eager'` observes a component
@@ -754,7 +757,7 @@ builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->5.77 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->5.91 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.

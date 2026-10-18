@@ -44,8 +44,8 @@ counts as a difference:
 npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
 ```
 
-Every scenario there matches native on Chromium, Firefox and WebKit, except four it lists as known
-divergences — `assignedSlot` (deliberately not emulated: ask the slot), a `<slot>` inserted by hand rather than
+Every scenario there matches native on Chromium, Firefox and WebKit, except three it lists as known
+divergences — a `<slot>` inserted by hand rather than
 through the template, a FILLED slot removed through `parentNode.removeChild` (it has no parent while it shows content), and a child appended by hand to a component that has neither a slot nor
 light content yet (shown until a slot renders; `init({ host, observeSlots: 'eager' }, setup)` closes it). An entry asserts that it still diverges, so a shape cannot
 quietly regress into it, nor be fixed without the list changing.
@@ -108,7 +108,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->5.77 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->5.91 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>` and each host, capturing the host's
 children, replaying what templates later write among them, the distribution itself — and the
 renderer carries only generic hooks it plugs into (an instance hook on the template, an element's

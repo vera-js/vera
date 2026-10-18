@@ -453,8 +453,8 @@ everything else (text included) to the first unnamed slot, duplicate names — f
 fallback renders only while a slot has nothing assigned and comes back if it empties. In a SHADOW
 root the module stands aside completely and the native `<slot>` renders untouched. Measured against
 native shadow DOM on three engines (`tests/browser/slots-conformance.test.js`), every scenario
-matches — slot forwarding and `hold()` inside content placed into a nested component included — except four
-listed there: `node.assignedSlot` answers `null` (ask the slot: `slot.assignedNodes()`), a `<slot>`
+matches — slot forwarding and `hold()` inside content placed into a nested component included — except three
+listed there: a `<slot>`
 inserted BY HAND is not followed (render slots from the template, e.g. `${open ? html`<slot></slot>` : null}`), a slot
 removed by hand is followed except through `parentNode.removeChild` on a FILLED slot (it has no parent then: use
 `slot.remove()`), and a
@@ -485,8 +485,8 @@ shadow DOM, event for event — including for a slot whose rendering is currentl
 assignment is independent of rendering). ⚠️ Bind it DIRECTLY (`@slotchange` on the slot): a slot
 with content is out of the document, so the event fired as it fills cannot bubble, while the one
 fired as it empties can — a host-level listener hears some changes and not others.
-`node.assignedSlot` answers `null` — the reverse lookup belongs to real shadow trees; read forward
-through the slot handle or `slotted(host, name)`. **`assignedNodes()`/`assignedElements()`** answer
+`node.assignedSlot` answers light slots too (slots replaces the platform getter once per window, deferring to it
+for every node it did not place); the forward reads — the slot handle or `slotted(host, name)` — carry the same fact. **`assignedNodes()`/`assignedElements()`** answer
 from the live assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the
 SLOTTABLES of the fallback currently on screen (a comment in fallback content is not one; a nested
 slot flattens through to what it is showing); and **`name` may be a binding** —
@@ -530,7 +530,7 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into, and the module is
-<!--size:slots.gzip-->5.77 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->5.91 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive — with one more module wired where both are used:
 `wire([renderer, hydration, slots, hydrateSlots])` (`import { hydrateSlots } from '@verajs/renderer/hydrate-slots'`;

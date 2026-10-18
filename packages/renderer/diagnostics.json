@@ -257,6 +257,14 @@
       "fix": "Claim elements through the `element` insert instead of a second instance hook."
     },
     {
+      "code": "assigned-slot-unpatched",
+      "params": [
+        "kind"
+      ],
+      "message": "this browser defines no `assignedSlot` getter on {kind}.prototype, so slots left it alone: a light child of that kind reads what the platform answers.",
+      "fix": "Read the assignment from the slot instead: `slot.assignedNodes()`, or `slotted(host, name)`."
+    },
+    {
       "code": "hydration-unwired",
       "params": [
         "outcome"

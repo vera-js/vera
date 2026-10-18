@@ -277,14 +277,14 @@ test('three-level slot chains survive a branch-away round trip, displaced or ren
  * non-enumerables precisely to never collide with anyone's surface). The fact is still available,
  * from the forward direction: the slot handle and `slotted()` both answer it.
  */
-test('assignedSlot is null in light mode; the forward reads carry the fact', async () => {
+test('assignedSlot answers the slot in light mode too, agreeing with the forward reads (Brian, 2026-10-18)', async () => {
   const element = host('<u slot="h">X</u>');
   let handle = null;
   renderInto(html`<div><slot name="h" &ref=${(s) => { handle = s; }}></slot></div>`, element);
   await settle();
   /** Queried after the render: captured at `init`, it waits in holding until its slot mounts. */
   const node = element.querySelector('u');
-  assert.equal(node.assignedSlot, null, 'the platform accessor answers for real shadow trees only');
+  assert.equal(node.assignedSlot, handle, 'the accessor answers light slots as it does shadow ones');
   assert.equal(handle.assignedNodes()[0], node, 'the slot handle answers forward');
   assert.deepEqual(slotted(element, 'h'), [node], 'and slotted() answers from outside');
   element.remove();

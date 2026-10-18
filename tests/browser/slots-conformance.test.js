@@ -180,7 +180,6 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
  * changes all three in the same commit.
  */
 const KNOWN = new Map([
-  ['assignedSlot names the slot a light child is in', 'assignedSlot is not emulated: a light child reads null (2026-10-17 baseline)'],
   ['the user removes a FILLED slot through its parent', "a filled <slot> has stepped out of the page (its region stands in its place), so `slot.parentNode.removeChild(slot)` finds no parent: use slot.remove() / replaceWith(), or remove its parent (2026-10-18, the residue of the hand-removal fix)"],
   ['the user inserts a slot by hand', 'only <slot>s a template renders take part; one inserted by hand stays empty (2026-10-17 baseline)'],
   ['the user prepends a child to a slotless host, a re-render, then a slot renders', "a child prepended by hand to a component with neither a slot nor light content shows only until its next render, which hides it (as native does), then a slot takes it (2026-10-17; D, which kept it visible, was raced and dropped)"],
