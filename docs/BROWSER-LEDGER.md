@@ -62,7 +62,7 @@ from another machine, or after that is undone, has a variable changed.
   nothing faster. **WebKit doesn't implement it.** It is the ground truth for a real click on
   Chrome and Firefox, and coarse. (Headed; 2026-10-18)
 - **Firefox and WebKit clamp `performance.now()` to whole milliseconds** (a fingerprinting defense) on an ordinary
-  page; Chrome is sub-ms. The clamp is CONDITIONAL: a cross-origin-isolated page (COOP `same-origin` + COEP
+  page; headed Chrome is 100 µs on a plain page and 5 µs isolated (measured, below). The clamp is CONDITIONAL: a cross-origin-isolated page (COOP `same-origin` + COEP
   `require-corp`) gets finer timers (Firefox ~20 µs, Chrome ~5 µs, per the engines' documentation, not yet measured
   here; WebKit unknown). **Measured 2026-10-18 (headed):** the smallest `performance.now()` step on a PLAIN page is
   0.1 ms in headed Chrome (not finer) and 1 ms in Firefox and WebKit; on an ISOLATED page it is 0.005 ms in Chrome and
