@@ -67,6 +67,10 @@ for (const engine of engines) {
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
+    /** The conditions, ignored daemons INCLUDED (vera-5a, 2026-10-18): the A/A is the defense; this line says whether it was needed. */
+    const top = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 4).map((l) => { const m = l.trim().match(/^([\d.]+)\s+(.*)$/); return `${m[1]} ${m[2].split('/').pop()}`; }).join(', ');
+    const pressure = execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1];
+    console.log(`${engine}/${session}: thermal ${pressure} | ${top}`);
     for (const [name, file, query] of variants.map((_, i) => variants[(i + session) % variants.length])) {
       const browser = await launch(engine);
       const page = await browser.newPage();
