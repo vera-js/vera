@@ -41,10 +41,11 @@ const WARMUP = 2;
  * **`?batch=N` times the small ops N to a sample** (2026-10-18). One select or swap takes a few ms, and Firefox and
  * WebKit report whole milliseconds, so a single-op sample is mostly rounding: Solid raced against itself swung up to
  * 267%. Under `?batch`, a sample of select / swap / remove is the op run back to back in ONE task until the sample
- * reaches its time box (50 ms; remove stops at 500 runs, so rows never run out), each run awaited (every framework has
- * written the DOM before the next run starts; `&verify=1` proves it), and is reported per op; the paint that follows is
- * outside the sample. update10 runs a FIXED 200: its labels grow each run, and a time box would hand faster frameworks
- * longer strings. A fixed N of 100 couldn't resolve compiled Solid's 10 µs select on a whole-ms clock (one tick). Batched,
+ * reaches its time box (50 ms), each run awaited (every framework has written the DOM before the next run starts;
+ * `&verify=1` proves it), and is reported per op; the paint that follows is outside the sample. **An op whose per-run
+ * work depends on the run index gets a FIXED N, never a time box** (vera-5a, 2026-10-18), or a faster framework's later
+ * runs face different work: update10 runs 200 (its labels grow each run), remove 500 (the table shrinks each run, and
+ * a boxed faster framework would remove against a smaller one). A fixed N of 100 couldn't resolve compiled Solid's 10 µs select on a whole-ms clock (one tick). Batched,
  * style and layout happen once for the net change, so the number is script + DOM writes per op; `&layout=1` forces
  * layout after every run (an `offsetHeight` read), the per-interaction cost a real click pays. The race reports both
  * as separate variants. `noop` (an op that does nothing) is the floor: each batched op is also reported as
@@ -83,7 +84,7 @@ const OPERATIONS = [
   { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th(), fixed: 200 },
   { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + (k % 600)) },
   { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap(), each: (a) => a.swap() },
-  { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400), cap: 500 },
+  { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400), fixed: 500 },
   { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear() },
   /** Batched runs only: clear can't repeat without a create, so its sample is made tens of ms by size instead. */
   ...(BATCH ? [
