@@ -710,9 +710,10 @@ return () => html`<header>
   name, or nowhere: through the slot's own `remove()` / `replaceWith()`, or by removing its parent or an ancestor (a
   microtask later, the hand-edit rule). One spelling cannot work: a slot WITH content has stepped out of the page (its
   region stands in its place), so `slot.parentNode` is `null` and `parentNode.removeChild(slot)` has nothing to call.
-- **Insert `<slot>`s through the template, not by hand.** A `<slot>` inserted by hand is not one the template rendered,
-  so it stays empty, where a shadow root uses it at once. Render the slot conditionally instead
-  (`${open ? html`<slot></slot>` : null}`), which works in both.
+- **Insert `<slot>`s through the template, or observe the component eagerly.** On a component observed lazily (the
+  default), a `<slot>` inserted by hand is not one the template rendered, so it stays empty, where a shadow root uses it
+  at once. With `observeSlots: 'eager'` it is claimed like the template's own. Rendering the slot conditionally
+  (`${open ? html`<slot></slot>` : null}`) works in every mode.
 - **Bind `slotchange` directly — do not count on it reaching the host.** In a shadow root one listener
   on the root hears every slot by bubbling. Here a slot with content is out of the document, so the
   event fired as it fills has no tree to climb, while the one fired as it empties — the slot is back
@@ -757,7 +758,7 @@ builds say so, naming the attribute, rather than leaving it to be found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->6.03 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->6.24 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.

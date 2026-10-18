@@ -533,7 +533,58 @@ function replaceSlot(this: Kept, ...nodes: (Node | string)[]) {
   }
   (this.ownerDocument.defaultView as typeof globalThis).Element.prototype.replaceWith.apply(this, nodes);
 }
+/**
+ * **A `<slot>` inserted BY HAND** (KNOWN fix, 2026-10-18): claimed as the template's own are, through `slotBehavior.mount`,
+ * once the flush that found it is done (the mount flushes its light itself). Only a slot the component's template tree
+ * holds counts: one inside the host's LIGHT content is light DOM, as natively it is no slot of this host.
+ */
+let claims: [HTMLSlotElement, Light][] = [];
+/**
+ * Claimed in a MICROTASK, never inside the flush that found them: a template's own slot is found by the flush its own
+ * `mount` begins with, BEFORE that mount gives it its record — claimed then, it was mounted twice (renderer-slots'
+ * three-level chain). A microtask later every mount in progress has finished, and a template slot carries its record
+ * (set once, never cleared), so only a slot no template made is claimed — a microtask later, the hand-edit rule.
+ */
+let claimQueued = false;
+const findSlots = (light: Light, node: Node) => {
+  if (node.nodeType !== 1) return;
+  const element = node as Element;
+  if (element.localName === 'slot') {
+    if ((element as Kept).$rec === undefined) claims.push([element as HTMLSlotElement, light]);
+    return;
+  }
+  /** Descendants only when there are any: the template's own small writes (a swapped `<i>`) stay one property read. */
+  if (element.firstElementChild === null) return;
+  const found = element.getElementsByTagName('slot');
+  for (let i = 0; i < found.length; i++) if ((found[i] as Kept).$rec === undefined) claims.push([found[i] as HTMLSlotElement, light]);
+};
+/** Whether `slot` sits in the component's own tree — not inside a light node this module placed or holds. */
+const ofTemplate = (slot: Node, light: Light) => {
+  for (let at = slot.parentNode; at !== null; at = at.parentNode) {
+    if (at === light.host) return true;
+    if (at === light.holding || PLACED.has(at)) return false;
+  }
+  return false;
+};
+const claimInserted = () => {
+  claimQueued = false;
+  const pending = claims;
+  claims = [];
+  for (const [slot, light] of pending)
+    if ((slot as Kept).$rec === undefined && HOSTS.get(light.host) === light && ofTemplate(slot, light)) slotBehavior.mount(slot, { root: light.host });
+};
+/** The batch's added nodes, looked through for a hand-inserted slot — a pass of its own, so `note` stays small. */
+const scanAdded = (light: Light, records: MutationRecord[]) => {
+  for (const record of records) {
+    if (record.type !== 'childList') continue;
+    /** Read once: `addedNodes` is a DOM getter. */
+    const added = record.addedNodes;
+    for (let i = 0, n = added.length; i < n; i++) findSlots(light, added[i]);
+  }
+};
 const note = (light: Light, records: MutationRecord[]) => {
+  /** Only a component observed from its first render ('eager') follows a `<slot>` inserted by hand — a lazy one pays nothing. */
+  if (light.ex === true) scanAdded(light, records);
   lead = new WeakMap();
   let removed = false;
   for (const record of records) {
@@ -692,6 +743,10 @@ const flush = (context?: Light, root?: Node) => {
   }
   /** What this module just moved, recorded on the lights it read: not news. */
   for (const light of near) drop(light);
+  if (claims.length > 0 && !claimQueued) {
+    claimQueued = true;
+    queueMicrotask(claimInserted);
+  }
 };
 /** Whether `node` sits outside the host's subtree registration — detached, or inside a slot (which steps out with its content). */
 const outside = (node: Node, host: Element) => {

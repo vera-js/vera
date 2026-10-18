@@ -181,9 +181,8 @@ const run = async ({ draw, children = () => [], hosts = 1, detached = false, ste
  */
 const KNOWN = new Map([
   ['the user removes a FILLED slot through its parent', "a filled <slot> has stepped out of the page (its region stands in its place), so `slot.parentNode.removeChild(slot)` finds no parent: use slot.remove() / replaceWith(), or remove its parent (2026-10-18, the residue of the hand-removal fix)"],
-  ['the user inserts a slot by hand', 'only <slot>s a template renders take part; one inserted by hand stays empty (2026-10-17 baseline)'],
+  ['the user inserts a slot by hand', "a component observed lazily (the default) takes part only with <slot>s its template renders; one inserted by hand stays empty. observeSlots: 'eager' claims it, as native (2026-10-18, Brian's option 3)"],
   ['the user prepends a child to a slotless host, a re-render, then a slot renders', "a child prepended by hand to a component with neither a slot nor light content shows only until its next render, which hides it (as native does), then a slot takes it (2026-10-17; D, which kept it visible, was raced and dropped)"],
-  ['observeSlots eager: the user inserts a slot by hand into a component that has never rendered one', 'the same: a <slot> inserted by hand is not claimed yet (2026-10-17; the hand-insertion fix closes both)'],
   [
     'the user appends a child to a component with no slot and no light content',
     "a component is observed from its first <slot> by default: the child shows until a slot renders, then is slotted; one with observeSlots: 'eager' hides it, as native (2026-10-17)",
@@ -995,6 +994,17 @@ scenario('the user removes a FILLED slot through its parent', {
   steps: [
     ['render', (side) => side.render()],
     ['parentNode.removeChild(slot)', (side) => side.slots.h.parentNode?.removeChild(side.slots.h)],
+  ],
+});
+
+/** The same edit on an 'eager' component matches native: option 3 (2026-10-18) gives eager components hand-inserted slots. */
+scenario('observeSlots eager: the user inserts a slot by hand', {
+  strict: true,
+  draw: () => html`<header><slot name="h">fh</slot></header><main></main>`,
+  children: () => [el('b', { slot: 'h' }, 'H'), el('i', {}, 'I')],
+  steps: [
+    ['render', (side) => side.render()],
+    ['append a default slot into main', (side) => side.targets[0].querySelector('main').append(document.createElement('slot'))],
   ],
 });
 

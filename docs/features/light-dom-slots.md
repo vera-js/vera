@@ -45,8 +45,8 @@ npm run test:browser:all                                # includes tests/browser
 ```
 
 Every scenario there matches native on Chromium, Firefox and WebKit, except three it lists as known
-divergences — a `<slot>` inserted by hand rather than
-through the template, a FILLED slot removed through `parentNode.removeChild` (it has no parent while it shows content), and a child appended by hand to a component that has neither a slot nor
+divergences — a `<slot>` inserted by hand into a component observed lazily (the default; `observeSlots: 'eager'`
+claims it, as native), a FILLED slot removed through `parentNode.removeChild` (it has no parent while it shows content), and a child appended by hand to a component that has neither a slot nor
 light content yet (shown until a slot renders; `init({ host, observeSlots: 'eager' }, setup)` closes it). An entry asserts that it still diverges, so a shape cannot
 quietly regress into it, nor be fixed without the list changing.
 
@@ -108,7 +108,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->6.03 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->6.24 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>` and each host, capturing the host's
 children, replaying what templates later write among them, the distribution itself — and the
 renderer carries only generic hooks it plugs into (an instance hook on the template, an element's
@@ -143,8 +143,11 @@ comparison or a property read at those points and nothing else.
 - **A `<slot>` removed by hand unassigns its content, as a shadow root does** — through its own `remove()` /
   `replaceWith()`, or by removing its parent or an ancestor. A slot with content has stepped out of the page, though, so
   `slot.parentNode.removeChild(slot)` finds no parent there; that one spelling is listed as a known difference.
-- **`<slot>`s are inserted through the template.** A `<slot>` inserted by hand stays empty, where a shadow root uses
-  it. Render slots conditionally from the template instead, which behaves the same in both modes.
+- **A `<slot>` inserted by hand takes part on an `observeSlots: 'eager'` component**: it is claimed like the template's
+  own and takes the assignment by tree order. On a component observed lazily (the default) it stays empty, where a
+  shadow root uses it, because following hand-inserted slots means looking through every node a render adds, and a lazy
+  component doesn't pay for that. Render slots conditionally from the template instead, which behaves the same in every
+  mode.
 - **A `<slot>` cannot sit inside table markup** — `<table><tbody><slot></slot></tbody></table>`
   does not do what it looks like, in EITHER mode. The HTML parser's table insertion mode rejects a
   `<slot>` element and foster-parents it out, so the slot and everything distributed into it end up
