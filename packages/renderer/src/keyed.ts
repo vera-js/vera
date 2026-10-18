@@ -165,12 +165,12 @@ export const keyed = <T>(key: unknown, result: T): T => {
  */
 type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown };
 type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string; readonly isConnected: boolean; readonly ownerDocument: Document };
-type Row = { k: unknown; item: unknown; row: (item: unknown) => unknown; result: KeyedResult | null; inst: Item | undefined; owner: Owner; t: number; run: () => void };
+type Row = { k: unknown; item: unknown; row: (item: unknown) => unknown; result: KeyedResult | null; inst: Item | undefined; owner: Owner; t: number; run: (signal?: unknown, init?: boolean) => void };
 type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row> };
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
   ({ _$each$: 1, items, key, row }) as EachValue;
 
-let hook: ((owner: Owner, callback: () => void) => () => void) | undefined;
+let hook: ((owner: Owner, callback: () => void) => (signal?: unknown, init?: boolean) => void) | undefined;
 let retire: ((owner: Owner) => void) | undefined;
 let tick = 0;
 
@@ -187,8 +187,8 @@ const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown)
     _$g$: 1,
     _$x$: false,
     localName: 'each-row',
-    get isConnected() { return rec.inst === undefined || (rec.inst as { $R: Node }).$R.isConnected; },
-    get ownerDocument() { return rec.inst === undefined ? document : (rec.inst as { $R: Node }).$R.ownerDocument!; },
+    get isConnected() { const node = (rec.inst as { $R?: Node } | undefined)?.$R; return node === undefined || node.isConnected; },
+    get ownerDocument() { return (rec.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document; },
   };
   const run = hook!(rec.owner, () => {
     const r = stamp(rec);
@@ -204,7 +204,8 @@ const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown)
     }
   });
   rec.run = run;
-  run();
+  /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
+  run(undefined, true);
   return rec;
 };
 const drop = (rec: Row) => {
@@ -233,7 +234,7 @@ const eachValue = (part: object, value: unknown) => {
       /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
       rec.item = item;
       rec.row = row;
-      rec.run();
+      rec.run(undefined, true);
     }
     rec.t = t;
     recs[i] = rec;
