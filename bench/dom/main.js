@@ -40,9 +40,11 @@ const WARMUP = 2;
 /**
  * **`?batch=N` times the small ops N to a sample** (2026-10-18). One select or swap takes a few ms, and Firefox and
  * WebKit report whole milliseconds, so a single-op sample is mostly rounding: Solid raced against itself swung up to
- * 267%. Under `?batch` (N = 100 unless given), a sample of select / swap / update10 / remove is N runs back to back in
- * ONE task, each awaited (every framework has written the DOM before the next run starts; `&verify=1` proves it), and
- * is reported per op; the paint that follows is outside the sample. Batched,
+ * 267%. Under `?batch`, a sample of select / swap / remove is the op run back to back in ONE task until the sample
+ * reaches its time box (50 ms; remove stops at 500 runs, so rows never run out), each run awaited (every framework has
+ * written the DOM before the next run starts; `&verify=1` proves it), and is reported per op; the paint that follows is
+ * outside the sample. update10 runs a FIXED 200: its labels grow each run, and a time box would hand faster frameworks
+ * longer strings. A fixed N of 100 couldn't resolve compiled Solid's 10 µs select on a whole-ms clock (one tick). Batched,
  * style and layout happen once for the net change, so the number is script + DOM writes per op; `&layout=1` forces
  * layout after every run (an `offsetHeight` read), the per-interaction cost a real click pays. The race reports both
  * as separate variants. `noop` (an op that does nothing) is the floor: each batched op is also reported as
@@ -50,7 +52,8 @@ const WARMUP = 2;
  * labels each run, so the 20th run writes slightly longer strings than the 1st, the same for every framework.
  */
 const params = new URLSearchParams(location.search);
-const BATCH = params.has('batch') ? Number(params.get('batch')) || 100 : 0;
+/** `?batch[=ms]`: the time box of one batched sample (50 ms), about 2% of resolution on a whole-millisecond clock. */
+const BATCH = params.has('batch') ? Number(params.get('batch')) || 50 : 0;
 const LAYOUT = params.has('layout');
 /**
  * `&verify=1` (a smoke, never timed): counts batched runs after which the DOM had NOT changed. It must be 0 for every
@@ -58,6 +61,8 @@ const LAYOUT = params.has('layout');
  */
 const VERIFY = params.has('verify');
 const unchanged = {};
+/** The fewest runs any batched sample of each op made, reported so a capped op's resolution is visible. */
+const runsOf = {};
 let before;
 
 /** Resolves once the browser has painted. */
@@ -75,10 +80,10 @@ const OPERATIONS = [
   { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1) },
   { key: 'create10k', label: 'create 10 000 rows',    setup: (a) => a.clear(),        run: (a) => a.create(10000, 2) },
   { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4) },
-  { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th() },
-  { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + k) },
+  { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th(), fixed: 200 },
+  { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + (k % 600)) },
   { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap(), each: (a) => a.swap() },
-  { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400) },
+  { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400), cap: 500 },
   { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear() },
   /** Batched runs only: clear can't repeat without a create, so its sample is made tens of ms by size instead. */
   ...(BATCH ? [
@@ -129,9 +134,8 @@ async function measure(impl, op) {
     await painted();
     await settle();
 
-    const runs = BATCH && op.each ? BATCH : 1;
     let dt;
-    if (runs === 1) {
+    if (!(BATCH && op.each)) {
       const t0 = performance.now();
       await op.run(app); // resolves when this framework has finished writing the DOM
       if (LAYOUT) void document.body.offsetHeight;
@@ -140,13 +144,15 @@ async function measure(impl, op) {
     } else {
       /** The paint is OUTSIDE a batched sample: a frame's wait spread over N runs was as large as the op itself. */
       const t0 = performance.now();
-      for (let k = 0; k < runs; k++) {
+      let k = 0;
+      do {
         if (VERIFY) before = mount.innerHTML;
-        await op.each(app, k);
+        await op.each(app, k++);
         if (LAYOUT) void document.body.offsetHeight;
         if (VERIFY && mount.innerHTML === before) unchanged[op.key] = (unchanged[op.key] ?? 0) + 1;
-      }
-      dt = (performance.now() - t0) / runs;
+      } while (op.fixed ? k < op.fixed : k < (op.cap ?? Infinity) && performance.now() - t0 < BATCH);
+      dt = (performance.now() - t0) / k;
+      runsOf[op.key] = Math.min(runsOf[op.key] ?? Infinity, k);
       await painted();
     }
 
@@ -219,6 +225,7 @@ async function runAll() {
           return [i.name, r && floor ? { median: r.median - floor.median, min: r.min - floor.min, max: r.max - floor.max } : null];
         }));
   if (VERIFY) window.__UNCHANGED__ = unchanged;
+  window.__RUNS__ = runsOf;
   window.__RESULTS__ = results;
   console.log(JSON.stringify(results, null, 2));
 }
