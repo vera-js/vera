@@ -47,7 +47,7 @@ export const resetIds = () => { nextId = 1; };
  * renderer is an insert at priority 50, and registering at a taken priority replaces, which is
  * exactly what the old call did.
  */
-import { init, ref, shallowRef, setRenderScheduler, microtask, wire } from '@verajs/core';
+import { init, ref, shallowRef, createStore, createHook, setRenderScheduler, microtask, wire } from '@verajs/core';
 import { html as litHtml, render as litRender, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 
@@ -157,6 +157,106 @@ const litImpl = (mount) => {
     remove: (i) => { const rows = el.rows.slice(); rows.splice(i, 1); el.rows = rows; return settle(); },
     clear: () => { el.rows = []; return settle(); },
     teardown: () => { el.remove(); },
+  };
+};
+
+/**
+ * **P0: the userland ceiling of "rows as their own tracked scopes + a keyed selector"** (DESIGN-FINE-GRAINED S4 + S3,
+ * 2026-10-18), with NO framework change: each row is an `init` component with its own store, the list re-renders only
+ * when the ARRAY changes, and select / update write the affected rows' stores directly (the selector's effect, by
+ * hand: the old and the new row only). Rows are `<div>`s, like "VeraJS components" (custom elements inside `<tbody>`
+ * are foster-parented). Not the product's numbers: what the model can do at best today.
+ */
+class VeraFineRow extends HTMLElement {
+  set rec(value) { this.r = value; }
+  connectedCallback() {
+    if (this.started) return;
+    this.started = true;
+    const { id, s } = this.r;
+    init(this, () => () => rawHtml`<div class="${s.sel ? 'selected' : null}"><span>${id}</span><a>${s.label}</a><a>x</a></div>`);
+  }
+}
+
+const veraFineImpl = (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  if (!customElements.get('vb-frow')) customElements.define('vb-frow', VeraFineRow);
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const rows = shallowRef([]);
+  let selected;
+  const recs = (data) => data.map((d) => ({ id: d.id, s: createStore({ label: d.label, sel: false }) }));
+  init(host, () => () => rawHtml`<div>${rows.value.map((r) => keyed(r.id, rawHtml`<vb-frow .rec=${r}></vb-frow>`))}</div>`);
+  return {
+    create: (n, seed) => { selected = undefined; rows.value = recs(buildData(n, seed)); },
+    append: (n, seed) => { rows.value = rows.value.concat(recs(buildData(n, seed))); },
+    updateEvery10th: () => { const r = rows.value; for (let i = 0; i < r.length; i += 10) r[i].s.label += ' !!!'; },
+    swap: () => {
+      const next = rows.value.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      rows.value = next;
+    },
+    select: (i) => {
+      const next = rows.value[i];
+      if (selected !== undefined) selected.s.sel = false;
+      selected = next;
+      if (next !== undefined) next.s.sel = true;
+    },
+    remove: (i) => { const next = rows.value.slice(); const [gone] = next.splice(i, 1); if (gone === selected) selected = undefined; rows.value = next; },
+    clear: () => { selected = undefined; rows.value = []; },
+    teardown: () => { host.remove(); },
+  };
+};
+
+/**
+ * **P1e: P1's shape emulated with public APIs** (DESIGN-FINE-GRAINED, 2026-10-18): TABLE markup, no component per row.
+ * The list renders keyed `<tr>` shells, and each row gets its own store plus a `createHook` (owner: a plain per-row
+ * object, chained to the list's component) that renders its cells into its `<tr>` and sets its class. Select and
+ * update write the affected rows' stores only. Emulation limits (not P1's): the hooks run on every write, not once per
+ * flush; rows are disposed only with the list; each row is two template instances (shell + cells), where P1's `each`
+ * would build one. A timing probe, never shipped.
+ */
+const veraFineP1eImpl = (mount) => {
+  setRenderScheduler(DEFAULT_SCHEDULER);
+  wireVera();
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const rows = shallowRef([]);
+  let selected;
+  const cells = (rec) => rawHtml`<td>${rec.id}</td><td><a>${rec.s.label}</a></td><td><a>x</a></td>`;
+  /** The element ref of a row's `<tr>`: on its first element, the row's scope is made and run once. */
+  const recs = (data) => data.map((d) => {
+    const rec = { id: d.id, s: createStore({ label: d.label, sel: false }), el: null };
+    rec.ref = { get value() { return rec.el; }, set value(el) {
+      if (el === null || rec.el !== null) return;
+      rec.el = el;
+      const run = createHook({ priority: 50, element: rec.owner = {}, callback: () => {
+        if (rec.s.sel) el.className = 'selected'; else el.removeAttribute('class');
+        veraDomRender(cells(rec), el);
+      } });
+      run();
+    } };
+    return rec;
+  });
+  init(host, () => () => rawHtml`<table><tbody>${rows.value.map((r) => keyed(r.id, rawHtml`<tr ${r.ref}></tr>`))}</tbody></table>`);
+  return {
+    create: (n, seed) => { selected = undefined; rows.value = recs(buildData(n, seed)); },
+    append: (n, seed) => { rows.value = rows.value.concat(recs(buildData(n, seed))); },
+    updateEvery10th: () => { const r = rows.value; for (let i = 0; i < r.length; i += 10) r[i].s.label += ' !!!'; },
+    swap: () => {
+      const next = rows.value.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      rows.value = next;
+    },
+    select: (i) => {
+      const next = rows.value[i];
+      if (selected !== undefined) selected.s.sel = false;
+      selected = next;
+      if (next !== undefined) next.s.sel = true;
+    },
+    remove: (i) => { const next = rows.value.slice(); const [gone] = next.splice(i, 1); if (gone === selected) selected = undefined; rows.value = next; },
+    clear: () => { selected = undefined; rows.value = []; },
+    teardown: () => { host.remove(); },
   };
 };
 
@@ -730,6 +830,8 @@ export const IMPLEMENTATIONS = [
   /** The same entry again: the A/A control a race needs to tell a real gap from noise. */
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
+  { name: 'VeraJS fine P1e', note: 'P1 emulated with public APIs: table rows, a store + createHook per row', factory: veraFineP1eImpl },
+  { name: 'VeraJS fine P0', note: 'userland ceiling: rows as init components with their own store; select / update write rows directly', factory: veraFineImpl },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
   { name: 'Solid', note: 'solid-js compiled (babel-preset-solid), For + createSelector', factory: solidCompiledImpl },
   { name: 'Solid (h)', note: 'solid-js/h, no compiler (the race used this one until 2026-10-18)', factory: solidImpl },
