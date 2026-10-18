@@ -410,7 +410,7 @@ const observerOf = (light: Light): MutationObserver => {
     flush();
   };
   /**
-   * ONE per light (2026-10-17; a pair measured ~5 points of creation slower): its registrations are on distinct nodes —
+   * ONE per light (2026-10-17; probe P3 vs P2: ~1 point of creation in each engine): its registrations are on distinct nodes —
    * the host's subtree for childList, each light element and slot for its attributes, holding and a fallback's region
    * parent for childList — so none replaces another's options, except a node both a light element and a slot (`own`).
    */
