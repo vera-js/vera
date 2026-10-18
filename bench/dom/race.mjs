@@ -70,6 +70,15 @@ const quiet = async () => {
 const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12);
 const root = new URL('../..', import.meta.url).pathname;
 console.log(`tree ${execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim()}${execSync('git status --porcelain -- packages', { cwd: root }).toString().trim() ? ' (packages/ DIRTY)' : ''} at ${root}`);
+/**
+ * The harness's OWN source, hashed as it runs (vera-5a, 2026-10-18): `tree` is HEAD, which says nothing about a working
+ * tree that differs from it, so the header names the git blob race.mjs and main.js match, or says they're uncommitted.
+ */
+for (const file of ['bench/dom/race.mjs', 'bench/dom/main.js', 'bench/dom/impls.js']) {
+  const blob = execSync(`git hash-object ${file}`, { cwd: root }).toString().trim();
+  const head = execSync(`git rev-parse HEAD:${file}`, { cwd: root }).toString().trim();
+  console.log(`  ${file} blob ${blob.slice(0, 12)}${blob === head ? ' (= HEAD)' : ' (UNCOMMITTED, differs from HEAD)'}`);
+}
 for (const [name, file, query] of variants) console.log(`  ${name}: ${join(directory, file)} sha ${sha(join(directory, file))}${query ? ` ?${query}` : ''}`);
 for (const dist of ['core/dist/vera.min.js', 'renderer/dist/vera-renderer.min.js', 'renderer/dist/vera-renderer-slots.min.js', 'renderer/dist/vera-renderer-keyed.min.js'])
   console.log(`  ${dist} sha ${sha(join(root, 'packages', dist))}`);
@@ -130,11 +139,11 @@ for (const engine of engines) {
     /** One build: compare the IMPLEMENTATIONS — median of session medians, and sessions each was fastest in. */
     const impls = Object.keys(data);
     console.log(`\n== ${engine}: ms per op (${/layout=1/.test(variants[0][2]) ? 'script + DOM + layout, paint excluded; +paint rows to paint' : 'to paint'}), median of ${sessions} session medians (sessions fastest)`);
-    console.log('  ' + 'operation'.padEnd(13) + impls.map((n) => n.slice(0, 14).padStart(17)).join(''));
+    console.log('  ' + 'operation'.padEnd(15) + impls.map((n) => n.padStart(Math.max(17, n.length + 2))).join(''));
     for (const op of Object.keys(data[impls[0]])) {
       const meds = impls.map((n) => med(data[n][op][base]));
       const wins = impls.map((n) => data[n][op][base].filter((x, s) => impls.every((m) => data[m][op][base][s] >= x)).length);
-      console.log('  ' + op.padEnd(13) + meds.map((m, j) => `${fmt(m)} (${wins[j]})`.padStart(17)).join(''));
+      console.log('  ' + op.padEnd(15) + meds.map((m, j) => `${fmt(m)} (${wins[j]})`.padStart(Math.max(17, impls[j].length + 2))).join(''));
     }
     continue;
   }
