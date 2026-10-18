@@ -697,7 +697,9 @@ return () => html`<header>
   from its first render instead — `init({ host: this, observeSlots: 'eager' }, setup)` — as a shadow root follows
   every host; `wire([renderer, slots({ observeSlots: 'eager' })])` makes that every light component's default (its own
   `observeSlots` wins), at an observer per component. The default, `'lazy'` (paired as HTML's `loading` pairs them),
-  starts at the first `<slot>` or light child and is fully correct for everything a template renders.
+  starts at the first `<slot>` or light child and is fully correct for everything a template renders. A value it does
+  not have reads as `'lazy'` — the built-in default, even where the app's is `'eager'`, as `foreignNodes` does — and
+  development says so.
 - **Add or remove `<slot>`s through the template, not by hand.** A slot with content has stepped out of
   the page, so removing it by hand changes nothing and its content stays shown; a `<slot>` inserted by
   hand is not one the template rendered, so it stays empty. In a shadow root both take effect at once.

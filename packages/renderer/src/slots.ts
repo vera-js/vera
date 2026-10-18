@@ -1193,7 +1193,10 @@ const serve = { name: '@verajs/renderer/slots', on: 'slot' as const, fn: () => n
  *   hidden and a `<slot>` inserted by hand is seen — what native shadow DOM does for every host, at an observer per
  *   component.
  */
-/** Development: `observeSlots` is `'lazy'` or `'eager'`; anything else reads as `'lazy'`, and says so — as core does for `foreignNodes`. */
+/**
+ * Development: `observeSlots` is `'lazy'` or `'eager'`; anything else reads as `'lazy'` — the BUILT-IN default, even where
+ * the app's default is `'eager'`, as core does for `foreignNodes` — and says so.
+ */
 const checkObserve = (subject: string, value: unknown) => {
   if (value !== undefined && value !== 'lazy' && value !== 'eager')
     console.warn(diagnostic('slots', subject, 'observe-slots-option', __DEV__ && PROSE['observe-slots-option'](typeof value === 'string' ? `'${value}'` : String(value))));

@@ -87,4 +87,19 @@ test("a value observeSlots does not have reads as 'lazy' and says so, in develop
   assert.equal(said.length, 2, said.join('\n'));
   assert.ok(said[0].startsWith('[vera]') && /`observeSlots: 'eagre'` is not a setting/.test(said[0]), said.join('\n'));
   assert.ok(said[1].startsWith('[vera]') && /`observeSlots: true` is not a setting/.test(said[1]), said.join('\n'));
+  assert.ok(said.every((w) => w.includes('observe-slots-option')), 'each line carries its code');
 });
+
+test("an invalid value of a component's own reads as the BUILT-IN 'lazy', even under an app default of 'eager' (as foreignNodes)", async () => {
+  customElements.define('ed-own-invalid', class extends HTMLElement {
+    connectedCallback() { init({ host: this, observeSlots: 'sometimes' }, () => () => html`<main></main>`); }
+  });
+  const keep = console.warn;
+  console.warn = () => {};
+  try {
+    assert.equal(await appendAfterRender('ed-own-invalid'), false, "lazy: the hand-appended child shows, as the default's 'eager' would hide it");
+  } finally {
+    console.warn = keep;
+  }
+});
+
