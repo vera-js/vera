@@ -22,7 +22,7 @@ import { createHash } from 'node:crypto';
 
 const args = process.argv.slice(2);
 const sessions = Number(args[0]);
-const variants = args.slice(1).filter((a) => !a.startsWith('--')).map((a) => { const [name, spec] = a.split('='); const [file, query = ''] = spec.split('?'); return [name, file, query]; });
+const variants = args.slice(1).filter((a) => !a.startsWith('--')).map((a) => { const at = a.indexOf('='); const [file, query = ''] = a.slice(at + 1).split('?'); return [a.slice(0, at), file, query]; });
 const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const only = flag('only') ?? 'VeraJS own,VeraJS default';
 const ops = flag('ops');
@@ -81,6 +81,11 @@ for (const engine of engines) {
       await page.click('#run');
       await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
       const results = await page.evaluate(() => window.__RESULTS__);
+      /** The page must prove the wiring the variant names, or the variants all measure one program (2026-10-18: they did). */
+      const wiring = await page.evaluate(() => window.__VERA_WIRING__);
+      const mode = new URLSearchParams(query).get('vera');
+      const expected = mode === 'slots' ? 'slots+slots' : mode === null ? 'legacy' : mode;
+      if (wiring !== expected) throw new Error(`${engine}/${session} ${name}: the page wired ${wiring}, the variant asks for ${expected}`);
       await browser.close();
       for (const [op, byImpl] of Object.entries(results))
         for (const [impl, r] of Object.entries(byImpl)) ((data[impl] ??= {})[op] ??= {})[name] = [...(data[impl][op][name] ?? []), r?.median ?? NaN];
