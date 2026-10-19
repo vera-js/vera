@@ -51,8 +51,7 @@ export const unlinkFrom = (hook: HookRecord, from: number) => {
     const cell = s.pop()!;
     const pos = x.pop()!;
     /** A tombstone, in place: no reader moves, so the order of the rest is kept. */
-    if (pos === 0) cell.a = undefined;
-    else cell.h![pos - 1] = undefined;
+    clearAt(cell, pos);
     if (++cell.d * 2 > cell.n) compactCell(cell);
   }
 };
@@ -62,11 +61,11 @@ const compactCell = (cell: Cell) => {
   const n = cell.n;
   let w = 0;
   for (let p = 0; p < n; p++) {
-    const hook = p === 0 ? cell.a : cell.h![p - 1];
+    const hook = readerAt(cell, p);
     if (hook === undefined) continue;
-    const slot = p === 0 ? cell.ja : cell.j![p - 1]!;
+    const slot = slotAt(cell, p);
     if (w !== p) {
-      place(cell, w, hook, slot);
+      placeAt(cell, w, hook, slot);
       hook.x[slot] = w;
     }
     w++;
@@ -82,20 +81,33 @@ const compactCell = (cell: Cell) => {
   cell.m = (cell.m + 1) % 0x3fffffff;
 };
 
-/** A reader and its slot at position `pos` of a cell (0: inline). */
-const place = (cell: Cell, pos: number, hook: HookRecord, slot: number) => {
-  if (pos === 0) {
+/**
+ * **The cell's positions, in ONE place** (readability, Brian 2026-10-19). Position 0 is the inline first reader (`a`,
+ * its slot `ja`); position k ≥ 1 is `h[k − 1]` / `j[k − 1]` (the arrays exist only from a second reader). Every other
+ * line of the engine sees an ordered list through these four. They are only ever handed a `Cell`, which has ONE shape
+ * (every field assigned at creation): keep it that way, or these shared hot helpers go megamorphic (BROWSER-LEDGER).
+ */
+export const readerAt = (cell: Cell, p: number) => (p === 0 ? cell.a : cell.h![p - 1]);
+export const slotAt = (cell: Cell, p: number) => (p === 0 ? cell.ja : cell.j![p - 1]!);
+/** A reader and its slot placed at position `p`. */
+export const placeAt = (cell: Cell, p: number, hook: HookRecord, slot: number) => {
+  if (p === 0) {
     cell.a = hook;
     cell.ja = slot;
   } else {
-    cell.h![pos - 1] = hook;
-    cell.j![pos - 1] = slot;
+    cell.h![p - 1] = hook;
+    cell.j![p - 1] = slot;
   }
 };
-/** The slot recorded at position `pos` of a cell rewritten (`claim`). */
-const reslot = (cell: Cell, pos: number, slot: number) => {
-  if (pos === 0) cell.ja = slot;
-  else cell.j![pos - 1] = slot;
+/** Position `p`'s recorded slot rewritten (`claim`). */
+const reslotAt = (cell: Cell, p: number, slot: number) => {
+  if (p === 0) cell.ja = slot;
+  else cell.j![p - 1] = slot;
+};
+/** Position `p` emptied: a tombstone. */
+const clearAt = (cell: Cell, p: number) => {
+  if (p === 0) cell.a = undefined;
+  else cell.h![p - 1] = undefined;
 };
 /** A second or later reader: the arrays, created on the first need (`track` links the first inline). */
 export const grow = (cell: Cell, hook: HookRecord, slot: number) => {
@@ -131,8 +143,8 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
   x[i] = mine;
   s[at] = other;
   x[at] = otherAt;
-  reslot(cell, mine, i);
-  reslot(other, otherAt, at);
+  reslotAt(cell, mine, i);
+  reslotAt(other, otherAt, at);
 };
 
 /**

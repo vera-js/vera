@@ -1,4 +1,4 @@
-import { claim, grow, proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
+import { claim, grow, placeAt, proxyCallbacks, readerAt, slotAt, tracking, unlinkFrom } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
@@ -34,8 +34,8 @@ const track = (obj: object, prop: unknown) => {
   const s = sub.s;
   const i = sub.i;
   const n = cell.n;
-  /** The key's LAST reader (position n − 1; 0 is the inline one). */
-  const last = n === 0 ? undefined : n === 1 ? cell.a : cell.h![n - 2];
+  /** The key's LAST reader (position n − 1). */
+  const last = n === 0 ? undefined : readerAt(cell, n - 1);
   if (i < 0) {
     if (last === sub) return;
   } else {
@@ -44,7 +44,7 @@ const track = (obj: object, prop: unknown) => {
       return;
     }
     if (last === sub) {
-      const at = n === 1 ? cell.ja : cell.j![n - 2]!;
+      const at = slotAt(cell, n - 1);
       if (at < i) return;
       claim(sub, cell, at, i);
       sub.i = i + 1;
@@ -56,10 +56,8 @@ const track = (obj: object, prop: unknown) => {
   const slot = s.length;
   s.push(cell);
   sub.x.push(n);
-  if (n === 0) {
-    cell.a = sub;
-    cell.ja = slot;
-  } else grow(cell, sub, slot);
+  if (n === 0) placeAt(cell, 0, sub, slot);
+  else grow(cell, sub, slot);
   cell.n = n + 1;
 };
 
@@ -84,7 +82,7 @@ let wakes = 0;
 const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
   let m = cell.m;
   for (let p = 0; p < cell.n; p++) {
-    const hook = p === 0 ? cell.a : cell.h![p - 1];
+    const hook = readerAt(cell, p);
     /** A tombstone (a reader that left), or one this wake already reached. */
     if (hook === undefined || hook.e === epoch) continue;
     hook.e = epoch;
