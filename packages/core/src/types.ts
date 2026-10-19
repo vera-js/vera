@@ -90,7 +90,8 @@ export type Hooks = HookRecord[];
  * hooks are unlinked exactly at retirement. The leave count (index 0) tells a wake in progress its list moved under it
  * (`wake`); it wraps, since it is only compared for change within one walk.
  */
-export type Cell = (number | HookRecord)[];
+/** BISECT VARIANT (probe/cells-split): the same logic, the cell SPLIT (an object with a hooks array and a slots array). */
+export type Cell = { h: HookRecord[]; j: number[]; m: number };
 
 /**
  * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two
@@ -135,7 +136,8 @@ export type HookRecord = {
    * was made this run (`track`). `e` is the last
    * wake that reached it, so one write wakes it once.
    */
-  s: (Cell | number)[];
+  s: Cell[];
+  x: number[];
   v: number;
   i: number;
   e: number;

@@ -46,16 +46,18 @@ export const proxyCallbacks = new WeakMap<object, Map<unknown, Cell>>();
  */
 export const unlinkFrom = (hook: HookRecord, from: number) => {
   const s = hook.s;
+  const x = hook.x;
   while (s.length > from) {
-    const at = s.pop() as number;
-    const cell = s.pop() as Cell;
-    cell[0] = ((cell[0] as number) + 1) % 0x3fffffff;
-    const slot = cell.pop() as number;
-    const moved = cell.pop() as HookRecord;
-    if (at < cell.length) {
-      cell[at] = moved;
-      cell[at + 1] = slot;
-      moved.s[slot + 1] = at;
+    const cell = s.pop()!;
+    const at = x.pop()!;
+    cell.m = (cell.m + 1) % 0x3fffffff;
+    const h = cell.h;
+    const moved = h.pop()!;
+    const slot = cell.j.pop()!;
+    if (at < h.length) {
+      h[at] = moved;
+      cell.j[at] = slot;
+      moved.x[slot] = at;
     }
   }
 };
@@ -75,15 +77,16 @@ export const unlinkFrom = (hook: HookRecord, from: number) => {
  */
 export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
   const s = hook.s;
-  const other = s[i] as Cell;
-  const otherAt = s[i + 1] as number;
-  const mine = s[at + 1] as number;
+  const x = hook.x;
+  const other = s[i]!;
+  const otherAt = x[i]!;
+  const mine = x[at]!;
   s[i] = cell;
-  s[i + 1] = mine;
+  x[i] = mine;
   s[at] = other;
-  s[at + 1] = otherAt;
-  cell[mine + 1] = i;
-  other[otherAt + 1] = at;
+  x[at] = otherAt;
+  cell.j[mine] = i;
+  other.j[otherAt] = at;
 };
 
 /**

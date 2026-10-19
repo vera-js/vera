@@ -135,7 +135,8 @@ class HookState implements HookRecord {
   declare _in: boolean;
   declare _f: number;
   declare _r: number;
-  declare s: (Cell | number)[];
+  declare s: Cell[];
+  declare x: number[];
   declare v: number;
   declare i: number;
   declare e: number;
@@ -160,6 +161,7 @@ class HookState implements HookRecord {
     this._f = 0;
     this._r = 0;
     this.s = [];
+    this.x = [];
     this.v = 0;
     this.i = 0;
     this.e = 0;

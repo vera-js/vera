@@ -2,7 +2,7 @@ import { claim, proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { Cell, HookRecord, Signal } from '../types.js';
+import type { Cell, Signal } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
@@ -21,7 +21,7 @@ const track = (obj: object, prop: unknown) => {
     proxyCallbacks.set(obj, props);
   }
   let cell = props.get(prop);
-  if (cell === undefined) props.set(prop, (cell = [0]));
+  if (cell === undefined) props.set(prop, (cell = { h: [], j: [], m: 0 }));
   /**
    * PROTOTYPE (probe/cells), **lazy in-order link reuse** (DESIGN-WEAK-CELLS §12). A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
@@ -33,42 +33,29 @@ const track = (obj: object, prop: unknown) => {
    */
   const s = sub.s;
   const i = sub.i;
-  /**
-   * **Already linked, without a stamp:** the cell's LAST link is this hook's, and (on a re-run) it sits in the part of
-   * `s` this run already matched, so it is this run's. That covers a repeat however far apart, as long as no other hook
-   * linked the key in between: a parent rendering 1000 rows that each read `state.selected` gave that key 1000 links
-   * from one hook (vera-5a, 2026-10-19; measured, `.probe/cells/dups.mjs`), now 1. A link BEYOND the cursor is last
-   * run's and may be about to leave, so it never counts. A repeat it misses only costs a duplicate link.
-   */
-  const n = cell.length;
+  const h = cell.h;
+  const n = h.length;
   if (i < 0) {
-    if (n > 1 && cell[n - 2] === sub) return;
+    if (n !== 0 && h[n - 1] === sub) return;
   } else {
     if (i < s.length && s[i] === cell) {
-      sub.i = i + 2;
+      sub.i = i + 1;
       return;
     }
-    if (n > 1 && cell[n - 2] === sub) {
-      const at = cell[n - 1] as number;
+    if (n !== 0 && h[n - 1] === sub) {
+      const at = cell.j[n - 1]!;
       if (at < i) return;
-      /** Made last run, further along: swapped to the cursor, not relinked (`claim`). */
       claim(sub, cell, at, i);
-      sub.i = i + 2;
+      sub.i = i + 1;
       return;
     }
     unlinkFrom(sub, i);
     sub.i = -2;
   }
-  /**
-   * ONE-argument pushes: a two-argument `push(a, b)` was 12% slower on Firefox's cold creation (create10k from a fresh
-   * page, layout or not; the steady-state profile showed no difference), consistent with its baseline JIT fast-pathing
-   * only a one-argument push.
-   */
-  const at = cell.length;
-  cell.push(sub);
-  cell.push(s.length);
+  sub.x.push(n);
+  h.push(sub);
+  cell.j.push(s.length);
   s.push(cell);
-  s.push(at);
 };
 
 /**
@@ -90,14 +77,15 @@ let wakes = 0;
  * during the walk is reached too, as a `Set` reached an entry added while it was being iterated.
  */
 const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
-  let m = cell[0];
-  for (let i = 1; i < cell.length; i += 2) {
-    const hook = cell[i] as HookRecord;
+  const h = cell.h;
+  let m = cell.m;
+  for (let i = 0; i < h.length; i++) {
+    const hook = h[i]!;
     if (hook.e === epoch) continue;
     hook.e = epoch;
     hook.$n(signal);
-    if (cell[0] !== m) {
-      m = cell[0];
+    if (cell.m !== m) {
+      m = cell.m;
       i = -1;
     }
   }
@@ -106,7 +94,7 @@ const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
 /** Wakes every hook that read `obj[prop]`. */
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.length > 1) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.h.length !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
 };
 
 /**
@@ -632,7 +620,7 @@ const RAW = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
   const cell = proxyCallbacks.get(obj)?.get(ITEMS);
-  if (cell !== undefined && cell.length > 1) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.h.length !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
 };
 const arrayHandler: ProxyHandler<object> = {
   ...handler,
