@@ -154,7 +154,10 @@ from another machine, or after that is undone, has a variable changed.
   The same budget decides where a fast path may live: with the store's re-run "same read as last time" match moved out
   of line into its own function, a stable component's re-render paid a call per read (+28%); kept inline, with only the
   rare path out of line, it tied the baseline and `read` still inlined. (Node; 2026-10-18)
-- **Firefox's cold code pays ~25% for arrays that interleave objects and small integers.** A store's subscription
+- **[IN QUESTION 2026-10-19: a cell with its first reader INLINE — no mixed arrays at all — cost Firefox the same ~9% as the
+  interleaved form, three sessions each; the cause is something the two share that the split form does not (a suspect,
+  unconfirmed: the larger, more branched `track`). Kept per the ledger's rule; the consequence below is not to be relied
+  on until the cause is isolated.]** Firefox's cold code pays ~25% for arrays that interleave objects and small integers. A store's subscription
   records as ONE array per key (`[count, hook, slot, hook, slot…]`) and one per reader (`[cell, at, cell, at…]`) created
   10 000 store rows in 65 ms on a fresh page against 52 ms for the same logic with the objects and the integers in
   SEPARATE arrays, three sessions each, with or without forced layout. Firefox's steady-state profile (15 creates on one
