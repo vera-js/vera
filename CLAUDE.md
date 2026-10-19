@@ -190,6 +190,11 @@ code, so they are not re-litigated.
   error's construction is the usual candidate — out of line. `tests/ssr-inlining-budget.test.mjs` guards
   `serializeValue` and prints its headroom every run. A size cliff shows in no code read and no correctness test; and
   Firefox and Safari inline on different rules, so in the browser the three-engine race is the only oracle.
+  **The same cliff bites the instrument:** ablation switches (`if (process.env.X)` branches) inside a hot function grow
+  it past the budget, so every ablation measures a de-inlined function and none can show its effect. Measured
+  2026-10-18 on the store's subscription `read`: four ablations "did nothing" until `--trace-turbo-inlining` showed the
+  switches had made `read` uninlinable. Build a clean variant per hypothesis, and confirm with the trace that its hot
+  function inlines like the baseline's before trusting the number.
 - **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
   remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
   it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
