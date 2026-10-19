@@ -166,7 +166,12 @@ code, so they are not re-litigated.
   comes from another document. (2) A worktree whose `node_modules` is symlinked to the main tree resolves
   `@verajs/*` to the MAIN tree's packages, so a mutation made in the worktree "passes" while the test runs the
   untouched code. Check `readlink -f node_modules/@verajs/<pkg>` before trusting a worktree mutation — the
-  mutation must turn something red, or it measured nothing.
+  mutation must turn something red, or it measured nothing. **The same trap splits a core change's FULL suites
+  (Brian approved, 2026-10-19):** in such a worktree `tests/dist.mjs` loads the worktree's core while packages that keep
+  core external (store, computed, collections, directives) load the other tree's — two cores, and a core change's suites
+  went 18 dev / 83 prod red for that reason alone (2026-10-18). Give the worktree its own `node_modules` with `@verajs/*`
+  linked to its own `packages/*` (`readlink -f node_modules/@verajs/core` must point into it), or run the suites in the
+  real tree.
 - **In a hot function, an arrow that captures a parameter taxes EVERY call, a sparse array taxes every read, and so
   does an EXPORTED module variable.**
   Measured 2026-10-01 on the SSR serializer, which lost 4.7% in a day to both: `value.map((e) => serializeValue(e,
