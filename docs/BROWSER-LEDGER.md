@@ -122,6 +122,12 @@ from another machine, or after that is undone, has a variable changed.
 - **The platform keeps every `WeakRef` target alive until the current job ends**, and an async loop that never yields
   a macrotask is one job: a timing loop of `await render()` kept every render reachable (109 MB). Consequence: yield a
   macrotask every ~100 iterations, outside the timed region. (Node; 2026-09-28)
+  **A SYNCHRONOUS loop is one job too, and it can reverse a comparison** (2026-10-18): a creation benchmark that ran 20
+  rounds of 10 000 rows in one synchronous job charged every design that makes WeakRefs for 200 000 uncollectable rows.
+  Today's store subscribed at 420–440 ns per row that way, against 236–241 yielding a macrotask between rounds; a
+  WeakRef variant read 759–1150 against 412–451. The design without WeakRefs was unaffected, so it looked 28% faster at
+  creation when, yielded, it was 10% SLOWER. Consequence: a creation benchmark yields a macrotask between rounds, as an
+  app does between tasks. (Node; 2026-10-18)
 - **A `const` binding keeps the last `WeakRef`'d object alive**, with no framework involved; so does the last call's
   objects in an async per-cycle function. Consequence: retention probes use a no-framework control. (Node; 2026-09-05)
 
@@ -145,6 +151,27 @@ from another machine, or after that is undone, has a variable changed.
   with only the fast path inline, inlined again. Consequence: build one clean variant per hypothesis, and confirm with
   `--trace-turbo-inlining` that its hot function inlines like the baseline's before reading its number. (Node;
   2026-10-18)
+  The same budget decides where a fast path may live: with the store's re-run "same read as last time" match moved out
+  of line into its own function, a stable component's re-render paid a call per read (+28%); kept inline, with only the
+  rare path out of line, it tied the baseline and `read` still inlined. (Node; 2026-10-18)
+- **`WeakRef.prototype.deref()` costs 17–18 ns on one target and 34–36 ns across 10 000 targets; a plain field read
+  costs 1–6 ns.** A design that crosses a weak edge on every run therefore pays most of a ~25 ns-per-run win back: a
+  store whose subscriptions reached each component through one shared WeakRef, read once per run, lost half of a
+  500-reader fan-out gain (500 × ~24 ns). Consequence: no WeakRef read on a per-run or per-wake path; weakness, where
+  it is needed, comes from lifecycle (unlink at disconnect) plus an off-path sweep. (Node 24; 2026-10-18)
+- **Reaching a function through a long-lived array costs creation even with no WeakRef**: a subscription record that
+  found its function at `component.hooks[slot]`, instead of holding it, cost creation +39% and about 15% of the write
+  gains. Cause not isolated; hypothesis: one long-lived array holding thousands of young functions (old→young pointers
+  the generational collector must track). Consequence: a hot record holds what it calls. (Node; 2026-10-18)
+- **Variants timed in ONE process share call sites, so the first variant runs monomorphic and every later one
+  polymorphic.** In a micro-benchmark running seven designs through shared shape functions, a read path with code
+  identical to the baseline's measured +25%, and the first-place verdict between two designs inverted once each ran in
+  its own process. Consequence: one fresh process per variant (`ONLY=<i>`), as browsers need a fresh browser per page.
+  (Node; 2026-10-18)
+- **A Map key built by a template string on every call makes the measurement unstable**: a benchmark writing
+  `` o[`f${i}`] `` swung its own baseline's median 70–690 ns between processes. Building the keys once narrowed it, but the
+  baseline stayed bimodal (27 or 75 ns by process); cause not isolated, so that row was dropped from every verdict.
+  Consequence: build keys outside the timed loop, and treat a bimodal baseline as an unusable row. (Node; 2026-10-18)
 - **In V8, an arrow that captures a parameter allocates a context on every call of the enclosing function, a sparse
   array walks the prototype chain on holes, and an EXPORTED module binding is read less directly than a module-local
   one** (3–8% steady, 8–14% over the first 100 calls). Consequence: plain loops and dense arrays in hot functions; hot
