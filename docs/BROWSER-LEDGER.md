@@ -115,7 +115,21 @@ from another machine, or after that is undone, has a variable changed.
   and a missing-field read cost Firefox more than a WeakMap miss in one race (a hypothesis). Measured headless; to be
   re-confirmed headed. (2026-10-17)
 - **Dropping a per-hook `WeakRef`** bought −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe; kept.
-  (Headless; 2026-10-17)
+  (Headless; 2026-10-17) **Not a property of strong links as such** (2026-10-19): a store design holding
+  STRONG links from data to hooks, with exact unlinking on removal, left the same cycle-collector work, worst slice and
+  suspect count as the WeakRef design it replaced, under the measurement below. The +280 ms belonged to that design.
+- **Firefox runs the cycle collection a big churn needs AFTER the work, in long non-idle slices.** It started 60–130 ms
+  after a GC finished (`reason GC_FINISHED`, `idle: false`). After 300 000 custom elements were created and removed, each
+  holding framework state on the JS side, it took ~1 s in ~37 slices, ~25 of them over 16 ms and the worst 145–221 ms.
+  The same churn with markup set through `innerHTML` and no JS state left none. Consequence: a churn's collector cost
+  lands on the interaction AFTER it, invisible to a timed window, and a framework's DOM↔JS graph (3–4 CC suspects per
+  component here) is a Firefox cost to design down. (Playwright Firefox headless; 2026-10-19)
+- **A Gecko profile that ends soon after the work truncates the collector debt — and its markers have two traps.**
+  (1) Closing the page ~200 ms after the work cut the CC above off in most runs (it showed in 5 of 48); an idle tail of
+  4 s after the work captured it, and 8 s gave the same totals. Check that no CC marker is left unpaired at the end.
+  (2) Start/end marker rows (phase 2 / 3) carry `0`, not `null`, on the missing side, so `endTime − startTime` turns
+  them into absolute timestamps and negatives: pair them by name. And `GCMajor` is a SPAN from its first slice to
+  completion with mutator time inside; its cost is the payload's `total_time` and `max_pause`. (Firefox; 2026-10-19)
 - **jsdom's `MutationObserver` holds every observed node strongly** until `disconnect()`; browsers hold them weakly.
   Consequence: retention of anything an observer watches is measured in a real engine with CDP gc, never jsdom.
   (2026-10-07)
