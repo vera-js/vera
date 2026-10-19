@@ -138,6 +138,13 @@ from another machine, or after that is undone, has a variable changed.
   the budget pays for ANY growth, even code that never runs (a never-taken `if` cost 4.0%). Consequence: move rarely
   run code out of line; `tests/ssr-inlining-budget.test.mjs` prints `serializeValue`'s headroom. Firefox and Safari
   inline on different rules. (Node; 2026-10-09)
+- **Ablation switches inside a hot function change its inlining, so the instrument changes what it measures.** Four
+  ablations of a store's `read` (each an env-switched branch in the same function) all "found nothing", because the
+  switches themselves pushed `read` over the budget: `--trace-turbo-inlining` said "Cannot consider read for inlining
+  (reason: 5)" for every one, while the baseline's `read` was inlined into its loop. A clean variant per hypothesis,
+  with only the fast path inline, inlined again. Consequence: build one clean variant per hypothesis, and confirm with
+  `--trace-turbo-inlining` that its hot function inlines like the baseline's before reading its number. (Node;
+  2026-10-18)
 - **In V8, an arrow that captures a parameter allocates a context on every call of the enclosing function, a sparse
   array walks the prototype chain on holes, and an EXPORTED module binding is read less directly than a module-local
   one** (3–8% steady, 8–14% over the first 100 calls). Consequence: plain loops and dense arrays in hot functions; hot
