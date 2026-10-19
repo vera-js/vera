@@ -39,25 +39,23 @@ export const tracking: { hook: HookRecord | undefined } = { hook: undefined };
 export const proxyCallbacks = new WeakMap<object, Map<unknown, Cell>>();
 
 /**
- * **Unlinks `hook` from its sources `s[from..]`, each in O(1)** (PROTOTYPE, probe/cells, 2026-10-18): the cell's LAST hook
- * takes the leaver's slot, and that hook's own record of where it sits is updated; `m` tells a wake in progress. Used
- * where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached (`$t`), and with
- * `from = 0` for retirement: links are strong, so this is what releases them.
+ * **Unlinks `hook` from its sources `s[from..]`, each in O(1)** (PROTOTYPE, probe/cells, flat): the cell's LAST pair takes
+ * the leaver's place, and the moved hook's own record of where it sits is updated; the cell's leave count tells a wake in
+ * progress. Used where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached
+ * (`$t`), and with `from = 0` for retirement: links are strong, so this is what releases them.
  */
 export const unlinkFrom = (hook: HookRecord, from: number) => {
   const s = hook.s;
-  const x = hook.x;
   while (s.length > from) {
-    const cell = s.pop()!;
-    const at = x.pop()!;
-    cell.m++;
-    const h = cell.h;
-    const moved = h.pop()!;
-    const slot = cell.j.pop()!;
-    if (at < h.length) {
-      h[at] = moved;
-      cell.j[at] = slot;
-      moved.x[slot] = at;
+    const at = s.pop() as number;
+    const cell = s.pop() as Cell;
+    cell[0] = ((cell[0] as number) + 1) % 0x3fffffff;
+    const slot = cell.pop() as number;
+    const moved = cell.pop() as HookRecord;
+    if (at < cell.length) {
+      cell[at] = moved;
+      cell[at + 1] = slot;
+      moved.s[slot + 1] = at;
     }
   }
 };

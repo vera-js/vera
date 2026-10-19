@@ -82,15 +82,15 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 /** An element's hooks in run order: sorted by `_k` (priority, then creation). */
 export type Hooks = HookRecord[];
 /**
- * **One key's CELL** (PROTOTYPE, probe/cells, 2026-10-18; DESIGN-WEAK-CELLS §12): the hooks that read the key, held
- * STRONGLY (`h`), each with its index in that hook's source list (`j`), so either side leaves the other in O(1) by a
- * swap. `rv` stamps the RUN that last read the key (run numbers are unique across hooks, so a number, never a reference:
- * a stamp holding the hook kept a removed one alive), so a repeat read within one run is free. It replaced
- * a `Set` of `WeakRef`s: a `deref()` costs 17–36 ns per wake (BROWSER-LEDGER), and the hooks are unlinked exactly at
- * retirement instead (step 2 adds links-only-while-connected and the swept registry as the failsafe). `m` counts the
- * hooks that ever LEFT it, which is how a wake in progress knows its list moved under it (`wake`).
+ * **One key's CELL** (PROTOTYPE, probe/cells; DESIGN-WEAK-CELLS §12; flattened 2026-10-19): ONE array,
+ * `[leave count, hook, slot, hook, slot, …]` — each hook that read the key, held STRONGLY, with its link's index in that
+ * hook's source list, so either side leaves the other in O(1) by a swap. One allocation per key, as the `Set` it replaced
+ * (cells as two arrays in an object were 3, and a store row reading two fields allocated twice what it had: the Chrome
+ * create10k profile, +16 ms per create). A `deref()` costs 17–36 ns per wake (BROWSER-LEDGER), so there is no WeakRef:
+ * hooks are unlinked exactly at retirement. The leave count (index 0) tells a wake in progress its list moved under it
+ * (`wake`); it wraps, since it is only compared for change within one walk.
  */
-export type Cell = { h: HookRecord[]; j: number[]; rv: number; m: number };
+export type Cell = (number | HookRecord)[];
 
 /**
  * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two
@@ -125,16 +125,17 @@ export type HookRecord = {
   _f: number;
   _r: number;
   /**
-   * **Its sources, with in-order link reuse** (PROTOTYPE, probe/cells): `s` the cells it reads, `x` its index in each
-   * cell's list. `v` is the number of its latest run, unique across every hook (0: never run). `i` is the run's cursor: `-1` on a FIRST run, which links each read
-   * directly (lazy reuse: a hook never re-run pays nothing for reuse); from the second run, a read matching `s[i]` just
-   * advances it; the first read that DIFFERS unlinks the rest at once and links directly from there (`-2`), so every
-   * read is linked the moment it is made (a run that reads a key and then writes it must hear its own write). After a
-   * run that never diverged, the sources it did not reach (`s[i..]`) leave. `e` is the last wake that reached it, so one
-   * write wakes it once.
+   * **Its sources, with in-order link reuse** (PROTOTYPE, probe/cells): `s` is ONE flat array, `[cell, at, cell, at, …]`:
+   * each cell it reads and where it sits in that cell. `v` counts its runs (0: never run). `i` is the run's cursor INTO
+   * `s` (it steps by 2): `-1` on a FIRST run, which links each read directly (lazy reuse: a hook never re-run pays
+   * nothing for reuse); from the second run, a read matching `s[i]` just advances it, and the first read that DIFFERS
+   * unlinks the rest at once and links directly from there (`-2`), so every read is linked the moment it is made (a run
+   * that reads a key and then writes it must hear its own write). After a run that never diverged, what it did not
+   * reach (`s[i..]`) leaves. A repeated read needs no stamp: a consecutive repeat is skipped against the previous link,
+   * and a re-run reads in the same order, so a non-consecutive repeat matches its own (duplicate) link. `e` is the last
+   * wake that reached it, so one write wakes it once.
    */
-  s: Cell[];
-  x: number[];
+  s: (Cell | number)[];
   v: number;
   i: number;
   e: number;

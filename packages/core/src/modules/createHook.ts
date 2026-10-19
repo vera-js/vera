@@ -106,8 +106,6 @@ export const MODE_SYNC = SYNC;
 
 /** Every hook's creation, in order: `_k`, which breaks ties within one priority. */
 let created = 0;
-/** Every hook RUN, numbered across all hooks: a cell's repeat-read stamp is a run number, never a reference (`Cell`). */
-let runs = 0;
 
 /**
  * **A hook — ONE object** (work queue 5, step 1): what was three closures, two contexts, a `WeakRef` and expandos on a
@@ -137,8 +135,7 @@ class HookState implements HookRecord {
   declare _in: boolean;
   declare _f: number;
   declare _r: number;
-  declare s: Cell[];
-  declare x: number[];
+  declare s: (Cell | number)[];
   declare v: number;
   declare i: number;
   declare e: number;
@@ -163,7 +160,6 @@ class HookState implements HookRecord {
     this._f = 0;
     this._r = 0;
     this.s = [];
-    this.x = [];
     this.v = 0;
     this.i = 0;
     this.e = 0;
@@ -229,7 +225,7 @@ class HookState implements HookRecord {
      * links it did not reach in place, so the hook still hears what it read last time.
      */
     const first = this.v === 0;
-    this.v = ++runs;
+    this.v++;
     this.i = first ? -1 : 0;
     let ok = false;
     try {
