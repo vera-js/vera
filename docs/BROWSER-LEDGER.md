@@ -154,6 +154,14 @@ from another machine, or after that is undone, has a variable changed.
   The same budget decides where a fast path may live: with the store's re-run "same read as last time" match moved out
   of line into its own function, a stable component's re-render paid a call per read (+28%); kept inline, with only the
   rare path out of line, it tied the baseline and `read` still inlined. (Node; 2026-10-18)
+- **Firefox's cold code pays ~25% for arrays that interleave objects and small integers.** A store's subscription
+  records as ONE array per key (`[count, hook, slot, hook, slot…]`) and one per reader (`[cell, at, cell, at…]`) created
+  10 000 store rows in 65 ms on a fresh page against 52 ms for the same logic with the objects and the integers in
+  SEPARATE arrays, three sessions each, with or without forced layout. Firefox's steady-state profile (15 creates on one
+  page) showed no difference, so it is the cold tiers, which is what an app's first render runs in. Chrome went the
+  other way (the interleaved form 3–4% faster on the same create), and a two-argument `push` was ruled out (one-argument
+  pushes changed nothing). Consequence: hot structures keep objects and numbers in separate arrays. (Firefox headless,
+  Playwright 153.0; 2026-10-19)
 - **`WeakRef.prototype.deref()` costs 17–18 ns on one target and 34–36 ns across 10 000 targets; a plain field read
   costs 1–6 ns.** A design that crosses a weak edge on every run therefore pays most of a ~25 ns-per-run win back: a
   store whose subscriptions reached each component through one shared WeakRef, read once per run, lost half of a
