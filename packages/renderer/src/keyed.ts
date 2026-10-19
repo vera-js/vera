@@ -206,18 +206,31 @@ const stamp = (rec: Row) => {
  * it, `h` its hook.
  */
 class Row {
-  _$g$ = 1;
-  _$x$ = false;
-  _$h$: unknown[] | undefined = undefined;
-  localName = 'each-row';
-  result: KeyedResult | null = null;
-  inst: Item | undefined = undefined;
-  h: RowHook = undefined as unknown as RowHook;
-  k: unknown;
-  item: unknown;
-  row: (item: unknown) => unknown;
-  t: number;
+  /**
+   * `declare`d and ASSIGNED in the constructor, in one order — as core's `HookState` is — never class-field initializers:
+   * a define-semantics field is a property DEFINITION per instance. Done for consistency with `HookState`, NOT as a
+   * measured win: its initializers were their own line in a Firefox profile of `each` creation, but the change measured
+   * within session drift (2026-10-18: each-store/store ratio 1.42 → 1.45 over two runs of each build).
+   */
+  declare _$g$: number;
+  declare _$x$: boolean;
+  declare _$h$: unknown[] | undefined;
+  declare localName: string;
+  declare result: KeyedResult | null;
+  declare inst: Item | undefined;
+  declare h: RowHook;
+  declare k: unknown;
+  declare item: unknown;
+  declare row: (item: unknown) => unknown;
+  declare t: number;
   constructor(k: unknown, item: unknown, row: (item: unknown) => unknown, t: number) {
+    this._$g$ = 1;
+    this._$x$ = false;
+    this._$h$ = undefined;
+    this.localName = 'each-row';
+    this.result = null;
+    this.inst = undefined;
+    this.h = undefined as unknown as RowHook;
     this.k = k;
     this.item = item;
     this.row = row;
