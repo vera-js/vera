@@ -89,6 +89,13 @@ from another machine, or after that is undone, has a variable changed.
   samples) held its A/A within ~1–2% in headed Chrome. WHICH of those differences matters is not yet isolated. (Headed;
   2026-10-18)
 
+- **A short op timed alone, with the paint awaited inside its window, measures the frame, not the op.** The bench's
+  create 1 000 rows read ~20–40 ms for every framework and clear swung its A/A 13–45%, because each sample was one op
+  plus a wait for the next paint. Split into rounds (untimed prep and its paint, then ONLY the op timed, 20–40 rounds a
+  sample), create 1 000 is 4–7 ms and the A/A agrees within 1–9%. Consequence: an op that cannot repeat on its own gets
+  a split sample, never a one-shot one; `bench/dom/main.js` does this for clear and create 1k. (Chrome, Firefox,
+  WebKit headless; 2026-10-18)
+
 ## Process and garbage
 
 - **Same-site pages in one Firefox share a content process**, so one page's garbage is collected inside the next
