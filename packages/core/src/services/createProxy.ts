@@ -1,4 +1,4 @@
-import { proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
+import { claim, proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
@@ -48,13 +48,27 @@ const track = (obj: object, prop: unknown) => {
       sub.i = i + 2;
       return;
     }
-    if (n > 1 && cell[n - 2] === sub && (cell[n - 1] as number) < i) return;
+    if (n > 1 && cell[n - 2] === sub) {
+      const at = cell[n - 1] as number;
+      if (at < i) return;
+      /** Made last run, further along: swapped to the cursor, not relinked (`claim`). */
+      claim(sub, cell, at, i);
+      sub.i = i + 2;
+      return;
+    }
     unlinkFrom(sub, i);
     sub.i = -2;
   }
+  /**
+   * ONE-argument pushes: a two-argument `push(a, b)` was 12% slower on Firefox's cold creation (create10k from a fresh
+   * page, layout or not; the steady-state profile showed no difference), consistent with its baseline JIT fast-pathing
+   * only a one-argument push.
+   */
   const at = cell.length;
-  cell.push(sub, s.length);
-  s.push(cell, at);
+  cell.push(sub);
+  cell.push(s.length);
+  s.push(cell);
+  s.push(at);
 };
 
 /**

@@ -61,6 +61,32 @@ export const unlinkFrom = (hook: HookRecord, from: number) => {
 };
 
 /**
+ * **A re-run CLAIMS a link it made last run, further along its sources** (PROTOTYPE, probe/cells, 2026-10-19): `track`
+ * found that the key's last link is this hook's, beyond the cursor `i`, so the read is one it made last run in a
+ * different place (a reorder: rows 1 and 998 swapped). The link is SWAPPED to the cursor, and both moved links' cells
+ * are told their new places, so nothing is unlinked and relinked: a plain `.map` swap re-matched about 3 000 reads by
+ * unlinking and relinking everything after the first swapped row (Firefox swap +9% vs landed, race3). Out of line,
+ * so `track` stays inside the inlining budget. BOTH moved links' cells are rewritten (each cell records where its
+ * reader's link sits in `s`): missing one would make a later unlink remove the wrong link, a silent lost subscription.
+ *
+ * **For a LIST hook (design B), a swap must never cross a row's segment** (vera-5a): there a link's position IS its row,
+ * so moving one outside the open segment `[lo, h)` would hand it to another row (stale). B's `track` claims only when
+ * `at < h` and relinks otherwise; an ordinary hook's segment is all of `s`.
+ */
+export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
+  const s = hook.s;
+  const other = s[i] as Cell;
+  const otherAt = s[i + 1] as number;
+  const mine = s[at + 1] as number;
+  s[i] = cell;
+  s[i + 1] = mine;
+  s[at] = other;
+  s[at + 1] = otherAt;
+  cell[mine + 1] = i;
+  other[otherAt + 1] = at;
+};
+
+/**
  * One tag per template kind: the strings and values, marked with the kind for a renderer to consume.
  *
  * **Called with a string instead of tagged, development names it** (main had this; the lean rebuild dropped it):

@@ -223,6 +223,12 @@ class HookState implements HookRecord {
      * PROTOTYPE (probe/cells): the run's link bookkeeping. A FIRST run links each read directly (`i = -1`); a re-run
      * starts its cursor at 0 (`track`). `ok` turns true only when the callback returned: a run that THREW leaves the
      * links it did not reach in place, so the hook still hears what it read last time.
+     *
+     * **A run of THIS hook nested inside its own run** (a raw hook writing what it read re-runs synchronously) is safe
+     * by construction, and must stay so: the inner run reconciles `s` to ITS reads and leaves `i` past them (or in
+     * direct mode), so the outer run can only skip reads already linked or append new ones, and its end-of-run unlink
+     * (`i < s.length`) cannot fire. The worst case is over-subscription, NEVER a lost link (`.probe/cells/reenter.mjs`:
+     * 4 runs, links exactly {x, y}). A change that saved and restored `i` around a nested run would break this.
      */
     const first = this.v === 0;
     this.v++;
