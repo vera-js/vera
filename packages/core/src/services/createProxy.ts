@@ -21,7 +21,7 @@ const track = (obj: object, prop: unknown) => {
     proxyCallbacks.set(obj, props);
   }
   let cell = props.get(prop);
-  if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0 }));
+  if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
   /**
    * PROTOTYPE (probe/cells), **lazy in-order link reuse** (DESIGN-WEAK-CELLS §12). A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
@@ -84,8 +84,9 @@ let wakes = 0;
 const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
   let m = cell.m;
   for (let p = 0; p < cell.n; p++) {
-    const hook = p === 0 ? cell.a! : cell.h![p - 1]!;
-    if (hook.e === epoch) continue;
+    const hook = p === 0 ? cell.a : cell.h![p - 1];
+    /** A tombstone (a reader that left), or one this wake already reached. */
+    if (hook === undefined || hook.e === epoch) continue;
     hook.e = epoch;
     hook.$n(signal);
     if (cell.m !== m) {

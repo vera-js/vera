@@ -97,8 +97,13 @@ export type Hooks = HookRecord[];
  * key costs one allocation, like the flat layout, while objects and numbers still never share an array (Firefox's cold
  * code pays ~25% when they do: BROWSER-LEDGER). Every field assigned at creation: one shape. A reader's position is 0
  * for the inline one, k ≥ 1 for `h[k − 1]`.
+ *
+ * ORDER VARIANT (probe/cells-ordered, 2026-10-19, Brian: "measure B"): readers keep SUBSCRIPTION ORDER. A leaving reader
+ * leaves a TOMBSTONE (`undefined`), `d` counts them, and the cell compacts itself in one stable pass once they pass
+ * half its slots (amortized O(1) per leave). Only a compaction moves readers, so only it bumps `m` (a wake in progress
+ * restarts then).
  */
-export type Cell = { a: HookRecord | undefined; ja: number; h: HookRecord[] | undefined; j: number[] | undefined; m: number; n: number };
+export type Cell = { a: HookRecord | undefined; ja: number; h: (HookRecord | undefined)[] | undefined; j: number[] | undefined; m: number; n: number; d: number };
 
 /**
  * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two

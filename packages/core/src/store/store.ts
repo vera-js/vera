@@ -39,9 +39,9 @@ export const tracking: { hook: HookRecord | undefined } = { hook: undefined };
 export const proxyCallbacks = new WeakMap<object, Map<unknown, Cell>>();
 
 /**
- * **Unlinks `hook` from its sources `s[from..]`, each in O(1)** (PROTOTYPE, probe/cells, flat): the cell's LAST pair takes
- * the leaver's place, and the moved hook's own record of where it sits is updated; the cell's leave count tells a wake in
- * progress. Used where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached
+ * **Unlinks `hook` from its sources `s[from..]`, each in O(1) amortized** (ORDER VARIANT): each link becomes a TOMBSTONE in its
+ * cell, so the remaining readers keep subscription order; a cell compacts in one stable pass once tombstones pass half
+ * its slots, and only that bumps its `m` (a wake in progress restarts then). Used where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached
  * (`$t`), and with `from = 0` for retirement: links are strong, so this is what releases them.
  */
 export const unlinkFrom = (hook: HookRecord, from: number) => {
@@ -50,24 +50,36 @@ export const unlinkFrom = (hook: HookRecord, from: number) => {
   while (s.length > from) {
     const cell = s.pop()!;
     const pos = x.pop()!;
-    cell.m = (cell.m + 1) % 0x3fffffff;
-    const last = cell.n - 1;
-    let moved: HookRecord;
-    let slot: number;
-    if (last === 0) {
-      moved = cell.a!;
-      slot = cell.ja;
-      cell.a = undefined;
-    } else {
-      moved = cell.h!.pop()!;
-      slot = cell.j!.pop()!;
-    }
-    cell.n = last;
-    if (pos < last) {
-      place(cell, pos, moved, slot);
-      moved.x[slot] = pos;
-    }
+    /** A tombstone, in place: no reader moves, so the order of the rest is kept. */
+    if (pos === 0) cell.a = undefined;
+    else cell.h![pos - 1] = undefined;
+    if (++cell.d * 2 > cell.n) compactCell(cell);
   }
+};
+
+/** One stable pass: live readers move down in order, each told its new position; tombstones go. */
+const compactCell = (cell: Cell) => {
+  const n = cell.n;
+  let w = 0;
+  for (let p = 0; p < n; p++) {
+    const hook = p === 0 ? cell.a : cell.h![p - 1];
+    if (hook === undefined) continue;
+    const slot = p === 0 ? cell.ja : cell.j![p - 1]!;
+    if (w !== p) {
+      place(cell, w, hook, slot);
+      hook.x[slot] = w;
+    }
+    w++;
+  }
+  if (w === 0) cell.a = undefined;
+  if (cell.h !== undefined) {
+    const keep = w > 0 ? w - 1 : 0;
+    cell.h.length = keep;
+    cell.j!.length = keep;
+  }
+  cell.n = w;
+  cell.d = 0;
+  cell.m = (cell.m + 1) % 0x3fffffff;
 };
 
 /** A reader and its slot at position `pos` of a cell (0: inline). */
