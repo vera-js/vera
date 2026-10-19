@@ -1,4 +1,4 @@
-import { claim, proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
+import { claim, grow, proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
@@ -21,7 +21,7 @@ const track = (obj: object, prop: unknown) => {
     proxyCallbacks.set(obj, props);
   }
   let cell = props.get(prop);
-  if (cell === undefined) props.set(prop, (cell = { h: [], j: [], m: 0 }));
+  if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0 }));
   /**
    * PROTOTYPE (probe/cells), **lazy in-order link reuse** (DESIGN-WEAK-CELLS §12). A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
@@ -33,17 +33,18 @@ const track = (obj: object, prop: unknown) => {
    */
   const s = sub.s;
   const i = sub.i;
-  const h = cell.h;
-  const n = h.length;
+  const n = cell.n;
+  /** The key's LAST reader (position n − 1; 0 is the inline one). */
+  const last = n === 0 ? undefined : n === 1 ? cell.a : cell.h![n - 2];
   if (i < 0) {
-    if (n !== 0 && h[n - 1] === sub) return;
+    if (last === sub) return;
   } else {
     if (i < s.length && s[i] === cell) {
       sub.i = i + 1;
       return;
     }
-    if (n !== 0 && h[n - 1] === sub) {
-      const at = cell.j[n - 1]!;
+    if (last === sub) {
+      const at = n === 1 ? cell.ja : cell.j![n - 2]!;
       if (at < i) return;
       claim(sub, cell, at, i);
       sub.i = i + 1;
@@ -52,10 +53,14 @@ const track = (obj: object, prop: unknown) => {
     unlinkFrom(sub, i);
     sub.i = -2;
   }
-  sub.x.push(n);
-  h.push(sub);
-  cell.j.push(s.length);
+  const slot = s.length;
   s.push(cell);
+  sub.x.push(n);
+  if (n === 0) {
+    cell.a = sub;
+    cell.ja = slot;
+  } else grow(cell, sub, slot);
+  cell.n = n + 1;
 };
 
 /**
@@ -77,16 +82,15 @@ let wakes = 0;
  * during the walk is reached too, as a `Set` reached an entry added while it was being iterated.
  */
 const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
-  const h = cell.h;
   let m = cell.m;
-  for (let i = 0; i < h.length; i++) {
-    const hook = h[i]!;
+  for (let p = 0; p < cell.n; p++) {
+    const hook = p === 0 ? cell.a! : cell.h![p - 1]!;
     if (hook.e === epoch) continue;
     hook.e = epoch;
     hook.$n(signal);
     if (cell.m !== m) {
       m = cell.m;
-      i = -1;
+      p = -1;
     }
   }
 };
@@ -94,7 +98,7 @@ const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
 /** Wakes every hook that read `obj[prop]`. */
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.h.length !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
 };
 
 /**
@@ -620,7 +624,7 @@ const RAW = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
   const cell = proxyCallbacks.get(obj)?.get(ITEMS);
-  if (cell !== undefined && cell.h.length !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
 };
 const arrayHandler: ProxyHandler<object> = {
   ...handler,

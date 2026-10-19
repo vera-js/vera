@@ -91,7 +91,14 @@ export type Hooks = HookRecord[];
  * (`wake`); it wraps, since it is only compared for change within one walk.
  */
 /** BISECT VARIANT (probe/cells-split): the same logic, the cell SPLIT (an object with a hooks array and a slots array). */
-export type Cell = { h: HookRecord[]; j: number[]; m: number };
+/**
+ * EXPERIMENT (probe/cells-inline, 2026-10-19): a cell holds its FIRST reader inline (`a`, its slot `ja`) and grows the
+ * arrays only from a second (`h`, `j`, readers 2..n); `n` counts readers, `m` leaves. Most keys have one reader, so a
+ * key costs one allocation, like the flat layout, while objects and numbers still never share an array (Firefox's cold
+ * code pays ~25% when they do: BROWSER-LEDGER). Every field assigned at creation: one shape. A reader's position is 0
+ * for the inline one, k ≥ 1 for `h[k − 1]`.
+ */
+export type Cell = { a: HookRecord | undefined; ja: number; h: HookRecord[] | undefined; j: number[] | undefined; m: number; n: number };
 
 /**
  * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two

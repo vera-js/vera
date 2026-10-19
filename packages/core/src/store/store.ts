@@ -49,16 +49,50 @@ export const unlinkFrom = (hook: HookRecord, from: number) => {
   const x = hook.x;
   while (s.length > from) {
     const cell = s.pop()!;
-    const at = x.pop()!;
+    const pos = x.pop()!;
     cell.m = (cell.m + 1) % 0x3fffffff;
-    const h = cell.h;
-    const moved = h.pop()!;
-    const slot = cell.j.pop()!;
-    if (at < h.length) {
-      h[at] = moved;
-      cell.j[at] = slot;
-      moved.x[slot] = at;
+    const last = cell.n - 1;
+    let moved: HookRecord;
+    let slot: number;
+    if (last === 0) {
+      moved = cell.a!;
+      slot = cell.ja;
+      cell.a = undefined;
+    } else {
+      moved = cell.h!.pop()!;
+      slot = cell.j!.pop()!;
     }
+    cell.n = last;
+    if (pos < last) {
+      place(cell, pos, moved, slot);
+      moved.x[slot] = pos;
+    }
+  }
+};
+
+/** A reader and its slot at position `pos` of a cell (0: inline). */
+const place = (cell: Cell, pos: number, hook: HookRecord, slot: number) => {
+  if (pos === 0) {
+    cell.a = hook;
+    cell.ja = slot;
+  } else {
+    cell.h![pos - 1] = hook;
+    cell.j![pos - 1] = slot;
+  }
+};
+/** The slot recorded at position `pos` of a cell rewritten (`claim`). */
+const reslot = (cell: Cell, pos: number, slot: number) => {
+  if (pos === 0) cell.ja = slot;
+  else cell.j![pos - 1] = slot;
+};
+/** A second or later reader: the arrays, created on the first need (`track` links the first inline). */
+export const grow = (cell: Cell, hook: HookRecord, slot: number) => {
+  if (cell.h === undefined) {
+    cell.h = [hook];
+    cell.j = [slot];
+  } else {
+    cell.h.push(hook);
+    cell.j!.push(slot);
   }
 };
 
@@ -85,8 +119,8 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
   x[i] = mine;
   s[at] = other;
   x[at] = otherAt;
-  cell.j[mine] = i;
-  other.j[otherAt] = at;
+  reslot(cell, mine, i);
+  reslot(other, otherAt, at);
 };
 
 /**
