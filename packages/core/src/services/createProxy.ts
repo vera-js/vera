@@ -25,22 +25,30 @@ const track = (obj: object, prop: unknown) => {
   /**
    * PROTOTYPE (probe/cells), **lazy in-order link reuse** (DESIGN-WEAK-CELLS §12). A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
-   * RE-run walks its previous sources in order: a read matching the cursor just advances it; a consecutive repeat of the
-   * one just matched is skipped; the first read that DIFFERS unlinks every source not yet matched and links directly from
+   * RE-run walks its previous sources in order: a read matching the cursor just advances it; a repeat of one already
+   * linked this run is skipped (below); the first read that DIFFERS unlinks every source not yet matched and links directly from
    * there, so every read is linked at once (a run that reads a key and then writes it hears its own write). The common
    * paths stay INLINE: out of line, a stable re-render paid a call per read (+28%, Node), and `track` must stay small
    * enough for V8 to inline into the traps (BROWSER-LEDGER, the inlining budget).
    */
   const s = sub.s;
   const i = sub.i;
+  /**
+   * **Already linked, without a stamp:** the cell's LAST link is this hook's, and (on a re-run) it sits in the part of
+   * `s` this run already matched, so it is this run's. That covers a repeat however far apart, as long as no other hook
+   * linked the key in between: a parent rendering 1000 rows that each read `state.selected` gave that key 1000 links
+   * from one hook (vera-5a, 2026-10-19; measured, `.probe/cells/dups.mjs`), now 1. A link BEYOND the cursor is last
+   * run's and may be about to leave, so it never counts. A repeat it misses only costs a duplicate link.
+   */
+  const n = cell.length;
   if (i < 0) {
-    if (s.length !== 0 && s[s.length - 2] === cell) return;
+    if (n > 1 && cell[n - 2] === sub) return;
   } else {
     if (i < s.length && s[i] === cell) {
       sub.i = i + 2;
       return;
     }
-    if (i !== 0 && s[i - 2] === cell) return;
+    if (n > 1 && cell[n - 2] === sub && (cell[n - 1] as number) < i) return;
     unlinkFrom(sub, i);
     sub.i = -2;
   }

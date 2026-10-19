@@ -131,8 +131,8 @@ export type HookRecord = {
    * nothing for reuse); from the second run, a read matching `s[i]` just advances it, and the first read that DIFFERS
    * unlinks the rest at once and links directly from there (`-2`), so every read is linked the moment it is made (a run
    * that reads a key and then writes it must hear its own write). After a run that never diverged, what it did not
-   * reach (`s[i..]`) leaves. A repeated read needs no stamp: a consecutive repeat is skipped against the previous link,
-   * and a re-run reads in the same order, so a non-consecutive repeat matches its own (duplicate) link. `e` is the last
+   * reach (`s[i..]`) leaves. A repeated read needs no stamp: it is skipped when the key's LAST link is this hook's and
+   * was made this run (`track`). `e` is the last
    * wake that reached it, so one write wakes it once.
    */
   s: (Cell | number)[];
