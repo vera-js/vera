@@ -7,7 +7,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './dist.mjs';
 
-const { createStore } = await load('core');
+const { createStore, inserts: coreInserts } = await load('core');
+/**
+ * This copy's walk, taken NOW: in the development build both copies of core share one external `inserts`, so loading a
+ * second copy (below) replaces `$w` there with ITS walk, which does not know this copy's stores.
+ */
+const walk = coreInserts.$w;
 
 test('the field is invisible through the store: keys, spread, JSON, symbols', () => {
   const state = createStore({ o: { a: 1, b: 2 } });
@@ -74,15 +79,35 @@ test('an object that only INHERITS from a stored one gets its OWN store version'
   assert.equal(state.c.a, 1);
 });
 
-test('two copies of core keep separate fields on one shared raw object', async () => {
+test('two copies of core keep separate fields on one shared raw object (each promotes the items its walk meets)', async () => {
   const other = await load('core', '?copy=field');
+  const otherWalk = other.inserts.$w;
   const raw = { a: 1 };
-  const one = createStore({ o: raw });
-  const two = other.createStore({ o: raw });
-  assert.notEqual(one.o, two.o, 'each copy wraps it itself');
-  assert.equal(one.o, one.o);
-  assert.equal(two.o, two.o);
+  const one = createStore({ list: [raw] });
+  const two = other.createStore({ list: [raw] });
+  walk(one.list, () => {});
+  otherWalk(two.list, () => {});
+  assert.notEqual(one.list[0], two.list[0], 'each copy wraps it itself');
+  assert.equal(one.list[0], one.list[0]);
+  assert.equal(two.list[0], two.list[0]);
   assert.equal(Object.getOwnPropertySymbols(raw).length, 2);
+});
+
+test('the field is given only by a walk: a store object never walked carries none (no creation cost)', () => {
+  const raw = { a: 1 };
+  const state = createStore({ o: raw });
+  void state.o.a;
+  assert.deepEqual(Object.getOwnPropertySymbols(raw), []);
+});
+
+test('a walked item made non-extensible through the store keeps its ONE proxy (the WeakMap stays behind the field)', async () => {
+  const state = createStore({ list: [{ a: 1 }] });
+  const seen = [];
+  walk(state.list, (raw, item) => seen.push(item));
+  const item = state.list[0];
+  assert.equal(seen[0], item, 'the walk hands out the same proxy a read does');
+  Object.preventExtensions(item);
+  assert.equal(state.list[0], item, 'still the same proxy after the field moved out');
 });
 
 test('a store written into a store is stored RAW, and reads back as the same proxy', () => {

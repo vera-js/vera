@@ -490,7 +490,8 @@ const handler: ProxyHandler<object> = {
  */
 const proxies = new WeakMap<object, object | null>();
 /**
- * **The same cache, kept ON the raw object** where the language allows (Brian, 2026-10-18): a field under a Symbol
+ * **The same cache, kept ON the raw object** for the items a walk meets (`promote`), where the language allows (Brian,
+ * 2026-10-18): a field under a Symbol
  * private to this copy of core, defined non-enumerable, so `Object.keys`, `for…in`, spreading and `JSON.stringify`
  * never see it (`Object.getOwnPropertySymbols` on the RAW object does; the store's `ownKeys` filters it). A WeakMap
  * lookup was most of a store list's walk in Firefox (measured: swap −30%, remove −25%). The field names its owner, so
@@ -543,8 +544,17 @@ const unclassify = (obj: object) => {
   if (slot !== undefined && slot.o === obj) slot.d = undefined;
 };
 const remember = (value: object, proxy: object | null) => {
-  if (!Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy, d: undefined } satisfies Slot, writable: true, configurable: true }))
-    proxies.set(value, proxy);
+  proxies.set(value, proxy);
+};
+/**
+ * **The field is given only where a walk reads it** (2026-10-18): defining it on EVERY object at its first proxying cost
+ * store rows without `each` 8% of creating 1 000 (Chrome; with it on the WeakMap only, the landed figure came back:
+ * 3.59 → 3.33 vs 3.32 ms), while only `walkItems` gains from it (Firefox swap −29%, remove −24%). So `remember` keeps
+ * the WeakMap, and the walk promotes the items it meets. Never onto a proxy (`MARK`'s self-mapping): defining through one
+ * is its own trap. A non-extensible object refuses it and keeps the WeakMap.
+ */
+const promote = (value: object, proxy: object | null) => {
+  Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy, d: undefined } satisfies Slot, writable: true, configurable: true });
 };
 
 /** A new proxy over `data` — over a non-extensible one, marked `FIXED`. */
@@ -637,7 +647,12 @@ export const walkItems = (list: unknown, visit: (raw: unknown, item: unknown) =>
        * the read monomorphic; `cached`, shared by every object in the app, goes megamorphic (measured: Chrome swap +12%).
        */
       const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
-      visit(value, slot !== undefined && slot.o === value ? (slot.p ?? value) : nested(raw, i, value));
+      if (slot !== undefined && slot.o === value) visit(value, slot.p ?? value);
+      else {
+        const item = nested(raw, i, value);
+        if (item !== value) promote(value, item);
+        visit(value, item);
+      }
     }
   }
   return true;
