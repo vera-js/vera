@@ -1,5 +1,5 @@
 import { misuse, SHARED } from '@verajs/shared-utils';
-import type { ComponentElement, ResultType, HookRecord, Subscribers, TemplateResult } from '../types.js';
+import type { ComponentElement, ResultType, HookRecord, Cell, TemplateResult } from '../types.js';
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
@@ -28,16 +28,39 @@ export type Mine = { [MINE]?: true };
 export const tracking: { hook: HookRecord | undefined } = { hook: undefined };
 
 /**
- * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —
- * their element holds them strongly — so a removed element's HOOKS go with it. The `WeakRef`s left behind are swept:
- * by `trigger` when the key is written, and by `track` when a Set grows to its limit (a key never written included).
+ * Every subscription: target object → key → that key's CELL (the hooks that read it). PROTOTYPE (probe/cells,
+ * 2026-10-18): a cell holds its hooks STRONGLY and retirement unlinks them exactly (it held one `WeakRef` per hook).
  *
  * A key is anything a store module tracks — a property, or a collection's entry key, an object
  * included. A weak collection's container is really a `WeakMap` (see `track`); it is declared as a
  * `Map` because only `get` and `set` are ever called on it, which the two share, and a union would
  * make every read narrow for a difference that does not exist at these call sites.
  */
-export const proxyCallbacks = new WeakMap<object, Map<unknown, Subscribers>>();
+export const proxyCallbacks = new WeakMap<object, Map<unknown, Cell>>();
+
+/**
+ * **Unlinks `hook` from its sources `s[from..]`, each in O(1)** (PROTOTYPE, probe/cells, 2026-10-18): the cell's LAST hook
+ * takes the leaver's slot, and that hook's own record of where it sits is updated; `m` tells a wake in progress. Used
+ * where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached (`$t`), and with
+ * `from = 0` for retirement: links are strong, so this is what releases them.
+ */
+export const unlinkFrom = (hook: HookRecord, from: number) => {
+  const s = hook.s;
+  const x = hook.x;
+  while (s.length > from) {
+    const cell = s.pop()!;
+    const at = x.pop()!;
+    cell.m++;
+    const h = cell.h;
+    const moved = h.pop()!;
+    const slot = cell.j.pop()!;
+    if (at < h.length) {
+      h[at] = moved;
+      cell.j[at] = slot;
+      moved.x[slot] = at;
+    }
+  }
+};
 
 /**
  * One tag per template kind: the strings and values, marked with the kind for a renderer to consume.

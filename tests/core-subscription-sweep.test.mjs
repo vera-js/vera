@@ -10,8 +10,9 @@
  * Rows. CORRECTNESS, in this process: live readers all redraw; a moved component still does; a re-added one does.
  * RETENTION, in a child process run with `--expose-gc` — the one exception to "tests do not force collection" (Brian,
  * 2026-10-10; CLAUDE.md names it): there gc is the measuring instrument, alone in its own process, with both controls
- * (a dropped object that must die, live readers that must stay). Counted with `v8.queryObjects` over WeakRef objects —
- * the thing a dead subscription IS (counting surviving components would read clean while a store grows).
+ * (a dropped object that must die, live readers that must stay). Counted with `v8.queryObjects` over core's HOOK records
+ * (PROTOTYPE, probe/cells: cells hold hooks strongly, so a leftover subscription is a hook kept alive; it counted WeakRef
+ * objects while the store held one per hook).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -98,11 +99,18 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   customElements.define('g-keep', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`<b>\${config.label}</b>\`); } });
   const settle = () => new Promise((r) => setImmediate(r));
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
-  const count = () => v8.queryObjects(WeakRef, { format: 'count' });
+  /**
+   * PROTOTYPE (probe/cells, 2026-10-18): what a dead subscription IS changed. Cells hold hook records STRONGLY (no
+   * WeakRef exists any more, so counting WeakRefs measured nothing: the controls below went red, as they must), so a
+   * subscription left behind is a HOOK RECORD kept alive. Counted by core's hook class, taken from a live hook.
+   */
+  let Hook;
+  const count = () => v8.queryObjects(Hook, { format: 'count' });
   const churn = document.createElement('div'), keep = document.createElement('div');
   document.body.append(churn, keep);
   for (let i = 0; i < 100; i++) keep.append(document.createElement('g-keep'));
   await settle();
+  Hook = keep.firstElementChild._$h$[0].constructor;
   const dropped = new WeakRef({ plain: true });
   /**
    * rerun / reinit / many: components held by NO variable (only by the page, then by nothing), so nothing the probe

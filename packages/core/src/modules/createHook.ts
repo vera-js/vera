@@ -1,5 +1,5 @@
-import type { ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal, Subscribers } from '../types.js';
-import { currentInstance, tracking } from '../store/store.js';
+import type { Cell, ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal } from '../types.js';
+import { currentInstance, tracking, unlinkFrom } from '../store/store.js';
 import { enqueue } from './scheduler.js';
 import { diagnostic, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
@@ -53,12 +53,7 @@ export const retire = (owner: ComponentElement) => {
   if (all !== undefined)
     for (let i = 0; i < all.length; i++) {
       const hook = all[i]!;
-      const w = hook.w;
-      const d = hook.d;
-      hook.a?.delete(w);
-      hook.b?.delete(w);
-      if (d !== undefined) for (let k = 0; k < d.length; k++) d[k]!.delete(w);
-      hook.a = hook.b = hook.d = undefined;
+      unlinkFrom(hook, 0);
       spend(hook);
     }
   /** One level only: what a setup created is never itself an element being set up, so it owns no further owners. */
@@ -111,15 +106,17 @@ export const MODE_SYNC = SYNC;
 
 /** Every hook's creation, in order: `_k`, which breaks ties within one priority. */
 let created = 0;
+/** Every hook RUN, numbered across all hooks: a cell's repeat-read stamp is a run number, never a reference (`Cell`). */
+let runs = 0;
 
 /**
  * **A hook — ONE object** (work queue 5, step 1): what was three closures, two contexts, a `WeakRef` and expandos on a
- * function is this record and its `WeakRef`. Every field is assigned in the constructor, in one order, so every hook
+ * function is this record (PROTOTYPE, probe/cells: and no longer a `WeakRef`, since cells hold hooks strongly). Every field is assigned in the constructor, in one order, so every hook
  * has one shape (the development-only fields are added in development only).
  *
  * **A hook belongs to its owner's generation.** `init()` starts a new one every time an element reconnects, and a hook
- * from an older generation does nothing — otherwise the store, which only holds it weakly, kept running it until a
- * collection happened, and every reconnect doubled the element's renders and effects. Bumping `_$g$` is also how an
+ * from an older generation does nothing — otherwise the store kept running it (when it held hooks weakly, until a
+ * collection happened; with strong cells, until retirement), and every reconnect doubled the element's renders and effects. Bumping `_$g$` is also how an
  * owner retires its hooks deliberately (`@verajs/directives` does, as teardown).
  *
  * **A change reaching an owner that is out of the tree runs nothing** — a write would otherwise walk every component no
@@ -140,10 +137,11 @@ class HookState implements HookRecord {
   declare _in: boolean;
   declare _f: number;
   declare _r: number;
-  declare w: WeakRef<HookRecord>;
-  declare a: Subscribers | undefined;
-  declare b: Subscribers | undefined;
-  declare d: Subscribers[] | undefined;
+  declare s: Cell[];
+  declare x: number[];
+  declare v: number;
+  declare i: number;
+  declare e: number;
   /** The callback: the effect, or a render pass. */
   declare _cb: HookCallback;
   /** Development: an async callback is named once per hook, and how deep a SYNC hook's own writes re-entered it. */
@@ -164,10 +162,11 @@ class HookState implements HookRecord {
     this._in = false;
     this._f = 0;
     this._r = 0;
-    this.w = new WeakRef(this);
-    this.a = undefined;
-    this.b = undefined;
-    this.d = undefined;
+    this.s = [];
+    this.x = [];
+    this.v = 0;
+    this.i = 0;
+    this.e = 0;
     this._cb = callback;
   }
 
@@ -224,9 +223,19 @@ class HookState implements HookRecord {
     const owner = this._o;
     const outer = tracking.hook;
     tracking.hook = this;
+    /**
+     * PROTOTYPE (probe/cells): the run's link bookkeeping. A FIRST run links each read directly (`i = -1`); a re-run
+     * starts its cursor at 0 (`track`). `ok` turns true only when the callback returned: a run that THREW leaves the
+     * links it did not reach in place, so the hook still hears what it read last time.
+     */
+    const first = this.v === 0;
+    this.v = ++runs;
+    this.i = first ? -1 : 0;
+    let ok = false;
     try {
       if (this._m === RAW) {
         this._cb(signal, init);
+        ok = true;
         return;
       }
       spend(this);
@@ -239,12 +248,15 @@ class HookState implements HookRecord {
         const hook = priority === 60 ? 'useLayoutEffect' : priority === 75 ? (this._m === SYNC ? 'useSyncEffect' : 'useEffect') : 'useHook';
         console.warn(diagnostic('core', `${hook}${owner.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
       }
+      ok = true;
       /** `_$x$` is read only when there IS a cleanup: on a fresh element it is a miss, a walk down the DOM prototype chain. */
       if (cleanup !== undefined && owner._$x$) spend(this);
     } catch (error) {
       threw(error, owner);
     } finally {
       tracking.hook = outer;
+      /** A re-run that matched its last run's reads to the end of what it read: the sources it no longer reached leave. */
+      if (ok && this.i >= 0 && this.i < this.s.length) unlinkFrom(this, this.i);
     }
   }
 }
@@ -296,8 +308,8 @@ export const callable = (hook: HookRecord) => (signal?: Signal<unknown>, init?: 
  * needs the return value (its commit runs the first pass); anything owning its own reactive value does, and a
  * `computed`'s owner is a plain object rather than an element. It runs inside every write it hears, unbatched.
  *
- * The owner holds the hook strongly, ordered by `priority` (lower runs first; `0` is legal and earliest), and the store
- * holds one weak reference to it — one per hook, so repeated runs add the same entry to a subscription set. The
+ * The owner holds the hook strongly, ordered by `priority` (lower runs first; `0` is legal and earliest), and so do the
+ * cells it reads (PROTOTYPE, probe/cells: strong links, released by retirement; it was one weak reference per hook). The
  * generation and out-of-tree rules are the hook's (`HookState`).
  *
  * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the

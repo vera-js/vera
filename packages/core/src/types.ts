@@ -81,18 +81,26 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 
 /** An element's hooks in run order: sorted by `_k` (priority, then creation). */
 export type Hooks = HookRecord[];
-/** One key's subscribers: each hook's single `WeakRef` (a hook's element holds the hook strongly, the store weakly). */
-export type Subscribers = Set<WeakRef<HookRecord>>;
+/**
+ * **One key's CELL** (PROTOTYPE, probe/cells, 2026-10-18; DESIGN-WEAK-CELLS §12): the hooks that read the key, held
+ * STRONGLY (`h`), each with its index in that hook's source list (`j`), so either side leaves the other in O(1) by a
+ * swap. `rv` stamps the RUN that last read the key (run numbers are unique across hooks, so a number, never a reference:
+ * a stamp holding the hook kept a removed one alive), so a repeat read within one run is free. It replaced
+ * a `Set` of `WeakRef`s: a `deref()` costs 17–36 ns per wake (BROWSER-LEDGER), and the hooks are unlinked exactly at
+ * retirement instead (step 2 adds links-only-while-connected and the swept registry as the failsafe). `m` counts the
+ * hooks that ever LEFT it, which is how a wake in progress knows its list moved under it (`wake`).
+ */
+export type Cell = { h: HookRecord[]; j: number[]; rv: number; m: number };
 
 /**
  * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two
  * contexts and expandos on functions per hook. Core's `HookState` class is the only implementation; nothing outside
  * core reads these fields except through `$n`.
  *
- * Subscriptions, kept ON the hook so it can leave them (exact unsubscription, R1 #11): `w` is its one `WeakRef` (what a
- * store's Sets hold), `a`/`b` the first two Sets it joined (a render reads one or two keys) and `d` the rest. Retiring
- * deletes `w` from each, so a removed component leaves nothing in a store and nothing is ever swept. The joined Sets
- * are held STRONGLY while the hook lives: bounded by what the component reads, released at retirement — not a leak.
+ * Subscriptions, kept ON the hook so it can leave them (exact unsubscription, R1 #11): `s`/`x` below, the cells it
+ * reads and its place in each. Retiring unlinks it from every one, so a removed component leaves nothing in a store.
+ * (PROTOTYPE, probe/cells: this replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
+ * strong, so retirement is what releases them.)
  *
  * **Run order is `_y` (priority), then `_k` (creation sequence: parent-first, then registration order) — two fields,
  * never one packed number.** A packed `priority × 1e9 + sequence` (2026-10-08 → 10-11) misordered close fractional
@@ -116,10 +124,20 @@ export type HookRecord = {
   _in: boolean;
   _f: number;
   _r: number;
-  w: WeakRef<HookRecord>;
-  a: Subscribers | undefined;
-  b: Subscribers | undefined;
-  d: Subscribers[] | undefined;
+  /**
+   * **Its sources, with in-order link reuse** (PROTOTYPE, probe/cells): `s` the cells it reads, `x` its index in each
+   * cell's list. `v` is the number of its latest run, unique across every hook (0: never run). `i` is the run's cursor: `-1` on a FIRST run, which links each read
+   * directly (lazy reuse: a hook never re-run pays nothing for reuse); from the second run, a read matching `s[i]` just
+   * advances it; the first read that DIFFERS unlinks the rest at once and links directly from there (`-2`), so every
+   * read is linked the moment it is made (a run that reads a key and then writes it must hear its own write). After a
+   * run that never diverged, the sources it did not reach (`s[i..]`) leave. `e` is the last wake that reached it, so one
+   * write wakes it once.
+   */
+  s: Cell[];
+  x: number[];
+  v: number;
+  i: number;
+  e: number;
   /** Development: the last run queued by a hold, its run of consecutive held frames, and the hook that queued it. */
   _hf?: number;
   _s?: number;

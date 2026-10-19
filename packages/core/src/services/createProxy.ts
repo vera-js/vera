@@ -1,8 +1,8 @@
-import { proxyCallbacks, tracking } from '../store/store.js';
+import { proxyCallbacks, tracking, unlinkFrom } from '../store/store.js';
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { HookRecord, Signal } from '../types.js';
+import type { Cell, Signal } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
@@ -20,45 +20,76 @@ const track = (obj: object, prop: unknown) => {
     props = (isWeakCollection(obj) ? new WeakMap() : new Map()) as Map<unknown, never>;
     proxyCallbacks.set(obj, props);
   }
-  let hooks = props.get(prop);
-  if (hooks === undefined) props.set(prop, (hooks = new Set()));
+  let cell = props.get(prop);
+  if (cell === undefined) props.set(prop, (cell = { h: [], j: [], rv: 0, m: 0 }));
   /**
-   * A re-read — every update's — is ONE lookup, as a plain `add` was before exact unsubscription; only a real join adds
-   * and is recorded (reading `size` around the `add` cost Chrome ≈1% on updates).
+   * PROTOTYPE (probe/cells, 2026-10-18), **lazy in-order link reuse** (DESIGN-WEAK-CELLS §12). A hook's FIRST run links
+   * each read directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for
+   * reuse. A RE-run walks its previous sources in order: a read matching the cursor just advances it (stamped, so a
+   * repeat read is free). The first read that DIFFERS unlinks every source not yet matched and links directly from there
+   * (stamped), so every read is linked at once: a run that reads a key and then writes it hears its own write (a
+   * deferred tail missed exactly that). Both common paths stay INLINE: out of line, a stable re-render paid a call per
+   * read (+28%, Node), and `track` must stay small enough for V8 to inline (BROWSER-LEDGER, the inlining budget).
    */
-  const w = sub.w;
-  if (sub.a === undefined) {
-    hooks.add(w);
-    sub.a = hooks;
-    return;
+  const s = sub.s;
+  const i = sub.i;
+  if (i === -1) {
+    if (s.length !== 0 && s[s.length - 1] === cell) return;
+  } else {
+    if (cell.rv === sub.v) return;
+    cell.rv = sub.v;
+    if (i >= 0) {
+      if (i < s.length && s[i] === cell) {
+        sub.i = i + 1;
+        return;
+      }
+      unlinkFrom(sub, i);
+      sub.i = -2;
+    }
   }
-  if (hooks.has(w)) return;
-  hooks.add(w);
-  if (sub.b === undefined) sub.b = hooks;
-  else (sub.d ??= []).push(hooks);
+  sub.x.push(cell.h.length);
+  cell.h.push(sub);
+  cell.j.push(s.length);
+  s.push(cell);
 };
 
 /**
- * Wakes every live hook in `hooks` with `signal`, dropping the refs whose hook is gone. The ONE place a notification
- * goes out, for a single write and a whole-array operation alike. `seen` is the operation's: a hook it already woke
- * through another key is skipped. ONE signal per write, shared by every subscriber — it is read, never written (a
- * write to a key with 500 readers made 500).
+ * The wake counter: every notification (one write, or one whole-array operation across all its keys) takes a new number,
+ * and a hook it reached carries it (`e`), so the operation wakes each hook ONCE. It replaced the `seen` Set an
+ * operation allocated.
  */
-const wake = (hooks: Set<WeakRef<HookRecord>>, signal: Signal<unknown>, seen?: Set<HookRecord>) => {
-  for (const ref of hooks) {
-    const hook = ref.deref();
-    if (hook === undefined) hooks.delete(ref);
-    else if (seen === undefined || !seen.has(hook)) {
-      seen?.add(hook);
-      hook.$n(signal);
+let wakes = 0;
+
+/**
+ * Wakes every hook in `cell` with `signal`. The ONE place a notification goes out, for a single write and a whole-array
+ * operation alike. ONE signal per write, shared by every subscriber — it is read, never written (a write to a key with
+ * 500 readers made 500).
+ *
+ * **In insertion order, as the `Set` it replaced** (PROTOTYPE): a raw or sync hook runs inside this loop, in this order
+ * (a priority-0 `createHook` runs first), and its run may make a hook LEAVE this cell, which moves the cell's last hook
+ * into the leaver's slot, possibly behind the walk. So a leave (`m` changed) restarts the walk from the start: every hook
+ * already reached carries this wake's number and is skipped, so none is missed and none runs twice. A hook that JOINS
+ * during the walk is reached too, as a `Set` reached an entry added while it was being iterated.
+ */
+const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
+  const h = cell.h;
+  let m = cell.m;
+  for (let i = 0; i < h.length; i++) {
+    const hook = h[i]!;
+    if (hook.e === epoch) continue;
+    hook.e = epoch;
+    hook.$n(signal);
+    if (cell.m !== m) {
+      m = cell.m;
+      i = -1;
     }
   }
 };
 
-/** Wakes every live hook that read `obj[prop]`. */
+/** Wakes every hook that read `obj[prop]`. */
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
-  const hooks = proxyCallbacks.get(obj)?.get(prop);
-  if (hooks !== undefined) wake(hooks, { prop: prop as string, value, prevValue } as Signal<unknown>);
+  const cell = proxyCallbacks.get(obj)?.get(prop);
+  if (cell !== undefined && cell.h.length !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
 };
 
 /**
@@ -124,10 +155,11 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
        * read as nothing happened.
        */
       const signal = { prop: GLOBAL, value: obj } as Signal<unknown>;
-      const seen = new Set<HookRecord>();
+      /** One wake number for the whole operation: a hook reached through several keys runs once. */
+      const epoch = ++wakes;
       const send = (key: unknown) => {
-        const hooks = keys.get(key);
-        if (hooks !== undefined) wake(hooks, signal, seen);
+        const cell = keys.get(key);
+        if (cell !== undefined) wake(cell, signal, epoch);
       };
       /**
        * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. A list rendered
@@ -582,8 +614,8 @@ const ITEMS = Symbol();
 const RAW = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
-  const hooks = proxyCallbacks.get(obj)?.get(ITEMS);
-  if (hooks !== undefined) wake(hooks, { prop: GLOBAL, value: obj } as Signal<unknown>);
+  const cell = proxyCallbacks.get(obj)?.get(ITEMS);
+  if (cell !== undefined && cell.h.length !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
 };
 const arrayHandler: ProxyHandler<object> = {
   ...handler,
