@@ -154,17 +154,16 @@ from another machine, or after that is undone, has a variable changed.
   The same budget decides where a fast path may live: with the store's re-run "same read as last time" match moved out
   of line into its own function, a stable component's re-render paid a call per read (+28%); kept inline, with only the
   rare path out of line, it tied the baseline and `read` still inlined. (Node; 2026-10-18)
-- **[IN QUESTION 2026-10-19: a cell with its first reader INLINE — no mixed arrays at all — cost Firefox the same ~9% as the
-  interleaved form, three sessions each; the cause is something the two share that the split form does not (a suspect,
-  unconfirmed: the larger, more branched `track`). Kept per the ledger's rule; the consequence below is not to be relied
-  on until the cause is isolated.]** Firefox's cold code pays ~25% for arrays that interleave objects and small integers. A store's subscription
-  records as ONE array per key (`[count, hook, slot, hook, slot…]`) and one per reader (`[cell, at, cell, at…]`) created
-  10 000 store rows in 65 ms on a fresh page against 52 ms for the same logic with the objects and the integers in
-  SEPARATE arrays, three sessions each, with or without forced layout. Firefox's steady-state profile (15 creates on one
-  page) showed no difference, so it is the cold tiers, which is what an app's first render runs in. Chrome went the
-  other way (the interleaved form 3–4% faster on the same create), and a two-argument `push` was ruled out (one-argument
-  pushes changed nothing). Consequence: hot structures keep objects and numbers in separate arrays. (Firefox headless,
-  Playwright 153.0; 2026-10-19)
+- **[CORRECTED 2026-10-19] What was measured, narrowed:** in Firefox (Playwright build, headless), a store's subscription
+  records in the FLAT layout (`[count, hook, slot…]`) or with the first reader INLINE on the record, both unlinked by
+  moving the last reader into the leaver's place, made the NEXT create of 10 000 rows after a large clear ~9% slower
+  (203–212 ms vs 186–188). The FIRST create on a fresh page was unaffected (every layout within ~1%), and neither the
+  split layout (objects and numbers in separate arrays, also moved on unlink) nor the inline layout unlinked by
+  tombstones showed it. Cause not isolated. **The original claim below, that arrays interleaving objects and integers
+  cost Firefox's cold code ~25%, is CONTRADICTED** (the inline layout has no mixed arrays and paid the same) and is kept
+  only as the record: Firefox's cold code pays ~25% for arrays that interleave objects and small integers. The
+  consequence that stands: race re-creation after a removal, not only a fresh page's first create, before choosing a
+  layout. (2026-10-19)
 - **`WeakRef.prototype.deref()` costs 17–18 ns on one target and 34–36 ns across 10 000 targets; a plain field read
   costs 1–6 ns.** A design that crosses a weak edge on every run therefore pays most of a ~25 ns-per-run win back: a
   store whose subscriptions reached each component through one shared WeakRef, read once per run, lost half of a
