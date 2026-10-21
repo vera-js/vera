@@ -413,8 +413,6 @@ const orphan = (list: List) => {
 };
 /** The list's result committed into `part` by the renderer's own list path; then each row learns its instance and part. */
 const commitList = (list: List, part: EachPart) => {
-  list.part = part;
-  list.committed = list.parent.v;
   const outer = committing;
   committing = list.values;
   try {
@@ -422,6 +420,13 @@ const commitList = (list: List, part: EachPart) => {
   } finally {
     committing = outer;
   }
+  /**
+   * Marked committed only once the commit SUCCEEDED (vera-5a): a commit that threw left the list "committed" with its
+   * rows' instances stale, and the next row write patched an instance the part no longer held (`items[-1]`). Unmarked,
+   * a row write wakes the parent instead, which re-renders and commits again.
+   */
+  list.part = part;
+  list.committed = list.parent.v;
   const its = part.$i;
   const recs = list.recs;
   if (its !== undefined)
@@ -516,12 +521,16 @@ const automap = (
   owner: List['owner'],
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
-  if (typeof fn !== 'function' || fn.length > 1) return method.call(proxy, fn);
   let state = listsOf.get(parent);
   if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
   else if (state.v !== parent.v) {
     state.v = parent.v;
     state.n = 0;
+  }
+  /** EVERY `.map` call in a render takes its place in the order, whatever path it takes (vera-5a: one rule, no exceptions). */
+  if (typeof fn !== 'function' || fn.length > 1) {
+    state.lists[state.n++] = PLAIN;
+    return method.call(proxy, fn);
   }
   let list = state.lists[state.n];
   if (list === PLAIN) {
