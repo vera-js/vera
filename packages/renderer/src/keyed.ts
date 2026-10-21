@@ -576,11 +576,13 @@ const automap = (
   if (list === undefined) {
     const first = untracked!(() => fn(proxy[0]));
     /**
-     * A list only when the first row is a TEMPLATE result (`_$litType$`, what `html` / `svg` / `keyed()` / JSX produce) —
+     * A list only when the first row is a TEMPLATE result — the renderer's OWN definition, `strings !== undefined`
+     * (`isTemplateResult`, renderer.ts; a DELIBERATE twin, since this module imports nothing at runtime: change both
+     * together), so a hand-built `{ strings, values }` the renderer accepts is a list here too (vera-5a) —
      * not any object: a computational map returning plain objects (`items.map((i) => ({ ...i, label }))`, a directives
      * query) became a tracked list and broke `directives-query` (2026-10-20).
      */
-    if (first === null || typeof first !== 'object' || (first as { _$litType$?: unknown })._$litType$ === undefined) {
+    if (first === null || typeof first !== 'object' || (first as { strings?: unknown }).strings === undefined) {
       state.lists[state.n++] = PLAIN;
       return method.call(proxy, fn);
     }

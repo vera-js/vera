@@ -54,6 +54,24 @@ test('a field write re-renders exactly one row, and a cleared list stays cleared
   host.remove();
 });
 
+test('a row returning a template WITHOUT the marker is still a list (the renderer\'s own definition: `strings`)', async () => {
+  const state = createStore({ rows: make('m', 3) });
+  let rows = 0;
+  let parents = 0;
+  const host = document.createElement('div');
+  document.body.append(host);
+  /** A hand-built result the renderer accepts: `strings` and `values`, no `_$litType$`. */
+  const strings = Object.assign(['<li>', '</li>'], { raw: ['<li>', '</li>'] });
+  init(host, () => () => { parents++; return html`<ul>${state.rows.map((r) => { rows++; return { strings, values: [r.t] }; })}</ul>`; });
+  await settle();
+  assert.equal([...host.querySelector('ul').children].map((li) => li.textContent).join(), 'm1,m2,m3', 'CONTROL: it rendered');
+  rows = parents = 0;
+  state.rows[1].t = 'M2';
+  await settle();
+  assert.deepEqual({ rows, parents }, { rows: 1, parents: 0 }, 'a list: one row, no parent');
+  host.remove();
+});
+
 test('a call site mapping an EMPTY array keeps its place: the next list stays its own', async () => {
   const state = createStore({ a: make('a', 3), b: make('b', 3) });
   let a = 0;
