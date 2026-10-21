@@ -516,8 +516,7 @@ const automap = (
   owner: List['owner'],
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
-  if (typeof fn !== 'function' || fn.length > 1 || raw.length === 0 || raw[0] === null || typeof raw[0] !== 'object')
-    return method.call(proxy, fn);
+  if (typeof fn !== 'function' || fn.length > 1) return method.call(proxy, fn);
   let state = listsOf.get(parent);
   if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
   else if (state.v !== parent.v) {
@@ -528,6 +527,24 @@ const automap = (
   if (list === PLAIN) {
     state.n++;
     return method.call(proxy, fn);
+  }
+  /**
+   * **A call site with a live list ALWAYS runs it — an empty array included** (2026-10-20): the empty case took the plain
+   * path, so clearing a list never swept its rows — 10 000 rows stayed alive and subscribed after `state.rows = []`
+   * (Chrome: 12.22 MB retained after a clear vs landed's 4.50, `perrow.mjs`), each create ran beside the last one's
+   * rows (twice the live heap: Firefox's extra major GC), and the empty call did not count its place in the parent's
+   * order, so a later `.map` slid into this one's list. With no list yet, an empty or primitive array maps natively, and
+   * still takes its place (an empty one stays undecided; a primitive one is PLAIN for good).
+   */
+  if (list === undefined || list.dead) {
+    if (raw.length === 0) {
+      state.n++;
+      return method.call(proxy, fn);
+    }
+    if (raw[0] === null || typeof raw[0] !== 'object') {
+      state.lists[state.n++] = PLAIN;
+      return method.call(proxy, fn);
+    }
   }
   if (list === undefined) {
     const first = untracked!(() => fn(proxy[0]));
