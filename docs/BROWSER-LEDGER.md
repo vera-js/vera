@@ -147,6 +147,16 @@ from another machine, or after that is undone, has a variable changed.
 
 ## Custom elements
 
+- **A custom element inside a CLOSED shadow root of a plain element hears that element's whole lifecycle.** A
+  `<div>` with a closed root holding `<slot></slot>` and a custom element: attached → `connected`; moved in one operation
+  → `disconnected` while still connected, then `connected`; removed → `disconnected` (not connected); re-attached →
+  `connected`; moved into a document with no browsing context → `disconnected` while connected, then `connected` there.
+  The light content renders through the slot unchanged, `host.shadowRoot` is `null` (closed), `host.children` is
+  unchanged. Identical in Chromium 151, Firefox 153 and WebKit 26.5 (Playwright builds, headless; a correctness check, not
+  a timing). Consequence: a plain element can be given an exact lifecycle with no MutationObserver and no polling — the
+  candidate for core's plain-owner liveness. Only `attachShadow`-eligible elements (`div`, `span`, `p`, `section`, the
+  sectioning and heading elements, custom names), and only once per element. (2026-10-21)
+
 - **Defining `adoptedCallback` costs every element's creation** (+7.4% on create10k, 5/5 sessions): a lifecycle
   callback is engine work per instance. Consequence: never add one speculatively. (Mode not recorded; 2026-10-02)
 - **Custom element upgrade, shadow DOM, `adoptedStyleSheets` and `@scope` are emulated or absent under jsdom.**
