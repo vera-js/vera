@@ -12,7 +12,9 @@
  * - an async setup that creates an element-owned hook AFTER an await releases — only the owner marks it born (without the
  *   node-owner clause: 200/200);
  * - a module first imported DURING a render (a lazy `import()`) keeps its module-scope computed live across requests
- *   (pushing every hook created in the turn: the second request served the first one's value).
+ *   (pushing every hook created in the turn: the second request served the first one's value);
+ * - a burst of renders that each write the store re-runs no earlier render once its turn has ended (without the turn's
+ *   unlink: the leaked components were live, 1225 re-runs at 50 — and 20 ms where the fix takes 1.9).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,4 +52,11 @@ test('a module first imported during a render keeps its module-scope computed li
   controls(r);
   assert.ok(r.first, `CONTROL: the first request rendered the computed's value (${JSON.stringify(r)})`);
   assert.ok(r.second, `the second request served a stale computed (${JSON.stringify(r)})`);
+});
+
+test('a burst of renders that each write the store re-runs no render whose turn has ended', () => {
+  const r = measure('burst');
+  controls(r);
+  assert.ok(r.rendered === 50 && r.minRuns >= 1, `CONTROL: 50 components rendered (${JSON.stringify(r)})`);
+  assert.equal(r.extraRuns, 0, `${r.extraRuns} re-runs of components whose render had already ended`);
 });

@@ -22,6 +22,12 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook') {
   const refs = globalThis.__refs ?? [];
   Object.assign(out, { rendered: refs.length, markup: markup.includes('<b>0</b>'), alive: refs.filter((r) => r.deref() !== undefined).length });
 }
+if (mode === 'burst') {
+  /** 50 renders at once, each writing the store in its setup: no render may re-run once its turn has ended. */
+  await Promise.all(Array.from({ length: 50 }, () => renderToStringAsync(url('comp-burst.mjs'))));
+  const runs = globalThis.__runs ?? [];
+  Object.assign(out, { rendered: runs.length, extraRuns: runs.reduce((n, r) => n + (r.runs - 1), 0), minRuns: Math.min(...runs.map((r) => r.runs)) });
+}
 if (mode === 'lazy') {
   const first = (await renderToStringAsync(url('comp-lazy.mjs'))).html;
   const { L } = await import('./lazy.mjs');
