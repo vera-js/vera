@@ -12,7 +12,9 @@
  * - an async setup that creates an element-owned hook AFTER an await releases — only the owner marks it born (without the
  *   node-owner clause: 200/200);
  * - a module first imported DURING a render (a lazy `import()`) keeps its module-scope computed live across requests
- *   (pushing every hook created in the turn: the second request served the first one's value).
+ *   (pushing every hook created in the turn: the second request served the first one's value);
+ * - the unlink is DEFERRED to the next task (the page is served first), and the turn's hooks are inert AT ONCE, so a
+ *   burst of renders writing the store re-runs no earlier, discarded render (without the generation bump: re-runs).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,4 +52,19 @@ test('a module first imported during a render keeps its module-scope computed li
   controls(r);
   assert.ok(r.first, `CONTROL: the first request rendered the computed's value (${JSON.stringify(r)})`);
   assert.ok(r.second, `the second request served a stale computed (${JSON.stringify(r)})`);
+});
+
+test('a burst of renders that write the store: each discarded render stays inert, before its deferred unlink runs', () => {
+  const r = measure('burst');
+  controls(r);
+  assert.ok(r.rendered === 50 && r.minRuns >= 1, `CONTROL: 50 components rendered (${JSON.stringify(r)})`);
+  assert.equal(r.extraRuns, 0, `${r.extraRuns} re-runs of components whose render had already ended`);
+});
+
+test('the unlink is DEFERRED to the next task: held right after the render, released after one task', () => {
+  const r = measure('pin');
+  controls(r);
+  assert.ok(r.rendered === 1, `CONTROL: one render ran (${JSON.stringify(r)})`);
+  assert.equal(r.beforeTask, 1, 'the component is still held before the task boundary (the walk runs after the response)');
+  assert.equal(r.afterTask, 0, 'released after one task');
 });

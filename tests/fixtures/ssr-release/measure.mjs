@@ -22,6 +22,21 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook') {
   const refs = globalThis.__refs ?? [];
   Object.assign(out, { rendered: refs.length, markup: markup.includes('<b>0</b>'), alive: refs.filter((r) => r.deref() !== undefined).length });
 }
+if (mode === 'burst') {
+  /** 50 renders at once, each writing the store; counted BEFORE any task boundary (before the deferred walks run). */
+  await Promise.all(Array.from({ length: 50 }, () => renderToStringAsync(url('comp-burst.mjs'))));
+  const runs = globalThis.__runs ?? [];
+  Object.assign(out, { rendered: runs.length, extraRuns: runs.reduce((n, r) => n + (r.runs - 1), 0), minRuns: Math.min(...runs.map((r) => r.runs)) });
+}
+if (mode === 'pin') {
+  /** The walk is DEFERRED: right after a render (no task boundary yet) the store still holds it; after one task, nothing. */
+  await renderToString(url('comp.mjs'));
+  global.gc();
+  const refs = globalThis.__refs ?? [];
+  const before = refs.filter((r) => r.deref() !== undefined).length;
+  await gc();
+  Object.assign(out, { rendered: refs.length, beforeTask: before, afterTask: refs.filter((r) => r.deref() !== undefined).length });
+}
 if (mode === 'lazy') {
   const first = (await renderToStringAsync(url('comp-lazy.mjs'))).html;
   const { L } = await import('./lazy.mjs');
