@@ -142,6 +142,12 @@ code, so they are not re-litigated.
   to one store registry and subscriptions live in the other, so reactivity looks completely dead and
   every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard
   never fires" findings on separate occasions.
+  **A probe BUNDLED with esbuild splits core the same way (Brian approved, 2026-10-21):** esbuild applies the tree's
+  `tsconfig.json` `paths` (`@verajs/*` → package SOURCE) to every file inside the tree, so a package's built `dist`
+  importing `@verajs/core` gets core's source while an entry outside the tree gets core's `dist` — two cores in one
+  bundle. Measured on the step 2 retention probe: computeds and `renderInto` lists looked inert on both engines, and two
+  leaking rows read clean. Pass the bundle an empty `tsconfig`, and have the build script fail if any `core/src` module
+  is in the bundle — a guard shown firing on a deliberately mis-bundled entry, not only trusted.
 - **Two template literals are two templates, even with identical text.** Template identity is the
   `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
   probe produces a rebuild, not an update, and every conclusion drawn about update behavior is
