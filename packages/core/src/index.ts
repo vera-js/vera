@@ -37,7 +37,6 @@ export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
 import { walkItems } from './services/createProxy.js';
-import { tracking } from './store/store.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
 import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own, settle, serverTurn } from './modules/createHook.js';
@@ -67,8 +66,6 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 (inserts as unknown as { $so: typeof settle }).$so = settle;
 /** Step 2 (a): a server render's turn — `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created (createHook.ts). */
 (inserts as unknown as { $ss: typeof serverTurn }).$ss = serverTurn;
-/** Step 2 (b0): the running hook, for a module whose commit happens inside a run (keyed's `each`: the run owns its list). */
-(inserts as unknown as { $ch: () => HookRecord | undefined }).$ch = () => tracking.hook;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so `each` can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;
