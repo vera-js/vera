@@ -201,6 +201,13 @@ let retireHook: ((hook: RowHook) => void) | undefined;
 let ownerOf: ((hook: RowHook) => Owner) | undefined;
 /** Core's run ownership (`$own`, option (e)). */
 let own: ((hook: unknown, item: List) => void) | undefined;
+/** Core's settle (`$so`, option (e″)): a row that owns lists settles them where its run ends, or disposes them as it drops. */
+let settle: ((hook: unknown, all?: boolean) => void) | undefined;
+/**
+ * **How many live lists a ROW owns** (a `.map` inside a row's render), page-wide: while it is 0 — every page without
+ * nested lists — a row's run and its drop pay one module read for ownership, and no lookup (what (e′) paid per row).
+ */
+let nested = 0;
 /** Every row's callback, ONE function: core calls it as a method of the row's hook, which leads back to the row. */
 function rowCb(this: RowHook, signal?: unknown, init?: boolean) {
   rowRun.call(ownerOf!(this) as Row, signal, init);
@@ -291,6 +298,8 @@ function rowRun(this: Row, _signal?: unknown, init?: boolean) {
   if (!init && list !== undefined && list.mapped !== list.parent.v) return orphan(list);
   const r = stamp(this);
   this.result = r;
+  /** The row's render returned: a nested list it hid this time goes now (core's ownership, settled here — (e″)). */
+  if (nested !== 0) settle!(this.h);
   /**
    * A run its LIST asked for (`init`: created, or re-run in the list's walk) only records its result — the list hands it
    * to the renderer. Only a write the row heard commits or wakes anything: a walk-time run that woke the parent made the
@@ -323,6 +332,7 @@ const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (it
 const drop = (rec: Row) => {
   rec._$g$++;
   retireHook!(rec.h);
+  if (nested !== 0) settle!(rec.h, true);
   /** vera-5a: a row owns exactly one hook today; if anything ever registers another on it, the full retire still runs. */
   if (rec._$h$ !== undefined) retire!(rec);
 };
@@ -437,6 +447,7 @@ let saidDup: WeakSet<object> | undefined;
 /** A list the parent no longer reaches: its rows and its own hook retire. */
 const orphan = (list: List) => {
   list.dead = true;
+  if (ownerOf!(list.parent as unknown as RowHook) instanceof Row) nested--;
   for (let i = 0; i < list.recs.length; i++) drop(list.recs[i]);
   list.recs = [];
   list.cache.clear();
@@ -649,6 +660,7 @@ const automap = (
   if (list === undefined || list.dead) {
     const made = new List(parent, owner);
     made.h = hook!(made, () => listRun.call(made));
+    if (ownerOf!(parent as unknown as RowHook) instanceof Row) nested++;
     list = made;
   }
   put(list);
@@ -801,12 +813,13 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   bareHook = registry.$qb as typeof bareHook;
   retireHook = registry.$zh as typeof retireHook;
   ownerOf = registry.$ow as typeof ownerOf;
   own = registry.$own as typeof own;
+  settle = registry.$so as typeof settle;
   /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;

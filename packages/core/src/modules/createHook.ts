@@ -262,15 +262,6 @@ class HookState implements HookRecord {
       tracking.hook = outer;
       /** A re-run that matched its last run's reads to the end of what it read: the sources it no longer reached leave. */
       if (ok && this.i >= 0 && this.i < this.s.length) unlinkFrom(this, this.i);
-      /**
-       * Owned things this run did not claim are disposed — only after a run that RETURNED (a throw keeps them). (e′): the
-       * hook class carries NO field for it (the field cost every component's creation on Firefox, +3–4%, race18); a page
-       * that owns nothing pays one module read here.
-       */
-      if (ok && ownedBy !== undefined) {
-        const o = ownedBy.get(this);
-        if (o !== undefined) settleOwned(this, o);
-      }
     }
   }
 }
@@ -285,7 +276,6 @@ export const bare = (owner: ComponentElement, callback: HookCallback): HookRecor
 export const retireHook = (hook: HookRecord) => {
   unlinkFrom(hook, 0);
   spend(hook);
-  disposeOwned(hook);
 };
 
 /** Something a hook's run owns: `$r` the run that last claimed it, `$h` its owning hook, `$d()` its disposal. `$`-named: cross-bundle. */
@@ -321,6 +311,19 @@ const settleOwned = (hook: HookRecord, o: Owned[]) => {
   }
   o.length = w;
   if (w === 0) ownedBy!.delete(hook);
+};
+/**
+ * **Settled where the owning run ends, never in every hook's run** (option (e″), 2026-10-21): (e′) checked the table at the
+ * end of EVERY run, so a 10k list's 10 000 row runs each paid a lookup (Firefox create10k +4.7%, race19). Things are owned
+ * only by a component's render (core's `drawInto` settles it, once per render) and by an automatic list's row (keyed
+ * settles its own row, and only while some row owns a list). `all`: the owner is retiring — dispose everything it owns.
+ */
+export const settle = (hook: HookRecord, all?: boolean) => {
+  const o = ownedBy?.get(hook);
+  if (o !== undefined) {
+    if (all) disposeOwned(hook);
+    else settleOwned(hook, o);
+  }
 };
 /** A retiring hook disposes everything it owns. */
 const disposeOwned = (hook: HookRecord) => {

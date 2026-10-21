@@ -1,5 +1,6 @@
 import type { ComponentElement, RenderTemplate } from '../types.js';
-import { RENDER_PRIORITY } from '../modules/createHook.js';
+import { RENDER_PRIORITY, settle } from '../modules/createHook.js';
+import { tracking } from '../store/store.js';
 import { coalesce } from './coalesce.js';
 import { inserts } from '@verajs/inserts';
 import type { Renderer } from '@verajs/shared-types';
@@ -40,6 +41,12 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
       }
       /** A plain loop — a `forEach` arrow here was a closure on every render of every component. */
       for (let i = 0; i < renderers.length; i++) (renderers[i] as Renderer)(result, target, owns);
+      /**
+       * The render RETURNED and committed: what it owns and did not claim this time (an automatic `.map` list it hid or
+       * no longer reaches) is disposed now, `.map` call or not (option (e″)). Here, once per component render — not at the
+       * end of every hook's run.
+       */
+      settle(tracking.hook!);
     },
     RENDER_PRIORITY,
     false

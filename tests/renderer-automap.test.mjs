@@ -131,13 +131,15 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
   const mode = ${JSON.stringify(mode)};
   const make = (n, from) => Array.from({ length: n }, (_, i) => ({ id: from + i, t: 'r' + i }));
-  const state = createStore({ rows: [], kept: make(10, 1), open: true });
+  const state = createStore({ rows: [], kept: make(10, 1), open: true, outer: [{ id: 0, open: true }] });
   const host = document.createElement('div');
   const keep = document.createElement('div');
   document.body.append(host, keep);
   init(keep, () => () => html\`<ol>\${state.kept.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   /** hide: the list is HIDDEN behind a condition and its data never written again — it must still be released. */
-  if (mode === 'hide') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul>\`);
+  /** nest: the list is NESTED in a row, which hides it on its own write — only the ROW's run sees it go (option (e″)). */
+  if (mode === 'nest') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
+  else if (mode === 'hide') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul>\`);
   else init(host, () => () => html\`<ul>\${state.rows.map((r) => html\`<li>\${r.t}</li>\`)}</ul>\`);
   flush(); await settle();
   /** Core's hook class, taken from a live hook (cells hold hooks strongly: a leftover row is a hook record kept alive). */
@@ -148,13 +150,14 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   const start = count();
   let peak = 0;
   /** hide: ONE list of 1000 rows shown, then hidden, and nothing written after — only the parent's sweep can release it. */
-  for (let round = 0; round < (mode === 'hide' ? 1 : 5); round++) {
+  for (let round = 0; round < (mode === 'clear' ? 5 : 1); round++) {
     state.rows = make(1000, 1000 * (round + 1));
     flush(); await settle();
     await gc();
     peak = Math.max(peak, count() - start);
     if (mode === 'clear') state.rows = [];
     if (mode === 'hide') state.open = false;
+    if (mode === 'nest') state.outer[0].open = false;
     flush(); await settle();
   }
   await gc();
@@ -179,6 +182,13 @@ test('HIDING a list releases its rows too, with no further write (vera-5a): the 
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
   assert.ok(r.left <= 2, `${r.left} hook records left after hiding (rows not released)`);
+});
+
+test('a row HIDING its nested list releases the nested rows, with no further write: the row\'s own run disposes it', () => {
+  const r = child('nest');
+  assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
+  assert.ok(r.peak >= 1000, `CONTROL: the live nested list held its rows' hooks while it lived (peak ${r.peak})`);
+  assert.ok(r.left <= 2, `${r.left} hook records left after the row hid its list (nested rows not released)`);
 });
 
 test('clearing a list RELEASES its rows: nothing of 5 × 1000 created-and-cleared rows is left', () => {

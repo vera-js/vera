@@ -39,7 +39,7 @@ import { untracked, untrack as untrackFn } from './modules/untrack.js';
 import { walkItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
-import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own } from './modules/createHook.js';
+import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own, settle } from './modules/createHook.js';
 import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 /**
  * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
@@ -62,6 +62,8 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 (inserts as unknown as { $ow: typeof ownerOf }).$ow = ownerOf;
 /** Option (e): a module claims something for the current run of `hook`; the run's end disposes what it did not claim. */
 (inserts as unknown as { $own: typeof own }).$own = own;
+/** (e″): a module whose own hooks own things settles them where their runs end (`$so(hook)`), or disposes all (`$so(hook, true)`). */
+(inserts as unknown as { $so: typeof settle }).$so = settle;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so `each` can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;
