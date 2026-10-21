@@ -82,6 +82,8 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const next: Item[] = items.slice(0, start).concat(new Array(newEnd - start + 1), items.slice(oldEnd + 1));
   const before = (i: number): Node | null => (i < count ? part.$f(next[i]) : end);
   let map: Map<unknown, number> | undefined;
+  /** The new middle's keys, built with `map`: what tells a removed old end from a moved one. */
+  let fresh: Set<unknown> | undefined;
   let oldHead = start;
   let newHead = start;
   while (oldHead <= oldEnd && newHead <= newEnd) {
@@ -111,6 +113,23 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
       if (map === undefined) {
         map = new Map();
         for (let i = oldHead; i <= oldEnd; i++) if (old[i] !== null) map.set(old[i]!.$k, i);
+        fresh = new Set();
+        for (let i = newHead; i <= newEnd; i++) fresh.add(key(i));
+      }
+      /**
+       * **An old end the new list no longer holds is REMOVED, not worked around** (2026-10-20): a push and a middle
+       * splice in one flush left no unchanged run at either end, and the walk moved every row past the removed one —
+       * 999 `insertBefore` on 1000 rows, where 2 DOM operations are right (`auto-moves.mjs`).
+       */
+      if (!fresh!.has(head.$k)) {
+        part.$d(head);
+        old[oldHead++] = null;
+        continue;
+      }
+      if (!fresh!.has(tail.$k)) {
+        part.$d(tail);
+        old[oldEnd--] = null;
+        continue;
       }
       /**
        * A slot the map points at may already be spoken for when a key repeats: nulled by an earlier reuse,
@@ -174,7 +193,9 @@ type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
   ({ _$each$: 1, items, key, row }) as EachValue;
 
-/** Core's retire (`$z`), handed over by `eachList` when it is wired: what releases a row's subscriptions. */
+/** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
+let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
+/** Core's retire (`$z`): what releases a row's subscriptions. */
 let retire: ((owner: Owner) => void) | undefined;
 /** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
 let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void) => boolean) | undefined;
@@ -196,31 +217,59 @@ const stamp = (rec: Row) => {
   return r;
 };
 /**
- * **A row IS its hook** (PROTOTYPE probe/cells-auto, 2026-10-20, Brian: make the row tracker cost ~nothing): a subclass of
- * core's hook class (`$hc`) that owns itself, so one row is ONE object. It was three plus a closure: a row record (the
- * owner), core's hook, the owner's one-element hook list, and the run closure. As the hook, its run is `rowRun` (shared,
- * `this` is the row). As its own owner it carries what core reads of an owner: `_$g$` its generation (bumped by `drop`,
- * which retires it), `_$x$` / `localName`, `_$h$` (never set: core retires a self-owned hook directly), `isConnected`
- * (core skips a disconnected owner's writes; the row is connected while its rendered node is) and `ownerDocument` (the
- * scheduler uses the element's own window). As the record: `part` its list part, `key` its key, `item` / `row` what it
- * renders from, `result` its last template result, `inst` the instance that result was committed into, `seen` the render
- * that last met it. The class is made when `eachList` is wired, since its base comes from core's registry. It must write
- * only `$`-named fields of core's class, and its OWN fields need names the production mangler can never generate (no
- * one- or two-character names: core's mangled hook fields are `t`, `k`, `R`, `$`…, and a row's `k` / `t` overwrote the
- * hook's creation sequence and flush stamp — measured, 2026-10-20). Hence `part`, `key`, `seen`.
+ * **A row: its record AND its hook's OWNER, one object; the hook is core's (`$q`), held in `h`.** (B1 step 1 made the row
+ * its own hook, a subclass of core's hook class across the bundle boundary: one object per row instead of two. It bought
+ * nothing — a Chrome profile of create10k showed the two identical, and two races put it 4–6% SLOWER at Chrome 10k
+ * creation — and the cross-bundle subclass cost two mangling bugs; REVERTED, Brian 2026-10-20.) As the owner it carries
+ * what core's hooks read of an owner: `_$g$` its generation (bumped by `drop`, which retires the hook), `_$x$` /
+ * `localName`, `_$h$` the hook list core keeps on it (declared, so its first write is no shape change), `isConnected` (core
+ * skips a disconnected owner's writes; the row is connected while its rendered node is) and `ownerDocument` (the
+ * scheduler uses the element's own window). As the record: `part` its list part, `list` its automatic list, `key`,
+ * `item` / `row` what it renders from, `result` its last template result, `inst` the instance that result was committed
+ * into, `seen` the render that last met it.
  */
-type Row = Owner & RowHook & {
-  part: EachPart | undefined;
+class Row {
+  /**
+   * `declare`d and ASSIGNED in the constructor, in one order — as core's `HookState` is — never class-field initializers
+   * (a define-semantics field is a property DEFINITION per instance).
+   */
+  declare _$g$: number;
+  declare _$x$: boolean;
+  declare _$h$: unknown[] | undefined;
+  declare localName: string;
+  declare h: RowHook;
+  declare part: EachPart | undefined;
   /** The automatic `.map` list this row belongs to; `undefined` for an `each` row. */
-  list: List | undefined;
-  result: KeyedResult | null;
-  inst: Item | undefined;
-  key: unknown;
-  item: unknown;
-  row: (item: unknown) => unknown;
-  seen: number;
-};
-let Row: (new (p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined) => Row) | undefined;
+  declare list: List | undefined;
+  declare result: KeyedResult | null;
+  declare inst: Item | undefined;
+  declare key: unknown;
+  declare item: unknown;
+  declare row: (item: unknown) => unknown;
+  declare seen: number;
+  constructor(p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined) {
+    this._$g$ = 1;
+    this._$x$ = false;
+    this._$h$ = undefined;
+    this.localName = 'each-row';
+    this.h = undefined as unknown as RowHook;
+    this.part = p;
+    this.list = list;
+    this.result = null;
+    this.inst = undefined;
+    this.key = k;
+    this.item = item;
+    this.row = row;
+    this.seen = t;
+  }
+  get isConnected() {
+    const node = (this.inst as { $R?: Node } | undefined)?.$R;
+    return node === undefined || node.isConnected;
+  }
+  get ownerDocument() {
+    return (this.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document;
+  }
+}
 /**
  * The row's run: a write the row's render read wakes exactly this row. It re-stamps and commits its new result into its
  * OWN instance in place (`part.$u`); if the instance had to be replaced (the row's shape changed), the list part's item
@@ -254,9 +303,10 @@ function rowRun(this: Row, _signal?: unknown, init?: boolean) {
   }
 }
 const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, list?: List): Row => {
-  const rec = new Row!(part, k, item, row, tick, list);
+  const rec = new Row(part, k, item, row, tick, list);
+  rec.h = hook!(rec, (signal, init) => rowRun.call(rec, signal, init));
   /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
-  rec.$n(undefined, true);
+  rec.h.$n(undefined, true);
   return rec;
 };
 /** A row that left the list: its generation moves on (it goes inert) and core retires it (a self-owned hook: directly). */
@@ -284,23 +334,53 @@ const drop = (rec: Row) => {
  * **Lists are matched to calls by ORDER within the parent's run**, as hooks are: the parent's k-th `.map` is the k-th
  * list. A list the parent's latest run did not reach is an orphan; its next wake retires it with its rows.
  */
-type List = Owner &
-  RowHook & {
-    parent: { v: number; $n(signal?: unknown, init?: boolean): void };
-    owner: Node & { readonly isConnected: boolean };
-    fn: (item: unknown) => unknown;
-    items: ArrayLike<unknown>;
-    cache: Map<unknown, Row>;
-    recs: Row[];
-    values: unknown[];
-    part: EachPart | undefined;
-    mapped: number;
-    committed: number;
-    all: boolean;
-    ident: boolean;
-    dead: boolean;
-  };
-let List: (new (parent: List['parent'], owner: List['owner']) => List) | undefined;
+class List {
+  declare _$g$: number;
+  declare _$x$: boolean;
+  declare _$h$: unknown[] | undefined;
+  declare localName: string;
+  declare h: RowHook;
+  declare parent: { v: number; $n(signal?: unknown, init?: boolean): void };
+  declare owner: Node & { readonly isConnected: boolean };
+  declare fn: (item: unknown) => unknown;
+  declare items: ArrayLike<unknown>;
+  declare cache: Map<unknown, Row>;
+  declare recs: Row[];
+  declare values: unknown[];
+  declare part: EachPart | undefined;
+  declare mapped: number;
+  declare committed: number;
+  declare all: boolean;
+  declare ident: boolean;
+  declare dead: boolean;
+  constructor(parent: List['parent'], owner: List['owner']) {
+    this._$g$ = 1;
+    this._$x$ = false;
+    this._$h$ = undefined;
+    this.localName = 'each-list';
+    this.h = undefined as unknown as RowHook;
+    this.parent = parent;
+    this.owner = owner;
+    this.fn = undefined as unknown as List['fn'];
+    this.items = [];
+    this.cache = new Map();
+    this.recs = [];
+    this.values = [];
+    this.part = undefined;
+    this.mapped = 0;
+    this.committed = -1;
+    this.all = true;
+    this.ident = false;
+    this.dead = false;
+  }
+  /** Connected while the component that mapped it is. */
+  get isConnected() {
+    return this.owner.isConnected !== false;
+  }
+  get ownerDocument() {
+    return this.owner.ownerDocument ?? document;
+  }
+}
 /** The mark on a map's result: the list that made it. A Symbol private to this module copy. */
 const AUTO = Symbol();
 /**
@@ -388,7 +468,7 @@ function listRun(this: List): void {
       /** Through the row's OWN hook: what it reads subscribes the row, never the list or the parent. */
       rec.item = item;
       rec.row = fn;
-      rec.$n(undefined, true);
+      rec.h.$n(undefined, true);
     }
     rec.seen = t;
     recs[i] = rec;
@@ -456,13 +536,17 @@ const automap = (
       return method.call(proxy, fn);
     }
   }
-  if (list === undefined || list.dead) list = state.lists[state.n] = new List!(parent, owner);
+  if (list === undefined || list.dead) {
+    const made = new List(parent, owner);
+    made.h = hook!(made, () => listRun.call(made));
+    list = state.lists[state.n] = made;
+  }
   state.n++;
   list.fn = fn;
   list.items = proxy;
   list.mapped = parent.v;
   list.all = true;
-  list.$n(undefined, true);
+  list.h.$n(undefined, true);
   return list.values;
 };
 const eachValue = (part: object, value: unknown) => {
@@ -518,7 +602,7 @@ const eachValue = (part: object, value: unknown) => {
         /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
         rec.item = item;
         rec.row = row;
-        rec.$n(undefined, true);
+        rec.h.$n(undefined, true);
       }
     }
     rec.seen = t;
@@ -601,92 +685,8 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
-  /** `super(null, …)`: the row owns itself. 50 and 1 are core's RENDER_PRIORITY and MODE_QUEUED (a row renders, queued). */
-  const Base = registry.$hc as new (owner: null, callback: () => void, priority: number, mode: number) => object;
-  Row ??= class extends Base {
-    declare _$g$: number;
-    declare _$x$: boolean;
-    declare _$h$: unknown[] | undefined;
-    declare localName: string;
-    declare part: EachPart | undefined;
-    declare list: List | undefined;
-    declare result: KeyedResult | null;
-    declare inst: Item | undefined;
-    declare key: unknown;
-    declare item: unknown;
-    declare row: (item: unknown) => unknown;
-    declare seen: number;
-    constructor(p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined) {
-      super(null, rowRun, 50, 1);
-      /** Core sets its own (mangled) `_g` to 1 for a self-owned hook; only `$`-named fields cross a bundle. */
-      this._$g$ = 1;
-      this._$x$ = false;
-      this._$h$ = undefined;
-      this.localName = 'each-row';
-      this.part = p;
-      this.result = null;
-      this.inst = undefined;
-      this.key = k;
-      this.item = item;
-      this.row = row;
-      this.seen = t;
-      this.list = list;
-    }
-    get isConnected() {
-      const node = (this.inst as { $R?: Node } | undefined)?.$R;
-      return node === undefined || node.isConnected;
-    }
-    get ownerDocument() {
-      return (this.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document;
-    }
-  } as unknown as typeof Row;
-  /** A list owns itself too: its run is `listRun`; it is connected while the component that mapped it is. */
-  List ??= class extends Base {
-    declare _$g$: number;
-    declare _$x$: boolean;
-    declare _$h$: unknown[] | undefined;
-    declare localName: string;
-    declare parent: List['parent'];
-    declare owner: List['owner'];
-    declare fn: (item: unknown) => unknown;
-    declare items: ArrayLike<unknown>;
-    declare cache: Map<unknown, Row>;
-    declare recs: Row[];
-    declare values: unknown[];
-    declare part: EachPart | undefined;
-    declare mapped: number;
-    declare committed: number;
-    declare all: boolean;
-    declare ident: boolean;
-    declare dead: boolean;
-    constructor(parent: List['parent'], owner: List['owner']) {
-      super(null, listRun, 50, 1);
-      this._$g$ = 1;
-      this._$x$ = false;
-      this._$h$ = undefined;
-      this.localName = 'each-list';
-      this.parent = parent;
-      this.owner = owner;
-      this.fn = undefined as unknown as List['fn'];
-      this.items = [];
-      this.cache = new Map();
-      this.recs = [];
-      this.values = [];
-      this.part = undefined;
-      this.mapped = 0;
-      this.committed = -1;
-      this.all = true;
-      this.ident = false;
-      this.dead = false;
-    }
-    get isConnected() {
-      return this.owner.isConnected !== false;
-    }
-    get ownerDocument() {
-      return this.owner.ownerDocument ?? document;
-    }
-  } as unknown as typeof List;
+export const eachList = (registry: { $q?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+  hook = registry.$q as typeof hook;
   /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;
