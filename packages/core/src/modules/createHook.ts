@@ -141,13 +141,6 @@ class HookState implements HookRecord {
   declare v: number;
   declare i: number;
   declare e: number;
-  /**
-   * **What this hook's runs OWN** (PROTOTYPE probe/cells-auto-e, option (e), 2026-10-20): things a run creates or claims
-   * (`own`, below) — an automatic `.map` list today, a render-made computed next (step 2's A4). When a run ENDS, anything
-   * it did not claim this run is disposed: a list its render no longer reached (hidden, or its condition false) retires at
-   * once, with no `.map` call needed. `undefined` until something is owned, so other hooks pay one field read per run.
-   */
-  declare o: Owned[] | undefined;
   /** The callback: the effect, or a render pass. */
   declare _cb: HookCallback;
   /** Development: an async callback is named once per hook, and how deep a SYNC hook's own writes re-entered it. */
@@ -173,7 +166,6 @@ class HookState implements HookRecord {
     this.v = 0;
     this.i = 0;
     this.e = 0;
-    this.o = undefined;
     this._cb = callback;
   }
 
@@ -270,8 +262,15 @@ class HookState implements HookRecord {
       tracking.hook = outer;
       /** A re-run that matched its last run's reads to the end of what it read: the sources it no longer reached leave. */
       if (ok && this.i >= 0 && this.i < this.s.length) unlinkFrom(this, this.i);
-      /** Owned things this run did not claim are disposed — only after a run that RETURNED (a throw keeps them). */
-      if (ok && this.o !== undefined) settleOwned(this);
+      /**
+       * Owned things this run did not claim are disposed — only after a run that RETURNED (a throw keeps them). (e′): the
+       * hook class carries NO field for it (the field cost every component's creation on Firefox, +3–4%, race18); a page
+       * that owns nothing pays one module read here.
+       */
+      if (ok && ownedBy !== undefined) {
+        const o = ownedBy.get(this);
+        if (o !== undefined) settleOwned(this, o);
+      }
     }
   }
 }
@@ -291,17 +290,26 @@ export const retireHook = (hook: HookRecord) => {
 
 /** Something a hook's run owns: `$r` the run that last claimed it, `$h` its owning hook, `$d()` its disposal. `$`-named: cross-bundle. */
 type Owned = { $r: number; $h: HookRecord | undefined; $d(): void };
+/**
+ * **What each hook's runs own** (option (e′), 2026-10-20): a side table, made at the first `own()`, so the hook class keeps
+ * its shape and a page with nothing owned never builds it. Things a run creates or claims — an automatic `.map` list
+ * today, a render-made computed next (step 2's A4) — are disposed when a run ENDS without claiming them, and when the
+ * hook retires.
+ */
+let ownedBy: WeakMap<HookRecord, Owned[]> | undefined;
 /** Claims `item` for `hook`'s CURRENT run (a module calls it during the run that uses the item). */
 export const own = (hook: HookRecord, item: Owned) => {
   item.$r = hook.v;
   if (item.$h !== hook) {
     item.$h = hook;
-    (hook.o ??= []).push(item);
+    const table = (ownedBy ??= new WeakMap());
+    const list = table.get(hook);
+    if (list === undefined) table.set(hook, [item]);
+    else list.push(item);
   }
 };
 /** After a run: keep what it claimed, dispose the rest — stable, in one pass. */
-const settleOwned = (hook: HookRecord) => {
-  const o = hook.o!;
+const settleOwned = (hook: HookRecord, o: Owned[]) => {
   let w = 0;
   for (let r = 0; r < o.length; r++) {
     const item = o[r]!;
@@ -312,13 +320,13 @@ const settleOwned = (hook: HookRecord) => {
     }
   }
   o.length = w;
-  if (w === 0) hook.o = undefined;
+  if (w === 0) ownedBy!.delete(hook);
 };
 /** A retiring hook disposes everything it owns. */
 const disposeOwned = (hook: HookRecord) => {
-  const o = hook.o;
+  const o = ownedBy?.get(hook);
   if (o === undefined) return;
-  hook.o = undefined;
+  ownedBy!.delete(hook);
   for (let r = 0; r < o.length; r++) {
     o[r]!.$h = undefined;
     o[r]!.$d();
