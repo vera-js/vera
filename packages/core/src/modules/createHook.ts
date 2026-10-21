@@ -55,13 +55,8 @@ export const retire = (owner: ComponentElement) => {
       const hook = all[i]!;
       unlinkFrom(hook, 0);
       spend(hook);
+      disposeOwned(hook);
     }
-  /**
-   * What the hooks OWN goes in its own pass, and only once anything was ever owned (an automatic `.map` list): inside the
-   * loop above, a call per retired hook cost every component's removal on Chrome +1.6% on a page with nothing owned
-   * (race22, 6 headed sessions, 5/6). The base's loop is kept exactly.
-   */
-  if (ownedBy !== undefined && all !== undefined) for (let i = 0; i < all.length; i++) disposeOwned(all[i]!);
   /** One level only: what a setup created is never itself an element being set up, so it owns no further owners. */
   const owned = owner._$o$;
   if (owned !== undefined) {
