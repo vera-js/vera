@@ -114,9 +114,13 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
  * Wire it: `wire([renderer, nativeElements])`. A CONNECTOR (`wire` hands it the registry): core's setup (`$in`) and
  * teardown (`$td`) come off it, and `$ne` tells core's development check this module is wired.
  */
-export const nativeElements = (registry: Core & { $ne?: unknown }, w: (item: unknown) => void) => {
-  core = registry;
-  registry.$ne = true;
+/** The registry and `wire` as a connector is handed them — typed as slots' are, so a strict consumer's `wire([…])` takes it. */
+type Registry = { get(name: never): unknown };
+type Wire = (item: never) => void;
+export const nativeElements = (registry: Registry, w: Wire) => {
+  /** Core's seams, typed loosely on the registry (as the keyed module's are): a connector is handed core's `Inserts`. */
+  core = registry as unknown as Core;
+  (registry as unknown as { $ne?: unknown }).$ne = true;
   /** FIRST of the `'init'` inserts (priority 0): a deferral stops every insert after it, so none runs on a detached host twice. */
-  w({ on: 'init', fn: onInit, priority: 0 });
+  w({ on: 'init', fn: onInit, priority: 0 } as never);
 };

@@ -103,3 +103,14 @@ it('a contenteditable host still edits its light content', async () => {
   expect(host.querySelector('p').textContent).to.equal('abcX');
   host.remove();
 });
+
+it('the one change: a DIRECT child with a slot attribute renders nowhere; a deeper one, and every other child, render', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  init(host, () => () => html`<span class="plain">plain</span><span class="named" slot="title">named</span><p><span class="deep" slot="title">deep</span></p>`);
+  await settle();
+  const w = (c) => Math.round(host.querySelector(c).getBoundingClientRect().width);
+  expect({ plain: w('.plain') > 0, named: w('.named'), deep: w('.deep') > 0 }).to.deep.equal({ plain: true, named: 0, deep: true });
+  host.remove();
+});
+
