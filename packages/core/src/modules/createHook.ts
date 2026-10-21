@@ -167,8 +167,13 @@ class HookState implements HookRecord {
     this.i = 0;
     this.e = 0;
     this._cb = callback;
-    /** Created inside a server render's turn: unlinked when that turn ends (`serverTurn`, below). */
-    if (serverScope > 0) born.push(this);
+    /**
+     * Created BY a server render's tree — inside a running hook or a setup, or owned by a node — during its turn: unlinked
+     * when the turn ends (`serverTurn`, below). A module first imported during the turn (a component's lazy
+     * `await import()`) runs its top level with none of those, so its module-scope state stays the process's (vera-5a).
+     */
+    if (serverScope > 0 && (tracking.hook !== undefined || currentInstance.element !== null || (owner as Partial<Node>).nodeType !== undefined))
+      born.push(this);
   }
 
   $n(signal?: Signal<unknown>, init?: boolean) {

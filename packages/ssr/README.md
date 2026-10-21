@@ -479,6 +479,11 @@ markup itself is served byte for byte as it was written.
   repair it. `mode`, `delegatesFocus`, `clonable` and `serializable` are all serialized.
 - A function interpolated at a text position renders as nothing here and as its source on the
   client — put functions in `@event` bindings, where both sides drop them.
+- **What a render creates leaves every store when its render ends.** Its components are reactive DURING the render
+  (a write in a setup or a router's first navigation re-renders before the markup is written), and nothing they read
+  keeps them alive afterwards. Module-scope state — a store, a `computed` — belongs to the process and stays live; a
+  `computed` made inside a render and kept beyond it (stored on a module) stops updating when that render ends. Client
+  code in the same process created while an async render is awaiting is treated as part of that render.
 - **No streaming.** `renderToString` returns a string where `@lit-labs/ssr` yields a stream. That buys
   time-to-first-byte in proportion to how long a render takes, and a 100-row table here is PERF_TABLE µs
   — the response is built before a stream would flush its first chunk. Worth revisiting for a page big
