@@ -26,6 +26,8 @@ type Core = { $in(element: Host, options: unknown, setup: unknown): void; $td(el
 
 /** The setup each host was given, to set it up again on its return; per module COPY (two copies never share one). */
 const SETUP = Symbol();
+/** A host whose setup waits for its first connect (it was given `init` off the page). */
+const PENDING = Symbol();
 /** Each realm's sentinel name, per copy: `vera-s-` + the first number free in that realm's registry (deterministic). */
 const names = new WeakMap<CustomElementRegistry, string>();
 let core: Core | undefined;
@@ -51,8 +53,11 @@ const sentinelFor = (win: Window & typeof globalThis) => {
       class extends win.HTMLElement {
         connectedCallback() {
           /** Back after a removal: set up fresh. (A move — the host still connected at its disconnect — kept it.) */
-          const host = hostOf(this);
-          if (host._$x$ === true) setUp(host);
+          const host = hostOf(this) as Host & { [PENDING]?: true };
+          if (host._$x$ === true || host[PENDING]) {
+            host[PENDING] = undefined;
+            setUp(host);
+          }
         }
         disconnectedCallback() {
           const host = hostOf(this);
@@ -66,12 +71,12 @@ const sentinelFor = (win: Window & typeof globalThis) => {
   return name;
 };
 
-const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown) => {
-  if (core!.$srv !== undefined) return;
+const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown): false | undefined => {
+  if (core!.$srv !== undefined) return undefined;
   const win = element.ownerDocument.defaultView as (Window & typeof globalThis) | null;
-  if (win === null) return;
+  if (win === null) return undefined;
   /** A custom element has its own callbacks (customized built-ins included: `getName`). */
-  if (element.localName.indexOf('-') >= 0 || (win.customElements as { getName?: (c: unknown) => string | null }).getName?.(element.constructor)) return;
+  if (element.localName.indexOf('-') >= 0 || (win.customElements as { getName?: (c: unknown) => string | null }).getName?.(element.constructor)) return undefined;
   if (element[SETUP] === undefined) {
     let root: ShadowRoot;
     try {
@@ -81,7 +86,7 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
         said.add(element.localName);
         console.warn(diagnostic('native-elements', `<${element.localName}>`, 'native-host-unsupported', __DEV__ && PROSE['native-host-unsupported'](element.localName)));
       }
-      return;
+      return undefined;
     }
     const doc = element.ownerDocument;
     root.append(doc.createElement('slot'), doc.createElement(sentinelFor(win)));
@@ -92,6 +97,10 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
       };
   }
   element[SETUP] = [options, setup];
+  /** Off the page: its setup waits for its first connect (core stops on `false`), so a host never attached links nothing. */
+  if (element.isConnected) return undefined;
+  (element as Host & { [PENDING]?: true })[PENDING] = true;
+  return false;
 };
 
 /**

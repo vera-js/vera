@@ -204,7 +204,12 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * Each is handed the component's options object too: a module's own key travels on it (`observeSlots`, slots) — and
    * the setup as given (`@verajs/renderer/native-elements` sets a built-in host up again when it returns, 2026-10-21).
    */
-  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element, options, given);
+  /**
+   * An insert that answers `false` DEFERS the setup (Brian, 2026-10-21): native-elements holds a built-in host's setup
+   * until its first connect, as a custom element's runs in its connectedCallback — so a host built off the page and
+   * never attached links nothing.
+   */
+  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) if ((initInserts[i] as InitInsert)(element, options, given) === false) return;
   if (__DEV__) unwiredStyles(element);
   /**
    * **The setup: this component is the owner while it runs, and nothing it reads is tracked** (the tracking cell is

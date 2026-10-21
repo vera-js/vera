@@ -83,7 +83,8 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  * hook FUNCTION with `$keys` (development only) so core's unknown-option check accepts the key.
  */
 /** `setup`: the setup `init` was given (or `undefined`), so a module can set the element up again (native-elements, 2026-10-21). */
-export type InitInsert = (element: HTMLElement, options: object | undefined, setup?: unknown) => void;
+/** Answering `false` defers the setup: `init` stops before it (native-elements, for a host not yet connected). */
+export type InitInsert = (element: HTMLElement, options: object | undefined, setup?: unknown) => void | false;
 
 /**
  * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.
