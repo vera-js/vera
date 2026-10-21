@@ -71,6 +71,17 @@ const sentinelFor = (win: Window & typeof globalThis) => {
   return name;
 };
 
+/** Development: each host said once. */
+let saidSlot: WeakSet<Element> | undefined;
+const slotAttributeCheck = (host: Element) => {
+  const children = host.children;
+  for (let i = 0; i < children.length; i++)
+    if (children[i]!.hasAttribute('slot') && !(saidSlot ??= new WeakSet()).has(host)) {
+      saidSlot.add(host);
+      console.warn(diagnostic('native-elements', `<${host.localName}>`, 'native-host-slot-attribute', __DEV__ && PROSE['native-host-slot-attribute'](children[i]!.localName)));
+    }
+};
+
 const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown): false | undefined => {
   /** A server's document (ssr marks it): its elements are read once, never given a lifecycle. */
   if ((element.ownerDocument as Document & { _$srv$?: boolean })._$srv$) return undefined;
@@ -104,6 +115,11 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
       };
   }
   element[SETUP] = [options, setup];
+  /**
+   * Development: a DIRECT child with a `slot` attribute renders nowhere under the default-slot root (BROWSER-LEDGER) —
+   * a silent disappearance, so it is said, once per host, after the render this setup is about to run.
+   */
+  if (__DEV__) queueMicrotask(() => slotAttributeCheck(element));
   /** Off the page: its setup waits for its first connect (core stops on `false`), so a host never attached links nothing. */
   if (element.isConnected) return undefined;
   (element as Host & { [PENDING]?: true })[PENDING] = true;

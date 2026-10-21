@@ -104,6 +104,28 @@ test('an unsupported tag still renders and warns once, in development', { skip: 
   assert.equal(said.filter((m) => m.includes('cannot carry') && m.includes('native-host-unsupported')).length, 1, `warned once, by its code (${said.join(' | ')})`);
 });
 
+test('a DIRECT child with a slot attribute is said in development (it renders nowhere); a deeper one is not', { skip: isProduction && 'the warning is development-only' }, async () => {
+  const warn = console.warn;
+  const said = [];
+  console.warn = (message) => said.push(String(message));
+  try {
+    const deep = document.createElement('div');
+    document.body.append(deep);
+    init(deep, () => () => html`<p><span slot="t">deep</span></p>`);
+    await settle();
+    assert.equal(said.filter((m) => m.includes('native-host-slot-attribute')).length, 0, `CONTROL: a deeper slot attribute is fine (${said.join(' | ')})`);
+    const host = document.createElement('div');
+    document.body.append(host);
+    init(host, () => () => html`<span slot="t">named</span><span>plain</span>`);
+    await settle();
+    deep.remove();
+    host.remove();
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(said.filter((m) => m.includes('native-host-slot-attribute')).length, 1, `said once, by its code (${said.join(' | ')})`);
+});
+
 /** The child: one mode per process; gc as the instrument; the built-in hosts' elements counted through WeakRefs. */
 const child = (mode, fw = true) => JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--expose-gc', '--no-warnings', '--input-type=module', '-e', `
   ${mode === 'with-ssr' ? "await import('@verajs/ssr');" : ''}

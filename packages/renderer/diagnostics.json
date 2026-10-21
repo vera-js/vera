@@ -314,6 +314,14 @@
       "fix": "Use a custom element for a host that needs its own shadow root — init(this, …) with { shadow } — or attach the shadow root to an element inside this one."
     },
     {
+      "code": "native-host-slot-attribute",
+      "params": [
+        "tag"
+      ],
+      "message": "a direct child of this built-in host carries a slot attribute (<{tag} slot=…>), so it renders NOWHERE: the root that gives the host its lifecycle has only a default <slot>, and a child that names a slot is assigned to none.",
+      "fix": "Drop the slot attribute, wrap the child in another element (a deeper descendant is not affected), or make the host a custom element."
+    },
+    {
       "code": "native-host-unsupported",
       "params": [
         "tag"

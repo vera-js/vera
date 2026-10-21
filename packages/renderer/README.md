@@ -520,7 +520,7 @@ as before.
 
 One thing changes for a supported host: a DIRECT child carrying a `slot` attribute (`<span slot="title">`) renders
 nowhere, since the host's root has only a default `<slot>` (the same in every engine; a deeper descendant with one is
-unaffected). Document CSS is otherwise unaffected — child and structural selectors, `:empty`, `:has()`, inheritance
+unaffected) — development says so, naming the host. Document CSS is otherwise unaffected — child and structural selectors, `:empty`, `:has()`, inheritance
 and layout match a host without it.
 
 Also: a built-in element built in a document with no window (`document.implementation.createHTMLDocument`, a
