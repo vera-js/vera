@@ -309,8 +309,17 @@ const AUTO = Symbol();
  * turned every nested list away, so every inner write re-ran its outer row — measured 2026-10-20).
  */
 let committing: unknown[] | undefined;
+/**
+ * **Only a map whose rows are TEMPLATES becomes a list** (option C, Brian 2026-10-20 — measured first without the rule:
+ * a `map → reduce` over 10k items in a render cost +29% Chrome / +30% Firefox on its first render and twice the heap,
+ * 5.63 vs 2.85 MB, for rows nothing renders). A call site's first item decides, ONCE: its row run untracked; a result
+ * that is not an object marks the call site `PLAIN` for good, and it maps natively from then on.
+ */
+const PLAIN = 0;
 /** Per parent hook: the run its lists were last counted in, how many it has reached this run, and the lists. */
-const listsOf = new WeakMap<object, { v: number; n: number; lists: List[] }>();
+const listsOf = new WeakMap<object, { v: number; n: number; lists: (List | typeof PLAIN)[] }>();
+/** Core's `untracked` (`$t`): the deciding run of a call site's first item subscribes nothing. */
+let untracked: (<R>(fn: () => R) => R) | undefined;
 /** Development: a duplicate id already said, per list. */
 let saidDup: WeakSet<object> | undefined;
 /** A list the parent no longer reaches: its rows and its own hook retire. */
@@ -427,7 +436,7 @@ const automap = (
   owner: List['owner'],
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
-  if (typeof fn !== 'function' || fn.length > 1 || (raw.length > 0 && (raw[0] === null || typeof raw[0] !== 'object')))
+  if (typeof fn !== 'function' || fn.length > 1 || raw.length === 0 || raw[0] === null || typeof raw[0] !== 'object')
     return method.call(proxy, fn);
   let state = listsOf.get(parent);
   if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
@@ -436,6 +445,17 @@ const automap = (
     state.n = 0;
   }
   let list = state.lists[state.n];
+  if (list === PLAIN) {
+    state.n++;
+    return method.call(proxy, fn);
+  }
+  if (list === undefined) {
+    const first = untracked!(() => fn(proxy[0]));
+    if (first === null || typeof first !== 'object') {
+      state.lists[state.n++] = PLAIN;
+      return method.call(proxy, fn);
+    }
+  }
   if (list === undefined || list.dead) list = state.lists[state.n] = new List!(parent, owner);
   state.n++;
   list.fn = fn;
@@ -530,7 +550,7 @@ const eachValue = (part: object, value: unknown) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; $M?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown }, w: (item: unknown) => void) => {
   /** `super(null, …)`: the row owns itself. 50 and 1 are core's RENDER_PRIORITY and MODE_QUEUED (a row renders, queued). */
   const Base = registry.$hc as new (owner: null, callback: () => void, priority: number, mode: number) => object;
   Row ??= class extends Base {
@@ -619,6 +639,7 @@ export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; 
   /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;
+  untracked = registry.$t as typeof untracked;
   walk = registry.$w as typeof walk;
   w({ on: 'value', fn: eachValue, priority: 50 });
 };
