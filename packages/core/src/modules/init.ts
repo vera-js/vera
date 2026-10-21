@@ -61,6 +61,8 @@ const CLOSED: ShadowRootInit = { mode: 'closed' };
 const saidStatic = new WeakSet<object>();
 const saidNearMiss = new WeakSet<object>();
 const saidOptions = new WeakSet<object>();
+/** Development: the built-in-host warning, said once per page. */
+let saidBuiltIn = false;
 /** Development: an invalid app default is said once per page (a component's own invalid option, at each connect). */
 let warnedAboutDefault = false;
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
@@ -131,6 +133,16 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
     console.error(diagnostic('core', `<${element.localName}>`, 'init-options', __DEV__ && PROSE['init-options']()));
   }
   (element as Mine)[MINE] = true;
+  /**
+   * Development: a BUILT-IN element (no hyphen in its name, and not a customized built-in: `getName`) has no lifecycle
+   * core hears, so it is never released when removed — unless `@verajs/renderer/native-elements` is wired (`$ne`). Said
+   * once per page. Production carries none of it (step 2 (b), 2026-10-21).
+   */
+  if (__DEV__ && !saidBuiltIn && element.localName.indexOf('-') < 0 && (inserts as unknown as { $ne?: unknown }).$ne === undefined &&
+    !(element.ownerDocument.defaultView?.customElements as { getName?: (c: unknown) => string | null } | undefined)?.getName?.(element.constructor)) {
+    saidBuiltIn = true;
+    console.warn(diagnostic('core', `<${element.localName}>`, 'built-in-host-unwired', __DEV__ && PROSE['built-in-host-unwired']()));
+  }
   const setup = typeof given === 'function' ? given : typeof (element as { setup?: unknown }).setup === 'function' ? callMethod : undefined;
   /**
    * Development: `init` on a host from inside ITS OWN setup starts a new generation and discards the hooks that setup
@@ -188,8 +200,11 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    */
   const initInserts = inserts.get('init');
   /** A plain loop: no closure per connect (a `forEach` arrow captured `element` on every connect of every styled app). */
-  /** Each is handed the component's options object too: a module's own key travels on it (`observeSlots`, slots). */
-  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element, options);
+  /**
+   * Each is handed the component's options object too: a module's own key travels on it (`observeSlots`, slots) — and
+   * the setup as given (`@verajs/renderer/native-elements` sets a built-in host up again when it returns, 2026-10-21).
+   */
+  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) (initInserts[i] as InitInsert)(element, options, given);
   if (__DEV__) unwiredStyles(element);
   /**
    * **The setup: this component is the owner while it runs, and nothing it reads is tracked** (the tracking cell is
@@ -281,6 +296,21 @@ const retireGeneration = (element: ComponentElement) => {
     cleanups.forEach((cleanup) => runCleanup(cleanup, element));
     cleanups.clear();
   }
+};
+
+/**
+ * **A removal's whole teardown, one function** (lifted 2026-10-21 for `@verajs/renderer/native-elements`, step 2 (b)): the
+ * generation retired, the hook lists DROPPED (each hook is a closure over its element: a removed element still holding
+ * them is a DOM↔JS cycle only Firefox's cycle collector frees — R2.5, 2026-10-11), the renderer's release of the
+ * component's root part (`$x`; absent on a server), and `_$x$`. The define wrapper runs it after the author's own
+ * `disconnectedCallback`; the native-elements module runs it (`$td`) when a built-in host leaves the document.
+ */
+export const retireElement = (element: ComponentElement) => {
+  retireGeneration(element);
+  element._$h$ = undefined;
+  /** The renderer drops what its part holds of the component's JS (work queue 0d) — absent on a server, a no-op. */
+  (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
+  element._$x$ = true;
 };
 
 /**
@@ -417,11 +447,7 @@ if (typeof customElements !== 'undefined') {
      */
     const teardown = (element: Moving) => {
       own?.call(element);
-      retireGeneration(element);
-      element._$h$ = undefined;
-      /** The renderer drops what its part holds of the component's JS (work queue 0d) — absent on a server, a no-op. */
-      (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
-      element._$x$ = true;
+      retireElement(element);
     };
     /**
      * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never

@@ -82,7 +82,8 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  * `declare module '@verajs/core'`, which a module that does not depend on core cannot resolve: TS2664), and marks its
  * hook FUNCTION with `$keys` (development only) so core's unknown-option check accepts the key.
  */
-export type InitInsert = (element: HTMLElement, options: object | undefined) => void;
+/** `setup`: the setup `init` was given (or `undefined`), so a module can set the element up again (native-elements, 2026-10-21). */
+export type InitInsert = (element: HTMLElement, options: object | undefined, setup?: unknown) => void;
 
 /**
  * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.

@@ -56,6 +56,7 @@ export const ENTRY = {
   'store/computed': ['store', 'vera-store-computed'],
   store: ['store', 'vera-store'],
   'renderer/keyed': ['renderer', 'vera-renderer-keyed'],
+  'renderer/native-elements': ['renderer', 'vera-renderer-native-elements'],
   'renderer/slots': ['renderer', 'vera-renderer-slots'],
   'renderer/namespaces': ['renderer', 'vera-renderer-namespaces'],
   'renderer/elements': ['renderer', 'vera-renderer-elements'],

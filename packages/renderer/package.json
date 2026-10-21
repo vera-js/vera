@@ -35,6 +35,11 @@
       "development": "./dist/development/vera-renderer-keyed.js",
       "default": "./dist/vera-renderer-keyed.min.js"
     },
+    "./native-elements": {
+      "types": "./dist/development/vera-renderer-native-elements.d.ts",
+      "development": "./dist/development/vera-renderer-native-elements.js",
+      "default": "./dist/vera-renderer-native-elements.min.js"
+    },
     "./profiler": {
       "types": "./dist/development/vera-renderer-profiler.d.ts",
       "default": "./dist/development/vera-renderer-profiler.js"

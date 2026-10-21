@@ -33,6 +33,7 @@ export { createHook } from './modules/createHook.js';
 export { useHook } from './hooks/coalesce.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
+import { initWith, retireElement } from './modules/init.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
@@ -66,6 +67,13 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 (inserts as unknown as { $so: typeof settle }).$so = settle;
 /** Step 2 (a): a server render's turn — `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created (createHook.ts). */
 (inserts as unknown as { $ss: typeof serverTurn }).$ss = serverTurn;
+/**
+ * Step 2 (b), for `@verajs/renderer/native-elements` (imports nothing — a module never imports core at runtime): core's
+ * own setup (`$in`, `initWith`) and its removal's whole teardown (`$td`, `retireElement`), so a built-in host gets the
+ * lifecycle a custom element's callbacks give it.
+ */
+(inserts as unknown as { $in: typeof initWith }).$in = initWith;
+(inserts as unknown as { $td: typeof retireElement }).$td = retireElement;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so a keyed list can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;

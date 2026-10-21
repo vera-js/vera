@@ -74,6 +74,10 @@ export const PROSE: Record<string, Prose> = {
     'returned a promise — an async callback runs, but it cannot return a cleanup, and what it awaits may arrive after the component re-ran or was removed.',
     'To cancel it, write the effect as a plain function that starts the async work and returns a cleanup that stops it — for a fetch, `const c = new AbortController(); load(c.signal); return () => c.abort();`.',
   ],
+  'built-in-host-unwired': () => [
+    'init() was given a built-in element (a div, a section…), which has no lifecycle core can hear: it is never set up again when re-attached and never released when removed.',
+    "Use a custom element and call init(this) in its connectedCallback — or, to keep the built-in element, wire its lifecycle: wire([renderer, nativeElements]) from '@verajs/renderer/native-elements'.",
+  ],
   'init-twice': (hooks) => [
     `called init() twice in one setup, so the ${hooks} hook(s) registered since the first call were discarded and will never run.`,
     'init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount().',

@@ -16,6 +16,12 @@
       "fix": "To cancel it, write the effect as a plain function that starts the async work and returns a cleanup that stops it — for a fetch, `const c = new AbortController(); load(c.signal); return () => c.abort();`."
     },
     {
+      "code": "built-in-host-unwired",
+      "params": [],
+      "message": "init() was given a built-in element (a div, a section…), which has no lifecycle core can hear: it is never set up again when re-attached and never released when removed.",
+      "fix": "Use a custom element and call init(this) in its connectedCallback — or, to keep the built-in element, wire its lifecycle: wire([renderer, nativeElements]) from '@verajs/renderer/native-elements'."
+    },
+    {
       "code": "cleanup-threw",
       "params": [],
       "message": "threw (the function a hook returned, not the hook itself); its error is printed beside this line, and the rest of the teardown ran.",

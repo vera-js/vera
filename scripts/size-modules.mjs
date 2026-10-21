@@ -24,6 +24,7 @@ export const MODULES = [
   { pkg: 'computed', dir: 'store', dist: 'packages/store/dist/vera-store-computed.min.js', what: 'memoized derived values' },
   { pkg: 'collections', dir: 'store', dist: 'packages/store/dist/vera-store-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
+  { pkg: 'native-elements', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-native-elements.min.js', what: '`nativeElements` — `init` on a built-in host (a div, a section…) with a custom element\'s lifecycle, and the components of a window that goes away retired' },
   { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },
   { pkg: 'namespaces', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-namespaces.min.js', what: 'an `html` template parsed in the namespace of the position it lands in — SVG children of components' },
   { pkg: 'elements', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-elements.min.js', what: 'behavior attached to claimed elements in templates, mounted and unmounted with their instances' },

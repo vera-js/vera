@@ -77,6 +77,8 @@ const { wire, inserts, flush } = await import('@verajs/core');
 setCoreFlush(flush);
 /** Core's server-render turn (step 2 (a)): what a render creates leaves every store when its turn ends. */
 const serverTurnOf = (inserts as unknown as { $ss?: (delta: number) => void }).$ss;
+/** A server: modules that would touch a client's lifecycle (`@verajs/renderer/native-elements`) stand aside (`$srv`). */
+(inserts as unknown as { $srv?: boolean }).$srv = true;
 /** `static styles` are part of what a browser renders, so the server adopts them unconditionally. */
 const { styles } = await import('@verajs/styles');
 wire([styles]);
