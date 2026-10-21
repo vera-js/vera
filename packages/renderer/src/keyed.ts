@@ -26,7 +26,7 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
    * removals (a row deleted) or only insertions (rows appended, prepended, inserted), it is settled here;
    * a same-order update is the case where nothing remains at all.
    */
-  /** A row whose value is the result committed last time (an `each` row that did not re-render) is not even asked. */
+  /** A row whose value is the result committed last time (a list row that did not re-render) is not even asked. */
   while (start <= oldEnd && start <= newEnd && items[start].$k === key(start)) {
     const value = values[start];
     if (value === undefined || value !== (items[start] as { $j?: unknown }).$j) items[start] = part.$u(items[start], value);
@@ -177,21 +177,15 @@ export const keyed = <T>(key: unknown, result: T): T => {
 };
 
 /**
- * **PROBE (P1, 2026-10-18): `each(items, key, row)`, a keyed list whose rows track themselves** (DESIGN-FINE-GRAINED).
- * Built from what exists: the renderer's `'value'` insert hands this module the list part; core's hook machinery
- * (`$q` queued hook with an explicit owner, `$z` retire) gives each row its own subscriber; the list part's existing
- * reconcile and the marked identity skip do the walk and the moves. A row's result is reused (the same object) while its
- * item is `===` and nothing it read changed; a write a row read wakes exactly that row, which re-commits itself in
- * place through `part.$u`. `row` must depend only on its item and REACTIVE reads (a plain value closed over from the
- * parent's render goes stale: documented, React.memo's pitfall).
+ * **Rows that track themselves** (PROBE P1, 2026-10-18; its `each(items, key, row)` API RETIRED 2026-10-21, Brian: the
+ * automatic `.map` below replaced it, nothing documented or used it, and it carried its own reconcile and key cache):
+ * core's hook machinery gives each row its own subscriber, and the renderer's list part does the walk and the moves. A
+ * write a row read wakes exactly that row, which re-commits itself in place through `part.$u`.
  */
-type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown };
 type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string; readonly isConnected: boolean; readonly ownerDocument: Document };
 /** The row's hook, as core's `$q` hands it back: the record itself, run through its `$n` (a `$`-name: survives mangling). */
 type RowHook = { $n(signal?: unknown, init?: boolean): void };
-type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row>; $L?: Row[] };
-export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
-  ({ _$each$: 1, items, key, row }) as EachValue;
+type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[] };
 
 /** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
 let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
@@ -222,7 +216,7 @@ let tick = 0;
 /**
  * A row's template result, ready for the list part: its `key` (what reconcile matches on), `$r` (the keyed strategy, so
  * the part reconciles by key) and `_$same$` (opts the result into the identity skip: the renderer may do nothing when
- * the SAME result object comes back, which `each` guarantees for a row that did not re-render).
+ * the SAME result object comes back, which a list row returns when it did not re-render).
  */
 const stamp = (rec: Row) => {
   const r = rec.row(rec.item) as KeyedResult & { _$same$?: number };
@@ -256,7 +250,7 @@ class Row {
   declare localName: string;
   declare h: RowHook;
   declare part: EachPart | undefined;
-  /** The automatic `.map` list this row belongs to; `undefined` for an `each` row. */
+  /** The automatic `.map` list this row belongs to (the only kind of row since `each` was retired, 2026-10-21). */
   declare list: List | undefined;
   declare result: KeyedResult | null;
   declare inst: Item | undefined;
@@ -340,7 +334,7 @@ const drop = (rec: Row) => {
  * **Automatic `.map`** (PROTOTYPE probe/cells-auto, B1, Brian 2026-10-20: every `.map` on a store array inside a render is
  * a keyed list, with no rule and nothing to learn). Core's array handler hands `state.todos.map(fn)` here when it runs in
  * a render (`$M`). The result is a REAL array of the row results — `.map(i => i.name).join(', ')` still works — and each
- * `fn(item)` runs once, under its ROW's hook (an `each` row), so the parent never subscribes to row fields: a write to
+ * `fn(item)` runs once, under its ROW's hook, so the parent never subscribes to row fields: a write to
  * one item re-renders that row. A LIST (below) owns the rows and, as its own hook, the array's shape (`ITEMS`): a push
  * or a splice re-runs the list, not the parent.
  *
@@ -692,77 +686,7 @@ const eachValue = (part: object, value: unknown) => {
     commitList(list, part as EachPart);
     return true;
   }
-  if ((value as EachValue)._$each$ !== 1) return false;
-  const p = part as EachPart;
-  const { items, key, row } = value as EachValue;
-  /** Key → row record, per list part (`$E`): how a row is found again when it moved or the list was replaced. */
-  const cache = (p.$E ??= new Map());
-  const t = ++tick;
-  const n = items.length;
-  const recs: Row[] = new Array(n);
-  const values: unknown[] = new Array(n);
-  let made = false;
-  let i = 0;
-  /**
-   * **Last render's rows, in order** (`$L`): an item still where it was, or where it was shifted by the change in length
-   * (everything after one insert or removal) and the SAME item (`===`, the store hands back one proxy per object), is
-   * its own row again with no key read and no lookup. Only the slots near
-   * a change go through the key.
-   */
-  const prev = p.$L;
-  const shift = prev === undefined ? 0 : prev.length - n;
-  /**
-   * `source` is what the key is read from: the RAW slot when the list is a store array (`walk`, core's `$w`), so a
-   * key read is a plain read, untracked; `item` is what the row renders and tracks through.
-   */
-  const visit = (source: unknown, item: unknown) => {
-    let rec: Row | undefined;
-    if (prev !== undefined) {
-      const at = prev[i];
-      if (at !== undefined && at.item === item && at.seen !== t) rec = at;
-      else {
-        const moved = prev[i + shift];
-        if (moved !== undefined && moved.item === item && moved.seen !== t) rec = moved;
-      }
-    }
-    if (rec === undefined) {
-      const k = key(source);
-      rec = cache.get(k);
-      if (rec === undefined) {
-        rec = makeRow(p, k, item, row);
-        cache.set(k, rec);
-        made = true;
-      } else if (rec.item !== item) {
-        /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
-        rec.item = item;
-        rec.row = row;
-        rec.h.$n(undefined, true);
-      }
-    }
-    rec.seen = t;
-    recs[i] = rec;
-    values[i++] = rec.result;
-  };
-  if (walk === undefined || !walk(items, visit))
-    for (let j = 0; j < n; j++) {
-      const item = items[j];
-      visit(item, item);
-    }
-  /** The rows not met this render are last render's that were not visited: swept from that array, not the whole map. */
-  if (prev !== undefined && (made || cache.size !== n))
-    for (let j = 0; j < prev.length; j++) {
-      const rec = prev[j];
-      if (rec.seen !== t) {
-        cache.delete(rec.key);
-        drop(rec);
-      }
-    }
-  p.$L = recs;
-  p.$p(values);
-  /** After reconcile, each row learns the instance it was committed into, which its own hook updates in place. */
-  const its = p.$i;
-  if (its !== undefined) for (let i = 0; i < n; i++) if (recs[i].inst !== its[i]) recs[i].inst = its[i];
-  return true;
+  return false;
 };
 /**
  * **`createSelector(source)` → `isSelected(key)`** (PROTOTYPE probe/cells-auto, B2, 2026-10-20): selection that wakes
@@ -817,7 +741,7 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
 
 /**
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
- * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
+ * hook machinery (`$q`, `$z`) and the raw walk (`$w`); automatic `.map` results are recognized on the renderer's `'value'` insert.
  */
 export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;

@@ -53,7 +53,7 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
  * `register` / `retire`, exposed. `$`-named, so it survives mangling.
  */
 (inserts as unknown as { $q: (owner: ComponentElement, callback: HookCallback) => HookRecord }).$q = (owner, callback) =>
-  /** The record itself, not a `callable` wrapper: one closure fewer per keyed row (`each` calls its `$n`). */
+  /** The record itself, not a `callable` wrapper: one closure fewer per list row (the keyed module calls its `$n`). */
   registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED);
 (inserts as unknown as { $z: typeof retire }).$z = retire;
 /** PROTOTYPE (probe/cells-auto, 2026-10-20): a keyed row's BARE hook — no owner hook list, retired directly — and the hook → owner read a shared row callback needs (`createHook.ts` explains). */
@@ -67,9 +67,9 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 /** Step 2 (a): a server render's turn — `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created (createHook.ts). */
 (inserts as unknown as { $ss: typeof serverTurn }).$ss = serverTurn;
 /**
- * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so `each` can walk
+ * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so a keyed list can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;
- * `each` store swap 232 → 55 µs and remove 287 → 58 in Chrome once it walks raw). Without it `each` walks the proxy.
+ * `each` store swap 232 → 55 µs and remove 287 → 58 in Chrome once it walks raw). Without it a list walks the proxy (measured on the since-retired `each`).
  */
 (inserts as unknown as { $w: typeof walkItems }).$w = walkItems;
 /**
