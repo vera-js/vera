@@ -11,10 +11,8 @@
  * built-in host a CLOSED shadow root holding a default `<slot>` (its light content renders exactly as before; the root is
  * invisible to code and selectors) and a tiny SENTINEL custom element — which hears its host attached, moved, removed
  * and re-attached, identically in Chromium, Firefox and WebKit (BROWSER-LEDGER). Removed: core's own teardown (`$td`).
- * Re-attached: set up fresh (`$in`), as a custom element is. Moved in one operation: kept.
- *
- * And a WINDOW that goes away — a removed `<iframe>`, a closed pop-out — fires `pagehide` (not persisted), on which every
- * component that window held is retired: nothing else ever tells core its elements are gone.
+ * Re-attached: set up fresh (`$in`), as a custom element is. Moved — in one operation, or into another window's document
+ * (a popped-out panel) — kept, with its state: cross-window moves that keep a component are R4's.
  *
  * Built on core's `'init'` insert, which hands it every element `init` sets up; it imports nothing (the registry
  * arrives through its connector), and an app that does not wire it pays nothing. Never on a server (ssr marks the
@@ -23,15 +21,13 @@
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './native-elements-diagnostics.js';
 
-type Host = HTMLElement & { _$g$?: number; _$x$?: boolean; _$d$?: Document; _$r$?: ShadowRoot | null };
+type Host = HTMLElement & { _$x$?: boolean };
 type Core = { $in(element: Host, options: unknown, setup: unknown): void; $td(element: Host): void; $srv?: unknown };
 
 /** The setup each host was given, to set it up again on its return; per module COPY (two copies never share one). */
-const SETUP = Symbol('vera-native-setup');
+const SETUP = Symbol();
 /** Each realm's sentinel name, per copy: `vera-s-` + the first number free in that realm's registry (deterministic). */
 const names = new WeakMap<CustomElementRegistry, string>();
-/** The other windows (iframes, pop-outs) whose `pagehide` is heard — once each. */
-const watched = new WeakSet<Window>();
 let core: Core | undefined;
 /** Development: each unsupported tag said once. */
 let said: Set<string> | undefined;
@@ -54,9 +50,8 @@ const sentinelFor = (win: Window & typeof globalThis) => {
       name,
       class extends win.HTMLElement {
         connectedCallback() {
+          /** Back after a removal: set up fresh. (A move — the host still connected at its disconnect — kept it.) */
           const host = hostOf(this);
-          /** Another document: its old one's frame clock and listeners are not this one's — torn down, then set up here. */
-          if (host._$x$ !== true && host._$d$ !== undefined && host._$d$ !== host.ownerDocument) core!.$td(host);
           if (host._$x$ === true) setUp(host);
         }
         disconnectedCallback() {
@@ -71,36 +66,10 @@ const sentinelFor = (win: Window & typeof globalThis) => {
   return name;
 };
 
-/** Every component a window that went away held: light DOM and roots, vera's (`_$r$`) and open ones. */
-const retireAll = (root: ParentNode) => {
-  const all = root.querySelectorAll('*');
-  for (let i = 0; i < all.length; i++) {
-    const element = all[i] as Host;
-    if (element._$g$ !== undefined && element._$x$ !== true) {
-      /** A custom element's author never heard its removal (the platform never told it): told now, isolated. */
-      try {
-        (element as { disconnectedCallback?: () => void }).disconnectedCallback?.();
-      } catch (error) {
-        reportError(error);
-      }
-      core!.$td(element);
-    }
-    const inner = element._$r$ ?? element.shadowRoot;
-    if (inner) retireAll(inner);
-  }
-};
-
 const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown) => {
   if (core!.$srv !== undefined) return;
   const win = element.ownerDocument.defaultView as (Window & typeof globalThis) | null;
   if (win === null) return;
-  /** Windows other than this module's: their components are retired when the window goes. */
-  if (win !== globalThis.window && !watched.has(win)) {
-    watched.add(win);
-    win.addEventListener('pagehide', (event) => {
-      if (!event.persisted) retireAll(win.document);
-    });
-  }
   /** A custom element has its own callbacks (customized built-ins included: `getName`). */
   if (element.localName.indexOf('-') >= 0 || (win.customElements as { getName?: (c: unknown) => string | null }).getName?.(element.constructor)) return;
   if (element[SETUP] === undefined) {
