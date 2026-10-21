@@ -201,7 +201,11 @@ test('a row HIDING its nested list releases the nested rows, with no further wri
   assert.ok(r.left <= 2, `${r.left} hook records left after the row hid its list (nested rows not released)`);
 });
 
-test('a nested list that dies by every path in ONE flush, then a new one hidden: the new one is released too (vera-5a)', () => {
+/**
+ * A MIXED-FLUSH release row, not a guard of `orphan`'s run-once (that double path is unreachable today: an orphaned list's
+ * hooks change generation, so nothing queued runs them again — the guard is the invariant, this row cannot see it).
+ */
+test('a nested list written, grown and hidden in ONE flush, then a new one hidden: the new one is released too (vera-5a)', () => {
   const r = child('nest2');
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live nested list held its rows' hooks while it lived (peak ${r.peak})`);
