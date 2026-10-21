@@ -266,6 +266,19 @@ class HookState implements HookRecord {
 }
 
 /**
+ * **A BARE render hook for a keyed row** (PROTOTYPE probe/cells-auto, 2026-10-20, Brian: cut per-row memory now): the hook
+ * is NOT pushed into its owner's hook list — a row owns exactly one hook, so the one-element `_$h$` array per row was pure
+ * overhead — and it is retired directly (`retireHook`). Its callback is called as a METHOD of the hook (`this._cb(…)`), so
+ * one shared function serves every row, reaching its row through `ownerOf` — no closure per row.
+ */
+export const bare = (owner: ComponentElement, callback: HookCallback): HookRecord => new HookState(owner, callback, RENDER_PRIORITY, QUEUED);
+export const retireHook = (hook: HookRecord) => {
+  unlinkFrom(hook, 0);
+  spend(hook);
+};
+export const ownerOf = (hook: HookRecord) => hook._o;
+
+/**
  * Registers a hook on `owner` at `priority` and returns it. A hook created while a component is being set up, for an
  * owner that is not an element — a `computed` in its setup — is retired with that component. An element owner is never
  * listed: it retires itself, and listing a live child component here would strip its subscriptions when the parent left.

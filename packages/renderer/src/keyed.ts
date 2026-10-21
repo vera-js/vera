@@ -195,6 +195,14 @@ export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (it
 
 /** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
 let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
+/** Core's bare row hook (`$qb`), its direct retire (`$zh`) and the hook → owner read (`$ow`): one object fewer and no closure per row. */
+let bareHook: ((owner: Owner, callback: (this: RowHook, signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
+let retireHook: ((hook: RowHook) => void) | undefined;
+let ownerOf: ((hook: RowHook) => Owner) | undefined;
+/** Every row's callback, ONE function: core calls it as a method of the row's hook, which leads back to the row. */
+function rowCb(this: RowHook, signal?: unknown, init?: boolean) {
+  rowRun.call(ownerOf!(this) as Row, signal, init);
+}
 /** Core's retire (`$z`): what releases a row's subscriptions. */
 let retire: ((owner: Owner) => void) | undefined;
 /** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
@@ -217,7 +225,7 @@ const stamp = (rec: Row) => {
   return r;
 };
 /**
- * **A row: its record AND its hook's OWNER, one object; the hook is core's (`$q`), held in `h`.** (B1 step 1 made the row
+ * **A row: its record AND its hook's OWNER, one object; the hook is core's BARE row hook (`$qb`: never in the owner's hook list, retired directly), held in `h`, run through the one shared `rowCb`.** (B1 step 1 made the row
  * its own hook, a subclass of core's hook class across the bundle boundary: one object per row instead of two. It bought
  * nothing — a Chrome profile of create10k showed the two identical, and two races put it 4–6% SLOWER at Chrome 10k
  * creation — and the cross-bundle subclass cost two mangling bugs; REVERTED, Brian 2026-10-20.) As the owner it carries
@@ -304,7 +312,7 @@ function rowRun(this: Row, _signal?: unknown, init?: boolean) {
 }
 const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, list?: List): Row => {
   const rec = new Row(part, k, item, row, tick, list);
-  rec.h = hook!(rec, (signal, init) => rowRun.call(rec, signal, init));
+  rec.h = bareHook!(rec, rowCb);
   /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
   rec.h.$n(undefined, true);
   return rec;
@@ -312,7 +320,9 @@ const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (it
 /** A row that left the list: its generation moves on (it goes inert) and core retires it (a self-owned hook: directly). */
 const drop = (rec: Row) => {
   rec._$g$++;
-  retire!(rec);
+  retireHook!(rec.h);
+  /** vera-5a: a row owns exactly one hook today; if anything ever registers another on it, the full retire still runs. */
+  if (rec._$h$ !== undefined) retire!(rec);
 };
 /**
  * **Automatic `.map`** (PROTOTYPE probe/cells-auto, B1, Brian 2026-10-20: every `.map` on a store array inside a render is
@@ -736,8 +746,11 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $q?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
+  bareHook = registry.$qb as typeof bareHook;
+  retireHook = registry.$zh as typeof retireHook;
+  ownerOf = registry.$ow as typeof ownerOf;
   /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;
