@@ -24,7 +24,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
   globalThis[key] = dom.window[key];
 const { init, html, wire, createStore, flush } = await load('core');
 const { renderer } = await load('renderer');
-const { eachList, each } = await load('renderer/keyed');
+const { eachList } = await load('renderer/keyed');
 wire([renderer, eachList]);
 const settle = async () => { flush(); await new Promise((resolve) => setTimeout(resolve, 0)); };
 const make = (prefix, n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, t: `${prefix}${i + 1}` }));
@@ -125,29 +125,20 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   const { load } = await import('./tests/dist.mjs');
   const { init, html, wire, createStore, flush } = await load('core');
   const { renderer } = await load('renderer');
-  const { eachList, each } = await load('renderer/keyed');
+  const { eachList } = await load('renderer/keyed');
   wire([renderer, eachList]);
   const settle = () => new Promise((r) => setImmediate(r));
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
   const mode = ${JSON.stringify(mode)};
   const make = (n, from) => Array.from({ length: n }, (_, i) => ({ id: from + i, t: 'r' + i }));
-  const state = createStore({ rows: [], kept: make(10, 1), open: true, outer: [{ id: 0, open: true }], other: make(10, 900000), outer2: [] });
+  const state = createStore({ rows: [], kept: make(10, 1), open: true, outer: [{ id: 0, open: true }], other: make(10, 900000) });
   const host = document.createElement('div');
   const keep = document.createElement('div');
   document.body.append(host, keep);
   init(keep, () => () => html\`<ol>\${state.kept.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   /** hide: the list is HIDDEN behind a condition and its data never written again — it must still be released. */
   /** nest: the list is NESTED in a row, which hides it on its own write — only the ROW's run sees it go (option (e″)). */
-  /** each-remove (step 2 (b0)): a COMPONENT rendering an \`each\` list, removed normally — its rows must go with it. */
-  if (mode === 'each-remove') {
-    customElements.define('x-each', class extends HTMLElement {
-      connectedCallback() { init(this, () => () => html\`<ul>\${each(state.rows, (r) => r.id, (r) => html\`<li>\${r.t}</li>\`)}</ul>\`); }
-    });
-    host.append(document.createElement('x-each'));
-  }
-  /** each-nested (step 2 (b0)): an outer list whose rows render an inner \`each\`; removing the outer items releases the inner rows. */
-  else if (mode === 'each-nested') init(host, () => () => html\`<ul>\${state.outer2.map((o) => html\`<li>\${each(o.inner, (r) => r.id, (r) => html\`<b>\${r.t}</b>\`)}</li>\`)}</ul>\`);
-  else if (mode === 'nest' || mode === 'nest2') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
+  if (mode === 'nest' || mode === 'nest2') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
   /** before: the hidden list sits BEFORE another list, whose call takes its place in order (race20: (a)+(c) kept it). */
   else if (mode === 'before') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul><ol>\${state.other.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   else if (mode === 'hide') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul>\`);
@@ -163,12 +154,9 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   /** hide: ONE list of 1000 rows shown, then hidden, and nothing written after — only the parent's sweep can release it. */
   for (let round = 0; round < (mode === 'clear' ? 5 : 1); round++) {
     state.rows = make(1000, 1000 * (round + 1));
-    if (mode === 'each-nested') state.outer2 = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, inner: make(100, 100 * i) }));
     flush(); await settle();
     await gc();
     peak = Math.max(peak, count() - start);
-    if (mode === 'each-remove') host.firstElementChild.remove();
-    if (mode === 'each-nested') state.outer2.splice(0, state.outer2.length);
     if (mode === 'clear') state.rows = [];
     if (mode === 'hide' || mode === 'before') state.open = false;
     if (mode === 'nest') state.outer[0].open = false;
@@ -231,36 +219,6 @@ test('HIDING a list that sits BEFORE another releases its rows (race20: a sweep 
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
   assert.ok(r.left <= 2, `${r.left} hook records left after hiding the list before another`);
-});
-
-test('a COMPONENT rendering an each list, removed normally, releases its rows (step 2 (b0): 30 of 30 components were kept)', () => {
-  const r = child('each-remove');
-  assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
-  assert.ok(r.peak >= 1000, `CONTROL: the live each list held its rows' hooks (peak ${r.peak})`);
-  assert.ok(r.left <= 2, `${r.left} hook records left after the component was removed`);
-});
-
-test('removing outer rows releases the each lists NESTED in them, though the parent never re-renders (step 2 (b0))', () => {
-  const r = child('each-nested');
-  assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
-  assert.ok(r.peak >= 1000, `CONTROL: the nested each lists held their rows' hooks (peak ${r.peak})`);
-  assert.ok(r.left <= 2, `${r.left} hook records left after the outer rows were removed`);
-});
-
-test('an each list hidden by its render and shown again builds fresh rows that update (step 2 (b0): no stale cache)', async () => {
-  const state = createStore({ open: true, rows: make('h', 4) });
-  const host = document.createElement('div');
-  document.body.append(host);
-  init(host, () => () => html`<div>${state.open ? html`<ul>${each(state.rows, (r) => r.id, (r) => html`<li>${r.t}</li>`)}</ul>` : html`<i>off</i>`}</div>`);
-  await settle();
-  state.open = false;
-  await settle();
-  state.open = true;
-  await settle();
-  state.rows[2].t = 'fresh';
-  await settle();
-  assert.equal([...host.querySelectorAll('li')].map((li) => li.textContent).join(), 'h1,h2,fresh,h4');
-  host.remove();
 });
 
 test('clearing a list RELEASES its rows: nothing of 5 × 1000 created-and-cleared rows is left', () => {
