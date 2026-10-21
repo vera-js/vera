@@ -161,6 +161,10 @@ from another machine, or after that is undone, has a variable changed.
   shifted (Chromium; `tests/browser/native-elements.test.js`). `hidden` (`display: none`) removes it from layout; its
   callbacks need no box. With it, layout, computed style and `:empty` match a host with no sentinel in all three engines,
   and a `contenteditable` host still edits. (2026-10-21)
+  **One thing it does change:** with a shadow root holding only a default `<slot>`, a DIRECT light child carrying a
+  `slot` attribute (`<span slot="title">`) is assigned to no slot and renders nowhere (0 px wide); a deeper descendant
+  with one renders normally. Identical in Chromium, Firefox and WebKit. Consequence: documented as a native-elements
+  limit; document selectors, `:empty`, `:has()`, structural pseudo-classes and inheritance are unaffected. (2026-10-21)
 - **A window fires `pagehide` (`persisted: false`) and then `unload` when its `<iframe>` is REMOVED from the parent page,
   and when a pop-out opened with `window.open` is CLOSED**, synchronously, with the listeners added from the PARENT
   realm. After the removal the iframe's `contentDocument` is `null`. Identical in Chromium 151, Firefox 153 and WebKit 26.5
