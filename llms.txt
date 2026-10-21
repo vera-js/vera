@@ -325,7 +325,8 @@ core's instead — `wire([router])` — which reads the same under a bundler and
 `connectInserts`, which replayed one registry into another, was removed in 0.2.0.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
-exists, before its first render; this is how `@verajs/styles` attaches), `'store'` (decides how a
+exists, before its first render; this is how `@verajs/styles` attaches; called `(element, options,
+setup)`, and answering `false` defers: the inserts after it and the setup do not run), `'store'` (decides how a
 TYPE of value is reactive in every store: `(type, handler, kit)`, where `type` is the lower-cased
 `Object.prototype.toString` name — `'object'`, `'array'`, `'map'`… (an object or class names its own
 with `Symbol.toStringTag`) — `handler` is core's for `'object'`/`'array'` and `undefined` otherwise, and
@@ -563,6 +564,27 @@ tree in place, connected if its container is); `unmount(kept, element)` runs at 
 one element, each in wire order. No updates: react to values with a binding, not a claim. Wire it
 before anything renders. The example is a real platform gap: only the first `autofocus` rendered
 after page load takes focus — later forms need the claim.
+
+### Built-in hosts (`@verajs/renderer/native-elements`)
+
+`init` belongs in a custom element's `connectedCallback` — its callbacks are how core hears it leave and come back. A
+BUILT-IN element given to `init` (a `div`, a `section`) has none: it draws and stays reactive, but is never released
+when removed (development warns). Wire `nativeElements` and it gets the custom element's lifecycle exactly:
+
+```js
+import { nativeElements } from '@verajs/renderer/native-elements';
+wire([renderer, nativeElements]);
+init(document.querySelector('#panel'), () => () => html`…`);
+```
+
+Removed → torn down; re-attached → set up again (fresh, as a re-added custom element); moved in one operation or into
+another window's document → kept with its state; given `init` while off the page → set up at its first connect. It
+works by a closed shadow root with a default `<slot>` (light content renders as before; `host.shadowRoot` stays `null`)
+and a sentinel custom element inside it. Unsupported, said in development (renders, never released): tags that cannot
+hold a shadow root (`ul`, `li`, `table`, `button`…; supported: `div`, `section`, `article`, `aside`, `header`,
+`footer`, `main`, `nav`, `p`, `span`, `blockquote`, `h1`–`h6`, `body`), and an element that already has a shadow root
+(including from a `shadow` option or the app's `renderer({ shadow })` default). A component left inside a window when it
+closes is the app's to remove. Not the same as `@verajs/renderer/elements` (behavior on elements INSIDE templates).
 
 ### Spread (`@verajs/renderer/spread`)
 
@@ -1018,7 +1040,7 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`,
+  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`, `renderer/native-elements`,
   `renderer/hydration`, `renderer/hydrate-slots`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.

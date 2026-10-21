@@ -43,6 +43,7 @@ const PACKAGES = {
   '@verajs/core': 'core',
   '@verajs/renderer': 'renderer',
   '@verajs/renderer/keyed': 'renderer/keyed',
+  '@verajs/renderer/native-elements': 'renderer/native-elements',
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/elements': 'renderer/elements',

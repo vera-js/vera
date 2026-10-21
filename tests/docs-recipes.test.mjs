@@ -42,6 +42,7 @@ const PACKAGES = {
   '@verajs/store/collections': 'store/collections',
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/keyed': 'renderer/keyed',
+  '@verajs/renderer/native-elements': 'renderer/native-elements',
   '@verajs/renderer/slots': 'renderer/slots',
   '@verajs/renderer/hydration': 'renderer/hydration',
   '@verajs/renderer/hydrate-slots': 'renderer/hydrate-slots',
@@ -75,8 +76,11 @@ const PACKAGES = {
  * `setRenderer` from a recipe fails the run.
  */
 const resolveImports = (code, generation) =>
-  /** `[a-z/]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too. */
-  code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, spec) => {
+  /**
+   * `[a-z/-]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too — and hyphenated ones
+   * (`native-elements`, `hydrate-slots`): `[a-z/]` left the first recipe importing one bare (2026-10-21).
+   */
+  code.replace(/from ['"](@verajs\/[a-z/-]+)['"]/g, (whole, spec) => {
     /**
      * An unmapped specifier used to be left bare, which a `data:` module cannot resolve — so a new
      * entry appearing in a recipe failed with `ERR_UNSUPPORTED_RESOLVE_REQUEST` and a base64 blob,
@@ -246,7 +250,7 @@ const EXPECTED_RECIPES = {
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
   'packages/store/README.md': 1,
-  'packages/renderer/README.md': 7, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02)
+  'packages/renderer/README.md': 8, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02); 7 → 8: native-elements (2026-10-21)
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
   /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */

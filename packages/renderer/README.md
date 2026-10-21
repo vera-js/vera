@@ -392,6 +392,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/slots` | `slots` (wire it) + `slotted(host, name?)` — light-DOM `<slot>` distribution | yes |
 | `@verajs/renderer/namespaces` | `namespaces` (wire it) — an `html` template parsed in the namespace of where it lands | yes |
 | `@verajs/renderer/elements` | `elements` (wire it) — behavior attached to claimed elements in templates, mounted and unmounted with their instances | yes |
+| `@verajs/renderer/native-elements` | `nativeElements` (wire it) — `init` on a built-in element (a `div`, a `section`…) with a custom element's lifecycle | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
 `/profiler` re-exports the whole public API, so it is a drop-in replacement for the base import. **Never mix it
@@ -470,6 +471,56 @@ What a claimant can rely on:
   at `wire`, for this module and every other that decides per template (`namespaces`, `slots`). An app that wires no
   claimant pays nothing; one that does pays one walk per new template, and one short walk per
   instance of a template something claimed.
+
+## `@verajs/renderer/native-elements` — `init` on a built-in element
+
+A custom element tells core when it leaves the page and when it comes back — its `connectedCallback` and
+`disconnectedCallback` — so a component that calls `init(this)` there is torn down when it is removed, set up again when
+it returns, and kept when it is merely moved. A built-in element (a `div`, a `section`) given to `init` tells nobody: by
+itself it is drawn and stays reactive, but it is never released when removed. Wire `nativeElements` and it gets exactly
+the custom element's lifecycle. (Not to be confused with `@verajs/renderer/elements`, above, which attaches behavior to
+elements *inside* templates.)
+
+<!-- recipe -->
+```js
+import { wire, init, html, createStore } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { nativeElements } from '@verajs/renderer/native-elements';
+
+wire([renderer, nativeElements]);
+
+const state = createStore({ count: 0 });
+const panel = document.createElement('section');
+document.body.append(panel);
+init(panel, () => () => html`<button @click=${() => state.count++}>${state.count}</button>`);
+
+panel.remove();                // torn down: its effects' cleanups run, it leaves every store
+document.body.append(panel);   // set up again, fresh — as a custom element re-added
+```
+
+- **Removed:** torn down, exactly as a custom element's removal (cleanups run, nothing it read keeps it alive).
+- **Re-attached:** set up again — its setup runs again, so what the setup created starts fresh.
+- **Moved** in one operation (`append`/`insertBefore` of a connected element), or **into another window's document** (a
+  popped-out panel): kept, with its state.
+- **Given `init` before it is on the page:** its setup waits for its first connect, as a custom element's does — a host
+  built off the page and never attached is never set up and holds nothing.
+
+**How it hears:** each host gets a CLOSED shadow root holding a default `<slot>` (its light content renders exactly as
+before) and a tiny custom element whose own callbacks fire when its host is attached, moved or removed — the same in
+Chromium, Firefox and WebKit. The root is closed, so `host.shadowRoot` stays `null` and selectors see the host's children
+as before.
+
+**Not supported** (said by name in development; the element still renders, and is never released when removed):
+
+- elements that cannot hold a shadow root — `ul`, `li`, `table`, `button` and the rest; supported are `div`, `section`,
+  `article`, `aside`, `header`, `footer`, `main`, `nav`, `p`, `span`, `blockquote`, `h1`–`h6` and `body`;
+- an element that already has a shadow root — including one `init` attached from a `shadow` option, or from the app's
+  `renderer({ shadow })` default (an app with a shadow default has no supported built-in hosts);
+- the host's own later `attachShadow()` (or declarative shadow DOM) — it now has one; development says why.
+
+Also: a built-in element built in a document with no window (`document.implementation.createHTMLDocument`, a
+`DOMParser` result) is not set up; and a component left inside a window when that window closes (an iframe removed, a
+pop-out closed, with the component still in it) is the app's to remove.
 
 ## `@verajs/renderer/namespaces` — a template parsed where it lands
 
