@@ -156,6 +156,11 @@ from another machine, or after that is undone, has a variable changed.
   a timing). Consequence: a plain element can be given an exact lifecycle with no MutationObserver and no polling — the
   candidate for core's plain-owner liveness. Only `attachShadow`-eligible elements (`div`, `span`, `p`, `section`, the
   sectioning and heading elements, custom names), and only once per element. (2026-10-21)
+  **And it must have no box:** an element in the host's shadow tree is one of the host's LAYOUT children (the flat
+  tree), so a visible sentinel in a flex host was laid out as a third flex item — each light child 4 px narrower, the gap
+  shifted (Chromium; `tests/browser/native-elements.test.js`). `hidden` (`display: none`) removes it from layout; its
+  callbacks need no box. With it, layout, computed style and `:empty` match a host with no sentinel in all three engines,
+  and a `contenteditable` host still edits. (2026-10-21)
 - **A window fires `pagehide` (`persisted: false`) and then `unload` when its `<iframe>` is REMOVED from the parent page,
   and when a pop-out opened with `window.open` is CLOSED**, synchronously, with the listeners added from the PARENT
   realm. After the removal the iframe's `contentDocument` is `null`. Identical in Chromium 151, Firefox 153 and WebKit 26.5
