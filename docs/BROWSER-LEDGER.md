@@ -156,6 +156,12 @@ from another machine, or after that is undone, has a variable changed.
   a timing). Consequence: a plain element can be given an exact lifecycle with no MutationObserver and no polling — the
   candidate for core's plain-owner liveness. Only `attachShadow`-eligible elements (`div`, `span`, `p`, `section`, the
   sectioning and heading elements, custom names), and only once per element. (2026-10-21)
+- **A window fires `pagehide` (`persisted: false`) and then `unload` when its `<iframe>` is REMOVED from the parent page,
+  and when a pop-out opened with `window.open` is CLOSED**, synchronously, with the listeners added from the PARENT
+  realm. After the removal the iframe's `contentDocument` is `null`. Identical in Chromium 151, Firefox 153 and WebKit 26.5
+  (Playwright builds, headless; a correctness check). Consequence: the components of a window that goes away can be
+  retired exactly at that moment, with no timer or sweep; a `pagehide` with `persisted: true` (the back-forward cache) is
+  a page that may come back and is left alone. (2026-10-21)
 
 - **Defining `adoptedCallback` costs every element's creation** (+7.4% on create10k, 5/5 sessions): a lifecycle
   callback is engine work per instance. Consequence: never add one speculatively. (Mode not recorded; 2026-10-02)
