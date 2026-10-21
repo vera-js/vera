@@ -39,7 +39,7 @@ import { untracked, untrack as untrackFn } from './modules/untrack.js';
 import { walkItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
-import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED } from './modules/createHook.js';
+import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, HookState } from './modules/createHook.js';
 import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 /**
  * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
@@ -56,6 +56,11 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
   /** The record itself, not a `callable` wrapper: one closure fewer per keyed row (`each` calls its `$n`). */
   registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED);
 (inserts as unknown as { $z: typeof retire }).$z = retire;
+/**
+ * PROTOTYPE (probe/cells-auto, 2026-10-20): core's hook CLASS, so a keyed list's row can BE its hook — a subclass that
+ * owns itself (`super(null, …)`), one object per row. Retired through `$z` like any owner. `$`-named: survives mangling.
+ */
+(inserts as unknown as { $hc: typeof HookState }).$hc = HookState;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so `each` can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;

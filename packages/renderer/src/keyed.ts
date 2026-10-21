@@ -174,8 +174,7 @@ type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
   ({ _$each$: 1, items, key, row }) as EachValue;
 
-/** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
-let hook: ((owner: Owner, callback: () => void) => RowHook) | undefined;
+/** Core's retire (`$z`), handed over by `eachList` when it is wired: what releases a row's subscriptions. */
 let retire: ((owner: Owner) => void) | undefined;
 /** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
 let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void) => boolean) | undefined;
@@ -189,87 +188,61 @@ let tick = 0;
  */
 const stamp = (rec: Row) => {
   const r = rec.row(rec.item) as KeyedResult & { _$same$?: number };
-  r.key = rec.k;
+  r.key = rec.key;
   r.$r = reconcile;
   r._$same$ = 1;
   return r;
 };
 /**
- * **A row: its record AND its hook's OWNER, one object** (2026-10-18: a separate owner was one more allocation per row).
- * As the owner it carries what core's hooks expect of an element: `_$g$` its generation (bumped by `drop`, which retires
- * the hook), `_$x$` / `localName` the fields core reads, `_$h$` the hook list core keeps on it (declared, so its first
- * write is no shape change), `isConnected` (core skips a disconnected owner's writes; the row is connected while its
- * rendered node is) and `ownerDocument` (the scheduler uses the element's own window). A CLASS, its getters on the
- * prototype: an object literal with getters built two new functions per row (measured: 37 ms of 120 thousand-row
- * creates, the largest line of `each`'s own setup). As the record: `k` its key, `item` / `row` what it renders from,
- * `result` its last template result, `inst` the instance that result was committed into, `t` the render that last met
- * it, `h` its hook.
+ * **A row IS its hook** (PROTOTYPE probe/cells-auto, 2026-10-20, Brian: make the row tracker cost ~nothing): a subclass of
+ * core's hook class (`$hc`) that owns itself, so one row is ONE object. It was three plus a closure: a row record (the
+ * owner), core's hook, the owner's one-element hook list, and the run closure. As the hook, its run is `rowRun` (shared,
+ * `this` is the row). As its own owner it carries what core reads of an owner: `_$g$` its generation (bumped by `drop`,
+ * which retires it), `_$x$` / `localName`, `_$h$` (never set: core retires a self-owned hook directly), `isConnected`
+ * (core skips a disconnected owner's writes; the row is connected while its rendered node is) and `ownerDocument` (the
+ * scheduler uses the element's own window). As the record: `part` its list part, `key` its key, `item` / `row` what it
+ * renders from, `result` its last template result, `inst` the instance that result was committed into, `seen` the render
+ * that last met it. The class is made when `eachList` is wired, since its base comes from core's registry. It must write
+ * only `$`-named fields of core's class, and its OWN fields need names the production mangler can never generate (no
+ * one- or two-character names: core's mangled hook fields are `t`, `k`, `R`, `$`…, and a row's `k` / `t` overwrote the
+ * hook's creation sequence and flush stamp — measured, 2026-10-20). Hence `part`, `key`, `seen`.
  */
-class Row {
-  /**
-   * `declare`d and ASSIGNED in the constructor, in one order — as core's `HookState` is — never class-field initializers:
-   * a define-semantics field is a property DEFINITION per instance. Done for consistency with `HookState`, NOT as a
-   * measured win: its initializers were their own line in a Firefox profile of `each` creation, but the change measured
-   * within session drift (2026-10-18: each-store/store ratio 1.42 → 1.45 over two runs of each build).
-   */
-  declare _$g$: number;
-  declare _$x$: boolean;
-  declare _$h$: unknown[] | undefined;
-  declare localName: string;
-  declare result: KeyedResult | null;
-  declare inst: Item | undefined;
-  declare h: RowHook;
-  declare k: unknown;
-  declare item: unknown;
-  declare row: (item: unknown) => unknown;
-  declare t: number;
-  constructor(k: unknown, item: unknown, row: (item: unknown) => unknown, t: number) {
-    this._$g$ = 1;
-    this._$x$ = false;
-    this._$h$ = undefined;
-    this.localName = 'each-row';
-    this.result = null;
-    this.inst = undefined;
-    this.h = undefined as unknown as RowHook;
-    this.k = k;
-    this.item = item;
-    this.row = row;
-    this.t = t;
-  }
-  get isConnected() {
-    const node = (this.inst as { $R?: Node } | undefined)?.$R;
-    return node === undefined || node.isConnected;
-  }
-  get ownerDocument() {
-    return (this.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document;
+type Row = Owner & RowHook & {
+  part: EachPart;
+  result: KeyedResult | null;
+  inst: Item | undefined;
+  key: unknown;
+  item: unknown;
+  row: (item: unknown) => unknown;
+  seen: number;
+};
+let Row: (new (p: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number) => Row) | undefined;
+/**
+ * The row's run: a write the row's render read wakes exactly this row. It re-stamps and commits its new result into its
+ * OWN instance in place (`part.$u`); if the instance had to be replaced (the row's shape changed), the list part's item
+ * array is patched to point at the new one.
+ */
+function rowRun(this: Row) {
+  const r = stamp(this);
+  const was = this.result;
+  this.result = r;
+  if (was !== null && this.inst !== undefined) {
+    const part = this.part;
+    const out = part.$u(this.inst, r);
+    if (out !== this.inst) {
+      const items = part.$i!;
+      items[items.indexOf(this.inst)] = out;
+      this.inst = out;
+    }
   }
 }
 const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown): Row => {
-  const rec = new Row(k, item, row, tick);
-  /**
-   * The row's own hook: a write the row's render read wakes exactly this row. It re-stamps and commits its new result
-   * into its OWN instance in place (`part.$u`); if the instance had to be replaced (the row's shape changed), the list
-   * part's item array is patched to point at the new one.
-   */
-  const h = hook!(rec, () => {
-    const r = stamp(rec);
-    const was = rec.result;
-    rec.result = r;
-    if (was !== null && rec.inst !== undefined) {
-      const out = part.$u(rec.inst, r);
-      if (out !== rec.inst) {
-        const items = part.$i!;
-        items[items.indexOf(rec.inst)] = out;
-        rec.inst = out;
-      }
-    }
-  });
-  rec.h = h;
+  const rec = new Row!(part, k, item, row, tick);
   /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
-  h.$n(undefined, true);
+  rec.$n(undefined, true);
   return rec;
 };
-/** A row that left the list: its owner's generation moves on (its hook goes inert) and core retires it. */
+/** A row that left the list: its generation moves on (it goes inert) and core retires it (a self-owned hook: directly). */
 const drop = (rec: Row) => {
   rec._$g$++;
   retire!(rec);
@@ -302,10 +275,10 @@ const eachValue = (part: object, value: unknown) => {
     let rec: Row | undefined;
     if (prev !== undefined) {
       const at = prev[i];
-      if (at !== undefined && at.item === item && at.t !== t) rec = at;
+      if (at !== undefined && at.item === item && at.seen !== t) rec = at;
       else {
         const moved = prev[i + shift];
-        if (moved !== undefined && moved.item === item && moved.t !== t) rec = moved;
+        if (moved !== undefined && moved.item === item && moved.seen !== t) rec = moved;
       }
     }
     if (rec === undefined) {
@@ -319,10 +292,10 @@ const eachValue = (part: object, value: unknown) => {
         /** Through the row's OWN hook, so what the new item's render reads subscribes the row, not the list's render. */
         rec.item = item;
         rec.row = row;
-        rec.h.$n(undefined, true);
+        rec.$n(undefined, true);
       }
     }
-    rec.t = t;
+    rec.seen = t;
     recs[i] = rec;
     values[i++] = rec.result;
   };
@@ -335,8 +308,8 @@ const eachValue = (part: object, value: unknown) => {
   if (prev !== undefined && (made || cache.size !== n))
     for (let j = 0; j < prev.length; j++) {
       const rec = prev[j];
-      if (rec.t !== t) {
-        cache.delete(rec.k);
+      if (rec.seen !== t) {
+        cache.delete(rec.key);
         drop(rec);
       }
     }
@@ -351,8 +324,44 @@ const eachValue = (part: object, value: unknown) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $q?: unknown; $z?: unknown; $w?: unknown }, w: (item: unknown) => void) => {
-  hook = registry.$q as typeof hook;
+export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown }, w: (item: unknown) => void) => {
+  /** `super(null, …)`: the row owns itself. 50 and 1 are core's RENDER_PRIORITY and MODE_QUEUED (a row renders, queued). */
+  const Base = registry.$hc as new (owner: null, callback: () => void, priority: number, mode: number) => object;
+  Row ??= class extends Base {
+    declare _$g$: number;
+    declare _$x$: boolean;
+    declare _$h$: unknown[] | undefined;
+    declare localName: string;
+    declare part: EachPart;
+    declare result: KeyedResult | null;
+    declare inst: Item | undefined;
+    declare key: unknown;
+    declare item: unknown;
+    declare row: (item: unknown) => unknown;
+    declare seen: number;
+    constructor(p: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number) {
+      super(null, rowRun, 50, 1);
+      /** Core sets its own (mangled) `_g` to 1 for a self-owned hook; only `$`-named fields cross a bundle. */
+      this._$g$ = 1;
+      this._$x$ = false;
+      this._$h$ = undefined;
+      this.localName = 'each-row';
+      this.part = p;
+      this.result = null;
+      this.inst = undefined;
+      this.key = k;
+      this.item = item;
+      this.row = row;
+      this.seen = t;
+    }
+    get isConnected() {
+      const node = (this.inst as { $R?: Node } | undefined)?.$R;
+      return node === undefined || node.isConnected;
+    }
+    get ownerDocument() {
+      return (this.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document;
+    }
+  } as unknown as typeof Row;
   retire = registry.$z as typeof retire;
   walk = registry.$w as typeof walk;
   w({ on: 'value', fn: eachValue, priority: 50 });

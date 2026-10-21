@@ -48,6 +48,15 @@ export const RENDER_PRIORITY = 50;
  * in priority order by construction. Unsubscribed first, so a cleanup's own write cannot wake the hook it belongs to.
  */
 export const retire = (owner: ComponentElement) => {
+  /**
+   * **A hook that owns itself** (a keyed list's row, PROTOTYPE probe/cells-auto 2026-10-20): it carries no hook list, so
+   * it retires itself directly. One object per row instead of a row, a hook and the list holding it.
+   */
+  if (owner instanceof HookState) {
+    unlinkFrom(owner, 0);
+    spend(owner);
+    return;
+  }
   /** Every hook the generation registered is in its one list, each carrying its own subscriptions. */
   const all = owner._$h$;
   if (all !== undefined)
@@ -124,7 +133,7 @@ let created = 0;
  *
  * A throw is isolated here (`reportHookError`): every run goes through `$t`, so no caller needs its own catch.
  */
-class HookState implements HookRecord {
+export class HookState implements HookRecord {
   declare _o: ComponentElement;
   declare _g: number | undefined;
   declare _y: number;
@@ -149,9 +158,22 @@ class HookState implements HookRecord {
   declare _s?: number;
   declare _b?: HookRecord;
 
-  constructor(owner: ComponentElement, callback: HookCallback, priority: number, mode: number) {
-    this._o = owner;
-    this._g = owner._$g$;
+  /**
+   * `owner` null: the hook OWNS ITSELF (PROTOTYPE probe/cells-auto, 2026-10-20) — a keyed row, a subclass carrying the
+   * owner contract (`_$g$`, `isConnected`, `ownerDocument`, `localName`) itself, so a row is ONE object, not a row plus
+   * its hook plus the owner's hook list. Made while a component is set up, it is chained to that component, as
+   * `register` chains a non-element owner, so the component's removal retires it. The subclass sets `_$g$ = 1` and
+   * touches no other field of this class: the subclass lives in another bundle, which mangles names differently.
+   */
+  constructor(owner: ComponentElement | null, callback: HookCallback, priority: number, mode: number) {
+    const o = owner ?? (this as unknown as ComponentElement);
+    this._o = o;
+    /** A self-owned hook starts at generation 1, and the subclass sets its `_$g$` to match: `_g` is a mangled name. */
+    this._g = owner === null ? 1 : owner._$g$;
+    if (owner === null) {
+      const host = currentInstance.element;
+      if (host !== null) (host._$o$ ??= []).push(o);
+    }
     this._y = priority;
     this._k = ++created;
     this._m = mode;
