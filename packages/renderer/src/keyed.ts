@@ -365,6 +365,8 @@ class List {
   declare all: boolean;
   declare ident: boolean;
   declare dead: boolean;
+  /** Option (c): the array this list last mapped. */
+  declare raw: unknown[] | undefined;
   /** Option (e)'s owned contract (`$`-named, read by core): the parent run that last claimed it, its owning hook. */
   declare $r: number;
   declare $h: unknown;
@@ -387,6 +389,7 @@ class List {
     this.all = true;
     this.ident = false;
     this.dead = false;
+    this.raw = undefined;
     this.$r = -1;
     this.$h = undefined;
   }
@@ -418,7 +421,15 @@ let committing: unknown[] | undefined;
  */
 const PLAIN = 0;
 /** Per parent hook: the run its lists were last counted in, how many it has reached this run, and the lists. */
-const listsOf = new WeakMap<object, { v: number; n: number; lists: (List | typeof PLAIN)[] }>();
+type ListsState = {
+  v: number;
+  n: number;
+  lists: (List | typeof PLAIN)[];
+  /** Option (c): this run's count of maps per array, and each array's slots by occurrence. */
+  occ: Map<unknown, number>;
+  byRaw: WeakMap<object, (List | typeof PLAIN | undefined)[]>;
+};
+const listsOf = new WeakMap<object, ListsState>();
 /** Core's `untracked` (`$t`): the deciding run of a call site's first item subscribes nothing. */
 let untracked: (<R>(fn: () => R) => R) | undefined;
 /** Development: a duplicate id already said, per list. */
@@ -543,10 +554,11 @@ const automap = (
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
   let state = listsOf.get(parent);
-  if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
+  if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [], occ: new Map(), byRaw: new WeakMap() }));
   else if (state.v !== parent.v) {
     state.v = parent.v;
     state.n = 0;
+    state.occ.clear();
   }
   /**
    * EVERY `.map` call in a render takes its place in the order, whatever path it takes (vera-5a: one rule). An index or
@@ -557,7 +569,36 @@ const automap = (
     state.n++;
     return method.call(proxy, fn);
   }
-  let list = state.lists[state.n];
+  /**
+   * **Option (c): a list is found by (ARRAY, its occurrence in this run) first** (2026-10-20): a conditional `.map` before
+   * another no longer slides the later one onto its list — a hidden map shifts only other maps over the SAME array. A new
+   * array (a refetch) falls back to the list at this call's place in order, but only one whose own array is not mapped in
+   * this run, so it never takes another site's list. A PLAIN decision is found only by its exact array (a refetched plain
+   * site decides again: one untracked call).
+   */
+  const k = state.occ.get(raw) ?? 0;
+  state.occ.set(raw, k + 1);
+  const slots = state.byRaw.get(raw);
+  let list: List | typeof PLAIN | undefined = slots?.[k];
+  /** Dead, or already claimed by another call this run (a list serves ONE call per run): not this call's. */
+  if (list !== undefined && list !== PLAIN && (list.dead || list.mapped === parent.v)) list = undefined;
+  /**
+   * The order fallback is for a REFETCH only — a brand-new array, with no history of its own. An array that has history is
+   * a RETURNING one (a list shown again): falling back would hand it another array's list, and that array's own call would
+   * then share it (measured: auto-cond, both lists rendered from one).
+   */
+  if (list === undefined && slots === undefined) {
+    const at = state.lists[state.n];
+    if (at !== undefined && at !== PLAIN && !at.dead && at.mapped !== parent.v && !state.occ.has(at.raw)) list = at;
+  }
+  const st = state;
+  const put = (v: List | typeof PLAIN) => {
+    st.lists[st.n] = v;
+    let mine = st.byRaw.get(raw);
+    if (mine === undefined) st.byRaw.set(raw, (mine = []));
+    mine[k] = v;
+    if (v !== PLAIN) v.raw = raw;
+  };
   if (list === PLAIN) {
     state.n++;
     return method.call(proxy, fn);
@@ -576,7 +617,8 @@ const automap = (
       return method.call(proxy, fn);
     }
     if (raw[0] === null || typeof raw[0] !== 'object') {
-      state.lists[state.n++] = PLAIN;
+      put(PLAIN);
+      state.n++;
       return method.call(proxy, fn);
     }
   }
@@ -590,15 +632,17 @@ const automap = (
      * query) became a tracked list and broke `directives-query` (2026-10-20).
      */
     if (first === null || typeof first !== 'object' || (first as { strings?: unknown }).strings === undefined) {
-      state.lists[state.n++] = PLAIN;
+      put(PLAIN);
+      state.n++;
       return method.call(proxy, fn);
     }
   }
   if (list === undefined || list.dead) {
     const made = new List(parent, owner);
     made.h = hook!(made, () => listRun.call(made));
-    list = state.lists[state.n] = made;
+    list = made;
   }
+  put(list);
   state.n++;
   /**
    * **Owned by the parent's run** (option (e), core's `$own`): when a parent run ENDS without claiming this list — its
