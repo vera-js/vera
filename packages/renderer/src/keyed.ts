@@ -559,10 +559,9 @@ const eachValue = (part: object, value: unknown) => {
  *
  * Made in a component's setup, it is that component's (its watcher retires with it); with no component being set up it
  * THROWS, as every hook does. Its watcher runs inside the write (a raw hook), so the woken rows render in the same flush.
- * KNOWN, open (B2): a key's cell stays in the target's map after every row reading it is gone, so a list whose keys
- * churn grows that map; the general fix is an emptied cell leaving its map (engine-wide, to Brian).
+ * Its keys are bounded: cells no row reads any more are pruned on an amortized budget (below).
  */
-let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void } | undefined;
+let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void; prune(obj: object): number } | undefined;
 let makeHook: ((hook: { callback: () => void; priority: number }) => ((signal?: unknown, init?: boolean) => void) | undefined) | undefined;
 export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
   if (kit === undefined || makeHook === undefined) throw new Error('createSelector: wire([renderer, eachList]) first');
@@ -581,8 +580,19 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
     priority: 0,
   });
   run?.(undefined, true);
+  /**
+   * **Keys are bounded** (vera-5a, the agreed remedy): after `budget` calls the cells no row reads any more are pruned and
+   * the next budget is twice what remains, plus 64 — so a prune's cost is paid for by at least as many calls, and a list
+   * whose ids only increase (a feed, a log) keeps only its live keys.
+   */
+  let calls = 0;
+  let budget = 64;
   return (key: K) => {
     k.track(target, key);
+    if (++calls > budget) {
+      calls = 0;
+      budget = 2 * k.prune(target) + 64;
+    }
     return current === key;
   };
 };

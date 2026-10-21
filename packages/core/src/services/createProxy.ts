@@ -110,7 +110,18 @@ const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown)
 const GLOBAL = '_global';
 
 /** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
-const kit: StoreKit = { track, trigger, shape: GLOBAL };
+/**
+ * **An object's key cells that no reader holds any more, deleted; returns how many remain** (PROTOTYPE probe/cells-auto,
+ * B2, 2026-10-20). A cell outlives its readers in its object's key map; for an object whose keys keep coming (a
+ * selector's ids) that map grows forever, ~120 B per key ever read. `createSelector` calls this on an amortized budget.
+ */
+const prune = (obj: object) => {
+  const keys = proxyCallbacks.get(obj);
+  if (keys === undefined) return 0;
+  for (const [key, cell] of keys) if (cell.n === cell.d) keys.delete(key);
+  return keys.size;
+};
+const kit: StoreKit = { track, trigger, shape: GLOBAL, prune };
 /**
  * PROTOTYPE (probe/cells-auto, B2, 2026-10-20): the same kit handed to a module OFF the store chain (`$k`), so the keyed
  * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.

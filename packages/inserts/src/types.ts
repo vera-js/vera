@@ -6,6 +6,8 @@ export type StoreKit = {
   track: (obj: object, key: unknown) => void;
   /** Wakes every hook subscribed to `obj[key]`, handing it the new and previous value. */
   trigger: (obj: object, key: unknown, value: unknown, prevValue: unknown) => void;
+  /** Deletes `obj`'s key cells that no reader holds any more and returns how many remain (PROTOTYPE, B2). */
+  prune?: (obj: object) => number;
   /**
    * The channel a container's shape is published on: enumeration subscribes to it, and adding or
    * removing a key notifies it. A module tracks and notifies it for its own containers (a `Map`'s
