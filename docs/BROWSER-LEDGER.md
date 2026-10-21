@@ -234,6 +234,12 @@ from another machine, or after that is undone, has a variable changed.
 - **A timing window after a fixed warm-up measures WHEN V8 tiers up.** A faster build sat in a middle tier for calls
   20–80 and read 28% slower over exactly that window. Consequence: report the cold total and a steady time, and the
   per-batch curve when they disagree. (Node; 2026-10-01)
+- **Writing `NaN` into a field that has only ever held small integers changes the field's representation** — every
+  object of that shape is migrated, and code that read the field as a small integer deoptimizes. Measured on the hook
+  record's generation field, written `NaN` as an "inert" marker at the end of a server render: the first 200 renders of
+  a small page +8% against the base where the same marker written as `-1` was +4% (eight fresh processes per variant, a
+  balanced order, the core's hash checked per process). Consequence: a sentinel in an integer field is an out-of-range
+  small integer, never `NaN` (or any non-integer). (Node 24, V8; 2026-10-21)
 
 ## Test environments
 
