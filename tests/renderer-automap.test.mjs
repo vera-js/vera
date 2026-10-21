@@ -131,7 +131,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
   const mode = ${JSON.stringify(mode)};
   const make = (n, from) => Array.from({ length: n }, (_, i) => ({ id: from + i, t: 'r' + i }));
-  const state = createStore({ rows: [], kept: make(10, 1), open: true, outer: [{ id: 0, open: true }] });
+  const state = createStore({ rows: [], kept: make(10, 1), open: true, outer: [{ id: 0, open: true }], other: make(10, 900000) });
   const host = document.createElement('div');
   const keep = document.createElement('div');
   document.body.append(host, keep);
@@ -139,6 +139,8 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   /** hide: the list is HIDDEN behind a condition and its data never written again — it must still be released. */
   /** nest: the list is NESTED in a row, which hides it on its own write — only the ROW's run sees it go (option (e″)). */
   if (mode === 'nest' || mode === 'nest2') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
+  /** before: the hidden list sits BEFORE another list, whose call takes its place in order (race20: (a)+(c) kept it). */
+  else if (mode === 'before') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul><ol>\${state.other.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   else if (mode === 'hide') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul>\`);
   else init(host, () => () => html\`<ul>\${state.rows.map((r) => html\`<li>\${r.t}</li>\`)}</ul>\`);
   flush(); await settle();
@@ -156,7 +158,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
     await gc();
     peak = Math.max(peak, count() - start);
     if (mode === 'clear') state.rows = [];
-    if (mode === 'hide') state.open = false;
+    if (mode === 'hide' || mode === 'before') state.open = false;
     if (mode === 'nest') state.outer[0].open = false;
     /** nest2 (vera-5a): ONE flush wakes a nested row, grows the nested array AND hides the list — every death path at once. */
     if (mode === 'nest2') { state.rows[0].t = 'w'; state.rows.push({ id: 1, t: 'p' }); state.outer[0].open = false; }
@@ -210,6 +212,13 @@ test('a nested list written, grown and hidden in ONE flush, then a new one hidde
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live nested list held its rows' hooks while it lived (peak ${r.peak})`);
   assert.ok(r.left <= 2, `${r.left} hook records left after the second nested list was hidden`);
+});
+
+test('HIDING a list that sits BEFORE another releases its rows (race20: a sweep over the order slots missed it, 1001 left)', () => {
+  const r = child('before');
+  assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
+  assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
+  assert.ok(r.left <= 2, `${r.left} hook records left after hiding the list before another`);
 });
 
 test('clearing a list RELEASES its rows: nothing of 5 × 1000 created-and-cleared rows is left', () => {
