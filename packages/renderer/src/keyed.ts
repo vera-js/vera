@@ -188,6 +188,8 @@ let tick = 0;
  */
 const stamp = (rec: Row) => {
   const r = rec.row(rec.item) as KeyedResult & { _$same$?: number };
+  /** An automatic `.map` row may return a string or a number (`.map((t) => t.name).join(', ')`): nothing to stamp. */
+  if (r === null || typeof r !== 'object') return r;
   r.key = rec.key;
   r.$r = reconcile;
   r._$same$ = 1;
@@ -208,7 +210,9 @@ const stamp = (rec: Row) => {
  * hook's creation sequence and flush stamp — measured, 2026-10-20). Hence `part`, `key`, `seen`.
  */
 type Row = Owner & RowHook & {
-  part: EachPart;
+  part: EachPart | undefined;
+  /** The automatic `.map` list this row belongs to; `undefined` for an `each` row. */
+  list: List | undefined;
   result: KeyedResult | null;
   inst: Item | undefined;
   key: unknown;
@@ -216,18 +220,31 @@ type Row = Owner & RowHook & {
   row: (item: unknown) => unknown;
   seen: number;
 };
-let Row: (new (p: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number) => Row) | undefined;
+let Row: (new (p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined) => Row) | undefined;
 /**
  * The row's run: a write the row's render read wakes exactly this row. It re-stamps and commits its new result into its
  * OWN instance in place (`part.$u`); if the instance had to be replaced (the row's shape changed), the list part's item
  * array is patched to point at the new one.
  */
-function rowRun(this: Row) {
+function rowRun(this: Row, _signal?: unknown, init?: boolean) {
+  const list = this.list;
+  /** An automatic list the parent's latest run no longer reached: its rows go with it. */
+  if (!init && list !== undefined && list.mapped !== list.parent.v) return orphan(list);
   const r = stamp(this);
-  const was = this.result;
   this.result = r;
-  if (was !== null && this.inst !== undefined) {
-    const part = this.part;
+  /**
+   * A run its LIST asked for (`init`: created, or re-run in the list's walk) only records its result — the list hands it
+   * to the renderer. Only a write the row heard commits or wakes anything: a walk-time run that woke the parent made the
+   * parent re-run its rows, which woke it again (a loop, measured 2026-10-20).
+   */
+  if (init) return;
+  /**
+   * An automatic list's row commits in place only while the page shows what the parent's LATEST run mapped (`committed`);
+   * otherwise the map's result was used as a value (summed, joined, chained), so the parent re-renders with it.
+   */
+  if (list !== undefined && list.committed !== list.parent.v) return list.parent.$n();
+  if (this.inst !== undefined) {
+    const part = this.part!;
     const out = part.$u(this.inst, r);
     if (out !== this.inst) {
       const items = part.$i!;
@@ -236,8 +253,8 @@ function rowRun(this: Row) {
     }
   }
 }
-const makeRow = (part: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown): Row => {
-  const rec = new Row!(part, k, item, row, tick);
+const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, list?: List): Row => {
+  const rec = new Row!(part, k, item, row, tick, list);
   /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
   rec.$n(undefined, true);
   return rec;
@@ -247,8 +264,197 @@ const drop = (rec: Row) => {
   rec._$g$++;
   retire!(rec);
 };
+/**
+ * **Automatic `.map`** (PROTOTYPE probe/cells-auto, B1, Brian 2026-10-20: every `.map` on a store array inside a render is
+ * a keyed list, with no rule and nothing to learn). Core's array handler hands `state.todos.map(fn)` here when it runs in
+ * a render (`$M`). The result is a REAL array of the row results — `.map(i => i.name).join(', ')` still works — and each
+ * `fn(item)` runs once, under its ROW's hook (an `each` row), so the parent never subscribes to row fields: a write to
+ * one item re-renders that row. A LIST (below) owns the rows and, as its own hook, the array's shape (`ITEMS`): a push
+ * or a splice re-runs the list, not the parent.
+ *
+ * **The stale-value rule, decided by WHICH hook ran** (signals-readiness constraint 4: no change information is read):
+ * the parent's run called `.map` → every row re-runs with the new `fn` (fresh parent values, exactly as a plain map); the
+ * list's own hook ran alone → only the shape changed, so unchanged rows are skipped.
+ *
+ * **Keys:** an item's own `id`, else the item itself — what lets a refetch (`state.todos = await …`) keep the rows of
+ * unchanged ids, and their DOM. A repeated `id` turns the list to identity keys for good (development warns,
+ * `keyed-duplicate-key`); the same object twice gets a fresh row per occurrence. **A plain map instead** when `fn`
+ * declares an index (`(t, i) => …`: a row would show a stale position after a reorder) or the array holds primitives.
+ *
+ * **Lists are matched to calls by ORDER within the parent's run**, as hooks are: the parent's k-th `.map` is the k-th
+ * list. A list the parent's latest run did not reach is an orphan; its next wake retires it with its rows.
+ */
+type List = Owner &
+  RowHook & {
+    parent: { v: number; $n(signal?: unknown, init?: boolean): void };
+    owner: Node & { readonly isConnected: boolean };
+    fn: (item: unknown) => unknown;
+    items: ArrayLike<unknown>;
+    cache: Map<unknown, Row>;
+    recs: Row[];
+    values: unknown[];
+    part: EachPart | undefined;
+    mapped: number;
+    committed: number;
+    all: boolean;
+    ident: boolean;
+    dead: boolean;
+  };
+let List: (new (parent: List['parent'], owner: List['owner']) => List) | undefined;
+/** The mark on a map's result: the list that made it. A Symbol private to this module copy. */
+const AUTO = Symbol();
+/**
+ * The marked array this module is committing right now, so the renderer's own list path takes THAT array — and only
+ * it: a row built during the commit carries its own nested list, which must still reach `commitList` (a plain flag
+ * turned every nested list away, so every inner write re-ran its outer row — measured 2026-10-20).
+ */
+let committing: unknown[] | undefined;
+/** Per parent hook: the run its lists were last counted in, how many it has reached this run, and the lists. */
+const listsOf = new WeakMap<object, { v: number; n: number; lists: List[] }>();
+/** Development: a duplicate id already said, per list. */
+let saidDup: WeakSet<object> | undefined;
+/** A list the parent no longer reaches: its rows and its own hook retire. */
+const orphan = (list: List) => {
+  list.dead = true;
+  for (let i = 0; i < list.recs.length; i++) drop(list.recs[i]);
+  list.recs = [];
+  list.cache.clear();
+  list._$g$++;
+  retire!(list);
+};
+/** The list's result committed into `part` by the renderer's own list path; then each row learns its instance and part. */
+const commitList = (list: List, part: EachPart) => {
+  list.part = part;
+  list.committed = list.parent.v;
+  const outer = committing;
+  committing = list.values;
+  try {
+    part.$p(list.values);
+  } finally {
+    committing = outer;
+  }
+  const its = part.$i;
+  const recs = list.recs;
+  if (its !== undefined)
+    for (let i = 0; i < recs.length; i++) {
+      recs[i].inst = its[i];
+      recs[i].part = part;
+    }
+};
+/** The list's run: walk the array (subscribing the list to its shape), reuse / create / sweep rows, mark the result. */
+function listRun(this: List): void {
+  const all = this.all;
+  this.all = false;
+  if (!all && this.mapped !== this.parent.v) return orphan(this);
+  const t = ++tick;
+  const fn = this.fn;
+  const cache = this.cache;
+  const prev = this.recs;
+  const n = this.items.length;
+  const recs: Row[] = new Array(n);
+  const values: unknown[] = new Array(n);
+  let i = 0;
+  let restart = false;
+  const visit = (source: unknown, item: unknown) => {
+    if (restart) return;
+    const k = this.ident || !Object.hasOwn(source as object, 'id') ? source : (source as { id: unknown }).id;
+    let rec = cache.get(k);
+    if (rec !== undefined && rec.seen === t) {
+      if (!this.ident) {
+        /** A repeated id: identity keys from now on, and this run again from the start. */
+        if (__DEV__ && !(saidDup ??= new WeakSet()).has(this)) {
+          saidDup.add(this);
+          console.warn(diagnostic('keyed', 'an automatic .map list', 'keyed-duplicate-key', __DEV__ && PROSE['keyed-duplicate-key'](String(k))));
+        }
+        this.ident = true;
+        restart = true;
+        return;
+      }
+      /** The same object twice under identity keys: a row of its own, never cached. */
+      rec = makeRow(undefined, {}, item, fn, this);
+    } else if (rec === undefined) {
+      rec = makeRow(undefined, k, item, fn, this);
+      cache.set(k, rec);
+    } else if (all || rec.item !== item) {
+      /** Through the row's OWN hook: what it reads subscribes the row, never the list or the parent. */
+      rec.item = item;
+      rec.row = fn;
+      rec.$n(undefined, true);
+    }
+    rec.seen = t;
+    recs[i] = rec;
+    values[i++] = rec.result;
+  };
+  if (!walk!(this.items, visit))
+    for (let j = 0; j < n; j++) {
+      const item = this.items[j];
+      visit(item, item);
+    }
+  if (restart) {
+    /** Identity keys now: every row is made again by a full walk, then this run's commit decision still applies. */
+    for (const rec of cache.values()) drop(rec);
+    cache.clear();
+    this.recs = [];
+    this.all = true;
+    listRun.call(this);
+    if (all) return;
+    if (this.committed === this.parent.v && this.part !== undefined) commitList(this, this.part);
+    else this.parent.$n();
+    return;
+  }
+  /** Last run's rows this run did not meet: swept (each drops its own subscriptions). */
+  for (let j = 0; j < prev.length; j++) {
+    const rec = prev[j];
+    if (rec.seen !== t) {
+      if (cache.get(rec.key) === rec) cache.delete(rec.key);
+      drop(rec);
+    }
+  }
+  this.recs = recs;
+  (values as unknown as Record<symbol, List>)[AUTO] = this;
+  this.values = values;
+  if (all) return;
+  /** The shape changed alone: commit where the page shows the parent's latest result, or re-render the parent. */
+  if (this.committed === this.parent.v && this.part !== undefined) commitList(this, this.part);
+  else this.parent.$n();
+}
+/** Core's `$M`: `state.todos.map(fn)` inside a render. `raw` is the array behind `proxy`; `method` the native `map`. */
+const automap = (
+  proxy: ArrayLike<unknown>,
+  raw: unknown[],
+  fn: (item: unknown) => unknown,
+  parent: List['parent'],
+  owner: List['owner'],
+  method: (this: unknown, fn: unknown) => unknown[],
+) => {
+  if (typeof fn !== 'function' || fn.length > 1 || (raw.length > 0 && (raw[0] === null || typeof raw[0] !== 'object')))
+    return method.call(proxy, fn);
+  let state = listsOf.get(parent);
+  if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
+  else if (state.v !== parent.v) {
+    state.v = parent.v;
+    state.n = 0;
+  }
+  let list = state.lists[state.n];
+  if (list === undefined || list.dead) list = state.lists[state.n] = new List!(parent, owner);
+  state.n++;
+  list.fn = fn;
+  list.items = proxy;
+  list.mapped = parent.v;
+  list.all = true;
+  list.$n(undefined, true);
+  return list.values;
+};
 const eachValue = (part: object, value: unknown) => {
-  if (value === null || typeof value !== 'object' || (value as EachValue)._$each$ !== 1) return false;
+  if (value === null || typeof value !== 'object') return false;
+  /** An automatic `.map` result: committed by its list, which then knows the part its rows live in. */
+  if (Array.isArray(value)) {
+    const list = (value as unknown as Record<symbol, List | undefined>)[AUTO];
+    if (list === undefined || value === committing) return false;
+    commitList(list, part as EachPart);
+    return true;
+  }
+  if ((value as EachValue)._$each$ !== 1) return false;
   const p = part as EachPart;
   const { items, key, row } = value as EachValue;
   /** Key → row record, per list part (`$E`): how a row is found again when it moved or the list was replaced. */
@@ -324,7 +530,7 @@ const eachValue = (part: object, value: unknown) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; $M?: unknown }, w: (item: unknown) => void) => {
   /** `super(null, …)`: the row owns itself. 50 and 1 are core's RENDER_PRIORITY and MODE_QUEUED (a row renders, queued). */
   const Base = registry.$hc as new (owner: null, callback: () => void, priority: number, mode: number) => object;
   Row ??= class extends Base {
@@ -332,14 +538,15 @@ export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown }
     declare _$x$: boolean;
     declare _$h$: unknown[] | undefined;
     declare localName: string;
-    declare part: EachPart;
+    declare part: EachPart | undefined;
+    declare list: List | undefined;
     declare result: KeyedResult | null;
     declare inst: Item | undefined;
     declare key: unknown;
     declare item: unknown;
     declare row: (item: unknown) => unknown;
     declare seen: number;
-    constructor(p: EachPart, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number) {
+    constructor(p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined) {
       super(null, rowRun, 50, 1);
       /** Core sets its own (mangled) `_g` to 1 for a self-owned hook; only `$`-named fields cross a bundle. */
       this._$g$ = 1;
@@ -353,6 +560,7 @@ export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown }
       this.item = item;
       this.row = row;
       this.seen = t;
+      this.list = list;
     }
     get isConnected() {
       const node = (this.inst as { $R?: Node } | undefined)?.$R;
@@ -362,6 +570,54 @@ export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown }
       return (this.inst as { $R?: Node } | undefined)?.$R?.ownerDocument ?? document;
     }
   } as unknown as typeof Row;
+  /** A list owns itself too: its run is `listRun`; it is connected while the component that mapped it is. */
+  List ??= class extends Base {
+    declare _$g$: number;
+    declare _$x$: boolean;
+    declare _$h$: unknown[] | undefined;
+    declare localName: string;
+    declare parent: List['parent'];
+    declare owner: List['owner'];
+    declare fn: (item: unknown) => unknown;
+    declare items: ArrayLike<unknown>;
+    declare cache: Map<unknown, Row>;
+    declare recs: Row[];
+    declare values: unknown[];
+    declare part: EachPart | undefined;
+    declare mapped: number;
+    declare committed: number;
+    declare all: boolean;
+    declare ident: boolean;
+    declare dead: boolean;
+    constructor(parent: List['parent'], owner: List['owner']) {
+      super(null, listRun, 50, 1);
+      this._$g$ = 1;
+      this._$x$ = false;
+      this._$h$ = undefined;
+      this.localName = 'each-list';
+      this.parent = parent;
+      this.owner = owner;
+      this.fn = undefined as unknown as List['fn'];
+      this.items = [];
+      this.cache = new Map();
+      this.recs = [];
+      this.values = [];
+      this.part = undefined;
+      this.mapped = 0;
+      this.committed = -1;
+      this.all = true;
+      this.ident = false;
+      this.dead = false;
+    }
+    get isConnected() {
+      return this.owner.isConnected !== false;
+    }
+    get ownerDocument() {
+      return this.owner.ownerDocument ?? document;
+    }
+  } as unknown as typeof List;
+  /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
+  (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;
   walk = registry.$w as typeof walk;
   w({ on: 'value', fn: eachValue, priority: 50 });

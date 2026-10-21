@@ -2,7 +2,7 @@ import { claim, grow, placeAt, proxyCallbacks, readerAt, slotAt, tracking, unlin
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { Cell, Signal } from '../types.js';
+import type { Cell, HookRecord, Signal } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
@@ -625,6 +625,24 @@ const items = (obj: object) => {
   const cell = proxyCallbacks.get(obj)?.get(ITEMS);
   if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
 };
+/**
+ * **Automatic `.map`** (PROTOTYPE probe/cells-auto, B1, Brian 2026-10-20): inside a RENDER hook (priority 50: a
+ * component's render, or a keyed row's), with a list module wired (`$M`, the keyed module's `eachList`), a store array's
+ * `map(fn)` is handed to that module, which makes it a keyed list whose rows track themselves. Anywhere else — an effect,
+ * a computed, plain code, no module, a borrowed `map`, a `thisArg` — the native method, as before. Nothing about `.map`'s
+ * result changes: it is a real array either way.
+ */
+type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: HookRecord, owner: unknown, method: (...args: unknown[]) => unknown[]) => unknown[];
+const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[], proxy: unknown) => {
+  const list = (inserts as unknown as { $M?: AutoMap }).$M;
+  const hook = tracking.hook;
+  if (list === undefined || hook === undefined || hook._y !== 50) return method;
+  return function (this: unknown, fn: unknown, ...rest: unknown[]) {
+    if (this !== proxy || rest.length) return method.apply(this, [fn, ...rest]);
+    return list(proxy, obj, fn, hook, hook._o, method);
+  };
+};
+
 const arrayHandler: ProxyHandler<object> = {
   ...handler,
   get(obj: object, prop, receiver) {
@@ -635,9 +653,13 @@ const arrayHandler: ProxyHandler<object> = {
     track(obj, prop);
     if (value === null || typeof value !== 'object' || FIXED.has(obj))
       /** A built-in that writes several slots: run whole, notify once (`atomic`, above). */
-      return typeof value === 'function' && MUTATORS.has(prop as string)
-        ? atomic(obj as unknown[], prop as string, value as (...args: unknown[]) => unknown, receiver)
-        : value;
+      return typeof value !== 'function'
+        ? value
+        : MUTATORS.has(prop as string)
+          ? atomic(obj as unknown[], prop as string, value as (...args: unknown[]) => unknown, receiver)
+          : prop === 'map'
+            ? mapped(obj as unknown[], value as (...args: unknown[]) => unknown[], receiver)
+            : value;
     return nested(obj, prop, value);
   },
   /**
