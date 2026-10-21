@@ -505,6 +505,10 @@ document.body.append(panel);   // set up again, fresh — as a custom element re
 - **Given `init` before it is on the page:** its setup waits for its first connect, as a custom element's does — a host
   built off the page and never attached is never set up and holds nothing.
 
+**For a few hosts, not for volume:** a built-in host carries a little more than a custom element (its closed root and two
+small nodes), so it costs a little more to create and to collect. Use it for the handful of roots, islands and panels
+an app has; anything created in volume — rows, items, repeated widgets — belongs in a custom element.
+
 **How it hears:** each host gets a CLOSED shadow root holding a default `<slot>` (its light content renders exactly as
 before) and a tiny custom element whose own callbacks fire when its host is attached, moved or removed — the same in
 Chromium, Firefox and WebKit. The root is closed, so `host.shadowRoot` stays `null` and selectors see the host's children
