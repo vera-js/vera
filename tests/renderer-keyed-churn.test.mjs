@@ -136,3 +136,29 @@ test('a null item in a keyed list survives a reorder', () => {
   drawRows([row(3), null, row(1)]);
   assert.equal(host.textContent, '31');
 });
+
+/**
+ * **Edits mixed in ONE render touch only what changed** (2026-10-20). A push and a middle removal landing together leave
+ * no unchanged run at either end, and the two-ended walk used to move every row past the removed one: 999 moves on 1000
+ * rows, where 2 are right (one insert, one removal). Timing never showed it; only a count does. The walk now removes an
+ * old end the new list no longer holds instead of moving the rest around it.
+ */
+test('edits mixed in one render touch only what changed', () => {
+  const cases = [
+    ['append alone', (ids) => [...ids, 'n0'], 1],
+    ['remove from the middle alone', (ids) => ids.filter((_, i) => i !== 2), 1],
+    ['append + remove from the middle', (ids) => [...ids.filter((_, i) => i !== 2), 'n0'], 2],
+    ['prepend + remove the last', (ids) => ['n0', ...ids.slice(0, -1)], 2],
+    ['remove the first + append', (ids) => [...ids.slice(1), 'n0'], 2],
+    ['two middle removals + two appends', (ids) => [...ids.filter((_, i) => i !== 10 && i !== 50), 'n0', 'n1'], 4],
+  ];
+  for (const [label, edit, want] of cases) {
+    const host = document.createElement('div');
+    const ids = listOf(1000, 'k');
+    draw(ids, host);
+    const next = edit(ids);
+    const moved = mutations(() => draw(next, host));
+    assert.deepEqual([...host.querySelectorAll('li')].map((li) => li.dataset.id), next, `${label}: the order is right`);
+    assert.equal(moved, want, `${label}: ${moved} DOM operations, ${want} are right`);
+  }
+});
