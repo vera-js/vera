@@ -575,7 +575,12 @@ const automap = (
   }
   if (list === undefined) {
     const first = untracked!(() => fn(proxy[0]));
-    if (first === null || typeof first !== 'object') {
+    /**
+     * A list only when the first row is a TEMPLATE result (`_$litType$`, what `html` / `svg` / `keyed()` / JSX produce) —
+     * not any object: a computational map returning plain objects (`items.map((i) => ({ ...i, label }))`, a directives
+     * query) became a tracked list and broke `directives-query` (2026-10-20).
+     */
+    if (first === null || typeof first !== 'object' || (first as { _$litType$?: unknown })._$litType$ === undefined) {
       state.lists[state.n++] = PLAIN;
       return method.call(proxy, fn);
     }
@@ -692,7 +697,7 @@ const eachValue = (part: object, value: unknown) => {
 let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void; prune(obj: object): number } | undefined;
 let makeHook: ((hook: { callback: () => void; priority: number }) => ((signal?: unknown, init?: boolean) => void) | undefined) | undefined;
 export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
-  if (kit === undefined || makeHook === undefined) throw new Error('createSelector: wire([renderer, eachList]) first');
+  if (kit === undefined || makeHook === undefined) throw new Error(misuse('createSelector', 'selector-not-wired', __DEV__ && PROSE['selector-not-wired']()));
   const target = {};
   const k = kit;
   let current: K | typeof target = target;

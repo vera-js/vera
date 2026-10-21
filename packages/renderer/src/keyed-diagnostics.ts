@@ -6,6 +6,10 @@ export const PROSE: Record<string, Prose> = {
     `the key ${key} is used by more than one item in this list. A key identifies one item, so which of them keeps the existing DOM is not defined — the list still renders, but nothing about which node ends up where can be relied on.`,
     'Give every item a key of its own — an id, not an index or a value two items share.',
   ],
+  'selector-not-wired': () => [
+    'createSelector needs the keyed module wired, and it was not.',
+    'Wire it once at your entry — `wire([renderer, eachList])` — before a component creates a selector.',
+  ],
   'keyed-not-template': (received) => [
     `expected a template as the second argument and received ${received}.`,
     'It marks a template with a key — `keyed(row.id, html`<li>…</li>`)`.',
