@@ -179,6 +179,14 @@ from another machine, or after that is undone, has a variable changed.
 
 ## The engines' compilers
 
+- **Firefox penalizes the SIZE of core's `initWith` where V8 did not: a loop that never runs cost component creation.**
+  Adding an `=== false` check (and an argument) to the `'init'`-insert loop inside `initWith` — on a page with no
+  `'init'` insert, so the loop never ran — cost Firefox create20 +2.4% (6/6 sessions; Chrome −2.3%). One change undone per
+  variant isolated it: without the new seams +2.6%, with the teardown back inline +3.7%, with the loop as before −1.0%.
+  The loop moved out of line (a small function called only where inserts exist) measured +0.5%, slower in 6/12 sessions,
+  inside the A/A — nothing. Consequence: `initWith` is size-sensitive on SpiderMonkey as `serializeValue` is on V8; keep
+  rarely-run code out of it, and race a change to it on headed Firefox. (Headed Firefox 153 and Chrome 155; 2026-10-21)
+
 - **V8 inlines a function only while its bytecode is ≤ `--max-inlined-bytecode-size` (460)**, so a hot function near
   the budget pays for ANY growth, even code that never runs (a never-taken `if` cost 4.0%). Consequence: move rarely
   run code out of line; `tests/ssr-inlining-budget.test.mjs` prints `serializeValue`'s headroom. Firefox and Safari
