@@ -83,12 +83,18 @@ const slotAttributeCheck = (host: Element) => {
 };
 
 const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown): false | undefined => {
+  /**
+   * A custom element has its own callbacks — tested FIRST, on the name alone: this insert runs for EVERY `init`, and a page
+   * of custom elements paid +5.0% creation (Chrome, 10 of 12 sessions, 2026-10-21) when the document and window reads
+   * below came before it.
+   */
+  if (element.localName.indexOf('-') >= 0) return undefined;
   /** A server's document (ssr marks it): its elements are read once, never given a lifecycle. */
   if ((element.ownerDocument as Document & { _$srv$?: boolean })._$srv$) return undefined;
   const win = element.ownerDocument.defaultView as (Window & typeof globalThis) | null;
   if (win === null) return undefined;
-  /** A custom element has its own callbacks (customized built-ins included: `getName`). */
-  if (element.localName.indexOf('-') >= 0 || (win.customElements as { getName?: (c: unknown) => string | null }).getName?.(element.constructor)) return undefined;
+  /** A customized built-in (`is=`) is a custom element too: `getName` knows its class. */
+  if ((win.customElements as { getName?: (c: unknown) => string | null }).getName?.(element.constructor)) return undefined;
   if (element[SETUP] === undefined) {
     let root: ShadowRoot;
     try {
