@@ -111,6 +111,11 @@ const GLOBAL = '_global';
 
 /** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 const kit: StoreKit = { track, trigger, shape: GLOBAL };
+/**
+ * PROTOTYPE (probe/cells-auto, B2, 2026-10-20): the same kit handed to a module OFF the store chain (`$k`), so the keyed
+ * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.
+ */
+(inserts as unknown as { $k: StoreKit }).$k = kit;
 
 /**
  * **A built-in that writes several slots notifies ONCE, after it finishes** (2026-10-18). Called through the proxy,

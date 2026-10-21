@@ -547,10 +547,51 @@ const eachValue = (part: object, value: unknown) => {
   return true;
 };
 /**
+ * **`createSelector(source)` → `isSelected(key)`** (PROTOTYPE probe/cells-auto, B2, 2026-10-20): selection that wakes
+ * exactly the rows whose answer changed. `isSelected(key)` subscribes the running hook to ONE cell per key (core's store
+ * kit, `$k`, on a private target), and a hook watching `source` wakes only the previous and the new key's cells when it
+ * changes — so a select re-renders 2 rows, not every row that compared against `state.selected`.
+ *
+ * ```js
+ * const isSelected = createSelector(() => state.selected);
+ * state.rows.map((r) => html`<tr class=${isSelected(r.id) ? 'selected' : ''}>…</tr>`)
+ * ```
+ *
+ * Made in a component's setup, it is that component's (its watcher retires with it); with no component being set up it
+ * THROWS, as every hook does. Its watcher runs inside the write (a raw hook), so the woken rows render in the same flush.
+ * KNOWN, open (B2): a key's cell stays in the target's map after every row reading it is gone, so a list whose keys
+ * churn grows that map; the general fix is an emptied cell leaving its map (engine-wide, to Brian).
+ */
+let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void } | undefined;
+let makeHook: ((hook: { callback: () => void; priority: number }) => ((signal?: unknown, init?: boolean) => void) | undefined) | undefined;
+export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
+  if (kit === undefined || makeHook === undefined) throw new Error('createSelector: wire([renderer, eachList]) first');
+  const target = {};
+  const k = kit;
+  let current: K | typeof target = target;
+  const run = makeHook({
+    callback: () => {
+      const next = source();
+      if (next === current) return;
+      const prev = current;
+      current = next;
+      if (prev !== target) k.trigger(target, prev, false, true);
+      k.trigger(target, next, true, false);
+    },
+    priority: 0,
+  });
+  run?.(undefined, true);
+  return (key: K) => {
+    k.track(target, key);
+    return current === key;
+  };
+};
+
+/**
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   /** `super(null, …)`: the row owns itself. 50 and 1 are core's RENDER_PRIORITY and MODE_QUEUED (a row renders, queued). */
   const Base = registry.$hc as new (owner: null, callback: () => void, priority: number, mode: number) => object;
   Row ??= class extends Base {
@@ -640,6 +681,8 @@ export const eachList = (registry: { $hc?: unknown; $z?: unknown; $w?: unknown; 
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;
   untracked = registry.$t as typeof untracked;
+  kit = registry.$k as typeof kit;
+  makeHook = (registry.$s as unknown[] | undefined)?.[2] as typeof makeHook;
   walk = registry.$w as typeof walk;
   w({ on: 'value', fn: eachValue, priority: 50 });
 };
