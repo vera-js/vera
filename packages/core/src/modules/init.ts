@@ -120,6 +120,17 @@ const isOptions = (target: unknown) => {
  * `shadow` asks for one), an async branch (a promise came back), the cleanup Set (an effect returned a cleanup — see
  * `coalesce`).
  */
+/**
+ * The `'init'` inserts, OUT OF LINE: true when one answered `false` (it defers the setup). The loop inside `initWith` —
+ * never even run on a page with no `'init'` insert — cost Firefox's component creation +2.4%, 6 of 6 sessions (race25);
+ * with the loop as it was, the same build measured −1.0% (race26): `initWith`'s size, not its work (the inlining cliff,
+ * CLAUDE.md). Here it costs `initWith` one call, made only where inserts exist.
+ */
+const runInits = (initInserts: unknown[], element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
+  for (let i = 0; i < initInserts.length; i++) if ((initInserts[i] as InitInsert)(element, options, given) === false) return true;
+  return false;
+};
+
 export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
     throw new TypeError(misuse('init', 'init-not-element', __DEV__ && PROSE['init-not-element'](String(element))));
@@ -209,7 +220,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * until its first connect, as a custom element's runs in its connectedCallback — so a host built off the page and
    * never attached links nothing.
    */
-  if (initInserts !== undefined) for (let i = 0; i < initInserts.length; i++) if ((initInserts[i] as InitInsert)(element, options, given) === false) return;
+  if (initInserts !== undefined && runInits(initInserts, element, options, given)) return;
   if (__DEV__) unwiredStyles(element);
   /**
    * **The setup: this component is the owner while it runs, and nothing it reads is tracked** (the tracking cell is
