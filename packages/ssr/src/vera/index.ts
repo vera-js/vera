@@ -77,8 +77,12 @@ const { wire, inserts, flush } = await import('@verajs/core');
 setCoreFlush(flush);
 /** Core's server-render turn (step 2 (a)): what a render creates leaves every store when its turn ends. */
 const serverTurnOf = (inserts as unknown as { $ss?: (delta: number) => void }).$ss;
-/** A server: modules that would touch a client's lifecycle (`@verajs/renderer/native-elements`) stand aside (`$srv`). */
-(inserts as unknown as { $srv?: boolean }).$srv = true;
+/**
+ * A server's DOCUMENT: modules that would touch a client's lifecycle (`@verajs/renderer/native-elements`) stand aside for
+ * its elements (`_$srv$`) — on the document, never the registry, so a process that also renders on a client DOM (a
+ * hydration test, a dev server) keeps its client elements' lifecycle (vera-5a).
+ */
+(globalThis.document as unknown as { _$srv$?: boolean })._$srv$ = true;
 /** `static styles` are part of what a browser renders, so the server adopts them unconditionally. */
 const { styles } = await import('@verajs/styles');
 wire([styles]);

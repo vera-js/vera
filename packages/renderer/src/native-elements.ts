@@ -22,7 +22,7 @@ import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './native-elements-diagnostics.js';
 
 type Host = HTMLElement & { _$x$?: boolean };
-type Core = { $in(element: Host, options: unknown, setup: unknown): void; $td(element: Host): void; $srv?: unknown };
+type Core = { $in(element: Host, options: unknown, setup: unknown): void; $td(element: Host): void };
 
 /** The setup each host was given, to set it up again on its return; per module COPY (two copies never share one). */
 const SETUP = Symbol();
@@ -72,7 +72,8 @@ const sentinelFor = (win: Window & typeof globalThis) => {
 };
 
 const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown): false | undefined => {
-  if (core!.$srv !== undefined) return undefined;
+  /** A server's document (ssr marks it): its elements are read once, never given a lifecycle. */
+  if ((element.ownerDocument as Document & { _$srv$?: boolean })._$srv$) return undefined;
   const win = element.ownerDocument.defaultView as (Window & typeof globalThis) | null;
   if (win === null) return undefined;
   /** A custom element has its own callbacks (customized built-ins included: `getName`). */
@@ -110,5 +111,6 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
 export const nativeElements = (registry: Core & { $ne?: unknown }, w: (item: unknown) => void) => {
   core = registry;
   registry.$ne = true;
-  w({ on: 'init', fn: onInit, priority: 50 });
+  /** FIRST of the `'init'` inserts (priority 0): a deferral stops every insert after it, so none runs on a detached host twice. */
+  w({ on: 'init', fn: onInit, priority: 0 });
 };

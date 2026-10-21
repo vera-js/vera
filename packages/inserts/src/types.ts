@@ -83,7 +83,10 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  * hook FUNCTION with `$keys` (development only) so core's unknown-option check accepts the key.
  */
 /** `setup`: the setup `init` was given (or `undefined`), so a module can set the element up again (native-elements, 2026-10-21). */
-/** Answering `false` defers the setup: `init` stops before it (native-elements, for a host not yet connected). */
+/**
+ * Answering `false` DEFERS: `init` stops there — the inserts after it (by priority) AND the setup do not run (native-elements,
+ * at priority 0, for a host not yet connected; its sentinel sets it up at the first connect).
+ */
 export type InitInsert = (element: HTMLElement, options: object | undefined, setup?: unknown) => void | false;
 
 /**
