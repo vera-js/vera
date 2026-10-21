@@ -429,6 +429,15 @@ const orphan = (list: List) => {
   for (let i = 0; i < list.recs.length; i++) drop(list.recs[i]);
   list.recs = [];
   list.cache.clear();
+  /**
+   * A disposed list may stay RECORDED (option (c)'s per-array history), so it lets go of everything else: its last
+   * results (a hidden 10k list's 10 000 template results), its render's callback, its array and its part (Brian 2026-10-20:
+   * "is there any risk with references getting held with the tables?").
+   */
+  list.values = [];
+  list.fn = undefined as unknown as List['fn'];
+  list.items = [];
+  list.part = undefined;
   list._$g$++;
   retire!(list);
 };
