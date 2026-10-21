@@ -198,6 +198,8 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#9716e1f324', 'pinned by tests/api-misuse-sweep.test.mjs: a catalog of a dozen messages — every refusal it lists is thrown by the sweep, every warning has its own coded claim'], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
   ['packages/renderer/README.md#5ae4ff86c0', 'tag-key'], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
   ['packages/renderer/README.md#57d42dee7e', 'not a promise: a size'], // <!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the f
+  ['llms.txt#464a79271c', 'built-in-host-unwired'], // A BUILT-IN element given to `init` … never released when removed (development warns).
+  ['packages/renderer/README.md#ff3b8e7750', 'native-host-unsupported'], // elements that cannot hold a shadow root — `ul`, `li`, `table`, `button` …
   ['packages/router/README.md#fa48cfe868', 'router-no-match'], // **A path that matches nothing does nothing, and development says so.** `navigate` returns 
   ['packages/router/README.md#7fc72a994a', 'router-no-match'], // The warning names the path.
   ['packages/router/README.md#d53c74196e', 'router-no-outlet'], // If the parent's template renders no matching outlet the route does not apply, and says so 

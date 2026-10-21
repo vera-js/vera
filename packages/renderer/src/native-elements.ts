@@ -90,7 +90,13 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
       return undefined;
     }
     const doc = element.ownerDocument;
-    root.append(doc.createElement('slot'), doc.createElement(sentinelFor(win)));
+    const sentinel = doc.createElement(sentinelFor(win));
+    /**
+     * No box (`hidden`): an element in the host's shadow tree is one of its layout children — a flex host laid its items
+     * out around it (each 4 px narrower, the gap shifted; tests/browser/native-elements). Its callbacks need no box.
+     */
+    sentinel.hidden = true;
+    root.append(doc.createElement('slot'), sentinel);
     /** Development: a later attachShadow on this host says why it cannot, by name. */
     if (__DEV__)
       element.attachShadow = () => {

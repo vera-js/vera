@@ -101,7 +101,7 @@ test('an unsupported tag still renders and warns once, in development', { skip: 
   } finally {
     console.warn = warn;
   }
-  assert.equal(said.filter((m) => m.includes('cannot carry')).length, 1, `warned once (${said.join(' | ')})`);
+  assert.equal(said.filter((m) => m.includes('cannot carry') && m.includes('native-host-unsupported')).length, 1, `warned once, by its code (${said.join(' | ')})`);
 });
 
 /** The child: one mode per process; gc as the instrument; the built-in hosts' elements counted through WeakRefs. */

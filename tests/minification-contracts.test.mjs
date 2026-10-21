@@ -31,6 +31,7 @@ const PROD = {
   slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
   namespaces: 'packages/renderer/dist/vera-renderer-namespaces.min.js',
   elements: 'packages/renderer/dist/vera-renderer-elements.min.js',
+  'native-elements': 'packages/renderer/dist/vera-renderer-native-elements.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
   tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
 };
