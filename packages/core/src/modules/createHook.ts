@@ -297,20 +297,7 @@ export const serverTurn = (delta: number) => {
   if (serverScope !== 0) return;
   const all = born;
   born = [];
-  /**
-   * **Inert NOW** (vera-5a): the links outlive the turn until the walk below, so a later turn's write (a burst of requests,
-   * each writing a module store in its render) would re-run this turn's discarded renders and effects — wasted runs and
-   * repeated server side effects, worst exactly under load. A generation no owner can have (`NaN`) stops every run at the
-   * check `$n` and `$q` already make; nothing changes on a client's path.
-   */
-  for (let i = 0; i < all.length; i++) all[i]!._g = NaN;
-  /**
-   * **Unlinked in the NEXT task, once the page is served** (Brian, 2026-10-21: "the speed with which content is served
-   * is what matters"): the walk is the fix's own work (+3% of a small page's cold renders, inline — #32), and in a task
-   * after the response it runs while no request waits. A macrotask on core's own realm, never a microtask (that would run
-   * before the caller even receives its markup), outside the ssr's turn chain; each turn drains the list IT captured.
-   */
-  if (all.length) setTimeout(() => { for (let i = 0; i < all.length; i++) unlinkFrom(all[i]!, 0); }, 0);
+  for (let i = 0; i < all.length; i++) unlinkFrom(all[i]!, 0);
 };
 export const retireHook = (hook: HookRecord) => {
   unlinkFrom(hook, 0);
