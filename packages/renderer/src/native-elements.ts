@@ -84,9 +84,9 @@ const slotAttributeCheck = (host: Element) => {
 
 const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown): false | undefined => {
   /**
-   * A custom element has its own callbacks — tested FIRST, on the name alone: this insert runs for EVERY `init`, and a page
-   * of custom elements paid +5.0% creation (Chrome, 10 of 12 sessions, 2026-10-21) when the document and window reads
-   * below came before it.
+   * A custom element has its own callbacks — tested FIRST, on the name alone: this insert runs for EVERY `init`, and on
+   * Firefox a page of custom elements paid +1.7% creation and +3.7% churn (11 of 12 sessions each, 2026-10-21) when the
+   * document and window reads below came before it; with this order it is level with the module unwired.
    */
   if (element.localName.indexOf('-') >= 0) return undefined;
   /** A server's document (ssr marks it): its elements are read once, never given a lifecycle. */
