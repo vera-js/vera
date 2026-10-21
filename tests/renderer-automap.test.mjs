@@ -138,7 +138,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   init(keep, () => () => html\`<ol>\${state.kept.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   /** hide: the list is HIDDEN behind a condition and its data never written again — it must still be released. */
   /** nest: the list is NESTED in a row, which hides it on its own write — only the ROW's run sees it go (option (e″)). */
-  if (mode === 'nest') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
+  if (mode === 'nest' || mode === 'nest2') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
   else if (mode === 'hide') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul>\`);
   else init(host, () => () => html\`<ul>\${state.rows.map((r) => html\`<li>\${r.t}</li>\`)}</ul>\`);
   flush(); await settle();
@@ -158,6 +158,16 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
     if (mode === 'clear') state.rows = [];
     if (mode === 'hide') state.open = false;
     if (mode === 'nest') state.outer[0].open = false;
+    /** nest2 (vera-5a): ONE flush wakes a nested row, grows the nested array AND hides the list — every death path at once. */
+    if (mode === 'nest2') { state.rows[0].t = 'w'; state.rows.push({ id: 1, t: 'p' }); state.outer[0].open = false; }
+    flush(); await settle();
+  }
+  /** nest2: then a NEW nested list is shown and hidden — it must still be released (the count of row-owned lists held). */
+  if (mode === 'nest2') {
+    state.rows = make(1000, 50000);
+    state.outer[0].open = true;
+    flush(); await settle();
+    state.outer[0].open = false;
     flush(); await settle();
   }
   await gc();
@@ -189,6 +199,13 @@ test('a row HIDING its nested list releases the nested rows, with no further wri
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live nested list held its rows' hooks while it lived (peak ${r.peak})`);
   assert.ok(r.left <= 2, `${r.left} hook records left after the row hid its list (nested rows not released)`);
+});
+
+test('a nested list that dies by every path in ONE flush, then a new one hidden: the new one is released too (vera-5a)', () => {
+  const r = child('nest2');
+  assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
+  assert.ok(r.peak >= 1000, `CONTROL: the live nested list held its rows' hooks while it lived (peak ${r.peak})`);
+  assert.ok(r.left <= 2, `${r.left} hook records left after the second nested list was hidden`);
 });
 
 test('clearing a list RELEASES its rows: nothing of 5 × 1000 created-and-cleared rows is left', () => {

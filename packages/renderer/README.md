@@ -301,7 +301,9 @@ it is safe alongside any of them, `/hydrate` included.
 list whose rows track themselves: a field write re-renders that one row, and pushes, removals and swaps touch only what
 moved. Rows are keyed by an item's own `id`, else by the item itself. `createSelector(() => state.selected)` returns
 `isSelected(key)`, which re-renders only the old and the new key's rows on a change. Not released; the design is still
-being measured.
+being measured. **A hidden list is released when the render that hid it returns**: a component's render, or a row's
+own render for a list nested in a row. A `.map` inside your own render-priority hook (`useHook(fn, 50)`) is a list too,
+but one it hides is released only when that hook is torn down.
 
 **A list is keyed because `keyed()` marked it, not because its results have a `key` property.**
 Setting `.key` by hand no longer makes a list keyed — the marker is what carries the algorithm, so

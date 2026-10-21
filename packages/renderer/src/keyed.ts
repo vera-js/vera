@@ -405,7 +405,7 @@ class List {
   }
   /** Disposed by core when the parent's run ends without claiming it, or the parent hook retires. */
   $d() {
-    if (!this.dead) orphan(this);
+    orphan(this);
   }
   /** Connected while the component that mapped it is. */
   get isConnected() {
@@ -446,6 +446,12 @@ let untracked: (<R>(fn: () => R) => R) | undefined;
 let saidDup: WeakSet<object> | undefined;
 /** A list the parent no longer reaches: its rows and its own hook retire. */
 const orphan = (list: List) => {
+  /**
+   * ONCE (vera-5a): a second orphan would count a row-owned list out of `nested` twice, and a count driven to 0 while nested
+   * lists live turns their settling off — the leak (e″) closes, silently. Unreachable today (an orphaned list's hooks and
+   * rows move generation, so nothing queued runs them again), kept as the invariant.
+   */
+  if (list.dead) return;
   list.dead = true;
   if (ownerOf!(list.parent as unknown as RowHook) instanceof Row) nested--;
   for (let i = 0; i < list.recs.length; i++) drop(list.recs[i]);

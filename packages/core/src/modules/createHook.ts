@@ -318,11 +318,11 @@ const settleOwned = (hook: HookRecord, o: Owned[]) => {
  * only by a component's render (core's `drawInto` settles it, once per render) and by an automatic list's row (keyed
  * settles its own row, and only while some row owns a list). `all`: the owner is retiring — dispose everything it owns.
  */
-export const settle = (hook: HookRecord, all?: boolean) => {
-  const o = ownedBy?.get(hook);
+export const settle = (hook: HookRecord | undefined, all?: boolean) => {
+  const o = hook && ownedBy?.get(hook);
   if (o !== undefined) {
-    if (all) disposeOwned(hook);
-    else settleOwned(hook, o);
+    if (all) disposeOwned(hook!);
+    else settleOwned(hook!, o);
   }
 };
 /** A retiring hook disposes everything it owns. */
