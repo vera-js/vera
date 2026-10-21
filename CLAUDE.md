@@ -466,6 +466,11 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   one suite (`hydration-walk`) only passed BECAUSE of the split. Found by luck, checking a migration in production.
   `tests/one-registry.test.mjs` now fails the gate when a suite takes the standalone registry, unless it is on its
   allow-list with a reason (only the suites that test the inserts module itself).
+- **A class extending a class from another bundle must not trust the production mangler** (Brian approved,
+  2026-10-20). Each production bundle mangles `_`-prefixed names on its own, to one- or two-character names, so a
+  subclass in one bundle of a class from another may write only `$`-named fields of its base, and its OWN fields need
+  names the mangler never generates. A keyed row extending core's hook wrote `k` and `t`, which overwrote the hook's
+  mangled flush stamp and creation sequence; the development build, which mangles nothing, passed.
 - **A property on an insert DESCRIPTOR is not reachable through `chain()`** — the registry keeps the
   descriptor's `fn`, so a protocol member set on the descriptor object is invisible to whoever reads
   the insert. Put it on the function. Measured 2026-10-02: slots' server hook sat on the descriptor and
