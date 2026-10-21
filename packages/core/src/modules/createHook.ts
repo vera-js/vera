@@ -329,6 +329,8 @@ const settleOwned = (hook: HookRecord, o: Owned[]) => {
   let w = 0;
   for (let r = 0; r < o.length; r++) {
     const item = o[r]!;
+    /** Re-homed to another hook since (a row re-rendering claims the `each` its parent first committed): forgotten here. */
+    if (item.$h !== hook) continue;
     if (item.$r === hook.v) o[w++] = item;
     else {
       item.$h = undefined;
@@ -357,6 +359,7 @@ const disposeOwned = (hook: HookRecord) => {
   if (o === undefined) return;
   ownedBy!.delete(hook);
   for (let r = 0; r < o.length; r++) {
+    if (o[r]!.$h !== hook) continue;
     o[r]!.$h = undefined;
     o[r]!.$d();
   }

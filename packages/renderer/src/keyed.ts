@@ -185,13 +185,14 @@ export const keyed = <T>(key: unknown, result: T): T => {
  * place through `part.$u`. `row` must depend only on its item and REACTIVE reads (a plain value closed over from the
  * parent's render goes stale: documented, React.memo's pitfall).
  */
-type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown };
+type EachValue = { _$each$: 1; items: ArrayLike<unknown>; key: (item: unknown) => unknown; row: (item: unknown) => unknown; by: RowHook | undefined };
 type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string; readonly isConnected: boolean; readonly ownerDocument: Document };
 /** The row's hook, as core's `$q` hands it back: the record itself, run through its `$n` (a `$`-name: survives mangling). */
 type RowHook = { $n(signal?: unknown, init?: boolean): void };
 type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[]; $E?: Map<unknown, Row>; $L?: Row[] };
+/** `by`: the run that MADE the value owns its list (step 2 (b0)) — a row's own render for a nested `each`, whenever it commits. */
 export const each = <T>(items: ArrayLike<T>, key: (item: T) => unknown, row: (item: T) => unknown): unknown =>
-  ({ _$each$: 1, items, key, row }) as EachValue;
+  ({ _$each$: 1, items, key, row, by: currentHook?.() }) as EachValue;
 
 /** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
 let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
@@ -200,7 +201,9 @@ let bareHook: ((owner: Owner, callback: (this: RowHook, signal?: unknown, init?:
 let retireHook: ((hook: RowHook) => void) | undefined;
 let ownerOf: ((hook: RowHook) => Owner) | undefined;
 /** Core's run ownership (`$own`, option (e)). */
-let own: ((hook: unknown, item: List) => void) | undefined;
+let own: ((hook: unknown, item: { $r: number; $h: unknown; $d(): void }) => void) | undefined;
+/** Core's running hook (`$ch`, step 2 (b0)): the run that commits an `each` list owns it. */
+let currentHook: (() => RowHook | undefined) | undefined;
 /** Core's settle (`$so`, option (e″)): a row that owns lists settles them where its run ends, or disposes them as it drops. */
 let settle: ((hook: unknown, all?: boolean) => void) | undefined;
 /**
@@ -758,11 +761,49 @@ const eachValue = (part: object, value: unknown) => {
       }
     }
   p.$L = recs;
+  ownEach(p, (value as EachValue).by);
   p.$p(values);
   /** After reconcile, each row learns the instance it was committed into, which its own hook updates in place. */
   const its = p.$i;
   if (its !== undefined) for (let i = 0; i < n; i++) if (recs[i].inst !== its[i]) recs[i].inst = its[i];
   return true;
+};
+/**
+ * **An `each` list belongs to the run that MADE it** (step 2 (b0), 2026-10-21) — `each()` captures the running hook; the
+ * run that COMMITS it can be another (a row's nested `each` is first committed inside its parent's run, and a list's own
+ * hook removes rows without the parent ever settling — row 0e kept 30 of 30): its rows are bare hooks owned by
+ * row records, never in the component's hook list, so a component removed while showing one left every row linked — and
+ * row → part → nodes kept the component (30 of 30 retained). Claimed per PART through core's run ownership, as an
+ * automatic list is: the owner's retire, or a run that no longer commits it, drops its rows and empties its cache (a part
+ * shown again builds fresh rows). Committed with no running hook (`renderInto`), it has no owner: step 2 (b)'s parking.
+ */
+type EachOwned = { $r: number; $h: unknown; $d(): void; live: boolean; row: boolean };
+const ownEach = (p: EachPart & { $O?: EachOwned }, h: RowHook | undefined) => {
+  if (h === undefined) return;
+  let o = p.$O;
+  if (o === undefined)
+    p.$O = o = { $r: -1, $h: undefined, live: false, row: false, $d: () => releaseEach(p, o!) };
+  /** Owned by a ROW's hook: a nested list, so rows settle and dispose (the page-wide count (e″) reads) — kept exact if the owner changes. */
+  const row = ownerOf!(h) instanceof Row;
+  if (!o.live) {
+    o.live = true;
+    o.row = row;
+    if (row) nested++;
+  } else if (o.row !== row) {
+    nested += row ? 1 : -1;
+    o.row = row;
+  }
+  own!(h, o);
+};
+const releaseEach = (p: EachPart, o: EachOwned) => {
+  o.live = false;
+  if (o.row) nested--;
+  const cache = p.$E;
+  if (cache !== undefined) {
+    for (const rec of cache.values()) drop(rec);
+    cache.clear();
+  }
+  p.$L = undefined;
 };
 /**
  * **`createSelector(source)` → `isSelected(key)`** (PROTOTYPE probe/cells-auto, B2, 2026-10-20): selection that wakes
@@ -819,13 +860,14 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $ch?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   bareHook = registry.$qb as typeof bareHook;
   retireHook = registry.$zh as typeof retireHook;
   ownerOf = registry.$ow as typeof ownerOf;
   own = registry.$own as typeof own;
   settle = registry.$so as typeof settle;
+  currentHook = registry.$ch as typeof currentHook;
   /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;
