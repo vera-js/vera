@@ -402,6 +402,17 @@ const listsOf = new WeakMap<object, { v: number; n: number; lists: (List | typeo
 let untracked: (<R>(fn: () => R) => R) | undefined;
 /** Development: a duplicate id already said, per list. */
 let saidDup: WeakSet<object> | undefined;
+/**
+ * **The lists a parent's run did not reach are retired right after that run** (vera-5a, 2026-10-20): a list was retired only
+ * on its own next wake, so a hidden list over data nobody writes kept every row alive and subscribed for good — the clear
+ * leak's magnitude. Once per parent run that maps a store array, a microtask (after the run's commit) retires each list
+ * whose `mapped` is not the parent's current run.
+ */
+const sweepAfter = (parent: List['parent'], state: { v: number; lists: (List | typeof PLAIN)[] }) =>
+  queueMicrotask(() => {
+    if (state.v !== parent.v) return;
+    for (const list of state.lists) if (list !== PLAIN && list !== undefined && !list.dead && list.mapped !== parent.v) orphan(list);
+  });
 /** A list the parent no longer reaches: its rows and its own hook retire. */
 const orphan = (list: List) => {
   list.dead = true;
@@ -522,14 +533,21 @@ const automap = (
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
   let state = listsOf.get(parent);
-  if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
-  else if (state.v !== parent.v) {
+  if (state === undefined) {
+    listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
+    sweepAfter(parent, state);
+  } else if (state.v !== parent.v) {
     state.v = parent.v;
     state.n = 0;
+    sweepAfter(parent, state);
   }
-  /** EVERY `.map` call in a render takes its place in the order, whatever path it takes (vera-5a: one rule, no exceptions). */
+  /**
+   * EVERY `.map` call in a render takes its place in the order, whatever path it takes (vera-5a: one rule). An index or
+   * non-function callback needs no memory — its arity is known at every call — so it takes the place WITHOUT writing
+   * PLAIN: writing it could overwrite a live list unretired, and turn a list that slid onto this place into a plain map.
+   */
   if (typeof fn !== 'function' || fn.length > 1) {
-    state.lists[state.n++] = PLAIN;
+    state.n++;
     return method.call(proxy, fn);
   }
   let list = state.lists[state.n];
