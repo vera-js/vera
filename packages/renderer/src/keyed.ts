@@ -199,6 +199,8 @@ let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) 
 let bareHook: ((owner: Owner, callback: (this: RowHook, signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
 let retireHook: ((hook: RowHook) => void) | undefined;
 let ownerOf: ((hook: RowHook) => Owner) | undefined;
+/** Core's run ownership (`$own`, option (e)). */
+let own: ((hook: unknown, item: List) => void) | undefined;
 /** Every row's callback, ONE function: core calls it as a method of the row's hook, which leads back to the row. */
 function rowCb(this: RowHook, signal?: unknown, init?: boolean) {
   rowRun.call(ownerOf!(this) as Row, signal, init);
@@ -363,6 +365,9 @@ class List {
   declare all: boolean;
   declare ident: boolean;
   declare dead: boolean;
+  /** Option (e)'s owned contract (`$`-named, read by core): the parent run that last claimed it, its owning hook. */
+  declare $r: number;
+  declare $h: unknown;
   constructor(parent: List['parent'], owner: List['owner']) {
     this._$g$ = 1;
     this._$x$ = false;
@@ -382,6 +387,12 @@ class List {
     this.all = true;
     this.ident = false;
     this.dead = false;
+    this.$r = -1;
+    this.$h = undefined;
+  }
+  /** Disposed by core when the parent's run ends without claiming it, or the parent hook retires. */
+  $d() {
+    if (!this.dead) orphan(this);
   }
   /** Connected while the component that mapped it is. */
   get isConnected() {
@@ -412,17 +423,6 @@ const listsOf = new WeakMap<object, { v: number; n: number; lists: (List | typeo
 let untracked: (<R>(fn: () => R) => R) | undefined;
 /** Development: a duplicate id already said, per list. */
 let saidDup: WeakSet<object> | undefined;
-/**
- * **The lists a parent's run did not reach are retired right after that run** (vera-5a, 2026-10-20): a list was retired only
- * on its own next wake, so a hidden list over data nobody writes kept every row alive and subscribed for good — the clear
- * leak's magnitude. Once per parent run that maps a store array, a microtask (after the run's commit) retires each list
- * whose `mapped` is not the parent's current run.
- */
-const sweepAfter = (parent: List['parent'], state: { v: number; lists: (List | typeof PLAIN)[] }) =>
-  queueMicrotask(() => {
-    if (state.v !== parent.v) return;
-    for (const list of state.lists) if (list !== PLAIN && list !== undefined && !list.dead && list.mapped !== parent.v) orphan(list);
-  });
 /** A list the parent no longer reaches: its rows and its own hook retire. */
 const orphan = (list: List) => {
   list.dead = true;
@@ -543,13 +543,10 @@ const automap = (
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
   let state = listsOf.get(parent);
-  if (state === undefined) {
-    listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
-    sweepAfter(parent, state);
-  } else if (state.v !== parent.v) {
+  if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [] }));
+  else if (state.v !== parent.v) {
     state.v = parent.v;
     state.n = 0;
-    sweepAfter(parent, state);
   }
   /**
    * EVERY `.map` call in a render takes its place in the order, whatever path it takes (vera-5a: one rule). An index or
@@ -603,6 +600,11 @@ const automap = (
     list = state.lists[state.n] = made;
   }
   state.n++;
+  /**
+   * **Owned by the parent's run** (option (e), core's `$own`): when a parent run ENDS without claiming this list — its
+   * render hid it, or no longer reaches it — core disposes it (`$d`, an orphan's retirement) at once, `.map` call or not.
+   */
+  own!(parent, list);
   list.fn = fn;
   list.items = proxy;
   list.mapped = parent.v;
@@ -746,11 +748,12 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
  * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); `each` values are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   bareHook = registry.$qb as typeof bareHook;
   retireHook = registry.$zh as typeof retireHook;
   ownerOf = registry.$ow as typeof ownerOf;
+  own = registry.$own as typeof own;
   /** Core's array handler asks `$M` for a store array's `.map` inside a render: automatic lists. */
   (registry as { $M?: unknown }).$M = automap;
   retire = registry.$z as typeof retire;

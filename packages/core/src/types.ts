@@ -153,6 +153,8 @@ export type HookRecord = {
   v: number;
   i: number;
   e: number;
+  /** What this hook's runs own (option (e)): disposed when a run ends without claiming it, and when the hook retires. */
+  o: { $r: number; $h: unknown; $d(): void }[] | undefined;
   /** Development: the last run queued by a hold, its run of consecutive held frames, and the hook that queued it. */
   _hf?: number;
   _s?: number;

@@ -174,7 +174,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
  * `.map` being called (the renderer telling a list its part no longer shows it, or matching lists by their array instead of
  * their order): a design point for Brian, with raw-array-first matching. It flips to a plain test when fixed.
  */
-test('HIDING a list releases its rows too, with no further write (vera-5a)', { todo: 'a run that maps nothing schedules no sweep — design point with raw-array-first matching' }, () => {
+test('HIDING a list releases its rows too, with no further write (vera-5a): the parent run that hid it disposes it (option (e))', () => {
   const r = child('hide');
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
