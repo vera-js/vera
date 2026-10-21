@@ -75,6 +75,8 @@ type Checked = keyof SsrRenderOptions | 'url';
 installShims();
 const { wire, inserts, flush } = await import('@verajs/core');
 setCoreFlush(flush);
+/** Core's server-render turn (step 2 (a)): what a render creates leaves every store when its turn ends. */
+const serverTurnOf = (inserts as unknown as { $ss?: (delta: number) => void }).$ss;
 /** `static styles` are part of what a browser renders, so the server adopts them unconditionally. */
 const { styles } = await import('@verajs/styles');
 wire([styles]);
@@ -470,6 +472,12 @@ const renderModule = async (
   pendingInstances.clear();
   staticRender = isStatic;
   if (isAsync) beginBudget(timeout ?? DEFAULT_TIMEOUT);
+  /**
+   * **This render's turn, for core** (step 2 (a), 2026-10-21): every hook the render creates links as usual — a write
+   * inside it must still re-render before serialization — and leaves every store when the turn ends (`$ss(-1)` below).
+   * Opened AFTER the module's import, so module-scope state (a store, a computed) is the process's, and stays live.
+   */
+  serverTurnOf?.(1);
   try {
     const element = buildInstance(tag, attrString);
     const { open, inner } = isAsync
@@ -494,6 +502,7 @@ const renderModule = async (
     staticRender = false;
     globalThis.document.title = title;
     saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
+    serverTurnOf?.(-1);
   }
 };
 

@@ -167,6 +167,8 @@ class HookState implements HookRecord {
     this.i = 0;
     this.e = 0;
     this._cb = callback;
+    /** Created inside a server render's turn: unlinked when that turn ends (`serverTurn`, below). */
+    if (serverScope > 0) born.push(this);
   }
 
   $n(signal?: Signal<unknown>, init?: boolean) {
@@ -273,6 +275,25 @@ class HookState implements HookRecord {
  * one shared function serves every row, reaching its row through `ownerOf` — no closure per row.
  */
 export const bare = (owner: ComponentElement, callback: HookCallback): HookRecord => new HookState(owner, callback, RENDER_PRIORITY, QUEUED);
+/**
+ * **A server render's links end with it** (step 2 (a), 2026-10-21). A server needs links DURING a render — a write in
+ * the render (a setup that loads data, a router's first navigation) must re-render before the markup is serialized
+ * (`@verajs/ssr` frames.ts) — but none after it: every link a long-lived store kept to a rendered component only kept
+ * that component alive (Phase 0 row 1: 200 of 200 renders retained; landed's weak links kept 0). So every hook created
+ * inside a server render's TURN is recorded, and when the turn ends each leaves every cell it joined. Cleanups are not
+ * run: nothing was removed, as landed never ran them either. `@verajs/ssr` opens and closes the turn (`$ss(1)` / `$ss(-1)`)
+ * around each render — one at a time per process (its `takeTurn`), so the depth is the turn. A hook created while a
+ * turn awaits — client code in the same process — is the documented edge (the ssr README's limits).
+ */
+let serverScope = 0;
+let born: HookRecord[] = [];
+export const serverTurn = (delta: number) => {
+  serverScope += delta;
+  if (serverScope !== 0) return;
+  const all = born;
+  born = [];
+  for (let i = 0; i < all.length; i++) unlinkFrom(all[i]!, 0);
+};
 export const retireHook = (hook: HookRecord) => {
   unlinkFrom(hook, 0);
   spend(hook);
