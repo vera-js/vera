@@ -290,12 +290,6 @@ export const bare = (owner: ComponentElement, callback: HookCallback): HookRecor
  * around each render — one at a time per process (its `takeTurn`), so the depth is the turn. A hook created while a
  * turn awaits — client code in the same process — is the documented edge (the ssr README's limits).
  */
-/**
- * The generation of a hook whose server turn has ended: a SMALL INTEGER no owner's generation can be (they count up from
- * 1, or are undefined) — `NaN` changed the field's representation (every generation is a small integer) and measured
- * slower (+10% cold vs +5% inline, a deferral made worse than none).
- */
-const INERT = -1;
 let serverScope = 0;
 let born: HookRecord[] = [];
 export const serverTurn = (delta: number) => {
@@ -309,26 +303,14 @@ export const serverTurn = (delta: number) => {
    * repeated server side effects, worst exactly under load. A generation no owner can have (`NaN`) stops every run at the
    * check `$n` and `$q` already make; nothing changes on a client's path.
    */
-  for (let i = 0; i < all.length; i++) all[i]!._g = INERT;
+  for (let i = 0; i < all.length; i++) all[i]!._g = NaN;
   /**
    * **Unlinked in the NEXT task, once the page is served** (Brian, 2026-10-21: "the speed with which content is served
    * is what matters"): the walk is the fix's own work (+3% of a small page's cold renders, inline — #32), and in a task
    * after the response it runs while no request waits. A macrotask on core's own realm, never a microtask (that would run
    * before the caller even receives its markup), outside the ssr's turn chain; each turn drains the list IT captured.
    */
-  if (!all.length) return;
-  /** ONE timer for every turn that ends before it fires (a burst): a timer and a closure per render cost the cold path. */
-  if (later === undefined) {
-    later = all;
-    setTimeout(unlinkLater, 0);
-  } else for (let i = 0; i < all.length; i++) later.push(all[i]!);
-};
-/** The turns' hooks waiting for the deferred walk; one pending timer drains them all. */
-let later: HookRecord[] | undefined;
-const unlinkLater = () => {
-  const all = later!;
-  later = undefined;
-  for (let i = 0; i < all.length; i++) unlinkFrom(all[i]!, 0);
+  if (all.length) setTimeout(() => { for (let i = 0; i < all.length; i++) unlinkFrom(all[i]!, 0); }, 0);
 };
 export const retireHook = (hook: HookRecord) => {
   unlinkFrom(hook, 0);
