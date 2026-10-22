@@ -1,6 +1,6 @@
 import type { ComponentElement, RenderTemplate } from '../types.js';
 import { RENDER_PRIORITY, settle } from '../modules/createHook.js';
-import { tracking } from '../store/store.js';
+import { currentInstance, tracking } from '../store/store.js';
 import { coalesce } from './coalesce.js';
 import { inserts } from '@verajs/inserts';
 import type { Renderer } from '@verajs/shared-types';
@@ -53,11 +53,12 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
     RENDER_PRIORITY,
     false,
     /**
-     * The element as the hook's OWNER, as `useHook(fn, priority, element)` takes it (E5, 2026-10-22): during a setup it is
-     * the component being set up anyway, and after an `await` in an async setup — where no component is current — it is
-     * what lets `useRender(template, host)` work instead of throwing `no-owner`.
+     * **The owner is the component being set up; `element` only when NONE is** (E5, 2026-10-22). During a setup the hook
+     * stays the current component's even when it draws elsewhere (making the target the owner left it on an element
+     * nothing commits — reverted 2026-09-28, the row in core-api). After an `await` in an async setup no component is
+     * current, and the element given is then the owner, as `useHook(fn, priority, element)` takes it.
      */
-    element
+    currentInstance.element ?? element
   );
 };
 
