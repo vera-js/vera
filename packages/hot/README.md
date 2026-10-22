@@ -60,3 +60,10 @@ until a reload.
 - **Construct by tag or by the class `define` returns.** After a redefine, `define` still returns the registered class,
   so `new XCard()` and `instanceof` keep working.
 - **Wiring it twice is harmless.** A second copy, or the module reloading itself, does nothing.
+- **It sees every tag defined after it is wired**, not only vera components: a third-party element gets the same
+  forwarders, and a class without a `connectedCallback` or `attributeChangedCallback` gains one that does what the platform
+  would have done. Development only, and the behavior is the same; it is what makes any tag redefinable.
+- **One window's registry.** hot patches the page's `customElements`; a component defined in an iframe's own realm is not
+  covered.
+- **One reload request per swap.** Several live elements of one tag that need a reload produce one event; another tag's
+  swap produces its own.

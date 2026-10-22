@@ -189,6 +189,17 @@ test('a formAssociated change is a reload request', async () => {
   el.remove();
 });
 
+test('one reload request per swap: two live elements of one tag ask once, and another tag asks for itself', async () => {
+  customElements.define('x-hot-form2', class extends HTMLElement {});
+  customElements.define('x-hot-form3', class extends HTMLElement {});
+  const els = ['x-hot-form2', 'x-hot-form2', 'x-hot-form3'].map((tag) => document.body.appendChild(document.createElement(tag)));
+  reloads.length = 0;
+  customElements.define('x-hot-form2', class extends HTMLElement { static formAssociated = true; });
+  customElements.define('x-hot-form3', class extends HTMLElement { static formAssociated = true; });
+  assert.deepEqual(reloads.map((r) => r.tag), ['x-hot-form2', 'x-hot-form3']);
+  for (const el of els) el.remove();
+});
+
 test('a tag defined BEFORE hot was wired refuses a redefine, by code', () => {
   assert.throws(() => define('x-hot-early', () => () => html`<i></i>`), /hot-defined-first/);
 });
