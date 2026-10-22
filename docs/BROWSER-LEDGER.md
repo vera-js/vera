@@ -273,8 +273,13 @@ from another machine, or after that is undone, has a variable changed.
   a small page +8% against the base where the same marker written as `-1` was +4% (eight fresh processes per variant, a
   balanced order, the core's hash checked per process). Consequence: a sentinel in an integer field is an out-of-range
   small integer, never `NaN` (or any non-integer). (Node 24, V8; 2026-10-21)
-- **Firefox: an element field pointing into a reactive store's graph costs creation through the major GC** — measured
-  behavior; the MECHANISM IS UNPROVEN. A component whose store (a vera `createStore` proxy) is reached only through its
+- **Firefox: an element field pointing into a reactive store's graph costs creation through the major GC** — the
+  mechanism, CONFIRMED by its fix: a REMOVED DOM node keeps everything its fields reach alive until Firefox's cycle
+  collector frees the node, so that graph survives every GC and is swept from the tenured heap. A class that drops its
+  store field when removed recovered it (headless 756 → 682 ms against 645 for a store held only by the setup closure,
+  which core already releases at teardown); releasing core's props record at a real removal measured headed Firefox
+  −18% to −28% across class and `define` components (create and churn, 6 sessions, 0/6 slower; Chrome flat to +5% on
+  one row). The original measurement follows. A component whose store (a vera `createStore` proxy) is reached only through its
   setup closure (the hook → its render closure) created 100k elements in 668 ms; the same component with the store on an
   element field read 772, a plain wrapper holding the store on the field 740, and the store in the closure with only its
   raw target on the element 757 (create1, four store reads per element). The Gecko profile puts the difference in the
@@ -285,9 +290,8 @@ from another machine, or after that is undone, has a variable changed.
   the store's graph is what the arms isolate. Allocation-site pretenuring was checked and is NOT supported:
   SpiderMonkey's pretenuring report (`JS_GC_REPORT_PRETENURE`) prints only the parent process's sites under a
   multi-process Firefox; run with e10s off (diagnosis only), the framework's allocation sites pretenure identically in both
-  arms. Consequence: where a component's props record lives (core's `_$raw$`, which bound
-  undeclared props already use, and `define`'s declared props) is a design decision measured on Firefox, never assumed
-  free. (Playwright Firefox 153 HEADLESS — provisional, 4 runs per arm; the profile 2 runs each; 2026-10-21)
+  arms. Consequence: release what a component's fields reach at its REAL removal (core's teardown swaps the props record
+  for a plain copy and drops its store), as CLAUDE.md already says for DOM↔JS back-pointers — and measure it on Firefox. (Playwright Firefox 153 HEADLESS — provisional, 4 runs per arm; the profile 2 runs each; 2026-10-21)
 - **Firefox reads a DOM element's own field by a COMPUTED key slower than by a literal name** — `this[KEY]`, whether KEY
   is a Symbol or a string built at load, against `this._name`. Measured on a custom element's
   `attributeChangedCallback` writing a store it caches on the element (100k elements, one attribute written per element
