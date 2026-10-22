@@ -8,7 +8,7 @@ export const PROSE: Record<string, Prose> = {
   ],
   'selector-not-wired': () => [
     'createSelector needs the keyed module wired, and it was not.',
-    'Wire it once at your entry — `wire([renderer, eachList])` — before a component creates a selector.',
+    'Wire it once at your entry — `wire([renderer, lists])` — before a component creates a selector.',
   ],
   'keyed-not-template': (received) => [
     `expected a template as the second argument and received ${received}.`,

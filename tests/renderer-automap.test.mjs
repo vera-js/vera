@@ -24,8 +24,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
   globalThis[key] = dom.window[key];
 const { init, html, wire, createStore, flush } = await load('core');
 const { renderer } = await load('renderer');
-const { eachList } = await load('renderer/keyed');
-wire([renderer, eachList]);
+const { lists } = await load('renderer/keyed');
+wire([renderer, lists]);
 const settle = async () => { flush(); await new Promise((resolve) => setTimeout(resolve, 0)); };
 const make = (prefix, n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, t: `${prefix}${i + 1}` }));
 
@@ -125,8 +125,8 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   const { load } = await import('./tests/dist.mjs');
   const { init, html, wire, createStore, flush } = await load('core');
   const { renderer } = await load('renderer');
-  const { eachList } = await load('renderer/keyed');
-  wire([renderer, eachList]);
+  const { lists } = await load('renderer/keyed');
+  wire([renderer, lists]);
   const settle = () => new Promise((r) => setImmediate(r));
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
   const mode = ${JSON.stringify(mode)};
@@ -226,4 +226,23 @@ test('clearing a list RELEASES its rows: nothing of 5 × 1000 created-and-cleare
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS: gc ran and the kept list still updates (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
   assert.ok(r.left <= 2, `${r.left} hook records left after the last clear (rows not released)`);
+});
+
+/** The `lists-unwired` warning's control (its rows are in core-lists-unwired): WIRED, the same render says nothing. */
+test('wired: a store array mapped to templates in a render prints no lists-unwired warning', async () => {
+  const seen = [];
+  const warn = console.warn;
+  console.warn = (...args) => seen.push(args.join(' '));
+  try {
+    const s = createStore({ rows: [{ id: 1 }, { id: 2 }] });
+    const host = document.createElement('div');
+    document.body.append(host);
+    init(host, () => () => html`<ul>${s.rows.map((r) => html`<li>${r.id}</li>`)}</ul>`);
+    await settle();
+    assert.equal(host.querySelectorAll('li').length, 2, 'CONTROL: it rendered');
+    host.remove();
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(seen.filter((line) => line.includes('lists-unwired')).length, 0);
 });

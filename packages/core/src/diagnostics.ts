@@ -44,6 +44,10 @@ export const PROSE: Record<string, Prose> = {
     `it has a \`${name}\` method and no \`setup\`, so init found nothing to run.`,
     'Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns.',
   ],
+  'lists-unwired': () => [
+    'returned templates, but no list module is wired, so its rows are matched by position: reorder the array and a row\'s DOM state (a focused input, a typed value) and its component state show against another item.',
+    'Wire the automatic lists once at your entry — wire([renderer, lists]) with lists from @verajs/renderer/keyed — or key each row with keyed(key, row). To match by position on purpose (rows with no state), map a plain copy: [...state.rows].map(…).',
+  ],
   'deep-not-boolean': (received) => [
     `was given deep: ${received}, which is not true or false, so it used its default.`,
     'Pass a boolean — signal(value, { deep: true }), createStore(obj, { deep: false }).',

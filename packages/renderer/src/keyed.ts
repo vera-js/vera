@@ -187,7 +187,7 @@ type Owner = { _$g$: number; _$x$: boolean; _$h$?: unknown[]; localName: string;
 type RowHook = { $n(signal?: unknown, init?: boolean): void };
 type EachPart = { $p(value: unknown): void; $u(item: Item, value: unknown): Item; $i?: Item[] };
 
-/** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `eachList` when it is wired: a row's subscriber. */
+/** Core's queued-hook factory (`$q`) and retire (`$z`), handed over by `lists` when it is wired: a row's subscriber. */
 let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
 /** Core's bare row hook (`$qb`), its direct retire (`$zh`) and the hook → owner read (`$ow`): one object fewer and no closure per row. */
 let bareHook: ((owner: Owner, callback: (this: RowHook, signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
@@ -740,10 +740,10 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
 };
 
 /**
- * Wire it: `wire([renderer, eachList])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
+ * Wire it: `wire([renderer, lists])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); automatic `.map` results are recognized on the renderer's `'value'` insert.
  */
-export const eachList = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+export const lists = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   bareHook = registry.$qb as typeof bareHook;
   retireHook = registry.$zh as typeof retireHook;

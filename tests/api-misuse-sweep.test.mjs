@@ -57,8 +57,8 @@ const CASES = [
   ['css("text")', () => styleModule.css('p{}'), /css: expected a template literal/],
   ['renderInto(result) with no container', () => renderInto({}), /renderInto: expected a container node/],
   ['keyed(key) with no template', () => keyed('a'), /keyed: expected a template/],
-  /** This file never wires `eachList`, so the selector has no store kit to build on: it must say so, by name. */
-  ['createSelector() before eachList is wired', () => createSelector(() => 1), /createSelector: .*wired/],
+  /** This file never wires `lists`, so the selector has no store kit to build on: it must say so, by name. */
+  ['createSelector() before lists is wired', () => createSelector(() => 1), /createSelector: .*wired/],
   ['a content property beside content', () => renderInto(core.html`<div .textContent=${'v'}><b>s</b></div>`, document.createElement('div')), /renderer: <div> binds `\.textContent`/],
   ['a binding inside an SVG <title> beside an element', () => renderInto(core.html`<svg><title>${'a'}<desc></desc></title></svg>`, document.createElement('div')), /renderer: a binding inside <title> in SVG or MathML/],
   ['a binding inside an obsolete raw-text element', () => renderInto(core.html`<xmp>${'a'}</xmp>`, document.createElement('div')), /renderer: a binding inside <xmp> is never rendered/],

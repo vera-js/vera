@@ -372,7 +372,8 @@ const veraS6aImpl = (mount) => {
 const veraP1Impl = (store) => (mount) => {
   setRenderScheduler(DEFAULT_SCHEDULER);
   wireVera();
-  wire([keyedModule.eachList]);
+  /** `lists` since 2026-10-22, `eachList` before: by presence, so one page serves builds on either side. */
+  wire([keyedModule.lists ?? keyedModule.eachList]);
   const host = document.createElement('div');
   mount.appendChild(host);
   const flags = createStore({});

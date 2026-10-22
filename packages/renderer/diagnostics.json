@@ -251,7 +251,7 @@
       "code": "selector-not-wired",
       "params": [],
       "message": "createSelector needs the keyed module wired, and it was not.",
-      "fix": "Wire it once at your entry — `wire([renderer, eachList])` — before a component creates a selector."
+      "fix": "Wire it once at your entry — `wire([renderer, lists])` — before a component creates a selector."
     },
     {
       "code": "claim-threw",

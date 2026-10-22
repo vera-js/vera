@@ -304,8 +304,8 @@ the same reason.
 at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
 it is safe alongside any of them, `/hydrate` included.
 
-**Experimental: automatic `.map`, `eachList` and `createSelector`.** With `eachList` wired —
-`wire([renderer, eachList])` — a plain `state.rows.map((row) => html`…`)` over a store array inside a render is a keyed
+**Experimental: automatic `.map`, `lists` and `createSelector`.** With `lists` wired —
+`wire([renderer, lists])` — a plain `state.rows.map((row) => html`…`)` over a store array inside a render is a keyed
 list whose rows track themselves: a field write re-renders that one row, and pushes, removals and swaps touch only what
 moved. Rows are keyed by an item's own `id`, else by the item itself. `createSelector(() => state.selected)` returns
 `isSelected(key)`, which re-renders only the old and the new key's rows on a change. Not released; the design is still

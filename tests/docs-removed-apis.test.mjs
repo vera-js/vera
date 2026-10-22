@@ -45,6 +45,10 @@ const REMOVED = {
    *  deep form is `signal(v, { deep: true })`. Keyed on the CALL (` ref(`, `` `ref( ``), never the bare word, which is
    *  ordinary prose ("an element ref") and inside `deref(`. */
   shallowRef: 'signal(v) — shallow by default',
+  /** The automatic-list connector was renamed `lists` (2026-10-22): keyed on the wire and import forms, since the bench
+   *  keeps a local helper of the same name. */
+  'wire([renderer, eachList])': 'wire([renderer, lists])',
+  '{ eachList }': '{ lists }',
   ' ref(': 'signal(v, { deep: true }) — ref was deep; signal is shallow by default',
   '`ref(': 'signal(v, { deep: true }) — ref was deep; signal is shallow by default',
   /** The JS easing-solver pack died with the inline write path (the sweep): the browser is the

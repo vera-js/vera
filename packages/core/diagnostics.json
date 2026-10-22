@@ -185,6 +185,12 @@
       "fix": "init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount()."
     },
     {
+      "code": "lists-unwired",
+      "params": [],
+      "message": "returned templates, but no list module is wired, so its rows are matched by position: reorder the array and a row's DOM state (a focused input, a typed value) and its component state show against another item.",
+      "fix": "Wire the automatic lists once at your entry — wire([renderer, lists]) with lists from @verajs/renderer/keyed — or key each row with keyed(key, row). To match by position on purpose (rows with no state), map a plain copy: [...state.rows].map(…)."
+    },
+    {
       "code": "nested-flush",
       "params": [],
       "message": "flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.",
