@@ -28,7 +28,7 @@ test('options that are not an object are refused by name, in both entry points',
 });
 
 /**
- * **The formatter itself never throws** (vera-5a's audit of the first version): a thrown value is the component's, and
+ * **The formatter itself never throws**: a thrown value is the component's, and
  * one with no prototype, a throwing `toString` or `message` getter, or a Proxy whose traps throw crashed the error path,
  * replacing the real failure with an unrelated TypeError from inside the framework.
  */

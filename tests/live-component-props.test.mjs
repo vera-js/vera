@@ -102,7 +102,7 @@ test('`!name` and `.name` changed in one render coalesce to one child render', a
 });
 
 /**
- * The rows that GUARD the comparison itself (vera-5a's mutation: always deliver → only these red). An unchanged
+ * The rows that GUARD the comparison itself (mutation: always deliver → only these red). An unchanged
  * primitive delivered again dies at core's same-value store write, so the zero-renders row above cannot see it. One per
  * spelling: the template and spread each carry their own inline copy of the read.
  */

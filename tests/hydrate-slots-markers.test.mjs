@@ -206,7 +206,7 @@ test('a foreign format number: a full client render, the content kept, and the f
 });
 
 /**
- * **Slots' capture is a versioned seam** (vera-5a's condition): a slots from another release meets hydration — forced here
+ * **Slots' capture is a versioned seam**: a slots from another release meets hydration — forced here
  * by re-stamping the seam — and the served host declines through the ordinary fallback with ONE warning: no throw, and no
  * light node placed anywhere.
  */
@@ -284,7 +284,7 @@ test('a rescued host keeps the light order across slots through a re-slot', asyn
   host.remove();
 });
 /**
- * **A statement that does not account for the content is a mismatch** (vera-5a's condition): the true light order is then
+ * **A statement that does not account for the content is a mismatch**: the true light order is then
  * unknowable, so it is never silently replaced by document order on an adopted host — the standard fallback warning, the
  * content kept.
  */
@@ -356,8 +356,8 @@ test('a hydrateSlots seam of another protocol: one warning, the ordinary fallbac
 });
 
 /**
- * **An ordinary server-rendered component — no `<slot>` in its template — on a page that wires slots hydrates** (vera-5a,
- * 2026-10-08: the decline's boundary, settled by a pin). The decline renders a custom element WITHOUT a light-tree
+ * **An ordinary server-rendered component — no `<slot>` in its template — on a page that wires slots hydrates**
+ * (2026-10-08: the decline's boundary, settled by a pin). The decline renders a custom element WITHOUT a light-tree
  * statement on the client, as client-made; that is only safe because a server with slots wired states EVERY component
  * host it renders — `N:` for one with no light content — so "no statement" reliably means "not the server's".
  */

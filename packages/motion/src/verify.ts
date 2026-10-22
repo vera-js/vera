@@ -10,7 +10,7 @@
  * is marked, its computed values are compared to what the generated rules SAY they should be,
  * and a mismatch is reported by name.
  *
- * Five shapes were weighed (recorded in the portal design log): static author-CSS scanning
+ * Five shapes were weighed: static author-CSS scanning
  * (needs a CSS parser this repo will not ship, false-positive-rich), a document-wide specificity
  * walk (`document.styleSheets` throws on CORS sheets), an emitted canary property (detects rule
  * LOSS but not per-property overrides, and costs production bytes for a dev instrument), a

@@ -268,7 +268,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
   /**
    * A custom element's props map by the compiler's component rule — never by the HTML-control guesses. A dash name is
    * enough here: the compiler also excludes eight reserved SVG/MathML names (`font-face`, `annotation-xml`…), which
-   * cost 77 B to carry and which a tag essentially never names (Brian, 2026-10-01, on vera-5a's recommendation).
+   * cost 77 B to carry and which a tag essentially never names (Brian, 2026-10-01).
    */
   const custom = text.includes('-');
   self[STATIC] = text;

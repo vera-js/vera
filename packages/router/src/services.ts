@@ -605,7 +605,7 @@ export const navigate = async (
      * both correct spellings. Development only, once per input.
      */
     /** `warnedSwallow`: one entry per distinct relative input — development only, bounded by what the app's code
-     *  passes; no cap (vera-5a's note, 2026-10-09: decided, not overlooked). */
+     *  passes; no cap (2026-10-09: decided, not overlooked). */
     if (__DEV__ && typeof target === 'string' && !/^[/?#]/.test(target) && !warnedSwallow.has(target)) {
       const prior = state.currentPath.split(/[?#]/)[0];
       const cut = prior.lastIndexOf('/') + 1;

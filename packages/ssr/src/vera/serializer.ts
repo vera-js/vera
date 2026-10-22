@@ -87,7 +87,7 @@ const NAME_CHAR_BEFORE = /[^\s"'>=/]$/;
 const NAME_CHAR_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
 /**
  * A bound `javascript:` URL, refused — said once per process per component and attribute. The VALUE is never printed:
- * it is attacker-shaped by definition, and a server's console is a log pipeline (vera-5a, 2026-10-09).
+ * it is attacker-shaped by definition, and a server's console is a log pipeline (2026-10-09).
  */
 const refusedScriptUrl = (name: string): void => {
   const tag = currentRenderingTag();

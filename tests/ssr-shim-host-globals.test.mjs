@@ -4,7 +4,7 @@
  *
  * `installShims()` writes ~35 globals. On a server that is free: Node defines none of them, so it
  * is filling an empty room. Off the main thread it is not free, and three of those writes were
- * measured breaking a host that had every right to expect them (`.probe/ssr-in-browser/`):
+ * measured breaking a host that had every right to expect them:
  *
  *   - `self` is a getter-only property of `WorkerGlobalScope`, so assigning it **threw** and the
  *     shim never finished installing.

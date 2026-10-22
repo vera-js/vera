@@ -1,6 +1,6 @@
 /**
  * **cms's list lines — validation errors, build warnings — each end on its code, in every build** (code-system phase
- * 5a-lists, vera-5a, 2026-10-09). These are pushed onto lists (a manifest's errors, the build's warnings, the CLI's
+ * 5a-lists, 2026-10-09). These are pushed onto lists (a manifest's errors, the build's warnings, the CLI's
  * stderr) rather than thrown, so api-misuse-sweep does not reach them; this does. Each line leads with its subject (the
  * field, the file or the collection, quoted) and ends with its code, and a value an author wrote arrives quoted: a
  * newline or an ANSI sequence in it can neither forge nor hide a line. `publish` and `node` keep their words in every

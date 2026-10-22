@@ -220,7 +220,7 @@ test('methods cannot replace the generated connectedCallback or the constructor 
   assert.equal(customElements.get('x-def-reserved'), el.constructor);
   const enumerable = (k) => Object.getOwnPropertyDescriptor(C.prototype, k).enumerable;
   /**
-   * DECIDED (vera-5a, 2026-10-21): the one-assign form makes the generated `connectedCallback` ENUMERABLE (a new
+   * DECIDED (2026-10-21): the one-assign form makes the generated `connectedCallback` ENUMERABLE (a new
    * property, −11 B); `constructor` keeps the class's attributes. A class twin's stays non-enumerable — pinned beside it.
    */
   assert.deepEqual({ constructor: enumerable('constructor'), connectedCallback: enumerable('connectedCallback'), open: enumerable('open') }, { constructor: false, connectedCallback: true, open: true });
@@ -513,7 +513,7 @@ test('release at removal: a CLASS component with adopted props, removed then re-
 
 /**
  * `!name`, not `.name`: a `.name` binding skips an unchanged value before any compare, so only a LIVE binding — compared
- * against the child's CURRENT value every render — can show a stale record (vera-5a). Red with a captured old store.
+ * against the child's CURRENT value every render — can show a stale record. Red with a captured old store.
  */
 test('release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)', async () => {
   const parentState = createStore({ name: 'a', tick: 0 });

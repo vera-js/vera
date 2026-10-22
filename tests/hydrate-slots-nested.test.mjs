@@ -159,7 +159,7 @@ test('the statement is STRICT at the end: a last light child the outer template 
 });
 
 /**
- * **vera-5a's lazy-order pins.** (a) A literal `<!--[-->`…`<!--]-->` pair in the INNER host's own template, the outer
+ * **The lazy-order pins.** (a) A literal `<!--[-->`…`<!--]-->` pair in the INNER host's own template, the outer
  * walking first: the statement cannot tell the inner template's literal pair from a real range — only the inner's own
  * template knows its statics — so the statement does not reconcile, the outer falls back, and the END STATE is what a
  * client render makes. A known limit of the lazy order, recorded here; with the inner adopted first, the inner's own
@@ -293,7 +293,7 @@ for (const order of ['outer first (statement)', 'inner first (live record)'])
   });
 
 /**
- * **Runs, held step by step** (R1, vera-5a's conditions): every shape a list takes after hydration — keyed REORDER (each
+ * **Runs, held step by step** (R1): every shape a list takes after hydration — keyed REORDER (each
  * node kept by identity), GROW, SHRINK to EMPTY, REPLACE by a template and back, runs mixed with statics with one
  * emptied in the MIDDLE (its unit must stand before the static after it, never at the end) — in both orders, and
  * hydrating moves NOTHING the server rendered: the run is seated in holding, never by moving a light node.

@@ -1,6 +1,6 @@
 /**
- * **Setting a component up again in place retires its previous generation completely** (found 2026-10-10, R2's inventory
- * with vera-5a). A removal ran a generation's effect cleanups; a re-init on a LIVE element — `init(this, s1)` then
+ * **Setting a component up again in place retires its previous generation completely** (found 2026-10-10, R2's inventory).
+ * A removal ran a generation's effect cleanups; a re-init on a LIVE element — `init(this, s1)` then
  * `init(this, s2)`, or a setup calling `init` again — only replaced the cleanup set, so s1's interval or listener
  * outlived its hooks. Both paths now go through one `retireGeneration`: s1's cleanups run (a throwing one is reported,
  * the rest still run), s1's subscriptions leave the store, and s2 is the component.

@@ -104,7 +104,7 @@ test('a served light host with no children at all is rendered fresh, whatever it
 
 /**
  * **A stated-empty host keeps its statement when it has no children** (the renderer does not ask an empty container), so
- * the statement must never be read LATER (vera-5a): a stale `1:` read as served markup would clear the component's own
+ * the statement must never be read LATER: a stale `1:` read as served markup would clear the component's own
  * render. It cannot be: core rebuilds a reinserted or moved component (its DOM is not kept across moves today), and a
  * released root is cleared before the `'init'` hooks run, so every later first render meets an EMPTY container, which
  * the renderer never asks about. Reading the statement CONSUMES it, so the attribute still standing proves it was never

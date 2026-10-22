@@ -3,7 +3,7 @@
  * 2026-10-16). A write read by components that each render AND run an effect queues render, effect, render, effect…,
  * so the single queue went out of order at every second pass and every such flush copied and sorted it. Now the rest
  * is regrouped — one walk per priority present, keeping creation order — and a flush in order (render-only) runs exactly
- * the path it ran before. Two rows: the ORDER (vera-5a — the case where order matters: an effect writing state its own
+ * the path it ran before. Two rows: the ORDER (the case where order matters: an effect writing state its own
  * render reads), and the cost the change removes (no sort at all on that flood). The rare same-priority case where
  * creation order IS broken is pinned in core-hook-order ("past 2^53 / 1e9 … orders by creation").
  */

@@ -1,6 +1,6 @@
 /**
  * **Every line the formatters write is one of the documented forms, and the docs show every production form**
- * (code-system phase 5b, vera-5a, 2026-10-09). tests/diagnostics-through-tables reads hand-written SOURCE literals; a
+ * (code-system phase 5b, 2026-10-09). tests/diagnostics-through-tables reads hand-written SOURCE literals; a
  * formatter's output is no literal, so it never sees it — this drives the formatters themselves (shared-utils'
  * `diagnostic`, `misuse`, `misuseAbout`, `reportUncaught`, and ssr's twins) in the build under test and requires each output to match
  * exactly one form, and the form its formatter is for. The forms are disjoint by construction (each test input keeps

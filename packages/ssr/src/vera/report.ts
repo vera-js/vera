@@ -1,7 +1,7 @@
 /**
  * **How @verajs/ssr says what it says** (code-system phase 4c, 2026-10-09). Twins of @verajs/shared-utils' `misuse()`
  * and `diagnostic()` DEVELOPMENT output — ssr cannot import the private package, so the shapes are restated here and
- * `tests/ssr-shared-twins.test.mjs` holds the generated strings equal — plus the two server rules (vera-5a):
+ * `tests/ssr-shared-twins.test.mjs` holds the generated strings equal — plus the two server rules:
  * text that came from outside is quoted, and a warning is said once per process per key, never at request rate.
  */
 type Said = readonly [string, string?];
@@ -23,7 +23,7 @@ export const ssrWarning = (subject: string, code: string, prose: Said): string =
 /**
  * `max` caps the length (80 by default); `Infinity` keeps the whole text for a value worth reading in full — a site
  * owner's own path — which is still ESCAPED: truncation and escaping are separate jobs, and a path is not free of control
- * characters just because its owner wrote it (vera-5a, 2026-10-09).
+ * characters just because its owner wrote it (2026-10-09).
  */
 export const quoted = (text: string, max = 80): string => JSON.stringify(text.length > max ? `${text.slice(0, max)}…` : text);
 

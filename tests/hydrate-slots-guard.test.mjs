@@ -2,7 +2,7 @@
  * **Hydrating light slots without `hydrateSlots` wired** — the guard. A served light host (`data-vm-light`) is the
  * server's output of a light-DOM slots component, and only `@verajs/renderer/hydrate-slots` reads it. Without that piece
  * hydration throws a coded `hydration-slots` error BEFORE touching anything, so the server's markup stands exactly as
- * served — never cleared, never half-adopted. These rows pin that, and how far the throw reaches (vera-5a's condition):
+ * served — never cleared, never half-adopted. These rows pin that, and how far the throw reaches:
  * a page's OTHER components must still hydrate and work.
  */
 import { load } from './dist.mjs';

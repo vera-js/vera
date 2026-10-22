@@ -68,7 +68,7 @@ export const diagnostic = (
 /**
  * `max` caps the length (80 by default); `Infinity` keeps the whole text for a value worth reading in full — a site
  * owner's own path — which is still ESCAPED: truncation and escaping are separate jobs, and a path is not free of control
- * characters just because its owner wrote it (vera-5a, 2026-10-09).
+ * characters just because its owner wrote it (2026-10-09).
  */
 export const quoted = (text: string, max = 80): string => JSON.stringify(text.length > max ? `${text.slice(0, max)}…` : text);
 

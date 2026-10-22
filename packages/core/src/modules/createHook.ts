@@ -170,7 +170,7 @@ class HookState implements HookRecord {
     /**
      * Created BY a server render's tree — inside a running hook or a setup, or owned by a node — during its turn: unlinked
      * when the turn ends (`serverTurn`, below). A module first imported during the turn (a component's lazy
-     * `await import()`) runs its top level with none of those, so its module-scope state stays the process's (vera-5a).
+     * `await import()`) runs its top level with none of those, so its module-scope state stays the process's.
      */
     if (serverScope > 0 && (tracking.hook !== undefined || currentInstance.element !== null || (owner as Partial<Node>).nodeType !== undefined))
       born.push(this);
@@ -237,7 +237,7 @@ class HookState implements HookRecord {
      * **A run of THIS hook nested inside its own run** (a raw hook writing what it read re-runs synchronously) is safe
      * by construction, and must stay so: the inner run reconciles `s` to ITS reads and leaves `i` past them (or in
      * direct mode), so the outer run can only skip reads already linked or append new ones, and its end-of-run unlink
-     * (`i < s.length`) cannot fire. The worst case is over-subscription, NEVER a lost link (`.probe/cells/reenter.mjs`:
+     * (`i < s.length`) cannot fire. The worst case is over-subscription, NEVER a lost link (measured:
      * 4 runs, links exactly {x, y}). A change that saved and restored `i` around a nested run would break this.
      */
     const first = this.v === 0;

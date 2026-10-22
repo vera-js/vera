@@ -1,5 +1,5 @@
 /**
- * The expression tier — DESIGN-DIRECTIVES §5, as refined by §19.2. A STANDALONE ADDITIVE ENTRY:
+ * The expression tier. A STANDALONE ADDITIVE ENTRY:
  * this file imports nothing from the engine at runtime (type imports erase), and reaches it only
  * through the connector `wireDirectives` hands seams to — the renderer's additive-entry rule, so
  * the CDN two-bundle case cannot create a second engine.

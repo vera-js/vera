@@ -4,7 +4,7 @@
  * layout effect sees of a directive is decided by when the directive applied. Pinned: after a write, a layout effect
  * sees the directive's result. On MOUNT it sees the rendered element without the directive's first application (the
  * engine activates after the component's first pass) — before 2026-10-08 it saw no element at all, since it ran before
- * the render. Measured both ways (`.probe/le-directives.mjs`, hydra worktree).
+ * the render. Measured both ways.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

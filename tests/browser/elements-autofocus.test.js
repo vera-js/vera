@@ -1,7 +1,7 @@
 /**
  * **`@verajs/renderer/elements`' unrelated consumer, on the engines: `autofocus` that works after load.**
  *
- * Measured on Chromium, Firefox and WebKit before this was built (portal probe `autofocus`): the first
+ * Measured on Chromium, Firefox and WebKit before this was built: the first
  * `autofocus` element rendered after page load takes focus, and EVERY LATER ONE IS IGNORED — so in an
  * app, the second form that appears (an edit dialog, a step two) never gets the focus its markup asks
  * for. The five-line claim below is the README's recipe; it runs because `mount` fires once the render

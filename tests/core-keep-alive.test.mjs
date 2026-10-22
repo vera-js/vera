@@ -1,8 +1,8 @@
 /**
  * **A move is not a removal.** A component moved in ONE DOM operation (`append`/`insertBefore` of a connected node) is
  * still connected when its `disconnectedCallback` runs — the platform runs the callbacks after the operation (Chrome,
- * Firefox and Safari measured, `.probe/move-fact/`) — so core tears nothing down and the reconnect sets nothing up. A
- * real removal tears down synchronously, exactly as before. Pins from vera-5a's review.
+ * Firefox and Safari measured) — so core tears nothing down and the reconnect sets nothing up. A
+ * real removal tears down synchronously, exactly as before.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -31,8 +31,8 @@ customElements.define('ka-kid', class extends dom.window.HTMLElement {
 const box = () => { const d = doc.createElement('div'); doc.body.append(d); return d; };
 
 /**
- * jsdom runs the callbacks after the operation, as the three engines do (vera-5a pin 2) — measured WITHOUT core in
- * `.probe/move-fact/pending-run.mjs` (core wraps every class's callbacks, so a class here cannot observe it raw); the
+ * jsdom runs the callbacks after the operation, as the three engines do — measured WITHOUT core
+ * (core wraps every class's callbacks, so a class here cannot observe it raw); the
  * next test passing under jsdom is the same fact seen through core.
  */
 test('a one-op move keeps the component: no dc, no cleanup, no second setup', async () => {
@@ -134,7 +134,7 @@ test('a throwing author disconnectedCallback still propagates on removal, as bef
   assert.ok(errors.some((m) => m.includes('author dc threw')), `reported: ${JSON.stringify(errors)}`);
 });
 
-test('slots moves every slotted component in ONE operation: two named slots + unassigned content (vera-5a)', async () => {
+test('slots moves every slotted component in ONE operation: two named slots + unassigned content', async () => {
   log.length = 0;
   customElements.define('ka-two', class extends dom.window.HTMLElement {
     connectedCallback() { init(this); renderInto(html`<header><slot name="a"></slot></header><footer><slot name="b"></slot></footer>`, this); }
@@ -170,7 +170,7 @@ test('a custom element that never called init keeps the platform\'s callbacks on
 });
 
 /**
- * **Nothing is written to someone else's element** (vera-5a, 2026-10-02). Core's wrapper sees every class defined after
+ * **Nothing is written to someone else's element** (2026-10-02). Core's wrapper sees every class defined after
  * it loads, and the fields it keeps are mangled to single letters in PRODUCTION — where a minified library keeps fields
  * of its own. Published 0.3.1 set `this.t = true` on every custom element that disconnected. Every one-letter name
  * holds a value of the element's own, and the instance's own properties must be exactly as they were after a whole
@@ -180,7 +180,7 @@ test('a custom element that never called init keeps the platform\'s callbacks on
 test('a third-party element keeps every field of its own through connect, move, remove and reconnect', async () => {
   const LETTERS = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$'];
   /**
-   * And the UNMANGLED names core keeps (vera-5a): `_$c$` is an ordinary name another base class may own, so it
+   * And the UNMANGLED names core keeps: `_$c$` is an ordinary name another base class may own, so it
    * cannot be how core recognizes its own — entries here must never be called, and a truthy `_$m$` of its own must
    * never skip its connectedCallback.
    */

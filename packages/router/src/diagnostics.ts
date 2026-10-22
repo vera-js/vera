@@ -35,7 +35,7 @@ export const PROSE: Record<string, Prose> = {
     `navigate("${target}") from "${prior}" resolved to "${bare}" — a relative path replaces the last segment, like a relative href, and here that segment was a route param ("${last}").`,
     `For the SIBLING "${bare}" this is right. For the child "${prior}/${target}", use a named route — \`navigate({ name })\` fills params from the current route — or the absolute path.`,
   ],
-  /** Two variants of one fact — a nested route found no outlet — the variant a parameter (vera-5a). */
+  /** Two variants of one fact — a nested route found no outlet — the variant a parameter. */
   'router-no-outlet': (path, variant) => [
     `the route "${path}" is nested, ${variant === 'element'
       ? 'and this router was given its root outlet as an element — one node, so a child cannot inherit it without overwriting its parent. Its view is looked for inside the one its parent rendered into, and no [view] was found there.'

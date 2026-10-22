@@ -304,7 +304,7 @@ scenario('a light component nested in another\'s template hydrates, and the oute
 });
 
 /**
- * **Runs placed into a light component (2c part 2, R1), held to the client step by step** — vera-5a's conditions:
+ * **Runs placed into a light component (2c part 2, R1), held to the client step by step**:
  * GROW, SHRINK to EMPTY, keyed REORDER, REPLACE; both orders (the outer walking the inner host first, from the
  * statement; the inner first, its live record converted); runs mixed with statics, one emptied in the MIDDLE (an empty
  * run must stand before the static after it, never at the end); and NOTHING the server rendered moves while hydrating.

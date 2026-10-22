@@ -90,7 +90,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
  * **The element's props store** — ONE per record, cached on the element (`_$v$`), shared by adopted and declared props:
  * a `define` tag's defaults (`_$fill$`, on its prototype) build or complete the record the first time. Read through it,
  * never through a captured store, so core's teardown can RELEASE it at a real removal (swap the record for a plain copy,
- * drop the store) and every accessor follows the new record on its next read (vera-5a, 2026-10-21).
+ * drop the store) and every accessor follows the new record on its next read (2026-10-21).
  */
 export const propsOf = (element: ComponentElement): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createStore((element._$raw$ ??= {})));

@@ -1,6 +1,5 @@
 /**
- * The interaction catalog — DESIGN-DIRECTIVES §10, each row built after its §12 pass (the passes
- * are recorded compactly in the doc's BUILD LOG; the settled decisions they execute are §20's).
+ * The interaction catalog.
  *
  * The cost model holds throughout: plain events are pure delegation (zero per-element work);
  * reflections are one engine-owned hook each; `state`/`every`/`sync`/`persist`/focus are

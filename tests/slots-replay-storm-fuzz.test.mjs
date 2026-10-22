@@ -2,7 +2,7 @@
  * **Read a host's own sections as its CHILDREN, never with `querySelector(':scope > …')`.** jsdom resolves `:scope`
  * wrongly when the same tag nests in itself — an `fz-host` inside an `fz-host` — and answers the INNER host's
  * `footer`: every seed of this harness once "diverged" (data right, screen = fallback) on a page that was correct.
- * Extended by vera-5a (2026-10-02) with `hold()` around a slotted binding, a spread-driven `slot=` row shape, and a
+ * Extended (2026-10-02) with `hold()` around a slotted binding, a spread-driven `slot=` row shape, and a
  * nested slot host receiving its own keyed rows, checked against its own oracle.
  */
 /**
@@ -43,7 +43,7 @@ customElements.define('fz-host', class extends dom.window.HTMLElement {
 });
 
 /**
- * **A commit into a run DURING the host's own first render** (vera-5a, 2026-10-02 — the path `unrun()` exists for).
+ * **A commit into a run DURING the host's own first render** (2026-10-02 — the path `unrun()` exists for).
  * `fz-fire` fires from a ref in its own first render and commits the FINAL rows into the run an applier first filled
  * with the PRE rows — by then the slots module has already distributed the pre rows, leaving stand-ins in the run. The
  * oracle is the final rows, by slot name, never read back from the DOM.

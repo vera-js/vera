@@ -1,5 +1,5 @@
 /**
- * **`unknown-option` — one fact, one text, six modules** (code-system phase 4b, vera-5a, 2026-10-09). autoloader(),
+ * **`unknown-option` — one fact, one text, six modules** (code-system phase 4b, 2026-10-09). autoloader(),
  * directiveLoader(), router() and the directives packs remote(), sensors(), motion() each said "`x` is not an option"
  * in words of their own, under three codes and three inline strings. Now one SHARED text: the module is the line's
  * subject and the option list its own, and the sentence is the same everywhere.

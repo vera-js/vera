@@ -1,5 +1,5 @@
 /**
- * **An async setup across a move** (vera-5a's point 2): core's keep-alive skips the author's `connectedCallback` for a
+ * **An async setup across a move**: core's keep-alive skips the author's `connectedCallback` for a
  * move within its document — with `moveBefore` and with a plain `insertBefore` — so a PENDING async setup survives a
  * reorder: one setup, and its render lands. A move into ANOTHER document is a teardown and a fresh setup: the first
  * setup's late settle is dropped by its generation, and the second renders.
@@ -71,7 +71,7 @@ test('a move into ANOTHER document: the first settle is dropped, the second setu
 });
 
 /**
- * **What a throwing setup registered stays inert, even when no next connect resets it** (vera-5a): a same-document
+ * **What a throwing setup registered stays inert, even when no next connect resets it**: a same-document
  * move skips the author's `connectedCallback`, so nothing re-inits. The hooks were never committed — no first pass, so
  * no subscription — and nothing a later write or a parent's re-render does reaches them. (Why `init` keeps no discard:
  * one was mutation-proven unobservable; this row is what an undiscarded hook must keep doing.)

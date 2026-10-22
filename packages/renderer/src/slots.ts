@@ -988,7 +988,7 @@ const watchHolding = (light: Light) => {
 };
 /**
  * **What changed while a light was not yet observed — its first render** — read off the DOM once, at that render's end
- * (3c, vera-5a): who made the change does not matter, the renderer or user code (a child's `connectedCallback`, a
+ * (3c): who made the change does not matter, the renderer or user code (a child's `connectedCallback`, a
  * directive). A stand-in gone takes its node with it, as `unrun` does for a removal record; a host child nothing knows
  * of is a light child added meanwhile (`adopt`) — unless it is the render's own (between its markers: `adopt` checks the
  * range), one of the captured units, or a member of a captured run.
@@ -1554,7 +1554,7 @@ type SlotsModule = { (options?: SlotsOptions): SlotsConnector; (registry: Regist
  */
 /**
  * A `wire` that hands a connector only the registry — a core older than this module, or code calling connectors itself —
- * can wire nothing of slots: said, in both builds, rather than leaving every slot quietly undistributed (vera-5a).
+ * can wire nothing of slots: said, in both builds, rather than leaving every slot quietly undistributed.
  */
 const tooOld = () => {
   throw new Error(__DEV__ ? diagnostic('slots', 'wire([slots])', 'slots-wire-too-old', __DEV__ && PROSE['slots-wire-too-old']()) : '[vera] slots-wire-too-old');

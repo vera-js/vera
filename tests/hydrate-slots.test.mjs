@@ -685,8 +685,8 @@ test('a mismatching container parks only its own seams', async () => {
  * Adopted seams are RANKED, so a re-slot after hydration lands in light-tree order — not the
  * arrival order an unranked adopted node produced. Run 18 found adopted nodes carried no rank
  * (only the client capture path ranked), so every later rank-ordered merge compared against
- * undefined. Settled sequence here; the same regime under a same-frame STORM has a known residual
- * recorded in the portal register.
+ * undefined. Settled sequence here; the same regime under a same-frame STORM has a known residual,
+ * tracked as an open item.
  */
 test('a re-slot after hydration keeps light-tree order among adopted and added nodes', async () => {
   const serverHtml = server('<u slot="header">H0</u>');

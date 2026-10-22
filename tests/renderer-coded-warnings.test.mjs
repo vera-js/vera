@@ -1,5 +1,5 @@
 /**
- * **Renderer warnings that had no positive pin** (vera-5a's list from the docs-claims pass, 2026-10-09), now coded:
+ * **Renderer warnings that had no positive pin** (from the docs-claims pass, 2026-10-09), now coded:
  * a boolean at a child position (`boolean-child`), a spread key that cannot be written into markup
  * (`spread-unsafe-name`), and the keyed list's duplicate key — said once per (list, key), so the same duplicate on
  * every reconcile is one line and a NEW duplicate is news (`keyed-duplicate-key`).

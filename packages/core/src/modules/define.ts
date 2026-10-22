@@ -14,13 +14,13 @@ import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Method
  * - **The generated class defines ONE callback.** Core's `customElements.define` wrapper (init.ts) installs
  *   `connectedCallback` and `disconnectedCallback` on every class it is handed — move-keeping, the cross-document rule
  *   and the one teardown (`retireElement`) — and calls the class's own inside them; a teardown of the class's own would
- *   retire every removed element TWICE (vera-5a, 2026-10-21). Every callback a class defines is also per-instance
+ *   retire every removed element TWICE (2026-10-21). Every callback a class defines is also per-instance
  *   creation work (CLAUDE.md: `adoptedCallback`, +7.4%).
  * - **`initWith` is not touched:** Firefox charges custom-element creation for `initWith`'s SIZE (#33, BROWSER-LEDGER
  *   2026-10-21), so everything `define` adds lives here, per tag.
  * - **The STRING form passes no options** — the ordinary path's one comparison, no object read. The object form passes
  *   the rest of its keys, an EMPTY object when it names only the tag (normalizing it to `undefined` costs bytes for one
- *   property miss per connect; vera-5a, 2026-10-21).
+ *   property miss per connect; 2026-10-21).
  * - The options copy is frozen in development: it is shared by every instance of the tag, so a module that wrote to it
  *   would leak state between them — it throws there instead (no package writes it, checked 2026-10-21).
  */
@@ -70,8 +70,8 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    * LAST, so a key of either name in `methods` never replaces them, in either build (development says so).
    * - Writing an EXISTING prototype property keeps its attributes (measured): `constructor` stays non-enumerable, as a
    *   class has it. `connectedCallback` and the methods are NEW properties, so they are ENUMERABLE — unlike a class
-   *   component's — the one-assign form being 11 B smaller than a class body plus a re-assert (6264 vs 6275 gz, vera-5a:
-   *   take it). No platform behavior reads it: the registry captures callbacks by [[Get]] at define time; code walking
+   *   component's — the one-assign form being 11 B smaller than a class body plus a re-assert (6264 vs 6275 gz),
+   *   so it was taken. No platform behavior reads it: the registry captures callbacks by [[Get]] at define time; code walking
    *   the prototype already sees every WebIDL member, all enumerable.
    */
   const Class = class extends HTMLElement {};
@@ -81,7 +81,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       /**
        * **A value set before the tag was defined** (`el.heading = …` on an element made before `define` ran) is an OWN
        * data property, which hides the prototype accessor: handed over through the setter, before the setup runs. Only
-       * declared names; `Object.hasOwn`, never `in` (vera-5a). Here, never in `initWith` (#33: Firefox charges its size).
+       * declared names; `Object.hasOwn`, never `in`. Here, never in `initWith` (#33: Firefox charges its size).
        */
       /** A fresh element has no own enumerable property at all: one `Object.keys` guards the per-name test (race37). */
       if (keys && Object.keys(this).length !== 0)
@@ -98,7 +98,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   });
   /**
    * Observed attributes: the callbacks exist ONLY on a tag that declares some — an observed attribute is per-element
-   * engine work (vera-5a), and every callback a class defines is creation work. Assigned after `methods`, so it wins over
+   * engine work, and every callback a class defines is creation work. Assigned after `methods`, so it wins over
    * a method of the same name (development says so). The platform calls it before `connectedCallback` for attributes
    * present at upgrade: that is a write through the setter before the setup runs, which the store handles.
    */
@@ -112,7 +112,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    *   default the element does not hold into the RAW target (no notification) — reads after it go through the proxy,
    *   which subscribes the reader. An array or plain-object default is shallow-copied there, per element (`items: []`
    *   gives each its own list; nested values stay shared). `Object.hasOwn`, never `in`: a prop named `toString` would
-   *   otherwise find Object.prototype's (vera-5a).
+   *   otherwise find Object.prototype's.
    * - Binding a value EQUAL to the default writes once, then matches; pinned.
    * - Assigned after `methods`, so a prop of a method's name wins (development says so).
    */
@@ -124,7 +124,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
      * default at once into the raw target (no notification), so no read pays a `hasOwn`. The cached proxy points at the
      * raw record only — no back-pointer to the element, so no DOM↔JS cycle for Firefox's collector.
      * - **A LITERAL, sigiled name (`_$v$`, "values"), never a computed key** — never `_$p$`, a RETIRED core field (the
-     *   priority Sets, removed in 38a4a0aa): reusing it would give one name two meanings across versions (vera-5a): Firefox reads a DOM object's field by a computed key
+     *   priority Sets, removed in 38a4a0aa): reusing it would give one name two meanings across versions. Firefox reads a DOM object's field by a computed key
      *   (`this[KEY]`, a Symbol OR a per-copy string) ~7% slower than by a literal name in the attribute-write path
      *   (headless: 244 / 251 vs 229 ms; Chrome no difference; BROWSER-LEDGER 2026-10-21). Sigiled, so no bundle mangles
      *   it. Shared by every copy of core on a page by design, as `_$raw$` is — and safe: an element has ONE class, and

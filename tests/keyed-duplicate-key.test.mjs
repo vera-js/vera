@@ -3,7 +3,7 @@
  * development check runs one pass over the new keys whenever items lie between keyed's end scans (an insertion or
  * a move). A cheaper check — only inserted keys, plus the reorder map's "already taken" hit — misses this shape: the
  * first `K` is consumed by the common-prefix scan (never in the map, never inserted), the second sits mid-list.
- * Pinned so the cheaper check cannot come back without failing here first (vera-5a, 2026-10-01).
+ * Pinned so the cheaper check cannot come back without failing here first (2026-10-01).
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';

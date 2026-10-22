@@ -64,7 +64,7 @@ const steps = [
   ['node (development)', 'npm', ['test']],
   ['node (production)', 'npm', ['run', 'test:prod']],
   /** The NODE builds — what Node and Vite load through a `node` export condition (minified, __DEV__ true): jsx's
-   *  compiler and cms's content. Third programs, so their suites run against them too (vera-5a, 2026-10-09). */
+   *  compiler and cms's content. Third programs, so their suites run against them too (2026-10-09). */
   ['node (node builds)', 'npm', ['run', 'test:node-builds']],
   ['browser × 3', 'npm', ['run', 'test:browser:all']],
 ];

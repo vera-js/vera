@@ -2,7 +2,7 @@
  * **A controlled form control nothing keeps in step is said at compile time** (Brian, 2026-10-07, with the change that
  * made JSX `value`/`checked` controlled). `<input value={x}>` with no input handler and no `readOnly` now has its typed
  * text written back by every render, as React's does; React warns at runtime, this compiler warns once, with the file
- * and position, at no runtime cost. It lives in `transformJsx` (vera-5a) so every path sees it — the Vite plugin
+ * and position, at no runtime cost. It lives in `transformJsx` so every path sees it — the Vite plugin
  * reports it through Vite, the standalone loader prints it in development (pinned in tests/browser/buildless-loader).
  */
 import { test } from 'node:test';

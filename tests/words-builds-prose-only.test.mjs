@@ -1,5 +1,5 @@
 /**
- * **A "words" build differs from production in PROSE only** (vera-5a, 2026-10-09). Some bundles keep `__DEV__` TRUE while
+ * **A "words" build differs from production in PROSE only** (2026-10-09). Some bundles keep `__DEV__` TRUE while
  * minified, so the person who fixes an error reads its sentence: the jsx compiler's NODE build (3d), and cms's
  * `publish`, `node` and cli (`words: true` in defaultRollupConfig) plus its content node build. But `__DEV__` can gate
  * BEHAVIOR too — a development-only check or warning — and in such a bundle that behavior would ship switched ON,
@@ -70,7 +70,7 @@ test('CONTROL: the list covers every `words: true` entry, and every bundle on it
 
 /**
  * **POSITIVE CONTROL: the decoder finds a line it must find**, per words bundle — so a decoding bug cannot read as
- * "clean" (vera-5a). Each entry: a line of source that certainly ships in that bundle.
+ * "clean". Each entry: a line of source that certainly ships in that bundle.
  */
 const KNOWN = [
   ['packages/jsx/dist/node/vera-jsx.js', 'packages/jsx/src/transform.ts', "coded('jsx-key-placement'"],

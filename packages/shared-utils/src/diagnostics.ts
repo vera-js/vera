@@ -1,5 +1,5 @@
 /**
- * **The codes more than one package prints — DEVELOPMENT ONLY, except to the jsx compiler** (vera-5a, 2026-10-09). A
+ * **The codes more than one package prints — DEVELOPMENT ONLY, except to the jsx compiler** (2026-10-09). A
  * fact said by two emitters has
  * ONE docs page and ONE text, so its prose lives here, in the lowest dependency every emitter shares, and each raises
  * it as `SHARED['code']` — never a second sentence in a second table (the dev line would stop being the docs page's
@@ -10,7 +10,7 @@
  * Also the home of messages shared-utils' OWN code prints on a renderer's behalf (adopt-property, markup-grammar,
  * isSelection) — the same rule: the emitter is shared, so the text is.
  *
- * **One named export per code, never one object** (vera-5a, measured 2026-10-09): rollup cannot drop an unused KEY of
+ * **One named export per code, never one object** (measured 2026-10-09): rollup cannot drop an unused KEY of
  * an object literal, so a shared `PROSE` object put every shared message into every importer's development bundle.
  * A named export is dropped per function. **The export's name IS the code** — `tagCalled` is `tag-called` — so the
  * map sync and the tests read is derived (`proseOf`, scripts/diagnostic-tables.mjs), never kept by hand, and a call
@@ -20,7 +20,7 @@ import type { Prose } from './types.js';
 
 /**
  * core's `html`/`svg`/`mathml` and the renderer's `tag` — a tagged template called as a function. The FACT is shared;
- * the EXAMPLE is each emitter's (vera-5a): `html` writes markup, `tag` an element name — so the emitter passes it.
+ * the EXAMPLE is each emitter's: `html` writes markup, `tag` an element name — so the emitter passes it.
  */
 export const tagCalled: Prose = (tag, received, example) => [
   `expected a template literal and received ${received}.`,
@@ -101,7 +101,7 @@ export const handlerAttribute: Prose = (name, event) => [
 ];
 /**
  * The jsx compiler and the renderer's `tag` — children given to a void element. Both refuse; the FATE the refusal
- * prevents is each emitter's (vera-5a): compiled, they would land after the element; through `tag`, vanish.
+ * prevents is each emitter's: compiled, they would land after the element; through `tag`, vanish.
  */
 export const voidChildren: Prose = (tag, fate) => [
   `<${tag}> is a void element — it has no end tag and takes no children, so ${fate}; refused.`,

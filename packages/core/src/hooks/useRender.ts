@@ -29,7 +29,7 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
   let target: ShadowRoot | HTMLElement | undefined;
   coalesce(
     (signal) => {
-      /** This render's own hook, taken BEFORE the renderers run (vera-5a): settling it must not depend on every nested run restoring `tracking`. */
+      /** This render's own hook, taken BEFORE the renderers run: settling it must not depend on every nested run restoring `tracking`. */
       const self = tracking.hook;
       const result = typeof template === 'function' ? (template as RenderTemplate)(signal) : template;
       target ??= element._$r$ ?? element.shadowRoot ?? element;

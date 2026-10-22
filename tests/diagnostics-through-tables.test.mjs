@@ -1,5 +1,5 @@
 /**
- * **Every message in a package on the code system comes from its table** (vera-5a, 2026-10-09). The sweep and the
+ * **Every message in a package on the code system comes from its table** (2026-10-09). The sweep and the
  * tables test read REGISTERED codes; a message written inline is invisible to both — exactly what A1–A3 did first. So:
  *
  * 1. SOURCE: in a migrated package, no `throw new …Error(` and no `console.warn(`/`console.error(` takes a literal —
@@ -38,7 +38,7 @@ const MIGRATED = [
    *  words Node and Vite read are `dist/node/`, outside this glob by design. */
   ['jsx', 'dist/*.min.js'],
   /** Motion's own bundles AND every directives one: the pack inlines @verajs/motion, and the table it hands the engine
-   *  must be dead there too (vera-5a, phase 4 seam condition 3). */
+   *  must be dead there too (phase 4 seam condition 3). */
   ['motion', ['dist/*.min.js', '../directives/dist/*.min.js']],
   /** Every directives bundle — the engine and each pack. */
   ['directives', 'dist/*.min.js'],
@@ -53,14 +53,14 @@ const MIGRATED = [
  * error it forwards. Counted, so a second inline call in the file is a deliberate edit, not a free pass.
  */
 const ROUTING = new Map([
-  /** The standalone loader forwards the compiler's warning, which already carries its code (vera-5a's rule). */
+  /** The standalone loader forwards the compiler's warning, which already carries its code. */
   ['packages/jsx/src/standalone.ts', 1],
 ]);
 /**
  * **The ssr shim's platform imitations** — throws that reproduce an error the BROWSER throws (`Failed to execute
  * 'appendChild' on 'Node'…`, `Illegal constructor`): a DOM answering differently from the platform is the worst bug that
  * package has, so they stay the platform's words, off the code system. Counted per file, and pinned platform-exact by
- * class and name in tests/ssr-imitations-differential.test.mjs (vera-5a, 2026-10-09).
+ * class and name in tests/ssr-imitations-differential.test.mjs (2026-10-09).
  */
 const IMITATIONS = new Map([
   ['packages/ssr/src/vera/views.ts', 1],
@@ -147,7 +147,7 @@ for (const [name, bundle] of MIGRATED) {
 }
 
 /**
- * **The bare-code production form is one exact shape, enforced, not habitual** (vera-5a, 2026-10-09). Where the byte
+ * **The bare-code production form is one exact shape, enforced, not habitual** (2026-10-09). Where the byte
  * rule keeps a production line to its code, it is written by hand at each site, so this pins the format across every
  * migrated package: a literal that begins `[vera] <code>` continues with `: ` (its subject) or ends there; a thrown
  * `name: <code>` ends there. Any other continuation is a second format a user would have to learn. Every code in every
@@ -178,7 +178,7 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
 });
 
 /**
- * **"Every package gives every line a code" is true package by package** (vera-5a, 2026-10-09). Every package whose
+ * **"Every package gives every line a code" is true package by package** (2026-10-09). Every package whose
  * sources print or throw is MIGRATED above — its messages come from its table — and the exceptions are the counted
  * lists (ROUTING, IMITATIONS, NAMED), which the README and llms.txt name. The phase-by-phase NOT_YET list emptied with
  * phase 5 and is gone: a new package that prints joins MIGRATED, or this goes red.

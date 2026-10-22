@@ -5,7 +5,7 @@
  * new host slower in Firefox, without end. Each light now has its own pair, and a flush reads the records of the lights
  * it can name: the one being read or rendered, every light whose element the finished render's root created (`FED`),
  * the work set, and parked branches. So what the FRAMEWORK does stays synchronous, and so does every read through the
- * slots API. What changed, measured against 737c7a4 on the same sequences (`.probe/sync-reads` in vera-hydra): a host
+ * slots API. What changed, measured against 737c7a4 on the same sequences: a host
  * changed DIRECTLY by page code, followed in the same task by an UNRELATED host's render, is redistributed at the
  * microtask, where the shared pair used to take its records along with that render's. A direct change with no render
  * after it was already distributed at the microtask before.

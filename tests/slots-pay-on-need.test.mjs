@@ -185,7 +185,7 @@ let tickRenders = 0;
 customElements.define('pon-tick', class extends HTMLElement {
   connectedCallback() { init(this, () => () => { tickRenders++; return html`<main>${tick.value}</main>`; }); }
 });
-test('a child PREPENDED by hand to a slotless host is hidden by the next re-render, as native hides it (vera-5a: not left visible)', async () => {
+test('a child PREPENDED by hand to a slotless host is hidden by the next re-render, as native hides it (not left visible)', async () => {
   const el = document.createElement('pon-tick');
   document.body.append(el);
   flush();

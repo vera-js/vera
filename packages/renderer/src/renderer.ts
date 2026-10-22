@@ -676,7 +676,7 @@ class Instance {
   /**
    * The result last committed into this instance as a list item, recorded ONLY for a result marked `_$same$` (what
    * `each` stamps). Always-on, the skip changed two contracts (a live `!value` binding re-syncing after typing; a result
-   * mutated in place re-rendering), so it is opt-in: an unmarked result never takes it (vera-5a, 2026-10-18).
+   * mutated in place re-rendering), so it is opt-in: an unmarked result never takes it (2026-10-18).
    */
   $j: unknown = undefined;
   _template: Template;
@@ -1544,7 +1544,7 @@ let pendingRefs: unknown[] | null = null;
  * on a select, a spread. Flushed first, so a ref on the select sees its selection. A render flushes only what it
  * queued, however it ends, so nothing it held can land on a later, unrelated render.
  *
- * The shape is measured, on a table with a bound select per row (`.probe/renderer-lean/runs/race-late-*`): committing
+ * The shape is measured, on a table with a bound select per row: committing
  * each instance's selects after its own bindings, 2–4% slower; deferring the whole binding to a second commit,
  * 8–13%; records of three with the name in them, 3–6%. Pairs whose common case is exactly `(select, value)` tie.
  */

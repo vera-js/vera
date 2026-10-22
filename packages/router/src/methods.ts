@@ -77,7 +77,7 @@ const addLinkListener = (element: HTMLElement) => {
     if (__DEV__) {
       const base = currentBase();
       /** One entry per distinct href the app rendered — development only, and bounded by the hrefs the page itself
-       *  holds; no cap (vera-5a's note, 2026-10-09: decided, not overlooked). */
+       *  holds; no cap (2026-10-09: decided, not overlooked). */
       if (base !== '' && !url.pathname.startsWith(base) && !warnedOutside.has(href)) {
         warnedOutside.add(href);
         console.warn(diagnostic('router', '<a route>', 'router-href-base', __DEV__ && PROSE['router-href-base'](href, base, url.pathname)));

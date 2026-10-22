@@ -32,7 +32,7 @@
  * defined accessor never fired (a dead own property shadowed it permanently, on every Lit-style
  * element), a defined field initializer clobbered the bound value at insert with no warning (the
  * `whenDefined` detector above only watches definitions that arrive late), and CSR disagreed with
- * hydration about the same template. Verified against all three engines: `.probe/` fa4b–fa4f,
+ * hydration about the same template. Verified against all three engines,
  * 2026-09-05.
  */
 import { JSDOM } from 'jsdom';

@@ -10,7 +10,7 @@
  *
  * Events are REGISTRY-DECLARATIVE: no per-element listeners, no per-element instances — one root
  * listener per event type, matching by attribute at dispatch time (which is why a swapped-in
- * region's buttons work the instant the HTML lands). See DESIGN-DIRECTIVES §3/§6.
+ * region's buttons work the instant the HTML lands).
  */
 import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts as bakedInserts, untrack as bakedUntrack } from '@verajs/core';
 import { parseValue, parseLiteral, isPath, isObject, sameValue } from './parse.js';
@@ -49,7 +49,7 @@ let substrate: Substrate | null = null;
 /**
  * **The page's core, handed by `wire([directives])`** — `connect` receives core's registry, which carries its store
  * machinery (`$s`). Without it (a directives bundle used with no core, or packs wired only through `wireDirectives`)
- * the engine runs on the copy it bakes. Replaced the page-global `Symbol.for('vera.core')` stamp (vera-5a, 2026-10-09):
+ * the engine runs on the copy it bakes. Replaced the page-global `Symbol.for('vera.core')` stamp (2026-10-09):
  * the side channel 0.2.0 removed by construction. Wire before the markup activates — stores made earlier stay baked.
  */
 const core = (): Substrate =>
@@ -1049,7 +1049,7 @@ const keySuffix = (key: string) =>
  * `data-vd-on-click` TWICE (measured in Chrome, Firefox and WebKit: 2, 4, 6; a plain page region 1, 2). Shadow
  * components escaped it only because `contains()` does not cross a shadow boundary. A dispatch at `root` therefore
  * starts past the nearest INNER root listening for this type: everything deeper is that root's. Computed from the path,
- * not remembered — so the same Event dispatched again runs again (vera-5a), and no state is kept between listeners
+ * not remembered — so the same Event dispatched again runs again, and no state is kept between listeners
  * (a per-event record cleared on a microtask would be cleared BETWEEN two listeners of a real click).
  */
 const dispatch = (root: Node, event: Event) => {

@@ -1,5 +1,5 @@
 /**
- * **Unassigned light content is not rendered — measured by LAYOUT, on three engines** (vera-5a, 2026-10-02). Light
+ * **Unassigned light content is not rendered — measured by LAYOUT, on three engines** (2026-10-02). Light
  * slots keep unassigned content connected in the host's `<ins hidden data-vm-unassigned>` container, with an inline
  * `display: none !important` beside `hidden`, so an author stylesheet that overrides `[hidden]` (or styles the element
  * by name) cannot make it render. jsdom has no layout and a partial cascade; this is the proof. It also checks the

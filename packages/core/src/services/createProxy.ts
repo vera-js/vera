@@ -23,7 +23,7 @@ const track = (obj: object, prop: unknown) => {
   let cell = props.get(prop);
   if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
   /**
-   * PROTOTYPE (probe/cells), **lazy in-order link reuse** (DESIGN-WEAK-CELLS §12). A hook's FIRST run links each read
+   * PROTOTYPE (probe/cells), **lazy in-order link reuse**. A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
    * RE-run walks its previous sources in order: a read matching the cursor just advances it; a repeat of one already
    * linked this run is skipped (below); the first read that DIFFERS unlinks every source not yet matched and links directly from

@@ -2510,7 +2510,7 @@ Object.assign(NodeBaseShim, NODE_CONSTANTS);
 /**
  * **What `String(node)` says** — the interface's name, as every engine answers (`[object Text]`), where it said
  * `[object EventTarget]` for every node. The kinds with one interface each; an element's depends on its tag (a measured
- * table, not a guess — open in the portal TODO), so elements keep the base answer for now.
+ * table, not a guess — still open), so elements keep the base answer for now.
  */
 for (const [Kind, tag] of [[NodeBaseShim, 'Node'], [CharacterDataShim, 'CharacterData'], [TextShim, 'Text'], [CommentShim, 'Comment'], [FragmentShim, 'DocumentFragment'], [ShadowRootShim, 'ShadowRoot']] as const)
   Object.defineProperty(Kind.prototype, Symbol.toStringTag, { value: tag, configurable: true });

@@ -129,7 +129,7 @@ export const grow = (cell: Cell, hook: HookRecord, slot: number) => {
  * so `track` stays inside the inlining budget. BOTH moved links' cells are rewritten (each cell records where its
  * reader's link sits in `s`): missing one would make a later unlink remove the wrong link, a silent lost subscription.
  *
- * **For a LIST hook (design B), a swap must never cross a row's segment** (vera-5a): there a link's position IS its row,
+ * **For a LIST hook (design B), a swap must never cross a row's segment**: there a link's position IS its row,
  * so moving one outside the open segment `[lo, h)` would hand it to another row (stale). B's `track` claims only when
  * `at < h` and relinks otherwise; an ordinary hook's segment is all of `s`.
  */

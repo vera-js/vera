@@ -155,7 +155,7 @@ const resolveOptions = (options: MotionOptions, reject: EngineSeams['reject']): 
   /**
    * The one SHARED text the five sibling modules print (`unknown-option`), handed to reject() as caller text in
    * development — so the check stays EVERY-BUILD (production still records the rejection and prints its code;
-   * `rejections()` is what an inspector reads) with no table registration (vera-5a, 2026-10-09).
+   * `rejections()` is what an inspector reads) with no table registration (2026-10-09).
    */
   for (const key of Object.keys(options)) {
     if (!KNOWN_OPTIONS.has(key)) {

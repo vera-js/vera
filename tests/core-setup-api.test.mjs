@@ -1,6 +1,6 @@
 /**
  * **R1 — `init(host, setup?)` / `init({ host, …options }, setup?)` and the setup that returns its render** (Phase 1 of the
- * 2026-10-10 roadmap; plan: the portal's PHASE1-R1-PLAN). One form: a component's function is a SETUP that runs once,
+ * 2026-10-10 roadmap). One form: a component's function is a SETUP that runs once,
  * untracked, inside `init`'s call — the window is the call, so it ends exactly when the setup returns or throws — and
  * returns its RENDER function. The element is `host`, the setup's first parameter. Options travel with the host in one
  * object (`{ host, shadow }`), so the setup is always the second argument.

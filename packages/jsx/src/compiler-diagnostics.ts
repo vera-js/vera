@@ -1,6 +1,6 @@
 /**
  * **The jsx compiler's diagnostics, keyed by code — DEVELOPMENT ONLY, like every other table** (code-system phase 3,
- * vera-5a; Brian, 2026-10-09). The production compiler is the file a buildless page fetches (`vera-jsx.min.js`, loaded
+ * Brian, 2026-10-09). The production compiler is the file a buildless page fetches (`vera-jsx.min.js`, loaded
  * lazily by the standalone loader on a cold visit), so its words would be paid on every buildless JSX page: production
  * prints the position and the code's docs link, `file:line:col — https://verajs.dev/e/<code>`. **Node and Vite keep
  * the words** — the package's `"node"` export condition is the development build, so the build tool, which no page

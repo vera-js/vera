@@ -2,15 +2,15 @@
  * **Slots visits only the lights that need work — and holds nothing it no longer needs** (the work set, 2026-10-07).
  *
  * `flush` used to walk a set of EVERY light host ever captured, and nothing but a shadow host's release ever left it:
- * each removed host stayed reachable for good (`.probe/leak` in vera-hydra: 30/30 removed hosts alive with slots wired,
+ * each removed host stayed reachable for good (30/30 removed hosts alive with slots wired,
  * 0/30 without), and every flush walked them all — hydrating 2000 light hosts slowed 72 → 365 ms over ten renders that
  * replaced them. Now a light is in the work set only while it is dirty, or fresh until its first render ends, and never
  * while it waits for its own slots.
  *
  * Retention is pinned STRUCTURALLY, with no gc: development exposes the work set's size (`_$slotsWork$`), which must
  * return to 0 once every rendered host is distributed — removed or not. The leaving rule drops a clean light whose host
- * is disconnected even while still fresh (a first render that threw), so every way BACK in is pinned here too (vera-5a's
- * conditions): a host removed before its first render ends and re-inserted (its own render's end re-adds it), a host
+ * is disconnected even while still fresh (a first render that threw), so every way BACK in is pinned here too:
+ * a host removed before its first render ends and re-inserted (its own render's end re-adds it), a host
  * inside a `hold()`-parked subtree (restored with no render of its own), and a parked host changed while parked.
  */
 import assert from 'node:assert/strict';

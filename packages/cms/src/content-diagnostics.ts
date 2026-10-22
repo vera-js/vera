@@ -3,7 +3,7 @@
  * `content` is a VISITOR's page bundle: these words are development's, referenced `__DEV__ && PROSE[…]`, so its
  * production bundle prints `<where>: https://verajs.dev/e/<code>`; a Node consumer reads them through the `node` export
  * condition's build, and `publish` (which shares frontmatter and markdown) keeps them in every build. Frontmatter's
- * fourteen refusals are seven facts (vera-5a): one code each, the line as the subject.
+ * fourteen refusals are seven facts: one code each, the line as the subject.
  */
 import type { Prose } from '@verajs/shared-utils';
 

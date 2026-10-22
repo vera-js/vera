@@ -12,7 +12,7 @@ import pkg from './package.json' with { type: 'json' };
 const NODE_BUILTINS = ['node:fs', 'node:path', 'node:process'];
 
 /**
- * **Who reads each entry's errors decides its words** (code-system phase 5, vera-5a, 2026-10-09). `content` is a
+ * **Who reads each entry's errors decides its words** (code-system phase 5, 2026-10-09). `content` is a
  * VISITOR's page: its words are development's, and a Node consumer (an SSG reading content) gets them through the
  * `node` export condition's build (`MODE=node`). `publish`, `node` and the cli are read by the person who fixes the
  * error — an author in Studio, a build at a terminal — so they keep their words in every build (`words`).

@@ -351,7 +351,7 @@ export const retireElement = (element: ComponentElement) => {
  */
 /**
  * Read fresh each time, never cached: a hook REPLACED at a taken priority keeps the array's identity and length, so a
- * cache keyed on them goes stale (vera-5a). Development only, once per `init` that has options. Nothing at module scope
+ * cache keyed on them goes stale. Development only, once per `init` that has options. Nothing at module scope
  * is constructed: production keeps a constructor call it cannot prove unused (+8 B measured).
  */
 let warnedClaims = false;

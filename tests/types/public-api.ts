@@ -148,7 +148,7 @@ export type { _nonLiteralIsLoose };
 /* ── @verajs/directives: the value class types its own apply ──────────────────────────────── */
 
 /**
- * DESIGN-DIRECTIVES §17.11 promised that a directive's declared `value` decides what `apply`
+ * The directive design promised that a directive's declared `value` decides what `apply`
  * receives. It did not, and the gap had already cost a real defect: `remote` read an object-valued
  * attribute as if its entries were finished values and sent the literal TEXT of an expression as a
  * URL. These are the assertions that make the promise enforceable — the `@ts-expect-error` cases do

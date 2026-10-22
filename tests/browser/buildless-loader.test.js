@@ -196,7 +196,7 @@ it('a file the import map names, imported by its path or full URL, is the same m
 
 /**
  * **The compile-time controlled-input warning reaches a buildless page in development** — the users least likely to
- * read a changelog (vera-5a). Mapped to the DEVELOPMENT standalone (production folds the warning away), the page hooks
+ * read a changelog. Mapped to the DEVELOPMENT standalone (production folds the warning away), the page hooks
  * console.warn before the loader runs; a control with an input handler must stay silent and report the app instead.
  */
 const DEV_IMPORTS = { ...IMPORTS, '@verajs/jsx': '/packages/jsx/dist/development/vera-jsx-standalone.js' };

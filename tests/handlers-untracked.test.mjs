@@ -106,7 +106,7 @@ test('one click runs a light component\'s data-vd-on-click ONCE — not once per
   el.remove();
 });
 
-test('the SAME Event dispatched twice runs the handler twice — no per-event state (vera-5a)', async () => {
+test('the SAME Event dispatched twice runs the handler twice — no per-event state', async () => {
   customElements.define('hu-again', class extends HTMLElement {
     connectedCallback() { core.init(this, () => {
       return () => core.html`<div data-vd-state="{ count: 0 }"><button data-vd-on-click="{ count: count + 1 }">x</button></div>`;

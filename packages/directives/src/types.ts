@@ -1,7 +1,6 @@
 import type { Prose } from '@verajs/shared-utils';
 /**
- * The directive contract — DESIGN-DIRECTIVES §2, as refined by §19.1. These words face every
- * directive author; keep them exactly as the design doc records them.
+ * The directive contract. These words face every directive author; keep them stable.
  */
 import type { Parsed, ParsedObject } from '@verajs/shared-utils';
 

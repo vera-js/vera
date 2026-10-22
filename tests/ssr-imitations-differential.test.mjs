@@ -1,6 +1,6 @@
 /**
  * **The shim's platform imitations ARE the platform's — by error class and name, never by words** (code-system phase
- * 4c, vera-5a, 2026-10-09). Twelve of @verajs/ssr's throws imitate an error the browser itself throws (`Failed to
+ * 4c, 2026-10-09). Twelve of @verajs/ssr's throws imitate an error the browser itself throws (`Failed to
  * execute 'appendChild' on 'Node'…`, `Illegal constructor`…) and stay off the code system on purpose: the shim is a
  * DOM, and a DOM that answers differently from the browser is the worst bug this package has. "Platform-exact" is
  * otherwise an unchecked label, so each operation runs against the shim AND against jsdom, and the thrown

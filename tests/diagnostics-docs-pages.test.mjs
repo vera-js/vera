@@ -1,6 +1,6 @@
 /**
  * **"The full explanation of a code is at https://verajs.dev/e/<code>"** — what the core README and llms.txt promise
- * every `[vera]` line, whichever of its three production forms a user holds (vera-5a, 2026-10-09). The pages are
+ * every `[vera]` line, whichever of its three production forms a user holds (2026-10-09). The pages are
  * generated from the packages' `diagnostics.json` files (the docs-site release item); this pins what that generation
  * stands on: every code has a page's content (a message and a fix), every code is one URL-safe slug in one namespace,
  * and production prints exactly that address. Hosting the pages is checked where they are built.

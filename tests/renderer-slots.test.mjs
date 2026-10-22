@@ -1244,7 +1244,7 @@ test('a text child that becomes a list distributes its items', () => {
 });
 
 /**
- * vera-5a's element twin of the text-upgrade find: a keyed row in a named slot whose value changes SHAPE is replaced
+ * The element twin of the text-upgrade find: a keyed row in a named slot whose value changes SHAPE is replaced
  * by markers the renderer inserts next to it through its PHYSICAL parent, then removes it. The markers must take its
  * logical place, or the string written between them — and the template after — lands undistributed.
  */
@@ -1270,7 +1270,7 @@ test('a keyed row in a named slot that changes shape and back stays distributed,
   page.remove();
 });
 
-/** vera-5a: a node the renderer moves OUT natively (hold parks it) and back IN natively must be light again. */
+/** A node the renderer moves OUT natively (hold parks it) and back IN natively must be light again. */
 test('a held light child, hidden then shown, is distributed again — through a reorder', () => {
   if (!customElements.get('hold-host'))
     customElements.define('hold-host', class extends HTMLElement { connectedCallback() { init(this); renderInto(html`<header><slot name="a"></slot></header><main><slot></slot></main>`, this); } });
@@ -1292,7 +1292,7 @@ test('a held light child, hidden then shown, is distributed again — through a 
 });
 
 /**
- * **Unassigned content stays hidden when an author stylesheet says otherwise** (vera-5a). `hidden` is only the UA's
+ * **Unassigned content stays hidden when an author stylesheet says otherwise**. `hidden` is only the UA's
  * `display: none`, which any author `display` rule beats — a reset, a design system's `:where(*)`, a `[hidden]` override;
  * the container also carries an inline `display: none !important`, written through CSSOM (a strict CSP blocks a
  * `style=` attribute in served markup, never a CSSOM write), which beats every author rule. jsdom's cascade is partial,
@@ -1381,7 +1381,7 @@ test('a first render that throws, a user edit, then a render that completes: dis
 });
 
 /**
- * **A forwarded slot that is OUT of the page moves as its range** (vera-5a's M2: an identity `firstOf` survived every
+ * **A forwarded slot that is OUT of the page moves as its range** (M2: an identity `firstOf` survived every
  * other jsdom suite). The outer slot is filled, so its element is out and its content stands between its comments in
  * the inner host's light; content then arrives AHEAD of it in the inner host, so the inner host must move the
  * forwarded unit — the whole range, or the content order breaks.
@@ -1403,7 +1403,7 @@ test('a filled forwarded slot moves as its range when content arrives ahead of i
 });
 
 /**
- * **A render end distributes only the hosts that need it** (vera-5a's M6: without clearing `fresh`, every render end
+ * **A render end distributes only the hosts that need it** (M6: without clearing `fresh`, every render end
  * redistributed every host ever captured — ≈190× slower at 300 hosts, and no other test noticed). Structural, not timed:
  * count how often a slot's `name` is read (every distribution reads each of its host's slots) while ONE host
  * re-renders, and require that it does not grow with how many OTHER hosts exist.

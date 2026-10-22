@@ -327,7 +327,7 @@ const drop = (rec: Row) => {
   rec._$g$++;
   retireHook!(rec.h);
   if (nested !== 0) settle!(rec.h, true);
-  /** vera-5a: a row owns exactly one hook today; if anything ever registers another on it, the full retire still runs. */
+  /** A row owns exactly one hook today; if anything ever registers another on it, the full retire still runs. */
   if (rec._$h$ !== undefined) retire!(rec);
 };
 /**
@@ -441,7 +441,7 @@ let saidDup: WeakSet<object> | undefined;
 /** A list the parent no longer reaches: its rows and its own hook retire. */
 const orphan = (list: List) => {
   /**
-   * ONCE (vera-5a): a second orphan would count a row-owned list out of `nested` twice, and a count driven to 0 while nested
+   * ONCE: a second orphan would count a row-owned list out of `nested` twice, and a count driven to 0 while nested
    * lists live turns their settling off — the leak (e″) closes, silently. Unreachable today (an orphaned list's hooks and
    * rows move generation, so nothing queued runs them again), kept as the invariant.
    */
@@ -473,7 +473,7 @@ const commitList = (list: List, part: EachPart) => {
     committing = outer;
   }
   /**
-   * Marked committed only once the commit SUCCEEDED (vera-5a): a commit that threw left the list "committed" with its
+   * Marked committed only once the commit SUCCEEDED: a commit that threw left the list "committed" with its
    * rows' instances stale, and the next row write patched an instance the part no longer held (`items[-1]`). Unmarked,
    * a row write wakes the parent instead, which re-renders and commits again.
    */
@@ -581,7 +581,7 @@ const automap = (
     state.occ.clear();
   }
   /**
-   * EVERY `.map` call in a render takes its place in the order, whatever path it takes (vera-5a: one rule). An index or
+   * EVERY `.map` call in a render takes its place in the order, whatever path it takes (one rule). An index or
    * non-function callback needs no memory — its arity is known at every call — so it takes the place WITHOUT writing
    * PLAIN: writing it could overwrite a live list unretired, and turn a list that slid onto this place into a plain map.
    */
@@ -647,7 +647,7 @@ const automap = (
     /**
      * A list only when the first row is a TEMPLATE result — the renderer's OWN definition, `strings !== undefined`
      * (`isTemplateResult`, renderer.ts; a DELIBERATE twin, since this module imports nothing at runtime: change both
-     * together), so a hand-built `{ strings, values }` the renderer accepts is a list here too (vera-5a) —
+     * together), so a hand-built `{ strings, values }` the renderer accepts is a list here too —
      * not any object: a computational map returning plain objects (`items.map((i) => ({ ...i, label }))`, a directives
      * query) became a tracked list and broke `directives-query` (2026-10-20).
      */
@@ -723,7 +723,7 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
   });
   run?.(undefined, true);
   /**
-   * **Keys are bounded** (vera-5a, the agreed remedy): after `budget` calls the cells no row reads any more are pruned and
+   * **Keys are bounded** (the agreed remedy): after `budget` calls the cells no row reads any more are pruned and
    * the next budget is twice what remains, plus 64 — so a prune's cost is paid for by at least as many calls, and a list
    * whose ids only increase (a feed, a log) keeps only its live keys.
    */

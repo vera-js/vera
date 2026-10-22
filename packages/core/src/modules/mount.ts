@@ -7,7 +7,7 @@ import type { ComponentElement } from '../types.js';
  */
 /**
  * ONE empty signal for every first pass — shared and read-only by contract, exactly as a write's signal is (see `Signal`);
- * NOT frozen, so a mistaken write behaves the same on a first pass as on any later one (vera-5a).
+ * NOT frozen, so a mistaken write behaves the same on a first pass as on any later one.
  */
 const FIRST = {};
 /** A plain loop over the one list, reading its length live: a hook a first pass registers on this owner runs too. */

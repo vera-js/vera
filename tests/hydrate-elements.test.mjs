@@ -61,7 +61,7 @@ test("a claim is asked about the template, not its first instance — a hydrated
 });
 
 /**
- * **A claim's `mount` is client work, so it is QUEUED** (vera-5a's bar): a container mismatching at its LAST marker has
+ * **A claim's `mount` is client work, so it is QUEUED**: a container mismatching at its LAST marker has
  * mounted nothing when it is cleared — the client render then mounts its own element, told `adopted: false`.
  */
 test('a mismatching container mounts no claim before it is cleared; the client render mounts once, not adopted', () => {

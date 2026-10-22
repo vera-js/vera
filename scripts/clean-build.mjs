@@ -15,7 +15,7 @@
  * and the next build then deadlocks behind an owner that is gone (`98% [43 / 44] [0 running]`). It names them instead
  * — kill the stale ones (the START column) and run it again. VS Code's wireit extension server is not a build, and
  * neither is a build in ANOTHER tree (a worktree, the main checkout): wireit's lock is per tree, so only a process whose
- * working directory is inside this one counts (vera-5a, 2026-10-09).
+ * working directory is inside this one counts (2026-10-09).
  */
 import { execSync, spawnSync } from 'node:child_process';
 import { globSync, rmSync } from 'node:fs';

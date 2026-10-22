@@ -50,7 +50,7 @@ for (const pkg of readdirSync(root)) {
 /**
  * RETIRED sigiled names — never written or read again, so one name never carries two meanings across versions (a page
  * mixing an older published core with this one would read the new value as the old field). `_$p$`: the element's
- * priority Sets, removed in 38a4a0aa (work queue 5, step 2); R3's props store took `_$v$` instead (vera-5a, 2026-10-21).
+ * priority Sets, removed in 38a4a0aa (work queue 5, step 2); R3's props store took `_$v$` instead (2026-10-21).
  */
 const RETIRED_SIGILS = ['_$p$'];
 const reused = RETIRED_SIGILS.filter((name) => writes.has(name) || reads.has(name)).map((name) => `${name} (written by ${[...(writes.get(name) ?? [])].join(', ') || 'none'}, read by ${[...(reads.get(name) ?? [])].join(', ') || 'none'})`);

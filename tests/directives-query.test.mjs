@@ -546,7 +546,7 @@ test("the async-commit scope pin: a DEFERRED transition callback breaks nothing 
   /** The platform defers the mutation callback — directive scope is long gone when it runs.
    *  Omni's programs broke exactly here; ours must not, because commit closes over plain data. */
   /**
-   * The deferral is the TEST's to release, not a timer's (vera-5a, 2026-10-09): a 60 ms timeout and a fixed 120 ms
+   * The deferral is the TEST's to release, not a timer's (2026-10-09): a 60 ms timeout and a fixed 120 ms
    * sleep flaked under a loaded full suite — `settled()` could outlast 60 ms (the commit already landed) or 120 ms could
    * fall short. Now: assert "not yet", release, await the transition's own `finished`.
    */

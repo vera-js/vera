@@ -1,5 +1,5 @@
 /**
- * **A console line with a second argument is never a format string** (vera-5a, 2026-10-09). With two or more
+ * **A console line with a second argument is never a format string** (2026-10-09). With two or more
  * arguments the console reads the first as a FORMAT: `%c` `%s` `%d` `%i` `%f` `%o` `%O` are specifiers (the WHATWG
  * Console "Formatter"; measured in Node). So a line carrying a user-influenced subject — a path, an href, a src — before
  * a forwarded error was garbled by ordinary percent-escapes, and LOST THE ERROR: `/caf%c3%a9` (é) printed `/caf3%a9`

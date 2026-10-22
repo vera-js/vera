@@ -416,7 +416,7 @@ scenario('an applier commits during another host\'s render', {
 });
 
 /**
- * vera-5a, 2026-10-17: a light whose FIRST slot mounts inside another container's render is observed from a microtask
+ * 2026-10-17: a light whose FIRST slot mounts inside another container's render is observed from a microtask
  * after it — but native assigns synchronously, so a slot read INLINE, right after that render and before the microtask,
  * must already show its assignment. The read is the step's own, before the harness settles.
  */
@@ -456,7 +456,7 @@ scenario('a component in the template receives the children the template wrote f
 });
 
 /**
- * vera-5a, 2026-10-18: a component the template created, removed BY HAND and put back under the same root, then its
+ * 2026-10-18: a component the template created, removed BY HAND and put back under the same root, then its
  * children changed by the outer template. Light slots follow it by the host's own observer: a microtask later, where
  * the host used to stay on its root's synchronous list, and the read here is after the page settles, as for every hand
  * edit to a light host.
@@ -816,7 +816,7 @@ scenario('a discarded part\'s applier commits during another host\'s render', {
 
 /* ------------------------------------------------------------------------------------------------ */
 /* The user acting on <slot> elements themselves, and the slot APIs (2026-10-17, before the observer */
-/* redesign — the baseline it is checked against: DESIGN-SLOTS-OBSERVERS)                            */
+/* redesign — the baseline it is checked against)                                                    */
 /* ------------------------------------------------------------------------------------------------ */
 
 /**

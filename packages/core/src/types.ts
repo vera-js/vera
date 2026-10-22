@@ -93,7 +93,7 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 /** An element's hooks in run order: sorted by `_k` (priority, then creation). */
 export type Hooks = HookRecord[];
 /**
- * **One key's CELL** (PROTOTYPE, probe/cells; DESIGN-WEAK-CELLS §12; flattened 2026-10-19): ONE array,
+ * **One key's CELL** (PROTOTYPE, probe/cells; flattened 2026-10-19): ONE array,
  * `[leave count, hook, slot, hook, slot, …]` — each hook that read the key, held STRONGLY, with its link's index in that
  * hook's source list, so either side leaves the other in O(1) by a swap. One allocation per key, as the `Set` it replaced
  * (cells as two arrays in an object were 3, and a store row reading two fields allocated twice what it had: the Chrome

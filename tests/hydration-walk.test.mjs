@@ -1,5 +1,5 @@
 /**
- * **`@verajs/renderer/hydration` — verify, then commit.** The pins the design rests on (vera-5a's review, 2026-10-02):
+ * **`@verajs/renderer/hydration` — verify, then commit.** The pins the design rests on (2026-10-02):
  * NOTHING user-observable runs for a container that is then discarded; the base commit's sink checks run on every
  * adopted value (wrap, never bypass); seeding only ATTR/BOOLEAN, on exact equality, with the client value; text
  * converted once per binding position; iterables read once; `'value'` handlers asked in phase 2 with base precedence;
@@ -123,7 +123,7 @@ test('on SUCCESS: every binding commits once, the listener works, the ref is han
 /* ── phase 1 runs NOTHING, pinned as a whole ─────────────────────────────────────────────────────── */
 
 /**
- * **vera-5a's bar for queue-then-run** — nothing user-observable happens before the decision but the walk's text splits,
+ * **The bar for queue-then-run** — nothing user-observable happens before the decision but the walk's text splits,
  * its comments, and text conversion. A container with every kind of client work, mismatching at its LAST marker: before
  * the clear, ZERO of every callback but `toString`; the clear causes exactly one disconnect; and the CONTROL, the same
  * container matching, shows every counter moving once the queue runs — so the zeros are not a probe measuring nothing.
@@ -456,7 +456,7 @@ test('the same page after replaceChildren(): no warning', () => {
   container.remove();
 });
 
-/* ── the edges vera-5a named ─────────────────────────────────────────────────────────────────────── */
+/* ── the edges ───────────────────────────────────────────────────────────────────────────────────── */
 
 /**
  * An applier's content is its own: phase 1 cannot verify it (it is the applier's code that decides), so it runs in
@@ -555,7 +555,7 @@ test('a claimed span holding server custom elements disconnects each exactly onc
   }
 });
 
-/* ── re-entrancy (vera-5a, RUN on c65b53e: the outer render threw) ───────────────────────────────── */
+/* ── re-entrancy (RUN on c65b53e: the outer render threw) ────────────────────────────────────────── */
 
 /**
  * Phase 2 runs user code, and user code can render: a setter that renders into its own element adopts THAT container

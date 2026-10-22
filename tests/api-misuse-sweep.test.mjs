@@ -223,7 +223,7 @@ test('every by-name guard in the source is exercised above', async () => {
         if (code === undefined) continue;
         /**
          * A misuse() line PUSHED onto a list (cms's validation and build lines) is a message, not a guard that throws —
-         * but only a COVERAGE hand-off excuses it (vera-5a): the code must be one tests/cms-list-lines exercises. A pushed
+         * but only a COVERAGE hand-off excuses it: the code must be one tests/cms-list-lines exercises. A pushed
          * code with no row there stays required here, so "not thrown" still means "pinned somewhere".
          */
         if (/\.push\(\s*$/.test(text.slice(Math.max(0, at - 16), at)) && LIST_LINES.has(code)) continue;

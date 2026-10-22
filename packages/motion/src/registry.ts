@@ -12,8 +12,6 @@
  * WebKit never re-resolves an animation name an element is already carrying, so mark-then-deliver
  * leaves the element unanimated for ever, only in Safari, only sometimes. `acquire` is synchronous
  * precisely so "insert, then mark" is one straight line in the caller.
- *
- * Design record and the measurements behind every choice here: the write-path spec in the portal.
  */
 import type { SheetRoot } from './types.js';
 

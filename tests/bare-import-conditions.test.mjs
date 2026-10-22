@@ -1,5 +1,5 @@
 /**
- * **No suite imports a package bare when its exports carry a `node` condition** (vera-5a, 2026-10-09). `npm test` sets
+ * **No suite imports a package bare when its exports carry a `node` condition** (2026-10-09). `npm test` sets
  * `--conditions development`; `npm run test:prod` sets none, so a bare import resolves `default` — the min — which is
  * what the production row means to run. A `node` key comes before `default`, so there a bare import resolves the NODE
  * build instead, and the production row silently stops testing the min: seven jsx suites did exactly that from the day

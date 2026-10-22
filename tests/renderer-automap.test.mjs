@@ -97,7 +97,7 @@ test('a call site mapping an EMPTY array keeps its place: the next list stays it
   host.remove();
 });
 
-test('an INDEX callback before a list takes its place without stealing it (vera-5a): the list stays a list while it is hidden', async () => {
+test('an INDEX callback before a list takes its place without stealing it: the list stays a list while it is hidden', async () => {
   const state = createStore({ open: true, a: make('a', 3), b: make('b', 3) });
   let b = 0;
   let parents = 0;
@@ -160,7 +160,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
     if (mode === 'clear') state.rows = [];
     if (mode === 'hide' || mode === 'before') state.open = false;
     if (mode === 'nest') state.outer[0].open = false;
-    /** nest2 (vera-5a): ONE flush wakes a nested row, grows the nested array AND hides the list — every death path at once. */
+    /** nest2: ONE flush wakes a nested row, grows the nested array AND hides the list — every death path at once. */
     if (mode === 'nest2') { state.rows[0].t = 'w'; state.rows.push({ id: 1, t: 'p' }); state.outer[0].open = false; }
     flush(); await settle();
   }
@@ -189,7 +189,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
  * `.map` being called (the renderer telling a list its part no longer shows it, or matching lists by their array instead of
  * their order): a design point for Brian, with raw-array-first matching. It flips to a plain test when fixed.
  */
-test('HIDING a list releases its rows too, with no further write (vera-5a): the parent run that hid it disposes it (option (e))', () => {
+test('HIDING a list releases its rows too, with no further write: the parent run that hid it disposes it (option (e))', () => {
   const r = child('hide');
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
@@ -207,7 +207,7 @@ test('a row HIDING its nested list releases the nested rows, with no further wri
  * A MIXED-FLUSH release row, not a guard of `orphan`'s run-once (that double path is unreachable today: an orphaned list's
  * hooks change generation, so nothing queued runs them again — the guard is the invariant, this row cannot see it).
  */
-test('a nested list written, grown and hidden in ONE flush, then a new one hidden: the new one is released too (vera-5a)', () => {
+test('a nested list written, grown and hidden in ONE flush, then a new one hidden: the new one is released too', () => {
   const r = child('nest2');
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live nested list held its rows' hooks while it lived (peak ${r.peak})`);

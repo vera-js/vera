@@ -1,6 +1,6 @@
 /**
  * **A released part frees its applier's state — measured by collection, in an isolated child process** (work queue 0d,
- * vera-5a, 2026-10-11). A child position rendered by a `_$child$` applier keeps the applier (`$a`) and whatever it
+ * 2026-10-11). A child position rendered by a `_$child$` applier keeps the applier (`$a`) and whatever it
  * returned (`$z`, its continuity) on the part — and either may close over the component's setup scope even when the
  * visible output is text. Nothing OBSERVABLE follows a released applier, so the pin is retention, and gc is the instrument
  * — alone in its own process (`--expose-gc`), as `core-subscription-sweep` does.
