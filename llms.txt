@@ -226,6 +226,8 @@ card.heading = 'Groceries';   // after connect: repaints
 | **Methods** | Enumerable, like the element's interface (so is a define component's `connectedCallback`). `connectedCallback` / `constructor` in `methods` are ignored; `disconnectedCallback` runs as a teardown hook. |
 | **Declare only what others drive** | Declared props are public and reactive, which has a small price at creation; keep private state in the setup's own store. |
 | **SSR** | The server renders declared attributes and props as the client does. |
+| **Removal releases the props store** | Values survive a re-add; outside code reading THAT element's props does not follow it across a remove and re-add — share state through a store. |
+| **Name the setup for stack traces** | `define('x-card', function XCard(host) { … })` — engines print function names; the generated class's name is not what they show. |
 
 ### Effects
 

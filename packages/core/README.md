@@ -48,7 +48,9 @@ read while they run, so a write to `state.count` schedules exactly the work that
 setup around them, which reads nothing tracked, never runs again.
 
 `define(tag, setup)` and `define({ tag, …options }, setup)` register the element and return its
-class. The options are `init`'s (`shadow`, `foreignNodes`, any wired module's own key) plus
+class. **Name the setup** — `define('tap-counter', function TapCounter() { … })` — and a stack trace
+from inside the component reads `TapCounter`: engines print function names, and the setup is where a
+component's code runs. The options are `init`'s (`shadow`, `foreignNodes`, any wired module's own key) plus
 `props`, `attributes` and `methods`, below. The string form passes no options at all. A tag is
 defined once: a second `define` of it throws, as the platform's `customElements.define` does.
 
@@ -166,6 +168,10 @@ card.tags.push('home');       // each card has its own list (the default is copi
   price at creation; state nothing outside reads belongs in the setup's own store. (The measured
   engine behavior behind this is in [`docs/BROWSER-LEDGER.md`](../../docs/BROWSER-LEDGER.md).)
 - Undeclared props keep the adoption above, unchanged.
+- **Removing a component releases its props store** (Firefox keeps a removed element's fields alive
+  until its cycle collector frees the node). The values survive a re-add, but outside code reading
+  THAT element's props (`sensor.reading` from another component) does not follow it across a remove
+  and re-add — share state through a store both read instead.
 
 ### Attributes — declared, the platform way
 
