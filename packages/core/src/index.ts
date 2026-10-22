@@ -37,6 +37,7 @@ export { define } from './modules/define.js';
 import { initWith, rehomeElement, retireElement } from './modules/init.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
+export { computed } from './modules/computed.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
 import { walkItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';

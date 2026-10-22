@@ -65,8 +65,10 @@ test('every live reader redraws on one write — 300 of them, through a move and
  * - `never`   — components reading a key never written;
  * - `noread`  — the same churn reading nothing (the baseline);
  * - `inner`   — components whose SETUP creates a computed reading the key (retired with the component);
- * - `free`    — free-standing computeds created and dropped (no component: the documented residual), then the key
- *               written — the bound: a write prunes them, exactly as before.
+ * - `free`    — free-standing computeds created and dropped, never read (lazy since C10: they never link at all);
+ * - `visit`   — free-standing computeds created per batch over a key NEVER written (a route visit's), each READ by one
+ *               component of the batch, which is then removed: watched, then dropped (vera-5a's unbounded case — a
+ *               computed whose sources never change must still let go when its last reader leaves).
  */
 const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--expose-gc', '--no-warnings', '--input-type=module', '-e', `
   import { JSDOM } from 'jsdom';
@@ -75,9 +77,8 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent'])
     globalThis[k] = dom.window[k] ?? globalThis[k];
   const { load } = await import('./tests/dist.mjs');
-  const { init, html, wire, createStore, useEffect } = await load('core');
+  const { init, html, wire, createStore, useEffect, computed } = await load('core');
   const { renderer } = await load('renderer');
-  const { computed } = await load('store/computed');
   wire([renderer]);
   const config = createStore({ label: 'x' });
   const mode = ${JSON.stringify(mode)};
@@ -96,6 +97,8 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   customElements.define('g-many', class extends HTMLElement { connectedCallback() {
     init(this, () => { for (let i = 0; i < 5000; i++) useEffect(() => { void config.label; }); return () => html\`<i>many</i>\`; });
   } });
+  /** visit: reads the free-standing computed handed to it (made outside any setup, per batch). */
+  customElements.define('g-visit', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`<i>\${this.c.value}</i>\`); } });
   customElements.define('g-keep', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`<b>\${config.label}</b>\`); } });
   const settle = () => new Promise((r) => setImmediate(r));
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
@@ -139,7 +142,11 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   }
   for (let i = 0; i < 5000; i += 100) {
     if (mode === 'free') { for (let j = 0; j < 100; j++) computed(() => config.label); }
-    else {
+    else if (mode === 'visit') {
+      for (let j = 0; j < 100; j++) { const el = document.createElement('g-visit'); el.c = computed(() => config.label + j); churn.append(el); }
+      await settle();
+      churn.replaceChildren();
+    } else {
       for (let j = 0; j < 100; j++) churn.append(document.createElement('g-row'));
       await settle();
       churn.replaceChildren();
@@ -184,11 +191,17 @@ test("a computed created in a component's setup leaves with the component", () =
  * its subscriptions when the parent left), and a listed owner is never itself a component being set up, so nothing
  * nests further.
  */
-test('free-standing computeds have no removal — the documented residual — and a write to the key prunes them, as before', () => {
+test('free-standing computeds, created and dropped unread, leave NOTHING — before any write and after one (lazy since C10)', () => {
   const free = child('free');
   assert.ok(free.droppedDied && free.keptLive, 'CONTROLS');
-  assert.ok(free.weakRefs - baseline.weakRefs >= 4000, `CONTROL: the residual is there before the write (${free.weakRefs - baseline.weakRefs})`);
-  assert.ok(free.afterWrite - baseline.weakRefs <= 2, `pruned by the write: ${free.afterWrite - baseline.weakRefs} left`);
+  assert.ok(free.weakRefs - baseline.weakRefs <= 2, `before the write: ${free.weakRefs - baseline.weakRefs} over the baseline (was ≥ 4000 when eager)`);
+  assert.ok(free.afterWrite - baseline.weakRefs <= 2, `after the write: ${free.afterWrite - baseline.weakRefs} left`);
+});
+
+test('free-standing computeds over a key NEVER written, each read by a component that is then removed, leave NOTHING', () => {
+  const visit = child('visit');
+  assert.ok(visit.droppedDied && visit.keptLive, 'CONTROLS');
+  assert.ok(visit.weakRefs - baseline.weakRefs <= 2, `${visit.weakRefs - baseline.weakRefs} over the baseline (5000 watched, then dropped; no write)`);
 });
 
 /**

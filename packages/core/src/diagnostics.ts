@@ -44,6 +44,10 @@ export const PROSE: Record<string, Prose> = {
     `it has a \`${name}\` method and no \`setup\`, so init found nothing to run.`,
     'Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns.',
   ],
+  'computed-not-function': (received) => [
+    `expected a function to derive the value from, and received ${received}.`,
+    'Pass the expression as a function — computed(() => a + b), not computed(a + b).',
+  ],
   'untrack-not-function': (received) => [
     `expected a function and received ${received}.`,
     'It runs the function without subscribing — `untrack(() => state.a)`, not `untrack(state.a)`, which reads the property before untrack can do anything about it.',

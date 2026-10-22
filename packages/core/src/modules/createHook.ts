@@ -107,6 +107,7 @@ const QUEUED = 1;
 const SYNC = 2;
 export const MODE_QUEUED = QUEUED;
 export const MODE_SYNC = SYNC;
+export const MODE_RAW = RAW;
 
 /** Every hook's creation, in order: `_k`, which breaks ties within one priority. */
 let created = 0;

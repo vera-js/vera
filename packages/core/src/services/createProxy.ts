@@ -96,8 +96,14 @@ const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
 
 /** Wakes every hook that read `obj[prop]`. */
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
+  /**
+   * The count moves on EVERY write, read or not (2026-10-22): an unwatched `computed` caches its untracked value
+   * against it, and its sources are often keys nobody reads — counting only writes that woke someone left that cache
+   * stale (measured: 10 after the source became 2, `internal` c10/stale-pull.mjs).
+   */
+  const epoch = ++wakes;
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, epoch);
 };
 
 /**
@@ -122,6 +128,14 @@ const prune = (obj: object) => {
   return keys.size;
 };
 const kit: StoreKit = { track, trigger, shape: GLOBAL, prune };
+/**
+ * **For `computed`** (2026-10-22): the same subscribe and notify, and a read of the wake counter. ALIASES, never
+ * `export` on `track`/`trigger` themselves — an exported binding is a live one, which V8 reaches less directly from the
+ * traps that call them on every read and write (CLAUDE.md).
+ */
+export const trackKey = track;
+export const triggerKey = trigger;
+export const wakeCount = () => wakes;
 /**
  * (2026-10-20) The same kit handed to a module OFF the store chain (`$k`), so the keyed
  * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.
@@ -164,6 +178,9 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     else for (let i = name === 'splice' ? 2 : 0; i < (name === 'fill' ? 1 : args.length); i++) args[i] = unwrap(args[i]);
     const result = method.apply(obj, args);
     const after = obj.length;
+    /** One wake number for the whole operation (a hook reached through several keys runs once) — taken even when no
+     *  key is subscribed, as `trigger` takes one for every write (an unwatched `computed`'s cache reads it). */
+    const epoch = ++wakes;
     const keys = proxyCallbacks.get(obj);
     if (keys !== undefined) {
       /**
@@ -179,8 +196,6 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
        * read as nothing happened.
        */
       const signal = { prop: GLOBAL, value: obj } as Signal<unknown>;
-      /** One wake number for the whole operation: a hook reached through several keys runs once. */
-      const epoch = ++wakes;
       const send = (key: unknown) => {
         const cell = keys.get(key);
         if (cell !== undefined) wake(cell, signal, epoch);

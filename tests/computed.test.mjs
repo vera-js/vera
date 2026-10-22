@@ -1,5 +1,5 @@
 /**
- * `@verajs/store/computed` — memoized derived values.
+ * `computed` (core, since 2026-10-22; it was `@verajs/store/computed`) — memoized derived values.
  *
  * The distinction being tested is against a plain function, not against nothing. `() => a + b` runs
  * on every read; a computed runs once per *change*, and only when something it actually read moves.
@@ -13,7 +13,7 @@ import { JSDOM } from 'jsdom';
 const core = await load('core');
 const { collections } = await load('store/collections');
 core.wire(collections);
-const { computed } = await load('store/computed');
+const { computed } = core;
 const dom = new JSDOM('<body></body>');
 globalThis.HTMLElement = dom.window.HTMLElement;
 
@@ -32,12 +32,13 @@ const mount = () => {
   let evaluations = 0;
   const total = computed(() => { evaluations++; return state.a + state.b; });
 
-  check('evaluates once up front', evaluations === 1 && total.value === 3);
+  check('evaluates nothing until it is read — lazy', evaluations === 0);
+  check('the first read evaluates once', total.value === 3 && evaluations === 1);
   total.value; total.value; total.value;
   check('repeated reads are free', evaluations === 1, `evaluated ${evaluations} times`);
 
   state.a = 10;
-  check('a dependency change re-evaluates', evaluations === 2 && total.value === 12);
+  check('a dependency change re-evaluates at the next read', total.value === 12 && evaluations === 2);
 
   const before = evaluations;
   state.unrelated = 99;
@@ -111,26 +112,26 @@ const mount = () => {
     const bad = computed(() => { if (state.n > 1) throw new Error('boom'); return state.n; });
     check('a computed that starts fine has its value', bad.value === 1);
     state.n = 2;
+    void bad.value;
   } catch { threw = true; }
   check('an evaluation that throws does not escape', threw === false);
   check('it reaches the error insert instead', seen.some((e) => e?.message === 'boom'));
 }
 
 /**
- * **Eager, not lazy** — the opposite of what the name promises everywhere else, so it is asserted
- * rather than left to be discovered. A computed evaluates at creation and re-evaluates on every
- * dependency change with no reader at all, because reading `.value` subscribes and a component can
- * only be told the value *changed* if it has been computed. Documented in the package README.
+ * **Lazy while nothing watches it** (C10, 2026-10-22 — it was eager, evaluating at creation and on every dependency
+ * write with no reader). Unwatched, a computed holds no links and evaluates only when read, once per store write.
  */
 {
   let runs = 0;
   const state = core.createStore({ n: 1 });
   const derived = computed(() => { runs++; return state.n; });
-  check('a computed evaluates at creation, before any read', runs === 1, String(runs));
+  check('a computed does not evaluate at creation', runs === 0, String(runs));
   for (let i = 2; i <= 6; i++) state.n = i;
-  check('and on every dependency write with no reader — if this drops, it went lazy', runs === 6, String(runs));
+  check('nor on dependency writes with no reader', runs === 0, String(runs));
   check('reading returns the current value', derived.value === 6, String(derived.value));
-  check('and reading does not re-evaluate, which is the memoization', runs === 6, String(runs));
+  check('evaluated once for that read', runs === 1, String(runs));
+  check('and reading again does not re-evaluate, which is the memoization', derived.value === 6 && runs === 1, String(runs));
 }
 
 {

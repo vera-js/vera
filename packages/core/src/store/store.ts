@@ -79,7 +79,19 @@ const compactCell = (cell: Cell) => {
   cell.n = w;
   cell.d = 0;
   cell.m = (cell.m + 1) % 0x3fffffff;
+  /** Its LAST reader left: a computed's value cell lets its computed stop listening at once (`whenEmptied`). */
+  if (w === 0 && emptied !== undefined) emptied.get(cell)?.();
 };
+
+/**
+ * **What runs when a cell loses its last reader** (2026-10-22, C10): a `computed` registers its value cell here, and
+ * unlinks from its own sources the moment nothing reads it — so a computed whose readers left holds nothing, even over
+ * a store that is never written again. A marker table rather than a field on every cell (one shape for all cells; the
+ * field is the alternative a churn race prices). Made by the first computed: a page without one checks `undefined`
+ * only, and only when a cell compacts to empty.
+ */
+let emptied: WeakMap<Cell, () => void> | undefined;
+export const whenEmptied = (cell: Cell, fn: () => void) => (emptied ??= new WeakMap()).set(cell, fn);
 
 /**
  * **The cell's positions, in ONE place** (readability, Brian 2026-10-19). Position 0 is the inline first reader (`a`,
