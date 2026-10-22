@@ -288,6 +288,15 @@ from another machine, or after that is undone, has a variable changed.
   arms. Consequence: where a component's props record lives (core's `_$raw$`, which bound
   undeclared props already use, and `define`'s declared props) is a design decision measured on Firefox, never assumed
   free. (Playwright Firefox 153 HEADLESS — provisional, 4 runs per arm; the profile 2 runs each; 2026-10-21)
+- **Firefox reads a DOM element's own field by a COMPUTED key slower than by a literal name** — `this[KEY]`, whether KEY
+  is a Symbol or a string built at load, against `this._name`. Measured on a custom element's
+  `attributeChangedCallback` writing a store it caches on the element (100k elements, one attribute written per element
+  per iteration): literal 229 ms, Symbol 244, computed string 251; Chrome 110–112 for all three; creation alone shows no
+  difference. Moving `define`'s cached props store from a per-copy Symbol to a literal sigiled field took the same path
+  from 247 to 226 ms and Chrome's defaults row from 386 to 366. Consequence: a field read on every access of a DOM object
+  is a literal name — sigiled, so no production bundle mangles it — never a computed key; uniqueness across copies of a
+  module comes from ownership (one class owns an element), not from the key. (Playwright Firefox 153 and installed
+  Chrome, HEADLESS — provisional, 4 runs per arm; 2026-10-21)
 
 ## Test environments
 
