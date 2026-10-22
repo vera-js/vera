@@ -47,6 +47,14 @@ for (const pkg of readdirSync(root)) {
   }
 }
 
+/**
+ * RETIRED sigiled names — never written or read again, so one name never carries two meanings across versions (a page
+ * mixing an older published core with this one would read the new value as the old field). `_$p$`: the element's
+ * priority Sets, removed in 38a4a0aa (work queue 5, step 2); R3's props store took `_$v$` instead (vera-5a, 2026-10-21).
+ */
+const RETIRED_SIGILS = ['_$p$'];
+const reused = RETIRED_SIGILS.filter((name) => writes.has(name) || reads.has(name)).map((name) => `${name} (written by ${[...(writes.get(name) ?? [])].join(', ') || 'none'}, read by ${[...(reads.get(name) ?? [])].join(', ') || 'none'})`);
+
 /** Read and never written in these sources, with the reason. */
 const UNWRITTEN = {
   /**
@@ -84,6 +92,10 @@ test('every sigiled name a package reads is written somewhere — a one-sided re
 
 test("no source reads core's retired host names — a stale read is silently undefined", () => {
   assert.deepEqual(retired, []);
+});
+
+test('no source writes or reads a RETIRED sigil — one name, one meaning, across versions', () => {
+  assert.deepEqual(reused, []);
 });
 
 test('every sigiled name has one writing package, but the reviewed shared ones', () => {

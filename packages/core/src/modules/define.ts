@@ -120,11 +120,12 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
      * was written down before the run), built at the FIRST touch of any declared prop, which also writes every missing
      * default at once into the raw target (no notification), so no read pays a `hasOwn`. The cached proxy points at the
      * raw record only — no back-pointer to the element, so no DOM↔JS cycle for Firefox's collector.
-     * - **A LITERAL, sigiled name (`_$p$`), never a computed key:** Firefox reads a DOM object's field by a computed key
+     * - **A LITERAL, sigiled name (`_$v$`, "values"), never a computed key** — never `_$p$`, a RETIRED core field (the
+     *   priority Sets, removed in 38a4a0aa): reusing it would give one name two meanings across versions (vera-5a): Firefox reads a DOM object's field by a computed key
      *   (`this[KEY]`, a Symbol OR a per-copy string) ~7% slower than by a literal name in the attribute-write path
      *   (headless: 244 / 251 vs 229 ms; Chrome no difference; BROWSER-LEDGER 2026-10-21). Sigiled, so no bundle mangles
      *   it. Shared by every copy of core on a page by design, as `_$raw$` is — and safe: an element has ONE class, and
-     *   only that tag's generated accessors (one copy's) ever touch its `_$p$`.
+     *   only that tag's generated accessors (one copy's) ever touch its `_$v$`.
      */
     const copies = keys.map((key) => {
       const value = props![key];
@@ -146,7 +147,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
           raw![key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
         }
       }
-      return ((element as { _$p$?: Record<string, unknown> })._$p$ = createStore(raw!) as Record<string, unknown>);
+      return ((element as { _$v$?: Record<string, unknown> })._$v$ = createStore(raw!) as Record<string, unknown>);
     };
     /**
      * The callback writes the STORE, not `this[name]`: an element given a property before the tag was defined still holds
@@ -162,16 +163,16 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
         _old: string | null,
         value: string | null
       ) {
-        ((this as { _$p$?: Record<string, unknown> })._$p$ ?? store(this))[camels[name]!] = value;
+        ((this as { _$v$?: Record<string, unknown> })._$v$ ?? store(this))[camels[name]!] = value;
       };
     }
     for (const key of keys)
       Object.defineProperty(Class.prototype, key, {
         get(this: ComponentElement) {
-          return ((this as { _$p$?: Record<string, unknown> })._$p$ ?? store(this))[key];
+          return ((this as { _$v$?: Record<string, unknown> })._$v$ ?? store(this))[key];
         },
         set(this: ComponentElement, value: unknown) {
-          ((this as { _$p$?: Record<string, unknown> })._$p$ ?? store(this))[key] = value;
+          ((this as { _$v$?: Record<string, unknown> })._$v$ ?? store(this))[key] = value;
         },
         configurable: true,
         enumerable: true,
