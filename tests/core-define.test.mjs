@@ -510,3 +510,28 @@ test('release at removal: a CLASS component with adopted props, removed then re-
   assert.equal(child.textContent, 'c', 'a plain write after the re-add repaints too');
   parent.remove();
 });
+
+test('release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)', async () => {
+  const parentState = createStore({ name: 'a', tick: 0 });
+  const { init } = await load('core');
+  customElements.define('x-def-livecopy', class extends HTMLElement { connectedCallback() { init(this, (host) => () => html`<b>${host.name}</b>`); } });
+  const parent = document.createElement('div');
+  document.body.append(parent);
+  const { renderInto } = await load('renderer');
+  const draw = () => html`<x-def-livecopy !name=${parentState.name} data-tick=${parentState.tick}></x-def-livecopy>`;
+  renderInto(draw(), parent);
+  await settle();
+  const child = parent.querySelector('x-def-livecopy');
+  child.remove();
+  await settle();
+  parent.append(child);
+  await settle();
+  child.name = 'c';                // the child's own write, after the re-add
+  await settle();
+  assert.equal(child.textContent, 'c', 'CONTROL: the write landed');
+  parentState.tick++;              // the parent re-renders; its bound value is unchanged ('a')
+  renderInto(draw(), parent);
+  await settle();
+  assert.equal(child.textContent, 'a', 'the live compare saw the child’s current value (c) differ, and re-asserted a');
+  parent.remove();
+});
