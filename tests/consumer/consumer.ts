@@ -232,3 +232,16 @@ void doubled;
 dialog.close();
 // @ts-expect-error — the argument is typed
 dialog.open('twice');
+
+/** R3 props: types inferred from the defaults — on the setup's host and on the instances — beside the methods. */
+const Card = define({ tag: 'x-consumer-card', props: { heading: '', items: [] as string[] }, methods: {
+  count() {
+    return this.items.length;
+  },
+} }, (host) => () => html`<h2>${host.heading}</h2><p>${host.items.length}</p>`);
+const card = new Card();
+card.heading = 'typed';
+const n: number = card.count();
+void n;
+// @ts-expect-error — heading is a string
+card.heading = 42;

@@ -1,6 +1,7 @@
 import { diagnostic, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { initWith } from './init.js';
+import { createStore } from './createStore.js';
 import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup } from '../types.js';
 
 /**
@@ -23,21 +24,26 @@ import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Method
  * - The options copy is frozen in development: it is shared by every instance of the tag, so a module that wrote to it
  *   would leak state between them — it throws there instead (no package writes it, checked 2026-10-21).
  */
-export const define = <M extends Methods = Record<never, never>>(
-  target: string | (DefineOptions & { methods?: M & ThisType<ComponentElement & M> }),
-  setup: Setup
-): DefinedClass<M> => {
+export const define = <M extends Methods = Record<never, never>, P extends object = Record<never, never>>(
+  target: string | (DefineOptions & { props?: P; methods?: M & ThisType<ComponentElement & P & M> }),
+  setup: (host: ComponentElement & P & M) => unknown
+): DefinedClass<P & M> => {
   let tag = target as string;
   let options: InitOptions | undefined;
   let methods: M | undefined;
-  /** One test, and the tag (and `methods`) read back out (the smaller form: −1 `typeof` in the bundle). */
-  if (typeof target !== 'string') ({ tag, methods, ...(options as object) } = (target ?? {}) as DefineOptions & { methods?: M });
+  let props: Record<string, unknown> | undefined;
+  /** One test, and the tag (and `methods`, `props`) read back out (the smaller form: −1 `typeof` in the bundle). */
+  if (typeof target !== 'string')
+    ({ tag, methods, props, ...(options as object) } = (target ?? {}) as DefineOptions & { methods?: M; props?: Record<string, unknown> });
   if (__DEV__) {
     checkDefine(tag, setup);
     if (methods) checkMethods(tag, methods, options);
+    if (props !== undefined) checkProps(tag, props, methods);
     Object.freeze(options);
   }
-  const entry = { o: options, s: setup };
+  const entry = { o: options, s: setup as Setup };
+  /** The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all). */
+  const keys = props && Object.keys(props);
   /**
    * **ONE assign builds the prototype** — `methods` (public methods: one function per tag, nothing per instance; `this` is
    * the element, as in a class; Brian 2026-10-21), then the class's `constructor` and the generated `connectedCallback`
@@ -52,11 +58,74 @@ export const define = <M extends Methods = Record<never, never>>(
   Object.assign(Class.prototype, methods, {
     constructor: Class,
     connectedCallback(this: ComponentElement) {
+      /**
+       * **A value set before the tag was defined** (`el.heading = …` on an element made before `define` ran) is an OWN
+       * data property, which hides the prototype accessor: handed over through the setter, before the setup runs. Only
+       * declared names; `Object.hasOwn`, never `in` (vera-5a). Here, never in `initWith` (#33: Firefox charges its size).
+       */
+      if (keys)
+        for (const key of keys)
+          if (Object.hasOwn(this, key)) {
+            const value = (this as unknown as Record<string, unknown>)[key];
+            delete (this as unknown as Record<string, unknown>)[key];
+            (this as unknown as Record<string, unknown>)[key] = value;
+          }
       initWith(this, entry.o, entry.s);
     },
   });
+  /**
+   * **Declared props** (R3 piece 2; Brian 2026-10-21: optional, names and defaults): a get/set pair per name on the
+   * PROTOTYPE, backed by the element's ONE props store — `createStore(_$raw$)`, the store `adoptProps` keeps — so a write
+   * from anywhere (a template, plain JS after connect, another framework) is a store write and the render that read it
+   * repaints. ONE STORE, TWO VIEWS: this getter reads through the PROXY (tracked, for the component's own hooks); the
+   * renderer's `!name` compare reads the raw TARGET (untracked — a parent's commit is never subscribed to a child).
+   * - **Defaults are LAZY: creation pays nothing.** The first read of a key the element does not hold writes the default
+   *   into the RAW target (no notification) and reads it back through the proxy, which subscribes the reader. An array or
+   *   plain-object default is shallow-copied there, per element (`items: []` gives each its own list; nested values stay
+   *   shared). `Object.hasOwn`, never `in`: a prop named `toString` would otherwise find Object.prototype's (vera-5a).
+   * - Binding a value EQUAL to the default still writes once (the raw target lacks the key until the first read) — one
+   *   write, then a match; pinned.
+   * - Assigned after `methods`, so a prop of a method's name wins (development says so).
+   */
+  if (keys)
+    for (const key of keys) {
+      const fallback = props![key];
+      Object.defineProperty(Class.prototype, key, {
+        get(this: ComponentElement) {
+          const raw = (this._$raw$ ??= {}) as Record<string, unknown>;
+          if (!Object.hasOwn(raw, key))
+            raw[key] = Array.isArray(fallback) ? [...(fallback as unknown[])] : (fallback as object)?.constructor === Object ? { ...(fallback as object) } : fallback;
+          return (createStore(raw) as Record<string, unknown>)[key];
+        },
+        set(this: ComponentElement, value: unknown) {
+          (createStore((this._$raw$ ??= {})) as Record<string, unknown>)[key] = value;
+        },
+        configurable: true,
+        enumerable: true,
+      });
+    }
   customElements.define(tag, Class);
-  return Class as unknown as DefinedClass<M>;
+  return Class as unknown as DefinedClass<P & M>;
+};
+
+/**
+ * Development: the declared props, said by code — installed identically in both builds. A name a method also has (the
+ * prop wins), a platform member's name, an object default that cannot be copied per element (a `Set`, a `Map`, a class
+ * instance: SHARED by every instance — set it in the setup, or pass it in).
+ */
+const checkProps = (tag: string, props: unknown, methods: object | undefined) => {
+  if (props === null || typeof props !== 'object') {
+    console.warn(diagnostic('core', `define('${tag}') props`, 'define-props-not-object', __DEV__ && PROSE['define-props-not-object'](String(props))));
+    return;
+  }
+  for (const name of Object.keys(props)) {
+    const subject = `define('${tag}') props.${name}`;
+    const value = (props as Record<string, unknown>)[name];
+    if (methods && Object.hasOwn(methods, name)) console.warn(diagnostic('core', subject, 'define-prop-method', __DEV__ && PROSE['define-prop-method'](name)));
+    else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && (value as object).constructor !== Object)
+      console.warn(diagnostic('core', subject, 'define-prop-shared-default', __DEV__ && PROSE['define-prop-shared-default']()));
+  }
 };
 
 /**
@@ -74,7 +143,7 @@ const checkMethods = (tag: string, methods: object, options: InitOptions | undef
     else if (name === 'adoptedCallback') console.warn(diagnostic('core', subject, 'define-method-adopted', __DEV__ && PROSE['define-method-adopted']()));
     else if (name === 'attributeChangedCallback' && !(options as { attributes?: unknown[] } | undefined)?.attributes?.length)
       console.warn(diagnostic('core', subject, 'define-method-unobserved', __DEV__ && PROSE['define-method-unobserved']()));
-    else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-method-shadows', __DEV__ && PROSE['define-method-shadows'](name)));
+    else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
   }
 };
 

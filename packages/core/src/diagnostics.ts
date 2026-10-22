@@ -148,9 +148,21 @@ export const PROSE: Record<string, Prose> = {
     'never fires: the class observes no attributes, and it is installed anyway.',
     "Declare them: `define({ tag, attributes: ['label'] }, …)` — each then arrives as a prop.",
   ],
-  'define-method-shadows': (name) => [
+  'define-shadows': (name) => [
     `replaces the platform's \`${name}\` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.`,
     'Give it a name of its own, unless replacing the platform member is the point.',
+  ],
+  'define-props-not-object': (received) => [
+    `expected an object of names and their defaults and received ${received}, so no prop is declared.`,
+    "Name each prop with its default: `props: { heading: '', items: [] }`.",
+  ],
+  'define-prop-method': (name) => [
+    `\`${name}\` is also a method, and the prop wins (it is installed after the methods), in every build.`,
+    'Give the method or the prop another name.',
+  ],
+  'define-prop-shared-default': () => [
+    'this default is an object that cannot be copied per element (a Set, a Map, a class instance), so EVERY element of the tag shares this one — a change through one shows in all.',
+    'Declare it `null` and create it in the setup (`props: { selected: null }`, then `host.selected = new Set()`), or pass it in; arrays and plain objects are copied per element.',
   ],
   'init-options': () => [
     "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): " +

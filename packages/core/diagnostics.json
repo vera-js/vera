@@ -48,18 +48,32 @@
       "fix": "Methods are functions; a value that changes per element is a prop (`props: { name: default }`)."
     },
     {
-      "code": "define-method-shadows",
-      "params": [
-        "name"
-      ],
-      "message": "replaces the platform's `{name}` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.",
-      "fix": "Give it a name of its own, unless replacing the platform member is the point."
-    },
-    {
       "code": "define-method-unobserved",
       "params": [],
       "message": "never fires: the class observes no attributes, and it is installed anyway.",
       "fix": "Declare them: `define({ tag, attributes: ['label'] }, …)` — each then arrives as a prop."
+    },
+    {
+      "code": "define-prop-method",
+      "params": [
+        "name"
+      ],
+      "message": "`{name}` is also a method, and the prop wins (it is installed after the methods), in every build.",
+      "fix": "Give the method or the prop another name."
+    },
+    {
+      "code": "define-prop-shared-default",
+      "params": [],
+      "message": "this default is an object that cannot be copied per element (a Set, a Map, a class instance), so EVERY element of the tag shares this one — a change through one shows in all.",
+      "fix": "Declare it `null` and create it in the setup (`props: { selected: null }`, then `host.selected = new Set()`), or pass it in; arrays and plain objects are copied per element."
+    },
+    {
+      "code": "define-props-not-object",
+      "params": [
+        "received"
+      ],
+      "message": "expected an object of names and their defaults and received {received}, so no prop is declared.",
+      "fix": "Name each prop with its default: `props: { heading: '', items: [] }`."
     },
     {
       "code": "define-setup",
@@ -68,6 +82,14 @@
       ],
       "message": "the second argument is the SETUP, a function, and received {received}.",
       "fix": "Pass the setup after the tag or the options: `define('x-card', (host) => () => html`…`)`."
+    },
+    {
+      "code": "define-shadows",
+      "params": [
+        "name"
+      ],
+      "message": "replaces the platform's `{name}` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.",
+      "fix": "Give it a name of its own, unless replacing the platform member is the point."
     },
     {
       "code": "define-tag",
