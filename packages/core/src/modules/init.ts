@@ -328,7 +328,7 @@ const retireGeneration = (element: ComponentElement) => {
  *   again, so a listener on the element's window, a frame loop or an observer re-binds to the new one (Brian: every
  *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, a `useHook` of your own — is not
  *   re-run: a move never refetches;
- * - the `'rehome'` inserts: `@verajs/styles` re-applies its sheets, because a move EMPTIES a shadow root's
+ * - `@verajs/styles`, through `$rs`: it re-applies its sheets, because a move EMPTIES a shadow root's
  *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).
  * `_$d$` becomes the new document, so the way back re-homes too; a move within one document never gets here.
  */
@@ -340,9 +340,8 @@ export const rehomeElement = (element: ComponentElement) => {
       const hook = hooks[i]!;
       if (hook._y === LAYOUT_PRIORITY || hook._y === EFFECT_PRIORITY) hook.$n();
     }
-  /** The `'init'` chain's runner, reused: a `'rehome'` insert returns nothing (never `false`), so each one runs. */
-  const chain = inserts.get('rehome');
-  if (chain) runInits(chain, element, undefined, undefined);
+  /** `@verajs/styles` re-applies its sheets (the one module that needs to hear a move; it installs `$rs` when wired). */
+  (inserts as unknown as { $rs?: (element: ComponentElement) => void }).$rs?.(element);
 };
 
 export const retireElement = (element: ComponentElement) => {

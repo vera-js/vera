@@ -176,14 +176,18 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
 };
 
 /**
- * **The module.** `wire([renderer, styles])`. Priority 50 is the default-implementation convention. Two insert points:
- * `'init'` adopts the styles at setup, and `'rehome'` (R4) applies them again after a move into another document — a
- * move empties a shadow root's `adoptedStyleSheets`, and the way back does not restore them (BROWSER-LEDGER
- * 2026-10-22). `adoptStyles` is idempotent and uses the element's own window, so the same function serves both.
+ * **The module.** `wire([renderer, styles])`. Priority 50 is the default-implementation convention. Two parts: the
+ * `'init'` insert adopts the styles at setup, and a connector installs core's `$rs` hook, which core calls after a
+ * component moves into another document (R4) — a move empties a shadow root's `adoptedStyleSheets`, and the way back
+ * does not restore them (BROWSER-LEDGER 2026-10-22). Styles is the only module that needs to hear a move, so the hook
+ * lives here rather than as an insert point. `adoptStyles` is idempotent and uses the element's own window, so the same
+ * function serves both.
  */
 export const styles = [
   { name: '@verajs/styles', on: 'init' as const, fn: adoptStyles as never, priority: 50 },
-  { name: '@verajs/styles/rehome', on: 'rehome' as const, fn: adoptStyles as never, priority: 50 },
+  (registry: object) => {
+    (registry as { $rs?: unknown }).$rs = adoptStyles;
+  },
 ];
 
 /** Development: `adoptStyles` is not the module — `wire` names `styles` instead (see the renderer's `renderInto` mark). */
