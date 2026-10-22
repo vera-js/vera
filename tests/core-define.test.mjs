@@ -511,6 +511,10 @@ test('release at removal: a CLASS component with adopted props, removed then re-
   parent.remove();
 });
 
+/**
+ * `!name`, not `.name`: a `.name` binding skips an unchanged value before any compare, so only a LIVE binding — compared
+ * against the child's CURRENT value every render — can show a stale record (vera-5a). Red with a captured old store.
+ */
 test('release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)', async () => {
   const parentState = createStore({ name: 'a', tick: 0 });
   const { init } = await load('core');
