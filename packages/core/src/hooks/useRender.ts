@@ -51,7 +51,13 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
       settle(self);
     },
     RENDER_PRIORITY,
-    false
+    false,
+    /**
+     * The element as the hook's OWNER, as `useHook(fn, priority, element)` takes it (E5, 2026-10-22): during a setup it is
+     * the component being set up anyway, and after an `await` in an async setup — where no component is current — it is
+     * what lets `useRender(template, host)` work instead of throwing `no-owner`.
+     */
+    element
   );
 };
 

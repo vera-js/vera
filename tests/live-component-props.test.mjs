@@ -86,6 +86,48 @@ test('an unchanged `!name` across ten parent renders renders the child zero extr
   host.remove();
 });
 
+/**
+ * **E8 (2026-10-22): a name `Object.prototype` also has.** A component's raw props record is a plain object, so the
+ * compare's `name in raw` sees an inherited `toString`/`valueOf`/`constructor` before the component has received one.
+ * Measured (the portal's e8 probe): of the 12 `Object.prototype` names, 10 read the same through the record as through
+ * the element, and `constructor`/`__proto__` differ only for a bound value of `Object` itself — so `in` stays, with no
+ * `hasOwn` on the hot path. These rows hold what that rests on: each name is delivered on the first render and on a
+ * change, and an unchanged one re-renders nothing, in a template and through spread.
+ */
+let inherited = 0;
+customElements.define('lp-inh', class extends HTMLElement {
+  connectedCallback() {
+    init(this, () => () => {
+      inherited++;
+      return html`<p>${String(this[this.dataset.n])}</p>`;
+    });
+  }
+});
+/** One call site per name and route — two template literals are two templates. */
+const INHERITED = {
+  toString: { template: (v) => html`<lp-inh data-n="toString" !toString=${v}></lp-inh>`, spread: (v) => html`<lp-inh data-n="toString" ${spread({ '!toString': v })}></lp-inh>` },
+  valueOf: { template: (v) => html`<lp-inh data-n="valueOf" !valueOf=${v}></lp-inh>`, spread: (v) => html`<lp-inh data-n="valueOf" ${spread({ '!valueOf': v })}></lp-inh>` },
+  constructor: { template: (v) => html`<lp-inh data-n="constructor" !constructor=${v}></lp-inh>`, spread: (v) => html`<lp-inh data-n="constructor" ${spread({ '!constructor': v })}></lp-inh>` },
+};
+for (const [name, routes] of Object.entries(INHERITED))
+  for (const [via, template] of Object.entries(routes))
+    test(`an inherited name, \`!${name}\` (${via}): delivered first and on change; unchanged renders nothing`, async () => {
+      const host = mount();
+      const draw = (value) => renderInto(template(value), host);
+      draw('a');
+      await frame();
+      assert.equal(text(host), 'a', 'the first value was delivered');
+      const before = inherited;
+      for (let n = 0; n < 5; n++) draw('a');
+      await frame();
+      assert.equal(inherited, before, 'an unchanged value re-rendered nothing');
+      draw('b');
+      await frame();
+      assert.equal(text(host), 'b', 'a change was delivered');
+      assert.equal(inherited, before + 1, 'exactly one render for the change');
+      host.remove();
+    });
+
 test('`!name` and `.name` changed in one render coalesce to one child render', async () => {
   const host = mount();
   const draw = (live, item) => renderInto(html`<lp-row !live=${live} .item=${item}></lp-row>`, host);
