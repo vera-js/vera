@@ -24,6 +24,9 @@ import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Method
  * - The options copy is frozen in development: it is shared by every instance of the tag, so a module that wrote to it
  *   would leak state between them — it throws there instead (no package writes it, checked 2026-10-21).
  */
+/** The cached props store's key — one Symbol per copy of core (see the props block). */
+const PROPS = /* @__PURE__ */ Symbol();
+
 export const define = <M extends Methods = Record<never, never>, P extends object = Record<never, never>>(
   target: string | (DefineOptions & { props?: P; methods?: M & ThisType<ComponentElement & P & M> }),
   setup: (host: ComponentElement & P & M) => unknown
@@ -79,31 +82,50 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    * from anywhere (a template, plain JS after connect, another framework) is a store write and the render that read it
    * repaints. ONE STORE, TWO VIEWS: this getter reads through the PROXY (tracked, for the component's own hooks); the
    * renderer's `!name` compare reads the raw TARGET (untracked — a parent's commit is never subscribed to a child).
-   * - **Defaults are LAZY: creation pays nothing.** The first read of a key the element does not hold writes the default
-   *   into the RAW target (no notification) and reads it back through the proxy, which subscribes the reader. An array or
-   *   plain-object default is shallow-copied there, per element (`items: []` gives each its own list; nested values stay
-   *   shared). `Object.hasOwn`, never `in`: a prop named `toString` would otherwise find Object.prototype's (vera-5a).
-   * - Binding a value EQUAL to the default still writes once (the raw target lacks the key until the first read) — one
-   *   write, then a match; pinned.
+   * - **Defaults are LAZY: creation pays nothing.** The first touch of ANY declared prop (a read or a write) writes every
+   *   default the element does not hold into the RAW target (no notification) — reads after it go through the proxy,
+   *   which subscribes the reader. An array or plain-object default is shallow-copied there, per element (`items: []`
+   *   gives each its own list; nested values stay shared). `Object.hasOwn`, never `in`: a prop named `toString` would
+   *   otherwise find Object.prototype's (vera-5a).
+   * - Binding a value EQUAL to the default writes once, then matches; pinned.
    * - Assigned after `methods`, so a prop of a method's name wins (development says so).
    */
-  if (keys)
-    for (const key of keys) {
-      const fallback = props![key];
+  if (keys) {
+    /**
+     * **The element's props store, CACHED on it** (race35: reading through `createStore` — a WeakMap lookup per access,
+     * createProxy.ts — cost the parent-passes-new-props row +2.6% and the defaults row +11.8% on Chrome; the alternative
+     * was written down before the run): under a Symbol PRIVATE to this copy of core (two copies on a page never see each
+     * other's — never a string name), built at the FIRST touch of any declared prop, which also writes every missing
+     * default at once into the raw target (no notification), so no read pays a `hasOwn`. The cached proxy points at the
+     * raw record only — no back-pointer to the element, so no DOM↔JS cycle for Firefox's collector.
+     */
+    const copies = keys.map((key) => {
+      const value = props![key];
+      return Array.isArray(value) ? 1 : (value as object)?.constructor === Object ? 2 : 0;
+    });
+    const store = (element: Record<symbol, unknown> & ComponentElement) => {
+      const raw = (element._$raw$ ??= {}) as Record<string, unknown>;
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]!;
+        if (!Object.hasOwn(raw, key)) {
+          const value = props![key];
+          raw[key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
+        }
+      }
+      return (element[PROPS] = createStore(raw)) as Record<string, unknown>;
+    };
+    for (const key of keys)
       Object.defineProperty(Class.prototype, key, {
-        get(this: ComponentElement) {
-          const raw = (this._$raw$ ??= {}) as Record<string, unknown>;
-          if (!Object.hasOwn(raw, key))
-            raw[key] = Array.isArray(fallback) ? [...(fallback as unknown[])] : (fallback as object)?.constructor === Object ? { ...(fallback as object) } : fallback;
-          return (createStore(raw) as Record<string, unknown>)[key];
+        get(this: Record<symbol, unknown> & ComponentElement) {
+          return ((this[PROPS] as Record<string, unknown> | undefined) ?? store(this))[key];
         },
-        set(this: ComponentElement, value: unknown) {
-          (createStore((this._$raw$ ??= {})) as Record<string, unknown>)[key] = value;
+        set(this: Record<symbol, unknown> & ComponentElement, value: unknown) {
+          ((this[PROPS] as Record<string, unknown> | undefined) ?? store(this))[key] = value;
         },
         configurable: true,
         enumerable: true,
       });
-    }
+  }
   customElements.define(tag, Class);
   return Class as unknown as DefinedClass<P & M>;
 };
