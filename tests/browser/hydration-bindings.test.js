@@ -51,7 +51,7 @@ customElements.define(
         <b id="dropOnClick" onClick=${() => {}}>doc</b>
         <p id="nested">${html`<em>${state.text}</em>`}</p>
         <ul id="list">
-          ${/* A plain copy: position-matched on purpose (stateless rows; no lists wired — automatic lists have no server half yet). */ [...state.rows].map((row) => html`<li>${row}</li>`)}
+          ${/* A plain copy: position-matched on purpose (stateless rows). Not `lists`: the server markup is the same either way, but a lists-wired client REBUILDS the server rows instead of adopting them until B4 lands — and this suite asserts adoption. */ [...state.rows].map((row) => html`<li>${row}</li>`)}
         </ul>
         <ul id="empty">${[]}</ul>
         <p id="looksLikeAttr">total=${state.count}</p>

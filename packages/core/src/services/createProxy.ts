@@ -716,7 +716,7 @@ const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[], proxy
   const list = (inserts as unknown as { $M?: AutoMap }).$M;
   const hook = tracking.hook;
   if (list === undefined || hook === undefined || hook._y !== 50) {
-    /** Not inside a server turn: automatic lists have no server half yet (B4), so a server could not act on it. */
+    /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
     if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !warnedLists && !(inserts as unknown as { $ss?: (d: number) => unknown }).$ss?.(0))
       return unwiredList(method, proxy);
     return method;
