@@ -750,12 +750,33 @@ const shallowHandler: ProxyHandler<object> = {
     return Reflect.get(obj, prop, receiver);
   },
 };
+/**
+ * **A store over a record CORE just made — its proxy kept ON the record, never in the WeakMap** (2026-10-22). The props
+ * record (`_$raw$`) is built at runtime for each element; V8 PRETENURES a constant object literal (old space) and not a
+ * runtime-built object, so a young record paid the WeakMap's young-key cost on insert, on every lookup and in GC — a
+ * hand-written class whose store came from a source literal ran 2.5% faster at creation on Chrome (headed race), and with
+ * `--no-allocation-site-pretenuring` the two tied (BROWSER-LEDGER 2026-10-22). Given its slot here (`promote`'s
+ * non-enumerable field: a spread or `Object.keys` never sees it, so the removal's `{ ...raw }` copy starts clean), the
+ * record costs no WeakMap entry and no `cached()` miss: define with defaults −12.8% on Chrome, now faster than that
+ * class, −2.5% Firefox (headless iteration; confirmed by the headed race). `cached()` reads the slot first, so
+ * `createStore(record)` still answers the same proxy.
+ * - ONLY for a record no store wraps yet — the props record when core first builds its store (`propsOf`/`filledOf`).
+ *   It skips `cached()` on purpose, which a record someone else had already wrapped would turn into a second proxy.
+ * - Not for every store: a field defined on EVERY proxied object cost store rows 8% (`promote`'s note); this is one
+ *   record per component.
+ */
+export const createOwned = <T extends object>(data: T): T => {
+  const proxy = wrap(data, handlerFor(data));
+  promote(data, proxy);
+  return proxy as T;
+};
 export const createShallow = <T extends object>(data: T): T => wrap(data, shallowHandler) as T;
 
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
 export const createProxy = <T extends object>(data: T): T => {
-  let proxy = cached(data);
-  if (proxy) return proxy as T;
+  /** Kept from the first lookup: nothing below caches `data` (a handler is decided, a proxy built). */
+  const known = cached(data);
+  if (known) return known as T;
   if (MARK in data) return data;
   /**
    * Behind its type's handler, claimed or not: a store of a type nothing claims yet is transparent, and
@@ -763,7 +784,7 @@ export const createProxy = <T extends object>(data: T): T => {
    * means "hand back verbatim" in that slot; asked for as a store in its own right the object is decided
    * afresh, since a frozen *slot* says nothing about the object itself.
    */
-  proxy = wrap(data, handlerFor(data));
-  if (cached(data) === undefined) remember(data, proxy);
+  const proxy = wrap(data, handlerFor(data));
+  if (known === undefined) remember(data, proxy);
   return proxy as T;
 };
