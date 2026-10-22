@@ -111,6 +111,7 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 
 | Export | Signature | Notes |
 | --- | --- | --- |
+| `define` | `(tag \| { tag, shadow?, foreignNodes?, props?, attributes?, methods? }, setup) => Class` | **The default way to write a component** — registers the custom element and returns its class; the setup is `init`'s (runs once per connect, `host` its argument). Options are `init`'s plus `props` (declared props: names and defaults), `attributes` (observed attributes, each a `string \| null` prop under its camel name) and `methods` (on the prototype, `this` the element). The string form passes no options. A second `define` of a tag throws (the platform's). |
 | `init` | `(element \| { host, shadow?, foreignNodes? }, setup?) => void` | Call in `connectedCallback`. `setup(host)` runs once, untracked, and returns the render function — or nothing, for a component whose whole job is a side effect. `shadow`: `'open'`, `'closed'`, `false` (light) or a `ShadowRootInit`; omitted, the app default from `renderer({ shadow })`, else light DOM. `foreignNodes`: `'drop'` (default — the template owns a shadow root that is empty at its first render: no markers, and nodes something else put there are cleared when the template changes, never by an ordinary re-render) or `'preserve'`; omitted, the app default from `renderer({ foreignNodes })`, which covers component roots only — a container handed to `renderInto` always preserves. With no setup, `init` calls the class's own `setup()` method. |
 
 **The setup is the whole component, and it runs once.** Everything in it — stores, hooks, helpers — is created on
@@ -120,6 +121,13 @@ async setup, or from a handler later, throws `no-owner` in every build (pass the
 resolves, and a rejection is reported once through the error chain and draws nothing.
 
 ```js
+// define writes the class — the same component, three ways
+define({ tag: 'click-counter', shadow: 'open' }, () => {
+  const state = createStore({ count: 0 });
+  return () => html`<button @click=${() => state.count++}>${state.count}</button>`;
+});
+
+// your own class, when you need one (inheritance, formAssociated, adoptedCallback): init from connectedCallback
 // the same component, written with a method — init(this) finds it
 class ClickCounter extends HTMLElement {
   connectedCallback() { init({ host: this, shadow: 'open' }); }
@@ -194,6 +202,30 @@ child re-renders when the parent mutates the object it was given.
 
 Attributes are still the right channel for CSS hooks and static markup; `attributeChangedCallback`
 is the platform's own and untouched by any of this.
+
+**Declared props, attributes and methods (`define` only).** Declare a prop when OTHER code drives the component — plain
+JS, another framework, a CMS: an undeclared prop written after connect is not heard (the platform observes a property
+write only through an accessor of that name).
+
+```js
+define({
+  tag: 'note-card',
+  props: { heading: 'Untitled', tags: [] },       // names + defaults; types inferred; host.heading is a string
+  attributes: ['data-tone'],                       // → host.dataTone, string | null
+  methods: { clear() { this.tags.length = 0; } },  // on the prototype; `this` is the element
+}, (host) => () => html`<h3>${host.heading}</h3><small>${host.dataTone ?? 'plain'}</small>`);
+card.heading = 'Groceries';   // after connect: repaints
+```
+
+| Rule | |
+| --- | --- |
+| **Defaults are lazy and per element** | Written at the first read or write; an array or plain-object default is shallow-copied per element. A `Set`, `Map` or class instance cannot be — declare it `null` and create it in the setup (development warns). |
+| **Set before the tag was defined wins** | Over the default, and over the markup's attribute of the same name. |
+| **Attributes are one way** | Attribute → prop; a prop write never touches the attribute. Removal writes `null`, not the default. A shared prop with a non-string default changes type when the attribute arrives (development warns; the type is widened). |
+| **Reflected platform attributes** | Observing `hidden`, `title`, `lang`, `aria-label`… replaces that property — `el.hidden = true` stops hiding. Read those with `host.getAttribute()` unless the component owns them. |
+| **Methods** | Enumerable, like the element's interface (so is a define component's `connectedCallback`). `connectedCallback` / `constructor` in `methods` are ignored; `disconnectedCallback` runs as a teardown hook. |
+| **Declare only what others drive** | Declared props are public and reactive, which costs creation; keep private state in the setup's own store. |
+| **SSR** | The server renders declared attributes and props as the client does. |
 
 ### Effects
 

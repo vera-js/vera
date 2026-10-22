@@ -69,6 +69,8 @@ for (const file of FILES)
  * and went — a new promise is entered with its code or its pin.)
  */
 const CLAIMS = new Map([
+  ['llms.txt#0954025b39', 'define-prop-shared-default'], // declared props: a Set, Map or class instance cannot be copied — development warns
+  ['llms.txt#82f94baff5', 'define-attribute-type'], // attributes: a non-string default changes type — development warns
   ['packages/core/README.md#4aeb69849e', 'define-prop-shared-default'], // declared props: a Set, a Map or a class instance cannot be copied — development says so
   ['packages/core/README.md#399bbdb6d8', 'define-attribute-type'], // attributes: a non-string default changes type — development says so
   ['packages/core/README.md#6c59b7f008', 'define-attribute-reflected'], // attributes: observing a reflected platform attribute replaces its property — development says so
