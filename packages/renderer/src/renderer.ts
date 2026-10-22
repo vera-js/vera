@@ -1500,8 +1500,6 @@ type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) =
  * meets one `'value'`/`'error'` chain. Never imported: a production bundle inlines `@verajs/inserts`.
  */
 let registry: { get(name: string): unknown[] | undefined } | null = null;
-/** Development: `renderer-two-cores` was said (once per renderer copy). */
-let twoCores = false;
 
 /**
  * Core's `untracked`, taken off that registry at `connect` (`call` without core): what the renderer runs someone
@@ -1909,16 +1907,6 @@ if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer
 /** Everything this renderer needs, in one entry: `wire([renderer])`. */
 /** The renderer's connect: core's registry, its untracked primitive, and the hydration hand-off. */
 const connectTo = (given: { get(name: never): unknown }) => {
-    /**
-     * **One renderer serves one core** (R3 list, 2026-10-21). Two apps sharing one renderer bundle (two cores, the
-     * micro-frontend shape) leave it following the LAST core's seams — `untracked` among them — so the first app's
-     * tracking silently breaks. Production stays last-wins; development says so, once. The same registry wired again
-     * (`wire([renderer({ shadow })])` after `wire([renderer])`) is not a second core.
-     */
-    if (__DEV__ && registry !== null && registry !== given && !twoCores) {
-      twoCores = true;
-      console.warn(diagnostic('renderer', 'renderer', 'renderer-two-cores', __DEV__ && PROSE['renderer-two-cores']()));
-    }
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
     /** Defined up front, so every render's `_$done$` read is a HIT on a page without slots — not a miss down the Map's chain. */
