@@ -19,6 +19,20 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
     markup = all[N - 1].html;
   }
   await gc();
+  /**
+   * **A count that dereferences nothing** (vera-5a, 2026-10-22), taken FIRST: live instances of the component's class,
+   * as the subscription sweep counts. A WeakRef `deref()` puts its target on V8's keep-during-job list — the capture's
+   * only strong root for the intermittent's survivors — so this count cannot keep alive what it measures. Reported
+   * beside `alive`; the assertion is unchanged until the two are compared over gates.
+   */
+  const file = mode === 'sync' || mode === 'overlap' ? 'comp.mjs' : mode === 'async-hook' ? 'comp-async.mjs' : mode === 'define-sync' ? 'comp-define.mjs' : mode === 'define-props' ? 'comp-define-props.mjs' : 'comp-define-async.mjs';
+  const Class = (await import(url(file))).default;
+  const { queryObjects } = await import('node:v8');
+  out.objects = queryObjects(Class, { format: 'count' });
+  /** Its CONTROL: one instance held must count one more (an instrument that cannot count reports a clean heap). */
+  const held = new Class();
+  out.objectsControl = queryObjects(Class, { format: 'count' }) - out.objects;
+  void held;
   const refs = globalThis.__refs ?? [];
   Object.assign(out, { rendered: refs.length, markup: markup.includes('<b>0</b>'), late: markup.includes('<i>late</i>'), alive: refs.filter((r) => r.deref() !== undefined).length });
   /**
@@ -33,6 +47,7 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
     out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}-${process.pid}.heapsnapshot`);
     await new Promise((r) => setTimeout(r, 250));
     await gc();
+    out.objectsAfterWait = queryObjects(Class, { format: 'count' });
     out.aliveAfterWait = refs.filter((r) => r.deref() !== undefined).length;
   }
 }
