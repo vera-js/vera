@@ -2,7 +2,7 @@ import type { Cell, ComponentElement, HookRecord } from '../types.js';
 import { diagnostic, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { proxyCallbacks, tracking, unlinkFrom, whenEmptied } from '../store/store.js';
-import { trackKey, triggerKey, wakeCount } from '../services/createProxy.js';
+import { counting, trackKey, triggerKey, wakeCount } from '../services/createProxy.js';
 import { MODE_RAW, register, reportHookError } from './createHook.js';
 
 /**
@@ -70,6 +70,7 @@ class Computed<T> {
       return this._v as T;
     }
     if (this._w) return this._v as T;
+    counting.on = true;
     const now = wakeCount();
     if (this._e !== now) {
       this._e = now;
