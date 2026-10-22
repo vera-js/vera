@@ -30,35 +30,35 @@ test('200 server renders against a module-scope store leave no component alive',
   const r = measure('sync');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the value (${JSON.stringify(r)})`);
-  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive — ${JSON.stringify(r)}`);
 });
 
 test('200 async renders started together leave no component alive', () => {
   const r = measure('overlap');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the value (${JSON.stringify(r)})`);
-  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive — ${JSON.stringify(r)}`);
 });
 
 test('an async setup that creates a hook AFTER an await releases its component too', () => {
   const r = measure('async-hook');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the value (${JSON.stringify(r)})`);
-  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive — ${JSON.stringify(r)}`);
 });
 
 test('200 server renders of a `define` component leave none alive', () => {
   const r = measure('define-sync');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the value (${JSON.stringify(r)})`);
-  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive — ${JSON.stringify(r)}`);
 });
 
 test('200 server renders of a `define` component with DECLARED props leave none alive (its props record is built on the server)', () => {
   const r = measure('define-props');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the props (${JSON.stringify(r)})`);
-  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive — ${JSON.stringify(r)}`);
 });
 
 test('an ASYNC `define` setup is awaited by the server (the markup carries the value after its await) and released', () => {
@@ -66,7 +66,7 @@ test('an ASYNC `define` setup is awaited by the server (the markup carries the v
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran (${JSON.stringify(r)})`);
   assert.ok(r.late, `the markup was serialized before the setup's await settled (${JSON.stringify(r)})`);
-  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive — ${JSON.stringify(r)}`);
 });
 
 test('a module first imported during a render keeps its module-scope computed live for later requests', () => {

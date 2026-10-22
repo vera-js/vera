@@ -12,3 +12,5 @@
  */
 export { computed } from './computed.js';
 export { collections } from './collections.js';
+export { resource } from './resource.js';
+export type { Resource, ResourceOptions } from './resource.js';

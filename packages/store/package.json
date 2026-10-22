@@ -34,6 +34,11 @@
       "types": "./dist/development/vera-store-collections.d.ts",
       "development": "./dist/development/vera-store-collections.js",
       "default": "./dist/vera-store-collections.min.js"
+    },
+    "./resource": {
+      "types": "./dist/development/vera-store-resource.d.ts",
+      "development": "./dist/development/vera-store-resource.js",
+      "default": "./dist/vera-store-resource.min.js"
     }
   },
   "files": [

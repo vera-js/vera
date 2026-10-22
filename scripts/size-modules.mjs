@@ -23,6 +23,7 @@ export const MODULES = [
   { pkg: 'standalone', dir: 'jsx', dist: 'packages/jsx/dist/vera-jsx-standalone.min.js', what: 'JSX in the browser with no build — the CodePen path' },
   { pkg: 'computed', dir: 'store', dist: 'packages/store/dist/vera-store-computed.min.js', what: 'memoized derived values' },
   { pkg: 'collections', dir: 'store', dist: 'packages/store/dist/vera-store-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
+  { pkg: 'resource', dir: 'store', dist: 'packages/store/dist/vera-store-resource.min.js', what: 'async data as a reactive cell' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
   { pkg: 'native-elements', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-native-elements.min.js', what: '`nativeElements` — `init` on a built-in host (a div, a section…) with a custom element\'s lifecycle, and the components of a window that goes away retired' },
   { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },

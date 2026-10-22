@@ -48,6 +48,7 @@ const PACKAGES = {
   '@verajs/store': 'store',
   '@verajs/store/computed': 'store/computed',
   '@verajs/store/collections': 'store/collections',
+  '@verajs/store/resource': 'store/resource',
   '@verajs/inserts': 'inserts',
   '@verajs/jsx': 'jsx',
 };

@@ -10,10 +10,11 @@ would otherwise pay for.
 | --- | ---: | --- |
 | `@verajs/store/computed` | <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> | memoized derived values |
 | `@verajs/store/collections` | <!--size:collections.gzip-->665 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
+| `@verajs/store/resource` | <!--size:resource.gzip-->390 B<!--/size:resource.gzip--> | async data as a reactive cell |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
-subpath and a buildless page downloads only that one. Both entries are **additive**: neither inlines
-core, so loading both still leaves one core, one insert registry and one store identity.
+subpath and a buildless page downloads only that one. Every entry is **additive**: none inlines core,
+so loading them all still leaves one core, one insert registry and one store identity.
 
 The two reach core from opposite directions, and the difference decides how any future member is
 written. `computed` **calls into** core — it imports `createStore` and `createHook`, because there is
@@ -177,6 +178,37 @@ it, because every proxy of a type shares one handler and `wire` decides it again
 `kit.shape` is the channel meaning *the container changed shape*, as opposed to one entry changing.
 It comes from core at runtime rather than as a literal of your own, so what you notify is always
 what core and every other module track.
+
+## `resource` — async data as a reactive cell
+
+```js
+import { resource } from '@verajs/store/resource';
+
+define('x-user', (host) => {
+  const user = resource((signal) => fetch(`/api/users/${host.id}`, { signal }).then((r) => r.json()));
+  return () =>
+    user.loading ? html`<p>loading…</p>`
+    : user.error ? html`<p>couldn't load</p>`
+    : html`<h2>${user.value.name}</h2>`;
+});
+```
+
+One cell — `loading`, `value`, `error`, `refreshing` — that a render reads like any store.
+
+- **What its source reads, it follows.** The source runs tracked up to its first `await`: when something it read
+  changes, the previous request's `AbortSignal` fires and the source runs again. Only the latest request ever writes,
+  so a slow old answer can never overwrite a newer one, and an aborted request is not an error.
+- **The states.** First load: `loading` is true and `value` undefined. A refetch keeps the previous `value` on screen
+  with `refreshing` true. An error after a value keeps the value and sets `error`. A source that throws is an error; one
+  that returns a plain value settles at once.
+- **It belongs to its component.** Create it in a setup (outside one it throws, as any hook does — a render included).
+  The first request starts as the component sets up; removing the component aborts the request in flight and drops a
+  late answer. A component moved within a page, or into another window, keeps its data: a move never refetches.
+- **Load, then fetch:** make the source itself async — `resource(async (signal) => { const cfg = await loadConfig();
+  return fetchUser(cfg, { signal }); })` — so the resource is created in the setup's synchronous part.
+- **On a server it does not fetch**: the page renders the loading state and the browser fetches. A handoff — the
+  server waiting for the data and the page carrying it to hydration, with no second request — is planned; `key` names a
+  resource for it and does nothing yet.
 
 ## For AI assistants — and anyone who wants the whole API on one page
 

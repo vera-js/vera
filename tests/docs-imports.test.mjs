@@ -45,6 +45,7 @@ const PACKAGES = {
   '@verajs/inserts': 'inserts',
   '@verajs/store': 'store',
   '@verajs/store/computed': 'store/computed',
+  '@verajs/store/resource': 'store/resource',
   /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
   '@verajs/jsx': 'jsx',
   '@verajs/jsx/standalone': 'jsx/standalone',

@@ -37,6 +37,7 @@ import { collections, computed } from '@verajs/store';
  */
 import { collections as collectionsEntry } from '@verajs/store/collections';
 import { computed as computedEntry } from '@verajs/store/computed';
+import { resource, type Resource } from '@verajs/store/resource';
 
 interface Row { id: number; label: string }
 
@@ -256,3 +257,13 @@ void label; void tone; void count;
 // @ts-expect-error — the shared prop is no longer just a number: the attribute hands it strings
 const onlyNumber: number = badge.count;
 void onlyNumber;
+
+/** `resource`: a union that narrows — `value` is `T` only once neither loading nor errored. */
+const user: Resource<{ name: string }> = resource((signal) => fetch('/u', { signal }).then((r) => r.json() as Promise<{ name: string }>), { key: 'user' });
+if (!user.loading && user.error === undefined) {
+  const name: string = user.value.name;
+  void name;
+}
+// @ts-expect-error — while loading, `value` is undefined
+const early: { name: string } = user.value;
+void early;

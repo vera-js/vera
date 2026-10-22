@@ -21,6 +21,20 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
   await gc();
   const refs = globalThis.__refs ?? [];
   Object.assign(out, { rendered: refs.length, markup: markup.includes('<b>0</b>'), late: markup.includes('<i>late</i>'), alive: refs.filter((r) => r.deref() !== undefined).length });
+  /**
+   * EVIDENCE when it fails (2026-10-22; vera-5a — an intermittent "3 alive" was seen once in three full gates and never
+   * standalone): a heap snapshot to name the retainer, and a recount after the 100 ms fallback timer and another gc.
+   * Gone after the wait is a TIMING survivor (a pending server-side callback); still there is structural. Costs
+   * nothing when green.
+   */
+  if (out.alive > 0) {
+    const { writeHeapSnapshot } = await import('node:v8');
+    const { tmpdir } = await import('node:os');
+    out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}-${process.pid}.heapsnapshot`);
+    await new Promise((r) => setTimeout(r, 250));
+    await gc();
+    out.aliveAfterWait = refs.filter((r) => r.deref() !== undefined).length;
+  }
 }
 if (mode === 'burst') {
   /** 50 renders at once, each writing the store in its setup: no render may re-run once its turn has ended. */

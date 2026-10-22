@@ -292,12 +292,18 @@ export const bare = (owner: ComponentElement, callback: HookCallback): HookRecor
  */
 let serverScope = 0;
 let born: HookRecord[] = [];
+/**
+ * `$ss(1)` opens a server turn, `$ss(-1)` closes it, and **`$ss(0)` is the READ**: it answers the depth (truthy inside a
+ * turn, `undefined` outside — where `born` is empty, so the close below unlinks nothing). `@verajs/store/resource` reads
+ * it so a server render never starts a fetch nobody waits for. Do not turn the read into a no-op.
+ */
 export const serverTurn = (delta: number) => {
   serverScope += delta;
-  if (serverScope !== 0) return;
+  if (serverScope !== 0) return serverScope;
   const all = born;
   born = [];
   for (let i = 0; i < all.length; i++) unlinkFrom(all[i]!, 0);
+  return undefined;
 };
 export const retireHook = (hook: HookRecord) => {
   unlinkFrom(hook, 0);
