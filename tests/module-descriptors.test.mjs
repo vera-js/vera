@@ -37,13 +37,16 @@ const { styles } = await load('styles');
 const { collections } = await load('store/collections');
 
 /** Every descriptor-shaped module. `router` and `autoloader` are connectors, checked separately. */
+/** A module with several insert points is an ARRAY of descriptors (CLAUDE.md): `styles` adopts at `'init'` and again at `'rehome'` (R4). */
 const MODULES = [
   ['renderer', renderer, 'render'],
-  ['styles', styles, 'init'],
+  ['styles', styles[0], 'init'],
+  ['styles', styles[1], 'rehome'],
   ['collections', collections, 'store'],
 ];
 
 test('every module is a well-formed descriptor', () => {
+  assert.ok(Array.isArray(styles) && styles.length === 2, 'styles is its two descriptors');
   for (const [label, module, on] of MODULES) {
     /** `renderer` is a DUAL (2026-10-10): a function carrying `on`, which `wire` reads as a descriptor. */
     assert.ok(typeof module === 'object' || (typeof module === 'function' && module.on !== undefined), `${label} is exported`);

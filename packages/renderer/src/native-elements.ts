@@ -22,7 +22,7 @@ import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './native-elements-diagnostics.js';
 
 type Host = HTMLElement & { _$x$?: boolean };
-type Core = { $in(element: Host, options: unknown, setup: unknown): void; $td(element: Host): void };
+type Core = { $in(element: Host, options: unknown, setup: unknown): void; $td(element: Host): void; $rh(element: Host): void };
 
 /** The setup each host was given, to set it up again on its return; per module COPY (two copies never share one). */
 const SETUP = Symbol();
@@ -52,12 +52,15 @@ const sentinelFor = (win: Window & typeof globalThis) => {
       name,
       class extends win.HTMLElement {
         connectedCallback() {
-          /** Back after a removal: set up fresh. (A move — the host still connected at its disconnect — kept it.) */
-          const host = hostOf(this) as Host & { [PENDING]?: true };
+          /**
+           * Back after a removal: set up fresh. A move (the host still connected at its disconnect) kept it — and a move
+           * into ANOTHER document re-homes it, as core does a component (R4).
+           */
+          const host = hostOf(this) as Host & { [PENDING]?: true; _$d$?: Document };
           if (host._$x$ === true || host[PENDING]) {
             host[PENDING] = undefined;
             setUp(host);
-          }
+          } else if (host._$d$ !== undefined && host.ownerDocument !== host._$d$) core!.$rh(host);
         }
         disconnectedCallback() {
           const host = hostOf(this);

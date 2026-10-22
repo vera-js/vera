@@ -700,8 +700,9 @@ class Instance {
  * lookup per element; the template's inert document has none. So a template that cannot contain a
  * custom element is cloned with `cloneNode` — its nodes adopt into the page on insertion — and one that
  * can is imported into `owner`, which upgrades defined elements at clone time in the owner's own
- * registry, so a `.prop` commit reaches the class's setter rather than shadowing it. A foreign `owner`
- * (a popped-out window, an iframe) always imports.
+ * registry, so a `.prop` commit reaches the class's setter rather than shadowing it. A container in another
+ * window is never the `owner`: its registry does not define this realm's components (Firefox and WebKit leave them
+ * un-upgraded there), so `commitAs` hands this renderer's own document instead.
  *
  * **Every node is located before anything commits.** The paths index the pristine clone; an upgrading
  * child position inserts markers and content, which would shift the siblings a later path counts.
@@ -1651,7 +1652,23 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   scope = null;
   renderRoot = root;
   /** A document's own `ownerDocument` is null — so a document container is its own. */
-  if (home !== null) passDoc = home.ownerDocument ?? (home as Document);
+  if (home !== null) {
+    const owner = home.ownerDocument ?? (home as Document);
+    /**
+     * **Content builds in the realm of the element it renders into** (R4, 2026-10-22). A component of THIS realm moved
+     * into a pop-out or an iframe keeps building here: made through that window's document, its children would be looked
+     * up in THAT window's registry — Chromium upgrades them anyway, Firefox and WebKit leave them inert; cloned through
+     * this renderer's own document they upgrade at the clone on all three and keep their class once inserted there
+     * (adoption; BROWSER-LEDGER 2026-10-22). An element of the OTHER realm — a plain container that window made, or a
+     * component its own registry defined — builds in its own document, with that window's classes
+     * (`tests/browser/realm.test.js`). Checked only for a container in another window ("not ours, and has a window" — a
+     * document with a window is that window's only one); a windowless document (a server's, a template's) is used as is.
+     */
+    passDoc =
+      owner !== doc && owner.defaultView !== null && ((root as ShadowRoot | null)?.host ?? root) instanceof (doc.defaultView as typeof globalThis).HTMLElement
+        ? doc
+        : owner;
+  }
   /** Development: a commit into an owned root is that root's own work (see `strays`). */
   const marking = __DEV__ && root !== null && ownedRoots!.has(root) && !rendering!.has(root);
   if (marking) {

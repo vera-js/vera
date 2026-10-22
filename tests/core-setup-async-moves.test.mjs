@@ -51,7 +51,7 @@ for (const [how, move] of [
     assert.equal(kid.textContent, 'setup 1', 'the pending setup\'s render landed');
   });
 
-test('a move into ANOTHER document: the first settle is dropped, the second setup renders', async () => {
+test('a move into ANOTHER document while an async setup is in flight: kept, and that one setup settles and renders (R4)', async () => {
   setups = 0;
   gates.length = 0;
   const kid = doc.createElement('as-kid');
@@ -59,15 +59,12 @@ test('a move into ANOTHER document: the first settle is dropped, the second setu
   await tick();
   doc.querySelector('iframe').contentDocument.body.append(kid);
   await tick();
-  assert.equal(setups, 2, 'CONTROL: set up again in the other document');
-  gates.shift()(); // the FIRST setup settles late
+  assert.equal(setups, 1, 'kept: no second setup in the other document (it used to set up again)');
+  assert.equal(gates.length, 1, 'CONTROL: the one setup is still waiting');
+  gates.shift()(); // the setup settles, now in the other document
   await tick();
   await tick();
-  assert.notEqual(kid.textContent, 'setup 1', 'the stale settle was dropped');
-  gates.shift()();
-  await tick();
-  await tick();
-  assert.equal(kid.textContent, 'setup 2', 'the second setup renders');
+  assert.equal(kid.textContent, 'setup 1', 'its render landed where the component now lives');
 });
 
 /**

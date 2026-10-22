@@ -230,6 +230,7 @@ card.heading = 'Groceries';   // after connect: repaints
 | **Name the setup for stack traces** | `define('x-card', function XCard(host) { … })` — engines print function names; the generated class's name is not what they show. |
 | **Redefine in development** | `wire([renderer, hot])` from `@verajs/hot` (development only, wired FIRST): defining a tag again swaps its live elements in place — setup, methods, props, callbacks — keeping the element and its props. A shadow-mode or `formAssociated` change is a cancelable `vera-hot-reload` event instead. `define` returns the registered class either way. |
 | **Async data** | `resource((signal) => fetchUser(state.id, { signal }))` from `@verajs/store/resource`, in a setup: `{ loading, value, error, refreshing }`; refetches when what the source read (before its first `await`) changes, aborting the previous request; only the latest writes; removal aborts. On a server it does not fetch (renders `loading`). |
+| **Moves into another window** | A component moved into a `window.open` window or an iframe (plain DOM) and back is KEPT: setup runs once; every `useEffect`/`useLayoutEffect` re-runs (cleanup first) against the new window; styles re-apply. Read the window in an effect, not setup. Reset = `remove()` then `append()`. Focus is dropped by the browser. |
 
 ### Effects
 

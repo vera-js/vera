@@ -34,7 +34,7 @@ export { useHook } from './hooks/coalesce.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
 export { define } from './modules/define.js';
-import { initWith, retireElement } from './modules/init.js';
+import { initWith, rehomeElement, retireElement } from './modules/init.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
@@ -75,6 +75,8 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
  */
 (inserts as unknown as { $in: typeof initWith }).$in = initWith;
 (inserts as unknown as { $td: typeof retireElement }).$td = retireElement;
+/** R4: a built-in host moved into another document re-homes as a component does (native-elements' sentinel calls it). */
+(inserts as unknown as { $rh: typeof rehomeElement }).$rh = rehomeElement;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so a keyed list can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;

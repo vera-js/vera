@@ -1,4 +1,5 @@
 import { coalesce } from './coalesce.js';
+import { EFFECT_PRIORITY } from '../modules/createHook.js';
 import type { ComponentElement, HookCallback } from '../types.js';
 
 /**
@@ -12,5 +13,5 @@ import type { ComponentElement, HookCallback } from '../types.js';
  * @param element The owner, instead of the element being set up
  */
 export const useEffect = (callback: HookCallback, element?: ComponentElement) => {
-  coalesce(callback, 75, false, element);
+  coalesce(callback, EFFECT_PRIORITY, false, element);
 };

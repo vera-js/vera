@@ -35,6 +35,9 @@ export const reportHookError = (error: unknown, element: ComponentElement | unde
  * pass draws before its layout effects measure it.
  */
 export const RENDER_PRIORITY = 50;
+/** `useLayoutEffect`'s and `useEffect`'s priorities — by NAME, because a cross-window move re-runs exactly these two (`rehome`). */
+export const LAYOUT_PRIORITY = 60;
+export const EFFECT_PRIORITY = 75;
 
 /**
  * **Retires every hook `owner` carries, in run order**: each leaves exactly the Sets it joined, then its last cleanup runs
@@ -298,6 +301,8 @@ let born: HookRecord[] = [];
  * it so a server render never starts a fetch nobody waits for. Do not turn the read into a no-op.
  */
 export const serverTurn = (delta: number) => {
+  /** The read allocates nothing: outside a turn it must not reach the close below. */
+  if (delta === 0) return serverScope || undefined;
   serverScope += delta;
   if (serverScope !== 0) return serverScope;
   const all = born;

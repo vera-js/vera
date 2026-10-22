@@ -1,4 +1,5 @@
 import { coalesce } from './coalesce.js';
+import { LAYOUT_PRIORITY } from '../modules/createHook.js';
 import type { ComponentElement, HookCallback } from '../types.js';
 
 /**
@@ -11,5 +12,5 @@ import type { ComponentElement, HookCallback } from '../types.js';
  * @param element The owner, instead of the element being set up
  */
 export const useLayoutEffect = (callback: HookCallback, element?: ComponentElement) => {
-  coalesce(callback, 60, false, element);
+  coalesce(callback, LAYOUT_PRIORITY, false, element);
 };

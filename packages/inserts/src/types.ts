@@ -188,6 +188,13 @@ export type TemplateInsert = (
  * Every extension point in the framework, and the signature each one's chain must satisfy. This map
  * is the whole contract: adding a point means adding a line here, and `wire` will then accept it.
  */
+/**
+ * **A component moved into ANOTHER document** (R4) — a pop-out window, an iframe — and back: called with the element
+ * after core re-runs its effects. `@verajs/styles` re-applies its sheets here, because the move emptied the shadow
+ * root's `adoptedStyleSheets`. Never called for a move within one document.
+ */
+export type RehomeInsert = (element: Element) => void;
+
 export type InsertFunctionMap = {
   'store': StoreInsert;
   'render': RendererInsert;
@@ -199,6 +206,7 @@ export type InsertFunctionMap = {
   'element': ElementInsert;
   'loader': LoaderInsert;
   'settle': SettleInsert;
+  'rehome': RehomeInsert;
 };
 
 /**

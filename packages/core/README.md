@@ -483,7 +483,7 @@ class ClickCounter extends HTMLElement {
 spelling (`setUp`, `Setup`, `set_up`) once.
 
 **Set up on every connection, not once.** `connectedCallback` runs again each time the element is put
-back in the page after leaving it — removed and re-appended later, or taken into a popped-out window.
+back in the page after leaving it — removed and re-appended later.
 Call `init()` and register the hooks there every time, and keep state on the
 element (`this.state ??= createStore(…)`) or in a store, so it survives the trip. Each `init()` starts
 a fresh generation of hooks, so re-attached components show current state and have live effects. Guarding setup with `if (this.started) return` — the habit the platform's
@@ -499,6 +499,28 @@ connected when its `disconnectedCallback` runs. Taking the element out first (`r
 `append()`, or a hop through a `DocumentFragment`) is a removal followed by a connection, and gets
 both. This applies to components — elements that have called `init()`; any other custom element
 gets the platform's callbacks untouched.
+
+**A move into another window keeps the component too** — a panel popped out into a `window.open` window or
+an iframe, and back, with plain DOM (`popup.document.body.append(panel)`, then `main.append(panel)`). Its
+setup does not run again, so its state survives the trip both ways. What belongs to a window does run again:
+every `useEffect` and `useLayoutEffect` runs its cleanup and then runs again, against the new window, as if
+its inputs had changed — so a listener on the element's window, a frame loop or an observer follows the
+panel. Its styles are applied again too (a move empties a shadow root's adopted stylesheets). Content is
+built in the realm of the element it renders into, so a component that moved out keeps building with its
+own window's classes and its child components work in every engine; an element the other window made — a
+plain container, or a component that window's own registry defines — gets that window's classes. (Adoption
+keeps an element's realm, so a container the main document made and then moved into an iframe still
+builds with the main window's.) Three things follow:
+
+- **Read the window inside an effect, not in setup**: `const win = host.ownerDocument.defaultView` in the
+  setup is read once and stays the old window after a move.
+- **Other side effects in an effect run again on such a move** — an analytics ping, a `fetch` written by
+  hand. A `resource()` does not refetch, and a `useHook` at a priority of your own is not re-run.
+- **To reset a component on a move**, take it out and put it back in two steps (`remove()`, then
+  `append()`): that is a removal and a connection, and it sets up fresh.
+
+Focus does not survive a move into another document (the browser drops it); re-focus after the move. A
+component left in a pop-out whose opener has closed is not supported: its code belonged to the opener.
 
 **Hooks register while the setup runs, which matters for an async setup.** A setup may be `async`: its
 hooks belong to the component up to its first `await`, and a hook after it finds no component and

@@ -7,7 +7,7 @@ import type { Mine } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
 import { firstPasses } from './mount.js';
 import { drawInto } from '../hooks/useRender.js';
-import { reportHookError, retire, runCleanup } from './createHook.js';
+import { EFFECT_PRIORITY, LAYOUT_PRIORITY, reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
 /**
@@ -181,7 +181,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
     (inserts as unknown as { $y?: (element: Node) => void }).$y?.(element);
   }
   element._$g$ = (generation ?? 0) + 1;
-  /** The document it was set up in: a move into another one is a teardown and a fresh setup (see the wrapper below). */
+  /** The document of its last connect: a move into ANOTHER keeps it and re-homes it (`rehomeElement`, the wrapper below). */
   (element as Moving)._$d$ = element.ownerDocument;
   /**
    * The root: the component's own `shadow` (an explicit `false` included), else the app default `renderer({ shadow })`
@@ -321,6 +321,30 @@ const retireGeneration = (element: ComponentElement) => {
  * component's root part (`$x`; absent on a server), and `_$x$`. The define wrapper runs it after the author's own
  * `disconnectedCallback`; the native-elements module runs it (`$td`) when a built-in host leaves the document.
  */
+/**
+ * **A component moved into ANOTHER document — a pop-out window, an iframe — and back** (R4, Brian 2026-10-21/22). It is
+ * KEPT: its setup, its state and its DOM (which moved with it) stay. What belongs to a window re-runs, both ways:
+ * - its `useLayoutEffect`s and `useEffect`s, EXACTLY those two priorities (by name): each runs its cleanup and then runs
+ *   again, so a listener on the element's window, a frame loop or an observer re-binds to the new one (Brian: every
+ *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, a `useHook` of your own — is not
+ *   re-run: a move never refetches;
+ * - the `'rehome'` inserts: `@verajs/styles` re-applies its sheets, because a move EMPTIES a shadow root's
+ *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).
+ * `_$d$` becomes the new document, so the way back re-homes too; a move within one document never gets here.
+ */
+export const rehomeElement = (element: ComponentElement) => {
+  (element as Moving)._$d$ = element.ownerDocument;
+  const hooks = element._$h$;
+  if (hooks !== undefined)
+    for (let i = 0; i < hooks.length; i++) {
+      const hook = hooks[i]!;
+      if (hook._y === LAYOUT_PRIORITY || hook._y === EFFECT_PRIORITY) hook.$n();
+    }
+  /** The `'init'` chain's runner, reused: a `'rehome'` insert returns nothing (never `false`), so each one runs. */
+  const chain = inserts.get('rehome');
+  if (chain) runInits(chain, element, undefined, undefined);
+};
+
 export const retireElement = (element: ComponentElement) => {
   retireGeneration(element);
   element._$h$ = undefined;
@@ -494,8 +518,8 @@ if (typeof customElements !== 'undefined') {
       if (!this._$m$) teardown(this);
     };
     /**
-     * A move into ANOTHER document (a pop-out window) is not kept: its listeners and frame clock belong to the old one.
-     * The document is the one `init` ran in — inserting into another document adopts the node first.
+     * A move into ANOTHER document (a pop-out window, an iframe) is kept as well (R4), and re-homed: its effects re-run
+     * against the new window and its styles are re-applied. Inserting into another document adopts the node first.
      *
      * On a FIRST connect `_$adopt$` is still undefined here — the author's `connectedCallback`, below, is what runs `init`
      * — and that is correct: a first connect has nothing to keep. Do not move `init` earlier to "fix" it.
@@ -503,8 +527,9 @@ if (typeof customElements !== 'undefined') {
     proto.connectedCallback = function (this: Moving) {
       if ((this as Mine)[MINE] !== undefined && this._$m$) {
         this._$m$ = false;
-        if (this.ownerDocument === this._$d$) return;
-        teardown(this);
+        /** A move into another document is kept too, and re-homed: what belongs to a window re-runs (see `rehomeElement`). */
+        if (this.ownerDocument !== this._$d$) rehomeElement(this);
+        return;
       }
       /**
        * Its result is returned, and a server render awaits it — so a PENDING SETUP joins it: an async setup is part of

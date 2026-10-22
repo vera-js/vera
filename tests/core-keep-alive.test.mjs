@@ -57,12 +57,18 @@ test('a two-step move (remove, then re-add) tears down and sets up, as before', 
   assert.equal(count('setup'), 2); assert.equal(count('cleanup'), 1);
 });
 
-test('a move into ANOTHER document is a real teardown and setup (pins 1 and 3)', async () => {
+test('a move into ANOTHER document KEEPS the component and re-runs its effects, out and back (R4; was a teardown and setup)', async () => {
   log.length = 0;
   const kid = doc.createElement('ka-kid'); kid.id = 'x'; box().append(kid); await frame();
+  assert.equal(count('setup x'), 1, 'CONTROL: set up once');
   doc.querySelector('iframe').contentDocument.body.append(kid); await tick();
-  assert.equal(count('cleanup x'), 1, 'cleanup once');
-  assert.equal(count('setup x'), 2, 'and set up again in the other document');
+  assert.equal(count('setup x'), 1, 'kept: no second setup in the other document');
+  assert.equal(count('cleanup x'), 1, 'its effect re-ran against the new window: its cleanup ran once');
+  box().append(kid); await tick();
+  assert.equal(count('setup x'), 1, 'kept on the way back too');
+  assert.equal(count('cleanup x'), 2, 'and re-homed on the way back: the effect re-ran again');
+  kid.remove(); await tick();
+  assert.equal(count('cleanup x'), 3, 'a real removal still tears it down');
 });
 
 test('a subtree moved in one operation keeps every component in it (pin 4)', async () => {
