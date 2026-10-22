@@ -342,7 +342,10 @@ The cases where Vera has deliberately **not** queued the work yet, so an `await`
 - **`frameBudget`, if you opt in** (`setRenderScheduler(frameBudget)`) — for apps that receive bursts of data as many
   tasks in one frame: past about 4 ms of flush work in a frame, the next flush waits for the frame, so a burst renders
   about once per frame (2–4× faster to the final DOM, measured). The trade: after `await` the DOM may still be on its
-  way — call `flush()` before reading it. User input gains nothing from it; browsers already merge it;
+  way — call `flush()` before reading it. User input gains nothing from it; browsers already merge it. The frame it
+  waits for is the window of the component that scheduled the flush: while that window is in the background, the
+  browser slows its frames and timers, so an update can be delayed until the window is shown or its throttled timer
+  fires;
 - **a scheduler of your own** set with `setRenderScheduler` — it decides;
 - **work waiting on the network** — a component whose module is still loading, a navigation fetching its route;
 - **an effect's own `await`s** — they are the effect's work, not Vera's.
