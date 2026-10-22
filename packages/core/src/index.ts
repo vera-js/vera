@@ -33,6 +33,7 @@ export { createHook } from './modules/createHook.js';
 export { useHook } from './hooks/coalesce.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
+export { define } from './modules/define.js';
 import { initWith, retireElement } from './modules/init.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';

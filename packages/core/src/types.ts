@@ -198,6 +198,8 @@ export interface InitOptions extends VeraInitOptions {
   shadow?: ShadowOption;
   foreignNodes?: ForeignNodesOption;
 }
+/** `define`'s options: the tag, then everything `init` takes but the host (one object per tag, shared by its instances). */
+export type DefineOptions = Omit<InitOptions, 'host'> & { tag: string };
 /**
  * A component's setup: runs ONCE per connect, untracked, with the element as `host`, and returns its render function
  * (or nothing, for a side-effect setup; or a promise of either, for an async one).

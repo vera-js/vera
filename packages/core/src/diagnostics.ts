@@ -118,6 +118,18 @@ export const PROSE: Record<string, Prose> = {
     'To change what is shown later, write to a store. Await BEFORE `init(...)`, or inside an async setup with its ' +
       'hooks before the first `await`; or pass the element explicitly: `useEffect(fn, this)`.',
   ],
+  'define-tag': (received) => [
+    `expected a custom element name — a string with a hyphen, not at the start — and received ${received}.`,
+    "Name it the way the platform requires: `define('x-card', setup)` or `define({ tag: 'x-card' }, setup)`.",
+  ],
+  'define-setup': (received) => [
+    `the second argument is the SETUP, a function, and received ${received}.`,
+    'Pass the setup after the tag or the options: `define(\'x-card\', (host) => () => html`…`)`.',
+  ],
+  'define-twice': (tag) => [
+    `<${tag}> is already defined; the platform refuses a second definition of a tag and throws next.`,
+    'Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define.',
+  ],
   'init-options': () => [
     "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): " +
       'it is ignored, in every build, so this component sets up with no shadow root.',
