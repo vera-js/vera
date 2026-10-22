@@ -66,7 +66,8 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
        * data property, which hides the prototype accessor: handed over through the setter, before the setup runs. Only
        * declared names; `Object.hasOwn`, never `in` (vera-5a). Here, never in `initWith` (#33: Firefox charges its size).
        */
-      if (keys)
+      /** A fresh element has no own enumerable property at all: one `Object.keys` guards the per-name test (race37). */
+      if (keys && Object.keys(this).length !== 0)
         for (const key of keys)
           if (Object.hasOwn(this, key)) {
             const value = (this as unknown as Record<string, unknown>)[key];
@@ -104,15 +105,22 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       return Array.isArray(value) ? 1 : (value as object)?.constructor === Object ? 2 : 0;
     });
     const store = (element: Record<symbol, unknown> & ComponentElement) => {
-      const raw = (element._$raw$ ??= {}) as Record<string, unknown>;
+      /**
+       * The usual case — no record yet — builds it in ONE allocation from the defaults (as a class's store literal is),
+       * then copies only the array/object defaults; a record `adoptProps` already started (an undeclared key arrived
+       * first) gets the missing defaults filled in (race37: key-by-key writes into an empty record cost creation).
+       */
+      let raw = element._$raw$ as Record<string, unknown> | undefined;
+      const fill = raw !== undefined;
+      if (!fill) raw = element._$raw$ = { ...props };
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i]!;
-        if (!Object.hasOwn(raw, key)) {
+        if (fill ? !Object.hasOwn(raw!, key) : copies[i] !== 0) {
           const value = props![key];
-          raw[key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
+          raw![key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
         }
       }
-      return (element[PROPS] = createStore(raw)) as Record<string, unknown>;
+      return (element[PROPS] = createStore(raw!)) as Record<string, unknown>;
     };
     for (const key of keys)
       Object.defineProperty(Class.prototype, key, {
