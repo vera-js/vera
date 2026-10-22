@@ -340,6 +340,18 @@ from another machine, or after that is undone, has a variable changed.
   `moveBefore`. Consequence: a component class may gain the callback for `moveBefore` moves without a creation cost.
   (Installed Chrome 155, Playwright Firefox 153 and WebKit 26.5, HEADED, 6 sessions, mirrored order, fresh browser per
   page; an earlier run at 500 elements per sample was too short to read — 1.7 ms samples — and was discarded; 2026-10-22)
+- **V8 pretenures a CONSTANT object literal; a runtime-built object used as a WeakMap key pays the young-key cost.**
+  A store created over `{ a: 1, b: 2, c: 3, d: 4 }` written in source ran a component's creation ~6–10% faster than the
+  same store over the same values built any other way — a spread, `Object.assign`, a constructor, assignment into `{}`,
+  a literal with computed values, a one-key literal grown by assignment (headless Chrome, iteration). With
+  `--js-flags=--no-allocation-site-pretenuring` every variant tied. A differential profile put the gap in WeakMap
+  inserts and lookups keyed by the record, and in GC. Keeping the store's proxy in a non-enumerable field ON a
+  runtime-built record (no WeakMap entry) made `define`'s creation 12.9% faster on Chrome (headed, 6 sessions) — and
+  12.6% faster than a hand-written class whose store came from a source literal. Firefox gained ~2%; but the same field
+  on a record that starts EMPTY and grows afterwards cost Firefox +3–5% (headed, 6/6), so it is used only for a record
+  built full. Consequence: a benchmark twin built from a source literal measures V8's literal allocation, not the code
+  under test; and per-object data on a hot WeakMap is worth racing against a field, per engine. (Installed Chrome 155,
+  Playwright Firefox 153; 2026-10-22)
 
 ## Test environments
 
