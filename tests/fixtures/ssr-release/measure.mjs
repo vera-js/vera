@@ -7,15 +7,7 @@ const mode = process.argv[2];
 const N = 200;
 const keptRef = new WeakRef((globalThis.__kept = { kept: true }));
 const droppedRef = (() => new WeakRef({ dropped: true }))();
-const { flush } = await import('@verajs/core');
-/**
- * **The scheduler is DRAINED before anything is counted** (2026-10-22). A flush past its 4 ms frame budget defers the rest
- * to the next frame or, on a server, a 100 ms fallback timer, and what it still holds stays reachable until that fires.
- * Under a full gate's load 200 concurrent renders crossed the budget: "2 alive" (overlap) and "3 alive" (define-props),
- * each gone 250 ms later (`aliveAfterWait: 0`) — timing survivors, never seen standalone. A retention count measures
- * what is LEFT once nothing is pending, so it drains first.
- */
-const gc = async () => { flush(); for (let i = 0; i < 6; i++) { global.gc(); await new Promise((r) => setImmediate(r)); } };
+const gc = async () => { for (let i = 0; i < 6; i++) { global.gc(); await new Promise((r) => setImmediate(r)); } };
 const url = (f) => new URL(`./${f}`, import.meta.url);
 const out = { mode };
 if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === 'define-sync' || mode === 'define-props' || mode === 'define-async') {
@@ -54,6 +46,7 @@ if (mode === 'lazy') {
   const first = (await renderToStringAsync(url('comp-lazy.mjs'))).html;
   const { L } = await import('./lazy.mjs');
   L.n = 21;
+  const { flush } = await import('@verajs/core');
   flush(); await new Promise((r) => setTimeout(r, 0)); flush();
   const second = (await renderToStringAsync(url('comp-lazy.mjs'))).html;
   Object.assign(out, { first: first.includes('<i>2</i>'), second: second.includes('<i>42</i>') });
