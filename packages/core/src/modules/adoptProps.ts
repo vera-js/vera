@@ -1,6 +1,7 @@
 import { diagnostic, SHARED } from '@verajs/shared-utils';
 import { RENDER_PRIORITY } from './createHook.js';
 import { createOwned } from '../services/createProxy.js';
+import { createStore } from './createStore.js';
 import type { ComponentElement } from '../types.js';
 
 /**
@@ -19,7 +20,7 @@ import type { ComponentElement } from '../types.js';
  * each key goes through **`_$adopt$`**, the live receiver this installs on each element (sigiled: the
  * recorders live in other bundles) — a late delivery takes the same door instead of a record nobody
  * reads again. ONE shared function for every element, called as a method; the store is the element's
- * own (its store over `_$raw$`, `createOwned`, the same proxy every time), so every generation shares it.
+ * own (`createStore` of its `_$raw$`, the same proxy every time), so every generation shares it.
  *
  * @param element The element `init()` is setting up
  */
@@ -40,7 +41,7 @@ const refuse = (element: Element, key: string) => {
 /**
  * **The ONE receiver every component shares** (2026-10-11): called as a METHOD — `element._$adopt$(key, value)`,
  * or `adopt.call(element, …)` from shared-utils' `adoptProperty` — so the element is `this` and no closure is created per
- * element. Its props store is the store over the element's raw record (`createOwned`, its proxy kept on the record), the same proxy every time.
+ * element. Its props store is `createStore` of the element's raw record, which returns the same proxy every time.
  */
 function adopt(this: ComponentElement, key: string, value: unknown) {
     const el = this as unknown as Record<string, unknown>;
@@ -93,7 +94,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
  * drop the store) and every accessor follows the new record on its next read (2026-10-21).
  */
 export const propsOf = (element: ComponentElement): Record<string, unknown> =>
-  element._$v$ ?? (element._$v$ = createOwned((element._$raw$ ??= {})));
+  element._$v$ ?? (element._$v$ = createStore((element._$raw$ ??= {})));
 /** A `define` tag's: the store with its defaults written first (no `_$fill$` read on a CLASS component's path). */
 export const filledOf = (element: ComponentElement, fill: (raw: Record<string, unknown> | undefined) => Record<string, unknown>): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createOwned((element._$raw$ = fill(element._$raw$))));

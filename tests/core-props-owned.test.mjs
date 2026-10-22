@@ -1,5 +1,5 @@
 /**
- * **The props record's store keeps its proxy ON the record** (2026-10-22, `createOwned`): no WeakMap entry for a young,
+ * **`define`'s props record keeps its store's proxy ON the record** (2026-10-22, `createOwned`; a class component's stays on the WeakMap — Firefox): no WeakMap entry for a young,
  * runtime-built record. These rows pin that it is still ONE store — `createStore(record)` answers the same proxy, and a
  * write through either wakes a reader of the other — that the slot is invisible (no spread or `Object.keys` sees it, so
  * the removal's copy starts clean), and that a re-added element keeps its props.
@@ -74,7 +74,7 @@ test('removed and re-added: the props survive and stay reactive (the release cop
   el.remove();
 });
 
-test('a class component with adopted props: one store over its record, which carries the slot', async () => {
+test('a class component with adopted props: one store over its record, which carries NO slot (Firefox: the class path stays on the WeakMap)', async () => {
   const state = createStore({ v: 7 });
   customElements.define('x-own-class', class extends HTMLElement {
     connectedCallback() { init(this, (host) => () => html`<b>${host.value}</b>`); }
@@ -87,9 +87,39 @@ test('a class component with adopted props: one store over its record, which car
   assert.ok(child, 'CONTROL: the child exists');
   assert.equal(child.textContent, '7', 'the adopted prop rendered');
   assert.equal(createStore(child._$raw$), child._$v$, 'one store');
-  assert.equal(Object.getOwnPropertySymbols(child._$raw$).length, 1, 'its record carries the slot');
+  assert.equal(Object.getOwnPropertySymbols(child._$raw$).length, 0, 'its record carries no slot: an empty-then-grown record with the slot first cost Firefox +3–5%');
   state.v = 8;
   await settle();
   assert.equal(child.textContent, '8', 'a new value from the parent repaints');
   parent.remove();
+});
+
+test('two cores on one page: each props record carries ITS core\'s slot, and each component hears only its own writes', async () => {
+  /** A second copy of core (its own module instance, as core-define's two-cores row loads it). No renderer is wired into it. */
+  const second = await load('core', '?copy=2');
+  const seen = { one: [], two: [] };
+  define({ tag: 'x-own-core1', props: { a: 1 } }, (host) => { useEffect(() => { seen.one.push(host.a); }); return () => html`<b></b>`; });
+  second.define({ tag: 'x-own-core2', props: { a: 1 } }, (host) => { second.useEffect(() => { seen.two.push(host.a); }); });
+  const one = document.createElement('x-own-core1');
+  const two = document.createElement('x-own-core2');
+  document.body.append(one, two);
+  await settle();
+  second.flush();
+  assert.deepEqual(seen, { one: [1], two: [1] }, 'CONTROL: both set up and read their prop');
+  const [s1] = Object.getOwnPropertySymbols(one._$raw$);
+  const [s2] = Object.getOwnPropertySymbols(two._$raw$);
+  assert.ok(s1 !== undefined && s2 !== undefined, 'each record carries a slot');
+  assert.notEqual(s1, s2, 'a slot per core copy, never shared');
+  one.a = 2;
+  await settle();
+  second.flush();
+  assert.deepEqual(seen, { one: [1, 2], two: [1] }, "core 1's write woke only core 1's reader");
+  two.a = 3;
+  await settle();
+  second.flush();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  second.flush();
+  assert.deepEqual(seen, { one: [1, 2], two: [1, 3] }, "core 2's write woke only core 2's reader");
+  one.remove();
+  two.remove();
 });

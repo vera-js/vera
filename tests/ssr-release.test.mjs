@@ -54,6 +54,13 @@ test('200 server renders of a `define` component leave none alive', () => {
   assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
 });
 
+test('200 server renders of a `define` component with DECLARED props leave none alive (its props record is built on the server)', () => {
+  const r = measure('define-props');
+  controls(r);
+  assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the props (${JSON.stringify(r)})`);
+  assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
+});
+
 test('an ASYNC `define` setup is awaited by the server (the markup carries the value after its await) and released', () => {
   const r = measure('define-async');
   controls(r);

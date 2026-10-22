@@ -760,8 +760,12 @@ const shallowHandler: ProxyHandler<object> = {
  * record costs no WeakMap entry and no `cached()` miss: define with defaults −12.8% on Chrome, now faster than that
  * class, −2.5% Firefox (headless iteration; confirmed by the headed race). `cached()` reads the slot first, so
  * `createStore(record)` still answers the same proxy.
- * - ONLY for a record no store wraps yet — the props record when core first builds its store (`propsOf`/`filledOf`).
- *   It skips `cached()` on purpose, which a record someone else had already wrapped would turn into a second proxy.
+ * - ONLY for a record no store wraps yet — `define`'s props record, built FULL by its defaults filler (`filledOf`). It
+ *   skips `cached()` on purpose, which a record someone else had already wrapped would turn into a second proxy.
+ * - NOT for a class component's record (`propsOf`): with the slot on it, Firefox ran bound class components +5.2%
+ *   slower to create and +3.1% to churn (6/6 sessions each, headed race); on `createStore` both returned level and
+ *   Chrome's define win stayed. The suspected cause, a HYPOTHESIS: that record starts empty and grows after the slot is
+ *   defined, where define's is built full first.
  * - Not for every store: a field defined on EVERY proxied object cost store rows 8% (`promote`'s note); this is one
  *   record per component.
  */

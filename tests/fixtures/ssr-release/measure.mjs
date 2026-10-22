@@ -10,9 +10,9 @@ const droppedRef = (() => new WeakRef({ dropped: true }))();
 const gc = async () => { for (let i = 0; i < 6; i++) { global.gc(); await new Promise((r) => setImmediate(r)); } };
 const url = (f) => new URL(`./${f}`, import.meta.url);
 const out = { mode };
-if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === 'define-sync' || mode === 'define-async') {
+if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === 'define-sync' || mode === 'define-props' || mode === 'define-async') {
   let markup = '';
-  if (mode === 'sync' || mode === 'define-sync') for (let i = 0; i < N; i++) { markup = (await renderToString(url(mode === 'sync' ? 'comp.mjs' : 'comp-define.mjs'))).html; if (i % 50 === 49) await new Promise((r) => setImmediate(r)); }
+  if (mode === 'sync' || mode === 'define-sync' || mode === 'define-props') for (let i = 0; i < N; i++) { markup = (await renderToString(url(mode === 'sync' ? 'comp.mjs' : mode === 'define-props' ? 'comp-define-props.mjs' : 'comp-define.mjs'))).html; if (i % 50 === 49) await new Promise((r) => setImmediate(r)); }
   else {
     const page = mode === 'overlap' ? 'comp.mjs' : mode === 'define-async' ? 'comp-define-async.mjs' : 'comp-async.mjs';
     const all = await Promise.all(Array.from({ length: N }, () => renderToStringAsync(url(page))));
