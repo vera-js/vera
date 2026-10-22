@@ -6,8 +6,8 @@ class, no build step required, and one dependency — [`@verajs/inserts`](../ins
 extension registry, which the production bundle inlines.
 
 There is no `Component` to extend and no compiler to run. A VeraJS component is a custom element
-that calls `init()` with its setup — a function that runs once and returns what to draw; everything
-reactive follows from the store it reads.
+whose setup — a function that runs once and returns what to draw — `define()` registers for you (or
+your own class hands to `init()`); everything reactive follows from the store it reads.
 
 ```sh
 npm i @verajs/core @verajs/renderer
@@ -25,58 +25,78 @@ foreign renderer through it — but no alternative renderer is offered as a supp
 
 <!-- recipe -->
 ```js
-import { init, createStore, wire, html, useEffect } from '@verajs/core';
+import { define, createStore, wire, html, useEffect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);   // once, at your app entry, before any component defines itself
 
-customElements.define(
-  'click-counter',
-  class extends HTMLElement {
-    connectedCallback() {
-      init({ host: this, shadow: 'open' }, () => {   // shadow DOM; init(this, () => …) for light DOM
-        const state = createStore({ count: 0 });        // the setup runs once
+define({ tag: 'tap-counter', shadow: 'open' }, () => {   // shadow DOM; define('tap-counter', () => …) for light DOM
+  const state = createStore({ count: 0 });                 // the setup runs once per connect
 
-        useEffect(() => {
-          document.title = `${state.count} clicks`; // re-runs whenever what it read changes
-        });
+  useEffect(() => {
+    document.title = `${state.count} taps`;                // re-runs whenever what it read changes
+  });
 
-        return () => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`;
-      });
-    }
-  }
-);
+  return () => html`<button @click=${() => state.count++}>Tapped ${state.count} times</button>`;
+});
 
-document.body.append(document.createElement('click-counter'));
+document.body.append(document.createElement('tap-counter'));
 ```
 
 Nothing here declares a dependency. The returned render and `useEffect` subscribe to whatever they
 read while they run, so a write to `state.count` schedules exactly the work that read it — and the
 setup around them, which reads nothing tracked, never runs again.
 
-## Props — what a parent passes in
+`define(tag, setup)` and `define({ tag, …options }, setup)` register the element and return its
+class. The options are `init`'s (`shadow`, `foreignNodes`, any wired module's own key) plus
+`props`, `attributes` and `methods`, below. The string form passes no options at all. A tag is
+defined once: a second `define` of it throws, as the platform's `customElements.define` does.
 
-A parent binds **properties**; the component reads them off `this`. Nothing is declared on either
-side — no `static properties`, no props argument to `init()`:
+## Writing the class yourself
+
+`define` writes the custom element class for you. When you need the class itself — inheritance,
+`formAssociated`, `adoptedCallback`, a class you already have — write it and hand its setup to
+`init()` from `connectedCallback`:
 
 <!-- recipe -->
 ```js
-import { init, wire, html } from '@verajs/core';
+import { init, createStore, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+
+wire([renderer]);
+
+customElements.define(
+  'tally-button',
+  class extends HTMLElement {
+    connectedCallback() {
+      init({ host: this, shadow: 'open' }, () => {   // init(this, () => …) for light DOM
+        const state = createStore({ count: 0 });
+        return () => html`<button @click=${() => state.count++}>${state.count}</button>`;
+      });
+    }
+  }
+);
+
+document.body.append(document.createElement('tally-button'));
+```
+
+Both forms run the same lifecycle: core wraps every `customElements.define` after it loads, so a
+component moved within its document keeps its state, and one removed is torn down once.
+
+## Props — what a parent passes in
+
+A parent binds **properties**; the component reads them off its host. Nothing has to be declared
+on either side — no `static properties`, no props argument:
+
+<!-- recipe -->
+```js
+import { define, wire, html } from '@verajs/core';
 import { renderer, renderInto } from '@verajs/renderer';
 import { props } from '@verajs/renderer/spread';
 
 wire([renderer]);
 
-customElements.define(
-  'order-summary',
-  class extends HTMLElement {
-    connectedCallback() {
-      init({ host: this, shadow: 'open' }, () => {
-        return () => html`<p>${this.customer} — ${this.items.length} items</p>`;
-      });
-    }
-  }
-);
+define({ tag: 'order-summary', shadow: 'open' }, (host) => () => html`<p>${host.customer} — ${host.items.length} items</p>`);
 
 renderInto(
   html`<order-summary ${props({ customer: 'Ada', items: [{ sku: 'a' }, { sku: 'b' }] })}></order-summary>`,
@@ -84,7 +104,7 @@ renderInto(
 );
 ```
 
-`init()` **adopts** what the parent's property bindings delivered: each bound key becomes a
+Core **adopts** what the parent's property bindings delivered: each bound key becomes a
 store-backed accessor on the element, so a read in a render is tracked and the parent's next
 commit re-renders — reactivity in both directions, with values arriving **by identity** (an
 array, a `Date`, a store or a `ref()` passed down stays itself, and stays live). Three things
@@ -111,6 +131,108 @@ worth knowing:
 - **SSR delivers them too.** Under `@verajs/ssr`, a property bound on a rendered component tag
   reaches that child's server render by identity, so the server's output comes from the same data
   the client render gets.
+
+
+### Declared props — for components other code drives
+
+Adoption covers a Vera template passing values. A prop written by **plain code after the component
+connected** — another framework, a CMS script, `card.heading = 'x'` — is not one it can hear: the
+platform only lets a property write be observed through an accessor of that name, so the name has to
+be known. Declaring it is how:
+
+<!-- recipe -->
+```js
+import { define, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+
+wire([renderer]);
+
+define({ tag: 'note-card', props: { heading: 'Untitled', tags: [] } }, (host) => () =>
+  html`<h3>${host.heading}</h3><p>${host.tags.join(', ')}</p>`);
+
+const card = document.createElement('note-card');
+document.body.append(card);
+card.heading = 'Groceries';   // a plain write after connect: it repaints
+card.tags.push('home');       // each card has its own list (the default is copied per element)
+```
+
+- **Defaults are lazy:** nothing is written for them until the first read or write, and an array or a
+  plain-object default is shallow-copied per element (nested values stay shared). A `Set`, a `Map` or
+  a class instance cannot be copied — every element would share one — so development says so: declare
+  it `null` and create it in the setup.
+- **A value set before the tag was defined wins** over the default, and is reactive from then on.
+- **Types follow the defaults:** `host.heading` is a `string` in the setup and on the element.
+- **Declare only what other code drives.** Declared props are public and reactive, and that has a
+  price at creation; state nothing outside reads belongs in the setup's own store. (The measured
+  engine behavior behind this is in [`docs/BROWSER-LEDGER.md`](../../docs/BROWSER-LEDGER.md).)
+- Undeclared props keep the adoption above, unchanged.
+
+### Attributes — declared, the platform way
+
+`attributes` lists observed attributes, as `observedAttributes` would; each arrives as a
+`string | null` prop under its camel-cased name (`data-count` → `dataCount`). No `MutationObserver`:
+a tag that declares none carries no attribute callback at all.
+
+<!-- recipe -->
+```js
+import { define, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+
+wire([renderer]);
+
+define({ tag: 'tone-badge', props: { label: 'new' }, attributes: ['label', 'data-tone'] }, (host) => () =>
+  html`<b>${host.label}</b> <small>${host.dataTone ?? 'plain'}</small>`);
+
+const badge = document.createElement('tone-badge');
+document.body.append(badge);
+badge.setAttribute('label', 'beta');      // → host.label, and it repaints
+badge.setAttribute('data-tone', 'warm');  // → host.dataTone
+badge.removeAttribute('label');           // → null (not the default)
+```
+
+- **One way only:** attributes become props; writing the prop never touches the attribute.
+- **Sharing a declared prop:** its default applies until the attribute appears. The attribute is a
+  string, so a non-string default changes type when it does — development says so, and the type is
+  widened to `default | string | null`.
+- **A property set before the tag was defined beats the markup's attribute** for the same name.
+- **Observing an attribute the platform already reflects** (`hidden`, `title`, `lang`, `aria-label`…)
+  replaces that property: `el.hidden = true` then no longer hides the element. Development says so;
+  read such an attribute with `host.getAttribute()` instead unless the component owns it.
+- The server renders them: `@verajs/ssr` delivers a tag's observed attributes before it connects.
+
+### Methods — on the element, for the code that holds it
+
+<!-- recipe -->
+```js
+import { define, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+
+wire([renderer]);
+
+define(
+  {
+    tag: 'confirm-dialog',
+    shadow: 'open',
+    props: { shown: false },
+    methods: {
+      open() { this.shown = true; },     // `this` is the element
+      close() { this.shown = false; },
+    },
+  },
+  (host) => () => html`<div ?hidden=${!host.shown}><slot></slot><button @click=${() => host.close()}>OK</button></div>`
+);
+
+const dialog = document.createElement('confirm-dialog');
+document.body.append(dialog);
+dialog.open();
+```
+
+Methods live on the class's prototype — one function for every element, `this` the element, as in
+a class. They are enumerable, like the element's own interface (and so is a `define` component's
+`connectedCallback`, unlike a class component's). `connectedCallback` and `constructor` are core's
+own and never replaced (development says so); a `disconnectedCallback` among them runs as a teardown
+hook. A name the platform's element already has (`focus`, `click`) replaces it — development says
+that too.
 
 ## State
 
