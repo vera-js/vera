@@ -94,6 +94,24 @@ describe('R4: cross-window moves keep the component', () => {
     f.remove();
   });
 
+  it("styles hold for a component styled by define's OPTION, out and back", async () => {
+    define({ tag: 'r4-optstyled', shadow: 'open', styles: css`b { color: rgb(0, 128, 0); }` }, () => () => html`<b>x</b>`);
+    const el = document.createElement('r4-optstyled');
+    document.body.append(el);
+    await frame();
+    const color = () => el.ownerDocument.defaultView.getComputedStyle(el.shadowRoot.querySelector('b')).color;
+    const home1 = color();
+    const f = await iframe();
+    f.contentDocument.body.append(el);
+    await frame(f.contentWindow);
+    const out = color();
+    document.body.append(el);
+    await frame();
+    expect({ home1, out, home2: color() }).to.deep.equal({ home1: 'rgb(0, 128, 0)', out: 'rgb(0, 128, 0)', home2: 'rgb(0, 128, 0)' });
+    el.remove();
+    f.remove();
+  });
+
   it('a child component created while out is upgraded on every engine (built in the home realm)', async () => {
     const s = createStore({ show: false });
     define('r4-child', () => () => html`<i>child</i>`);

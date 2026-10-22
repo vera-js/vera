@@ -223,6 +223,7 @@ card.heading = 'Groceries';   // after connect: repaints
 | **Set before the tag was defined wins** | Over the default, and over the markup's attribute of the same name. |
 | **Attributes are one way** | Attribute → prop; a prop write never touches the attribute. Removal writes `null`, not the default. A shared prop with a non-string default changes type when the attribute arrives (development warns; the type is widened). |
 | **Reflected platform attributes** | Observing `hidden`, `title`, `lang`, `aria-label`… replaces that property — `el.hidden = true` stops hiding. Read those with `host.getAttribute()` unless the component owns them. |
+| **Styles** | `define({ tag, styles: css`…` }, setup)` or `init({ host, styles })` (with `@verajs/styles` wired), the same values as `static styles`; the option wins when both are given; `styles: null` = none. |
 | **Methods** | Enumerable, like the element's interface (so is a define component's `connectedCallback`). `connectedCallback` / `constructor` in `methods` are ignored; `disconnectedCallback` runs as a teardown hook. |
 | **Declare only what others drive** | Declared props are public and reactive, which has a small price at creation; keep private state in the setup's own store. |
 | **SSR** | The server renders declared attributes and props as the client does. |

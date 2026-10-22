@@ -20,3 +20,10 @@ test('CONTROL: with no attributes the server renders the defaults (null renders 
   const { html } = await renderToString(url);
   assert.match(html, /<b><\/b><i><\/i><u>plain<\/u>/, html);
 });
+
+test("define's styles OPTION renders into the declarative shadow root on the server", async () => {
+  const { html } = await renderToString(new URL('./fixtures/ssr-define/styled.mjs', import.meta.url));
+  assert.match(html, /<template shadowrootmode="open">/, `CONTROL: a declarative shadow root: ${html}`);
+  assert.match(html, /color: rgb\(1, 2, 3\)/, `the option's CSS is in it: ${html}`);
+  assert.match(html, /<b>styled<\/b>/, html);
+});

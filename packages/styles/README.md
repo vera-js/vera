@@ -44,6 +44,12 @@ joined as text — `0` stays `0`, and `''` or `undefined` add nothing.
 `static styles` takes one `css` result, a string of CSS, or an array of either. A falsy member is
 skipped, so conditional styles read naturally: `static styles = [base, compact && compactSheet]`.
 
+**Or the `styles` option**, the same values, for a component with no class of its own: `define({ tag:
+'x-card', styles: css`…` }, setup)`, or `init({ host: this, styles })`. When both are given the option
+wins, and `styles: null` means no styles at all (the class's are not used). A `define` tag's option is
+remembered once for its tag, so it costs a component's creation nothing. (A class used both with and
+without the option is re-styled, after a move into another window, with the option it remembered.)
+
 ## Shadow DOM
 
 Constructed sheets are adopted by the shadow root, which scopes them. Plain strings become one

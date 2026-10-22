@@ -206,6 +206,12 @@ badge.removeAttribute('label');           // → null (not the default)
   read such an attribute with `host.getAttribute()` instead unless the component owns it.
 - The server renders them: `@verajs/ssr` delivers a tag's observed attributes before it connects.
 
+### Styles — the `styles` option
+
+With `@verajs/styles` wired, `define({ tag: 'x-card', styles: css`b { color: tomato; }` }, setup)` styles the
+component exactly as a class's `static styles` would — adopted into its shadow root, or hoisted once, scoped to the
+tag, in light DOM. The option wins over `static styles` when both are given; `styles: null` means none.
+
 ### Methods — on the element, for the code that holds it
 
 <!-- recipe -->

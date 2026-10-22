@@ -78,13 +78,42 @@ const forLightDom = (css: string): string =>
 const HOISTED = '_$veraStyles$';
 
 /**
- * Adopts a component's `static styles` — the `'init'` insert `styles` registers, so a component never
- * calls it and core never knows about styling.
+ * Adopts a component's styles — the `'init'` insert `styles` registers, so a component never calls it and core never
+ * knows about styling. **Both ways (Brian 2026-10-21):** the `styles` OPTION — `define({ tag, styles })`, or
+ * `init({ host, styles })` — and a class's `static styles`; the option wins when both are given. An element styled by
+ * the option keeps it (`_$y$`, only on such elements) for `$rs`, which re-applies after a move into another document
+ * and is handed no options.
  */
-export const adoptStyles = (element: StyledElement) => {
+type Styles = CSSResultGroup | CSSResultGroup[] | string | null;
+type StyledClass = { styles?: Styles; [GIVEN]?: Styles };
+/** A tag's `styles` OPTION, remembered once on its class (define's options are per tag); module-local, never mangled. */
+const GIVEN = Symbol();
+/** OWN property only: a subclass must not read its base's remembered option (`styles-inheritance` is the same trap). */
+const given = (owner: StyledClass) => (Object.hasOwn(owner, GIVEN) ? owner[GIVEN] : undefined);
+export const adoptStyles = (element: StyledElement, options?: { styles?: Styles }) => {
   if (__DEV__ && notAnElement(element))
     throw new TypeError(misuse('adoptStyles', 'adopt-not-element', __DEV__ && PROSE['adopt-not-element'](String(element))));
-  return applyStyles((element.constructor as unknown as { styles: CSSResultGroup | CSSResultGroup[] }).styles, element);
+  const owner = element.constructor as unknown as StyledClass;
+  const option = options?.styles;
+  /**
+   * Remembered for `$rs`, which is handed no options: once on the CLASS (a `define` tag's option is the same for every
+   * element — no write on a component's creation path), and on the ELEMENT only where it differs from its class's (an
+   * `init({ host, styles })` that varies per element). `null` means none. A class used both with and without the
+   * option re-styles, after a move, with its remembered option: documented.
+   */
+  if (option !== undefined) {
+    const mine = given(owner);
+    if (mine === undefined) owner[GIVEN] = option;
+    else if (mine !== option) (element as StyledElement & { _$y$?: Styles })._$y$ = option;
+  }
+  return applyStyles((option !== undefined ? option : owner.styles) as CSSResultGroup, element);
+};
+/** `$rs`: after a move into another document, the element's styles as its setup chose them, applied again. */
+const restyle = (element: StyledElement) => {
+  const owner = element.constructor as unknown as StyledClass;
+  const own = (element as StyledElement & { _$y$?: Styles })._$y$;
+  const mine = given(owner);
+  return applyStyles((own !== undefined ? own : mine !== undefined ? mine : owner.styles) as CSSResultGroup, element);
 };
 
 /**
@@ -148,6 +177,11 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     return;
   }
 
+  /**
+   * Hoisted once per document per CLASS (the mark is on the class, the one object two copies of this module both see):
+   * light-DOM rules are scoped by tag (`@scope (tag)`), so they apply to every instance of it anyway — per-element
+   * styles mean nothing here, and the class is the right key, `styles` option or not.
+   */
   const owner = element.constructor as unknown as Record<string, WeakSet<Document>>;
   if (!Object.prototype.hasOwnProperty.call(owner, HOISTED)) owner[HOISTED] = new WeakSet();
   if (owner[HOISTED].has(doc)) return;
@@ -186,9 +220,13 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
 export const styles = [
   { name: '@verajs/styles', on: 'init' as const, fn: adoptStyles as never, priority: 50 },
   (registry: object) => {
-    (registry as { $rs?: unknown }).$rs = adoptStyles;
+    (registry as { $rs?: unknown }).$rs = restyle;
   },
 ];
 
 /** Development: `adoptStyles` is not the module — `wire` names `styles` instead (see the renderer's `renderInto` mark). */
-if (__DEV__) (adoptStyles as unknown as { $module?: string }).$module = 'styles';
+if (__DEV__) {
+  (adoptStyles as unknown as { $module?: string }).$module = 'styles';
+  /** Claims the `styles` option for core's development unknown-option check. */
+  (adoptStyles as unknown as { $keys?: string[] }).$keys = ['styles'];
+}
