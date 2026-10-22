@@ -9,6 +9,12 @@ export type StoreKit = {
   /** Deletes `obj`'s key cells that no reader holds any more and returns how many remain. */
   prune?: (obj: object) => number;
   /**
+   * Starts ONE operation over several keys of `obj` — one wake for a hook reached through many of them — and returns its
+   * sender (call it per changed key, and with `shape` if the set of keys changed); `undefined` when nobody ever read
+   * `obj`. A single write uses `trigger`.
+   */
+  operation: (obj: object) => ((key: unknown) => void) | undefined;
+  /**
    * The channel a container's shape is published on: enumeration subscribes to it, and adding or
    * removing a key notifies it. A module tracks and notifies it for its own containers (a `Map`'s
    * iteration and `size`), through this name rather than a literal of its own.

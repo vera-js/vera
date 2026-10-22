@@ -129,7 +129,32 @@ const prune = (obj: object) => {
   for (const [key, cell] of keys) if (cell.n === cell.d) keys.delete(key);
   return keys.size;
 };
-const kit: StoreKit = { track, trigger, shape: GLOBAL, prune };
+/**
+ * **ONE operation over several keys of `obj`** — the single choke point for every write that changes many keys at once
+ * (A14, 2026-10-22): one wake number and ONE shared change (the shape channel, the object: "re-read"), so a hook reached
+ * through many of the keys runs once. Core's whole-array methods (`atomic`) and a collection's `clear` both send through
+ * it; a single write keeps `trigger`, the hot path. The count moves even when nothing is subscribed (an unwatched
+ * `computed`'s cache reads it). `undefined` when no key of `obj` was ever read.
+ */
+const operation = (obj: object, found: Map<unknown, Cell> | undefined = proxyCallbacks.get(obj)) => {
+  const at = ++wakes;
+  if (found === undefined) return;
+  /**
+   * What the sender captures lives in THIS block, never in the function's scope: a captured function-scope binding
+   * makes V8 allocate the context on EVERY call, the early return included — an unread array's `push` paid it (+12–15%,
+   * 12/12, internal a14 race). A block context is made only when the block runs.
+   */
+  {
+    const epoch = at;
+    const cells = found;
+    const change = { prop: GLOBAL, value: obj } as Change<unknown>;
+    return (key: unknown) => {
+      const cell = cells.get(key);
+      if (cell !== undefined) wake(cell, change, epoch);
+    };
+  }
+};
+const kit: StoreKit = { track, trigger, shape: GLOBAL, prune, operation };
 /**
  * **For `computed`** (2026-10-22): the same subscribe and notify, and a read of the wake counter. ALIASES, never
  * `export` on `track`/`trigger` themselves — an exported binding is a live one, which V8 reaches less directly from the
@@ -183,11 +208,16 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     else for (let i = name === 'splice' ? 2 : 0; i < (name === 'fill' ? 1 : args.length); i++) args[i] = unwrap(args[i]);
     const result = method.apply(obj, args);
     const after = obj.length;
-    /** One wake number for the whole operation (a hook reached through several keys runs once) — taken even when no
-     *  key is subscribed, as `trigger` takes one for every write (an unwatched `computed`'s cache reads it). */
-    const epoch = ++wakes;
+    /** ONE operation (`operation`): a hook reached through several keys runs once. */
     const keys = proxyCallbacks.get(obj);
-    if (keys !== undefined) {
+    /**
+     * Nobody ever read this array: only the count moves — inline, as before. Calling `operation` here cost an unread
+     * array's `push` +12–15% (12/12; a block context did not recover it), so the shared sender is reached only when
+     * there is someone to wake.
+     */
+    if (keys === undefined) ++wakes;
+    else {
+      const send = operation(obj, keys);
       /**
        * The indices that can have changed, to the longer end: an append's and a pop's start at the tail; everything
        * else from 0. `splice` could start at its own start, but that cost 47 B and saves only a re-run of a hook that
@@ -196,15 +226,9 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
       const lo = name === 'push' ? before : name === 'pop' ? after : 0;
       const hi = before > after ? before : after;
       /**
-       * ONE signal for the whole operation, on the shape channel with the array as its value: "the contents changed,
-       * re-read". Not `length`: `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would
-       * read as nothing happened.
+       * The change is the operation's — the shape channel, the array: "the contents changed, re-read". Not `length`:
+       * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
        */
-      const signal = { prop: GLOBAL, value: obj } as Change<unknown>;
-      const send = (key: unknown) => {
-        const cell = keys.get(key);
-        if (cell !== undefined) wake(cell, signal, epoch);
-      };
       /**
        * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. A list rendered
        * through a raw walk subscribes no index at all (`ITEMS` instead), so its splice checks a handful of keys, not 1000.
@@ -213,13 +237,13 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
         for (const key of keys.keys())
           if (typeof key === 'string') {
             const index = +key;
-            if (index >= lo && index < hi) send(key);
+            if (index >= lo && index < hi) send!(key);
           }
-      } else for (let i = lo; i < hi; i++) send(String(i));
-      send(ITEMS);
+      } else for (let i = lo; i < hi; i++) send!(String(i));
+      send!(ITEMS);
       if (after !== before) {
-        send('length');
-        send(GLOBAL);
+        send!('length');
+        send!(GLOBAL);
       }
     }
     if (result === obj) return proxy;

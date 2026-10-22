@@ -56,7 +56,7 @@ const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
  *   a plain read got *faster* (139.3 → 129.9 ns/op) and a `Map.size` read stayed flat.
  *
  * Change detection is per method: `set` fires iff absent-or-different, `add` iff absent, `delete`
- * iff it returned true, `clear` iff non-empty (notifying every previous key). No-op mutations are
+ * iff it returned true, `clear` iff non-empty (every previous key and the shape channel, as ONE operation). No-op mutations are
  * silent. `get`/`has` subscribe per key; `entries`/`keys`/`values`/`forEach`, `for…of` and spread
  * subscribe to every change. Reactivity is per-entry, not deep: values come back raw.
  */
@@ -121,11 +121,13 @@ const methodWrapper = (obj: object, prop: PropertyKey, propValue: unknown, kit: 
         }
         case 'clear': {
           /** Captured first: subscribers of individual keys must hear the clear too. */
-          const previous = collection.size > 0 ? [...collection.entries()] : null;
+          const previous = collection.size > 0 ? [...collection.keys()] : null;
           const result = method.apply(obj, args);
-          if (previous) {
-            for (const [key, prevValue] of previous) notify(key, undefined, prevValue);
-            notify(GLOBAL, undefined, undefined);
+          /** ONE operation (A14, 2026-10-22, `kit.operation`): a hook reading many keys runs once, not once per key. */
+          const send = previous && kit.operation(obj);
+          if (send) {
+            for (const key of previous!) send(key);
+            send(GLOBAL);
           }
           return result;
         }
