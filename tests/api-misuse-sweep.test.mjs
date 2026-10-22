@@ -46,6 +46,8 @@ const skip = isProduction && 'development-only diagnostics';
 const CASES = [
   ['untrack(nonFunction)', () => core.untrack(42), /untrack: expected a function/],
   ['init(notAnElement)', () => core.init(null), /init: expected a component element/],
+  ['define(notATagName, setup)', () => core.define('nohyphen', () => {}), /define: expected a custom element name/],
+  ['define(tag, notASetup)', () => core.define('x-misuse-sweep', 'nope'), /define: the second argument is the SETUP/],
   ['createStore(notAnObject)', () => core.createStore(42), /createStore: expected an object/],
   ['applyStyles([notCSS], element)', () => styleModule.applyStyles([42], document.createElement('div')), /applyStyles: expected CSS/],
   ['a frozen store refusing a write', () => { const store = core.createStore(Object.freeze({ n: 1 })); store.n = 2; }, /createStore: this store's source object refused the write/],

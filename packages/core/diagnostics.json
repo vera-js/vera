@@ -28,6 +28,30 @@
       "fix": "Fix the cleanup, or wire an 'error' insert to handle what hooks throw."
     },
     {
+      "code": "define-setup",
+      "params": [
+        "received"
+      ],
+      "message": "the second argument is the SETUP, a function, and received {received}.",
+      "fix": "Pass the setup after the tag or the options: `define('x-card', (host) => () => html`…`)`."
+    },
+    {
+      "code": "define-tag",
+      "params": [
+        "received"
+      ],
+      "message": "expected a custom element name — a string with a hyphen, not at the start — and received {received}.",
+      "fix": "Name it the way the platform requires: `define('x-card', setup)` or `define({ tag: 'x-card' }, setup)`."
+    },
+    {
+      "code": "define-twice",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> is already defined; the platform refuses a second definition of a tag and throws next.",
+      "fix": "Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define."
+    },
+    {
       "code": "foreign-nodes-option",
       "params": [
         "value"
