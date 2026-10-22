@@ -38,22 +38,23 @@ export const define = <M extends Methods = Record<never, never>>(
     Object.freeze(options);
   }
   const entry = { o: options, s: setup };
-  const Class = class extends HTMLElement {
-    connectedCallback() {
-      initWith(this as unknown as ComponentElement, entry.o, entry.s);
-    }
-  };
   /**
-   * **Methods: public methods on the generated PROTOTYPE** (Brian, 2026-10-21; +13 B) — one function per tag, nothing per
-   * instance; `this` is the element, as in a class. The generated `connectedCallback` and the class's `constructor` are
-   * RE-ASSERTED last, so a key of either name in `methods` never replaces them, in either build (development says so).
-   * Writing an EXISTING prototype property keeps its attributes (measured 2026-10-21), so both stay non-enumerable, as a
-   * class has them; the methods themselves are enumerable, like the element's own interface.
+   * **ONE assign builds the prototype** — `methods` (public methods: one function per tag, nothing per instance; `this` is
+   * the element, as in a class; Brian 2026-10-21), then the class's `constructor` and the generated `connectedCallback`
+   * LAST, so a key of either name in `methods` never replaces them, in either build (development says so).
+   * - Writing an EXISTING prototype property keeps its attributes (measured): `constructor` stays non-enumerable, as a
+   *   class has it. `connectedCallback` and the methods are NEW properties, so they are ENUMERABLE — unlike a class
+   *   component's — the one-assign form being 11 B smaller than a class body plus a re-assert (6264 vs 6275 gz, vera-5a:
+   *   take it). No platform behavior reads it: the registry captures callbacks by [[Get]] at define time; code walking
+   *   the prototype already sees every WebIDL member, all enumerable.
    */
-  if (methods) {
-    const proto = Class.prototype;
-    Object.assign(proto, methods, { constructor: Class, connectedCallback: proto.connectedCallback });
-  }
+  const Class = class extends HTMLElement {};
+  Object.assign(Class.prototype, methods, {
+    constructor: Class,
+    connectedCallback(this: ComponentElement) {
+      initWith(this, entry.o, entry.s);
+    },
+  });
   customElements.define(tag, Class);
   return Class as unknown as DefinedClass<M>;
 };

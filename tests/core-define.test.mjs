@@ -198,7 +198,7 @@ test('methods: callable on the element, `this` is the element, one function shar
   for (const el of [a, b, c, d]) el.remove();
 });
 
-test('methods cannot replace the generated connectedCallback or the constructor — in EITHER build — and both stay non-enumerable', async () => {
+test('methods cannot replace the generated connectedCallback or the constructor — in EITHER build; constructor non-enumerable, the generated connectedCallback enumerable (decided)', async () => {
   let setups = 0;
   let said = [];
   let C;
@@ -214,7 +214,14 @@ test('methods cannot replace the generated connectedCallback or the constructor 
   if (customElements.getName) assert.equal(customElements.getName(el.constructor), 'x-def-reserved');
   assert.equal(customElements.get('x-def-reserved'), el.constructor);
   const enumerable = (k) => Object.getOwnPropertyDescriptor(C.prototype, k).enumerable;
-  assert.deepEqual({ constructor: enumerable('constructor'), connectedCallback: enumerable('connectedCallback'), open: enumerable('open') }, { constructor: false, connectedCallback: false, open: true });
+  /**
+   * DECIDED (vera-5a, 2026-10-21): the one-assign form makes the generated `connectedCallback` ENUMERABLE (a new
+   * property, −11 B); `constructor` keeps the class's attributes. A class twin's stays non-enumerable — pinned beside it.
+   */
+  assert.deepEqual({ constructor: enumerable('constructor'), connectedCallback: enumerable('connectedCallback'), open: enumerable('open') }, { constructor: false, connectedCallback: true, open: true });
+  class Twin extends HTMLElement { connectedCallback() {} }
+  customElements.define('x-def-reserved-twin', Twin);
+  assert.equal(Object.getOwnPropertyDescriptor(Twin.prototype, 'connectedCallback').enumerable, false, 'a class component\'s stays non-enumerable');
   if (!isProduction) assert.equal(said.filter((m) => m.includes('define-method-ignored')).length, 2, `both said, by code (${said.join(' | ')})`);
   el.remove();
 });
