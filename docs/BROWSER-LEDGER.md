@@ -314,6 +314,12 @@ from another machine, or after that is undone, has a variable changed.
   or connect) in Chromium 151 and Firefox 153; WebKit 26.5 has no `Element.prototype.moveBefore`. Consequence: a component
   kept across `moveBefore` through `connectedMoveCallback` needs the existing one-operation move path on WebKit, and the
   callback's creation cost is measured on all three before any class gains it. (Playwright headless; 2026-10-22)
+- **When the OPENER closes, a component its realm drives in a pop-out goes inert in Chromium and Firefox, and keeps
+  working in WebKit.** A Vera component moved into a `window.open` pop-out works there (a click's store write
+  re-renders). After the opener page is closed, the same click does nothing in Chromium 151 and Firefox 153 (no error, no
+  re-render) and still updates in WebKit 26.5. Consequence: a panel left in a pop-out whose opener closed is the opener's
+  realm's code; cross-window moves document it as unsupported rather than relying on WebKit's behavior. (Playwright
+  headless; 2026-10-22)
 
 ## Test environments
 
