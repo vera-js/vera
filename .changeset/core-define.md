@@ -4,7 +4,8 @@
 
 `define()` — a component without writing a class
 
-`define('tag', setup)` and `define({ tag, …options }, setup)` register the custom element and return its class. The
+`define('tag', setup)` and `define({ tag, …options }, setup)` register the custom element and return its class —
+the registered one, so `new` and `instanceof` work even after a development redefine. The
 options are `init`'s, plus:
 
 - `props: { name: default }` — declared props, for components other code drives: a plain write after connect repaints

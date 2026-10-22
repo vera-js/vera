@@ -33,6 +33,7 @@ const MIGRATED = [
   ['inserts', '../core/dist/vera.min.js'],
   ['store', 'dist/*.min.js'],
   ['ui', 'dist/*.min.js'],
+  ['hot', 'dist/*.min.js'],
   ['autoloader', 'dist/*.min.js'],
   /** Both: the standalone loader AND the compiler a buildless page fetches — neither may carry a sentence (3d). The
    *  words Node and Vite read are `dist/node/`, outside this glob by design. */

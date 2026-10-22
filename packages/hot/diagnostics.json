@@ -1,0 +1,28 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "hot-defined-first",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> was defined before @verajs/hot was wired, so its registration is the real class and cannot be redefined.",
+      "fix": "Wire hot first in the entry, before any component module defines a tag."
+    },
+    {
+      "code": "hot-no-core",
+      "params": [],
+      "message": "was wired where core's `customElements.define` wrapper is not installed, so a swap would replace core's lifecycle callbacks instead of running inside them.",
+      "fix": "Import `@verajs/core` before wiring, and wire hot through core's `wire`: `wire([renderer, hot])`."
+    },
+    {
+      "code": "hot-reload",
+      "params": [
+        "tag",
+        "reason"
+      ],
+      "message": "<{tag}> changed in a way a live element cannot take ({reason}), so a reload was requested.",
+      "fix": "Cancel the `vera-hot-reload` event on the window to handle it yourself (a preview frame, for instance)."
+    }
+  ]
+}
