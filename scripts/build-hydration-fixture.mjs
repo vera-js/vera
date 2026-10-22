@@ -74,7 +74,14 @@ const contents =
    * the child hydrates BEFORE its parent's parts commit, so the props arrive late, through
    * `_$adopt$` — the ordering jsdom suites can only imitate.
    */
-  `export const COMPONENT_PROPS_HTML = ${JSON.stringify(await fixture('component-props-ssr.js'))};\n`;
+  `export const COMPONENT_PROPS_HTML = ${JSON.stringify(await fixture('component-props-ssr.js'))};\n` +
+  /**
+   * R3 `define` ATTRIBUTES, rendered by the server from the markup's values (the shim delivers observed attributes before
+   * connect) — the browser suite hydrates it and asserts the client converges with ONE render and stays live.
+   */
+  `export const DEFINE_ATTRS_HTML = ${JSON.stringify(
+    await fixture('define-attrs-ssr.js', { attributes: { label: 'Hello', 'data-count': '3', tone: 'loud' } })
+  )};\n`;
 
 if (check) {
   let committed;

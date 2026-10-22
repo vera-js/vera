@@ -162,7 +162,7 @@ card.tags.push('home');       // each card has its own list (the default is copi
   it `null` and create it in the setup.
 - **A value set before the tag was defined wins** over the default, and is reactive from then on.
 - **Types follow the defaults:** `host.heading` is a `string` in the setup and on the element.
-- **Declare only what other code drives.** Declared props are public and reactive, and that has a
+- **Declare only what other code drives.** Declared props are public and reactive, which has a small
   price at creation; state nothing outside reads belongs in the setup's own store. (The measured
   engine behavior behind this is in [`docs/BROWSER-LEDGER.md`](../../docs/BROWSER-LEDGER.md).)
 - Undeclared props keep the adoption above, unchanged.
