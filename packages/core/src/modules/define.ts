@@ -1,7 +1,7 @@
 import { diagnostic, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { initWith } from './init.js';
-import { propsOf } from './adoptProps.js';
+import { filledOf } from './adoptProps.js';
 import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup, WithAttributes } from '../types.js';
 
 /**
@@ -61,6 +61,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   }
   if (__DEV__) Object.freeze(options);
   const entry = { o: options, s: setup as Setup };
+  let pending: ((element: ComponentElement) => void) | undefined;
   /** The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all). */
   const keys = props && Object.keys(props);
   /**
@@ -90,6 +91,8 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
             delete (this as unknown as Record<string, unknown>)[key];
             (this as unknown as Record<string, unknown>)[key] = value;
           }
+      /** A1: adopted values pending on a define element — build the store with its defaults first. */
+      pending?.(this);
       initWith(this, entry.o, entry.s);
     },
   });
@@ -137,7 +140,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
      * class's store literal is), then copies only the array/object defaults; a record already started (an adopted key, or
      * the copy core's teardown left) gets only the missing ones.
      */
-    (Class.prototype as unknown as { _$fill$: unknown })._$fill$ = (record: Record<string, unknown> | undefined) => {
+    const fillDefaults = (record: Record<string, unknown> | undefined) => {
       const fill = record !== undefined;
       const raw = fill ? record : { ...props };
       for (let i = 0; i < keys.length; i++) {
@@ -149,7 +152,8 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       }
       return raw;
     };
-    const store = propsOf;
+    const store = (element: ComponentElement) => filledOf(element, fillDefaults);
+    pending = (element: ComponentElement) => { if (element._$props$ !== undefined) store(element); };
     /**
      * The callback writes the STORE, not `this[name]`: an element given a property before the tag was defined still holds
      * it as an OWN data property at upgrade, when the platform delivers the attributes — `this[name] =` would overwrite

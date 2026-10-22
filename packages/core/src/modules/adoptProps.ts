@@ -93,7 +93,10 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
  * drop the store) and every accessor follows the new record on its next read (vera-5a, 2026-10-21).
  */
 export const propsOf = (element: ComponentElement): Record<string, unknown> =>
-  element._$v$ ?? (element._$v$ = createStore((element._$raw$ = element._$fill$ ? element._$fill$(element._$raw$) : (element._$raw$ ?? {}))));
+  element._$v$ ?? (element._$v$ = createStore((element._$raw$ ??= {})));
+/** A `define` tag's: the store with its defaults written first (A1: no `_$fill$` read on a CLASS component's path). */
+export const filledOf = (element: ComponentElement, fill: (raw: Record<string, unknown> | undefined) => Record<string, unknown>): Record<string, unknown> =>
+  element._$v$ ?? (element._$v$ = createStore((element._$raw$ = fill(element._$raw$))));
 
 /** One accessor pair per KEY, shared by every element that adopts it (it reads `this`) — no closure per element. */
 const accessors = new Map<string, PropertyDescriptor>();
