@@ -178,6 +178,13 @@ code, so they are not re-litigated.
   went 18 dev / 83 prod red for that reason alone (2026-10-18). Give the worktree its own `node_modules` with `@verajs/*`
   linked to its own `packages/*` (`readlink -f node_modules/@verajs/core` must point into it), or run the suites in the
   real tree.
+  **And an INSTALL in such a tree damages the OTHERS (Brian approved, 2026-10-22):** the local worktrees share
+  `node_modules` through symlinks into one another, and `npm install` / `npm ci` in one follows those links — an install
+  that aborted (ENOTDIR) removed files in vera-slotpos's `node_modules`, which vera-hydra and vera-idskip link into, and
+  nothing reported it there (found hours later, when a tool failed). Before any install in a worktree, check
+  `find node_modules -maxdepth 2 -type l` for links into other trees; install only in the tree that OWNS the targets, or
+  give the tree its own real `node_modules` first. After an aborted install, check the OTHER trees' critical
+  dependencies (playwright, trace-mapping) by importing them inside each tree.
 - **In a hot function, an arrow that captures a parameter taxes EVERY call, a sparse array taxes every read, and so
   does an EXPORTED module variable.**
   Measured 2026-10-01 on the SSR serializer, which lost 4.7% in a day to both: `value.map((e) => serializeValue(e,
