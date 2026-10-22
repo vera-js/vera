@@ -24,9 +24,6 @@ import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Method
  * - The options copy is frozen in development: it is shared by every instance of the tag, so a module that wrote to it
  *   would leak state between them — it throws there instead (no package writes it, checked 2026-10-21).
  */
-/** The cached props store's key — one Symbol per copy of core (see the props block). */
-const PROPS = /* @__PURE__ */ Symbol();
-
 export const define = <M extends Methods = Record<never, never>, P extends object = Record<never, never>, A extends readonly string[] = []>(
   target: string | (DefineOptions & { props?: P; attributes?: A; methods?: M & ThisType<ComponentElement & WithAttributes<P, A> & M> }),
   setup: (host: ComponentElement & WithAttributes<P, A> & M) => unknown
@@ -120,16 +117,20 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
     /**
      * **The element's props store, CACHED on it** (race35: reading through `createStore` — a WeakMap lookup per access,
      * createProxy.ts — cost the parent-passes-new-props row +2.6% and the defaults row +11.8% on Chrome; the alternative
-     * was written down before the run): under a Symbol PRIVATE to this copy of core (two copies on a page never see each
-     * other's — never a string name), built at the FIRST touch of any declared prop, which also writes every missing
+     * was written down before the run), built at the FIRST touch of any declared prop, which also writes every missing
      * default at once into the raw target (no notification), so no read pays a `hasOwn`. The cached proxy points at the
      * raw record only — no back-pointer to the element, so no DOM↔JS cycle for Firefox's collector.
+     * - **A LITERAL, sigiled name (`_$p$`), never a computed key:** Firefox reads a DOM object's field by a computed key
+     *   (`this[KEY]`, a Symbol OR a per-copy string) ~7% slower than by a literal name in the attribute-write path
+     *   (headless: 244 / 251 vs 229 ms; Chrome no difference; BROWSER-LEDGER 2026-10-21). Sigiled, so no bundle mangles
+     *   it. Shared by every copy of core on a page by design, as `_$raw$` is — and safe: an element has ONE class, and
+     *   only that tag's generated accessors (one copy's) ever touch its `_$p$`.
      */
     const copies = keys.map((key) => {
       const value = props![key];
       return Array.isArray(value) ? 1 : (value as object)?.constructor === Object ? 2 : 0;
     });
-    const store = (element: Record<symbol, unknown> & ComponentElement) => {
+    const store = (element: ComponentElement) => {
       /**
        * The usual case — no record yet — builds it in ONE allocation from the defaults (as a class's store literal is),
        * then copies only the array/object defaults; a record `adoptProps` already started (an undeclared key arrived
@@ -145,7 +146,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
           raw![key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
         }
       }
-      return (element[PROPS] = createStore(raw!)) as Record<string, unknown>;
+      return ((element as { _$p$?: Record<string, unknown> })._$p$ = createStore(raw!) as Record<string, unknown>);
     };
     /**
      * The callback writes the STORE, not `this[name]`: an element given a property before the tag was defined still holds
@@ -156,21 +157,21 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
     if (attributes?.length) {
       (Class as unknown as { observedAttributes: readonly string[] }).observedAttributes = attributes;
       (Class.prototype as unknown as { attributeChangedCallback: unknown }).attributeChangedCallback = function (
-        this: Record<symbol, unknown> & ComponentElement,
+        this: ComponentElement,
         name: string,
         _old: string | null,
         value: string | null
       ) {
-        ((this[PROPS] as Record<string, unknown> | undefined) ?? store(this))[camels[name]!] = value;
+        ((this as { _$p$?: Record<string, unknown> })._$p$ ?? store(this))[camels[name]!] = value;
       };
     }
     for (const key of keys)
       Object.defineProperty(Class.prototype, key, {
-        get(this: Record<symbol, unknown> & ComponentElement) {
-          return ((this[PROPS] as Record<string, unknown> | undefined) ?? store(this))[key];
+        get(this: ComponentElement) {
+          return ((this as { _$p$?: Record<string, unknown> })._$p$ ?? store(this))[key];
         },
-        set(this: Record<symbol, unknown> & ComponentElement, value: unknown) {
-          ((this[PROPS] as Record<string, unknown> | undefined) ?? store(this))[key] = value;
+        set(this: ComponentElement, value: unknown) {
+          ((this as { _$p$?: Record<string, unknown> })._$p$ ?? store(this))[key] = value;
         },
         configurable: true,
         enumerable: true,
