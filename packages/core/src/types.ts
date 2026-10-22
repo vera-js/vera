@@ -93,7 +93,7 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 /** An element's hooks in run order: sorted by `_k` (priority, then creation). */
 export type Hooks = HookRecord[];
 /**
- * **One key's CELL** (PROTOTYPE, 2026-10-19): the hooks that read the key, held STRONGLY, each with its link's index in
+ * **One key's CELL** (2026-10-19): the hooks that read the key, held STRONGLY, each with its link's index in
  * that hook's source list. The FIRST reader sits inline (`a`, its slot `ja`); the arrays `h` / `j` exist only from a
  * second reader (position k ≥ 1 is `h[k − 1]` / `j[k − 1]`). Most keys have one reader, so a key costs one allocation:
  * cells as two arrays in an object were three, and a store row reading two fields allocated twice what it had (the
@@ -115,7 +115,7 @@ export type Cell = { a: HookRecord | undefined; ja: number; h: (HookRecord | und
  *
  * Subscriptions, kept ON the hook so it can leave them (exact unsubscription): `s`/`x` below, the cells it
  * reads and its place in each. Retiring unlinks it from every one, so a removed component leaves nothing in a store.
- * (PROTOTYPE: this replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
+ * (This replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
  * strong, so retirement is what releases them.)
  *
  * **Run order is `_y` (priority), then `_k` (creation sequence: parent-first, then registration order) — two fields,
@@ -141,7 +141,7 @@ export type HookRecord = {
   _f: number;
   _r: number;
   /**
-   * **Its sources, with in-order link reuse** (PROTOTYPE): `s` is ONE flat array, `[cell, at, cell, at, …]`:
+   * **Its sources, with in-order link reuse**: `s` is ONE flat array, `[cell, at, cell, at, …]`:
    * each cell it reads and where it sits in that cell. `v` counts its runs (0: never run). `i` is the run's cursor INTO
    * `s` (it steps by 2): `-1` on a FIRST run, which links each read directly (lazy reuse: a hook never re-run pays
    * nothing for reuse); from the second run, a read matching `s[i]` just advances it, and the first read that DIFFERS

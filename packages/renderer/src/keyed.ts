@@ -331,7 +331,7 @@ const drop = (rec: Row) => {
   if (rec._$h$ !== undefined) retire!(rec);
 };
 /**
- * **Automatic `.map`** (PROTOTYPE, Brian 2026-10-20: every `.map` on a store array inside a render is
+ * **Automatic `.map`** (Brian 2026-10-20: every `.map` on a store array inside a render is
  * a keyed list, with no rule and nothing to learn). Core's array handler hands `state.todos.map(fn)` here when it runs in
  * a render (`$M`). The result is a REAL array of the row results — `.map(i => i.name).join(', ')` still works — and each
  * `fn(item)` runs once, under its ROW's hook, so the parent never subscribes to row fields: a write to
@@ -689,7 +689,7 @@ const eachValue = (part: object, value: unknown) => {
   return false;
 };
 /**
- * **`createSelector(source)` → `isSelected(key)`** (PROTOTYPE, 2026-10-20): selection that wakes
+ * **`createSelector(source)` → `isSelected(key)`** (2026-10-20): selection that wakes
  * exactly the rows whose answer changed. `isSelected(key)` subscribes the running hook to ONE cell per key (core's store
  * kit, `$k`, on a private target), and a hook watching `source` wakes only the previous and the new key's cells when it
  * changes — so a select re-renders 2 rows, not every row that compared against `state.selected`.

@@ -1,5 +1,5 @@
 /**
- * **Automatic `.map`** (PROTOTYPE): a plain `state.rows.map(fn)` in a render is a keyed list whose
+ * **Automatic `.map`**: a plain `state.rows.map(fn)` in a render is a keyed list whose
  * rows track themselves. These rows pin what the probes found (2026-10-20):
  *
  * - a field write re-renders ONE row, and the parent never runs;

@@ -110,7 +110,7 @@ let created = 0;
 
 /**
  * **A hook — ONE object**: what was three closures, two contexts, a `WeakRef` and expandos on a
- * function is this record (PROTOTYPE: and no longer a `WeakRef`, since cells hold hooks strongly). Every field is assigned in the constructor, in one order, so every hook
+ * function is this record (no longer a `WeakRef`, since cells hold hooks strongly). Every field is assigned in the constructor, in one order, so every hook
  * has one shape (the development-only fields are added in development only).
  *
  * **A hook belongs to its owner's generation.** `init()` starts a new one every time an element reconnects, and a hook
@@ -230,7 +230,7 @@ class HookState implements HookRecord {
     const outer = tracking.hook;
     tracking.hook = this;
     /**
-     * PROTOTYPE: the run's link bookkeeping. A FIRST run links each read directly (`i = -1`); a re-run
+     * The run's link bookkeeping. A FIRST run links each read directly (`i = -1`); a re-run
      * starts its cursor at 0 (`track`). `ok` turns true only when the callback returned: a run that THREW leaves the
      * links it did not reach in place, so the hook still hears what it read last time.
      *
@@ -274,7 +274,7 @@ class HookState implements HookRecord {
 }
 
 /**
- * **A BARE render hook for a keyed row** (PROTOTYPE, 2026-10-20, Brian: cut per-row memory now): the hook
+ * **A BARE render hook for a keyed row** (2026-10-20, Brian: cut per-row memory now): the hook
  * is NOT pushed into its owner's hook list — a row owns exactly one hook, so the one-element `_$h$` array per row was pure
  * overhead — and it is retired directly (`retireHook`). Its callback is called as a METHOD of the hook (`this._cb(…)`), so
  * one shared function serves every row, reaching its row through `ownerOf` — no closure per row.
@@ -412,7 +412,7 @@ export const callable = (hook: HookRecord) => (signal?: Signal<unknown>, init?: 
  * `computed`'s owner is a plain object rather than an element. It runs inside every write it hears, unbatched.
  *
  * The owner holds the hook strongly, ordered by `priority` (lower runs first; `0` is legal and earliest), and so do the
- * cells it reads (PROTOTYPE: strong links, released by retirement; it was one weak reference per hook). The
+ * cells it reads (strong links, released by retirement; it was one weak reference per hook). The
  * generation and out-of-tree rules are the hook's (`HookState`).
  *
  * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the

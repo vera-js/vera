@@ -28,7 +28,7 @@ export type Mine = { [MINE]?: true };
 export const tracking: { hook: HookRecord | undefined } = { hook: undefined };
 
 /**
- * Every subscription: target object → key → that key's CELL (the hooks that read it). PROTOTYPE
+ * Every subscription: target object → key → that key's CELL (the hooks that read it)
  * (2026-10-18): a cell holds its hooks STRONGLY and retirement unlinks them exactly (it held one `WeakRef` per hook).
  *
  * A key is anything a store module tracks — a property, or a collection's entry key, an object
@@ -121,7 +121,7 @@ export const grow = (cell: Cell, hook: HookRecord, slot: number) => {
 };
 
 /**
- * **A re-run CLAIMS a link it made last run, further along its sources** (PROTOTYPE, 2026-10-19): `track`
+ * **A re-run CLAIMS a link it made last run, further along its sources** (2026-10-19): `track`
  * found that the key's last link is this hook's, beyond the cursor `i`, so the read is one it made last run in a
  * different place (a reorder: rows 1 and 998 swapped). The link is SWAPPED to the cursor, and both moved links' cells
  * are told their new places, so nothing is unlinked and relinked: a plain `.map` swap re-matched about 3 000 reads by

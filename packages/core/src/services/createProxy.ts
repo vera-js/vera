@@ -23,7 +23,7 @@ const track = (obj: object, prop: unknown) => {
   let cell = props.get(prop);
   if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
   /**
-   * PROTOTYPE, **lazy in-order link reuse**. A hook's FIRST run links each read
+   * **Lazy in-order link reuse.** A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
    * RE-run walks its previous sources in order: a read matching the cursor just advances it; a repeat of one already
    * linked this run is skipped (below); the first read that DIFFERS unlinks every source not yet matched and links directly from
@@ -73,7 +73,7 @@ let wakes = 0;
  * operation alike. ONE signal per write, shared by every subscriber — it is read, never written (a write to a key with
  * 500 readers made 500).
  *
- * **In insertion order, as the `Set` it replaced** (PROTOTYPE): a raw or sync hook runs inside this loop, in this order
+ * **In insertion order, as the `Set` it replaced**: a raw or sync hook runs inside this loop, in this order
  * (a priority-0 `createHook` runs first), and its run may make a hook LEAVE this cell, which moves the cell's last hook
  * into the leaver's slot, possibly behind the walk. So a leave (the count at index 0 changed) restarts the walk from the start: every hook
  * already reached carries this wake's number and is skipped, so none is missed and none runs twice. A hook that JOINS
@@ -111,8 +111,8 @@ const GLOBAL = '_global';
 
 /** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 /**
- * **An object's key cells that no reader holds any more, deleted; returns how many remain** (PROTOTYPE,
- * 2026-10-20). A cell outlives its readers in its object's key map; for an object whose keys keep coming (a
+ * **An object's key cells that no reader holds any more, deleted; returns how many remain**
+ * (2026-10-20). A cell outlives its readers in its object's key map; for an object whose keys keep coming (a
  * selector's ids) that map grows forever, ~120 B per key ever read. `createSelector` calls this on an amortized budget.
  */
 const prune = (obj: object) => {
@@ -123,7 +123,7 @@ const prune = (obj: object) => {
 };
 const kit: StoreKit = { track, trigger, shape: GLOBAL, prune };
 /**
- * PROTOTYPE (2026-10-20): the same kit handed to a module OFF the store chain (`$k`), so the keyed
+ * (2026-10-20) The same kit handed to a module OFF the store chain (`$k`), so the keyed
  * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.
  */
 (inserts as unknown as { $k: StoreKit }).$k = kit;
@@ -642,7 +642,7 @@ const items = (obj: object) => {
   if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
 };
 /**
- * **Automatic `.map`** (PROTOTYPE, Brian 2026-10-20): inside a RENDER hook (priority 50: a
+ * **Automatic `.map`** (Brian 2026-10-20): inside a RENDER hook (priority 50: a
  * component's render, or a keyed row's), with a list module wired (`$M`, the keyed module's `eachList`), a store array's
  * `map(fn)` is handed to that module, which makes it a keyed list whose rows track themselves. Anywhere else — an effect,
  * a computed, plain code, no module, a borrowed `map`, a `thisArg` — the native method, as before. Nothing about `.map`'s
