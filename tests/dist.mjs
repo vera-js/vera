@@ -78,6 +78,7 @@ export const ENTRY = {
   'directives/expressions': ['directives', 'vera-directives-expressions'],
   'store/collections': ['store', 'vera-store-collections'],
   hooks: ['hooks', 'vera-hooks'],
+  hot: ['hot', 'vera-hot'],
   ui: ['ui', 'vera-ui'],
   'ui/elements': ['ui', 'vera-ui-elements'],
 };

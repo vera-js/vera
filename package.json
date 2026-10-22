@@ -36,6 +36,7 @@
         "./packages/cms:build",
         "./packages/directives:build",
         "./packages/hooks:build",
+        "./packages/hot:build",
         "./packages/core:build",
         "./packages/inserts:build",
         "./packages/jsx:build",

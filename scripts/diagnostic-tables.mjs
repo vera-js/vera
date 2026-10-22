@@ -32,6 +32,7 @@ export const TABLES = [
   { name: 'store', tables: ['src/diagnostics.ts'], sources: ['src/computed.ts'] },
   { name: 'ui', tables: ['src/diagnostics.ts'], sources: ['src/register.ts', 'src/select/element.ts'] },
   { name: 'router', tables: ['src/diagnostics.ts'], sources: ['src/events.ts', 'src/methods.ts', 'src/router.ts', 'src/services.ts'] },
+  { name: 'hot', tables: ['src/diagnostics.ts'], sources: ['src/index.ts'] },
   /**
    * Motion raises through routes of its own (`pageProblem`, refusal objects, a settings-type map), which the generic
    * call pattern cannot read — so its manifest is held by the motion-aware scanner in `checkedBy`, beside directives'

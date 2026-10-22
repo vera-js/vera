@@ -1,4 +1,5 @@
 import { diagnostic, misuse } from '@verajs/shared-utils';
+import { inserts } from '@verajs/inserts';
 import { PROSE } from '../diagnostics.js';
 import { initWith } from './init.js';
 import { filledOf } from './adoptProps.js';
@@ -186,7 +187,12 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       });
   }
   customElements.define(tag, Class);
-  return Class as unknown as DefinedClass<WithAttributes<P, A> & M>;
+  /**
+   * The REGISTERED class, not the local one (Brian 2026-10-22, +4 B gz): the same in every first define, and on a
+   * development redefine — which `@verajs/hot` turns into a swap, so this local class is never registered — the one
+   * `new` can construct and `instanceof` answers for.
+   */
+  return customElements.get(tag) as unknown as DefinedClass<WithAttributes<P, A> & M>;
 };
 
 /**
@@ -252,5 +258,6 @@ const checkDefine = (tag: unknown, setup: unknown) => {
   if (typeof tag !== 'string' || tag.indexOf('-') < 1)
     throw new TypeError(misuse('define', 'define-tag', __DEV__ && PROSE['define-tag'](typeof tag === 'string' ? `'${tag}'` : String(tag))));
   if (typeof setup !== 'function') throw new TypeError(misuse('define', 'define-setup', __DEV__ && PROSE['define-setup'](String(setup))));
-  if (customElements.get(tag) !== undefined) console.warn(diagnostic('core', `define('${tag}')`, 'define-twice', __DEV__ && PROSE['define-twice'](tag)));
+  /** Silent while `@verajs/hot` is wired (it sets `$hot` on the registry): a redefine is then a swap, not a mistake. */
+  if (customElements.get(tag) !== undefined && !(inserts as unknown as { $hot?: true }).$hot) console.warn(diagnostic('core', `define('${tag}')`, 'define-twice', __DEV__ && PROSE['define-twice'](tag)));
 };

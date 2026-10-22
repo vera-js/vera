@@ -57,6 +57,9 @@
       "@verajs/hooks": [
         "./packages/hooks/src/index.ts"
       ],
+      "@verajs/hot": [
+        "./packages/hot/src/index.ts"
+      ],
       "@verajs/ui": [
         "./packages/ui/src/index.ts"
       ],

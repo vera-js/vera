@@ -53,6 +53,7 @@ const PACKAGES = {
    *  lazy-directive recipe are in this repository and a reader will act on them. */
   '@verajs/directives': 'directives',
   '@verajs/hooks': 'hooks',
+  '@verajs/hot': 'hot',
   '@verajs/ui': 'ui',
   '@verajs/ui/elements': 'ui/elements',
   '@verajs/cms/content': 'cms/content',
