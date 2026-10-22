@@ -1,7 +1,7 @@
 import { diagnostic, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { initWith } from './init.js';
-import { createStore } from './createStore.js';
+import { propsOf } from './adoptProps.js';
 import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup, WithAttributes } from '../types.js';
 
 /**
@@ -131,24 +131,25 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       const value = props![key];
       return Array.isArray(value) ? 1 : (value as object)?.constructor === Object ? 2 : 0;
     });
-    const store = (element: ComponentElement) => {
-      /**
-       * The usual case — no record yet — builds it in ONE allocation from the defaults (as a class's store literal is),
-       * then copies only the array/object defaults; a record `adoptProps` already started (an undeclared key arrived
-       * first) gets the missing defaults filled in (race37: key-by-key writes into an empty record cost creation).
-       */
-      let raw = element._$raw$ as Record<string, unknown> | undefined;
-      const fill = raw !== undefined;
-      if (!fill) raw = element._$raw$ = { ...props };
+    /**
+     * The tag's DEFAULTS filler, on its prototype — `propsOf` (core's one props store, shared with adopted props) calls it
+     * the first time it builds the store: the usual case, no record yet, gets it in ONE allocation from the defaults (as a
+     * class's store literal is), then copies only the array/object defaults; a record already started (an adopted key, or
+     * the copy core's teardown left) gets only the missing ones.
+     */
+    (Class.prototype as unknown as { _$fill$: unknown })._$fill$ = (record: Record<string, unknown> | undefined) => {
+      const fill = record !== undefined;
+      const raw = fill ? record : { ...props };
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i]!;
-        if (fill ? !Object.hasOwn(raw!, key) : copies[i] !== 0) {
+        if (fill ? !Object.hasOwn(raw, key) : copies[i] !== 0) {
           const value = props![key];
-          raw![key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
+          raw[key] = copies[i] === 1 ? [...(value as unknown[])] : copies[i] === 2 ? { ...(value as object) } : value;
         }
       }
-      return ((element as { _$v$?: Record<string, unknown> })._$v$ = createStore(raw!) as Record<string, unknown>);
+      return raw;
     };
+    const store = propsOf;
     /**
      * The callback writes the STORE, not `this[name]`: an element given a property before the tag was defined still holds
      * it as an OWN data property at upgrade, when the platform delivers the attributes — `this[name] =` would overwrite

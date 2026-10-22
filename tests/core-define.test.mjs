@@ -440,3 +440,73 @@ test('attributes: development says a type flip, a reflected platform name and an
   } else assert.equal(said.length, 0);
   el.remove();
 });
+
+test('release at removal: a define component removed then re-added keeps its prop values and stays reactive', async () => {
+  define({ tag: 'x-def-release', props: { label: 'default', items: [] } }, (host) => () => html`<b>${host.label}</b><i>${host.items.length}</i>`);
+  const el = document.createElement('x-def-release');
+  document.body.append(el);
+  await settle();
+  el.label = 'kept';
+  el.items.push(1);
+  await settle();
+  assert.equal(el.textContent, 'kept1', 'CONTROL: the writes landed');
+  el.remove();
+  await settle();
+  document.body.append(el);
+  await settle();
+  assert.equal(el.textContent, 'kept1', 'the values survived the release');
+  el.label = 'after';
+  el.items.push(2);
+  await settle();
+  assert.equal(el.textContent, 'after2', 'and the re-added element is reactive — a scalar write and a deep push');
+  el.remove();
+});
+
+test('release at removal: a component MIXING declared and adopted props — both reactive after a remove and re-add', async () => {
+  const parentState = createStore({ extra: 'one' });
+  define({ tag: 'x-def-mixchild', props: { label: 'L' } }, (host) => () => html`<b>${host.label}</b><i>${host.extra}</i>`);
+  const parent = document.createElement('div');
+  document.body.append(parent);
+  const { renderInto } = await load('renderer');
+  const draw = () => html`<x-def-mixchild .extra=${parentState.extra}></x-def-mixchild>`;
+  renderInto(draw(), parent);
+  await settle();
+  const child = parent.querySelector('x-def-mixchild');
+  assert.equal(child.textContent, 'Lone', 'CONTROL: the adopted (undeclared) prop arrived');
+  child.remove();
+  await settle();
+  parent.append(child);
+  await settle();
+  parentState.extra = 'two';
+  renderInto(draw(), parent);
+  child.label = 'M';
+  await settle();
+  assert.equal(child.textContent, 'Mtwo', 'declared and adopted both follow the new record');
+  parent.remove();
+});
+
+test('release at removal: a CLASS component with adopted props, removed then re-added, still hears its parent', async () => {
+  const parentState = createStore({ name: 'a' });
+  const { init } = await load('core');
+  customElements.define('x-def-classadopt', class extends HTMLElement { connectedCallback() { init(this, (host) => () => html`<b>${host.name}</b>`); } });
+  const parent = document.createElement('div');
+  document.body.append(parent);
+  const { renderInto } = await load('renderer');
+  const draw = () => html`<x-def-classadopt .name=${parentState.name}></x-def-classadopt>`;
+  renderInto(draw(), parent);
+  await settle();
+  const child = parent.querySelector('x-def-classadopt');
+  assert.equal(child.textContent, 'a');
+  child.remove();
+  await settle();
+  parent.append(child);
+  await settle();
+  parentState.name = 'b';
+  renderInto(draw(), parent);
+  await settle();
+  assert.equal(child.textContent, 'b');
+  child.name = 'c';
+  await settle();
+  assert.equal(child.textContent, 'c', 'a plain write after the re-add repaints too');
+  parent.remove();
+});

@@ -324,6 +324,17 @@ const retireGeneration = (element: ComponentElement) => {
 export const retireElement = (element: ComponentElement) => {
   retireGeneration(element);
   element._$h$ = undefined;
+  /**
+   * **The props store, RELEASED** (R3, 2026-10-21): Firefox keeps a removed element's fields alive until its cycle
+   * collector frees the node, so a record and store still hanging off it survived every GC and were swept from the
+   * tenured heap (the private-store class never paid: its store hangs off `_$h$`, dropped above). The record is the
+   * store's target — a WeakMap key — so it is SWAPPED for a plain copy (the values survive a re-add) and the store is
+   * dropped; every accessor reads through `propsOf`, so the next read builds a store over the copy. Real removals only.
+   */
+  if (element._$v$ !== undefined) {
+    element._$raw$ = { ...element._$raw$ };
+    element._$v$ = undefined;
+  }
   /** The renderer drops what its part holds of the component's JS (work queue 0d) — absent on a server, a no-op. */
   (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
   element._$x$ = true;

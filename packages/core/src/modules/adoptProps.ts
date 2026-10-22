@@ -68,17 +68,9 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
       }
       break;
     }
-    const state = createStore((this._$raw$ ??= {}));
     delete el[key];
-    Object.defineProperty(this, key, {
-      get: () => state[key],
-      set: (next: unknown) => {
-        state[key] = next;
-      },
-      configurable: true,
-      enumerable: true,
-    });
-    state[key] = value;
+    Object.defineProperty(this, key, accessorFor(key));
+    propsOf(this)[key] = value;
     /**
      * A key arriving AFTER the drain reaches a render that never read it through the store — its
      * first read was a plain `undefined`, untracked — so no write would repaint. The element's RENDER
@@ -93,6 +85,36 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
         if (hook._y === RENDER_PRIORITY) hook.$n({}, true);
       }
 }
+
+/**
+ * **The element's props store** — ONE per record, cached on the element (`_$v$`), shared by adopted and declared props:
+ * a `define` tag's defaults (`_$fill$`, on its prototype) build or complete the record the first time. Read through it,
+ * never through a captured store, so core's teardown can RELEASE it at a real removal (swap the record for a plain copy,
+ * drop the store) and every accessor follows the new record on its next read (vera-5a, 2026-10-21).
+ */
+export const propsOf = (element: ComponentElement): Record<string, unknown> =>
+  element._$v$ ?? (element._$v$ = createStore((element._$raw$ = element._$fill$ ? element._$fill$(element._$raw$) : (element._$raw$ ?? {}))));
+
+/** One accessor pair per KEY, shared by every element that adopts it (it reads `this`) — no closure per element. */
+const accessors = new Map<string, PropertyDescriptor>();
+const accessorFor = (key: string) => {
+  let pair = accessors.get(key);
+  if (pair === undefined)
+    accessors.set(
+      key,
+      (pair = {
+        get(this: ComponentElement) {
+          return (this._$v$ ?? propsOf(this))[key];
+        },
+        set(this: ComponentElement, next: unknown) {
+          (this._$v$ ?? propsOf(this))[key] = next;
+        },
+        configurable: true,
+        enumerable: true,
+      })
+    );
+  return pair;
+};
 
 export const adoptProps = (element: ComponentElement) => {
   element._$adopt$ ??= adopt;

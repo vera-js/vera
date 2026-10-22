@@ -55,6 +55,17 @@ export interface ComponentElement extends HTMLElement {
    * changes the value without notifying anything that read it — every write goes through the accessor.
    */
   _$raw$?: Record<string, unknown>;
+  /**
+   * The props STORE over `_$raw$`, cached (R3, 2026-10-21): every props accessor — adopted and declared — reads through
+   * it (`propsOf`), so one record has one store, and core's teardown releases both at a real removal (Firefox keeps a
+   * removed element's fields alive until its cycle collector frees the node — BROWSER-LEDGER).
+   */
+  _$v$?: Record<string, unknown>;
+  /**
+   * A `define` tag's DEFAULTS, on its prototype: builds or completes the record the first time `propsOf` makes the store
+   * (the record whole from the defaults when there is none yet; the missing ones when an adopted key started it).
+   */
+  _$fill$?: (raw: Record<string, unknown> | undefined) => Record<string, unknown>;
   /** Non-element owners created while this element was being set up (a `computed`'s): retired with it. */
   _$o$?: ComponentElement[];
 }
