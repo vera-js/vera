@@ -333,6 +333,13 @@ from another machine, or after that is undone, has a variable changed.
   move and not restored on return; `selectionStart`/`selectionEnd` and `value` are kept. Chromium 151, Firefox 153,
   WebKit 26.5 alike. Consequence: an app that pops a panel out re-focuses it itself; the framework keeps the component,
   not the focus. (Playwright headless; 2026-10-22)
+- **Defining `connectedMoveCallback` on a custom element class costs its creation nothing measurable** — unlike
+  `adoptedCallback` (+7.4%, 2026-10-02). Twenty class component tags created 10 000 at a time, an empty
+  `connectedMoveCallback` against none, the same core: Chrome −0.9% (slower in 2/6 sessions, A/A 0.2%), Firefox −1.0%
+  (1/6, A/A 0.6%), WebKit −0.5% (3/6, A/A 0.2%) — NOTHING on all three, WebKit included although it does not ship
+  `moveBefore`. Consequence: a component class may gain the callback for `moveBefore` moves without a creation cost.
+  (Installed Chrome 155, Playwright Firefox 153 and WebKit 26.5, HEADED, 6 sessions, mirrored order, fresh browser per
+  page; an earlier run at 500 elements per sample was too short to read — 1.7 ms samples — and was discarded; 2026-10-22)
 
 ## Test environments
 
