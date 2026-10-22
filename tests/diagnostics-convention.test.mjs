@@ -82,6 +82,8 @@ const NOT_A_LITERAL = new Map([
    *  the lines it built — every line starts `[vera]`, asserted below in both builds. */
   ['motion/src/schema.ts', [1, 'prints a line problemLine() built']],
   ['motion/src/ssr.ts', [1, "the server-written script prints problemLine()'s lines"]],
+  /** One renderer wired into two cores: diagnostic()'s line in development, the bare code in production (28 B, 2026-10-22). */
+  ['renderer/src/renderer.ts', [1, "renderer-two-cores: diagnostic()'s line or '[vera] renderer-two-cores' — both branches prefixed"]],
 ]);
 
 /**

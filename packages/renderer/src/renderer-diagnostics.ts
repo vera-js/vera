@@ -14,6 +14,10 @@ export const PROSE: Record<string, Prose> = {
     'is not wired for rendering: @verajs/ssr is loaded, so this process is a server and renders with its own renderer — only its defaults (shadow, foreignNodes) were taken.',
     'Nothing to fix in a server. Code that needs the client renderer in this process installs a client DOM and calls renderInto directly, or renders the server half in a separate process.',
   ],
+  'renderer-two-cores': () => [
+    'is already connected to another copy of @verajs/core, and now follows this one: the first app\'s renders lose their tracking (they read through this core\'s untracked) and its hydration and teardown seams point here.',
+    'Load a renderer per core — each app wires its own vera-renderer bundle — or share one core between the apps.',
+  ],
   'foreign-dropped': (node) => [
     `its template changed, and the root it owns was cleared — ${node}, which the template did not render, went with it (foreignNodes: 'drop', the default for a component's root).`,
     "To keep nodes something else places in this root, set foreignNodes: 'preserve' on the component — init({ host: this, foreignNodes: 'preserve' }) — or for every component, renderer({ foreignNodes: 'preserve' }).",

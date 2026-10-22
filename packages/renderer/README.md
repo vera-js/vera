@@ -44,7 +44,8 @@ nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things
 **One renderer serves one core.** A renderer connects to the core whose `wire` it was last handed. On
 a CDN page with two apps that load DIFFERENT copies of core (two versions) but the SAME renderer
 URL, the second app's `wire([renderer])` takes the renderer over, and the first app's renders lose
-their tracking — silently, in every build. Give each app its own renderer URL beside its own core,
+their tracking. The renderer says so when it happens — `[vera] renderer-two-cores` (the code's entry
+at `verajs.dev/e/renderer-two-cores` explains it). Give each app its own renderer URL beside its own core,
 or share one core between them. (Under a bundler, or two apps on the same core URL, there is one
 core and nothing to do.)
 
