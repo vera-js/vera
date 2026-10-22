@@ -69,6 +69,11 @@ for (const file of FILES)
  * and went — a new promise is entered with its code or its pin.)
  */
 const CLAIMS = new Map([
+  ['packages/core/README.md#4aeb69849e', 'define-prop-shared-default'], // declared props: a Set, a Map or a class instance cannot be copied — development says so
+  ['packages/core/README.md#399bbdb6d8', 'define-attribute-type'], // attributes: a non-string default changes type — development says so
+  ['packages/core/README.md#6c59b7f008', 'define-attribute-reflected'], // attributes: observing a reflected platform attribute replaces its property — development says so
+  ['packages/core/README.md#e10620ebc8', 'define-method-ignored'], // methods: connectedCallback and constructor are core's own — development says so
+  ['packages/core/README.md#4074c25222', 'define-shadows'], // methods: a platform name replaces it — development says that too
   ['packages/ssr/README.md#22e66ee19b', 'pinned by tests/ssr-coded-diagnostics.test.mjs: every code ssr raises has its entry, each line ending on its code'], // **What ssr says, and how.** Every line ends with its code
   ['packages/ssr/README.md#616e1b6d69', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the same key twice is one line, a second key a second; outside text arrives JSON-quoted'], // Two rules make it safe on a server
   ['packages/ssr/README.md#12068394f6', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the refused javascript: value is never printed; a forged template warns once per component'], // A refused `javascript:` URL is reported without its value at all
