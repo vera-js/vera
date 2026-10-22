@@ -164,6 +164,18 @@ export const PROSE: Record<string, Prose> = {
     'this default is an object that cannot be copied per element (a Set, a Map, a class instance), so EVERY element of the tag shares this one — a change through one shows in all.',
     'Declare it `null` and create it in the setup (`props: { selected: null }`, then `host.selected = new Set()`), or pass it in; arrays and plain objects are copied per element.',
   ],
+  'define-attributes': (received) => [
+    `expected an array of attribute names and received ${received}.`,
+    "List them: `attributes: ['label', 'data-count']` — each arrives as a prop (`label`, `dataCount`).",
+  ],
+  'define-attribute-type': (prop, type) => [
+    `shares the prop \`${prop}\`, whose default is a ${type} — and the attribute arrives as a STRING, so the prop changes type the moment it appears.`,
+    'Give the prop a string (or null) default, and convert in the render; or keep the attribute and the prop under different names.',
+  ],
+  'define-attribute-reflected': (prop) => [
+    `observes an attribute whose prop, \`${prop}\`, is one the platform's element already REFLECTS — this tag's accessor replaces it, so setting \`el.${prop}\` no longer does what the platform's does (it no longer writes the attribute).`,
+    'Observe it only if the component owns that attribute; otherwise read it in the render with `host.getAttribute(…)`.',
+  ],
   'init-options': () => [
     "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): " +
       'it is ignored, in every build, so this component sets up with no shadow root.',

@@ -2,7 +2,7 @@ import { diagnostic, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { initWith } from './init.js';
 import { createStore } from './createStore.js';
-import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup } from '../types.js';
+import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup, WithAttributes } from '../types.js';
 
 /**
  * **`define(tag, setup)` / `define({ tag, …options }, setup)` — a component without writing a class** (R3, Brian
@@ -27,23 +27,42 @@ import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Method
 /** The cached props store's key — one Symbol per copy of core (see the props block). */
 const PROPS = /* @__PURE__ */ Symbol();
 
-export const define = <M extends Methods = Record<never, never>, P extends object = Record<never, never>>(
-  target: string | (DefineOptions & { props?: P; methods?: M & ThisType<ComponentElement & P & M> }),
-  setup: (host: ComponentElement & P & M) => unknown
-): DefinedClass<P & M> => {
+export const define = <M extends Methods = Record<never, never>, P extends object = Record<never, never>, A extends readonly string[] = []>(
+  target: string | (DefineOptions & { props?: P; attributes?: A; methods?: M & ThisType<ComponentElement & WithAttributes<P, A> & M> }),
+  setup: (host: ComponentElement & WithAttributes<P, A> & M) => unknown
+): DefinedClass<WithAttributes<P, A> & M> => {
   let tag = target as string;
   let options: InitOptions | undefined;
   let methods: M | undefined;
   let props: Record<string, unknown> | undefined;
-  /** One test, and the tag (and `methods`, `props`) read back out (the smaller form: −1 `typeof` in the bundle). */
+  let attributes: readonly string[] | undefined;
+  /** One test, and the tag (and `methods`, `props`, `attributes`) read back out (the smaller form: −1 `typeof`). */
   if (typeof target !== 'string')
-    ({ tag, methods, props, ...(options as object) } = (target ?? {}) as DefineOptions & { methods?: M; props?: Record<string, unknown> });
+    ({ tag, methods, props, attributes, ...(options as object) } = (target ?? {}) as DefineOptions & {
+      methods?: M;
+      props?: Record<string, unknown>;
+      attributes?: readonly string[];
+    });
   if (__DEV__) {
     checkDefine(tag, setup);
-    if (methods) checkMethods(tag, methods, options);
+    if (methods) checkMethods(tag, methods, attributes);
     if (props !== undefined) checkProps(tag, props, methods);
-    Object.freeze(options);
+    if (attributes !== undefined) checkAttributes(tag, attributes, props);
   }
+  /**
+   * **Declared attributes** (R3 piece 3; Brian 2026-10-21: the platform way, `observedAttributes` — no MutationObserver):
+   * each arrives as a PROP under its camel-cased name (`data-count` → `dataCount`), `string | null`, so attributes and
+   * props are ONE path — the same accessors, the same store, the same hand-over. A name a declared prop also has SHARES
+   * that prop (its default applies until the attribute appears); any other gets the default `null`. One way only:
+   * attributes → props; a prop write never touches the attribute (no reflection). Removal writes `null`, not the default.
+   */
+  const camels: Record<string, string> = {};
+  if (attributes?.length) {
+    const declared: Record<string, unknown> = {};
+    for (const name of attributes) declared[(camels[name] = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()))] = null;
+    props = { ...declared, ...props };
+  }
+  if (__DEV__) Object.freeze(options);
   const entry = { o: options, s: setup as Setup };
   /** The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all). */
   const keys = props && Object.keys(props);
@@ -77,6 +96,12 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       initWith(this, entry.o, entry.s);
     },
   });
+  /**
+   * Observed attributes: the callbacks exist ONLY on a tag that declares some — an observed attribute is per-element
+   * engine work (vera-5a), and every callback a class defines is creation work. Assigned after `methods`, so it wins over
+   * a method of the same name (development says so). The platform calls it before `connectedCallback` for attributes
+   * present at upgrade: that is a write through the setter before the setup runs, which the store handles.
+   */
   /**
    * **Declared props** (R3 piece 2; Brian 2026-10-21: optional, names and defaults): a get/set pair per name on the
    * PROTOTYPE, backed by the element's ONE props store — `createStore(_$raw$)`, the store `adoptProps` keeps — so a write
@@ -122,6 +147,23 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       }
       return (element[PROPS] = createStore(raw!)) as Record<string, unknown>;
     };
+    /**
+     * The callback writes the STORE, not `this[name]`: an element given a property before the tag was defined still holds
+     * it as an OWN data property at upgrade, when the platform delivers the attributes — `this[name] =` would overwrite
+     * that own value and the attribute would win; through the store, the connect-time hand-over then moves the property's
+     * value in, so a PROPERTY set before upgrade beats the markup's attribute (pinned).
+     */
+    if (attributes?.length) {
+      (Class as unknown as { observedAttributes: readonly string[] }).observedAttributes = attributes;
+      (Class.prototype as unknown as { attributeChangedCallback: unknown }).attributeChangedCallback = function (
+        this: Record<symbol, unknown> & ComponentElement,
+        name: string,
+        _old: string | null,
+        value: string | null
+      ) {
+        ((this[PROPS] as Record<string, unknown> | undefined) ?? store(this))[camels[name]!] = value;
+      };
+    }
     for (const key of keys)
       Object.defineProperty(Class.prototype, key, {
         get(this: Record<symbol, unknown> & ComponentElement) {
@@ -135,7 +177,26 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       });
   }
   customElements.define(tag, Class);
-  return Class as unknown as DefinedClass<P & M>;
+  return Class as unknown as DefinedClass<WithAttributes<P, A> & M>;
+};
+
+/**
+ * Development: the declared attributes, said by code. Not an array of names → refused, by code (production throws the
+ * platform's own error further on, so both builds refuse). A shared prop whose default is not a string or `null` FLIPS
+ * type when the attribute arrives (the platform hands strings); a camel name the platform's element already has
+ * (`hidden`, `title`, `ariaLabel`) replaces that REFLECTING property — `el.hidden = true` no longer hides it.
+ */
+const checkAttributes = (tag: string, attributes: unknown, props: Record<string, unknown> | undefined) => {
+  if (!Array.isArray(attributes) || attributes.some((name) => typeof name !== 'string'))
+    throw new TypeError(misuse('define', 'define-attributes', __DEV__ && PROSE['define-attributes'](String(attributes))));
+  for (const name of attributes as string[]) {
+    const prop = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const subject = `define('${tag}') attributes '${name}'`;
+    const shared = props && Object.hasOwn(props, prop) ? props[prop] : null;
+    if (shared !== null && typeof shared !== 'string')
+      console.warn(diagnostic('core', subject, 'define-attribute-type', __DEV__ && PROSE['define-attribute-type'](prop, typeof shared)));
+    if (prop in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-attribute-reflected', __DEV__ && PROSE['define-attribute-reflected'](prop)));
+  }
 };
 
 /**
@@ -162,16 +223,16 @@ const checkProps = (tag: string, props: unknown, methods: object | undefined) =>
  * Development: each key of `methods`, said by code — never refused, so both builds INSTALL the same thing (Brian's rule:
  * one behavior, the words in development only). Read by descriptor, so a getter is reported, not run.
  */
-const checkMethods = (tag: string, methods: object, options: InitOptions | undefined) => {
+const checkMethods = (tag: string, methods: object, attributes: readonly string[] | undefined) => {
   for (const name of Object.keys(methods)) {
     const subject = `define('${tag}') methods.${name}`;
     const value = Object.getOwnPropertyDescriptor(methods, name)?.value as unknown;
     /** The two names core re-asserts. A comparison, not a module-level `Set`: a top-level `new Set` SURVIVES production
      *  (terser cannot prove the call free of effects — it cost +33 B gz here, 2026-10-21). */
-    if (name === 'constructor' || name === 'connectedCallback') console.warn(diagnostic('core', subject, 'define-method-ignored', __DEV__ && PROSE['define-method-ignored'](name)));
+    if (name === 'constructor' || name === 'connectedCallback' || (name === 'attributeChangedCallback' && attributes?.length)) console.warn(diagnostic('core', subject, 'define-method-ignored', __DEV__ && PROSE['define-method-ignored'](name)));
     else if (typeof value !== 'function') console.warn(diagnostic('core', subject, 'define-method-not-function', __DEV__ && PROSE['define-method-not-function']()));
     else if (name === 'adoptedCallback') console.warn(diagnostic('core', subject, 'define-method-adopted', __DEV__ && PROSE['define-method-adopted']()));
-    else if (name === 'attributeChangedCallback' && !(options as { attributes?: unknown[] } | undefined)?.attributes?.length)
+    else if (name === 'attributeChangedCallback')
       console.warn(diagnostic('core', subject, 'define-method-unobserved', __DEV__ && PROSE['define-method-unobserved']()));
     else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
   }

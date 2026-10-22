@@ -368,3 +368,75 @@ test('props: a parent binding `!name` compares against the RAW record — the ch
   assert.equal(child.textContent, 'false', 'the parent’s next commit re-asserts its value (a difference is delivered)');
   parent.remove();
 });
+
+test('attributes: each arrives as a string|null prop under its camel name — set, changed, removed (null, not the default) — and repaints', async () => {
+  let renders = 0;
+  const C = define({ tag: 'x-def-attrs', attributes: ['label', 'data-count'] }, (host) => () => { renders++; return html`<b>${String(host.label)}</b><i>${String(host.dataCount)}</i>`; });
+  assert.deepEqual(C.observedAttributes, ['label', 'data-count']);
+  const el = document.createElement('x-def-attrs');
+  document.body.append(el);
+  await settle();
+  assert.equal(el.textContent, 'nullnull', 'no attribute: null');
+  el.setAttribute('label', 'hi');
+  el.setAttribute('data-count', '3');
+  await settle();
+  assert.equal(el.textContent, 'hi3');
+  el.removeAttribute('label');
+  await settle();
+  assert.equal(el.textContent, 'null3', 'removal writes null');
+  assert.equal(renders, 3, 'one render per batch: the first, the two attributes set together, the removal');
+  el.remove();
+});
+
+test('attributes: present before upgrade arrive before the setup; a PROPERTY set before upgrade beats the attribute; no reflection back', async () => {
+  const a = document.createElement('x-def-preattr');
+  a.setAttribute('label', 'from markup');
+  const b = document.createElement('x-def-preattr');
+  b.setAttribute('label', 'from markup');
+  b.label = 'from property';
+  document.body.append(a, b);
+  define({ tag: 'x-def-preattr', attributes: ['label'] }, (host) => () => html`<b>${host.label}</b>`);
+  await settle();
+  assert.equal(a.textContent, 'from markup', 'the attribute was there at upgrade');
+  assert.equal(b.textContent, 'from property', 'the property set before upgrade won (the hand-over runs at connect, after the attribute callback)');
+  a.label = 'written';
+  await settle();
+  assert.deepEqual({ text: a.textContent, attribute: a.getAttribute('label') }, { text: 'written', attribute: 'from markup' }, 'one way: a prop write never touches the attribute');
+  a.remove();
+  b.remove();
+});
+
+test('attributes: one that SHARES a declared prop keeps its default until the attribute appears; removal writes null', async () => {
+  define({ tag: 'x-def-sharedattr', props: { label: 'default' }, attributes: ['label'] }, (host) => () => html`<b>${String(host.label)}</b>`);
+  const el = document.createElement('x-def-sharedattr');
+  document.body.append(el);
+  await settle();
+  assert.equal(el.textContent, 'default');
+  el.setAttribute('label', 'attr');
+  await settle();
+  assert.equal(el.textContent, 'attr');
+  el.removeAttribute('label');
+  await settle();
+  assert.equal(el.textContent, 'null');
+  el.remove();
+});
+
+test('attributes: a tag that declares none carries no observedAttributes and no attributeChangedCallback', () => {
+  const C = define('x-def-noattrs', () => () => html`<p>n</p>`);
+  assert.deepEqual({ observed: C.observedAttributes, callback: 'attributeChangedCallback' in C.prototype }, { observed: undefined, callback: false });
+});
+
+test('attributes: development says a type flip, a reflected platform name and an ignored method; refuses a non-array — the same installs in both builds', async () => {
+  let said = warned(() => define({ tag: 'x-def-attrwarn', props: { count: 0 }, attributes: ['count', 'hidden'], methods: { attributeChangedCallback() { throw new Error('the method ran'); } } }, (host) => () => html`<b>${String(host.count)}</b>`));
+  const el = document.createElement('x-def-attrwarn');
+  el.setAttribute('count', '5');
+  document.body.append(el);
+  await settle();
+  assert.equal(el.textContent, '5', 'the generated attributeChangedCallback won over the method, in both builds');
+  if (!isProduction) {
+    for (const code of ['define-attribute-type', 'define-attribute-reflected', 'define-method-ignored'])
+      assert.equal(said.filter((m) => m.includes(code)).length, 1, `${code} said once (${said.join(' | ')})`);
+    assert.throws(() => define({ tag: 'x-def-attrbad', attributes: 'label' }, () => {}), /define-attributes/);
+  } else assert.equal(said.length, 0);
+  el.remove();
+});

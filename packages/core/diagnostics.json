@@ -28,6 +28,31 @@
       "fix": "Fix the cleanup, or wire an 'error' insert to handle what hooks throw."
     },
     {
+      "code": "define-attribute-reflected",
+      "params": [
+        "prop"
+      ],
+      "message": "observes an attribute whose prop, `{prop}`, is one the platform's element already REFLECTS — this tag's accessor replaces it, so setting `el.{prop}` no longer does what the platform's does (it no longer writes the attribute).",
+      "fix": "Observe it only if the component owns that attribute; otherwise read it in the render with `host.getAttribute(…)`."
+    },
+    {
+      "code": "define-attribute-type",
+      "params": [
+        "prop",
+        "type"
+      ],
+      "message": "shares the prop `{prop}`, whose default is a {type} — and the attribute arrives as a STRING, so the prop changes type the moment it appears.",
+      "fix": "Give the prop a string (or null) default, and convert in the render; or keep the attribute and the prop under different names."
+    },
+    {
+      "code": "define-attributes",
+      "params": [
+        "received"
+      ],
+      "message": "expected an array of attribute names and received {received}.",
+      "fix": "List them: `attributes: ['label', 'data-count']` — each arrives as a prop (`label`, `dataCount`)."
+    },
+    {
       "code": "define-method-adopted",
       "params": [],
       "message": "an `adoptedCallback` costs every element of this tag its creation (measured +7.4% on create10k), and it is installed.",

@@ -202,6 +202,15 @@ export interface InitOptions extends VeraInitOptions {
 export type DefineOptions = Omit<InitOptions, 'host'> & { tag: string };
 /** `define`'s `methods`: functions only, installed on the generated prototype (an accessor is a prop's job). */
 export type Methods = Record<string, (...args: never[]) => unknown>;
+/** `data-count` → `dataCount`: the prop an observed attribute arrives as. */
+export type Camel<S extends string> = S extends `${infer H}-${infer T}` ? `${H}${Capitalize<Camel<T>>}` : S;
+/**
+ * The props once the observed attributes join them: each attribute is a `string | null` prop under its camel name, and a
+ * declared prop it SHARES widens to its default's type `| string | null` — the platform writes strings, so the type says so.
+ */
+export type WithAttributes<P, A extends readonly string[]> = Omit<P, Camel<A[number]>> & {
+  [K in A[number] as Camel<K>]: (Camel<K> extends keyof P ? P[Camel<K>] : never) | string | null;
+};
 /** The class `define` returns: its instances are components carrying the methods. */
 export type DefinedClass<M> = { new (): ComponentElement & M; prototype: ComponentElement & M };
 /**

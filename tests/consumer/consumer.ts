@@ -245,3 +245,14 @@ const n: number = card.count();
 void n;
 // @ts-expect-error — heading is a string
 card.heading = 42;
+
+/** R3 attributes: each is a `string | null` prop under its camel name; one that shares a declared prop widens it. */
+const Badge = define({ tag: 'x-consumer-badge', props: { count: 0 }, attributes: ['label', 'data-tone', 'count'] as const }, (host) => () => html`<b>${host.label ?? ''}${host.dataTone ?? ''}${String(host.count)}</b>`);
+const badge = new Badge();
+const label: string | null = badge.label;
+const tone: string | null = badge.dataTone;
+const count: number | string | null = badge.count;
+void label; void tone; void count;
+// @ts-expect-error — the shared prop is no longer just a number: the attribute hands it strings
+const onlyNumber: number = badge.count;
+void onlyNumber;
