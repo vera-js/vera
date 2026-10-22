@@ -308,7 +308,10 @@ it is safe alongside any of them, `/hydrate` included.
 `wire([renderer, lists])` — a plain `state.rows.map((row) => html`…`)` over a store array inside a render is a keyed
 list whose rows track themselves: a field write re-renders that one row, and pushes, removals and swaps touch only what
 moved. Rows are keyed by an item's own `id`, else by the item itself. `createSelector(() => state.selected)` returns
-`isSelected(key)`, which re-renders only the old and the new key's rows on a change. Not released; the design is still
+`isSelected(key)`, which re-renders only the old and the new key's rows on a change. Without `lists` wired, development says so once
+(`lists-unwired`) when such a `.map` returns templates, since rows are then matched by position; to match by position on
+purpose, map a plain copy, `[...state.rows].map(…)`. The copy still TRACKS — spreading reads every index, so the render
+re-runs on any item change — it opts out of keying, not of reactivity. Not released; the design is still
 being measured. **A hidden list is released when the render that hid it returns**: a component's render, or a row's
 own render for a list nested in a row. A `.map` inside your own render-priority hook (`useHook(fn, 50)`) is a list too,
 but one it hides is released only when that hook is torn down.

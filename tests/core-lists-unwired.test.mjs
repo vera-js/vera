@@ -43,6 +43,22 @@ test('silent: a store array mapped to STRINGS (a .join), an EMPTY store array, a
   el.remove();
 });
 
+test('inside a server turn it stays silent — automatic lists have no server half yet', { skip: isProduction && 'development only' }, async () => {
+  const { inserts } = await load('core');
+  inserts.$ss(1);
+  try {
+    const s = createStore({ rows: [{ id: 1 }] });
+    const el = await show(() => html`<ul>${s.rows.map((r) => html`<li>${r.id}</li>`)}</ul>`);
+    assert.equal(el.querySelectorAll('li').length, 1, 'CONTROL: it rendered');
+    el.remove();
+  } finally {
+    inserts.$ss(-1);
+  }
+  /** Runs BEFORE the row that warns (the warning is once per page), so a silence here is the server rule, not the flag. */
+  assert.equal(warnings.length, 0);
+});
+
+
 test('a store array mapped to TEMPLATES in a render warns once — across two maps and three renders', { skip: isProduction && 'development only' }, async () => {
   const s = createStore({ rows: [{ id: 1 }, { id: 2 }], other: [{ id: 3 }], tick: 0 });
   const el = await show(() => html`<ul>${s.rows.map((r) => html`<li>${r.id}</li>`)}</ul><ol>${s.other.map((r) => html`<li>${r.id}</li>`)}</ol><i>${s.tick}</i>`);
