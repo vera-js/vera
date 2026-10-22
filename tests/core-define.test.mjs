@@ -539,3 +539,25 @@ test('release at removal: after a re-add, a parent’s live `!name` compare read
   assert.equal(child.textContent, 'a', 'the live compare saw the child’s current value (c) differ, and re-asserted a');
   parent.remove();
 });
+
+test('release at removal: a MIXED component (an adopted key arrives FIRST) has its declared defaults before and after a remove/re-add', async () => {
+  const parentState = createStore({ extra: 'x' });
+  define({ tag: 'x-def-mixfirst', props: { label: 'default', items: [] } }, (host) => () => html`<b>${host.label}</b><i>${host.items.length}</i><u>${host.extra}</u>`);
+  const parent = document.createElement('div');
+  document.body.append(parent);
+  const { renderInto } = await load('renderer');
+  const draw = () => html`<x-def-mixfirst .extra=${parentState.extra}></x-def-mixfirst>`;
+  renderInto(draw(), parent);
+  await settle();
+  const child = parent.querySelector('x-def-mixfirst');
+  assert.equal(child.textContent, 'default0x', 'the adopted key arrived first and the declared defaults are there');
+  child.remove();
+  await settle();
+  parent.append(child);
+  await settle();
+  assert.equal(child.textContent, 'default0x', 'the defaults survived the release');
+  child.items.push(1);
+  await settle();
+  assert.equal(child.textContent, 'default1x', 'and the declared array is reactive after the re-add');
+  parent.remove();
+});
