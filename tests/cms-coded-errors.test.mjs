@@ -1,5 +1,5 @@
 /**
- * **@verajs/cms's schema and build refusals, by code — words in EVERY build** (code-system phase 5a, 2026-10-09).
+ * **@verajs/cms's schema and build refusals, by code — words in EVERY build** (2026-10-09).
  * `publish` and `node` are read by the person who fixes the error (an author in Studio, a build at a terminal), so they
  * are built with `__DEV__` kept true (`words: true`): the production row here asserts the WHOLE sentence too, which is
  * what proves the build kept it. Each line ends with its code. Text an author wrote — a collection name, a field path —

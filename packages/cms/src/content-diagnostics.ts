@@ -1,5 +1,5 @@
 /**
- * **@verajs/cms's content-side diagnostics — frontmatter, markdown, the reader** (code-system phase 5b, 2026-10-09).
+ * **@verajs/cms's content-side diagnostics — frontmatter, markdown, the reader** (2026-10-09).
  * `content` is a VISITOR's page bundle: these words are development's, referenced `__DEV__ && PROSE[…]`, so its
  * production bundle prints `<where>: https://verajs.dev/e/<code>`; a Node consumer reads them through the `node` export
  * condition's build, and `publish` (which shares frontmatter and markdown) keeps them in every build. Frontmatter's

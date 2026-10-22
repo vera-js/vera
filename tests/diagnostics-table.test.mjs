@@ -35,7 +35,7 @@ for (const table of LISTED.tables)
     assert.ok(!(code in DIRECTIVES), `"${code}" is in two of directives' tables`);
     DIRECTIVES[code] = prose;
   }
-/** `@verajs/motion`'s own table (phase 4, 2026-10-09) — its codes reach the engine through the pack, so ONE manifest
+/** `@verajs/motion`'s own table (2026-10-09) — its codes reach the engine through the pack, so ONE manifest
  *  holds both tables: a raise is covered by either, and the ownership test below says which. */
 const { PROSE: MOTION } = await import('../packages/motion/src/diagnostics.ts');
 const PROSE = { ...DIRECTIVES, ...MOTION };

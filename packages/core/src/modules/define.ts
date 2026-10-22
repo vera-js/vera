@@ -5,18 +5,18 @@ import { filledOf } from './adoptProps.js';
 import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup, WithAttributes } from '../types.js';
 
 /**
- * **`define(tag, setup)` / `define({ tag, …options }, setup)` — a component without writing a class** (R3, Brian
+ * **`define(tag, setup)` / `define({ tag, …options }, setup)` — a component without writing a class** (Brian
  * 2026-10-21). One ENTRY per tag, built once: the options as `init` receives them (a copy without `tag`) and the setup.
  *
  * - **The setup lives OFF the options object** (`entry.s`), so every `'init'` insert sees exactly today's options — the
  *   development unknown-option check (core's keys + the modules' claims) is unchanged, and no `tag` or `setup` key leaks
- *   to a module. It is the R6 swap seam: the dev module replaces `entry.s`; production carries no swap code.
+ *   to a module. It is the swap seam: the dev module replaces `entry.s`; production carries no swap code.
  * - **The generated class defines ONE callback.** Core's `customElements.define` wrapper (init.ts) installs
  *   `connectedCallback` and `disconnectedCallback` on every class it is handed — move-keeping, the cross-document rule
  *   and the one teardown (`retireElement`) — and calls the class's own inside them; a teardown of the class's own would
  *   retire every removed element TWICE (2026-10-21). Every callback a class defines is also per-instance
  *   creation work (CLAUDE.md: `adoptedCallback`, +7.4%).
- * - **`initWith` is not touched:** Firefox charges custom-element creation for `initWith`'s SIZE (#33, BROWSER-LEDGER
+ * - **`initWith` is not touched:** Firefox charges custom-element creation for `initWith`'s SIZE (BROWSER-LEDGER
  *   2026-10-21), so everything `define` adds lives here, per tag.
  * - **The STRING form passes no options** — the ordinary path's one comparison, no object read. The object form passes
  *   the rest of its keys, an EMPTY object when it names only the tag (normalizing it to `undefined` costs bytes for one
@@ -47,7 +47,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
     if (attributes !== undefined) checkAttributes(tag, attributes, props);
   }
   /**
-   * **Declared attributes** (R3 piece 3; Brian 2026-10-21: the platform way, `observedAttributes` — no MutationObserver):
+   * **Declared attributes** (Brian 2026-10-21: the platform way, `observedAttributes` — no MutationObserver):
    * each arrives as a PROP under its camel-cased name (`data-count` → `dataCount`), `string | null`, so attributes and
    * props are ONE path — the same accessors, the same store, the same hand-over. A name a declared prop also has SHARES
    * that prop (its default applies until the attribute appears); any other gets the default `null`. One way only:
@@ -81,9 +81,11 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       /**
        * **A value set before the tag was defined** (`el.heading = …` on an element made before `define` ran) is an OWN
        * data property, which hides the prototype accessor: handed over through the setter, before the setup runs. Only
-       * declared names; `Object.hasOwn`, never `in`. Here, never in `initWith` (#33: Firefox charges its size).
+       * declared names; `Object.hasOwn`, never `in`. Here, never in `initWith` (Firefox charges its size, measured).
        */
-      /** A fresh element has no own enumerable property at all: one `Object.keys` guards the per-name test (race37). */
+      /**
+       * A fresh element has no own enumerable property at all: one `Object.keys` guards the per-name test (measured).
+       */
       if (keys && Object.keys(this).length !== 0)
         for (const key of keys)
           if (Object.hasOwn(this, key)) {
@@ -91,7 +93,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
             delete (this as unknown as Record<string, unknown>)[key];
             (this as unknown as Record<string, unknown>)[key] = value;
           }
-      /** A1: adopted values pending on a define element — build the store with its defaults first. */
+      /** Adopted values pending on a define element — build the store with its defaults first. */
       pending?.(this);
       initWith(this, entry.o, entry.s);
     },
@@ -103,7 +105,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    * present at upgrade: that is a write through the setter before the setup runs, which the store handles.
    */
   /**
-   * **Declared props** (R3 piece 2; Brian 2026-10-21: optional, names and defaults): a get/set pair per name on the
+   * **Declared props** (Brian 2026-10-21: optional, names and defaults): a get/set pair per name on the
    * PROTOTYPE, backed by the element's ONE props store — `createStore(_$raw$)`, the store `adoptProps` keeps — so a write
    * from anywhere (a template, plain JS after connect, another framework) is a store write and the render that read it
    * repaints. ONE STORE, TWO VIEWS: this getter reads through the PROXY (tracked, for the component's own hooks); the
@@ -118,13 +120,13 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    */
   if (keys) {
     /**
-     * **The element's props store, CACHED on it** (race35: reading through `createStore` — a WeakMap lookup per access,
-     * createProxy.ts — cost the parent-passes-new-props row +2.6% and the defaults row +11.8% on Chrome; the alternative
-     * was written down before the run), built at the FIRST touch of any declared prop, which also writes every missing
-     * default at once into the raw target (no notification), so no read pays a `hasOwn`. The cached proxy points at the
-     * raw record only — no back-pointer to the element, so no DOM↔JS cycle for Firefox's collector.
+     * **The element's props store, CACHED on it** (measured: reading through `createStore` — a WeakMap lookup per
+     * access, createProxy.ts — cost the parent-passes-new-props row +2.6% and the defaults row +11.8% on Chrome; the
+     * alternative was written down before the run), built at the FIRST touch of any declared prop, which also writes
+     * every missing default at once into the raw target (no notification), so no read pays a `hasOwn`. The cached proxy
+     * points at the raw record only — no back-pointer to the element, so no DOM↔JS cycle for Firefox's collector.
      * - **A LITERAL, sigiled name (`_$v$`, "values"), never a computed key** — never `_$p$`, a RETIRED core field (the
-     *   priority Sets, removed in 38a4a0aa): reusing it would give one name two meanings across versions. Firefox reads a DOM object's field by a computed key
+     *   priority Sets, since removed): reusing it would give one name two meanings across versions. Firefox reads a DOM object's field by a computed key
      *   (`this[KEY]`, a Symbol OR a per-copy string) ~7% slower than by a literal name in the attribute-write path
      *   (headless: 244 / 251 vs 229 ms; Chrome no difference; BROWSER-LEDGER 2026-10-21). Sigiled, so no bundle mangles
      *   it. Shared by every copy of core on a page by design, as `_$raw$` is — and safe: an element has ONE class, and

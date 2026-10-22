@@ -1,5 +1,5 @@
 /**
- * **`define(tag, setup)` / `define({ tag, …options }, setup)`** (R3 piece 1, 2026-10-21): a component without a class.
+ * **`define(tag, setup)` / `define({ tag, …options }, setup)`** (2026-10-21): a component without a class.
  * These rows pin what the generated class must do through core's `customElements.define` wrapper and NOT itself — ONE
  * setup per connect, ONE teardown per removal (a teardown of the class's own would retire twice), a one-operation move
  * keeps it — plus its options reaching core and the `'init'` inserts, the setup kept off the options object, and the
@@ -246,7 +246,7 @@ test('the same behavior in both builds, the words in development: a getter, a pl
   el.remove();
 });
 
-test('props: a plain-JS write AFTER connect repaints (an undeclared prop does not — the O1 case), and a default applies when nothing is bound', async () => {
+test('props: a plain-JS write AFTER connect repaints (an undeclared prop does not), and a default applies when nothing is bound', async () => {
   let renders = 0;
   define({ tag: 'x-def-props', props: { heading: 'default', count: 0 } }, (host) => () => { renders++; return html`<b>${host.heading}</b><i>${host.count}</i>`; });
   const el = document.createElement('x-def-props');

@@ -6,7 +6,7 @@
  *
  * ## The constraint, deterministic since 2026-10-09
  *
- * A setup is the synchronous body of its `init(...)` call (R1). An ASYNC setup is supported — its part before the
+ * A setup is the synchronous body of its `init(...)` call. An ASYNC setup is supported — its part before the
  * first `await` is the window — and a hook made after the `await` finds no component and throws `no-owner`, which
  * rejects the setup and is reported once (`setup-rejected`), the same way whether or not another component connected
  * meanwhile. Before, the outcome depended on what else initialized during the suspension (Brian: async must be
@@ -75,11 +75,11 @@ test('awaiting before init lets concurrent async components both render', async 
 });
 
 /**
- * The one form's async setup (R1): `init(this, async () => { …hooks…; await …; return render; })` is supported — the
+ * The one form's async setup: `init(this, async () => { …hooks…; await …; return render; })` is supported — the
  * part before the first `await` is the window. What still fails is a HOOK made after the `await`: no component is
  * being set up any more, so it throws `no-owner`, which rejects the setup, which is reported once as `setup-rejected`
  * (through the error chain, never an unhandled rejection) — the same way alone or overtaken. (The legacy rows here
- * were "`render()` after an `await` between init and render throws"; `render()` was removed in R2.)
+ * were "`render()` after an `await` between init and render throws"; `render()` was removed.)
  */
 const reported = (run) => {
   const causes = [];

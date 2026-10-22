@@ -1,7 +1,7 @@
 /**
  * A component element, carrying what `init` and the hooks attach to it.
  *
- * **Every field core keeps on an element is SIGILED** (O4, 2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$o$` the
+ * **Every field core keeps on an element is SIGILED** (2026-10-10) — `_$g$` generation, `_$h$` hooks, `_$r$` root, `_$c$` cleanups, `_$x$` removed, `_$d$` document, `_$m$` moved, `_$s$` pending setup, `_$o$` the
  * non-element owners its setup created. The element is the AUTHOR's object: a plain `_root`/`_hooks`, or the single
  * letters production mangled the rest to, collided with a base class's own fields — and core reads them back, so a base
  * class's `_root` crashed the render. No mangling regex matches a sigil, so the names are also the cross-package
@@ -56,7 +56,7 @@ export interface ComponentElement extends HTMLElement {
    */
   _$raw$?: Record<string, unknown>;
   /**
-   * The props STORE over `_$raw$`, cached (R3, 2026-10-21): every props accessor — adopted and declared — reads through
+   * The props STORE over `_$raw$`, cached (2026-10-21): every props accessor — adopted and declared — reads through
    * it (`propsOf`), so one record has one store, and core's teardown releases both at a real removal (Firefox keeps a
    * removed element's fields alive until its cycle collector frees the node — BROWSER-LEDGER).
    */
@@ -93,37 +93,29 @@ export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | Hoo
 /** An element's hooks in run order: sorted by `_k` (priority, then creation). */
 export type Hooks = HookRecord[];
 /**
- * **One key's CELL** (PROTOTYPE, probe/cells; flattened 2026-10-19): ONE array,
- * `[leave count, hook, slot, hook, slot, …]` — each hook that read the key, held STRONGLY, with its link's index in that
- * hook's source list, so either side leaves the other in O(1) by a swap. One allocation per key, as the `Set` it replaced
- * (cells as two arrays in an object were 3, and a store row reading two fields allocated twice what it had: the Chrome
- * create10k profile, +16 ms per create). A `deref()` costs 17–36 ns per wake (BROWSER-LEDGER), so there is no WeakRef:
- * hooks are unlinked exactly at retirement. The leave count (index 0) tells a wake in progress its list moved under it
- * (`wake`); it wraps, since it is only compared for change within one walk.
- */
-/** BISECT VARIANT (probe/cells-split): the same logic, the cell SPLIT (an object with a hooks array and a slots array). */
-/**
- * EXPERIMENT (probe/cells-inline, 2026-10-19): a cell holds its FIRST reader inline (`a`, its slot `ja`) and grows the
- * arrays only from a second (`h`, `j`, readers 2..n); `n` counts readers, `m` leaves. Most keys have one reader, so a
- * key costs one allocation, like the flat layout, while objects and numbers still never share an array (Firefox's cold
- * code pays ~25% when they do: BROWSER-LEDGER). Every field assigned at creation: one shape. A reader's position is 0
- * for the inline one, k ≥ 1 for `h[k − 1]`.
+ * **One key's CELL** (PROTOTYPE, 2026-10-19): the hooks that read the key, held STRONGLY, each with its link's index in
+ * that hook's source list. The FIRST reader sits inline (`a`, its slot `ja`); the arrays `h` / `j` exist only from a
+ * second reader (position k ≥ 1 is `h[k − 1]` / `j[k − 1]`). Most keys have one reader, so a key costs one allocation:
+ * cells as two arrays in an object were three, and a store row reading two fields allocated twice what it had (the
+ * Chrome create10k profile, +16 ms per create). Objects and numbers never share an array — Firefox's cold code pays
+ * ~25% when they do (BROWSER-LEDGER). Every field is assigned at creation: one shape.
  *
- * ORDER VARIANT (probe/cells-ordered, 2026-10-19, Brian: "measure B"): readers keep SUBSCRIPTION ORDER. A leaving reader
- * leaves a TOMBSTONE (`undefined`), `d` counts them, and the cell compacts itself in one stable pass once they pass
- * half its slots (amortized O(1) per leave). Only a compaction moves readers, so only it bumps `m` (a wake in progress
- * restarts then).
+ * Readers keep SUBSCRIPTION ORDER. A leaving reader leaves a TOMBSTONE (`undefined`); `n` counts positions, tombstones
+ * included, and `d` counts the tombstones. Once they pass half the positions the cell compacts in one stable pass
+ * (amortized O(1) per leave). Only a compaction moves readers, so only it bumps `m` (which wraps): a wake in progress
+ * that sees `m` change restarts. There is no `WeakRef` — a `deref()` costs 17–36 ns per wake (BROWSER-LEDGER) — so a
+ * hook is unlinked exactly at its retirement.
  */
 export type Cell = { a: HookRecord | undefined; ja: number; h: (HookRecord | undefined)[] | undefined; j: number[] | undefined; m: number; n: number; d: number };
 
 /**
- * **A hook — ONE object, every field declared** (work queue 5, step 1, 2026-10-11). It replaced three closures, two
+ * **A hook — ONE object, every field declared** (2026-10-11). It replaced three closures, two
  * contexts and expandos on functions per hook. Core's `HookState` class is the only implementation; nothing outside
  * core reads these fields except through `$n`.
  *
- * Subscriptions, kept ON the hook so it can leave them (exact unsubscription, R1 #11): `s`/`x` below, the cells it
+ * Subscriptions, kept ON the hook so it can leave them (exact unsubscription): `s`/`x` below, the cells it
  * reads and its place in each. Retiring unlinks it from every one, so a removed component leaves nothing in a store.
- * (PROTOTYPE, probe/cells: this replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
+ * (PROTOTYPE: this replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
  * strong, so retirement is what releases them.)
  *
  * **Run order is `_y` (priority), then `_k` (creation sequence: parent-first, then registration order) — two fields,
@@ -149,7 +141,7 @@ export type HookRecord = {
   _f: number;
   _r: number;
   /**
-   * **Its sources, with in-order link reuse** (PROTOTYPE, probe/cells): `s` is ONE flat array, `[cell, at, cell, at, …]`:
+   * **Its sources, with in-order link reuse** (PROTOTYPE): `s` is ONE flat array, `[cell, at, cell, at, …]`:
    * each cell it reads and where it sits in that cell. `v` counts its runs (0: never run). `i` is the run's cursor INTO
    * `s` (it steps by 2): `-1` on a FIRST run, which links each read directly (lazy reuse: a hook never re-run pays
    * nothing for reuse); from the second run, a read matching `s[i]` just advances it, and the first read that DIFFERS
@@ -245,7 +237,7 @@ export type TemplateResult<T extends ResultType = 1> = {
 
 /** The change that woke a hook: which property, and its value after and before. */
 /**
- * **What a write was — ONE read-only object per write, shared by every hook it reaches** (R2.5, 2026-10-11: `trigger`
+ * **What a write was — ONE read-only object per write, shared by every hook it reaches** (2026-10-11: `trigger`
  * makes one per write, not one per subscriber; every first pass shares one `{}`). Nothing compares a signal's
  * identity, writes to it, or aborts through it — and nothing may: a per-hook field here (a run id, an abort controller)
  * would leak one subscriber's state into all of them. Per-hook state belongs on the hook.

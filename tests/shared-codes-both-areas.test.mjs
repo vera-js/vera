@@ -1,5 +1,5 @@
 /**
- * **One fact, one code, the area of the module the user wired** (code-system phase 1, 2026-10-09). `script-url`,
+ * **One fact, one code, the area of the module the user wired** (2026-10-09). `script-url`,
  * `attribute-value` and `not-a-listener` are said by the renderer for a template binding AND by spread for a spread
  * key — two bundles, one shared text (shared-utils' table). Each must print `renderer:` from a template and `spread:`
  * from spread, under the same code. And `forged-template` — data shaped like a template — gets its first positive pin:

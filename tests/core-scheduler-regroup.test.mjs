@@ -1,6 +1,6 @@
 /**
- * **A flush that goes out of order is REGROUPED by priority in linear time, never sorted** (work queue 6, A11,
- * 2026-10-16). A write read by components that each render AND run an effect queues render, effect, render, effect…,
+ * **A flush that goes out of order is REGROUPED by priority in linear time, never sorted**
+ * (2026-10-16). A write read by components that each render AND run an effect queues render, effect, render, effect…,
  * so the single queue went out of order at every second pass and every such flush copied and sorted it. Now the rest
  * is regrouped — one walk per priority present, keeping creation order — and a flush in order (render-only) runs exactly
  * the path it ran before. Two rows: the ORDER (the case where order matters: an effect writing state its own

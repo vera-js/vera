@@ -1,11 +1,11 @@
 /**
- * **`foreignNodes` — step 1: a SHADOW component root the template owns** (Brian, 2026-10-16). Foreign nodes are nodes
+ * **`foreignNodes`: a SHADOW component root the template owns** (Brian, 2026-10-16). Foreign nodes are nodes
  * placed in a component's root by anything other than its own template. `'drop'` (the default for a component's root):
  * no marker comments when the root is empty at its first render; an ordinary re-render touches nothing it did not render;
  * a template CHANGE clears the root, foreign nodes included — and development says so, once. `'preserve'` (the
  * component's own, or `renderer({ foreignNodes })`): the markered root and its positional contract. A container handed to
  * `renderInto` directly always preserves — the app default sets COMPONENT roots only. Light component roots stay
- * markered until step 3; a non-empty shadow root (declarative, or holding styles' text fallback) stays markered.
+ * markered for now; a non-empty shadow root (declarative, or holding styles' text fallback) stays markered.
  *
  * **Order matters here:** `foreign-dropped` is said once per PAGE, so a row asserting that something is NOT said must run
  * before the first row that triggers it — after it, the row passes by silence (two mutations measured nothing that way).
@@ -183,7 +183,7 @@ test('a shadow root NOT empty at its first render stays markered (a declarative 
   assert.ok(el.shadowRoot.firstChild.localName === 'style', 'what was there stays first');
 });
 
-test('light component roots stay markered in step 1', () => {
+test('light component roots stay markered', () => {
   const tag = `x-foreign-${seq++}`;
   customElements.define(tag, class extends HTMLElement { connectedCallback() { init({ host: this }, () => () => html`<p>l</p>`); } });
   const el = doc.createElement(tag);

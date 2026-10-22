@@ -1,5 +1,5 @@
 /**
- * **A removed component leaves nothing behind in a store** (R1 — exact unsubscription, regression #11; Brian
+ * **A removed component leaves nothing behind in a store** (exact unsubscription; Brian
  * 2026-10-10). A component's hooks subscribe to every store key they read, and the store holds them weakly; before, a
  * removed component's entries stayed until that key was next WRITTEN, so a key never written (config, a locale) grew by
  * one dead entry per component that ever read it (measured: 50 542 at 50k, ~90 B each). The first fix swept those Sets
@@ -11,7 +11,7 @@
  * RETENTION, in a child process run with `--expose-gc` — the one exception to "tests do not force collection" (Brian,
  * 2026-10-10; CLAUDE.md names it): there gc is the measuring instrument, alone in its own process, with both controls
  * (a dropped object that must die, live readers that must stay). Counted with `v8.queryObjects` over core's HOOK records
- * (PROTOTYPE, probe/cells: cells hold hooks strongly, so a leftover subscription is a hook kept alive; it counted WeakRef
+ * (PROTOTYPE: cells hold hooks strongly, so a leftover subscription is a hook kept alive; it counted WeakRef
  * objects while the store held one per hook).
  */
 import { test } from 'node:test';
@@ -100,7 +100,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   const settle = () => new Promise((r) => setImmediate(r));
   const gc = async () => { for (let i = 0; i < 4; i++) { global.gc(); await settle(); } };
   /**
-   * PROTOTYPE (probe/cells, 2026-10-18): what a dead subscription IS changed. Cells hold hook records STRONGLY (no
+   * PROTOTYPE (2026-10-18): what a dead subscription IS changed. Cells hold hook records STRONGLY (no
    * WeakRef exists any more, so counting WeakRefs measured nothing: the controls below went red, as they must), so a
    * subscription left behind is a HOOK RECORD kept alive. Counted by core's hook class, taken from a live hook.
    */

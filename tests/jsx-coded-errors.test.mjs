@@ -1,5 +1,5 @@
 /**
- * **Every jsx compile refusal and the compile warning, by code, in both builds** (code-system phase 3; 3d, Brian,
+ * **Every jsx compile refusal and the compile warning, by code, in both builds** (Brian,
  * 2026-10-09). DEVELOPMENT — the build Node and Vite load, through the package's `node` condition — says the whole
  * thing: `file:line:col — sentence … (code)`, the code ENDING it (a line that merely quotes a code, mislabeled as
  * another, does not count). PRODUCTION — the compiler a buildless page fetches — says exactly `file:line:col —

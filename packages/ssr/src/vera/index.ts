@@ -75,7 +75,7 @@ type Checked = keyof SsrRenderOptions | 'url';
 installShims();
 const { wire, inserts, flush } = await import('@verajs/core');
 setCoreFlush(flush);
-/** Core's server-render turn (step 2 (a)): what a render creates leaves every store when its turn ends. */
+/** Core's server-render turn: what a render creates leaves every store when its turn ends. */
 const serverTurnOf = (inserts as unknown as { $ss?: (delta: number) => void }).$ss;
 /**
  * A server's DOCUMENT: modules that would touch a client's lifecycle (`@verajs/renderer/native-elements`) stand aside for
@@ -479,7 +479,7 @@ const renderModule = async (
   staticRender = isStatic;
   if (isAsync) beginBudget(timeout ?? DEFAULT_TIMEOUT);
   /**
-   * **This render's turn, for core** (step 2 (a), 2026-10-21): every hook the render creates links as usual — a write
+   * **This render's turn, for core** (2026-10-21): every hook the render creates links as usual — a write
    * inside it must still re-render before serialization — and leaves every store when the turn ends (`$ss(-1)` below).
    * Opened AFTER the module's import, so module-scope state (a store, a computed) is the process's, and stays live.
    */

@@ -7,12 +7,12 @@
  * ```
  *
  * A custom element tells core when it leaves and comes back (its callbacks); a `div` given to `init` tells nobody, so
- * with strong links it was never released (step 2, 2026-10-21: 30 of 30 removed hosts retained). This module gives each
+ * with strong links it was never released (2026-10-21: 30 of 30 removed hosts retained). This module gives each
  * built-in host a CLOSED shadow root holding a default `<slot>` (its light content renders exactly as before; the root is
  * invisible to code and selectors) and a tiny SENTINEL custom element — which hears its host attached, moved, removed
  * and re-attached, identically in Chromium, Firefox and WebKit (BROWSER-LEDGER). Removed: core's own teardown (`$td`).
  * Re-attached: set up fresh (`$in`), as a custom element is. Moved — in one operation, or into another window's document
- * (a popped-out panel) — kept, with its state: cross-window moves that keep a component are R4's.
+ * (a popped-out panel) — kept, with its state.
  *
  * Built on core's `'init'` insert, which hands it every element `init` sets up; it imports nothing (the registry
  * arrives through its connector), and an app that does not wire it pays nothing. Never on a server (ssr marks the

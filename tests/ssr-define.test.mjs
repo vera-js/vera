@@ -1,5 +1,5 @@
 /**
- * **`define` on the server** (R3 piece 3, 2026-10-21): a define-made component's declared ATTRIBUTES render from the
+ * **`define` on the server** (2026-10-21): a define-made component's declared ATTRIBUTES render from the
  * markup's values — the ssr shim upgrades the way the parser does (`attributeChangedCallback` per present observed
  * attribute, before `connectedCallback`), so the server writes what the client will render, and hydration has nothing to
  * correct. The control: the same component with no attributes renders the defaults (and `null` renders nothing).

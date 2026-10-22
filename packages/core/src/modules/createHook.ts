@@ -41,7 +41,7 @@ export const RENDER_PRIORITY = 50;
  * (`runCleanup`: one that throws is reported and the rest still run). Run on a component's real removal and on a
  * re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
  *
- * **A cleanup lives on its hook, as React keeps an effect's `destroy` on its effect** (work queue 5, step 3, Brian
+ * **A cleanup lives on its hook, as React keeps an effect's `destroy` on its effect** (Brian
  * 2026-10-11): each hook keeps the cleanup its LATEST run returned. They used to sit in one Set on the element, where a
  * re-run deleted its old cleanup and added the new one at the END — so after a layout effect re-ran, removal ran the
  * effect's cleanup before the layout effect's, the reverse of priority order. The list is in run order, so this walk is
@@ -109,8 +109,8 @@ export const MODE_SYNC = SYNC;
 let created = 0;
 
 /**
- * **A hook — ONE object** (work queue 5, step 1): what was three closures, two contexts, a `WeakRef` and expandos on a
- * function is this record (PROTOTYPE, probe/cells: and no longer a `WeakRef`, since cells hold hooks strongly). Every field is assigned in the constructor, in one order, so every hook
+ * **A hook — ONE object**: what was three closures, two contexts, a `WeakRef` and expandos on a
+ * function is this record (PROTOTYPE: and no longer a `WeakRef`, since cells hold hooks strongly). Every field is assigned in the constructor, in one order, so every hook
  * has one shape (the development-only fields are added in development only).
  *
  * **A hook belongs to its owner's generation.** `init()` starts a new one every time an element reconnects, and a hook
@@ -230,7 +230,7 @@ class HookState implements HookRecord {
     const outer = tracking.hook;
     tracking.hook = this;
     /**
-     * PROTOTYPE (probe/cells): the run's link bookkeeping. A FIRST run links each read directly (`i = -1`); a re-run
+     * PROTOTYPE: the run's link bookkeeping. A FIRST run links each read directly (`i = -1`); a re-run
      * starts its cursor at 0 (`track`). `ok` turns true only when the callback returned: a run that THREW leaves the
      * links it did not reach in place, so the hook still hears what it read last time.
      *
@@ -274,21 +274,21 @@ class HookState implements HookRecord {
 }
 
 /**
- * **A BARE render hook for a keyed row** (PROTOTYPE probe/cells-auto, 2026-10-20, Brian: cut per-row memory now): the hook
+ * **A BARE render hook for a keyed row** (PROTOTYPE, 2026-10-20, Brian: cut per-row memory now): the hook
  * is NOT pushed into its owner's hook list — a row owns exactly one hook, so the one-element `_$h$` array per row was pure
  * overhead — and it is retired directly (`retireHook`). Its callback is called as a METHOD of the hook (`this._cb(…)`), so
  * one shared function serves every row, reaching its row through `ownerOf` — no closure per row.
  */
 export const bare = (owner: ComponentElement, callback: HookCallback): HookRecord => new HookState(owner, callback, RENDER_PRIORITY, QUEUED);
 /**
- * **A server render's links end with it** (step 2 (a), 2026-10-21). A server needs links DURING a render — a write in
- * the render (a setup that loads data, a router's first navigation) must re-render before the markup is serialized
- * (`@verajs/ssr` frames.ts) — but none after it: every link a long-lived store kept to a rendered component only kept
- * that component alive (Phase 0 row 1: 200 of 200 renders retained; landed's weak links kept 0). So every hook created
- * inside a server render's TURN is recorded, and when the turn ends each leaves every cell it joined. Cleanups are not
- * run: nothing was removed, as landed never ran them either. `@verajs/ssr` opens and closes the turn (`$ss(1)` / `$ss(-1)`)
- * around each render — one at a time per process (its `takeTurn`), so the depth is the turn. A hook created while a
- * turn awaits — client code in the same process — is the documented edge (the ssr README's limits).
+ * **A server render's links end with it** (2026-10-21). A server needs links DURING a render — a write in the render (a
+ * setup that loads data, a router's first navigation) must re-render before the markup is serialized (`@verajs/ssr`
+ * frames.ts) — but none after it: every link a long-lived store kept to a rendered component only kept that component
+ * alive (200 of 200 renders retained; the earlier weak links kept 0). So every hook created inside a server render's
+ * TURN is recorded, and when the turn ends each leaves every cell it joined. Cleanups are not run: nothing was removed,
+ * as the earlier engine never ran them either. `@verajs/ssr` opens and closes the turn (`$ss(1)` / `$ss(-1)`) around
+ * each render — one at a time per process (its `takeTurn`), so the depth is the turn. A hook created while a turn
+ * awaits — client code in the same process — is the documented edge (the ssr README's limits).
  */
 let serverScope = 0;
 let born: HookRecord[] = [];
@@ -307,9 +307,9 @@ export const retireHook = (hook: HookRecord) => {
 /** Something a hook's run owns: `$r` the run that last claimed it, `$h` its owning hook, `$d()` its disposal. `$`-named: cross-bundle. */
 type Owned = { $r: number; $h: HookRecord | undefined; $d(): void };
 /**
- * **What each hook's runs own** (option (e′), 2026-10-20): a side table, made at the first `own()`, so the hook class keeps
+ * **What each hook's runs own** (2026-10-20): a side table, made at the first `own()`, so the hook class keeps
  * its shape and a page with nothing owned never builds it. Things a run creates or claims — an automatic `.map` list
- * today, a render-made computed next (step 2's A4) — are disposed when a run ENDS without claiming them, and when the
+ * today, a render-made computed next — are disposed when a run ENDS without claiming them, and when the
  * hook retires.
  */
 let ownedBy: WeakMap<HookRecord, Owned[]> | undefined;
@@ -339,10 +339,11 @@ const settleOwned = (hook: HookRecord, o: Owned[]) => {
   if (w === 0) ownedBy!.delete(hook);
 };
 /**
- * **Settled where the owning run ends, never in every hook's run** (option (e″), 2026-10-21): (e′) checked the table at the
- * end of EVERY run, so a 10k list's 10 000 row runs each paid a lookup (Firefox create10k +4.7%, race19). Things are owned
- * only by a component's render (core's `drawInto` settles it, once per render) and by an automatic list's row (keyed
- * settles its own row, and only while some row owns a list). `all`: the owner is retiring — dispose everything it owns.
+ * **Settled where the owning run ends, never in every hook's run** (2026-10-21): the earlier design checked the table
+ * at the end of EVERY run, so a 10k list's 10 000 row runs each paid a lookup (Firefox create10k +4.7%, measured).
+ * Things are owned only by a component's render (core's `drawInto` settles it, once per render) and by an automatic
+ * list's row (keyed settles its own row, and only while some row owns a list). `all`: the owner is retiring — dispose
+ * everything it owns.
  */
 export const settle = (hook: HookRecord | undefined, all?: boolean) => {
   const o = hook && ownedBy?.get(hook);
@@ -391,7 +392,7 @@ export const register = (owner: ComponentElement, callback: HookCallback, priori
 
 /**
  * **A priority must be a finite number — otherwise the hook is REFUSED, in both builds, and development says why**
- * (Brian, 2026-10-11, option (b): the same behavior in both builds, the words only in development — one rule for a
+ * (Brian, 2026-10-11: the same behavior in both builds, the words only in development — one rule for a
  * priority wherever it is given, `wire` included). Refused silently before, so a `NaN` read from config left an effect
  * that never ran with nothing said; production still refuses silently (documented), development names it.
  */
@@ -411,7 +412,7 @@ export const callable = (hook: HookRecord) => (signal?: Signal<unknown>, init?: 
  * `computed`'s owner is a plain object rather than an element. It runs inside every write it hears, unbatched.
  *
  * The owner holds the hook strongly, ordered by `priority` (lower runs first; `0` is legal and earliest), and so do the
- * cells it reads (PROTOTYPE, probe/cells: strong links, released by retirement; it was one weak reference per hook). The
+ * cells it reads (PROTOTYPE: strong links, released by retirement; it was one weak reference per hook). The
  * generation and out-of-tree rules are the hook's (`HookState`).
  *
  * THROWS when there is no owner (`noOwner`, above). Refused, returning `undefined`, when there is no callback or the

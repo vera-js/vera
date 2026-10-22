@@ -23,7 +23,7 @@ test('every diagnostics.json names the one docs address', () => {
  * A message that is ONLY its parameter (`"{detail}"`) would make a page that explains nothing — found by this test on
  * its first run (directives' directive-, fetch- and teardown-threw, fixed the same day). One left, with its reason.
  */
-/** Empty since phase 4 (motion's five sequence codes replaced the one whose whole sentence was its parameter); kept
+/** Empty (motion's five sequence codes replaced the one whose whole sentence was its parameter); kept
  *  so a future exception is a deliberate, reasoned entry rather than a loosened check. */
 const PARAMETER_ONLY = new Map();
 

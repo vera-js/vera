@@ -24,8 +24,8 @@ import type { ComponentElement } from '../types.js';
  * @param element The element `init()` is setting up
  */
 /**
- * Development: a bound property met a GETTER-ONLY class member — refused, and said once per element and name (main
- * had this; the lean rebuild dropped it, so the binding vanished silently). The renderer's eager path hands the value
+ * Development: a bound property met a GETTER-ONLY class member — refused, and said once per element and name (without
+ * it, the binding vanished silently). The renderer's eager path hands the value
  * here (`_$adopt$`), so this is the one place both arrival orders end.
  */
 const refused = /* @__PURE__ */ new WeakMap<Element, Set<string>>();
@@ -38,7 +38,7 @@ const refuse = (element: Element, key: string) => {
 };
 
 /**
- * **The ONE receiver every component shares** (R2.5, 2026-10-11): called as a METHOD — `element._$adopt$(key, value)`,
+ * **The ONE receiver every component shares** (2026-10-11): called as a METHOD — `element._$adopt$(key, value)`,
  * or `adopt.call(element, …)` from shared-utils' `adoptProperty` — so the element is `this` and no closure is created per
  * element. Its props store is `createStore` of the element's raw record, which returns the same proxy every time.
  */
@@ -94,7 +94,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
  */
 export const propsOf = (element: ComponentElement): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createStore((element._$raw$ ??= {})));
-/** A `define` tag's: the store with its defaults written first (A1: no `_$fill$` read on a CLASS component's path). */
+/** A `define` tag's: the store with its defaults written first (no `_$fill$` read on a CLASS component's path). */
 export const filledOf = (element: ComponentElement, fill: (raw: Record<string, unknown> | undefined) => Record<string, unknown>): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createStore((element._$raw$ = fill(element._$raw$))));
 

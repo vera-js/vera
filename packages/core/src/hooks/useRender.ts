@@ -8,7 +8,7 @@ import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
 /**
- * **No renderer wired: said once per page, in EVERY build** (main had this; the lean rebuild dropped it). Core ships no
+ * **No renderer wired: said once per page, in EVERY build**. Core ships no
  * renderer, so a blank page is the expected first mistake — and a page pasting `vera.min.js` from a CDN never runs a
  * development build, so a development-only warning left it in complete silence. Only the explanation folds away.
  */
@@ -45,7 +45,7 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
       for (let i = 0; i < renderers.length; i++) (renderers[i] as Renderer)(result, target, owns);
       /**
        * The render RETURNED and committed: what it owns and did not claim this time (an automatic `.map` list it hid or
-       * no longer reaches) is disposed now, `.map` call or not (option (e″)). Here, once per component render — not at the
+       * no longer reaches) is disposed now, `.map` call or not. Here, once per component render — not at the
        * end of every hook's run.
        */
       settle(self);

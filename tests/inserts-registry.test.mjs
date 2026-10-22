@@ -71,7 +71,7 @@ check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get
  * immediately, so it lands at the front and runs before the renderer. `parseInt` of a config value
  * produces exactly that.
  *
- * **Refused in BOTH builds — nothing is wired — and development says why** (Brian, 2026-10-11, option (b): one rule for
+ * **Refused in BOTH builds — nothing is wired — and development says why** (Brian, 2026-10-11: one rule for
  * a priority, the same as core's hooks). It used to throw in development only, and production wired it and misbehaved.
  */
 {

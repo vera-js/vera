@@ -1,6 +1,6 @@
 /**
- * **A component's hooks run in ONE order — priority, then creation — however they were registered** (work queue 5,
- * 2026-10-11). The hooks live in one flat list, kept sorted as each joins: a hook joins at the end unless a LOWER
+ * **A component's hooks run in ONE order — priority, then creation — however they were registered**
+ * (2026-10-11). The hooks live in one flat list, kept sorted as each joins: a hook joins at the end unless a LOWER
  * priority arrives after a higher one, which moves back past the hooks that run after it. The scheduler orders every
  * flush by the same order on its own, so the list's order is what the FIRST pass follows.
  *
@@ -109,8 +109,8 @@ test('a render hook is priority 50 by its priority, never by its creation count 
 });
 
 /**
- * **A priority that is not a finite number is REFUSED in both builds, and development says why** (Brian, 2026-10-11,
- * option (b)): the same behavior in both builds — nothing registered — with the coded line in development only. One rule
+ * **A priority that is not a finite number is REFUSED in both builds, and development says why** (Brian, 2026-10-11):
+ * the same behavior in both builds — nothing registered — with the coded line in development only. One rule
  * for a priority wherever it is given, `wire` included.
  */
 const errors = (run) => {
@@ -144,7 +144,7 @@ test('wire refuses a non-finite priority the same way — nothing wired, in both
 });
 
 /**
- * **Removal runs cleanups in priority order — after a re-run too** (work queue 5, step 3). Each hook keeps its latest
+ * **Removal runs cleanups in priority order — after a re-run too**. Each hook keeps its latest
  * cleanup ON itself, as React keeps an effect's `destroy`; they used to sit in one Set on the element, where a re-run
  * moved its cleanup to the END — so after the layout effect re-ran, the effect's cleanup ran first (measured
  * 2026-10-11, both builds). Then the cleanups other packages register in `_$c$` (`useDismiss`, ui's select), in

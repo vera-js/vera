@@ -1,6 +1,6 @@
 /**
- * **R1 — `init(host, setup?)` / `init({ host, …options }, setup?)` and the setup that returns its render** (Phase 1 of the
- * 2026-10-10 roadmap). One form: a component's function is a SETUP that runs once,
+ * **`init(host, setup?)` / `init({ host, …options }, setup?)` and the setup that returns its render**
+ * (2026-10-10). One form: a component's function is a SETUP that runs once,
  * untracked, inside `init`'s call — the window is the call, so it ends exactly when the setup returns or throws — and
  * returns its RENDER function. The element is `host`, the setup's first parameter. Options travel with the host in one
  * object (`{ host, shadow }`), so the setup is always the second argument.
@@ -63,7 +63,7 @@ test('the setup runs once, its render on every change — setup ×1, render ×1 
   assert.equal(el.textContent, '1');
 });
 
-/** The ordinary path stays silent, or every warning is noise (ported from the retired core-render-noop, R2). */
+/** The ordinary path stays silent, or every warning is noise (ported from the retired core-render-noop). */
 test('an ordinary setup returning its render says nothing, in either build', async () => {
   let el;
   const said = await listen(async () => {

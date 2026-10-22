@@ -24,7 +24,7 @@ const priorities: number[] = [];
 const created = (a: HookRecord, b: HookRecord) => a._k - b._k;
 
 /**
- * **Puts the rest of the queue back in run order — in linear time, without a sort** (work queue 6, A11, 2026-10-16). A
+ * **Puts the rest of the queue back in run order — in linear time, without a sort** (2026-10-16). A
  * write read by components that each render AND run an effect queues render, effect, render, effect…: out of order at
  * every second pass, so every such flush copied and SORTED the whole queue (2–10% of the flush, measured at 10, 50 and
  * 1000 components). But within one priority, passes arrive in creation order (a write wakes its readers in the order

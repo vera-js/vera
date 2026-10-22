@@ -1,5 +1,5 @@
 /**
- * **The router's diagnostics by code** (code-system phase 2, 2026-10-09) — and the promises the docs-claims pass found
+ * **The router's diagnostics by code** (2026-10-09) — and the promises the docs-claims pass found
  * true but unpinned: a nested route with no outlet (both variants, one code), two routes with one name, an unknown
  * name, and the open-redirect guard pinned by BEHAVIOR in every build, so a later byte-hunting pass cannot
  * fold the refusal together with its development message.

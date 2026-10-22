@@ -1,6 +1,6 @@
 /**
  * **A removed component holds on to none of its hooks' callbacks or cleanups — measured by collection, in an isolated
- * child process** (work queue 5, step 3; Brian, 2026-10-11: "make sure we're not holding on to references"). Each hook
+ * child process** (Brian, 2026-10-11: "make sure we're not holding on to references"). Each hook
  * keeps its latest cleanup on itself; removal walks the hooks, runs each cleanup and CLEARS it, and teardown drops the
  * element's hook list. Nothing observable follows a dropped callback, so the pin is retention, and gc is the instrument
  * — alone in its own process (`--expose-gc`), as `core-subscription-sweep` does (CLAUDE.md allows exactly this shape).

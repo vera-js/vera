@@ -217,7 +217,7 @@ void slottedElements;
 void collectionsEntry;
 void computedEntry;
 
-/** R3 `define`: the tag forms, options, and `methods` typed on the instances (`this` is the element inside them). */
+/** `define`: the tag forms, options, and `methods` typed on the instances (`this` is the element inside them). */
 define('x-consumer-plain', () => () => html`<p>plain</p>`);
 const Dialog = define({ tag: 'x-consumer-dialog', shadow: 'open', methods: {
   open(times: number) {
@@ -233,7 +233,7 @@ dialog.close();
 // @ts-expect-error — the argument is typed
 dialog.open('twice');
 
-/** R3 props: types inferred from the defaults — on the setup's host and on the instances — beside the methods. */
+/** `define` props: types inferred from the defaults — on the setup's host and on the instances — beside the methods. */
 const Card = define({ tag: 'x-consumer-card', props: { heading: '', items: [] as string[] }, methods: {
   count() {
     return this.items.length;
@@ -246,7 +246,7 @@ void n;
 // @ts-expect-error — heading is a string
 card.heading = 42;
 
-/** R3 attributes: each is a `string | null` prop under its camel name; one that shares a declared prop widens it. */
+/** Attributes: each is a `string | null` prop under its camel name; one that shares a declared prop widens it. */
 const Badge = define({ tag: 'x-consumer-badge', props: { count: 0 }, attributes: ['label', 'data-tone', 'count'] as const }, (host) => () => html`<b>${host.label ?? ''}${host.dataTone ?? ''}${String(host.count)}</b>`);
 const badge = new Badge();
 const label: string | null = badge.label;

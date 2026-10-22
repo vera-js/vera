@@ -38,7 +38,7 @@ export const stripTrailingSlash = (str: string) => (str !== '/' && str.endsWith(
  * without unwinding the caller, so one failing hook or ref never stops its siblings. A bare
  * `console.error` reached none of those: a component could stop updating while every page-error
  * listener stayed silent. Off-browser (Node has no `reportError`) the console is all there is.
- * `line` is the framework's own line, printed beside the error — a CODED one (code-system phase 5, 2026-10-09):
+ * `line` is the framework's own line, printed beside the error — a CODED one (2026-10-09):
  * each caller passes `'[vera] <code>'` in production and its table's `diagnostic()` sentence in development, both
  * literal codes at the call site, so the static checks read them. The subject is fixed wording too (`a hook`, `an
  * element ref`), never a tag name: this line is the console's FORMAT (no `'%s'`, which measured +2–3 B on the renderer

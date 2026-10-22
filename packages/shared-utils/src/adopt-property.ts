@@ -20,11 +20,11 @@ import * as SHARED from './diagnostics.js';
  * and must survive property mangling.
  *
  * **`_$adopt$` is a BRAND, not just a slot:** present means "core has initialized this component", which is what routes
- * a delivery to the live accessor (`1`) instead of the `_$props$` record. Do not move it to a class's PROTOTYPE (R1's
- * C6, 2026-10-10): every instance would carry it BEFORE `init`, and a delivery to an upgraded-but-uninitialized element
+ * a delivery to the live accessor (`1`) instead of the `_$props$` record. Do not move it to a class's PROTOTYPE
+ * (2026-10-10): every instance would carry it BEFORE `init`, and a delivery to an upgraded-but-uninitialized element
  * would be adopted into a store that does not exist yet. It is ONE shared function written onto each element at `init`,
- * called with the element as `this` (`adopt.call(element, …)`) — R2.5, 2026-10-11: the closure it replaced was free in
- * optimized code (C6's race) but cost Chrome's interpreted first render one allocation per component.
+ * called with the element as `this` (`adopt.call(element, …)`) — 2026-10-11: the closure it replaced was free in
+ * optimized code (measured) but cost Chrome's interpreted first render one allocation per component.
  */
 
 /** Development only: getter-only names already reported, per element — a `!name` re-asserts on every render. */

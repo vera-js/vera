@@ -1,5 +1,5 @@
 /**
- * **Setting a component up again in place retires its previous generation completely** (found 2026-10-10, R2's inventory).
+ * **Setting a component up again in place retires its previous generation completely** (found 2026-10-10).
  * A removal ran a generation's effect cleanups; a re-init on a LIVE element — `init(this, s1)` then
  * `init(this, s2)`, or a setup calling `init` again — only replaced the cleanup set, so s1's interval or listener
  * outlived its hooks. Both paths now go through one `retireGeneration`: s1's cleanups run (a throwing one is reported,
@@ -81,7 +81,7 @@ test("a throwing cleanup does not abort the re-init: it is reported once, the ne
   }
 });
 
-/** `init-twice`, moved from the legacy window (R2's inventory #3): the one form's trigger set is exactly the legacy's. */
+/** `init-twice`, moved from the legacy window: the one form's trigger set is exactly the legacy's. */
 const said = async (run) => {
   const lines = [];
   const warn = console.warn;
@@ -132,7 +132,7 @@ test('a SEQUENTIAL re-init, and a reconnect, are not init-twice', async () => {
 });
 
 /**
- * **A removed component holds no hook lists** (R2.5, 2026-10-11). Its hooks are closures over the element, so a removed
+ * **A removed component holds no hook lists** (2026-10-11). Its hooks are closures over the element, so a removed
  * element still carrying them is a DOM↔JS cycle only Firefox's CYCLE collector can free — measured as 1.4 s pauses and a
  * doubled churn page. Dropped at teardown, the component is plain garbage; a reconnect rebuilds them.
  */

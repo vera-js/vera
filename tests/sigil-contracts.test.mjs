@@ -1,5 +1,5 @@
 /**
- * **The `_$…$` names are contracts between packages, held by the gate** (O4, 2026-10-10). Core keeps its state on an
+ * **The `_$…$` names are contracts between packages, held by the gate** (2026-10-10). Core keeps its state on an
  * element under sigiled names — never mangled, never an author's — and styles, ui, hooks and directives read them by
  * string, across bundle boundaries; the renderer and its modules carry their own sigiled protocol marks the same way. A
  * rename on one side that forgets the other is no error anywhere: the read is simply `undefined`, in production. So the
@@ -33,8 +33,9 @@ for (const pkg of readdirSync(root)) {
 }
 
 /**
- * Core's host fields before O4 (2026-10-10). A read of one is silently `undefined` now — the renderer's slots read
- * `['_root']` and lost closed roots until the full suite caught it — so no source may name one, accessed or quoted.
+ * Core's host fields before they were sigiled (2026-10-10). A read of one is silently `undefined` now — the renderer's
+ * slots read `['_root']` and lost closed roots until the full suite caught it — so no source may name one, accessed or
+ * quoted.
  */
 const RETIRED = ['_gen', '_hooks', '_hookPriorities', '_root', '_cleanups', '_removed', '_doc', '_moved', '_setup'];
 const retired = [];
@@ -50,7 +51,7 @@ for (const pkg of readdirSync(root)) {
 /**
  * RETIRED sigiled names — never written or read again, so one name never carries two meanings across versions (a page
  * mixing an older published core with this one would read the new value as the old field). `_$p$`: the element's
- * priority Sets, removed in 38a4a0aa (work queue 5, step 2); R3's props store took `_$v$` instead (2026-10-21).
+ * priority Sets, since removed; the props store took `_$v$` instead (2026-10-21).
  */
 const RETIRED_SIGILS = ['_$p$'];
 const reused = RETIRED_SIGILS.filter((name) => writes.has(name) || reads.has(name)).map((name) => `${name} (written by ${[...(writes.get(name) ?? [])].join(', ') || 'none'}, read by ${[...(reads.get(name) ?? [])].join(', ') || 'none'})`);
@@ -71,7 +72,7 @@ const SHARED = {
   /**
    * The release-on-unmount Set for OTHER packages' cleanups — @verajs/hooks' useDismiss, ui's select — created by the
    * first one through `??=`. Core only READS and drains it at removal: its own effects keep their cleanups on their hooks
-   * (work queue 5, step 3, 2026-10-11), so core no longer writes it.
+   * (2026-10-11), so core no longer writes it.
    */
   _$c$: ['hooks', 'ui'],
   /** The template-result protocol (lit's interop name): core's `html` and the renderer's `tag()` build the same shape. */

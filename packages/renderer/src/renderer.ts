@@ -192,7 +192,7 @@ const saySlotless = () => {
   const host = renderRoot;
   if (host === null || host.nodeType !== 1) return;
   const tag = (host as Element).localName;
-  /** Slots wired = its protocol entry (`_$capture$`, set at wire); `_$done$` is installed only at slots' first need (A19). */
+  /** Slots wired = its protocol entry (`_$capture$`, set at wire); `_$done$` is installed only at slots' first need. */
   const late = (registry as { _$capture$?: unknown } | null)?._$capture$ !== undefined;
   if (warnedSlotless.has(tag + late)) return;
   warnedSlotless.add(tag + late);
@@ -1148,7 +1148,7 @@ export interface KeyedResult extends TemplateResult {
  * **The ownership invariant — whoever writes an element's content owns it, and owns its verification.** Two cases:
  * a PLAIN element whose whole content is one binding belongs to that binding (the part is its range, and hydration
  * adopts it with no markers); a CUSTOM element's children belong to the component (a binding inside it keeps its
- * markers, and hydration compares them only when the template itself writes content inside the tag). Slots (piece 8)
+ * markers, and hydration compares them only when the template itself writes content inside the tag). Slots
  * inherit both.
  */
 class ChildPart {
@@ -1692,7 +1692,7 @@ const rootParts = {
 };
 
 /**
- * **A root the template OWNS** (`foreignNodes: 'drop'`, step 1 of 2026-10-16: shadow component roots). Core's render hook
+ * **A root the template OWNS** (`foreignNodes: 'drop'`, 2026-10-16: shadow component roots). Core's render hook
  * says so with its third argument — a container handed to `renderInto` directly never does — and it is taken only for a
  * SHADOW root EMPTY at its first render: a declarative (server) root and one holding styles' text fallback are not empty,
  * and keep their markers. No marker comments: the part owns the root's whole content (`$w`, as a sole binding owns its
@@ -1777,7 +1777,7 @@ export const expectContainer = (container: unknown) => {
  * at its first render is then the template's whole (`owned`). A direct call is a container's, and keeps its markers.
  */
 /**
- * **A removed component's root part, RELEASED** (work queue 0d, 2026-10-11). Core's teardown calls `$x(container)` (the
+ * **A removed component's root part, RELEASED** (2026-10-11). Core's teardown calls `$x(container)` (the
  * registry sigil this renderer publishes at connect): every user value the part's tree holds is dropped — each event
  * `Slot`'s handler, each binding's committed value, nested parts, keyed items, `hold()`-parked instances — so the
  * removed DOM keeps no path back into the component's JS (its handlers close over the whole setup scope, and the DOM's
@@ -1998,7 +1998,7 @@ if (__DEV__) Object.defineProperty(renderer, 'name', { value: '@verajs/renderer'
 
 /**
  * Development: `renderInto` is the draw, not the module — `wire([renderInto])` would be taken as a connector and
- * register nothing, silently. `wire` reads this mark and names `renderer` instead (main had it; the lean rebuild
- * dropped the mark while `wire` kept the check). Production carries neither.
+ * register nothing, silently. `wire` reads this mark and names `renderer` instead. Production carries
+ * neither.
  */
 if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';

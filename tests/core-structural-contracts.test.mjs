@@ -35,7 +35,7 @@ test('a component element carries _root and _cleanups under their unmangled name
   assert.ok(element._$r$ && typeof element._$r$.querySelectorAll === 'function',
     '_root must be the shadow root the adapter hands to observe()');
   /**
-   * `_$c$` exists once a cleanup is registered (R2.5, 2026-10-11: most components register none, so none pay for the
+   * `_$c$` exists once a cleanup is registered (2026-10-11: most components register none, so none pay for the
    * Set) — a consumer adds through `??=`, and the drain reads the same name it wrote.
    */
   assert.equal(element._$c$, undefined, 'no cleanup registered yet: no Set');

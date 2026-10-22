@@ -1,5 +1,5 @@
 /**
- * **@verajs/ssr's diagnostics, keyed by code — every build** (code-system phase 4c, 2026-10-09). ssr is Node-only and
+ * **@verajs/ssr's diagnostics, keyed by code — every build** (2026-10-09). ssr is Node-only and
  * compiled per file with no `__DEV__`, so its words stay and each line gains its code (`report.ts` formats them),
  * as the jsx compiler's do: a server's log is read by its developer. `PROSE` is ssr's own, published as
  * `packages/ssr/diagnostics.json`. `TWINS` are facts @verajs/shared-utils already states — the renderer says them

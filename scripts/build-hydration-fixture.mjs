@@ -76,7 +76,7 @@ const contents =
    */
   `export const COMPONENT_PROPS_HTML = ${JSON.stringify(await fixture('component-props-ssr.js'))};\n` +
   /**
-   * R3 `define` ATTRIBUTES, rendered by the server from the markup's values (the shim delivers observed attributes before
+   * `define` ATTRIBUTES, rendered by the server from the markup's values (the shim delivers observed attributes before
    * connect) — the browser suite hydrates it and asserts the client converges with ONE render and stays live.
    */
   `export const DEFINE_ATTRS_HTML = ${JSON.stringify(

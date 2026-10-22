@@ -1,5 +1,5 @@
 /**
- * **@verajs/ssr on codes** (code-system phase 4c, 2026-10-09).
+ * **@verajs/ssr on codes** (2026-10-09).
  *
  * 1. Its formatters and its TWINS are shared-utils', word for word — compared as GENERATED text for the same
  *    arguments, never as source: `ssrMisuse`/`ssrWarning` against `misuse('ssr', …)`/`diagnostic('ssr', …)` in

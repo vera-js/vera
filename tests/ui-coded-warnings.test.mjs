@@ -1,5 +1,5 @@
 /**
- * **`@verajs/ui`'s two diagnostics, by code** (code-system phase 3, 2026-10-09). `ui-defined-twice` — a second copy or
+ * **`@verajs/ui`'s two diagnostics, by code** (2026-10-09). `ui-defined-twice` — a second copy or
  * version of the library on one page keeps the first, said in EVERY build (production: the code-only line, which the
  * byte rule measured 65 B smaller than the old text); `ui-select-duplicate` — option values must be distinct,
  * development only. Each scenario in its own process: the first defines `vera-select` as a foreign class, which leaves

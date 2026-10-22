@@ -1,7 +1,7 @@
 /**
  * **The hook contract — `createHook`'s and the effects' — held by checks that fail without it.**
  *
- * Found by the lean rebuild's mutation controls (2026-09-27): taking priority ordering or init
+ * Found by mutation controls (2026-09-27): taking priority ordering or init
  * generations out of `createHook` turned nothing in the whole suite red, because every existing test
  * registered hooks in the order their priorities already implied, and no test wrote to a store after
  * a reconnect through a hook that could still run. Both are public behavior — "lower runs earlier",

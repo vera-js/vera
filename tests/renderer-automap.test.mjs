@@ -1,10 +1,10 @@
 /**
- * **Automatic `.map`** (PROTOTYPE, probe/cells-auto, B1): a plain `state.rows.map(fn)` in a render is a keyed list whose
+ * **Automatic `.map`** (PROTOTYPE): a plain `state.rows.map(fn)` in a render is a keyed list whose
  * rows track themselves. These rows pin what the probes found (2026-10-20):
  *
  * - a field write re-renders ONE row, and the parent never runs;
  * - **clearing a list releases its rows.** `state.rows = []` took the plain path, so the list's walk never ran, and its
- *   rows stayed alive and subscribed (Chrome: 12.22 MB retained after a clear, landed's idiom 4.50);
+ *   rows stayed alive and subscribed (Chrome: 12.22 MB retained after a clear, the earlier idiom 4.50);
  * - a call site that maps an empty array still takes its place in the parent's order, so a later `.map` keeps its own
  *   list.
  *
@@ -137,9 +137,9 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   document.body.append(host, keep);
   init(keep, () => () => html\`<ol>\${state.kept.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   /** hide: the list is HIDDEN behind a condition and its data never written again — it must still be released. */
-  /** nest: the list is NESTED in a row, which hides it on its own write — only the ROW's run sees it go (option (e″)). */
+  /** nest: the list is NESTED in a row, which hides it on its own write — only the ROW's run sees it go. */
   if (mode === 'nest' || mode === 'nest2') init(host, () => () => html\`<ul>\${state.outer.map((o) => html\`<li>\${o.open ? state.rows.map((r) => html\`<b>\${r.t}</b>\`) : ''}</li>\`)}</ul>\`);
-  /** before: the hidden list sits BEFORE another list, whose call takes its place in order (race20: (a)+(c) kept it). */
+  /** before: the hidden list sits BEFORE another list, whose call takes its place in order (an earlier sweep kept it). */
   else if (mode === 'before') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul><ol>\${state.other.map((r) => html\`<li>\${r.t}</li>\`)}</ol>\`);
   else if (mode === 'hide') init(host, () => () => html\`<ul>\${state.open ? state.rows.map((r) => html\`<li>\${r.t}</li>\`) : ''}</ul>\`);
   else init(host, () => () => html\`<ul>\${state.rows.map((r) => html\`<li>\${r.t}</li>\`)}</ul>\`);
@@ -189,7 +189,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
  * `.map` being called (the renderer telling a list its part no longer shows it, or matching lists by their array instead of
  * their order): a design point for Brian, with raw-array-first matching. It flips to a plain test when fixed.
  */
-test('HIDING a list releases its rows too, with no further write: the parent run that hid it disposes it (option (e))', () => {
+test('HIDING a list releases its rows too, with no further write: the parent run that hid it disposes it', () => {
   const r = child('hide');
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);
@@ -214,7 +214,7 @@ test('a nested list written, grown and hidden in ONE flush, then a new one hidde
   assert.ok(r.left <= 2, `${r.left} hook records left after the second nested list was hidden`);
 });
 
-test('HIDING a list that sits BEFORE another releases its rows (race20: a sweep over the order slots missed it, 1001 left)', () => {
+test('HIDING a list that sits BEFORE another releases its rows (a sweep over the order slots once missed it, 1001 left)', () => {
   const r = child('before');
   assert.ok(r.droppedDied && r.keptLive, `CONTROLS (${JSON.stringify(r)})`);
   assert.ok(r.peak >= 1000, `CONTROL: the live list held its rows' hooks while it lived (peak ${r.peak})`);

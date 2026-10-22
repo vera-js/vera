@@ -78,7 +78,7 @@ test('wire says what it was handed, not what it failed to read off it', { skip: 
   }
   /**
    * A descriptor that *is* one still gets the priority message — now as a refusal in both builds with the line in
-   * development (Brian, 2026-10-11, option (b)), not a development-only throw. Nothing is wired.
+   * development (Brian, 2026-10-11), not a development-only throw. Nothing is wired.
    */
   const said = [];
   const error = console.error;

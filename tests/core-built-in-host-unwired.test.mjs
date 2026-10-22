@@ -1,6 +1,6 @@
 /**
  * **A built-in element given to `init` with `@verajs/renderer/native-elements` NOT wired says so — once, in development**
- * (`built-in-host-unwired`, step 2 (b), 2026-10-21): it has no lifecycle core can hear, so it is never released when
+ * (`built-in-host-unwired`, 2026-10-21): it has no lifecycle core can hear, so it is never released when
  * removed. A custom element (a hyphen in its name) never hears it. Its own file: the warning is said once per page.
  */
 import { test } from 'node:test';

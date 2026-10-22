@@ -7,7 +7,7 @@ import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
 
 /**
- * A refusal, by build (code-system phase 3): development names the reason AND the code; production prints the code-only
+ * A refusal, by build: development names the reason AND the code; production prints the code-only
  * line (the byte rule). The refusal itself — nothing is requested — is the same in both.
  */
 const refusal = (why) => (isProduction ? /— https:\/\/verajs\.dev\/e\/loader-url-refused$/ : new RegExp(`${why.source}[\\s\\S]*\\(loader-url-refused\\)$`));

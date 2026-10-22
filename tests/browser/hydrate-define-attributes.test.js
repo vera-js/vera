@@ -1,5 +1,5 @@
 /**
- * **Hydrating a `define` component whose observed ATTRIBUTES drive its render** (R3, 2026-10-21). `DEFINE_ATTRS_HTML`
+ * **Hydrating a `define` component whose observed ATTRIBUTES drive its render** (2026-10-21). `DEFINE_ATTRS_HTML`
  * is real `@verajs/ssr` output (generated and `--check`-pinned by `scripts/build-hydration-fixture.mjs`): the server
  * delivered `label`, `data-count` and `tone` (the last shared with a declared prop) before connect, so the markup carries
  * their values. The client parses that markup, defines the tag, the element UPGRADES with the attributes present — the

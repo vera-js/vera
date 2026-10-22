@@ -1,5 +1,5 @@
 /**
- * **One failed directive import is ONE report** (code-system phase 4b, 2026-10-09). It was two: the loader's
+ * **One failed directive import is ONE report** (2026-10-09). It was two: the loader's
  * `console.error` (the URL, the error) and the engine's `loader-failed` rejection (the directive, its elements) — each
  * with half the facts. Now the loader prints nothing and rejects with `Error(src, { cause })`; the engine reports once,
  * asking the loader's `url` for the address (never parsing a message) and forwarding the rejection beside the line —

@@ -1,5 +1,5 @@
 /**
- * **The loaders' URL refusals, pinned by BEHAVIOR in every build** (code-system phase 3, 2026-10-09) — so a
+ * **The loaders' URL refusals, pinned by BEHAVIOR in every build** (2026-10-09) — so a
  * byte-trim can never take the guard along with its message. A hostile `data-autoload-dir` (or an alias that leaves the
  * base) makes no request at all: the autoloader says `loader-url-refused` and dispatches no load error (an attempted
  * import of `//evil.test` would fail, and that failure is a `vera:autoload-error`); `directiveLoader.load` returns

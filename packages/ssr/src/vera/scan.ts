@@ -4,7 +4,7 @@
  * what a component render needs to know — quoted attribute values, comments, raw-text elements,
  * `<template>` contents, and where a component's children end.
  *
- * Moved out of the render pipeline unchanged in the lean rebuild (2026-09-28): it is finely tuned
+ * Moved out of the render pipeline unchanged (2026-09-28): it is finely tuned
  * parsing work, audited in place rather than rewritten, and the pipeline around it is what was rebuilt.
  * The per-component renderer is a parameter — both chains pass their own — so this file imports
  * nothing of the pipeline.

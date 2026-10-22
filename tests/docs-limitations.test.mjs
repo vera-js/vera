@@ -73,7 +73,7 @@ for (const [what, file, phrase, why] of LIMITATIONS) {
  * The one figure in the docs that no generator can produce: the bytes `@verajs/renderer` spends on
  * the spread protocol, which can only be measured by deleting the branch and rebuilding. `llms.txt`
  * and the renderer README disagreed about it for a while — 16 B against 8 B, both wrong (the figure
- * was 5 B then, and 25 B since the lean rebuild) — so what is asserted here is that the two still agree and that the method is recorded,
+ * was 5 B then, and 25 B now) — so what is asserted here is that the two still agree and that the method is recorded,
  * since agreement between two hand-maintained numbers is the part that rotted.
  */
 test('the two hand-maintained protocol figures agree, and say how they were measured', () => {

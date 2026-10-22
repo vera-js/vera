@@ -1,5 +1,5 @@
 /**
- * **A removed component's part is RELEASED** (work queue 0d, 2026-10-11). Core's teardown asks the renderer to drop every
+ * **A removed component's part is RELEASED** (2026-10-11). Core's teardown asks the renderer to drop every
  * user value the component's part holds — event handlers, committed values, nested parts — so the removed DOM keeps no
  * path back into the component's JS. With handlers that capture `host`, that cycle cost Firefox's cycle collector 20 s on
  * a churn page against vanilla `addEventListener`'s 1 s; released, 0.5 s (measured with Firefox's profiler — the CC is

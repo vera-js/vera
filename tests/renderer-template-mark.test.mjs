@@ -6,8 +6,8 @@
  * (`_$at$`), an instance hook (`_$inst$`), a variant's namespace (`_$ns$`) — so it cannot disagree with them, and the
  * public insert keeps its contract: a hook returns nothing.
  *
- * Read through a spy hook that keeps each template the renderer builds. The mark is `$X` (it was `_x` until hydration
- * step 1, 2026-10-02, which renamed it so the hand-off can read it across bundles): `$`-named, it survives mangling,
+ * Read through a spy hook that keeps each template the renderer builds. The mark is `$X` (it was `_x` until
+ * 2026-10-02, when it was renamed so the hand-off can read it across bundles): `$`-named, it survives mangling,
  * so BOTH builds assert the mark itself, not only that claims still mount.
  */
 import assert from 'node:assert/strict';

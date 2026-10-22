@@ -46,7 +46,7 @@ export const TABLES = [
    */
   { name: 'ssr', tables: ['src/vera/diagnostics.ts'], sources: [], checkedBy: 'tests/ssr-coded-diagnostics.test.mjs' },
   /**
-   * cms (phase 5): one table per side — `publish-diagnostics` (schema, manifests, the build, the writer) for the entries
+   * cms: one table per side — `publish-diagnostics` (schema, manifests, the build, the writer) for the entries
    * read by the person who fixes the error (built with `words: true`), and the content side's for a visitor's page.
    */
   { name: 'cms', tables: ['src/publish-diagnostics.ts', 'src/content-diagnostics.ts'], sources: ['src/schema.ts', 'src/manifest.ts', 'src/node.ts', 'src/taxonomy.ts', 'src/frontmatter.ts', 'src/markdown.ts', 'src/reader.ts', 'src/writer.ts'] },

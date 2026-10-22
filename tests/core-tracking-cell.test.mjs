@@ -1,5 +1,5 @@
 /**
- * **The hook reading right now is ONE cell, saved and restored by every run** (work queue 6, A14a, 2026-10-16). Each
+ * **The hook reading right now is ONE cell, saved and restored by every run** (2026-10-16). Each
  * place that starts a run — a hook's run, `untracked`, `init`'s setup window — saves the cell, sets it and restores it
  * in its `finally`, so nesting lives on the call stack. Three levels deep, with a throw in the middle: the
  * render, a hook it runs, and an `untrack` read inside that. Each level is checked by what a WRITE re-runs — never by

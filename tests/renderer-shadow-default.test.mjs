@@ -1,6 +1,6 @@
 /**
- * **`renderer({ shadow })` — the app's default root, and the renderer declining on a server** (R1 piece 3; Brian's
- * (b′), 2026-10-10). Precedence: a component's own `shadow` (an explicit `false` included) → the renderer's default →
+ * **`renderer({ shadow })` — the app's default root, and the renderer declining on a server** (Brian,
+ * 2026-10-10). Precedence: a component's own `shadow` (an explicit `false` included) → the renderer's default →
  * light DOM. On a server (`@verajs/ssr` loaded) the renderer declines its render insert and keeps only the default, so
  * ONE shared `wire([renderer({ shadow })])` carries the same root to both sides. The server rows run in a child process,
  * so this process never becomes a server.

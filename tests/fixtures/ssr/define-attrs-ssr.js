@@ -1,7 +1,7 @@
 import { define, html } from '@verajs/core';
 
 /**
- * R3: a `define` component whose ATTRIBUTES drive its render, for the hydration handoff — the server delivers observed
+ * A `define` component whose ATTRIBUTES drive its render, for the hydration handoff — the server delivers observed
  * attributes before connect (its shim upgrades as the parser does), so the markup carries the attribute values, and the
  * client, upgrading the same markup, must converge on it with ONE render (nothing to correct).
  */

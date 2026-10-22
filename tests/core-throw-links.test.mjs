@@ -1,8 +1,8 @@
 /**
- * **What a render that THROWS leaves linked** (step 2 (d), 2026-10-21 — pinned as behavior, not changed): the failed
+ * **What a render that THROWS leaves linked** (2026-10-21 — pinned as behavior, not changed): the failed
  * run keeps the links it made before the throw, so a write to what it read re-runs it — how a component whose render
  * failed RECOVERS when its data changes; the next successful run drops what it no longer reads, so nothing outlives it.
- * ("A throw commits no new links" was weighed in the step 2 plan and declined: it would make a broken render deaf to
+ * ("A throw commits no new links" was weighed and declined: it would make a broken render deaf to
  * the very write that fixes it.)
  */
 import { test } from 'node:test';

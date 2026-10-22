@@ -35,7 +35,7 @@ const MEASURED_DELTAS = {
    * `**5 B** gzipped`, with the emphasis closing between the unit and the word, and the old pattern
    * required whitespace there — so a live claim was invisible to the guard that exists to find them.
    *
-   * The README states its own provenance: measured (2026-09-28, the lean rebuild) by deleting the `_$apply$` branch and
+   * The README states its own provenance: measured (2026-09-28) by deleting the `_$apply$` branch and
    * rebuilding, as a difference rather than a pair of totals, "and nothing regenerates it, so it is
    * dated". That is precisely what this list is for.
    */

@@ -86,7 +86,7 @@ test('nothing binds `render` from a renderer entry, nor `render` or `mount` from
       const specifier = specifiers.find(Boolean);
       if (!specifier) continue;
       /**
-       * The renderer's draw is `renderInto`; core's `render` and `mount` were removed in R2 (a setup returns its render).
+       * The renderer's draw is `renderInto`; core's `render` and `mount` were removed (a setup returns its render).
        * From core, an alias binds the removed name too (`render as show` reads an export that is gone).
        */
       const fromCore = CORE_SOURCE.test(specifier);

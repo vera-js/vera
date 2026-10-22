@@ -951,7 +951,7 @@ const release = (light: Light) => {
 /* ── capture ───────────────────────────────────────────────────────────────────────────────────── */
 
 /**
- * **A light's childList registrations, once its first render has ENDED** (observer redesign step 3, "3c", 2026-10-17).
+ * **A light's childList registrations, once its first render has ENDED** (observer redesign, 2026-10-17).
  * ONE over the host's subtree — its own children and every region and slot inside it: what native slotting reacts to,
  * wherever it sits, so a region's parent needs no registration of its own — and its holding (out of the page while empty).
  * Not before: the first render's own writes would make a record each for nothing (`reconcile` covers that window).
@@ -1334,7 +1334,7 @@ const slotBehavior = {
  */
 let warnedUnadopted = false;
 /**
- * **The render-end hook, installed at the first thing that needs it** (A19, 2026-10-18): until then the renderer's
+ * **The render-end hook, installed at the first thing that needs it** (2026-10-18): until then the renderer's
  * `_$done$` read finds `undefined` and every render ends without calling slots — a page that wired slots but has nothing
  * slotted yet pays nothing per render. Armed by the first light (`lightFor`), the first host a template feeds (FED), the
  * first park, and the first render of a dashed element that already holds something (`unadopted`, the renderer-alone path,
@@ -1533,7 +1533,7 @@ export const slotDiscovery = [
       /** Observed from here on — after this module's own moves above, which then make no records. */
       if (own !== undefined && own.ho !== true && (slotted || own.ex === true)) register(own);
     };
-    /** A page whose components never needed slotting keeps `_$done$` undefined: their renders never call into slots (A19). */
+    /** A page whose components never needed slotting keeps `_$done$` undefined: their renders never call into slots. */
   },
 ];
 

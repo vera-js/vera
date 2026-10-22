@@ -62,7 +62,7 @@ const REMOVED = {
    *  single-registrant 'slot' STRATEGY contract is retired — 'slot' remains only as the server hand-off.
    *  `_$park$` was the one name only a strategy wrote. */
   _$park$: 'nothing — custom slot strategies are retired; wire([renderer, slots])',
-  /** The hydrating renderer ENTRY retired in the lean rebuild (step 4): hydration is a module wired beside the renderer.
+  /** The hydrating renderer ENTRY, retired: hydration is a module wired beside the renderer.
    *  Keyed with its delimiters, so `@verajs/renderer/hydrate-slots` and its bundle never match. */
   '`@verajs/renderer/hydrate`': "`@verajs/renderer/hydration` — wire([renderer, hydration])",
   "'@verajs/renderer/hydrate'": "'@verajs/renderer/hydration' — wire([renderer, hydration])",
@@ -97,7 +97,7 @@ const REMOVED = {
   '<vm-unassigned': '<ins hidden data-vm-unassigned>',
   '(vm-unassigned)': ':not([data-vm-unassigned])',
   "'vm-unassigned'": "'[data-vm-unassigned]' — the carrier is a standard <ins>",
-  /** R2 (2026-10-10): a component is ONE setup that returns its render. Core's `render` and `mount` are gone; the bare
+  /** 2026-10-10: a component is ONE setup that returns its render. Core's `render` and `mount` are gone; the bare
    *  words are ordinary prose (and `mount` is still an element behavior's hook), so the keys are the CALL forms. */
   'render(() =>': 'return the render from the setup — init(this, () => () => html`…`)',
   'render(template': 'return the render from the setup — init(this, () => () => html`…`)',

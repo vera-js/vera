@@ -1,5 +1,5 @@
 /**
- * **`renderer({ shadow: 'open' })` on both sides: the client adopts what the server served** (R1 piece 3, owed
+ * **`renderer({ shadow: 'open' })` on both sides: the client adopts what the server served** (owed
  * browser row). The node half — tests/renderer-shadow-default's server row — pins that the REAL server emits exactly
  * `SERVED` for this component through the same shared `wire([renderer({ shadow: 'open' })])`; this half lets a real
  * engine parse it as a declarative shadow root and checks the client adopts it: the same node, no fallback, and live.

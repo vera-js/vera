@@ -1,6 +1,6 @@
 import { init, html, createStore } from '@verajs/core';
 
-/** A component in R1's one form — `init(host, setup)`, the setup returning its render — for tests/core-setup-hydrate. */
+/** A component in the one form — `init(host, setup)`, the setup returning its render — for tests/core-setup-hydrate. */
 customElements.define('setup-form-ssr', class extends HTMLElement {
   connectedCallback() {
     init(this, () => {

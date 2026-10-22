@@ -1,5 +1,5 @@
 /**
- * **Slots' render-end hook is installed at its first need** (A19, 2026-10-18). With slots wired but nothing slotted yet,
+ * **Slots' render-end hook is installed at its first need** (2026-10-18). With slots wired but nothing slotted yet,
  * the renderer's `_$done$` read finds `undefined`, and every render ends without calling into slots (Firefox plain
  * creation −4.4%). The first light host, the first host a template feeds, the first park, or the first render of a
  * dashed element already holding content arms it, and from then on it runs as before.

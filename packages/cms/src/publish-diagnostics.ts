@@ -1,6 +1,6 @@
 /**
- * **@verajs/cms's publishing diagnostics — schema, manifests, the build, the writer** (code-system phase 5,
- * 2026-10-09). Referenced as `__DEV__ && PROSE[…]` like every table; the entries that carry these keep `__DEV__` TRUE in
+ * **@verajs/cms's publishing diagnostics — schema, manifests, the build, the writer** (2026-10-09).
+ * Referenced as `__DEV__ && PROSE[…]` like every table; the entries that carry these keep `__DEV__` TRUE in
  * every build (`publish`, `node` and the cli are read by the person who fixes the error — rollup.config.js), so their
  * words ship there. One table per side: the `content` entry — a visitor's page — never imports this one.
  * `scripts/sync-diagnostics.mjs` merges it with content's into `packages/cms/diagnostics.json`.

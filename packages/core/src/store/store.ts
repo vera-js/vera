@@ -19,7 +19,7 @@ export const MINE = Symbol();
 export type Mine = { [MINE]?: true };
 
 /**
- * **The hook reading right now — ONE cell, not a stack** (work queue 6, A14a, 2026-10-16). Every tracked store read asks
+ * **The hook reading right now — ONE cell, not a stack** (2026-10-16). Every tracked store read asks
  * it who to subscribe (`track`). Each place that starts a run — a hook's run (`$t`), `untracked`, `init`'s setup window —
  * saves the cell, sets it, and restores it in its `finally`, so nesting (a `computed` read inside a render) lives on the
  * call stack and a throw restores the outer reader. The one "current subscriber" signals-readiness asks for. An exported
@@ -28,8 +28,8 @@ export type Mine = { [MINE]?: true };
 export const tracking: { hook: HookRecord | undefined } = { hook: undefined };
 
 /**
- * Every subscription: target object → key → that key's CELL (the hooks that read it). PROTOTYPE (probe/cells,
- * 2026-10-18): a cell holds its hooks STRONGLY and retirement unlinks them exactly (it held one `WeakRef` per hook).
+ * Every subscription: target object → key → that key's CELL (the hooks that read it). PROTOTYPE
+ * (2026-10-18): a cell holds its hooks STRONGLY and retirement unlinks them exactly (it held one `WeakRef` per hook).
  *
  * A key is anything a store module tracks — a property, or a collection's entry key, an object
  * included. A weak collection's container is really a `WeakMap` (see `track`); it is declared as a
@@ -121,11 +121,11 @@ export const grow = (cell: Cell, hook: HookRecord, slot: number) => {
 };
 
 /**
- * **A re-run CLAIMS a link it made last run, further along its sources** (PROTOTYPE, probe/cells, 2026-10-19): `track`
+ * **A re-run CLAIMS a link it made last run, further along its sources** (PROTOTYPE, 2026-10-19): `track`
  * found that the key's last link is this hook's, beyond the cursor `i`, so the read is one it made last run in a
  * different place (a reorder: rows 1 and 998 swapped). The link is SWAPPED to the cursor, and both moved links' cells
  * are told their new places, so nothing is unlinked and relinked: a plain `.map` swap re-matched about 3 000 reads by
- * unlinking and relinking everything after the first swapped row (Firefox swap +9% vs landed, race3). Out of line,
+ * unlinking and relinking everything after the first swapped row (Firefox swap +9%, measured). Out of line,
  * so `track` stays inside the inlining budget. BOTH moved links' cells are rewritten (each cell records where its
  * reader's link sits in `s`): missing one would make a later unlink remove the wrong link, a silent lost subscription.
  *
@@ -150,7 +150,7 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
 /**
  * One tag per template kind: the strings and values, marked with the kind for a renderer to consume.
  *
- * **Called with a string instead of tagged, development names it** (main had this; the lean rebuild dropped it):
+ * **Called with a string instead of tagged, development names it**:
  * `html('<p>x</p>')` puts a string where the strings array goes, passes every shape check, and fails much later inside
  * the renderer with "Invalid value used as weak map key", naming nothing. `Array.isArray`, not `raw`: a hand-built
  * `html([markup])` works and is allowed. The name comes from the kind, so production carries no string.

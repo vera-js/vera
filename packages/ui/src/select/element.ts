@@ -769,7 +769,7 @@ export class VeraSelect extends HTMLElement {
         });
         ((this as { _$c$?: Set<() => void> })._$c$ ??= new Set()).add(() => observer.disconnect());
       }
-      /** Core's cleanup set exists once anything registers a cleanup — added to through `??=` (R2.5 contract). */
+      /** Core's cleanup set exists once anything registers a cleanup — added to through `??=`. */
       ((this as { _$c$?: Set<() => void> })._$c$ ??= new Set()).add(() => {
         clearTimeout(entry.hideTimer);
         clearTimeout(entry.timer); // the filter debounce must not fire on a detached element

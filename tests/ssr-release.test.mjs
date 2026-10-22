@@ -1,5 +1,5 @@
 /**
- * **A server render's links end with it** (step 2 (a), 2026-10-21). The cells engine links strongly, so a module-scope
+ * **A server render's links end with it** (2026-10-21). The engine links strongly, so a module-scope
  * store read by a server-rendered component kept that component alive for the life of the process — 200 of 200 renders
  * retained, where the weak-linked engine kept none. `@verajs/ssr` now opens a turn per render and core unlinks, when it
  * closes, every hook the render's TREE created (inside a running hook or a setup, or owned by a node).
@@ -47,14 +47,14 @@ test('an async setup that creates a hook AFTER an await releases its component t
   assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
 });
 
-test('R3: 200 server renders of a `define` component leave none alive', () => {
+test('200 server renders of a `define` component leave none alive', () => {
   const r = measure('define-sync');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran and wrote the value (${JSON.stringify(r)})`);
   assert.equal(r.alive, 0, `${r.alive} rendered components still alive`);
 });
 
-test('R3: an ASYNC `define` setup is awaited by the server (the markup carries the value after its await) and released', () => {
+test('an ASYNC `define` setup is awaited by the server (the markup carries the value after its await) and released', () => {
   const r = measure('define-async');
   controls(r);
   assert.ok(r.rendered === 200 && r.markup, `CONTROL: 200 renders ran (${JSON.stringify(r)})`);

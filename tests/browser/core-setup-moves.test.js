@@ -1,8 +1,8 @@
 /**
- * **A component moved with `moveBefore()` keeps its setup** (R1, owed browser row). `moveBefore` moves a connected node
+ * **A component moved with `moveBefore()` keeps its setup** (owed browser row). `moveBefore` moves a connected node
  * without the remove-and-insert the platform otherwise performs; core's keep-alive wrapper already keeps a component
  * through a one-operation move (it is still connected at its disconnect), and this row asks a real engine whether a
- * setup made with R1's `init(host, setup)` runs ONCE and tears down NOTHING across a `moveBefore`. Engines without
+ * setup made with `init(host, setup)` runs ONCE and tears down NOTHING across a `moveBefore`. Engines without
  * `moveBefore` take the same row through `insertBefore`, the one-operation move the wrapper was built for.
  */
 import { expect } from '@esm-bundle/chai';
@@ -25,7 +25,7 @@ customElements.define('mv-card', class extends HTMLElement {
   }
 });
 
-describe('R1 setup across a move', () => {
+describe('init(host, setup) across a move', () => {
   it(`a move (${'moveBefore' in Element.prototype ? 'moveBefore' : 'insertBefore — this engine has no moveBefore'}) runs no second setup and no cleanup, and keeps state`, async () => {
     const a = document.createElement('div');
     const b = document.createElement('div');

@@ -203,7 +203,7 @@ const scenario = (name, spec) =>
   });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* The component's own top-level content — round 1 B1, round 2 B1/B2                                 */
+/* The component's own top-level content                                                            */
 /* ------------------------------------------------------------------------------------------------ */
 
 scenario('a top-level switch between two templates, in a component with no slot', {
@@ -270,7 +270,7 @@ scenario('the component renders nothing, then a slotted template', {
 });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* Clearing, holding, and content inside fallback — round 1 A3, round 2 A7/B6, round 3 A5            */
+/* Clearing, holding, and content inside fallback                                                   */
 /* ------------------------------------------------------------------------------------------------ */
 
 scenario('a slotted template toggled off and on inside an element', {
@@ -356,7 +356,7 @@ scenario('a slot in every keyed row follows its row through a reorder', {
 });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* Renders that happen at other times — round 1 B2, round 2 B5, round 3 A2/A3                        */
+/* Renders that happen at other times                                                               */
 /* ------------------------------------------------------------------------------------------------ */
 
 const tip = () => html`<span>tip</span>`;
@@ -440,7 +440,7 @@ scenario('a slot mounted during another host\'s render is read inline, before an
 });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* Hosts inside hosts — the redesign's open risk, and round 2 B7 (slot forwarding)                   */
+/* Hosts inside hosts — the redesign's open risk, and slot forwarding                               */
 /* ------------------------------------------------------------------------------------------------ */
 
 scenario('a component in the template receives the children the template wrote for it', {
@@ -562,7 +562,7 @@ scenario('a user edit between two renders is not taken for the component\'s own 
 });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* Top-level lists whose rows get markers LIVE in the host — round 2 B (p3, p3b, p1c)               */
+/* Top-level lists whose rows get markers LIVE in the host                                          */
 /* ------------------------------------------------------------------------------------------------ */
 
 scenario('a keyed list of multi-root rows takes a row in the middle', {
@@ -631,7 +631,6 @@ scenario('the lit idiom: an empty string first, then the template', {
 
 /* ------------------------------------------------------------------------------------------------ */
 /* PLACED content — an outer template's own parts as a nested component's children                 */
-/* round 2 B6 (p6), round 2 A (p2-hold-slots), round 2 B (p7), round 3 A (p8b)                      */
 /* ------------------------------------------------------------------------------------------------ */
 
 const A1 = () => html`<i>a1</i>`;
@@ -720,7 +719,7 @@ scenario('placed content: an applier commits during the nested component\'s own 
 });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* Nodes the component rendered, later handed to another host by the user — round 2 B (p9, p9b)     */
+/* Nodes the component rendered, later handed to another host by the user                           */
 /* ------------------------------------------------------------------------------------------------ */
 
 scenario('a node the component dropped is appended by the user to another host', {
@@ -751,7 +750,7 @@ scenario('a row from a top-level list is dragged into another host', {
 });
 
 /* ------------------------------------------------------------------------------------------------ */
-/* Late commits off the page, and during other renders — round 3 A (p6b), B (p14); round 4 A        */
+/* Late commits off the page, and during other renders                                              */
 /* ------------------------------------------------------------------------------------------------ */
 
 scenario('an applier resolves on an off-page host, which is attached afterwards', {

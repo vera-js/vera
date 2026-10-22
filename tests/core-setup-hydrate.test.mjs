@@ -1,5 +1,5 @@
 /**
- * **A server-rendered component written in R1's one form hydrates and ADOPTS**: `init(host, setup)`
+ * **A server-rendered component written in the one form hydrates and ADOPTS**: `init(host, setup)`
  * commits after the window closes, so hydration's queue-then-run must still adopt the server's markup in place — the
  * server's elements kept by identity, no fallback — with the setup called once and the render once.
  */

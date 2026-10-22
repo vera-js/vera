@@ -144,7 +144,7 @@ const register = <K extends keyof InsertFunctionMap>(
    * at the front of the chain and runs before the renderer. `parseInt` of a config value and
    * `Number(undefined)` both produce it.
    *
-   * **So it is REFUSED, in both builds — nothing is wired — and development says why** (Brian, 2026-10-11, option (b):
+   * **So it is REFUSED, in both builds — nothing is wired — and development says why** (Brian, 2026-10-11:
    * one rule for a priority wherever it is given, the same as core's hooks). It used to throw in development only, so
    * production wired it and the chain misbehaved: the builds disagreed.
    */

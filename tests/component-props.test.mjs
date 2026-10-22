@@ -246,7 +246,7 @@ test('a component’s own accessor pair is handed the value, never hijacked by t
  * **An accessor on the INSTANCE is handed the value too** — one a constructor installs with
  * `Object.defineProperty(this, …)`, which the prototype walk never sees. Without the own-descriptor
  * check the drain deleted it and put a store accessor in its place, so the component's setter never ran
- * and its property stopped being its own (found by the lean rebuild's mutation controls, 2026-09-28:
+ * and its property stopped being its own (found by mutation controls, 2026-09-28:
  * nothing failed without that check).
  */
 test('an accessor the instance defines on itself is handed the value, never replaced', async () => {

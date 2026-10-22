@@ -207,7 +207,7 @@ test('useLayoutEffect runs, and before useEffect', async () => {
 /**
  * **The render hook belongs to the component being set up; the element given is only where it draws.**
  * `init(a, () => { useRender(t, b); })` renders into `b`, driven by `a`'s lifecycle. Making `b` the hook's
- * owner (tried in the lean rebuild, 2026-09-28, as a "fix") left the hook on an element nothing commits,
+ * owner (tried 2026-09-28 as a "fix") left the hook on an element nothing commits,
  * so it never ran — and no test failed, because every existing call passed the element being set up.
  */
 test('useRender draws into the element given, driven by the component being set up', async () => {

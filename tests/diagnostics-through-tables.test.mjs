@@ -1,12 +1,12 @@
 /**
- * **Every message in a package on the code system comes from its table** (2026-10-09). The sweep and the
- * tables test read REGISTERED codes; a message written inline is invisible to both — exactly what A1–A3 did first. So:
+ * **Every message in a package on the code system comes from its table** (2026-10-09). The sweep and the tables test
+ * read REGISTERED codes; a message written inline is invisible to both — exactly what happened at first. So:
  *
  * 1. SOURCE: in a migrated package, no `throw new …Error(` and no `console.warn(`/`console.error(` takes a literal —
  *    its text comes through `misuse()` / `diagnostic()`, whose prose is the table's.
  * 2. BUNDLES: no table prose survives in the production bundle — what "development-only costs 0 B" rests on.
  *
- * MIGRATED holds every package that prints or throws (since phase 5, 2026-10-09; the last test below holds it so).
+ * MIGRATED holds every package that prints or throws (since 2026-10-09; the last test below holds it so).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,7 +38,7 @@ const MIGRATED = [
    *  words Node and Vite read are `dist/node/`, outside this glob by design. */
   ['jsx', 'dist/*.min.js'],
   /** Motion's own bundles AND every directives one: the pack inlines @verajs/motion, and the table it hands the engine
-   *  must be dead there too (phase 4 seam condition 3). */
+   *  must be dead there too. */
   ['motion', ['dist/*.min.js', '../directives/dist/*.min.js']],
   /** Every directives bundle — the engine and each pack. */
   ['directives', 'dist/*.min.js'],
@@ -74,7 +74,7 @@ const IMITATIONS = new Map([
 /**
  * **cms's programmer contracts** — throws that state, by name and in words, what an API refuses from the code calling it:
  * serializeContent's value rules, the writer's collection/slug/path bounds, the reader's collection name (the migration
- * plan's named list, phase 5). Thrown, never printed; counted per file so a new one is a deliberate edit.
+ * plan's named list). Thrown, never printed; counted per file so a new one is a deliberate edit.
  */
 const NAMED = new Map([
   ['packages/cms/src/write.ts', 8],
@@ -180,8 +180,8 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
 /**
  * **"Every package gives every line a code" is true package by package** (2026-10-09). Every package whose
  * sources print or throw is MIGRATED above — its messages come from its table — and the exceptions are the counted
- * lists (ROUTING, IMITATIONS, NAMED), which the README and llms.txt name. The phase-by-phase NOT_YET list emptied with
- * phase 5 and is gone: a new package that prints joins MIGRATED, or this goes red.
+ * lists (ROUTING, IMITATIONS, NAMED), which the README and llms.txt name. The NOT_YET list emptied when
+ * the last package migrated and is gone: a new package that prints joins MIGRATED, or this goes red.
  */
 
 test('every package that prints or throws is on the code system', () => {

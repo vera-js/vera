@@ -1,5 +1,5 @@
 /**
- * **`@verajs/renderer/native-elements`** (step 2 (b), 2026-10-21): `init` on a BUILT-IN host (a div, a section…) with a
+ * **`@verajs/renderer/native-elements`** (2026-10-21): `init` on a BUILT-IN host (a div, a section…) with a
  * custom element's lifecycle, heard by a sentinel custom element inside a closed shadow root (BROWSER-LEDGER). These rows
  * pin the lifecycle — removed: torn down; re-attached: set up again, ONE render; moved: kept; given `init` off the page:
  * set up at its first connect — and the release (with strong links, a removed built-in host was retained, 30 of 30).

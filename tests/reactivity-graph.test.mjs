@@ -207,7 +207,7 @@ test('a deep store notifies for every kind of mutation', () => {
  * **A store placed inside another store is that store, not a second wrapping of it.** Wrapped twice,
  * every read through the outer path subscribed twice and every write through it notified twice — and
  * `outer.child === inner` was false, so identity comparisons in consumer code quietly failed. Pinned
- * by the lean rebuild (2026-09-27), when the old `_isSignal` marker was replaced by the proxy map
+ * 2026-09-27, when the old `_isSignal` marker was replaced by the proxy map
  * recognizing its own proxies.
  */
 test('a store inside a store is the same store, and a write through it notifies once', () => {
@@ -259,7 +259,7 @@ test('a store whose raw object was frozen behind its back does not throw when pl
 /**
  * `key in state.o` is a read that decides what renders — an optional field shown only when present —
  * and nothing else in this file reads that way. Untracked, the reader kept its first answer: adding
- * the key later notified nobody who had asked about it (found by the lean rebuild's mutation controls,
+ * the key later notified nobody who had asked about it (found by mutation controls,
  * 2026-09-27, when removing the `has` trap turned nothing red).
  */
 test('asking `key in` subscribes: the answer follows the key being added and removed', () => {

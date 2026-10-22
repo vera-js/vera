@@ -1,7 +1,7 @@
 /**
  * **`static styles` with nothing adopting them is said once, in development** — the styles README promises it ("Forget
- * the wiring and a component with `static styles` renders unstyled — development says so, once"), and the lean rebuild
- * had dropped it: a depth-50 twin, found by the docs-claims verification pass (2026-10-09). Asked of `@verajs/styles`
+ * the wiring and a component with `static styles` renders unstyled — development says so, once"), and it had been
+ * dropped: a depth-50 twin, found by the docs-claims verification pass (2026-10-09). Asked of `@verajs/styles`
  * itself, so wiring another `'init'` module (directives) does not silence it.
  *
  * Each scenario runs in its own process: the warning is once per PAGE, so a second scenario in the same process would

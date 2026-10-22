@@ -23,7 +23,7 @@ const track = (obj: object, prop: unknown) => {
   let cell = props.get(prop);
   if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
   /**
-   * PROTOTYPE (probe/cells), **lazy in-order link reuse**. A hook's FIRST run links each read
+   * PROTOTYPE, **lazy in-order link reuse**. A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
    * RE-run walks its previous sources in order: a read matching the cursor just advances it; a repeat of one already
    * linked this run is skipped (below); the first read that DIFFERS unlinks every source not yet matched and links directly from
@@ -111,8 +111,8 @@ const GLOBAL = '_global';
 
 /** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 /**
- * **An object's key cells that no reader holds any more, deleted; returns how many remain** (PROTOTYPE probe/cells-auto,
- * B2, 2026-10-20). A cell outlives its readers in its object's key map; for an object whose keys keep coming (a
+ * **An object's key cells that no reader holds any more, deleted; returns how many remain** (PROTOTYPE,
+ * 2026-10-20). A cell outlives its readers in its object's key map; for an object whose keys keep coming (a
  * selector's ids) that map grows forever, ~120 B per key ever read. `createSelector` calls this on an amortized budget.
  */
 const prune = (obj: object) => {
@@ -123,7 +123,7 @@ const prune = (obj: object) => {
 };
 const kit: StoreKit = { track, trigger, shape: GLOBAL, prune };
 /**
- * PROTOTYPE (probe/cells-auto, B2, 2026-10-20): the same kit handed to a module OFF the store chain (`$k`), so the keyed
+ * PROTOTYPE (2026-10-20): the same kit handed to a module OFF the store chain (`$k`), so the keyed
  * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.
  */
 (inserts as unknown as { $k: StoreKit }).$k = kit;
@@ -309,7 +309,7 @@ const settle = (tags: string[]) => {
 };
 
 /**
- * **A write or delete the LANGUAGE refused, explained — development only** (main had this; the lean rebuild dropped it).
+ * **A write or delete the LANGUAGE refused, explained — development only**.
  * A proxy reports a refused write by returning `false`, and the engine turns that into "'set' on proxy: trap returned
  * falsish" — a message about the trap, framework internals the reader never wrote. `createStore(Object.freeze(x))` is
  * an ordinary thing to write. Every case is one of the language's own invariants (frozen; sealed or non-extensible with
@@ -331,8 +331,8 @@ const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted
 };
 
 /**
- * **A collection in a store with nothing to make it reactive is said once, in development** (main had this; the lean
- * rebuild dropped it). A `Map`/`Set` no `'store'` module claims is handed back RAW — it works and never updates the
+ * **A collection in a store with nothing to make it reactive is said once, in development**.
+ * A `Map`/`Set` no `'store'` module claims is handed back RAW — it works and never updates the
  * page, the worst failure mode there is: silent. Checked when its TYPE is first decided (once per page, so once), a
  * microtask later — a module wired after a store was first read (supported: `wire` re-decides) is not a false alarm.
  */
@@ -604,7 +604,7 @@ const remember = (value: object, proxy: object | null) => {
 };
 /**
  * **The field is given only where a walk reads it** (2026-10-18): defining it on EVERY object at its first proxying cost
- * store rows without `each` 8% of creating 1 000 (Chrome; with it on the WeakMap only, the landed figure came back:
+ * store rows without `each` 8% of creating 1 000 (Chrome; with it on the WeakMap only, the baseline figure came back:
  * 3.59 → 3.33 vs 3.32 ms), while only `walkItems` gains from it (Firefox swap −29%, remove −24%). So `remember` keeps
  * the WeakMap, and the walk promotes the items it meets. Never onto a proxy (`MARK`'s self-mapping): defining through one
  * is its own trap. A non-extensible object refuses it and keeps the WeakMap.
@@ -642,7 +642,7 @@ const items = (obj: object) => {
   if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
 };
 /**
- * **Automatic `.map`** (PROTOTYPE probe/cells-auto, B1, Brian 2026-10-20): inside a RENDER hook (priority 50: a
+ * **Automatic `.map`** (PROTOTYPE, Brian 2026-10-20): inside a RENDER hook (priority 50: a
  * component's render, or a keyed row's), with a list module wired (`$M`, the keyed module's `eachList`), a store array's
  * `map(fn)` is handed to that module, which makes it a keyed list whose rows track themselves. Anywhere else — an effect,
  * a computed, plain code, no module, a borrowed `map`, a `thisArg` — the native method, as before. Nothing about `.map`'s

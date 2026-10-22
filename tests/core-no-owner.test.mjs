@@ -1,10 +1,10 @@
 /**
  * **A hook with no component being set up THROWS, in every build** (Brian, 2026-10-09: one rule for every "no owner"
- * case). A setup is the synchronous body of its `init(...)` call (R1) — and a setup-less `init(this)` has none — so a
- * hook after an `await` fails the SAME way whether or not another component connected in between; before R1 the
- * legacy window stayed open until the microtask turn ended, and before that a stray hook attached to whichever
+ * case). A setup is the synchronous body of its `init(...)` call — and a setup-less `init(this)` has none — so a hook
+ * after an `await` fails the SAME way whether or not another component connected in between; before `init(host, setup)`
+ * the legacy window stayed open until the microtask turn ended, and before that a stray hook attached to whichever
  * component was set up last, or was dropped silently. The pair of rows "with" and "without" another component is what
- * proves nothing but the call decides. (`render()` and `mount()`, which this rule also covered, were removed in R2.)
+ * proves nothing but the call decides. (`render()` and `mount()`, which this rule also covered, were removed.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

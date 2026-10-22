@@ -1,5 +1,5 @@
 /**
- * **Motion's sentences reach the reader by every route** (code-system phase 4a, seam conditions, 2026-10-09).
+ * **Motion's sentences reach the reader by every route** (2026-10-09).
  * Motion's prose lives in `@verajs/motion`'s own table now; the directives motion pack hands that table to the engine
  * once (`seams.prose`, development only), and the engine's `reject()` reads it. One code per route that carries a
  * motion code into the engine — so dropping the registration turns EVERY row red, not just one:

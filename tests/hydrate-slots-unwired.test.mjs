@@ -1,6 +1,6 @@
 /**
- * **`hydrateSlots` wired without `slots` is refused before anything is touched** (`hydrate-slots-unwired`, code-system
- * phase 1, 2026-10-09 — the guard had no test). It reads the server's light-DOM statement through slots' capture seam;
+ * **`hydrateSlots` wired without `slots` is refused before anything is touched** (`hydrate-slots-unwired`,
+ * 2026-10-09 — the guard had no test). It reads the server's light-DOM statement through slots' capture seam;
  * with no slots there is nothing to read it with. A wiring state, so the diagnostic shape in development
  * (`[vera] hydrate-slots: <host> — …`); production prints the code alone (0 B; the link would cost 14 B).
  */

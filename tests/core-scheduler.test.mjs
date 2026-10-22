@@ -173,8 +173,8 @@ test('a scheduler that throws does not freeze the component permanently', async 
  * revives the component (the test above), but while it stays installed each write must say so: if the
  * coalescing flag stayed raised after the throw, the second write would return early, the failure would
  * be reported once, and the component would sit frozen while the error channel reported nothing — a
- * channel that reports once lies about completion (CODE-PRINCIPLES #11). Pinned by the lean rebuild
- * (2026-09-28), when removing the flag's reset turned nothing else red.
+ * channel that reports once lies about completion (CODE-PRINCIPLES #11). Pinned
+ * 2026-09-28, when removing the flag's reset turned nothing else red.
  */
 test('a scheduler that keeps throwing is reported on every write', async () => {
   const element = counter();
@@ -283,7 +283,7 @@ test('a render that throws leaves nothing queued for the next one', async () => 
  * **A window with no animation frames still runs the pass — it never drops it.** The default scheduler flushes as a
  * microtask (a frame only past its budget, or a timer where there are no frames); a window with none (a jsdom made
  * without `pretendToBeVisual`, an embedded runtime) must still update, or a write there would leave the
- * component showing its first render forever. Pinned by the lean rebuild (2026-09-28): nothing failed
+ * component showing its first render forever. Pinned 2026-09-28: nothing failed
  * without the fallback.
  */
 test('an element in a window without requestAnimationFrame still re-runs on a write — after a microtask, as every window', async () => {

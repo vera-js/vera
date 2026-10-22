@@ -1,5 +1,5 @@
 /**
- * **`@verajs/motion`'s refusals, keyed by code — DEVELOPMENT ONLY** (code-system phase 4, 2026-10-09). Referenced only
+ * **`@verajs/motion`'s refusals, keyed by code — DEVELOPMENT ONLY** (2026-10-09). Referenced only
  * behind `__DEV__`, so a production bundle drops it whole. Motion's prose lived in the directives engine's table until
  * now, so `@verajs/motion` used on its own — the embedders it was cut out for — printed a bare code with no sentence
  * even in development. Two readers now: motion's own fallback reporter (`schema.ts`, before any engine is wired), and

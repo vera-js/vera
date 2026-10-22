@@ -1,5 +1,5 @@
 /**
- * **Core's own state never lands on an author's fields** (R1 piece 5, O4 — found 2026-10-10). The element is the
+ * **Core's own state never lands on an author's fields** (found 2026-10-10). The element is the
  * author's object. Core used to keep its state on it under `_root`, `_hooks`, `_cleanups`, `_gen` and — production
  * mangling the rest — single letters (`_hookPriorities` became `t`, `_removed` `h`, …): a component extending a base
  * class with a field of any of those names was overwritten, and since core reads its fields back, a base class's own

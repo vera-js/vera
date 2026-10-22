@@ -1,4 +1,4 @@
-/** Run shapes an outer template binds into a light-slot component (hydration's R1 pins) — one module, chosen by `tag`. */
+/** Run shapes an outer template binds into a light-slot component — one module, chosen by `tag`. */
 import { init, html } from '@verajs/core';
 
 class SlotShapeInner extends HTMLElement {

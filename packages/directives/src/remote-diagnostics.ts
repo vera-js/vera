@@ -1,5 +1,5 @@
 /**
- * **The remote pack's own diagnostics — DEVELOPMENT ONLY** (code-system phase 4b, 2026-10-09). One table per pack
+ * **The remote pack's own diagnostics — DEVELOPMENT ONLY** (2026-10-09). One table per pack
  * entry, as the renderer's entries keep theirs, so `vera-directives-remote`'s development bundle carries its own
  * prose and not the engine's whole table. Its codes join directives' published `diagnostics.json`
  * (`scripts/sync-diagnostics.mjs`) and its manifest (`tests/diagnostics-table.test.mjs`).

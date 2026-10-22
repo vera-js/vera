@@ -72,7 +72,7 @@ test('a throwing settle handler fails the render, naming the component', async (
 /**
  * **A value the `props` option cannot deliver is refused by name** — the component, the option and the
  * fix — rather than as `Cannot set property locked of #<ReadonlyChild>`, which names none of them. Pinned
- * by the lean rebuild's mutation controls (2026-09-28).
+ * by mutation controls (2026-09-28).
  */
 test('a read-only property in `props` is refused, naming the component and the option', async () => {
   await assert.rejects(

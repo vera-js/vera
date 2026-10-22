@@ -1,5 +1,5 @@
 /**
- * **Slots hydration through the region markers (step 4, format v2).** The server writes each filled slot as the client
+ * **Slots hydration through the region markers (format v2).** The server writes each filled slot as the client
  * leaves it — `<!--[-->`, its light nodes, `<!--]-->` — and hydration adopts those markers as the slot's region. These
  * rows pin what the marker format must guarantee beyond the general suite (`hydrate-slots`): the markers are adopted,
  * nothing moves, a component's own literal `[`/`]` comments are passed as comments, a slot NAME never reaches a comment,
@@ -168,7 +168,7 @@ test('comments INSIDE light content are the page\'s, never markers — even ones
  * (Brian, 2026-10-07). No special diagnostic: the standard fallback warning, every build, and a fresh render. Static
  * light content whose markers were stripped cannot be told from the component's own markup, so it is not kept — the
  * README states the requirement (serve the server's HTML unmodified). Content a hydrating TEMPLATE owns is re-rendered
- * by that template: pinned with the page-side walk (step 4, 2c).
+ * by that template: pinned with the page-side walk.
  */
 test('stripped comments: the standard fallback warning, and a fresh render', async () => {
   const stripped = server('<h2 slot="header">H</h2>body', 'slot-card-ssr').replace(/<!--[\s\S]*?-->/g, '');

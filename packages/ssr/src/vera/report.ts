@@ -1,5 +1,5 @@
 /**
- * **How @verajs/ssr says what it says** (code-system phase 4c, 2026-10-09). Twins of @verajs/shared-utils' `misuse()`
+ * **How @verajs/ssr says what it says** (2026-10-09). Twins of @verajs/shared-utils' `misuse()`
  * and `diagnostic()` DEVELOPMENT output — ssr cannot import the private package, so the shapes are restated here and
  * `tests/ssr-shared-twins.test.mjs` holds the generated strings equal — plus the two server rules:
  * text that came from outside is quoted, and a warning is said once per process per key, never at request rate.

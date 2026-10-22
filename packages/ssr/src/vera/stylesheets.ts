@@ -2,7 +2,7 @@
  * `CSSStyleSheet`, and the styles a render hoists out of the components it touched.
  *
  * The `StyleSheetShim` class is the DOM half — audited in place. The hoisting half (which component a
- * sheet belongs to, per request) is SSR orchestration, rebuilt in the lean rebuild from this floor.
+ * sheet belongs to, per request) is SSR orchestration, rebuilt from this floor.
  */
 import { PROSE } from './diagnostics.js';
 import { own, ssrMisuse, ssrWarning } from './report.js';

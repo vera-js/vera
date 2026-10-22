@@ -2,7 +2,7 @@ import { define, html } from '@verajs/core';
 import { S } from './store.mjs';
 (globalThis.__refs ??= []);
 /**
- * R3: an ASYNC setup through `define` — the server must await it (the wrapper reads the pending setup; the generated
+ * An ASYNC setup through `define` — the server must await it (the wrapper reads the pending setup; the generated
  * class returns nothing of its own), so the markup carries the value that arrives after the await.
  */
 export default customElements.get('define-async-ssr') ??

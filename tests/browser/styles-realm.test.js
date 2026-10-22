@@ -2,7 +2,7 @@
  * **`static styles` in the window the component is in** — CODE-PRINCIPLES #2 and `@verajs/ui`'s rule
  * that every component works in a popped-out window.
  *
- * Found in the lean rebuild of `@verajs/styles` (2026-09-28) by reading it against the principle, not by
+ * Found while rebuilding `@verajs/styles` (2026-09-28) by reading it against the principle, not by
  * a report: `applyStyles` hoisted light-DOM styles into the GLOBAL `document` (the opener's, for a
  * component moved into another window), marked a class hoisted once per page rather than per document,
  * and handed a shadow root sheets built in the opener's window — which a document of another realm

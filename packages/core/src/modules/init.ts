@@ -11,8 +11,8 @@ import { reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
 /**
- * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once (main had
- * this; the lean rebuild dropped the reading half — `@verajs/directives` still claims `data-vd-` from both its doors).
+ * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once
+ * (`@verajs/directives` claims `data-vd-` from both its doors).
  * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
  * where every caller folds away — drops it whole (a top-level one survives: a call with effects terser cannot prove).
  */
@@ -89,7 +89,7 @@ const callMethod = (element: ComponentElement) => (element as unknown as { setup
  * component with nothing to set up — its root, its delivered props, the `'init'` inserts, committed at once. A setup
  * returning nothing is a side-effect setup; a promise, an async one (its synchronous part is the window).
  *
- * The legacy window — `init(this)`, hooks, then `render()` or `mount()` to close it — was removed in R2 (2026-10-10).
+ * The legacy window — `init(this)`, hooks, then `render()` or `mount()` to close it — was removed (2026-10-10).
  */
 export const init = (target: ComponentElement | InitOptions, setup?: Setup) =>
   isOptions(target)
@@ -109,21 +109,21 @@ const isOptions = (target: unknown) => {
 };
 
 /**
- * The one entry `init` and (R3) `define` share: the host and its options SEPARATELY, so `define`'s generated class can
+ * The one entry `init` and `define` share: the host and its options SEPARATELY, so `define`'s generated class can
  * hand over one options object per tag and allocate nothing per connect.
  *
- * **ONE straight line per connect, and every piece in its cheapest measured form** (R2.5, 2026-10-11 — rebuilt from
- * pre-R1's `init` + `render()` one piece at a time, each measured on Chrome's interpreted first render, which R1 had
- * made ≈10% slower). What a fresh, synchronous, light-DOM component does: a generation, its hook lists, its document,
- * its props and the `'init'` inserts; its setup, untracked; its render installed and every first pass run. Everything
- * else is paid only by the components that need it: a re-init's cleanup (a previous generation exists), a root (a
- * `shadow` asks for one), an async branch (a promise came back), the cleanup Set (an effect returned a cleanup — see
- * `coalesce`).
+ * **ONE straight line per connect, and every piece in its cheapest measured form** (2026-10-11 — rebuilt from the
+ * earlier `init` + `render()` one piece at a time, each measured on Chrome's interpreted first render, which the first
+ * `init(host, setup)` had made ≈10% slower). What a fresh, synchronous, light-DOM component does: a generation, its
+ * hook lists, its document, its props and the `'init'` inserts; its setup, untracked; its render installed and every
+ * first pass run. Everything else is paid only by the components that need it: a re-init's cleanup (a previous
+ * generation exists), a root (a `shadow` asks for one), an async branch (a promise came back), the cleanup Set (an
+ * effect returned a cleanup — see `coalesce`).
  */
 /**
  * The `'init'` inserts, OUT OF LINE: true when one answered `false` (it defers the setup). The loop inside `initWith` —
- * never even run on a page with no `'init'` insert — cost Firefox's component creation +2.4%, 6 of 6 sessions (race25);
- * with the loop as it was, the same build measured −1.0% (race26): `initWith`'s size, not its work (the inlining cliff,
+ * never even run on a page with no `'init'` insert — cost Firefox's component creation +2.4%, 6 of 6 sessions;
+ * with the loop as it was, the same build measured −1.0%: `initWith`'s size, not its work (the inlining cliff,
  * CLAUDE.md). Here it costs `initWith` one call, made only where inserts exist.
  */
 const runInits = (initInserts: unknown[], element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
@@ -147,7 +147,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   /**
    * Development: a BUILT-IN element (no hyphen in its name, and not a customized built-in: `getName`) has no lifecycle
    * core hears, so it is never released when removed — unless `@verajs/renderer/native-elements` is wired (`$ne`). Said
-   * once per page. Production carries none of it (step 2 (b), 2026-10-21).
+   * once per page. Production carries none of it (2026-10-21).
    */
   if (__DEV__ && !saidBuiltIn && element.localName.indexOf('-') < 0 && (inserts as unknown as { $ne?: unknown }).$ne === undefined &&
     !(element.ownerDocument.defaultView?.customElements as { getName?: (c: unknown) => string | null } | undefined)?.getName?.(element.constructor)) {
@@ -315,9 +315,9 @@ const retireGeneration = (element: ComponentElement) => {
 };
 
 /**
- * **A removal's whole teardown, one function** (lifted 2026-10-21 for `@verajs/renderer/native-elements`, step 2 (b)): the
+ * **A removal's whole teardown, one function** (lifted 2026-10-21 for `@verajs/renderer/native-elements`): the
  * generation retired, the hook lists DROPPED (each hook is a closure over its element: a removed element still holding
- * them is a DOM↔JS cycle only Firefox's cycle collector frees — R2.5, 2026-10-11), the renderer's release of the
+ * them is a DOM↔JS cycle only Firefox's cycle collector frees — 2026-10-11), the renderer's release of the
  * component's root part (`$x`; absent on a server), and `_$x$`. The define wrapper runs it after the author's own
  * `disconnectedCallback`; the native-elements module runs it (`$td`) when a built-in host leaves the document.
  */
@@ -325,7 +325,7 @@ export const retireElement = (element: ComponentElement) => {
   retireGeneration(element);
   element._$h$ = undefined;
   /**
-   * **The props store, RELEASED** (R3, 2026-10-21): Firefox keeps a removed element's fields alive until its cycle
+   * **The props store, RELEASED** (2026-10-21): Firefox keeps a removed element's fields alive until its cycle
    * collector frees the node, so a record and store still hanging off it survived every GC and were swept from the
    * tenured heap (the private-store class never paid: its store hangs off `_$h$`, dropped above). The record is the
    * store's target — a WeakMap key — so it is SWAPPED for a plain copy (the values survive a re-add) and the store is
@@ -335,7 +335,7 @@ export const retireElement = (element: ComponentElement) => {
     element._$raw$ = { ...element._$raw$ };
     element._$v$ = undefined;
   }
-  /** The renderer drops what its part holds of the component's JS (work queue 0d) — absent on a server, a no-op. */
+  /** The renderer drops what its part holds of the component's JS — absent on a server, a no-op. */
   (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
   element._$x$ = true;
 };
@@ -469,7 +469,7 @@ if (typeof customElements !== 'undefined') {
      * A removal: the author's own callback, the generation retired (cleanups run, hooks out of every store) — and the hook
      * lists DROPPED. Each hook is a closure over its element, so a removed element still holding them is a DOM↔JS cycle
      * that only Firefox's CYCLE collector can free: 10 000 removed components per frame cost it 1.4 s pauses and doubled
-     * a churn page's time (R2.5, 2026-10-11, measured with Firefox's own profiler). Dropped, a removed component is
+     * a churn page's time (2026-10-11, measured with Firefox's own profiler). Dropped, a removed component is
      * plain garbage the ordinary collector frees; a reconnect's `init` rebuilds them.
      */
     const teardown = (element: Moving) => {

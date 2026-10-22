@@ -193,9 +193,9 @@ let hook: ((owner: Owner, callback: (signal?: unknown, init?: boolean) => void) 
 let bareHook: ((owner: Owner, callback: (this: RowHook, signal?: unknown, init?: boolean) => void) => RowHook) | undefined;
 let retireHook: ((hook: RowHook) => void) | undefined;
 let ownerOf: ((hook: RowHook) => Owner) | undefined;
-/** Core's run ownership (`$own`, option (e)). */
+/** Core's run ownership (`$own`). */
 let own: ((hook: unknown, item: List) => void) | undefined;
-/** Core's settle (`$so`, option (e″)): a row that owns lists settles them where its run ends, or disposes them as it drops. */
+/** Core's settle (`$so`): a row that owns lists settles them where its run ends, or disposes them as it drops. */
 let settle: ((hook: unknown, all?: boolean) => void) | undefined;
 /**
  * **How many live lists a ROW owns** (a `.map` inside a row's render), page-wide: while it is 0 — every page without
@@ -228,7 +228,7 @@ const stamp = (rec: Row) => {
   return r;
 };
 /**
- * **A row: its record AND its hook's OWNER, one object; the hook is core's BARE row hook (`$qb`: never in the owner's hook list, retired directly), held in `h`, run through the one shared `rowCb`.** (B1 step 1 made the row
+ * **A row: its record AND its hook's OWNER, one object; the hook is core's BARE row hook (`$qb`: never in the owner's hook list, retired directly), held in `h`, run through the one shared `rowCb`.** (An earlier version made the row
  * its own hook, a subclass of core's hook class across the bundle boundary: one object per row instead of two. It bought
  * nothing — a Chrome profile of create10k showed the two identical, and two races put it 4–6% SLOWER at Chrome 10k
  * creation — and the cross-bundle subclass cost two mangling bugs; REVERTED, Brian 2026-10-20.) As the owner it carries
@@ -331,7 +331,7 @@ const drop = (rec: Row) => {
   if (rec._$h$ !== undefined) retire!(rec);
 };
 /**
- * **Automatic `.map`** (PROTOTYPE probe/cells-auto, B1, Brian 2026-10-20: every `.map` on a store array inside a render is
+ * **Automatic `.map`** (PROTOTYPE, Brian 2026-10-20: every `.map` on a store array inside a render is
  * a keyed list, with no rule and nothing to learn). Core's array handler hands `state.todos.map(fn)` here when it runs in
  * a render (`$M`). The result is a REAL array of the row results — `.map(i => i.name).join(', ')` still works — and each
  * `fn(item)` runs once, under its ROW's hook, so the parent never subscribes to row fields: a write to
@@ -452,7 +452,7 @@ const orphan = (list: List) => {
   list.recs = [];
   list.cache.clear();
   /**
-   * A disposed list may stay RECORDED (option (c)'s per-array history), so it lets go of everything else: its last
+   * A disposed list may stay RECORDED (in the per-array history), so it lets go of everything else: its last
    * results (a hidden 10k list's 10 000 template results), its render's callback, its array and its part (Brian 2026-10-20:
    * "is there any risk with references getting held with the tables?").
    */
@@ -626,7 +626,7 @@ const automap = (
   /**
    * **A call site with a live list ALWAYS runs it — an empty array included** (2026-10-20): the empty case took the plain
    * path, so clearing a list never swept its rows — 10 000 rows stayed alive and subscribed after `state.rows = []`
-   * (Chrome: 12.22 MB retained after a clear vs landed's 4.50, `perrow.mjs`), each create ran beside the last one's
+   * (Chrome: 12.22 MB retained after a clear vs the earlier idiom's 4.50, `perrow.mjs`), each create ran beside the last one's
    * rows (twice the live heap: Firefox's extra major GC), and the empty call did not count its place in the parent's
    * order, so a later `.map` slid into this one's list. With no list yet, an empty or primitive array maps natively, and
    * still takes its place (an empty one stays undecided; a primitive one is PLAIN for good).
@@ -666,7 +666,7 @@ const automap = (
   put(list);
   state.n++;
   /**
-   * **Owned by the parent's run** (option (e), core's `$own`): when a parent run ENDS without claiming this list — its
+   * **Owned by the parent's run** (core's `$own`): when a parent run ENDS without claiming this list — its
    * render hid it, or no longer reaches it — core disposes it (`$d`, an orphan's retirement) at once, `.map` call or not.
    */
   own!(parent, list);
@@ -689,7 +689,7 @@ const eachValue = (part: object, value: unknown) => {
   return false;
 };
 /**
- * **`createSelector(source)` → `isSelected(key)`** (PROTOTYPE probe/cells-auto, B2, 2026-10-20): selection that wakes
+ * **`createSelector(source)` → `isSelected(key)`** (PROTOTYPE, 2026-10-20): selection that wakes
  * exactly the rows whose answer changed. `isSelected(key)` subscribes the running hook to ONE cell per key (core's store
  * kit, `$k`, on a private target), and a hook watching `source` wakes only the previous and the new key's cells when it
  * changes — so a select re-renders 2 rows, not every row that compared against `state.selected`.

@@ -1,5 +1,5 @@
 import { init, html } from '@verajs/core';
-/** A light component whose own template has a top-level `${…}` beside its slot — the round-2 B1 shape. */
+/** A light component whose own template has a top-level `${…}` beside its slot. */
 const loading = () => html`<p class="spin">loading</p>`;
 export class SlotToplevelSsr extends HTMLElement {
   connectedCallback() {

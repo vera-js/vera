@@ -58,7 +58,7 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
   /** The record itself, not a `callable` wrapper: one closure fewer per list row (the keyed module calls its `$n`). */
   registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED);
 (inserts as unknown as { $z: typeof retire }).$z = retire;
-/** PROTOTYPE (probe/cells-auto, 2026-10-20): a keyed row's BARE hook — no owner hook list, retired directly — and the hook → owner read a shared row callback needs (`createHook.ts` explains). */
+/** PROTOTYPE (2026-10-20): a keyed row's BARE hook — no owner hook list, retired directly — and the hook → owner read a shared row callback needs (`createHook.ts` explains). */
 (inserts as unknown as { $qb: typeof bare; $zh: typeof retireHook; $ow: typeof ownerOf }).$qb = bare;
 (inserts as unknown as { $zh: typeof retireHook }).$zh = retireHook;
 (inserts as unknown as { $ow: typeof ownerOf }).$ow = ownerOf;

@@ -136,7 +136,7 @@ const define = (setup) => {
 /* ── a setup that draws nothing ─────────────────────────────────────────────────────────────────── */
 {
   /**
-   * **A setup returning nothing commits its hooks, like one returning a render** (R2, 2026-10-10). The legacy window had
+   * **A setup returning nothing commits its hooks, like one returning a render** (2026-10-10). The legacy window had
    * to be closed by hand — `render()` for a component with markup, `mount()` for one without — and a setup that called
    * neither registered hooks that silently never ran (`setup-uncommitted`, a development warning, retired with the
    * window: the one form always commits). This block was `mount()`'s; its checks hold unchanged for the one form.

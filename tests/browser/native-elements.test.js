@@ -1,5 +1,5 @@
 /**
- * **`@verajs/renderer/native-elements` on the engines** (step 2 (b), 2026-10-21): a built-in host's lifecycle heard by a
+ * **`@verajs/renderer/native-elements` on the engines** (2026-10-21): a built-in host's lifecycle heard by a
  * sentinel custom element in a closed shadow root. jsdom pins the lifecycle (`tests/renderer-native-elements.test.mjs`);
  * these rows are what only an engine can answer: the sentinel hears a removal INSIDE another window after a cross-window
  * move (its definition is this window's), the host lays out and styles exactly as one with no sentinel, and a

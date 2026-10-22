@@ -10,8 +10,8 @@
  * The oracle is the client render because hydration's promise is exactly that: indistinguishable from
  * having rendered on the client. Each scenario is one template SOURCE, written once and used by both
  * sides — the server module and the client's draw function are built from the same string, so they
- * cannot drift. Scenarios are the auditors' hydration probes (round 3 B1, B4/B5, B7, B8, B9, and the
- * client-only node), plus the one no probe covered: named and default content interleaved in the light
+ * cannot drift. Scenarios are the auditors' hydration probes, including the
+ * client-only node, plus the one no probe covered: named and default content interleaved in the light
  * tree, whose cross-slot ORDER the server's markup has never recorded.
  *
  * KNOWN works as in the client suite: an entry asserts its scenario still diverges, so fixing one turns
@@ -304,7 +304,7 @@ scenario('a light component nested in another\'s template hydrates, and the oute
 });
 
 /**
- * **Runs placed into a light component (2c part 2, R1), held to the client step by step**:
+ * **Runs placed into a light component, held to the client step by step**:
  * GROW, SHRINK to EMPTY, keyed REORDER, REPLACE; both orders (the outer walking the inner host first, from the
  * statement; the inner first, its live record converted); runs mixed with statics, one emptied in the MIDDLE (an empty
  * run must stand before the static after it, never at the end); and NOTHING the server rendered moves while hydrating.

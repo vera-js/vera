@@ -1,5 +1,5 @@
 /**
- * **A template that places content INTO a light-slot component** (step 4, piece 2c). The outer template owns those nodes
+ * **A template that places content INTO a light-slot component**. The outer template owns those nodes
  * and their bindings; the inner component distributes them, so on the server they sit in the INNER host's slot ranges,
  * not where the outer template has them. The outer walk reads the inner host's light children in LIGHT order: from slots'
  * live record when the inner host already has one (it was adopted first — the common order), else from the server's
@@ -167,7 +167,7 @@ test('the statement is STRICT at the end: a last light child the outer template 
  */
 /**
  * The outer's fallback renders a CLIENT-MADE inner host holding the placed `<i>`: with no statement, its own first render
- * declines the walk and keeps `<i>` as light content (step 4's 2d — before it, the render took `<i>` for server output,
+ * declines the walk and keeps `<i>` as light content (before this, the render took `<i>` for server output,
  * warned "expected <div> and found <i>", and cleared it).
  */
 test('(a) a literal marker pair in the inner\'s own template, the outer first: the end state is the client\'s', async () => {
@@ -213,10 +213,10 @@ test('(b) an inner host never defined: the outer adopts its own, the inner\'s ma
 });
 
 /**
- * Runs are adopted in the client's own shape (2c part 2, R1): whichever walk reaches the inner host first captures it,
- * the run a unit in holding — its part's anchors inside, a stand-in at each slotted node's place — so the renderer's
- * later inserts and removals land as on a client-distributed host. (Before R1, growing the list threw NotFoundError: the
- * end anchor sat at the host's level.)
+ * Runs are adopted in the client's own shape: whichever walk reaches the inner host first captures it, the run a unit
+ * in holding — its part's anchors inside, a stand-in at each slotted node's place — so the renderer's later inserts and
+ * removals land as on a client-distributed host. (Before this, growing the list threw NotFoundError: the end anchor sat
+ * at the host's level.)
  */
 for (const order of ['outer first (statement)', 'inner first (live record)'])
   test(`a run the outer binds into the inner host, ${order}: adopted, then it updates as a client render does`, async () => {
@@ -293,7 +293,7 @@ for (const order of ['outer first (statement)', 'inner first (live record)'])
   });
 
 /**
- * **Runs, held step by step** (R1): every shape a list takes after hydration — keyed REORDER (each
+ * **Runs, held step by step**: every shape a list takes after hydration — keyed REORDER (each
  * node kept by identity), GROW, SHRINK to EMPTY, REPLACE by a template and back, runs mixed with statics with one
  * emptied in the MIDDLE (its unit must stand before the static after it, never at the end) — in both orders, and
  * hydrating moves NOTHING the server rendered: the run is seated in holding, never by moving a light node.
