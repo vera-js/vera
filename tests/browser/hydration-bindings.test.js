@@ -5,6 +5,7 @@ import { BINDINGS_HTML } from './fixtures/hello-ssr.html.js';
 import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
+import { lists } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
 /**
  * Every binding kind, adopted through **real declarative shadow DOM**.
@@ -19,7 +20,8 @@ import { hydration } from '../../packages/renderer/dist/development/vera-rendere
  * reference to a server-built node and checking it is still there can tell the difference.
  */
 
-wire([renderer, hydration]);
+/** `lists` too (B4, 2026-10-22): its automatic `.map` rows are adopted from the server markup like any other node. */
+wire([renderer, hydration, lists]);
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
@@ -51,7 +53,7 @@ customElements.define(
         <b id="dropOnClick" onClick=${() => {}}>doc</b>
         <p id="nested">${html`<em>${state.text}</em>`}</p>
         <ul id="list">
-          ${/* A plain copy: position-matched on purpose (stateless rows). Not `lists`: the server markup is the same either way, but a lists-wired client REBUILDS the server rows instead of adopting them until B4 lands — and this suite asserts adoption. */ [...state.rows].map((row) => html`<li>${row}</li>`)}
+          ${state.rows.map((row) => html`<li>${row}</li>`)}
         </ul>
         <ul id="empty">${[]}</ul>
         <p id="looksLikeAttr">total=${state.count}</p>

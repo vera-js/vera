@@ -105,7 +105,15 @@ type Registry = {
 };
 type Untracked = <A extends unknown[], R>(fn: (...args: A) => R, ...args: A) => R;
 type Applies = { _$apply$: (element: Element, key: object, run: Untracked, adopting?: boolean) => void };
-type ValueHandler = (part: object, value: unknown) => boolean | void;
+/**
+ * A `'value'` handler: `true` claims the value (it commits into the emptied part; the server span goes). During hydration
+ * a THIRD argument is passed — the part as the base adopted it — and a handler may return `ADOPTED` (2) to keep those
+ * nodes, taking ownership of what was adopted. **The third argument is OPTIONAL and absent = build** (B4, 2026-10-22): an
+ * older handler ignores it and claims as before; a newer handler under an older base, which passes two, builds.
+ */
+type ValueHandler = (part: object, value: unknown, adopted?: object) => boolean | number | void;
+/** What a handler returns to keep the adopted nodes instead of claiming (`claimed`). */
+const ADOPTED = 2;
 
 let H: Handoff;
 let registry: Registry;
@@ -658,11 +666,15 @@ const claimed = (part: ChildPart, value: unknown, handlers: ValueHandler[]) => {
   for (let node = part.$s === null ? part.$w!.firstChild : part.$s.nextSibling; node !== null && node !== part.$e; node = node.nextSibling)
     span.push(node);
   Object.assign(part, new H[HANDOFF_CHILD_PART](part.$s, part.$e), { $w: was.$w, $k: was.$k });
-  for (let i = 0; i < handlers.length; i++)
-    if (handlers[i](part, value)) {
+  for (let i = 0; i < handlers.length; i++) {
+    const claim = handlers[i](part, value, was);
+    /** Kept: the handler took ownership of what the base adopted — the adopted state comes back, its queue still runs. */
+    if (claim === ADOPTED) break;
+    if (claim) {
       for (const node of span) node.parentNode?.removeChild(node);
       return true;
     }
+  }
   Object.assign(part, was);
   return false;
 };

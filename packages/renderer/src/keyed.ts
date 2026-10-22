@@ -677,12 +677,28 @@ const automap = (
   list.h.$n(undefined, true);
   return list.values;
 };
-const eachValue = (part: object, value: unknown) => {
+const eachValue = (part: object, value: unknown, adopted?: object) => {
   if (value === null || typeof value !== 'object') return false;
   /** An automatic `.map` result: committed by its list, which then knows the part its rows live in. */
   if (Array.isArray(value)) {
     const list = (value as unknown as Record<symbol, List | undefined>)[AUTO];
     if (list === undefined || value === committing) return false;
+    /**
+     * **Hydrating: the list ADOPTS the server's rows** (B4, 2026-10-22). The base adopted one instance per row FROM THESE
+     * ROWS' OWN results — same count, same templates, same keys, by construction — so the list only takes ownership
+     * (`ADOPTED`, 2) and the base's queued commits patch any stale value in place, as for every adopted instance. It used
+     * to claim, which rebuilt every row. Any other shape (no adopted items, a count that differs) builds, as before.
+     */
+    const items = (adopted as EachPart | undefined)?.$i;
+    if (items !== undefined && items.length === list.recs.length) {
+      list.part = part as EachPart;
+      list.committed = list.parent.v;
+      for (let i = 0; i < items.length; i++) {
+        list.recs[i].inst = items[i];
+        list.recs[i].part = part as EachPart;
+      }
+      return 2;
+    }
     commitList(list, part as EachPart);
     return true;
   }
