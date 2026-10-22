@@ -309,6 +309,11 @@ from another machine, or after that is undone, has a variable changed.
   dead in Firefox and Safari until the panel returns, unless the pop-out defines the same tags or the renderer builds the
   child in the component's HOME realm and adopts it (decided in R4). (Chromium 151, Firefox 153, WebKit 26.5, Playwright
   headless; a platform behavior, not a timing; 2026-10-22)
+- **`moveBefore()` and `connectedMoveCallback` ship in Chromium and Firefox, not in WebKit.** A same-document
+  `moveBefore` of a connected custom element that defines `connectedMoveCallback` calls ONLY that callback (no disconnect
+  or connect) in Chromium 151 and Firefox 153; WebKit 26.5 has no `Element.prototype.moveBefore`. Consequence: a component
+  kept across `moveBefore` through `connectedMoveCallback` needs the existing one-operation move path on WebKit, and the
+  callback's creation cost is measured on all three before any class gains it. (Playwright headless; 2026-10-22)
 
 ## Test environments
 
