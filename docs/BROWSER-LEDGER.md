@@ -328,6 +328,11 @@ from another machine, or after that is undone, has a variable changed.
   Consequence: a component KEPT across a cross-document move must re-adopt its styles on every such move, both ways —
   a sheet made by the new document's realm (or a `<style>` fallback) there, the original sheet again on return. Today's
   re-setup on a cross-document move hides this. (Playwright headless; 2026-10-22)
+- **A cross-document move drops focus; the selection range and an input's value survive.** A focused `<input>` (with a
+  selection) inside a shadow root, its host moved into a same-origin iframe's document and back: focus is lost on the
+  move and not restored on return; `selectionStart`/`selectionEnd` and `value` are kept. Chromium 151, Firefox 153,
+  WebKit 26.5 alike. Consequence: an app that pops a panel out re-focuses it itself; the framework keeps the component,
+  not the focus. (Playwright headless; 2026-10-22)
 
 ## Test environments
 
