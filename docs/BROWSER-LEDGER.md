@@ -282,8 +282,10 @@ from another machine, or after that is undone, has a variable changed.
   releases every removed element (no leak); framework-free pages (prototype accessors, a symbol / string / own field, a
   Proxy field, nine expandos, a WeakMap-keyed proxy target) do not reproduce it. Reachability alone cannot explain it —
   the closure-held store is reachable from an element field too (the hook list) — so a short path from the field into
-  the store's graph is what the arms isolate; allocation-site pretenuring is the leading hypothesis, to be checked with
-  SpiderMonkey's pretenuring report. Consequence: where a component's props record lives (core's `_$raw$`, which bound
+  the store's graph is what the arms isolate. Allocation-site pretenuring was checked and is NOT supported:
+  SpiderMonkey's pretenuring report (`JS_GC_REPORT_PRETENURE`) prints only the parent process's sites under a
+  multi-process Firefox; run with e10s off (diagnosis only), the framework's allocation sites pretenure identically in both
+  arms. Consequence: where a component's props record lives (core's `_$raw$`, which bound
   undeclared props already use, and `define`'s declared props) is a design decision measured on Firefox, never assumed
   free. (Playwright Firefox 153 HEADLESS — provisional, 4 runs per arm; the profile 2 runs each; 2026-10-21)
 
