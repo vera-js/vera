@@ -29,7 +29,6 @@ export const TABLES = [
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
   { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: ['src/autoloader.ts', 'src/loader.ts'] },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: ['src/inserts.ts'] },
-  { name: 'store', tables: ['src/diagnostics.ts'], sources: ['src/computed.ts'] },
   { name: 'ui', tables: ['src/diagnostics.ts'], sources: ['src/register.ts', 'src/select/element.ts'] },
   { name: 'router', tables: ['src/diagnostics.ts'], sources: ['src/events.ts', 'src/methods.ts', 'src/router.ts', 'src/services.ts'] },
   { name: 'hot', tables: ['src/diagnostics.ts'], sources: ['src/index.ts'] },
@@ -53,7 +52,7 @@ export const TABLES = [
   { name: 'cms', tables: ['src/publish-diagnostics.ts', 'src/content-diagnostics.ts'], sources: ['src/schema.ts', 'src/manifest.ts', 'src/node.ts', 'src/taxonomy.ts', 'src/frontmatter.ts', 'src/markdown.ts', 'src/reader.ts', 'src/writer.ts'] },
   /** The compiler's table keeps its words in every build; the standalone loader's is development-only. */
   { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: ['src/transform.ts', 'src/parser.ts', 'src/standalone.ts'] },
-  { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/define.ts', 'src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
+  { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/define.ts', 'src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/useRender.ts', 'src/services/createProxy.ts', 'src/modules/untrack.ts', 'src/modules/computed.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
 ];
 
 /**

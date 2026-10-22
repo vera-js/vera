@@ -39,6 +39,8 @@ const REMOVED = {
    *  name cannot go on this list. `tests/docs-moved-render.test.mjs` covers it by specifier. */
   connectRouter: 'router',
   '@verajs/collections': '@verajs/store/collections',
+  /** `computed` moved INTO core (C10, 2026-10-22): lazy, watched while read. */
+  '@verajs/store/computed': "computed from '@verajs/core'",
   /** The JS easing-solver pack died with the inline write path (the sweep): the browser is the
    *  easing solver on every path, so `ease` works with nothing wired. The bare word 'easing(s)'
    *  is ordinary prose; the API NAME only ever appeared in wire arrays and import lists, which

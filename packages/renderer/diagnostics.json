@@ -123,6 +123,12 @@
       "fix": "Pass an object: renderer({ shadow: 'open' })."
     },
     {
+      "code": "renderer-two-cores",
+      "params": [],
+      "message": "is already connected to another copy of @verajs/core, and now follows this one: the first app's renders lose their tracking (they read through this core's untracked) and its hydration and teardown seams point here.",
+      "fix": "Load a renderer per core — each app wires its own vera-renderer bundle — or share one core between the apps."
+    },
+    {
       "code": "self-closed-tag",
       "params": [
         "tag"

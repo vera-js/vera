@@ -26,7 +26,7 @@ for (const key of [
 const core = await load('core');
 const { createStore, useSyncEffect, useEffect, init, html, wire } = core;
 const { renderer } = await load('renderer');
-const { computed } = await load('store');
+const { computed } = await load('core');
 wire([renderer]);
 
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -125,11 +125,15 @@ test('the extra work a diamond costs is one evaluation of the dependent', () => 
   );
 });
 
+/**
+ * WATCHED (read inside a hook): that is where the memoization claim lives. An UNWATCHED computed read from plain code
+ * holds no subscriptions and re-evaluates after any store write (C10, 2026-10-22) — the next row.
+ */
 test('a computed evaluates once per change and not at all for an unrelated write', () => {
   const state = createStore({ watched: 1, unrelated: 1 });
   let evaluations = 0;
   const value = computed(() => { evaluations++; return state.watched; });
-  void value.value;
+  mount(() => useSyncEffect(() => { void value.value; }));
   const baseline = evaluations;
   for (let i = 0; i < 10; i++) state.unrelated = i;
   assert.equal(evaluations - baseline, 0, 'an unrelated store write costs none at all');
@@ -139,6 +143,21 @@ test('a computed evaluates once per change and not at all for an unrelated write
   void value.value;
   void value.value;
   assert.equal(evaluations - baseline, 1, 'reading it three times costs nothing further');
+});
+
+test('unwatched, read from plain code: lazy, cached until the next store write anywhere', () => {
+  const state = createStore({ watched: 1, unrelated: 1 });
+  let evaluations = 0;
+  const value = computed(() => { evaluations++; return state.watched; });
+  assert.equal(evaluations, 0, 'not evaluated until read');
+  void value.value;
+  void value.value;
+  assert.equal(evaluations, 1, 'two reads with no write between: one evaluation');
+  state.unrelated = 2;
+  void value.value;
+  assert.equal(evaluations, 2, 'any store write, then a read: evaluated again (conservative — it holds no subscriptions)');
+  state.watched = 5;
+  assert.equal(value.value, 5, 'and current');
 });
 
 test('a branch that was not taken is not subscribed, and one abandoned is unsubscribed', () => {

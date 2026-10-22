@@ -60,7 +60,6 @@ const SAFE = [
   '@verajs/inserts',
   '@verajs/store',
   '@verajs/store/collections',
-  '@verajs/store/computed',
   '@verajs/store/resource',
   '@verajs/renderer/keyed',
   '@verajs/renderer/slots',

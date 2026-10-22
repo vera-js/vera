@@ -67,7 +67,7 @@ let notifications = 0;
  * above. So each mutating operation is also asked whether it woke a reader, and each non-mutating one
  * whether it stayed quiet.
  */
-const { computed } = await load('store');
+const { computed } = await load('core');
 
 
 test('a reactive Map and Set behave like plain ones, and notify exactly when they change', () => {

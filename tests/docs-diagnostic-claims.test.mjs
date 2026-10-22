@@ -226,7 +226,9 @@ const CLAIMS = new Map([
   ['packages/ssr/README.md#b7dd238da1', 'not a promise: says it prints no warning'], // That serves the component's state from before the wait, which is exactly what the browser 
   ['packages/ssr/README.md#1e3a0a07fa', "not a promise: the instance marker's behavior, no message"], // **It only ever produces the component it was written for**: a copy of it on another tag is
   ['packages/ssr/README.md#777bd846a5', 'ssr-styles-vary'], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
-  ['packages/store/README.md#1bca1504c8', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // An evaluation that throws is reported through the `'error'` insert rather than escaping, e
+  ['packages/core/README.md#06311ae242', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // (moved from the store README, 2026-10-22) An evaluation that throws is reported through the `'error'` insert rather than escaping, e
+  ['llms.txt#e06ef33ea0', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // computed's API row: a throw is reported and the last good value kept
+  ['packages/renderer/README.md#fd75b53ed5', 'renderer-two-cores'], // one renderer wired into two cores: the production warning by code
   ['packages/styles/README.md#48e9ab9c5a', 'unwired-styles'], // Forget the wiring and a component with `static styles` renders unstyled — development says
   ['packages/styles/README.md#ab7656278f', 'slotted-light'], // Development says so if a light component's sheet uses `::slotted()`.
   ['packages/styles/README.md#b5c13c2241', 'no-scope'], // Development says so, once.

@@ -38,7 +38,6 @@ const PACKAGES = {
   '@verajs/autoloader': 'autoloader',
   '@verajs/inserts': 'inserts',
   '@verajs/store': 'store',
-  '@verajs/store/computed': 'store/computed',
   '@verajs/store/resource': 'store/resource',
   '@verajs/store/collections': 'store/collections',
   '@verajs/renderer/spread': 'renderer/spread',
@@ -246,11 +245,10 @@ const EXPECTED_RECIPES = {
    * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
    * quick start is executed rather than merely printed. */
   'packages/autoloader/README.md': 1,
-  'packages/core/README.md': 6,
+  'packages/core/README.md': 7, // 6 → 7: computed moved into core (2026-10-22)
   'packages/directives/README.md': 1,
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
-  'packages/store/README.md': 1,
   'packages/renderer/README.md': 8, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02); 7 → 8: native-elements (2026-10-21)
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,

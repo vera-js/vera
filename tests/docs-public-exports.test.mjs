@@ -46,7 +46,6 @@ const PACKAGES = {
   '@verajs/autoloader': 'autoloader',
   '@verajs/styles': 'styles',
   '@verajs/store': 'store',
-  '@verajs/store/computed': 'store/computed',
   '@verajs/store/collections': 'store/collections',
   '@verajs/store/resource': 'store/resource',
   '@verajs/inserts': 'inserts',

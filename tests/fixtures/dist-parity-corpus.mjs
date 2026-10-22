@@ -29,7 +29,7 @@ const { renderer, renderInto, hold } = await load('@verajs/renderer');
 const { keyed } = await load('@verajs/renderer/keyed');
 const { spread } = await load('@verajs/renderer/spread');
 const { tag, html: tagHtml } = await load('@verajs/renderer/tag');
-const { computed } = await load('@verajs/store');
+const { computed } = await load('@verajs/core');
 const { collections } = await load('@verajs/store/collections');
 wire([renderer, collections]);
 

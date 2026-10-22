@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->5.57 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->5.67 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -287,7 +287,7 @@ instead of rebuilding them — form state, scroll position and running animation
 not survive a MOVE: the platform blurs any node that is re-inserted, framework or not (pinned in the
 browser suite), so only the elements that actually moved lose it.
 It is its own entry because most apps never reorder a list, and the algorithm that makes reordering
-cheap is <!--size:keyed.gzip-->632 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
+cheap is <!--size:keyed.gzip-->2.47 KB<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
 nothing registers, and there is no `wire()` call — the marker stamps each result with the strategy
 that understands it, so a list always names its own reconciler and two strategies cannot disagree
 about one. Lit splits `repeat` out for the same reason; the difference is that this one arrives on

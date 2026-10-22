@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->4.52 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->6.91 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -253,6 +253,7 @@ that too.
 | `createStore(obj)` | deep reactive proxy — nested objects are tracked too |
 | `ref(value)` | a deep reactive box for a single value, read and written as `.value` |
 | `shallowRef(value)` | `.value` is tracked; the contents are **not** proxied |
+| `computed(fn)` | a memoized derived value, read as `.value` — lazy, and linked only while something reads it |
 | `untrack(fn)` | read current state without subscribing to it |
 
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
@@ -269,6 +270,61 @@ const frame = shallowRef(new Float32Array(64)); // .value tracked; the contents 
 const total = () => untrack(() => state.rows.length);  // read without subscribing
 // Reading a value inside a hook is what subscribes it — `void state.filter;` if you only need the dependency.
 ```
+
+### `computed` — derived values
+
+<!-- recipe -->
+```js
+import { init, createStore, computed, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+
+wire([renderer]);
+
+customElements.define(
+  'x-cart',
+  class extends HTMLElement {
+    connectedCallback() {
+      init({ host: this, shadow: 'open' }, () => {
+        const cart = createStore({ items: [{ price: 3 }, { price: 4 }], coupon: '' });
+        const total = computed(() => cart.items.reduce((n, item) => n + item.price, 0));
+
+        return () => html`
+        <p>Total: ${total.value}</p>
+        <button @click=${() => cart.items.push({ price: 5 })}>Add</button>
+        <input .value=${cart.coupon} @input=${(e) => (cart.coupon = e.target.value)} />
+      `;
+      });
+    }
+  }
+);
+
+document.body.append(document.createElement('x-cart'));
+```
+
+`() => a + b` runs on every read; `computed(() => a + b)` runs once per **change** of what it read.
+Reading it a hundred times in one render costs one evaluation, and typing in that coupon field costs
+none, because `total` never read `coupon`. Computeds chain — one may read another — and reading
+`.value` inside a render or effect subscribes it, so the reader re-runs when the result changes (an
+equal result re-runs nothing).
+
+**It is linked only while something reads it.** Read by a render, an effect or another computed, it
+is kept current inside the write that changes its source. Read by nothing, it holds no subscription at
+all: it does not evaluate until read, and a read from plain code (a handler, module scope) evaluates
+it then and caches the answer until the next store write. When its last reader goes — the component
+removed, or a render that no longer reads it — it lets go of its sources by the end of that microtask.
+So there is nothing to dispose: a computed made in a setup, in a render, in an effect or at module
+scope never keeps anything alive past its last reader, even over a store that is never written again.
+
+A computed made **inside a render** is a new one on every render (it is code in the render); the
+previous render's lets go when the new render stops reading it. That is fine for something cheap to
+evaluate; one that should live across renders belongs in the setup.
+
+An evaluation that throws is reported through the `'error'` insert rather than escaping, and `.value`
+keeps the **last good value**.
+
+**A diamond is not settled between its halves.** Where two computeds read one store and a third reads
+both, a write re-evaluates the third once per half. A render or `useEffect` (both coalesced) only ever
+sees the settled value; a `useSyncEffect`, which runs at once per write, can see the step between.
 
 ### What "deep" reaches, and what it does not
 

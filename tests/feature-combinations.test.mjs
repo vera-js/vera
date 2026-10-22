@@ -475,7 +475,7 @@ test('hold + keyed: rows share the call site and never each other\'s parked stat
  */
 test('computed + untrack: one render per dep write, none per untracked write', async () => {
   const { init, createStore, untrack } = core;
-  const { computed } = await load('store');
+  const { computed } = await load('core');
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;

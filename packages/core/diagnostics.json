@@ -28,6 +28,14 @@
       "fix": "Fix the cleanup, or wire an 'error' insert to handle what hooks throw."
     },
     {
+      "code": "computed-not-function",
+      "params": [
+        "received"
+      ],
+      "message": "expected a function to derive the value from, and received {received}.",
+      "fix": "Pass the expression as a function — computed(() => a + b), not computed(a + b)."
+    },
+    {
       "code": "define-attribute-reflected",
       "params": [
         "prop"

@@ -14,7 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { define, init, createStore, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
+import { define, init, createStore, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -29,14 +29,13 @@ import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/rende
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
 import { adoptStyles, applyStyles, styles, css } from '@verajs/styles';
-import { collections, computed } from '@verajs/store';
+import { collections } from '@verajs/store';
 /**
  * The SUBPATH entries too, not only the package they are re-exported from. A consumer may install
  * either spelling, and only these compile the declarations those subpaths actually publish — the
  * base entry's types say nothing about them.
  */
 import { collections as collectionsEntry } from '@verajs/store/collections';
-import { computed as computedEntry } from '@verajs/store/computed';
 import { resource, type Resource } from '@verajs/store/resource';
 
 interface Row { id: number; label: string }
@@ -216,7 +215,7 @@ void byName;
 void slottedElements;
 
 void collectionsEntry;
-void computedEntry;
+
 
 /** `define`: the tag forms, options, and `methods` typed on the instances (`this` is the element inside them). */
 define('x-consumer-plain', () => () => html`<p>plain</p>`);

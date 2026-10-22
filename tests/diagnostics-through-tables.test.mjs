@@ -31,7 +31,6 @@ const MIGRATED = [
   ['shared-utils', '../renderer/dist/vera-renderer.min.js'],
   ['router', 'dist/vera-router.min.js'],
   ['inserts', '../core/dist/vera.min.js'],
-  ['store', 'dist/*.min.js'],
   ['ui', 'dist/*.min.js'],
   ['hot', 'dist/*.min.js'],
   ['autoloader', 'dist/*.min.js'],

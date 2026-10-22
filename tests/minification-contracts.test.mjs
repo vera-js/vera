@@ -52,7 +52,6 @@ const PROD = {
  */
 const EXTERNAL_CORE = {
   reactivity: 'packages/store/dist/vera-store.min.js',
-  computed: 'packages/store/dist/vera-store-computed.min.js',
   resource: 'packages/store/dist/vera-store-resource.min.js',
 };
 

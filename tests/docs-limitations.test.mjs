@@ -34,10 +34,10 @@ const LIMITATIONS = [
     'llms.txt is what an agent reads instead of the README',
   ],
   [
-    'computed is eager, not lazy',
-    'packages/store/README.md',
-    'It is eager, not lazy',
-    'the name promises the opposite in Vue, Solid and Preact',
+    'a computed read from plain code re-evaluates after ANY store write',
+    'packages/core/README.md',
+    'caches the answer until the next store write',
+    'while nothing watches it, it holds no subscriptions, so it cannot tell its own sources\' writes from any other (C10, 2026-10-22; it was eager before)',
   ],
   [
     'a carriage return cannot survive inside style or script',

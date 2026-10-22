@@ -27,7 +27,6 @@ const entry = (name, input) =>
  */
 export default [
   entry(pkg.filename),
-  entry(`${pkg.filename}-computed`, 'src/computed.ts'),
   entry(`${pkg.filename}-collections`, 'src/collections.ts'),
   entry(`${pkg.filename}-resource`, 'src/resource.ts'),
 ];

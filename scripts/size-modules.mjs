@@ -21,7 +21,6 @@ export const MODULES = [
   { pkg: 'store', dist: 'packages/store/dist/vera-store.min.js', what: 'the standalone store — subscriptions without components' },
   { pkg: 'jsx', dist: 'packages/jsx/dist/vera-jsx.min.js', what: 'the JSX transform + Vite plugin — build-time, never shipped to a page' },
   { pkg: 'standalone', dir: 'jsx', dist: 'packages/jsx/dist/vera-jsx-standalone.min.js', what: 'JSX in the browser with no build — the CodePen path' },
-  { pkg: 'computed', dir: 'store', dist: 'packages/store/dist/vera-store-computed.min.js', what: 'memoized derived values' },
   { pkg: 'collections', dir: 'store', dist: 'packages/store/dist/vera-store-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
   { pkg: 'resource', dir: 'store', dist: 'packages/store/dist/vera-store-resource.min.js', what: 'async data as a reactive cell' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },

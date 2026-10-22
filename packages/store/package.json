@@ -25,11 +25,6 @@
       "development": "./dist/development/vera-store.js",
       "default": "./dist/vera-store.min.js"
     },
-    "./computed": {
-      "types": "./dist/development/vera-store-computed.d.ts",
-      "development": "./dist/development/vera-store-computed.js",
-      "default": "./dist/vera-store-computed.min.js"
-    },
     "./collections": {
       "types": "./dist/development/vera-store-collections.d.ts",
       "development": "./dist/development/vera-store-collections.js",
@@ -124,9 +119,6 @@
     "vera",
     "store",
     "reactivity",
-    "computed",
-    "memo",
-    "derived",
     "map",
     "set",
     "collections"

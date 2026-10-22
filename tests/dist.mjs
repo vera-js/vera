@@ -53,7 +53,6 @@ export const ENTRY = {
   router: ['router', 'vera-router'],
   autoloader: ['autoloader', 'vera-autoloader'],
   inserts: ['inserts', 'vera-inserts'],
-  'store/computed': ['store', 'vera-store-computed'],
   'store/resource': ['store', 'vera-store-resource'],
   store: ['store', 'vera-store'],
   'renderer/keyed': ['renderer', 'vera-renderer-keyed'],
