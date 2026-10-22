@@ -8,7 +8,7 @@
  * Written against the `paths` aliases in the root tsconfig, so they check each package's `src` — the
  * source of truth — rather than a possibly stale `dist`.
  */
-import { ref, shallowRef, createStore, untrack, useEffect, useLayoutEffect, useHook } from '@verajs/core';
+import { signal, createStore, untrack, useEffect, useLayoutEffect, useHook } from '@verajs/core';
 import type { ParseRouteParams, RouteParams, RouterMethods } from '@verajs/router';
 
 /** Fails to compile unless A and B are the same type, including union arity. */
@@ -22,39 +22,45 @@ type Expect<T extends true> = T;
  * became the return type. Consumers got `T | { value: T }` for `.value`, which made both
  * `count.value++` and a plain assignment a type error at every call site.
  */
-type _refIsNotAUnion = Expect<Equal<ReturnType<typeof ref<number>>, { value: number }>>;
-type _refCarriesItsType = Expect<Equal<ReturnType<typeof ref<string>>['value'], string>>;
+type _refIsNotAUnion = Expect<Equal<ReturnType<typeof signal<number>>, { value: number }>>;
+type _refCarriesItsType = Expect<Equal<ReturnType<typeof signal<string>>['value'], string>>;
 /** No `_ignore`: the store's internal shallow mark is not part of what a consumer holds. */
-type _shallowRefShape = Expect<Equal<ReturnType<typeof shallowRef<number>>, { value: number }>>;
+type _shallowRefShape = Expect<Equal<ReturnType<typeof signal<number>>, { value: number }>>;
 
 /**
  * **An element ref is created empty**, which is how the renderer's README, `llms.txt` and every
  * example write it — `<input ${myRef}>` assigns the element to `.value`. The signature required an
- * initial value, so following that documentation in TypeScript did not compile: `ref<HTMLInputElement>()`
+ * initial value, so following that documentation in TypeScript did not compile: `signal<HTMLInputElement>()`
  * was *"Expected 1 arguments, but got 0"*, and the workaround nobody would arrive at from the docs
- * is `ref<HTMLInputElement | undefined>(undefined)`.
+ * is `signal<HTMLInputElement | undefined>(undefined)`.
  *
  * Found by installing the packed tarballs into an empty project and writing the documented app —
  * the type layer had never been exercised from outside the workspace with an element ref.
  */
-const box = ref<HTMLInputElement>();
+const box = signal<HTMLInputElement>();
 type _emptyRefIsOptional = Expect<Equal<typeof box, { value: HTMLInputElement | undefined }>>;
 box.value = document.createElement('input');
 box.value = undefined;
 
-const _emptyShallow = shallowRef<string>();
+const _emptyShallow = signal<string>();
 type _emptyShallowRef = Expect<Equal<typeof _emptyShallow, { value: string | undefined }>>;
 
+/** `deep` keeps the value's type, and `createStore`'s option keeps the store's (2026-10-22). */
+const _deep = signal({ n: 1 }, { deep: true });
+type _deepKeepsItsType = Expect<Equal<typeof _deep, { value: { n: number } }>>;
+const _flatStore = createStore({ n: 1 }, { deep: false });
+_flatStore.n = 2;
+
 /** And the valued form keeps its narrow type, which is the whole reason there are two signatures. */
-const _narrow = ref(0);
+const _narrow = signal(0);
 type _valuedRefStaysNarrow = Expect<Equal<typeof _narrow, { value: number }>>;
 
-const count = ref(0);
+const count = signal(0);
 count.value++;
 count.value += 1;
 count.value = 5;
 
-const label = shallowRef('hello');
+const label = signal('hello');
 label.value = 'goodbye';
 
 /* ── createStore ─────────────────────────────────────────────────────────────────────────────── */
@@ -77,6 +83,7 @@ export type {
   _shallowRefShape,
   _emptyRefIsOptional,
   _emptyShallowRef,
+  _deepKeepsItsType,
   _valuedRefStaysNarrow,
   _storeKeepsPropertyTypes,
 };

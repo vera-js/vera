@@ -1,15 +1,15 @@
-import { init, html, shallowRef } from '@verajs/core';
+import { init, html, signal } from '@verajs/core';
 
 /**
  * The larger SSR bench fixture: a 100-row table, the classic list-heavy page shape. Rows live in
- * a `shallowRef`, per the documented list guidance (llms.txt) — deep-proxying immutable rows is
+ * a `signal` (shallow), per the documented list guidance (llms.txt) — deep-proxying immutable rows is
  * the measured ~300x mistake, on the server exactly as on the client — see
  * `tests/perf-claims.test.mjs`, which asserts the ratio rather than a figure that drifts.
  */
 export default class RowsSsr extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
-      const state = shallowRef(Array.from({ length: 100 }, (_, i) => ({ id: i, label: `row ${i} <safe>` })));
+      const state = signal(Array.from({ length: 100 }, (_, i) => ({ id: i, label: `row ${i} <safe>` })));
       return () => html`
         <table>
           <tbody>

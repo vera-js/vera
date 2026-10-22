@@ -23,7 +23,7 @@ for (const n of ['window','document','HTMLElement','customElements','CSSStyleShe
 const which = process.env.VERA_DIST === 'production' ? 'production' : 'development';
 const load = async (spec) => import(spec);
 const core = await load('@verajs/core');
-const { html, init, createStore, ref, useEffect, useSyncEffect, wire, untrack, shallowRef } = core;
+const { html, init, createStore, signal, useEffect, useSyncEffect, wire, untrack } = core;
 const { css } = await load('@verajs/styles');
 const { renderer, renderInto, hold } = await load('@verajs/renderer');
 const { keyed } = await load('@verajs/renderer/keyed');
@@ -143,7 +143,7 @@ const shape = (el) => el.innerHTML;
 {
   const state = createStore({ n: 1, tags: new Set(['a']), map: new Map([['k', 1]]) });
   const doubled = computed(() => state.n * 2);
-  const box = ref();
+  const box = signal();
   const effects = [];
   const tagName = 'x-p25';
   dom.window.customElements.define(tagName, class extends dom.window.HTMLElement {
@@ -167,7 +167,7 @@ const shape = (el) => el.innerHTML;
   say('component/effects', JSON.stringify(effects));
   say('component/ref', box.value?.localName ?? String(box.value));
   say('component/untracked', String(untrack(() => state.n)));
-  const shallow = shallowRef({ deep: { n: 1 } });
+  const shallow = signal({ deep: { n: 1 } });
   let shallowRuns = 0;
   const t2 = 'x-p25-shallow';
   dom.window.customElements.define(t2, class extends dom.window.HTMLElement {
@@ -179,7 +179,7 @@ const shape = (el) => el.innerHTML;
   await settle();
   const before = shallowRuns;
   shallow.value.deep.n = 5;
-  say('component/shallowRef is shallow', String(shallowRuns - before));
+  say('component/signal is shallow', String(shallowRuns - before));
   element.remove();
   await settle();
   say('component/effects after removal', JSON.stringify(effects));

@@ -1,4 +1,4 @@
-import type { Cell, ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Signal } from '../types.js';
+import type { Cell, ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Change } from '../types.js';
 import { currentInstance, tracking, unlinkFrom } from '../store/store.js';
 import { enqueue } from './scheduler.js';
 import { diagnostic, reportUncaught } from '@verajs/shared-utils';
@@ -136,7 +136,7 @@ class HookState implements HookRecord {
   declare _k: number;
   declare _m: number;
   declare _c: HookCleanup | undefined;
-  declare _q: Signal<unknown> | undefined;
+  declare _q: Change<unknown> | undefined;
   declare _in: boolean;
   declare _f: number;
   declare _r: number;
@@ -180,7 +180,7 @@ class HookState implements HookRecord {
       born.push(this);
   }
 
-  $n(signal?: Signal<unknown>, init?: boolean) {
+  $n(signal?: Change<unknown>, init?: boolean) {
     const owner = this._o;
     if (owner._$g$ !== this._g || (!init && owner.isConnected === false)) return;
     if (init || this._m === RAW) return this.$t(signal, init);
@@ -229,7 +229,7 @@ class HookState implements HookRecord {
    * The cleanup stays ON the hook (`_c`), where removal's walk finds it (`retire`); an owner that removed itself during
    * this very run has already been walked, so its cleanup runs at once rather than waiting on a walk that is over.
    */
-  $t(signal?: Signal<unknown>, init?: boolean) {
+  $t(signal?: Change<unknown>, init?: boolean) {
     const owner = this._o;
     const outer = tracking.hook;
     tracking.hook = this;
@@ -415,7 +415,7 @@ export const finite = (priority: unknown, subject: string) => {
 };
 
 /** What `createHook` and `useHook` hand their caller: a function running the hook — `run(undefined, true)` is its first pass. */
-export const callable = (hook: HookRecord) => (signal?: Signal<unknown>, init?: boolean) => hook.$n(signal, init);
+export const callable = (hook: HookRecord) => (signal?: Change<unknown>, init?: boolean) => hook.$n(signal, init);
 
 /**
  * **The raw hook primitive**: registers a hook on its owner — the element being set up, or `element` when given — and

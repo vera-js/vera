@@ -7,7 +7,7 @@
  * these cases depend on.
  */
 import { expect } from '@esm-bundle/chai';
-import { html, wire, init, ref } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init, signal } from '../../packages/core/dist/development/vera.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { props } from '../../packages/renderer/dist/development/vera-renderer-spread.js';
 
@@ -67,7 +67,7 @@ it('a ref through props() stays reactive across the boundary', async () => {
     }
   });
   const host = mount();
-  const box = ref(5);
+  const box = signal(5);
   renderInto(html`<bp-ref ${props({ box })}></bp-ref>`, host);
   await frame(); await frame();
   const el = host.querySelector('bp-ref');

@@ -1,6 +1,6 @@
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
-import { init, createStore, useEffect, useLayoutEffect, ref, html } from '@verajs/core';
+import { init, createStore, useEffect, useLayoutEffect, signal, html } from '@verajs/core';
 import { css } from '@verajs/styles';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
@@ -60,7 +60,7 @@ class GoodbyeComponent extends HTMLElement {
 
       const testMap = createStore(new Map([['hello', 'Little Women']]));
 
-      const testRef = ref(0);
+      const testRef = signal(0);
 
       useEffect(() => {
         console.log(state.hello);
@@ -69,7 +69,7 @@ class GoodbyeComponent extends HTMLElement {
         console.log('STATE CHANGED!!!', state.hello.name.last);
       });
 
-      // const stateMachine = ref(new Map([['hello', 'goodbye']]));
+      // const stateMachine = signal(new Map([['hello', 'goodbye']]), { deep: true });
 
       // useEffect(() => {
       //   console.log('State machine value: ', stateMachine.value.get('hello'));

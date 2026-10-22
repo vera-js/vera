@@ -2,7 +2,7 @@ import { claim, grow, placeAt, proxyCallbacks, readerAt, slotAt, tracking, unlin
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { Cell, HookRecord, Signal } from '../types.js';
+import type { Cell, HookRecord, Change } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
@@ -79,7 +79,7 @@ let wakes = 0;
  * already reached carries this wake's number and is skipped, so none is missed and none runs twice. A hook that JOINS
  * during the walk is reached too, as a `Set` reached an entry added while it was being iterated.
  */
-const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
+const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
   let m = cell.m;
   for (let p = 0; p < cell.n; p++) {
     const hook = readerAt(cell, p);
@@ -97,7 +97,7 @@ const wake = (cell: Cell, signal: Signal<unknown>, epoch: number) => {
 /** Wakes every hook that read `obj[prop]`. */
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, ++wakes);
   /**
    * **An unread write moves the count too — once any `computed` has been read outside a run** (2026-10-22). An
    * unwatched computed caches its untracked value against the count, and its sources are often keys nobody reads:
@@ -200,7 +200,7 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
        * re-read". Not `length`: `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would
        * read as nothing happened.
        */
-      const signal = { prop: GLOBAL, value: obj } as Signal<unknown>;
+      const signal = { prop: GLOBAL, value: obj } as Change<unknown>;
       const send = (key: unknown) => {
         const cell = keys.get(key);
         if (cell !== undefined) wake(cell, signal, epoch);
@@ -659,7 +659,7 @@ const RAW = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
   const cell = proxyCallbacks.get(obj)?.get(ITEMS);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Signal<unknown>, ++wakes);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Change<unknown>, ++wakes);
 };
 /**
  * **Automatic `.map`** (Brian 2026-10-20): inside a RENDER hook (priority 50: a
@@ -758,7 +758,7 @@ export const walkItems = (list: unknown, visit: (raw: unknown, item: unknown) =>
 
 /**
  * A SHALLOW view of `data`: reads subscribe and writes notify like any store, but what a read returns
- * is handed back as it is — never wrapped. `shallowRef`'s handler: a large immutable value (a list of
+ * is handed back as it is — never wrapped. `signal`'s handler (shallow by default): a large immutable value (a list of
  * rows, a parsed document) behind a deep store costs a proxy and a subscription per nested read, for
  * objects that never mutate; replacing `.value` is the change that matters, and it notifies.
  */

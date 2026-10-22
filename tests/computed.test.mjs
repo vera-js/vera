@@ -78,8 +78,8 @@ const mount = () => {
 {
   const state = core.createStore({ n: 1 });
   const c = computed(() => state.n);
-  const r = core.ref(1);
-  check('matches ref()’s shape, so both are `.value`', 'value' in c && 'value' in r);
+  const r = core.signal(1);
+  check('matches signal()’s shape, so both are `.value`', 'value' in c && 'value' in r);
 }
 
 /* ── collections and nesting work, because it is just a store read ──────────────────────────── */

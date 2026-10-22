@@ -127,8 +127,8 @@ test('a store written into a store is stored RAW, and reads back as the same pro
 });
 
 test('a store of another kind (shallow) is kept as it is', async () => {
-  const { shallowRef } = await load('core');
-  const ref = shallowRef({ deep: { x: 1 } });
+  const { signal } = await load('core');
+  const ref = signal({ deep: { x: 1 } });
   const raw = {};
   const state = createStore({ box: raw });
   state.box.ref = ref;

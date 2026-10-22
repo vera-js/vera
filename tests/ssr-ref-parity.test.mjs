@@ -24,7 +24,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBe
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment'])
   globalThis[key] = dom.window[key];
 
-const { html, ref } = await load('core');
+const { html, signal } = await load('core');
 const { renderInto } = await load('renderer');
 
 const onClient = (template) => {
@@ -34,7 +34,7 @@ const onClient = (template) => {
   return host.innerHTML.replace(/<!---->/g, '').trim();
 };
 
-const box = ref(null);
+const box = signal(null);
 const CASES = {
   'element position, function': () => html`<p ${(element) => element}>r</p>`,
   'element position, ref object': () => html`<p ${box}>r</p>`,

@@ -17,14 +17,14 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { init, html, wire, ref, flush } = await load('core');
+const { init, html, wire, signal, flush } = await load('core');
 const { renderer } = await load('renderer');
 const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 test('a slot rendered later by a condition shows the light child appended while it was absent', async () => {
-  const open = ref(false);
+  const open = signal(false);
   customElements.define('late-slot-host', class extends HTMLElement {
     connectedCallback() { init(this, () => () => html`<main>${open.value ? html`<em><slot>fallback</slot></em>` : null}</main>`); }
   });

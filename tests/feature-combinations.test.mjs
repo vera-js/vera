@@ -72,7 +72,7 @@ test('ref + hydrate: the ref receives the server node, not a fresh one', () => {
   const host = div();
   host.innerHTML = '<input value="server">';
   const server = host.querySelector('input');
-  const reference = core.ref(null);
+  const reference = core.signal(null);
   hydrateInto(html`<input value="server" ${reference} />`, host);
   assert.equal(reference.value, server, 'the ref got a node the page is not showing');
 });
@@ -114,7 +114,7 @@ test('hold + hydrate: a held subtree survives a toggle away and back', () => {
  * sortable list, and a removal that failed to release one would keep a detached node alive.
  */
 test('keyed + ref: a reorder keeps every ref, a removal releases exactly one', () => {
-  const refs = { a: core.ref(null), b: core.ref(null), c: core.ref(null) };
+  const refs = { a: core.signal(null), b: core.signal(null), c: core.signal(null) };
   const host = div();
   const draw = (order) =>
     renderInto(html`<ul>${order.map((id) => keyed(id, html`<li data-id=${id} ${refs[id]}>${id}</li>`))}</ul>`, host);
@@ -521,14 +521,14 @@ test('computed + untrack: one render per dep write, none per untracked write', a
 });
 
 /**
- * shallowRef + keyed: the documented list-data recipe, composed. The README says use shallowRef
+ * signal (shallow) + keyed: the documented list-data recipe, composed. The README says use a signal
  * for rows and REPLACE rather than mutate; keyed says rows move by identity. The composition's
  * cells: one .value swap costs one render and reconciles by key (a move, an update, an add and a
  * removal in one swap); an INNER mutation renders nothing — shallow means shallow, the screen
  * holds stale by design; and the reassignment escape hatch shows it while identity still holds.
  */
-test('shallowRef + keyed: replace reconciles by identity, inner mutation stays invisible', async () => {
-  const { init, shallowRef } = core;
+test('signal (shallow) + keyed: replace reconciles by identity, inner mutation stays invisible', async () => {
+  const { init, signal } = core;
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
@@ -538,7 +538,7 @@ test('shallowRef + keyed: replace reconciles by identity, inner mutation stays i
     customElements.define('fc-rows-view', class extends dom.window.HTMLElement {
       connectedCallback() {
         init(this, () => {
-          this.rows = shallowRef([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'c', v: 3 }]);
+          this.rows = signal([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'c', v: 3 }]);
           return () => { renders++; return html`<ul>${this.rows.value.map((r) => keyed(r.id, html`<li>${r.id}:${r.v}</li>`))}</ul>`; };
         });
       }
@@ -616,15 +616,15 @@ test('spread + hold: bags update, departed keys release, handlers swap — acros
 });
 
 /**
- * ref() + element refs + effects: the bindings table says core's ref() doubles as an element ref
- * ("an object gets the element assigned to .value"), and ref() is REACTIVE — so the composition's
+ * signal() + element refs + effects: the bindings table says core's signal() doubles as an element ref
+ * ("an object gets the element assigned to .value"), and signal() is REACTIVE — so the composition's
  * promise is that an effect reading box.value tracks the element's lifecycle: it sees the land,
  * sees the release when the subtree renders away (the README's release contract, observed
  * reactively rather than polled), and sees the fresh element on return. The trace is the
  * assertion: ["input", null, "input"], one effect run per transition.
  */
 test('a ref box drives effects through land, release, and re-land', async () => {
-  const { init, ref, useEffect, createStore } = core;
+  const { init, signal, useEffect, createStore } = core;
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
@@ -634,7 +634,7 @@ test('a ref box drives effects through land, release, and re-land', async () => 
     customElements.define('fc-ref-view', class extends dom.window.HTMLElement {
       connectedCallback() {
         init(this, () => {
-          this.box = ref(null);
+          this.box = signal(null);
           this.state = createStore({ show: true });
           useEffect(() => { seen.push(this.box.value?.localName ?? null); });
           return () => html`<div>${this.state.show ? html`<input ${this.box} />` : 'gone'}</div>`;

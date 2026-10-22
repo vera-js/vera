@@ -109,7 +109,7 @@ renderInto(
 Core **adopts** what the parent's property bindings delivered: each bound key becomes a
 store-backed accessor on the element, so a read in a render is tracked and the parent's next
 commit re-renders — reactivity in both directions, with values arriving **by identity** (an
-array, a `Date`, a store or a `ref()` passed down stays itself, and stays live). Three things
+array, a `Date`, a store or a `signal()` passed down stays itself, and stays live). Three things
 worth knowing:
 
 - **Values come from property bindings** — `.date=${…}` in a template, `props({ date })` in
@@ -250,9 +250,9 @@ that too.
 
 | | |
 | --- | --- |
-| `createStore(obj)` | deep reactive proxy — nested objects are tracked too |
-| `ref(value)` | a deep reactive box for a single value, read and written as `.value` |
-| `shallowRef(value)` | `.value` is tracked; the contents are **not** proxied |
+| `createStore(obj)` | deep reactive proxy — nested objects are tracked too; `{ deep: false }` tracks only its top-level keys |
+| `signal(value)` | a reactive box for one value, read and written as `.value` — **shallow**: replacing `.value` notifies, the contents are not proxied |
+| `signal(value, { deep: true })` | the same, with the contents tracked too — a value you both replace and mutate inside (what `ref` was) |
 | `computed(fn)` | a memoized derived value, read as `.value` — lazy, and linked only while something reads it |
 | `untrack(fn)` | read current state without subscribing to it |
 
@@ -261,11 +261,12 @@ store, wire that, and mutating methods notify like any other write. Without it c
 time one is read.
 
 ```js
-import { createStore, ref, shallowRef, untrack } from '@verajs/core';
+import { createStore, signal, untrack } from '@verajs/core';
 
 const state = createStore({ filter: 'all', rows: [] });
-const focus = ref(null);                    // read and written as focus.value, deeply tracked
-const frame = shallowRef(new Float32Array(64)); // .value tracked; the contents deliberately not
+const focus = signal(null);                          // read and written as focus.value
+const user = signal({ name: 'Ada' }, { deep: true }); // replace it, or mutate inside it: both tracked
+const frame = signal(new Float32Array(64));          // .value tracked; the contents deliberately not
 
 const total = () => untrack(() => state.rows.length);  // read without subscribing
 // Reading a value inside a hook is what subscribes it — `void state.filter;` if you only need the dependency.
@@ -375,12 +376,12 @@ keys rather than on any one of them, and hears about a key arriving or leaving. 
 matrix: every container kind crossed with every way of mutating it, against the data itself
 (`tests/core-reactivity-matrix.test.mjs`).
 
-**Use `shallowRef` for list data.** Putting 1 000 row objects through `createStore` proxies every one
+**Use a `signal` for list data.** Putting 1 000 row objects through `createStore` proxies every one
 of them, and reading every field back through those proxies costs about 15× the same read on a plain array
 (the median ratio, 2026-10-16, Apple M1, Node 24 — `VERA_DIST=production node --test tests/perf-claims.test.mjs` prints
 it; the gate requires at least 5× on every run). Earlier passes of this doc said 60× and then 20–30×: the store has
 outgrown both as its reads got cheaper. When rows are replaced rather than mutated — which is the usual case —
-`shallowRef` is the right tool.
+a `signal` (shallow by default) is the right tool.
 
 ## Effects
 

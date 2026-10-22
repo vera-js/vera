@@ -23,7 +23,7 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
                  'requestAnimationFrame', 'cancelAnimationFrame', 'CSSStyleSheet'])
   globalThis[k] = dom.window[k];
 
-const { html, wire, init, ref, createStore, useEffect } = await load('core');
+const { html, wire, init, signal, createStore, useEffect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { spread, props } = await load('renderer/spread');
 wire([renderer]);
@@ -89,7 +89,7 @@ test('a ref passed through props() stays live: mutating ref.value re-renders the
     }
   });
   const host = mount();
-  const box = ref(5);
+  const box = signal(5);
   renderInto(html`<cp-ref ${props({ box })}></cp-ref>`, host);
   await frame(); await frame();
   const el = host.querySelector('cp-ref');

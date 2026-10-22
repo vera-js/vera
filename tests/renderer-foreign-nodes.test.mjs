@@ -22,7 +22,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 
 const core = await load('core');
 const { renderer, renderInto } = await load('renderer');
-const { init, html, wire, inserts, ref, flush } = core;
+const { init, html, wire, inserts, signal, flush } = core;
 const doc = dom.window.document;
 const COMMENT = 8;
 const comments = (root) => [...root.childNodes].filter((node) => node.nodeType === COMMENT).length;
@@ -44,7 +44,7 @@ wire([renderer]);
  */
 const mount = (options = {}) => {
   const tag = `x-foreign-${seq++}`;
-  const state = ref({ which: 'a', n: 0 });
+  const state = signal({ which: 'a', n: 0 }, { deep: true });
   const draw = () => (state.value.which === 'a' ? html`<p>a ${state.value.n}</p>` : html`<b>b ${state.value.n}</b>`);
   customElements.define(tag, class extends HTMLElement { connectedCallback() { init({ host: this, shadow: 'open', ...options }, () => draw); } });
   const el = doc.createElement(tag);

@@ -1,18 +1,20 @@
 import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
-import { createProxy } from '../services/createProxy.js';
+import { createProxy, createShallow } from '../services/createProxy.js';
+import { checkDeep } from './signal.js';
+import type { DeepOption } from './signal.js';
 import type { Store } from '../types.js';
 
 /**
  * Create a reactive store
  *
- * A primitive has nothing to proxy, so it is refused rather than quietly boxed: `ref(value)` is the
+ * A primitive has nothing to proxy, so it is refused rather than quietly boxed: `signal(value)` is the
  * way to hold one value, and the error names it. Typed callers cannot get here (`T extends object`);
  * this is for JavaScript, which has no compiler to stop it.
  *
  * @param initialStore Defines the store's structure and types; the store proxies this object
  */
-export const createStore = <T extends object>(initialStore: T) => {
+export const createStore = <T extends object>(initialStore: T, options?: DeepOption) => {
   if (initialStore === null || (typeof initialStore !== 'object' && typeof initialStore !== 'function'))
     /** The throw is unconditional; only the explanation folds away in production. */
     /**
@@ -22,7 +24,9 @@ export const createStore = <T extends object>(initialStore: T) => {
     throw new TypeError(
       __DEV__
         ? misuse('createStore', 'store-not-object', __DEV__ && PROSE['store-not-object'](String(initialStore)))
-        : 'createStore: object required — use ref()'
+        : 'createStore: object required — use signal()'
     );
-  return createProxy(initialStore) as Store<T>;
+  if (__DEV__) checkDeep('createStore', options);
+  /** `{ deep: false }` (2026-10-22): the top-level keys tracked, what they hold handed back as it is. */
+  return (options?.deep === false ? createShallow : createProxy)(initialStore) as Store<T>;
 };

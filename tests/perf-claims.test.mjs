@@ -87,10 +87,10 @@ const walk = (list) => {
   globalThis.__perfSink += sum;
 };
 
-test('a deep store is far more expensive to walk than a shallowRef, which is why the docs say so', (t) => {
+test('a deep store is far more expensive to walk than a shallow signal, which is why the docs say so', (t) => {
   const rows = () => Array.from({ length: 1000 }, (_, i) => ({ id: i, label: `row ${i}` }));
   const deep = core.createStore({ rows: rows() });
-  const shallow = core.shallowRef(rows());
+  const shallow = core.signal(rows());
 
   const { ratio, median, dear: deepCost, cheap: shallowCost } = bestRatio(
     () => walk(deep.rows),
@@ -103,16 +103,16 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
    * cell instead of a stack — a deep read outside a component costs ~41% less). Asserted at 5x: far enough below to
    * survive any machine and further read-path wins, and far enough above 1x to fail loudly if `_ignore` ever stops being
    * honored — which it did once before, when only the returned value was checked and never the owner, and `shallowRef`
-   * silently did nothing at all. The floor guards a RATIO COLLAPSING TO ~1x (shallowRef gone deep) — do not tighten it
+   * silently did nothing at all. The floor guards a RATIO COLLAPSING TO ~1x (signal gone deep) — do not tighten it
    * to the measured figure on a fast machine. llms.txt and the core README quote the MEDIAN this row prints (with date and
    * machine); update them together.
    */
-  t.diagnostic(`deep store vs shallowRef walk: median ${median.toFixed(1)}x across rounds (the figure the docs quote), best ${ratio.toFixed(1)}x (what the floor asserts)`);
+  t.diagnostic(`deep store vs shallow signal walk: median ${median.toFixed(1)}x across rounds (the figure the docs quote), best ${ratio.toFixed(1)}x (what the floor asserts)`);
   assert.ok(
     ratio > 5,
-    `a deep store should be far costlier to walk than a shallowRef; measured ${ratio.toFixed(1)}x ` +
+    `a deep store should be far costlier to walk than a shallow signal; measured ${ratio.toFixed(1)}x ` +
       `(deep ${deepCost.toFixed(0)} ns/row, shallow ${shallowCost.toFixed(0)} ns/row). ` +
-      `If this dropped, shallowRef has stopped being shallow.`
+      `If this dropped, signal has stopped being shallow.`
   );
 });
 

@@ -44,6 +44,10 @@ export const PROSE: Record<string, Prose> = {
     `it has a \`${name}\` method and no \`setup\`, so init found nothing to run.`,
     'Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns.',
   ],
+  'deep-not-boolean': (received) => [
+    `was given deep: ${received}, which is not true or false, so it used its default.`,
+    'Pass a boolean — signal(value, { deep: true }), createStore(obj, { deep: false }).',
+  ],
   'computed-not-function': (received) => [
     `expected a function to derive the value from, and received ${received}.`,
     'Pass the expression as a function — computed(() => a + b), not computed(a + b).',
@@ -68,7 +72,7 @@ export const PROSE: Record<string, Prose> = {
     `expected a component element and received ${received}.`,
     'Pass the element whose loop is intentional — `allowRenderLoop(this)` inside the component.',
   ],
-  'store-not-object': (received) => [`expected an object and received ${received}.`, 'To hold one value, use ref(value).'],
+  'store-not-object': (received) => [`expected an object and received ${received}.`, 'To hold one value, use signal(value).'],
   'store-refused': (operation, why) => [
     `this store's source object refused the ${operation} — ${why}.`,
     'A store proxies the object it was given and cannot override what JavaScript declines. Pass a mutable object to createStore, or keep this one outside the store and read it directly.',

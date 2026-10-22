@@ -42,13 +42,13 @@ globalThis.WeakRef = class extends NativeWeakRef {
   }
 };
 
-const { init, html, wire, ref, flush } = await load('core');
+const { init, html, wire, signal, flush } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
-const open = ref(false);
+const open = signal(false);
 customElements.define('pon-row', class extends HTMLElement {
   connectedCallback() { init(this, () => () => html`<p>row</p>`); }
 });
@@ -180,7 +180,7 @@ test('a child PREPENDED by hand to a slotless host is slotted once a re-render b
   el.remove();
 });
 
-const tick = ref(0);
+const tick = signal(0);
 let tickRenders = 0;
 customElements.define('pon-tick', class extends HTMLElement {
   connectedCallback() { init(this, () => () => { tickRenders++; return html`<main>${tick.value}</main>`; }); }

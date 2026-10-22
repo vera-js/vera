@@ -2,12 +2,12 @@
  * The JSX twin of `../components/sink-list.js` — keyed lists through `key={}`, which the transform
  * compiles to `keyed()` from `@verajs/renderer`.
  */
-import { init, shallowRef, untrack } from '@verajs/core';
+import { init, signal, untrack } from '@verajs/core';
 
 export default class SinkList extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
-      const rows = shallowRef([
+      const rows = signal([
         { id: 'a', label: 'alpha' },
         { id: 'b', label: 'beta' },
         { id: 'c', label: 'gamma' },

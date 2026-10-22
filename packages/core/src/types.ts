@@ -88,7 +88,7 @@ export type HookCleanup = () => void;
  * Returns nothing, a cleanup, or — an `async` callback — a promise, which runs but is never a cleanup (only a function
  * is; development names an async callback once).
  */
-export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
+export type HookCallback = <V>(change?: Change<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
 
 /** An element's hooks in run order: sorted by `_k` (priority, then creation). */
 export type Hooks = HookRecord[];
@@ -136,7 +136,7 @@ export type HookRecord = {
   _m: number;
   /** The cleanup the last run returned, and the signal of the first write since the last run. */
   _c: HookCleanup | undefined;
-  _q: Signal<unknown> | undefined;
+  _q: Change<unknown> | undefined;
   _in: boolean;
   _f: number;
   _r: number;
@@ -164,14 +164,14 @@ export type HookRecord = {
    * **The ONE place a hook is handed a change** — a write reaching it, a first pass, or a caller running the hook
    * `createHook`/`useHook` returned. The single tracked-run choke point native signals would plug into.
    */
-  $n(signal?: Signal<unknown>, init?: boolean): void;
+  $n(signal?: Change<unknown>, init?: boolean): void;
   /** The queued pass: run once, with the first write's signal since the last run. */
   $q(): void;
 };
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type RenderTemplate = <V>(signal?: Signal<V>) => any;
+export type RenderTemplate = <V>(change?: Change<V>) => any;
 
 /** The root a component renders into: `'open'` / `'closed'` shadow, `false` for light DOM, or any `ShadowRootInit`. */
 export type ShadowOption = 'open' | 'closed' | false | ShadowRootInit;
@@ -242,7 +242,10 @@ export type TemplateResult<T extends ResultType = 1> = {
  * identity, writes to it, or aborts through it — and nothing may: a per-hook field here (a run id, an abort controller)
  * would leak one subscriber's state into all of them. Per-hook state belongs on the hook.
  */
-export type Signal<V> = {
+/** What `signal()` returns: one value, read and written as `.value`. */
+export type Signal<T> = { value: T };
+
+export type Change<V> = {
   prop?: string;
   value?: V;
   prevValue?: V;

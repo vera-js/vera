@@ -174,10 +174,10 @@ test('a frozen store is accepted and still reads', () => {
   assert.equal(frozen.nested.b, 2);
 });
 
-/** A primitive has nothing for a store to proxy; `ref()` is the box for one value, and the error says so. */
-test('createStore refuses a primitive, naming ref', () => {
+/** A primitive has nothing for a store to proxy; `signal()` is the box for one value, and the error says so. */
+test('createStore refuses a primitive, naming signal', () => {
   for (const value of [0, 'text', true, null, undefined]) {
-    assert.throws(() => core.createStore(value), /ref\(/, `createStore(${String(value)}) names ref()`);
+    assert.throws(() => core.createStore(value), /signal\(/, `createStore(${String(value)}) names signal()`);
   }
 });
 

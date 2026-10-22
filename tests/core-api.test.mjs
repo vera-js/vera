@@ -21,10 +21,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
 
 const core = await load('core');
-const {
-  init, createStore, useEffect, useSyncEffect, useLayoutEffect, useRender,
-  ref, shallowRef, untrack, html,
-  setRenderScheduler, microtask, wire} = core;
+const { init, createStore, useEffect, useSyncEffect, useLayoutEffect, useRender, signal, untrack, html, setRenderScheduler, microtask, wire } = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -78,11 +75,11 @@ test('untrack reads the current value without subscribing', async () => {
   assert.equal(seenB, 'second', 'and untrack sees the current value when it does');
 });
 
-// ── ref / shallowRef ────────────────────────────────────────────────────────
+// ── signal (shallow) / signal deep ────────────────────────────────────────────────────────
 
 test('ref is reactive through nested properties', async () => {
   let runs = 0;
-  const box = ref({ nested: { n: 0 } });
+  const box = signal({ nested: { n: 0 } }, { deep: true });
   mount(() => {
     useSyncEffect(() => { void box.value.nested.n; runs++; });
     return () => html`<i>x</i>`;
@@ -94,9 +91,9 @@ test('ref is reactive through nested properties', async () => {
   assert.ok(runs > baseline, 'a deep write notifies');
 });
 
-test('shallowRef does not proxy what it holds, but replacing .value notifies', async () => {
+test('signal (shallow) does not proxy what it holds, but replacing .value notifies', async () => {
   let runs = 0;
-  const box = shallowRef({ nested: { n: 0 } });
+  const box = signal({ nested: { n: 0 } });
   mount(() => {
     useSyncEffect(() => { void box.value; runs++; });
     return () => html`<i>x</i>`;
@@ -106,7 +103,7 @@ test('shallowRef does not proxy what it holds, but replacing .value notifies', a
   const afterMount = runs;
   box.value.nested.n = 99;
   await settle();
-  assert.equal(runs, afterMount, 'mutating INSIDE a shallowRef does not notify — that is the point');
+  assert.equal(runs, afterMount, 'mutating INSIDE a shallow signal does not notify — that is the point');
 
   box.value = { nested: { n: 1 } };
   await settle();

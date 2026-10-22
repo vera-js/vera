@@ -7,7 +7,7 @@
  * Deterministic by construction — no clock, no randomness — because the same markup has to come out
  * of `renderToString` and out of a browser.
  */
-import { init, html, svg, mathml, createStore, ref } from '@verajs/core';
+import { init, html, svg, mathml, createStore, signal } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 
 export default class SinkBindings extends HTMLElement {
@@ -25,7 +25,7 @@ export default class SinkBindings extends HTMLElement {
         busy: false,
       });
       /** An object ref: the renderer assigns `.value`. A function ref is covered below it. */
-      const box = ref(null);
+      const box = signal(null);
       this.box = box;
 
       return () => html`<section id="bindings">

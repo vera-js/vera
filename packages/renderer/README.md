@@ -99,7 +99,7 @@ render instead). Both were public and both were documented, so a reader who knew
 | `<button @click=${fn}>` | event listener. An object with a `handleEvent` method works too — `addEventListener` takes both |
 | `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital. A STATIC `onclick="…"` stays a plain attribute (yours, greppable); a BOUND `onclick=${…}` runs its value as code, so it is **refused** — in templates, in spread and on the server alike |
 | `<input ${fn}>` | element ref: a function is called with the element |
-| `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
+| `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `signal()` works here |
 | `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
 
 A ref runs once per **distinct value**, not once per render — and **after its render pass**, once the
@@ -1015,7 +1015,7 @@ Three rules, each earned:
 
 Nothing to declare on the other side — no `static properties`, no props argument. A component that
 calls `init()` finds every bound property on `this`, **reactively**: reading `this.date` in a
-render tracks it, the parent's next commit re-renders, and a store or `ref()` passed through stays
+render tracks it, the parent's next commit re-renders, and a store or `signal()` passed through stays
 live because it arrives by identity. The full reception contract — including what happens when the
 component's module loads *after* the parent rendered — is documented with `init()` in
 `@verajs/core`'s README; this package's half is the delivery:
@@ -1442,7 +1442,7 @@ Directives other renderers ship, and what replaces them here.
 | --- | --- |
 | `repeat()` | `keyed()` |
 | `cache()` | `hold()` |
-| `ref()` | an element-position expression, `<input ${myRef}>` |
+| `signal()` | an element-position expression, `<input ${myRef}>` |
 | `ifDefined()` | built in — `null`/`undefined` remove an attribute |
 | `classMap()` / `styleMap()` | build the string: `class="base ${extra}"` |
 | `guard()` | reactivity already skips unchanged work |

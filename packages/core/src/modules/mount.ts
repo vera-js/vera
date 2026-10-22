@@ -6,7 +6,7 @@ import type { ComponentElement } from '../types.js';
  * compiled to about 3x the bytecode, which Chrome's first render interprets for every component.
  */
 /**
- * ONE empty signal for every first pass — shared and read-only by contract, exactly as a write's signal is (see `Signal`);
+ * ONE empty signal for every first pass — shared and read-only by contract, exactly as a write's change is (see `Change`);
  * NOT frozen, so a mistaken write behaves the same on a first pass as on any later one.
  */
 const FIRST = {};

@@ -41,6 +41,12 @@ const REMOVED = {
   '@verajs/collections': '@verajs/store/collections',
   /** `computed` moved INTO core (C10, 2026-10-22): lazy, watched while read. */
   '@verajs/store/computed': "computed from '@verajs/core'",
+  /** `ref` and `shallowRef` became `signal` (2026-10-22). `ref` was DEEP and `signal` is shallow by default, so the old
+   *  deep form is `signal(v, { deep: true })`. Keyed on the CALL (` ref(`, `` `ref( ``), never the bare word, which is
+   *  ordinary prose ("an element ref") and inside `deref(`. */
+  shallowRef: 'signal(v) — shallow by default',
+  ' ref(': 'signal(v, { deep: true }) — ref was deep; signal is shallow by default',
+  '`ref(': 'signal(v, { deep: true }) — ref was deep; signal is shallow by default',
   /** The JS easing-solver pack died with the inline write path (the sweep): the browser is the
    *  easing solver on every path, so `ease` works with nothing wired. The bare word 'easing(s)'
    *  is ordinary prose; the API NAME only ever appeared in wire arrays and import lists, which
@@ -215,7 +221,10 @@ docs.push(
   ...walkFiles(root, /\.(md|txt|html|js|jsx|mjs|ts)$/, {
     ignore: ['node_modules', 'dist', 'internal', '.changeset'],
     skipDotDirs: true,
-  }).filter((file) => !/CHANGELOG/i.test(file))
+  })
+    .filter((file) => !/CHANGELOG/i.test(file))
+    /** Another framework's implementation in the comparison bench uses ITS OWN API (Vue's shallow ref is not ours). */
+    .filter((file) => !file.includes('/bench/dom/vue/'))
 );
 
 test('no documentation teaches an API that was removed', () => {

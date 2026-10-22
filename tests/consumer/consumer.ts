@@ -14,7 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { define, init, createStore, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
+import { define, init, createStore, wire, html, signal, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -44,8 +44,8 @@ class Demo extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
       const state = createStore({ n: 0, rows: [] as Row[], m: new Map<string, number>() });
-      const box = ref<HTMLInputElement | null>(null);
-      const shallow = shallowRef<Row[]>([]);
+      const box = signal<HTMLInputElement | null>(null);
+      const shallow = signal<Row[]>([]);
       void shallow.value;
       const total = computed(() => state.rows.length + state.n);
 

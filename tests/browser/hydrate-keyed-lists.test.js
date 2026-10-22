@@ -11,7 +11,7 @@
  * page after the list has been reversed, shortened, grown and emptied.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, html, shallowRef, untrack } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, signal, untrack } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { hydration } from '../../packages/renderer/dist/development/vera-renderer-hydration.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
@@ -26,7 +26,7 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       init({ host: this, shadow: 'open' }, () => {
-        const rows = shallowRef([...ROWS]);
+        const rows = signal([...ROWS]);
         this.rows = rows;
         this.set = (next) => (rows.value = next);
         this.current = () => untrack(() => rows.value);

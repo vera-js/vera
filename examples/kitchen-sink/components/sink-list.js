@@ -1,18 +1,18 @@
 /**
  * Keyed lists, and the reordering that only a keyed renderer survives.
  *
- * Rows live in a `shallowRef` because that is what the docs tell people to do with list data —
+ * Rows live in a `signal` (shallow) because that is what the docs tell people to do with list data —
  * `createStore` would proxy every row and cost about 60x per render. Reordering is exposed as a
  * method so a test can drive it after hydration and check that adopted nodes *move* rather than
  * being rebuilt, which is the whole claim of a keyed renderer over server markup.
  */
-import { init, html, shallowRef, untrack } from '@verajs/core';
+import { init, html, signal, untrack } from '@verajs/core';
 import { keyed } from '@verajs/renderer/keyed';
 
 export default class SinkList extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
-      const rows = shallowRef([
+      const rows = signal([
         { id: 'a', label: 'alpha' },
         { id: 'b', label: 'beta' },
         { id: 'c', label: 'gamma' },

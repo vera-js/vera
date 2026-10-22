@@ -156,7 +156,7 @@ test('an object ref has its value cleared', async () => {
   const core = await load('core');
   const host = document.createElement('div');
   document.body.append(host);
-  const box = core.ref(null);
+  const box = core.signal(null);
   const draw = (show) => (show ? core.html`<p &=${box}>a</p>` : core.html`<span>b</span>`);
 
   renderInto(draw(true), host);

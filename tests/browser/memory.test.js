@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, useEffect, ref, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, useEffect, signal, wire, html } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
@@ -132,7 +132,7 @@ const SHAPES = [
   ['one with an event listener in its template', () => () => html`<button @click=${() => {}}>go</button>`],
   ['one rendering a keyed list', () => () => html`<ul>${outliving.rows.map((r) => keyed(r, html`<li>${r}</li>`))}</ul>`],
   ['one listening to itself', (self) => { self.addEventListener('custom', () => {}); return () => html`<i>x</i>`; }],
-  ['one holding an element ref of its own', () => { const box = ref(); return () => html`<i ${box}>x</i>`; }],
+  ['one holding an element ref of its own', () => { const box = signal(); return () => html`<i ${box}>x</i>`; }],
 ];
 
 for (const [label, setup] of SHAPES) {

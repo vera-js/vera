@@ -30,7 +30,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { html, init, createStore, ref, wire } = core;
+const { html, init, createStore, signal, wire } = core;
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 
@@ -40,7 +40,7 @@ const b = document.getElementById('b');
 let seq = 0;
 
 test('a subtree rendered away releases its ref', () => {
-  const box = ref();
+  const box = signal();
   const state = createStore({ show: true });
   const draw = () => html`<div>${state.show ? html`<i ${box}>x</i>` : 'gone'}</div>`;
   const container = document.createElement('div');
@@ -66,7 +66,7 @@ test('a function ref is called with null when its subtree goes', () => {
 });
 
 test('removing the component does not release the ref, and the element is simply detached', async () => {
-  const box = ref();
+  const box = signal();
   const tag = `x-reflife-${seq++}`;
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() { init({ host: this, shadow: 'open' }, () => {
@@ -84,7 +84,7 @@ test('removing the component does not release the ref, and the element is simply
 });
 
 test('which is what keeps a move from blanking it', async () => {
-  const box = ref();
+  const box = signal();
   const state = createStore({ n: 1 });
   const tag = `x-reflife-${seq++}`;
   let renders = 0;
@@ -125,7 +125,7 @@ test('a ref created inside its component is not shared between instances', async
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       init({ host: this, shadow: 'open' }, () => {
-        const box = ref();
+        const box = signal();
         boxes.push(box);
         return () => html`<i ${box}>x</i>`;
       });

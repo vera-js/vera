@@ -16,14 +16,14 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { init, html, wire, ref, flush } = await load('core');
+const { init, html, wire, signal, flush } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { slots } = await load('renderer/slots');
 
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
-const open = ref(false);
+const open = signal(false);
 let observes = 0;
 const observe = dom.window.MutationObserver.prototype.observe;
 dom.window.MutationObserver.prototype.observe = function (...args) {

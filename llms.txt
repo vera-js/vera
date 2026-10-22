@@ -40,7 +40,7 @@ lit's own output rather than asserting it. VeraJS ships its own renderer and nee
 Four things, and that is the whole framework:
 
 1. `init(this, setup)` in `connectedCallback` attaches VeraJS to a plain custom element. The setup runs ONCE.
-2. `createStore(obj)` / `ref(v)` make state reactive. **Reading a property subscribes to it.**
+2. `createStore(obj)` / `signal(v)` make state reactive. **Reading a property subscribes to it.**
 3. The setup RETURNS its render, `() => template`, which re-runs whenever anything it read changes.
 4. `useEffect(fn)` does the same for side effects.
 
@@ -142,16 +142,15 @@ class ClickCounter extends HTMLElement {
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `createStore` | `<T extends object>(obj: T) => Store<T>` | Deep reactive proxy. Nested objects are tracked too. Throws on a primitive — hold one value with `ref()`. |
-| `ref` | `<T>(value: T) => { value: T }` | Deep reactive box for a single value. |
+| `createStore` | `<T extends object>(obj: T, options?: { deep?: boolean }) => Store<T>` | Deep reactive proxy: nested objects are tracked too. `{ deep: false }`: only its top-level keys are tracked, what they hold comes back as it is. Throws on a primitive — hold one value with `signal()`. |
+| `signal` | `<T>(value?: T, options?: { deep?: boolean }) => { value: T }` | A reactive box for ONE value, read and written as `.value`. **Shallow by default** (as every signals library and TC39's `Signal.State`): replacing `.value` notifies, mutating inside it does not. `{ deep: true }` tracks the contents too — what `ref` did. Replaced `ref` (deep) and `shallowRef` on 2026-10-22: `ref(x)` is `signal(x, { deep: true })`. |
 | `computed` | `<T>(fn: () => T) => { readonly value: T }` | Memoized derived value. Evaluates once per change of what it read; lazy, and linked only while a render, effect or computed reads it (then it lets go). A throw is reported and the last good value kept. |
-| `shallowRef` | `<T>(value: T) => { value: T }` | `.value` is tracked; **contents are NOT proxied**. Use for large immutable data such as list rows. |
 | `untrack` | `<T>(fn: () => T) => T` | Read current state without subscribing. Every handler Vera binds (`@event`, spread `@event`, `data-vd-on-*`) already runs untracked; a listener added with `addEventListener` and fired synchronously inside a hook does not — read through `untrack` there. |
 
-**Use `shallowRef` for lists.** Putting 1 000 row objects in `createStore` proxies all of them and
+**Use `signal` (shallow) for lists.** Putting 1 000 row objects in `createStore` proxies all of them and
 reading them back costs about 15x the same read on a plain array (the median ratio, 2026-10-16, Apple M1, Node 24 —
 `VERA_DIST=production node --test tests/perf-claims.test.mjs` prints it; the gate requires at least 5x on every run;
-earlier passes said 60x and then 20-30x, which the store has outgrown as its reads got cheaper). If rows are replaced rather than mutated, `shallowRef` is
+earlier passes said 60x and then 20-30x, which the store has outgrown as its reads got cheaper). If rows are replaced rather than mutated, a `signal` is
 the right tool.
 
 ### Rendering
@@ -189,7 +188,7 @@ customElements.define('order-row', class extends HTMLElement {
 
 `init()` **adopts** every bound property into a store-backed accessor, so a read in a render is
 tracked and the parent's next commit re-renders the child. Values arrive **by identity** — an
-array, a `Date`, a `createStore` store or a `ref()` stays itself and stays live, which is how a
+array, a `Date`, a `createStore` store or a `signal()` stays itself and stays live, which is how a
 child re-renders when the parent mutates the object it was given.
 
 | Rule | |
@@ -686,7 +685,7 @@ spelled conditionally — `props({ date: loaded ? date : null })` — over bags 
 
 **Receiving props needs NO declaration.** A component that calls `init()` reads every bound
 property off `this`, reactively: a render that reads `this.date` tracks it, the parent's next
-commit re-renders, and a store or `ref()` passed down stays live (values arrive by identity). No `static properties`, no props argument, no `declare` needed — a value bound before
+commit re-renders, and a store or `signal()` passed down stays live (values arrive by identity). No `static properties`, no props argument, no `declare` needed — a value bound before
 the component's module ran is recorded and re-applied by `init()`, so a bound value outranks a
 class field default in both spellings (`item;` and `item = default`). Attributes are different:
 `date="…"` is always a string in markup; props are properties. A class declaring its own
@@ -734,7 +733,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - In a single-expression attribute, `null`/`undefined` REMOVE the attribute (there is no `nothing`).
 - Keying is via `keyed(key, tpl)` on the result, not a directive.
 - Element refs are element-position expressions: `<input ${myRef} />`. A function is called with
-  the element; an object (including core's `ref()`) gets `.value` assigned. Runs once per distinct
+  the element; an object (including core's `signal()`) gets `.value` assigned. Runs once per distinct
   value.
 - `hold(result)` preserves toggled-away DOM (lit's `cache`): form values and element state survive
   `html`<div>${hold(editing ? editor() : viewer())}</div>``.
@@ -745,7 +744,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   template holds something another library owns (a charting canvas, a map container, an editor).
 - Async values are not special: render a loading state and re-render from an effect.
 - Plain strings render as TEXT, never parsed as HTML (there is no innerHTML sink).
-- A ref (`${fn}` or `&=${ref()}`) runs AFTER its render pass: the element is inserted, upgraded, in its own
+- A ref (`${fn}` or `&=${signal()}`) runs AFTER its render pass: the element is inserted, upgraded, in its own
   document — measure/focus there. Document pre-order; after the pass's `<select>` values. A value
   with `_$apply$`/`_$child$` applies MID-commit, so read its element's window lazily. A ref runs UNTRACKED
   (its reads never subscribe the component), and so do the renderer's reads of a component's getter
@@ -1808,7 +1807,7 @@ form you hold, the full explanation of a code is at `https://verajs.dev/e/<code>
 3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
    an **occupied** priority replaces that entry (this is how a renderer is swapped), and the
    replacement is named in a development warning.
-4. `createStore` for large lists → use `shallowRef`.
+4. `createStore` for large lists → use a `signal` (shallow by default).
 5. Returning a TEMPLATE from the setup instead of a function → drawn once, never updated (development says
    so). Return `() => html\`…\``.
 6. **Creating state inside the render instead of the setup → it resets on every render.** The setup runs once; the

@@ -1,4 +1,4 @@
-import { html, init, ref, createStore } from '@verajs/core';
+import { html, init, signal, createStore } from '@verajs/core';
 import { css } from '@verajs/styles';
 
 const styles = css`
@@ -22,8 +22,8 @@ class QuantityPicker extends HTMLElement {
 
       const globalStore = createStore({ name: 'hello' });
 
-      const counter = ref(0);
-      const name = ref('hello friend');
+      const counter = signal(0);
+      const name = signal('hello friend');
 
       const incrementCounter = () => {
         console.log('hello');
@@ -31,7 +31,7 @@ class QuantityPicker extends HTMLElement {
         globalStore.name = 'goodbye';
       };
 
-      const checked = ref(true);
+      const checked = signal(true);
 
       const setChecked = () => {
         checked.value = !checked.value;
@@ -73,8 +73,8 @@ customElements.define('quantity-picker', QuantityPicker);
 
 export default QuantityPicker;
 
-// const showHello = ref(false);
-// const name = ref('asdfasfd');
+// const showHello = signal(false);
+// const name = signal('asdfasfd');
 
 // const showHelloClick = () => (showHello.value = !showHello.value);
 

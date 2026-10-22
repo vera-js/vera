@@ -36,6 +36,14 @@
       "fix": "Pass the expression as a function — computed(() => a + b), not computed(a + b)."
     },
     {
+      "code": "deep-not-boolean",
+      "params": [
+        "received"
+      ],
+      "message": "was given deep: {received}, which is not true or false, so it used its default.",
+      "fix": "Pass a boolean — signal(value, { deep: true }), createStore(obj, { deep: false })."
+    },
+    {
       "code": "define-attribute-reflected",
       "params": [
         "prop"
@@ -271,7 +279,7 @@
         "received"
       ],
       "message": "expected an object and received {received}.",
-      "fix": "To hold one value, use ref(value)."
+      "fix": "To hold one value, use signal(value)."
     },
     {
       "code": "store-refused",

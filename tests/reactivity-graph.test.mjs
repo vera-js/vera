@@ -243,13 +243,13 @@ test('a store inside a store is the same store, and a write through it notifies 
 /**
  * **Every kind of store stays itself when it meets another store** — recognized by asking it, not by a
  * table (the table entry cost ~380 ns per `createStore`). The shapes a question could miss: a
- * `shallowRef` (its own handler), a store handed back to `createStore`, and a store whose target is not
+ * a shallow `signal` (its own handler), a store handed back to `createStore`, and a store whose target is not
  * extensible — frozen before, frozen through the store after, or only prevented from extending — which
  * cannot answer the question and is recognized by being mapped to itself instead.
  */
 test('a store stays itself inside another store or createStore, whatever its handler or extensibility', () => {
-  const shallow = core.shallowRef([1]);
-  assert.equal(createStore({ shallow }).shallow, shallow, 'a shallowRef inside a store');
+  const shallow = core.signal([1]);
+  assert.equal(createStore({ shallow }).shallow, shallow, 'a shallow signal inside a store');
   const plain = createStore({ n: 0 });
   assert.equal(createStore(plain), plain, 'createStore of a store is that store');
   const frozen = createStore(Object.freeze({ n: 0 }));

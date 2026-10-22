@@ -47,7 +47,14 @@ export const resetIds = () => { nextId = 1; };
  * renderer is an insert at priority 50, and registering at a taken priority replaces, which is
  * exactly what the old call did.
  */
-import { init, ref, shallowRef, createStore, createHook, setRenderScheduler, microtask, wire } from '@verajs/core';
+import * as vera from '@verajs/core';
+const { init, createStore, createHook, setRenderScheduler, microtask, wire } = vera;
+/**
+ * A reactive box for one value: `signal` (shallow by default) since 2026-10-22, `shallowRef` before it. Taken by
+ * presence so the SAME page runs against a build from either side of the rename (a race's baseline may predate it).
+ * Every box below holds a primitive or rows that are only ever replaced, so shallow is exact.
+ */
+const signal = vera.signal ?? vera.shallowRef;
 import { html as litHtml, render as litRender, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 
@@ -64,19 +71,19 @@ const veraImpl = (mount) => {
   mount.appendChild(host);
 
   /**
-   * `shallowRef`, deliberately, and this is what makes the comparison fair.
+   * A shallow `signal`, deliberately, and this is what makes the comparison fair.
    *
    * The row objects are immutable snapshots — every operation replaces the array rather than
    * mutating a row — so deep-proxying them would be pure overhead. It would also not match what
    * the others do: Lit holds rows in a reactive property, React in `useState`, Van in a state cell,
-   * and in all three the row objects are plain data. `shallowRef` is the exact equivalent.
+   * and in all three the row objects are plain data. A shallow signal is the exact equivalent.
    *
    * An earlier version used `createStore({ rows })`, which proxies all 1 000 rows. That is the
    * analog of wrapping the whole dataset in Vue's `reactive()`, which no other implementation
    * here does, and it cost 2.6 ms per render pass against 0.03 ms.
    */
-  const rows = shallowRef([]);
-  const selected = ref(-1);
+  const rows = signal([]);
+  const selected = signal(-1);
 
   init(host, () => {
     return () => {
@@ -183,7 +190,7 @@ const veraFineImpl = (mount) => {
   if (!customElements.get('vb-frow')) customElements.define('vb-frow', VeraFineRow);
   const host = document.createElement('div');
   mount.appendChild(host);
-  const rows = shallowRef([]);
+  const rows = signal([]);
   let selected;
   const recs = (data) => data.map((d) => ({ id: d.id, s: createStore({ label: d.label, sel: false }) }));
   init(host, () => () => rawHtml`<div>${rows.value.map((r) => keyed(r.id, rawHtml`<vb-frow .rec=${r}></vb-frow>`))}</div>`);
@@ -221,7 +228,7 @@ const veraFineP1eImpl = (mount) => {
   wireVera();
   const host = document.createElement('div');
   mount.appendChild(host);
-  const rows = shallowRef([]);
+  const rows = signal([]);
   let selected;
   const cells = (rec) => rawHtml`<td>${rec.id}</td><td><a>${rec.s.label}</a></td><td><a>x</a></td>`;
   /** The element ref of a row's `<tr>`: on its first element, the row's scope is made and run once. */
@@ -270,7 +277,7 @@ const veraAblationImpl = ({ store, split, hook }) => (mount) => {
   wireVera();
   const host = document.createElement('div');
   mount.appendChild(host);
-  const rows = shallowRef([]);
+  const rows = signal([]);
   const cells = (rec) => rawHtml`<td>${rec.id}</td><td><a>${store ? rec.s.label : rec.label}</a></td><td><a>x</a></td>`;
   const recs = (data) => data.map((d) => {
     const rec = { id: d.id, label: d.label, el: null };
@@ -332,8 +339,8 @@ const veraS6aImpl = (mount) => {
   wireVera();
   const host = document.createElement('div');
   mount.appendChild(host);
-  const rows = shallowRef([]);
-  const selected = ref(-1);
+  const rows = signal([]);
+  const selected = signal(-1);
   const list = eachList((r) => r.id, (r) => rawHtml`<tr class="${selected.value === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`);
   init(host, () => () => { void selected.value; return rawHtml`<table><tbody>${list(rows.value)}</tbody></table>`; });
   return {
@@ -360,7 +367,7 @@ const veraS6aImpl = (mount) => {
  * **P1: `each` + a selector on `createStore`** (worktree probe/p1; DESIGN-FINE-GRAINED §P1). The selector is a store
  * of per-key flags: a row reads `flags[id]`, so core's per-key Set wakes exactly the old and the new row on a select.
  * `store` builds the rows in a `createStore` (mutated in place: Brian's idiom); otherwise rows are plain objects in a
- * shallowRef, replaced on update. Only in bundle-p1.js; elsewhere the entries are skipped.
+ * shallow signal, replaced on update. Only in bundle-p1.js; elsewhere the entries are skipped.
  */
 const veraP1Impl = (store) => (mount) => {
   setRenderScheduler(DEFAULT_SCHEDULER);
@@ -371,7 +378,7 @@ const veraP1Impl = (store) => (mount) => {
   const flags = createStore({});
   let selected;
   const state = store ? createStore({ rows: [] }) : null;
-  const plain = store ? null : shallowRef([]);
+  const plain = store ? null : signal([]);
   const rowsOf = () => (store ? state.rows : plain.value);
   const key = (r) => r.id;
   const row = (r) => rawHtml`<tr class="${flags[r.id] === true ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`;
@@ -657,8 +664,8 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
   const host = document.createElement('div');
   mount.appendChild(host);
 
-  const rows = shallowRef([]);
-  const selected = ref(-1);
+  const rows = signal([]);
+  const selected = signal(-1);
 
   init(host, () => {
     return () => {
@@ -700,7 +707,7 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
  * the table when a template is parsed.
  */
 class VeraBenchRow extends HTMLElement {
-  constructor() { super(); this.r = shallowRef(undefined); this.s = ref(false); this.started = false; }
+  constructor() { super(); this.r = signal(undefined); this.s = signal(false); this.started = false; }
   set row(value) { this.r.value = value; }
   set sel(value) { this.s.value = value; }
   connectedCallback() {
@@ -721,8 +728,8 @@ const veraComponentsImpl = (mount) => {
   const host = document.createElement('div');
   mount.appendChild(host);
 
-  const rows = shallowRef([]);
-  const selected = ref(-1);
+  const rows = signal([]);
+  const selected = signal(-1);
 
   init(host, () => {
     return () => {
