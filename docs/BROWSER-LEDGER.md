@@ -320,6 +320,14 @@ from another machine, or after that is undone, has a variable changed.
   re-render) and still updates in WebKit 26.5. Consequence: a panel left in a pop-out whose opener closed is the opener's
   realm's code; cross-window moves document it as unsupported rather than relying on WebKit's behavior. (Playwright
   headless; 2026-10-22)
+- **Moving a shadow host into another document EMPTIES its root's `adoptedStyleSheets`, and moving it back does not
+  restore them.** A shadow root in the main document adopts a constructed sheet; the host is appended into a same-origin
+  iframe's document: the root's `adoptedStyleSheets` is now empty and the rule no longer applies; appended back into the
+  main document, still empty and unstyled. Re-adopting the main document's sheet while in the iframe throws
+  `NotAllowedError` (a constructed sheet's document must match). Chromium 151, Firefox 153 and WebKit 26.5 alike.
+  Consequence: a component KEPT across a cross-document move must re-adopt its styles on every such move, both ways —
+  a sheet made by the new document's realm (or a `<style>` fallback) there, the original sheet again on return. Today's
+  re-setup on a cross-document move hides this. (Playwright headless; 2026-10-22)
 
 ## Test environments
 
