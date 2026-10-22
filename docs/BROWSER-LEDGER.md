@@ -301,6 +301,14 @@ from another machine, or after that is undone, has a variable changed.
   is a literal name — sigiled, so no production bundle mangles it — never a computed key; uniqueness across copies of a
   module comes from ownership (one class owns an element), not from the key. (Playwright Firefox 153 and installed
   Chrome, HEADLESS — provisional, 4 runs per arm; 2026-10-21)
+- **A custom element created inside ANOTHER document upgrades in Chromium only.** A component defined in the main window
+  is moved into a same-origin iframe's document (its own registry, as a pop-out window has) and its template then creates
+  a child custom element defined only in the main window. Chromium upgrades the child (it renders); Firefox and WebKit
+  leave it un-upgraded (`:defined` false, empty) — the iframe's registry does not know the tag. Moved back into the main
+  document, the child upgrades in all three. Consequence for cross-window moves: a pop-out shows its components' children
+  dead in Firefox and Safari until the panel returns, unless the pop-out defines the same tags or the renderer builds the
+  child in the component's HOME realm and adopts it (decided in R4). (Chromium 151, Firefox 153, WebKit 26.5, Playwright
+  headless; a platform behavior, not a timing; 2026-10-22)
 
 ## Test environments
 
