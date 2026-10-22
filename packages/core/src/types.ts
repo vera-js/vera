@@ -200,6 +200,10 @@ export interface InitOptions extends VeraInitOptions {
 }
 /** `define`'s options: the tag, then everything `init` takes but the host (one object per tag, shared by its instances). */
 export type DefineOptions = Omit<InitOptions, 'host'> & { tag: string };
+/** `define`'s `methods`: functions only, installed on the generated prototype (an accessor is a prop's job). */
+export type Methods = Record<string, (...args: never[]) => unknown>;
+/** The class `define` returns: its instances are components carrying the methods. */
+export type DefinedClass<M> = { new (): ComponentElement & M; prototype: ComponentElement & M };
 /**
  * A component's setup: runs ONCE per connect, untracked, with the element as `host`, and returns its render function
  * (or nothing, for a side-effect setup; or a promise of either, for an async one).

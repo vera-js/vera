@@ -14,7 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { init, createStore, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
+import { define, init, createStore, wire, html, ref, shallowRef, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -216,3 +216,19 @@ void slottedElements;
 
 void collectionsEntry;
 void computedEntry;
+
+/** R3 `define`: the tag forms, options, and `methods` typed on the instances (`this` is the element inside them). */
+define('x-consumer-plain', () => () => html`<p>plain</p>`);
+const Dialog = define({ tag: 'x-consumer-dialog', shadow: 'open', methods: {
+  open(times: number) {
+    this.toggleAttribute('open', true);
+    return times * 2;
+  },
+} }, () => () => html`<slot></slot>`);
+const dialog = new Dialog();
+const doubled: number = dialog.open(2);
+void doubled;
+// @ts-expect-error — a method it does not declare
+dialog.close();
+// @ts-expect-error — the argument is typed
+dialog.open('twice');

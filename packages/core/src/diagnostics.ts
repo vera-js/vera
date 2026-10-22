@@ -130,6 +130,28 @@ export const PROSE: Record<string, Prose> = {
     `<${tag}> is already defined; the platform refuses a second definition of a tag and throws next.`,
     'Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define.',
   ],
+  'define-method-ignored': (name) => [
+    `\`${name}\` is core's own on a define-made class, so this one is never installed (in any build).`,
+    name === 'constructor'
+      ? 'A setup is where per-instance work goes: `define(tag, (host) => { … })`.'
+      : 'Put connect-time work in the setup; for work on removal, a `disconnectedCallback` in methods runs as the teardown hook.',
+  ],
+  'define-method-not-function': () => [
+    'is not a function, so it is installed as a plain value shared by every instance — and a getter ran ONCE, here.',
+    'Methods are functions; a value that changes per element is a prop (`props: { name: default }`).',
+  ],
+  'define-method-adopted': () => [
+    'an `adoptedCallback` costs every element of this tag its creation (measured +7.4% on create10k), and it is installed.',
+    'Keep it only if moving elements between documents needs it.',
+  ],
+  'define-method-unobserved': () => [
+    'never fires: the class observes no attributes, and it is installed anyway.',
+    "Declare them: `define({ tag, attributes: ['label'] }, …)` — each then arrives as a prop.",
+  ],
+  'define-method-shadows': (name) => [
+    `replaces the platform's \`${name}\` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.`,
+    'Give it a name of its own, unless replacing the platform member is the point.',
+  ],
   'init-options': () => [
     "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): " +
       'it is ignored, in every build, so this component sets up with no shadow root.',

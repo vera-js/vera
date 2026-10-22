@@ -114,7 +114,8 @@ test('options reach core (shadow) and every init insert — as init receives the
 
 test('the shared options copy is frozen in development: a module writing to it throws', { skip: isProduction && 'development-only' }, async () => {
   const errors = [];
-  wire([{ on: 'init', fn: (element, options) => { if (element.localName === 'x-def-frozen') try { options.leak = 1; } catch (error) { errors.push(error); } }, priority: 0 }]);
+  /** Priority 1: a taken priority REPLACES (the registry's rule), and 0 is this file's `seen` spy. */
+  wire([{ on: 'init', fn: (element, options) => { if (element.localName === 'x-def-frozen') try { options.leak = 1; } catch (error) { errors.push(error); } }, priority: 1 }]);
   define({ tag: 'x-def-frozen', shadow: 'open' }, () => () => html`<p>f</p>`);
   const el = document.createElement('x-def-frozen');
   document.body.append(el);
@@ -164,4 +165,71 @@ test('two cores on one page: a define tag from each, each set up once and torn d
   await settle();
   second.flush();
   assert.deepEqual({ ...counts, r1: retires.get(one), r2: retires.get(two) }, { s1: 1, t1: 1, s2: 1, t2: 1, r1: 1, r2: 1 }, 'each retired EXACTLY once, by its own core');
+});
+
+/** Development warnings said during `fn`, by code. */
+const warned = (fn) => {
+  const warn = console.warn;
+  const said = [];
+  console.warn = (message) => said.push(String(message));
+  try { fn(); } finally { console.warn = warn; }
+  return said;
+};
+
+test('methods: callable on the element, `this` is the element, one function shared by every instance, never in the options', async () => {
+  define({ tag: 'x-def-methods', shadow: 'open' }, () => () => html`<p>m</p>`);
+  const calls = [];
+  const a = document.createElement('x-def-methods');
+  const b = document.createElement('x-def-methods');
+  document.body.append(a, b);
+  await settle();
+  assert.equal(typeof a.open, 'undefined', 'CONTROL: a define without methods installs none');
+  const M = define({ tag: 'x-def-methods2', methods: { open(n) { calls.push([this, n]); return n * 2; } } }, () => () => html`<p>m</p>`);
+  const c = document.createElement('x-def-methods2');
+  const d = document.createElement('x-def-methods2');
+  document.body.append(c, d);
+  await settle();
+  assert.equal(c.open(21), 42);
+  assert.equal(calls[0][0], c, '`this` is the element');
+  assert.equal(c.open, d.open, 'one function on the prototype, shared');
+  assert.equal(Object.hasOwn(c, 'open'), false, 'nothing per instance');
+  assert.equal(M.prototype.open, c.open);
+  assert.deepEqual(Object.keys(seen.find(([name]) => name === 'x-def-methods2')[1]), [], 'methods never reach the init options');
+  for (const el of [a, b, c, d]) el.remove();
+});
+
+test('methods cannot replace the generated connectedCallback or the constructor — in EITHER build — and both stay non-enumerable', async () => {
+  let setups = 0;
+  let said = [];
+  let C;
+  said = warned(() => {
+    C = define({ tag: 'x-def-reserved', methods: { connectedCallback() { throw new Error('the user connectedCallback ran'); }, constructor() {}, open() {} } }, () => { setups++; return () => html`<p>r</p>`; });
+  });
+  const el = document.createElement('x-def-reserved');
+  document.body.append(el);
+  await settle();
+  assert.equal(setups, 1, 'the component set up: the generated connectedCallback won');
+  assert.equal(el.constructor, C, 'el.constructor is the registered class');
+  /** jsdom has no `getName`; the browser suite's engines do (and native-elements' customized built-in test reads it). */
+  if (customElements.getName) assert.equal(customElements.getName(el.constructor), 'x-def-reserved');
+  assert.equal(customElements.get('x-def-reserved'), el.constructor);
+  const enumerable = (k) => Object.getOwnPropertyDescriptor(C.prototype, k).enumerable;
+  assert.deepEqual({ constructor: enumerable('constructor'), connectedCallback: enumerable('connectedCallback'), open: enumerable('open') }, { constructor: false, connectedCallback: false, open: true });
+  if (!isProduction) assert.equal(said.filter((m) => m.includes('define-method-ignored')).length, 2, `both said, by code (${said.join(' | ')})`);
+  el.remove();
+});
+
+test('the same behavior in both builds, the words in development: a getter, a platform name, adoptedCallback, an unobserved attributeChangedCallback', async () => {
+  let reads = 0;
+  const methods = { get value() { reads++; return 7; }, focus() { return 'mine'; }, adoptedCallback() {}, attributeChangedCallback() {} };
+  const said = warned(() => define({ tag: 'x-def-warned', methods }, () => () => html`<p>w</p>`));
+  const el = document.createElement('x-def-warned');
+  document.body.append(el);
+  await settle();
+  assert.deepEqual({ reads, value: el.value, focus: el.focus() }, { reads: 1, value: 7, focus: 'mine' }, 'installed as Object.assign installs: the getter ran ONCE, the platform name replaced');
+  if (!isProduction)
+    for (const code of ['define-method-not-function', 'define-method-shadows', 'define-method-adopted', 'define-method-unobserved'])
+      assert.equal(said.filter((m) => m.includes(code)).length, 1, `${code} said once (${said.join(' | ')})`);
+  if (isProduction) assert.equal(said.length, 0, 'production says nothing');
+  el.remove();
 });

@@ -28,6 +28,40 @@
       "fix": "Fix the cleanup, or wire an 'error' insert to handle what hooks throw."
     },
     {
+      "code": "define-method-adopted",
+      "params": [],
+      "message": "an `adoptedCallback` costs every element of this tag its creation (measured +7.4% on create10k), and it is installed.",
+      "fix": "Keep it only if moving elements between documents needs it."
+    },
+    {
+      "code": "define-method-ignored",
+      "params": [
+        "name"
+      ],
+      "message": "`{name}` is core's own on a define-made class, so this one is never installed (in any build).",
+      "fix": "Put connect-time work in the setup; for work on removal, a `disconnectedCallback` in methods runs as the teardown hook."
+    },
+    {
+      "code": "define-method-not-function",
+      "params": [],
+      "message": "is not a function, so it is installed as a plain value shared by every instance — and a getter ran ONCE, here.",
+      "fix": "Methods are functions; a value that changes per element is a prop (`props: { name: default }`)."
+    },
+    {
+      "code": "define-method-shadows",
+      "params": [
+        "name"
+      ],
+      "message": "replaces the platform's `{name}` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.",
+      "fix": "Give it a name of its own, unless replacing the platform member is the point."
+    },
+    {
+      "code": "define-method-unobserved",
+      "params": [],
+      "message": "never fires: the class observes no attributes, and it is installed anyway.",
+      "fix": "Declare them: `define({ tag, attributes: ['label'] }, …)` — each then arrives as a prop."
+    },
+    {
       "code": "define-setup",
       "params": [
         "received"
