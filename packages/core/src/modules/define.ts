@@ -17,7 +17,9 @@ import type { ComponentElement, DefineOptions, InitOptions, Setup } from '../typ
  *   creation work (CLAUDE.md: `adoptedCallback`, +7.4%).
  * - **`initWith` is not touched:** Firefox charges custom-element creation for `initWith`'s SIZE (#33, BROWSER-LEDGER
  *   2026-10-21), so everything `define` adds lives here, per tag.
- * - **A tag-only define passes no options** — the ordinary path's one comparison, no object read.
+ * - **The STRING form passes no options** — the ordinary path's one comparison, no object read. The object form passes
+ *   the rest of its keys, an EMPTY object when it names only the tag (normalizing it to `undefined` costs bytes for one
+ *   property miss per connect; vera-5a, 2026-10-21).
  * - The options copy is frozen in development: it is shared by every instance of the tag, so a module that wrote to it
  *   would leak state between them — it throws there instead (no package writes it, checked 2026-10-21).
  */

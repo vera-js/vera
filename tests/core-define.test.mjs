@@ -88,7 +88,7 @@ test('a one-operation move keeps it: setup once, no teardown, still live', async
   b.remove();
 });
 
-test('options reach core (shadow) and every init insert — as init receives them, without the tag or the setup', async () => {
+test('options reach core (shadow) and every init insert — as init receives them, without the tag or the setup; the string form passes none, the object form at least {}', async () => {
   define({ tag: 'x-def-opts', shadow: 'open' }, () => () => html`<p>in shadow</p>`);
   const el = document.createElement('x-def-opts');
   document.body.append(el);
@@ -100,9 +100,16 @@ test('options reach core (shadow) and every init insert — as init receives the
   const bare = document.createElement('x-def-bare');
   document.body.append(bare);
   await settle();
-  assert.equal(seen.find(([name]) => name === 'x-def-bare')[1], undefined, 'a tag-only define passes no options');
+  assert.equal(seen.find(([name]) => name === 'x-def-bare')[1], undefined, 'the STRING form passes no options');
+  /** The object form with only a tag passes an EMPTY object (the rest of the options): the same behavior, one property miss. */
+  define({ tag: 'x-def-tagonly' }, () => () => html`<p>t</p>`);
+  const tagOnly = document.createElement('x-def-tagonly');
+  document.body.append(tagOnly);
+  await settle();
+  assert.deepEqual(Object.keys(seen.find(([name]) => name === 'x-def-tagonly')[1]), [], 'the object form with only a tag passes {}');
   el.remove();
   bare.remove();
+  tagOnly.remove();
 });
 
 test('the shared options copy is frozen in development: a module writing to it throws', { skip: isProduction && 'development-only' }, async () => {
