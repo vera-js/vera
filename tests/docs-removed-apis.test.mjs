@@ -45,6 +45,13 @@ const REMOVED = {
    *  deep form is `signal(v, { deep: true })`. Keyed on the CALL (` ref(`, `` `ref( ``), never the bare word, which is
    *  ordinary prose ("an element ref") and inside `deref(`. */
   shallowRef: 'signal(v) — shallow by default',
+  /** The hook names became ONE `effect` (2026-10-22): the timing is an option, the raw mode is core-internal. */
+  useEffect: 'effect(fn)',
+  useLayoutEffect: "effect(fn, { timing: 'layout' })",
+  useSyncEffect: "effect(fn, { timing: 'sync' })",
+  useHook: 'effect(fn, { priority })',
+  createHook: 'effect(fn, { owner, priority }) — the raw mode is core-internal',
+  useRender: 'return the render from the setup; portal(target, template) for another element',
   /** The automatic-list connector was renamed `lists` (2026-10-22): keyed on the wire and import forms, since the bench
    *  keeps a local helper of the same name. */
   'wire([renderer, eachList])': 'wire([renderer, lists])',
@@ -260,6 +267,8 @@ test('no documentation teaches an API that was removed', () => {
       paragraph.forEach((line, offset) => {
         for (const [name, instead] of Object.entries(REMOVED)) {
           if (!line.includes(name)) continue;
+          /** A comparison with React names React's own hooks ("React's `useEffect`"): that is not teaching ours. */
+          if (/\bReact\b/.test(line) && /^use[A-Z]/.test(name)) continue;
           problems.push(
             `${relative(root, file)}:${first + offset + 1} still teaches \`${name}\` — use ${instead}\n` +
               `    ${line.trim().slice(0, 96)}`

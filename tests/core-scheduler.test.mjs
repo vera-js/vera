@@ -137,7 +137,7 @@ test('the effects contract survives the microtask scheduler', async () => {
  * write returned early and the component never rendered again — measured frozen at its initial value
  * for the rest of the page, and *not* revived by restoring the default scheduler.
  *
- * Both halves are asserted because both carry the flag independently: `useRender` has `queued` and
+ * Both halves are asserted because both carry the flag independently: the setup's returned render has `queued` and
  * `coalesce` has `scheduled`, and fixing one would have left effects dead while renders recovered.
  */
 test('a scheduler that throws does not freeze the component permanently', async () => {
@@ -147,7 +147,7 @@ test('a scheduler that throws does not freeze the component permanently', async 
   const settled = effects;
 
   /**
-   * The throw does **not** reach the writer, and that is deliberate: `createHook` isolates a hook's
+   * The throw does **not** reach the writer, and that is deliberate: core's raw hook (internal) isolates a hook's
    * error to the `'error'` insert so one bad hook cannot take out its siblings. So a throwing
    * scheduler is invisible to the code doing `state.n = 1` — which is exactly why the component
    * freezing silently afterwards was so hard to see.

@@ -77,7 +77,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent'])
     globalThis[k] = dom.window[k] ?? globalThis[k];
   const { load } = await import('./tests/dist.mjs');
-  const { init, html, wire, createStore, useEffect, computed } = await load('core');
+  const { init, html, wire, createStore, effect, computed } = await load('core');
   const { renderer } = await load('renderer');
   wire([renderer]);
   const config = createStore({ label: 'x' });
@@ -95,7 +95,7 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
   } });
   /** many: ONE component with 5000 hooks, each reading the key — retired in a loop, never recursion. */
   customElements.define('g-many', class extends HTMLElement { connectedCallback() {
-    init(this, () => { for (let i = 0; i < 5000; i++) useEffect(() => { void config.label; }); return () => html\`<i>many</i>\`; });
+    init(this, () => { for (let i = 0; i < 5000; i++) effect(() => { void config.label; }); return () => html\`<i>many</i>\`; });
   } });
   /** visit: reads the free-standing computed handed to it (made outside any setup, per batch). */
   customElements.define('g-visit', class extends HTMLElement { connectedCallback() { init(this, () => () => html\`<i>\${this.c.value}</i>\`); } });

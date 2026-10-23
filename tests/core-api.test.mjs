@@ -21,7 +21,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
 
 const core = await load('core');
-const { init, createStore, effect, useRender, signal, untrack, html, setRenderScheduler, microtask, wire } = core;
+const { init, createStore, effect, signal, untrack, html, setRenderScheduler, microtask, wire } = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -184,7 +184,7 @@ test('a userland flushSync renders synchronously and restores the scheduler', as
   await settle();
 });
 
-// ── useLayoutEffect / useRender ─────────────────────────────────────────────
+// ── effect: layout timing ─────────────────────────────────────────────
 
 test('useLayoutEffect runs, and before useEffect', async () => {
   const order = [];
@@ -201,44 +201,4 @@ test('useLayoutEffect runs, and before useEffect', async () => {
   assert.ok(order.indexOf('layout') < order.indexOf('effect'), 'layout runs before effect');
 });
 
-/**
- * **The render hook belongs to the component being set up; the element given is only where it draws.**
- * `init(a, () => { useRender(t, b); })` renders into `b`, driven by `a`'s lifecycle. Making `b` the hook's
- * owner (tried 2026-09-28 as a "fix") left the hook on an element nothing commits,
- * so it never ran — and no test failed, because every existing call passed the element being set up.
- */
-test('useRender draws into the element given, driven by the component being set up', async () => {
-  const seen = [];
-  wire({ on: 'render', fn: (result, target) => seen.push(target), priority: 51 });
-  const owner = document.createElement('div');
-  const target = document.createElement('div');
-  host.append(owner, target);
-  init(owner, () => {
-    useRender(() => html`<i>elsewhere</i>`, target);
-  });
-  await settle();
-  assert.ok(seen.includes(target), 'the owner\'s commit drew into the element given');
-  wire({ on: 'render', fn: () => {}, priority: 51 });
-});
-
-test('useRender renders into an element given explicitly', async () => {
-  const seen = [];
-  wire({ on: 'render', fn: (result, element) => seen.push({ result, element }), priority: 50 });
-  const el = document.createElement('div');
-  host.appendChild(el);
-  init({ host: el, shadow: 'open' }, () => {
-    useRender(() => html`<b>direct</b>`, el);
-  });
-  await settle();
-  /**
-   * The render insert is handed `element.shadowRoot ?? element`, so a component with a shadow
-   * root renders INTO the shadow root, not the host. That indirection is the whole reason
-   * components do not have to unwrap it themselves — asserted here because nothing else does.
-   *
-   * The registry is also global and earlier components in this file are still live, so filter for
-   * the target rather than assuming the last entry.
-   */
-  const mine = seen.filter((s) => s.element === el.shadowRoot);
-  assert.equal(mine.length > 0, true, 'useRender drove the renderer into the element it was given');
-  assert.equal(seen.some((s) => s.element === el), false, 'the host itself is never the target');
-});
+/** the setup's returned render was removed (2026-10-22): a setup returns its render; drawing into ANOTHER element is `portal` (the renderer's rows). */

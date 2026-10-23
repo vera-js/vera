@@ -157,7 +157,7 @@ test('two cores on one page: a define tag from each, each set up once and torn d
   });
   second.define('x-def-core2', () => {
     counts.s2++;
-    second.useEffect(() => () => counts.t2++);
+    second.effect(() => () => counts.t2++);
   });
   const one = document.createElement('x-def-core1');
   const two = document.createElement('x-def-core2');
@@ -487,7 +487,7 @@ test('release at removal: a component MIXING declared and adopted props — both
 
 test('release at removal: a CLASS component with adopted props, removed then re-added, still hears its parent', async () => {
   const parentState = createStore({ name: 'a' });
-  const { init, effect } = await load('core');
+  const { init } = await load('core');
   customElements.define('x-def-classadopt', class extends HTMLElement { connectedCallback() { init(this, (host) => () => html`<b>${host.name}</b>`); } });
   const parent = document.createElement('div');
   document.body.append(parent);
@@ -517,7 +517,7 @@ test('release at removal: a CLASS component with adopted props, removed then re-
  */
 test('release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)', async () => {
   const parentState = createStore({ name: 'a', tick: 0 });
-  const { init, effect } = await load('core');
+  const { init } = await load('core');
   customElements.define('x-def-livecopy', class extends HTMLElement { connectedCallback() { init(this, (host) => () => html`<b>${host.name}</b>`); } });
   const parent = document.createElement('div');
   document.body.append(parent);

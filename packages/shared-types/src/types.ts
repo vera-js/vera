@@ -18,7 +18,7 @@ export type Autoloader = (element: HTMLElement) => void;
  */
 export type CSSResultGroup = { styleSheet: CSSStyleSheet; cssText: string };
 
-/** Render function to be run by useRender each time the provided store(s) change */
+/** A component's render: run on its first pass and again when what it read changes */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Renderer = (template: any, container: HTMLElement | ShadowRoot, ...args: any[]) => any;
 

@@ -35,7 +35,7 @@ Each panel carries three headings, and each answers a different question:
 | | **remove the first**, three times | the count falls and the empty state appears — a stable shape toggling `hidden`, not a swapped subtree |
 | Reactive collections | **add a user** / **add a tag** | only the list that changed re-renders; the counts follow |
 | | **change the WeakMap value** | a `WeakMap` is reactive per key and holds nothing |
-| Effects | **bump three times** | `useSyncEffect` goes up by three and `useEffect` by one — the whole difference between them, on screen |
+| Effects | **bump three times** | a `'sync'` effect goes up by three and `effect` by one — the whole difference between them, on screen |
 | static styles | **re-tint** | the color changes and the sheet is never re-adopted; `var()` re-resolves |
 | hold() | **edit**, type, **show the value**, **edit** again | your text is still there — the DOM was kept, not rebuilt |
 | | **change the observed attribute** | `attributeChangedCallback` fires and the log grows |

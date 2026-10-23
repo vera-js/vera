@@ -1,7 +1,7 @@
 /**
  * @verajs/directives — the phase-1 vertical slice, end to end: wire, activation, context with
  * per-key owner resolution, delegated events, churn (add/remove/change), rejections, cloak, and
- * settled(). The engine's reactive half is core's createHook, so state writes re-run reflections
+ * settled(). The engine's reactive half is core's raw hook, so state writes re-run reflections
  * on core's scheduler — every wait here is settled(), never a sleep-and-hope.
  *
  * **This file is also the STANDALONE certification.** It imports nothing but the directives

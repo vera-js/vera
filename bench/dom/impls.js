@@ -48,7 +48,9 @@ export const resetIds = () => { nextId = 1; };
  * exactly what the old call did.
  */
 import * as vera from '@verajs/core';
-const { init, createStore, createHook, setRenderScheduler, microtask, wire } = vera;
+const { init, createStore, setRenderScheduler, microtask, wire } = vera;
+/** The raw hook: a public export until 2026-10-22, core's own hand-off since — by presence, so one page serves both builds. */
+const createHook = vera.createHook ?? vera.inserts.$s[2];
 /**
  * A reactive box for one value: `signal` (shallow by default) since 2026-10-22, `shallowRef` before it. Taken by
  * presence so the SAME page runs against a build from either side of the rename (a race's baseline may predate it).
@@ -217,7 +219,7 @@ const veraFineImpl = (mount) => {
 
 /**
  * **P1e: P1's shape emulated with public APIs** (DESIGN-FINE-GRAINED, 2026-10-18): TABLE markup, no component per row.
- * The list renders keyed `<tr>` shells, and each row gets its own store plus a `createHook` (owner: a plain per-row
+ * The list renders keyed `<tr>` shells, and each row gets its own store plus a core's raw hook (internal) (owner: a plain per-row
  * object, chained to the list's component) that renders its cells into its `<tr>` and sets its class. Select and
  * update write the affected rows' stores only. Emulation limits (not P1's): the hooks run on every write, not once per
  * flush; rows are disposed only with the list; each row is two template instances (shell + cells), where P1's `each`
@@ -270,7 +272,7 @@ const veraFineP1eImpl = (mount) => {
 /**
  * **The creation ablation of P1e** (2026-10-18): which part of a reactive row costs at creation? `store` gives each row a
  * `createStore`; `split` renders the row as a `<tr>` shell plus its cells in a second instance (`renderInto` at ref time);
- * `hook` makes the cells a `createHook` scope (reading the store when there is one). Creation rows only; timing probe.
+ * `hook` makes the cells a core's raw hook (internal) scope (reading the store when there is one). Creation rows only; timing probe.
  */
 const veraAblationImpl = ({ store, split, hook }) => (mount) => {
   setRenderScheduler(DEFAULT_SCHEDULER);

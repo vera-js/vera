@@ -18,6 +18,8 @@ import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { collections } = await load('store/collections');
 core.wire(collections);
 const dom = new JSDOM('<div></div>');
@@ -189,7 +191,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
     const mirror = kind.make();
 
     let seen = '';
-    core.createHook({ element, priority: 60, callback: () => (seen = kind.read(store.v)) });
+    createHook({ element, priority: 60, callback: () => (seen = kind.read(store.v)) });
     element._$h$[0].$n(undefined, true);
 
     const before = seen;
@@ -232,7 +234,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
   const store = core.createStore({ a: 1, nested: { n: 1 }, list: [1, 2] });
 
   let runs = 0;
-  core.createHook({
+  createHook({
     element,
     priority: 60,
     callback: () => { runs++; void `${store.a}${store.nested.n}${store.list[0]}${store.list.length}`; },
@@ -273,7 +275,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
   });
 
   let seen = '';
-  core.createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
+  createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
   element._$h$[0].$n(undefined, true);
 
   store.full = 'x y';
@@ -300,7 +302,7 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
   const store = core.createStore(new Named());
 
   let seen = '';
-  core.createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
+  createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
   element._$h$[0].$n(undefined, true);
 
   store.full = 'x y';

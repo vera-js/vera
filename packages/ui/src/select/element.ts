@@ -26,7 +26,7 @@
  * bans instance fields on custom elements (a field initializer runs at upgrade and clobbers any
  * property assigned before it), and `declare` cannot carry the values these need.
  */
-import { createStore, html, init, useEffect } from '@verajs/core';
+import { createStore, effect, html, init } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 import { keyed } from '@verajs/renderer/keyed';
 import { useSelect, type SelectOption } from '@verajs/hooks';
@@ -817,9 +817,9 @@ export class VeraSelect extends HTMLElement {
        * otherwise never wire at all, so this runs once regardless. Idempotent: `refresh` is
        * re-entrant by design and re-attach is guarded.
        */
-      useEffect(() => refresh(), this);
+      effect(() => refresh(), { owner: this });
 
-      useEffect(() => {
+      effect(() => {
         if (!state.open) return;
         requestAnimationFrame(() => {
           if (!state.open || !this.isConnected) return;
@@ -828,13 +828,13 @@ export class VeraSelect extends HTMLElement {
             (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
           search?.focus?.();
         });
-      }, this);
+      }, { owner: this });
 
       /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
-      useEffect(() => {
+      effect(() => {
         if (state.open && state.active >= 0)
           root.querySelector?.('[part="option"][data-active]')?.scrollIntoView?.({ block: 'nearest' });
-      }, this);
+      }, { owner: this });
 
       /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */
       const row = (option: SelectOption, index: number, active: number) => keyed(option.value, html`

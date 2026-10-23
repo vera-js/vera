@@ -81,8 +81,7 @@ test('with the element given explicitly, a hook works anywhere — after an `awa
       this.ready = (async () => {
         core.init(this, () => {});
         await null;
-        const run = core.useHook(() => { runs.push(state.n); }, 65, this);
-        run(undefined, true);
+        core.effect(() => { runs.push(state.n); }, { priority: 65, owner: this }).run();
       })();
     }
   });

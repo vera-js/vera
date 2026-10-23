@@ -1,4 +1,4 @@
-import { createStore, inserts, untrack, useHook } from '@verajs/core';
+import { createStore, effect, inserts, untrack } from '@verajs/core';
 
 /**
  * **`resource(source)` — async data as a reactive cell** (Brian 2026-10-22; the design: DOCS `resource`).
@@ -44,7 +44,7 @@ export const resource = <T>(source: (signal: AbortSignal) => T | PromiseLike<T>,
   void options?.key;
   /** A server turn starts no request nobody waits for (the turn's depth is truthy inside one). */
   if ((inserts as unknown as { $ss?: (delta: number) => unknown }).$ss?.(0)) return cell as Resource<T>;
-  useHook(() => {
+  effect(() => {
     const controller = new AbortController();
     /** This run's request is current until its cleanup — the next run, or the component's removal. */
     let current = true;
@@ -75,6 +75,6 @@ export const resource = <T>(source: (signal: AbortSignal) => T | PromiseLike<T>,
       current = false;
       controller.abort();
     };
-  }, 76);
+  }, { priority: 76 });
   return cell as Resource<T>;
 };

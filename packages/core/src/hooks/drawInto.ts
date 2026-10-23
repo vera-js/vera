@@ -18,7 +18,7 @@ let warnedNoRenderer = false;
  * The render hook. `owns` is the component's resolved `foreignNodes` — true for `'drop'`: the template owns its root —
  * and travels to the render insert WITH every render (its third argument), so the renderer never reads it from the DOM.
  * Whether a root CAN be owned (a shadow root, empty at its first render) is the renderer's decision. Only `init` passes
- * it; the public `useRender` below is this same function, typed without it.
+ * it; the public the setup's returned render below is this same function, typed without it.
  */
 export const drawInto = (template: unknown, element: ComponentElement, owns?: boolean) => {
   /**
@@ -56,17 +56,8 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
      * **The owner is the component being set up; `element` only when NONE is** (E5, 2026-10-22). During a setup the hook
      * stays the current component's even when it draws elsewhere (making the target the owner left it on an element
      * nothing commits — reverted 2026-09-28, the row in core-api). After an `await` in an async setup no component is
-     * current, and the element given is then the owner, as `useHook(fn, priority, element)` takes it.
+     * current, and the element given is then the owner, as `effect(fn, { owner })` takes it.
      */
     currentInstance.element ?? element
   );
 };
-
-/**
- * Registers a render hook on the component being set up that draws the template into `element` through
- * every `'render'` insert, and draws it again when anything it read changes — once, however many writes
- * land before it (`coalesce`). The hook belongs to the component being set up, whose lifecycle drives
- * it; `element` is only where it draws — usually the same element, and deliberately allowed not to be.
- * Drawn this way, `element`'s root is a CONTAINER: what else is in it stays (`foreignNodes: 'preserve'`).
- */
-export const useRender: (template: unknown, element: ComponentElement) => void = drawInto;

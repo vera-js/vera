@@ -17,8 +17,8 @@ Three writes to the same value in one tick — `a = 1; a = 2; a = 3` — and wha
 | React `useEffect` | 1 | `[3]` | no |
 | Solid `createEffect` | 3 | `[1,2,3]` | no |
 | Preact signals `effect` | 3 | `[1,2,3]` | no |
-| **VeraJS `useEffect`** | **1** | `[3]` | **yes** |
-| **VeraJS `useSyncEffect`** | **3** | `[1,2,3]` | **yes** |
+| **VeraJS `effect`** | **1** | `[3]` | **yes** |
+| **VeraJS a `'sync'` effect** | **3** | `[1,2,3]` | **yes** |
 
 Vue and React batch. Solid and Preact do not — theirs run synchronously, so each pass sees a
 different value, which is a real capability. **VeraJS is the only one that offers both.**
@@ -51,12 +51,12 @@ explicitly.
 
 ## Caveats — state these
 
-- **`useSyncEffect` can infinite-loop.** An effect that unconditionally writes state it also reads
+- **a `'sync'` effect can infinite-loop.** An effect that unconditionally writes state it also reads
   will recurse until the stack gives out. **Solid and Preact carry exactly the same hazard**; it is
-  the cost of the model, not a VeraJS flaw. `useEffect` cannot do this to you, which is why it is
+  the cost of the model, not a VeraJS flaw. `effect` cannot do this to you, which is why it is
   the default.
 - **Coalescing keeps one observation per flush.** A coalesced run reads current state, not the steps
-  between. Use `useSyncEffect` when the steps matter.
+  between. Use a `'sync'` effect when the steps matter.
 - **A coalesced effect runs before the browser paints** — after its flush's renders, in the same
   microtask — so a slow one delays its own update's paint. (React runs its effects after paint; Vue,
   Svelte and Lit run them before, as here.)

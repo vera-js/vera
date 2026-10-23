@@ -9,7 +9,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isProduction, load } from './dist.mjs';
 
-const { signal, createStore, createHook } = await load('core');
+const { signal, createStore } = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = (await load('core')).inserts.$s[2];
 /** A raw hook reading `read`, counting its runs after the first. */
 const watch = (read) => {
   let runs = 0;

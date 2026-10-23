@@ -10,7 +10,7 @@ subscriptions — Solid-class ergonomics without a compiler.
 ```js
 const state = createStore({ count: 0, name: 'world' });
 
-useEffect(() => {
+effect(() => {
   console.log(state.count);      // re-runs when count changes. That is the whole registration.
 });
 ```
@@ -19,7 +19,7 @@ Against the same behavior elsewhere:
 
 ```js
 // React — maintain the dependency array by hand, and get it wrong silently
-useEffect(() => { console.log(count); }, [count]);
+useEffect(() => { console.log(count); }, [count]);   // React's useEffect
 
 // Lit — declare what is reactive, then check what changed
 static properties = { count: {} };
@@ -38,7 +38,7 @@ Automatic tracking needs a way out, or it becomes a trap. `untrack` reads curren
 subscribing:
 
 ```js
-useEffect(() => {
+effect(() => {
   const a = state.a;                    // re-runs when a changes
   const b = untrack(() => state.b);     // reads current b, stays unsubscribed
 });
@@ -48,24 +48,14 @@ Equivalent to Solid's `untrack` and Preact's `untracked`. Vue has `toRaw`.
 
 ## Memory
 
-Bookkeeping is weakly referenced throughout — `proxyCallbacks` is a
-`WeakMap<object, Map<string, Map<WeakRef<Element>, Set<WeakRef<Callback>>[]>>>` — so detached
-elements are not retained by their own subscriptions.
+Subscriptions are exact: a component's hooks are linked to what they read, and a removal unlinks them — a removed
+component leaves nothing in any store (`tests/core-subscription-sweep.test.mjs` holds it at zero). A `computed` holds
+no subscription while nothing reads it.
 
 ## Derived values
 
-`computed` is **not in core, on purpose**. It is buildable as a module in about eight lines on the
-public API, with correct caching and invalidation:
-
-```js
-const computed = (fn) => {
-  const cache = createStore({ value: undefined });
-  createHook({ callback: () => { cache.value = fn(); }, priority: 40 });
-  return cache;
-};
-```
-
-That is the module system working as intended — see [module-system.md](module-system.md).
+`computed(fn)` is core's: a memoized derived value, evaluated once per change of what it read, and lazy — linked to its
+sources only while something reads it, and let go when its last reader leaves (the core README has the rules).
 
 ## Caveats
 

@@ -1,14 +1,16 @@
 /**
  * **A built-in that writes several slots of a store array notifies ONCE, after it finishes** (2026-10-18). Through the
- * proxy, `splice` / `shift` / `sort` … wrote index by index, and a hook that runs on each write (a raw `createHook`,
- * `useSyncEffect`) ran between those writes: `splice(4, 1)` on 10 rows ran it 7 times, 6 of them on a half-shifted
+ * proxy, `splice` / `shift` / `sort` … wrote index by index, and a hook that runs on each write (a raw core's raw hook (internal),
+ * a `'sync'` effect) ran between those writes: `splice(4, 1)` on 10 rows ran it 7 times, 6 of them on a half-shifted
  * array (a row twice, or a hole). Now the method runs on the raw array and every subscriber is told once.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './dist.mjs';
 
-const { createStore, createHook } = await load('core');
+const { createStore } = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = (await load('core')).inserts.$s[2];
 
 const rowsOf = (n = 10) => Array.from({ length: n }, (_, i) => ({ id: i + 1 }));
 /** A RAW hook reading every row: it runs inside each notification it hears, so its run count IS the notification count. */

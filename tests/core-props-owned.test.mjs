@@ -99,7 +99,7 @@ test('two cores on one page: each props record carries ITS core\'s slot, and eac
   const second = await load('core', '?copy=2');
   const seen = { one: [], two: [] };
   define({ tag: 'x-own-core1', props: { a: 1 } }, (host) => { effect(() => { seen.one.push(host.a); }); return () => html`<b></b>`; });
-  second.define({ tag: 'x-own-core2', props: { a: 1 } }, (host) => { second.useEffect(() => { seen.two.push(host.a); }); });
+  second.define({ tag: 'x-own-core2', props: { a: 1 } }, (host) => { second.effect(() => { seen.two.push(host.a); }); });
   const one = document.createElement('x-own-core1');
   const two = document.createElement('x-own-core2');
   document.body.append(one, two);

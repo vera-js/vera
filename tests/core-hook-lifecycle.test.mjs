@@ -15,6 +15,8 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
   globalThis[k] = dom.window[k];
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { renderInto: renderer } = await load('renderer');
 core.wire({ on: 'render', fn: renderer, priority: 50 });
 
@@ -164,8 +166,8 @@ const define = (setup) => {
 }
 
 /* ── createHook runs at the priority it was given ──────────────────────────────────────────────
- * `createHook` is how a third party builds its own hook type — #6 makes that the product — and the
- * only thing it can rely on is the ordering: `useLayoutEffect` is 25, the render is 50, `useEffect`
+ * core's raw hook (internal) is how a third party builds its own hook type — #6 makes that the product — and the
+ * only thing it can rely on is the ordering: a `'layout'` effect is 25, the render is 50, `effect`
  * is 75, and a hook registered below or between them runs there.
  */
 {
@@ -173,8 +175,8 @@ const define = (setup) => {
   class Ordered extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.createHook({ callback: () => order.push('early'), priority: 10 });
-        core.createHook({ callback: () => order.push('late'), priority: 90 });
+        createHook({ callback: () => order.push('early'), priority: 10 });
+        createHook({ callback: () => order.push('late'), priority: 90 });
         core.effect(() => order.push('effect'));
         return () => '';
       });
@@ -198,7 +200,7 @@ const define = (setup) => {
  * element had two live subscriptions and ran everything twice, and a second reconnect made it
  * three times.
  *
- * Renders are idempotent, so those merely cost. `useEffect` is not: duplicates mean duplicate
+ * Renders are idempotent, so those merely cost. `effect` is not: duplicates mean duplicate
  * fetches, duplicate subscriptions and duplicate analytics, and the effect had already fired by
  * the time a collector could have prevented it. Measured, before the fix: +1, +2, +3 effects per
  * write across zero, one and two reconnects.
@@ -497,7 +499,7 @@ const define = (setup) => {
 /* ── and when that self-removed element's cleanup throws ───────────────────────────────────────
  * The case above pins that the cleanup *runs*. It does not pin what happens when it throws, and
  * `swapCleanup` wraps exactly this call in a `try` with its own prefixed diagnostic -- deliberately
- * not routed through `reportHookError`, because that lives in `createHook`, which imports this
+ * not routed through `reportHookError`, because that lives in core's raw hook (internal), which imports this
  * module.
  *
  * Removing that `try` left **all 837 node tests passing**. The path is the narrowest one in the

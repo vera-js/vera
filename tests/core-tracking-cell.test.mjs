@@ -14,6 +14,8 @@ const dom = new JSDOM('<!doctype html><body></body>');
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key] ?? globalThis[key];
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { renderer } = await load('renderer');
 core.wire([renderer]);
 const doc = dom.window.document;
@@ -32,7 +34,7 @@ test('render → a hook it runs → an untrack read, with a throw in the middle:
       connectedCallback() {
         core.init(this, () => {
           /** The middle level: a raw hook the render runs inside itself — it reads, reads untracked, then throws. */
-          const middle = core.createHook({ element: {}, priority: 1, callback: () => {
+          const middle = createHook({ element: {}, priority: 1, callback: () => {
             inner++;
             void b.tracked;
             core.untrack(() => b.untracked);

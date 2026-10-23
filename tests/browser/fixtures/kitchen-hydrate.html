@@ -307,19 +307,19 @@ hello &#38; &#60;world&#62;</textarea>
       </section></template></sink-collections>
         <sink-effects><template shadowrootmode="open"><section id="effects">
         <h2>Effects</h2>
-        <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>
+        <h3>A 'sync' effect observes every individual write; a plain effect observes one batch per flush</h3>
         <h4>Press each button once and read "that press caused" — the same three writes batch differently.</h4>
         <button id="bumpThree">three writes in one turn</button>
         <button id="bumpOne">one write</button>
-        <p><strong>that press caused: <span id="report">useSyncEffect +0, useEffect +1, useLayoutEffect +1</span></strong></p>
+        <p><strong>that press caused: <span id="report">sync effect +0, effect +1, layout effect +1</span></strong></p>
         <p class="note">
           Pressing "one write" three times is three separate turns, so all three counters rise by
           three — which is the same framework behavior, not a different one.
         </p>
         <p>n: <span id="n">0</span></p>
-        <p>useSyncEffect runs: <span id="sync">1</span></p>
-        <p>useEffect runs: <span id="coalesced">1</span></p>
-        <p>useLayoutEffect runs: <span id="layout">1</span></p>
+        <p>sync effect runs: <span id="sync">1</span></p>
+        <p>effect runs: <span id="coalesced">1</span></p>
+        <p>layout effect runs: <span id="layout">1</span></p>
         <p>last changed: <span id="lastProp"></span></p>
       </section></template></sink-effects>
         <sink-styled><template shadowrootmode="open"><style data-vm-sheet="styles">

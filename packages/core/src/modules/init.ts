@@ -6,7 +6,7 @@ import { currentInstance, MINE, tracking } from '../store/store.js';
 import type { Mine } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
 import { firstPasses } from './mount.js';
-import { drawInto } from '../hooks/useRender.js';
+import { drawInto } from '../hooks/drawInto.js';
 import { EFFECT_PRIORITY, LAYOUT_PRIORITY, reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
 
@@ -397,9 +397,9 @@ const retireGeneration = (element: ComponentElement) => {
 /**
  * **A component moved into ANOTHER document — a pop-out window, an iframe — and back** (R4, Brian 2026-10-21/22). It is
  * KEPT: its setup, its state and its DOM (which moved with it) stay. What belongs to a window re-runs, both ways:
- * - its `useLayoutEffect`s and `useEffect`s, EXACTLY those two priorities (by name): each runs its cleanup and then runs
+ * - its a `'layout'` effects and `effect`s, EXACTLY those two priorities (by name): each runs its cleanup and then runs
  *   again, so a listener on the element's window, a frame loop or an observer re-binds to the new one (Brian: every
- *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, a `useHook` of your own — is not
+ *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, a `effect` with a `priority` of your own — is not
  *   re-run: a move never refetches;
  * - `@verajs/styles`, through `$rs`: it re-applies its sheets, because a move EMPTIES a shadow root's
  *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).

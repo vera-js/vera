@@ -216,7 +216,7 @@ const drain = () => {
  * **`flush()`, as core exports it: runs everything queued, synchronously** — a test, or work that must see the DOM now.
  * Called from inside a running flush (a hook, a render) it does nothing, and development says so once (Brian,
  * 2026-10-09): everything queued still runs before that flush ends — to read what a render made, read it in
- * `useLayoutEffect`, which runs right after the render. In production this IS `drain`: zero bytes for the warning.
+ * a `'layout'` effect, which runs right after the render. In production this IS `drain`: zero bytes for the warning.
  */
 let warnedNested = false;
 export const flush = __DEV__
@@ -255,7 +255,7 @@ const exempt = /* @__PURE__ */ new WeakSet<Element>();
 const warned = /* @__PURE__ */ new WeakSet<Element>();
 
 /** Which hook a priority is — the warning names the one that loops. */
-const LABELS: Record<number, string> = { 50: 'render', 60: 'useLayoutEffect', 75: 'useEffect' };
+const LABELS: Record<number, string> = { 50: 'render', 60: "a 'layout' effect", 75: 'an effect' };
 
 const loopWarning = (pass: HookRecord) => {
   /** Held again after a run its last hold queued: one more consecutive frame. Anything else starts a new count. */
@@ -279,7 +279,7 @@ const loopWarning = (pass: HookRecord) => {
  * ```js
  * init(this);
  * allowRenderLoop(this);
- * useEffect(() => { state.t = state.t + 1 });
+ * effect(() => { state.t = state.t + 1 });
  * ```
  *
  * @param element The component whose loop is intentional

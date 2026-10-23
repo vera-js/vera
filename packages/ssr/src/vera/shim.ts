@@ -922,7 +922,7 @@ export const installShims = () => {
    * This deferred to `setTimeout`, which ran every scheduled callback long after the response was
    * built. Core's render scheduler is `requestAnimationFrame`, so any state a component settled
    * after its first `render()` — the ordinary `render(); this.state.x = fromAttribute` shape —
-   * was dropped, and every `useEffect` was too. Both landed on the client instead, so the server
+   * was dropped, and every effect was too. Both landed on the client instead, so the server
    * shipped one page and the browser immediately replaced it with a different one.
    *
    * Shimmed rather than left undefined so that unguarded callers — `@verajs/router`'s initial

@@ -45,7 +45,7 @@ Both call sites iterate the whole chain:
 inserts.get('render')?.forEach((callback) => callback(template, element, ...args));
 ```
 
-- `packages/core/src/hooks/useRender.ts` — component renders, deferred through the render
+- `packages/core/src/hooks/drawInto.ts` — component renders, deferred through the render
   scheduler (an animation frame by default) and coalesced by a flag, so N writes in a tick cost
   one pass.
 - `packages/router/src/services.ts` — route renders, into the resolved `[view=...]` outlet.
@@ -113,17 +113,17 @@ by making bundles share global state.
 ## Effect ordering
 
 `init()` seeds `element._$h$` and calls the setup with the element as the owner; when it returns, the first pass of
-every hook it registered runs, then the render it returned is installed through `useRender`.
+every hook it registered runs, then the render it returned is installed through the setup's returned render.
 Hooks carry a priority, and lower runs first:
 
 | Priority | Hook |
 | ---: | --- |
-| 50 | `useRender` |
-| 60 | `useLayoutEffect` |
-| 75 | `useEffect` |
+| 50 | the setup's returned render |
+| 60 | a `'layout'` effect |
+| 75 | `effect` |
 
 So the order is **render → layout effects → effects** — React's: `useLayoutEffect` measures the DOM the render just
-made, and a write it makes re-renders in the same flush, before paint; `useEffect` runs after every layout effect.
+made, and a write it makes re-renders in the same flush, before paint; `effect` runs after every layout effect.
 (Until 2026-10-08 layout effects ran BEFORE the render and saw the previous render's DOM.)
 
 ---

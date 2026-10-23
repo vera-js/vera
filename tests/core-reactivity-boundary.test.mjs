@@ -22,6 +22,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { collections } = await load('store/collections');
 
 const PROXIED = {
@@ -93,7 +95,7 @@ test('mutating a Date in place does not notify; replacing it does', async () => 
   const state = core.createStore({ when: new Date(0) });
 
   const seen = [];
-  core.createHook({ element, priority: 50, callback: () => seen.push(state.when.getTime()) });
+  createHook({ element, priority: 50, callback: () => seen.push(state.when.getTime()) });
   element._$h$?.forEach((callback) => callback.$n(undefined, true));
   const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 

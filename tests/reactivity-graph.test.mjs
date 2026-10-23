@@ -96,7 +96,7 @@ test('a synchronous effect does see a half-settled diamond, and that is the docu
   state.n = 3;
   /**
    * 7 is `double(2) + triple(1)` — a value `sum` never has. One write propagates depth-first, so
-   * the dependent re-evaluates once with half its inputs updated. `useSyncEffect` is the only thing
+   * the dependent re-evaluates once with half its inputs updated. a `'sync'` effect is the only thing
    * that can see it, which is what its own documentation is for: it runs on every individual change
    * rather than once per tick.
    *
@@ -297,7 +297,7 @@ test('a sync effect that writes what it reads is stopped by name, not by a stack
   const state = createStore({ n: 0 });
   let runs = 0;
   /** Guarded, so this one terminates on its own — the unguarded case is what the depth-50 check in
-   * `useSyncEffect` is for, and is covered where that diagnostic lives. */
+   * a `'sync'` effect is for, and is covered where that diagnostic lives. */
   mount(() => effect(() => { runs++; if (state.n < 3) state.n = state.n + 1; }, { timing: 'sync' }));
   assert.equal(state.n, 3);
   assert.equal(runs, 4, 'one setup pass and one per write it made');

@@ -18,7 +18,7 @@
  * The generalization worth keeping: **a setter is a deferred call**, so its argument is validated
  * arbitrarily late or never, and the stack at that point no longer contains the mistake. Every other
  * entry point in this framework already guards its input — `wire` refuses a non-finite priority,
- * `createHook` refuses a bad element, `autoloader` refuses a bad `rootDir`. These five were the gap.
+ * core's raw hook (internal) refuses a bad element, `autoloader` refuses a bad `rootDir`. These five were the gap.
  *
  * `__DEV__`-only, so this whole file is a development-condition test: production carries neither the
  * checks nor the text, and an app that does this in production was already broken.

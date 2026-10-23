@@ -10,11 +10,11 @@
  *
  *   batch(() => {
  *     state.a = 1;
- *     state.b = 2;      // useSyncEffect subscribers hear nothing yet…
+ *     state.b = 2;      // 'sync' effects hear nothing yet…
  *     state.a = 3;
  *   });                 // …then one flush: a (1 write, final value), b — deduped per property
  *
- * Mostly interesting for `useSyncEffect` users: `useEffect` and renders already coalesce per
+ * Mostly interesting for a `'sync'` effect users: `effect` and renders already coalesce per
  * frame on their own. Nested `batch` calls join the outermost one. Wire it at the app entry: a
  * `'store'` insert reaches the values a store meets after it is wired.
  */

@@ -16,7 +16,7 @@ export interface ComponentElement extends HTMLElement {
   _$h$?: Hooks;
   /**
    * How many times this element has been `init()`ed. A hook captures the value it was created
-   * under and does nothing when it no longer matches — see `createHook`.
+   * under and does nothing when it no longer matches — see core's raw hook (internal).
    */
   _$g$?: number;
   /**
@@ -65,7 +65,7 @@ export interface ComponentElement extends HTMLElement {
   _$o$?: ComponentElement[];
 }
 
-/** What `createHook` registers: the callback, its priority, and optionally its owner. */
+/** What core's raw hook (internal) registers: the callback, its priority, and optionally its owner. */
 export type Hook = {
   /** Run on the first pass and again whenever a store it read changes. */
   callback: HookCallback | null;
@@ -127,7 +127,7 @@ export type HookRecord = {
   /** Its priority (lower runs first) and its creation sequence — two fields, compared in that order. */
   _y: number;
   _k: number;
-  /** 0 raw (`createHook`: runs inside every write), 1 queued (one run per flush), 2 sync (`useSyncEffect`). */
+  /** 0 raw (core-internal: runs inside every write), 1 queued (one run per flush), 2 sync (`effect`'s `timing: 'sync'`). */
   _m: number;
   /** The cleanup the last run returned, and the signal of the first write since the last run. */
   _c: HookCleanup | undefined;
@@ -157,14 +157,14 @@ export type HookRecord = {
   _b?: HookRecord;
   /**
    * **The ONE place a hook is handed a change** — a write reaching it, a first pass, or a caller running the hook
-   * `createHook`/`useHook` returned. The single tracked-run choke point native signals would plug into.
+   * core's raw hook (internal)/`effect` with a `priority` returned. The single tracked-run choke point native signals would plug into.
    */
   $n(signal?: Change<unknown>, init?: boolean): void;
   /** The queued pass: run once, with the first write's signal since the last run. */
   $q(): void;
 };
 
-/** The template that is passed to the renderer is a useRender hook and the render helper function */
+/** A component's render: the function its setup returned (or a static value), drawn through the renderer */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RenderTemplate = <V>(change?: Change<V>) => any;
 
@@ -236,21 +236,21 @@ export type TemplateResult<T extends ResultType = 1> = {
   values: unknown[];
 };
 
-/** The change that woke a hook: which property, and its value after and before. */
-/**
- * **What a write was — ONE read-only object per write, shared by every hook it reaches** (2026-10-11: `trigger`
- * makes one per write, not one per subscriber; every first pass shares one `{}`). Nothing compares a signal's
- * identity, writes to it, or aborts through it — and nothing may: a per-hook field here (a run id, an abort controller)
- * would leak one subscriber's state into all of them. Per-hook state belongs on the hook.
- */
 /** `effect()`'s options (2026-10-22): when it runs, its order within a flush, and an owner that is not the component being set up. */
-export type EffectOptions = { timing?: 'layout' | 'sync' | 'raw'; priority?: number; owner?: object };
+export type EffectOptions = { timing?: 'layout' | 'sync'; priority?: number; owner?: object };
 /** What `effect()` returns: `run()` runs it now; `stop()` ends it for good (its cleanup runs once). */
 export type Effect = { run(): void; stop(): void };
 
 /** What `signal()` returns: one value, read and written as `.value`. */
 export type Signal<T> = { value: T };
 
+/**
+ * **What a write was — ONE read-only object per write, shared by every hook it reaches** (2026-10-11: `trigger`
+ * makes one per write, not one per subscriber; every first pass shares one `{}`). Nothing compares a change's
+ * identity, writes to it, or aborts through it — and nothing may: a per-hook field here (a run id, an abort controller)
+ * would leak one subscriber's state into all of them. Per-hook state belongs on the hook. It names which property
+ * changed, and its value after and before.
+ */
 export type Change<V> = {
   prop?: string;
   value?: V;

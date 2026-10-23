@@ -5,6 +5,8 @@
  */
 import { load } from './dist.mjs';
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { computed, computedValues } = await import(new URL('../examples/cdn-js/src/inserts/computed.js', import.meta.url).href);
 const { JSDOM } = await import('jsdom');
 const dom = new JSDOM('<div id="host"></div>');
@@ -17,7 +19,7 @@ core.wire({ on: 'store', fn: computedValues, priority: 60 });
 const state = core.createStore({ count: 1, doubled: computed(() => state.count * 2) });
 
 let runs = 0, seen = -1;
-core.createHook({ element: host, priority: 60, callback: () => { runs++; seen = state.doubled; } });
+createHook({ element: host, priority: 60, callback: () => { runs++; seen = state.doubled; } });
 host._$h$[0].$n(undefined, true);
 check('computed reads as a value', seen === 2);
 const r0 = runs;

@@ -2,7 +2,7 @@
  * **Every sentence in the docs that promises a diagnostic is accounted for** — it cites the code that keeps the
  * promise, or it says why it does not have one yet.
  *
- * The class this exists for (found 2026-10-08): the core README and llms.txt promised a self-feeding `useSyncEffect`
+ * The class this exists for (found 2026-10-08): the core README and llms.txt promised a self-feeding `'sync'` effect
  * is "stopped and named at depth 50", and nothing did that — the rebuild had removed the guard and every suite stayed
  * green, because prose is the half no recipe or import check reaches. A one-time pass over every such sentence
  * (2026-10-09) found more of the same: a promised warning with no code (unwired `static styles`), and promises whose
@@ -80,9 +80,10 @@ const CLAIMS = new Map([
   ['packages/ssr/README.md#616e1b6d69', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the same key twice is one line, a second key a second; outside text arrives JSON-quoted'], // Two rules make it safe on a server
   ['packages/ssr/README.md#12068394f6', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the refused javascript: value is never printed; a forged template warns once per component'], // A refused `javascript:` URL is reported without its value at all
   ['packages/autoloader/README.md#040a91dcf5', 'pinned by tests/directive-import-one-report.test.mjs: one failed import is exactly one line, the URL-named Error beside it, and a direct caller gets that rejection with nothing printed'], // **A failed import is reported once, by the engine** — one line naming the directive and the URL
-  ['llms.txt#f15b97eba2', 'priority-not-finite'], // `useHook` … a non-finite priority registers nothing — development says why
-  ['llms.txt#414a568328', 'priority-not-finite'], // `createHook` … or `undefined` if refused — no callback, or a priority that is not a finite number
-  ['packages/core/README.md#65e2d9cdf4', 'pinned by tests/core-hook-order.test.mjs: a non-finite priority registers nothing from useHook, createHook and wire in both builds; development\'s line ends on its code'], // … a non-finite priority registers nothing, in both builds, and development says why, as for `wire`
+  ['llms.txt#fbe3ae57cf', 'priority-not-finite'], // `effect(fn, { priority })` … a non-finite one registers nothing — development says why
+  ['llms.txt#9ffa401764', 'priority-not-finite'], // `effect` (for modules) `(fn, { owner, priority }) => Effect` … `undefined` if refused — a priority that is not a finite number
+  ['packages/inserts/README.md#d14e7dacd0', 'not a promise: error routing of a throwing effect, not a message'], // **Nothing catches it, and that is deliberate — but it is not the same as a hook.** An `effect` that throws
+  ['packages/core/README.md#f5f35dd95f', 'pinned by tests/core-hook-order.test.mjs: a non-finite priority registers nothing from effect and wire in both builds; development\'s line ends on its code'], // … a non-finite priority registers nothing, in both builds, and development says why, as for `wire`
   ['llms.txt#304378b23d', 'pinned by tests/jsx-coded-errors.test.mjs: the production compiler says exactly position + docs link'], // **On this map a compile error names its position and its code** — `app.jsx:1:15 — https://verajs.dev/e/…`
   ['llms.txt#11ecc1a63b', 'jsx-uncontrolled'], // While developing, map `@verajs/jsx` to …/dist/development/vera-jsx-standalone.js instead
   ['llms.txt#115c248679', 'pinned by tests/diagnostics-through-tables.test.mjs: every package that prints or throws is MIGRATED, its exceptions counted (ROUTING, IMITATIONS, NAMED); the forwarded line\'s code by tests/diagnostics-line-forms'], // … and every package gives every line a code — including the forwarded line
@@ -156,7 +157,6 @@ const CLAIMS = new Map([
   ['packages/directives/README.md#4d20f0c981', 'motion-property-at-top-level'], // Put one in the wrong half and it is refused by name with the move spelled out, in both dir
   ['packages/directives/README.md#c54e2c0f10', 'motion-vocabulary-replaced'], // Keys **replace** with a `motion-vocabulary-replaced` warning; inserts (`preset`, `easing`,
   ['packages/inserts/README.md#a56509b716', 'not a promise: a return-value protocol, not a message'], // An insert that wants to change what core does — rather than merely watch — says so through
-  ['packages/inserts/README.md#3eed974ae8', 'not a promise: error routing of a throwing hook, not a message'], // **Nothing catches it, and that is deliberate — but it is not the same as a hook.** A `useE
   ['packages/inserts/README.md#776c11547b', 'not a promise: what an insert may do, not a message'], // `'init'` is where per-element setup hooks in, so one throwing module keeps the rest from i
   ['packages/jsx/README.md#a886d0d774', 'jsx-uncontrolled'], // | `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, … as `file:line:col — message (code)`.
   ['packages/jsx/README.md#5a8aa12e19', 'jsx-helper-missing'], // If the renderer's helper files are missing from beside it, the error names the file, where

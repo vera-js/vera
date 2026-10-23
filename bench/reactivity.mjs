@@ -57,7 +57,9 @@ const dom = new JSDOM('<!doctype html><body></body>', {
 
 const results = dom.window.eval(`(() => {
   ${toIIFE('Vera', CORE)}
-  const { createStore, init, useEffect } = Vera;
+  const { createStore, init } = Vera;
+  /** effect since 2026-10-22 (it replaced useEffect): taken by presence, so one script measures builds on either side. */
+  const useEffect = Vera.effect ?? Vera.useEffect;
 
   const N = 200000;
   let sink = 0;

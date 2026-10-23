@@ -111,7 +111,7 @@ check('no styles injected inside light element', l1.querySelectorAll('style').le
 
 
 // ---- one scheduler, not two ----
-// `useEffect` used to hardcode its own `requestAnimationFrame`, a byte-for-byte copy of
+// `effect` used to hardcode its own `requestAnimationFrame`, a byte-for-byte copy of
 // `animationFrame` in setRenderScheduler. Swapping the scheduler therefore moved renders and left
 // effects on frames: an author who chose microtask scheduling precisely to escape the frame
 // boundary still waited one for every effect. Same final order, up to 16 ms later.

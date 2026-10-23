@@ -122,7 +122,7 @@ const cycleComponent = async (setup, { times = 40 } = {}) => {
 /** A store that outlives every component below, which is the shape that would pin them. */
 const outliving = createStore({ n: 0, rows: [1, 2, 3] });
 
-/** Each a SETUP. The effect-only ones are block-bodied: `useEffect` returns its hook, a function, which an expression
+/** Each a SETUP. The effect-only ones are block-bodied: `effect` returns its hook, a function, which an expression
  *  body would return as the render. */
 const SHAPES = [
   ['a plain rendering component', () => () => html`<i>x</i>`],

@@ -135,7 +135,7 @@ describe('the two live modes behave identically', () => {
      *
      * Only the sync side was asserted here before, so the panel that reports all three could — and
      * did — mislead a reader about the other two while this stayed green. The counts are read from
-     * the component rather than the markup, because `useEffect` runs *after* the render that shows
+     * the component rather than the markup, because `effect` runs *after* the render that shows
      * it and would otherwise be one behind.
      */
     const counts = () => ({ ...part('hydrate', 'sink-effects').counts });
@@ -144,8 +144,8 @@ describe('the two live modes behave identically', () => {
     const after = counts();
 
     expect(after.sync - before.sync, 'a sync effect must observe every intermediate write').to.equal(3);
-    expect(after.coalesced - before.coalesced, 'useEffect must coalesce three writes into one run').to.equal(1);
-    expect(after.layout - before.layout, 'useLayoutEffect must coalesce them too').to.equal(1);
+    expect(after.coalesced - before.coalesced, 'an effect must coalesce three writes into one run').to.equal(1);
+    expect(after.layout - before.layout, 'a layout effect must coalesce them too').to.equal(1);
 
     /** And three writes in three separate turns are three of everything — the same rule, not another. */
     const beforeSeparate = counts();

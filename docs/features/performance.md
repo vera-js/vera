@@ -43,9 +43,9 @@ Effect executions for 100 writes in one tick:
 
 | | runs |
 | --- | ---: |
-| `useEffect` (coalesced) | **1** |
-| `useLayoutEffect` (coalesced) | **1** |
-| `useSyncEffect` (per-change, by design) | 100 |
+| `effect` (coalesced) | **1** |
+| a `'layout'` effect (coalesced) | **1** |
+| a `'sync'` effect (per-change, by design) | 100 |
 
 ## What changed, and why it is worth saying
 

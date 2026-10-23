@@ -17,6 +17,8 @@ const dom = new JSDOM('<!doctype html><body></body>');
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key] ?? globalThis[key];
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { renderer } = await load('renderer');
 core.wire([renderer]);
 const doc = dom.window.document;
@@ -54,18 +56,18 @@ const host = () => {
 /** Hooks on a plain owner, created only to move the creation count — what a busy page does between two hooks. */
 const churn = (n) => {
   const owner = {};
-  for (let i = 0; i < n; i++) core.createHook({ element: owner, priority: 1, callback: () => {} });
+  for (let i = 0; i < n; i++) createHook({ element: owner, priority: 1, callback: () => {} });
 };
 
 test('close FRACTIONAL priorities run in priority order, however many hooks were created between them', async () => {
   const el = host();
   const state = core.createStore({ n: 0 });
   const order = [];
-  const a = core.useHook(() => { state.n; order.push('50.000002'); }, 50.000002, el);
+  const a = core.effect(() => { state.n; order.push('50.000002'); }, { priority: 50.000002, owner: el });
   churn(1500);
-  const b = core.useHook(() => { state.n; order.push('50.000001'); }, 50.000001, el);
-  a(undefined, true);
-  b(undefined, true);
+  const b = core.effect(() => { state.n; order.push('50.000001'); }, { priority: 50.000001, owner: el });
+  a.run();
+  b.run();
   order.length = 0;
   state.n++;
   await tick();
@@ -78,11 +80,11 @@ test('a priority past 2^53 / 1e9 still orders by creation within itself', async 
   const state = core.createStore({ n: 0 });
   const order = [];
   const P = 1e12;
-  const first = core.useHook(() => { state.n; order.push('first'); }, P, el);
-  const second = core.useHook(() => { state.n; order.push('second'); }, P, el);
+  const first = core.effect(() => { state.n; order.push('first'); }, { priority: P, owner: el });
+  const second = core.effect(() => { state.n; order.push('second'); }, { priority: P, owner: el });
   /** Subscribed second-first, so a write queues `second` before `first` — the queue must reorder by creation. */
-  second(undefined, true);
-  first(undefined, true);
+  second.run();
+  first.run();
   order.length = 0;
   state.n++;
   await tick();
@@ -126,8 +128,8 @@ test('a priority that is not a finite number registers NOTHING from useHook and 
   const before = el._$h$?.length ?? 0;
   for (const priority of [NaN, Infinity, -Infinity]) {
     const said = errors(() => {
-      assert.equal(core.useHook(() => {}, priority, el), undefined, `useHook(${priority}) returns undefined`);
-      assert.equal(core.createHook({ element: el, priority, callback: () => {} }), undefined, `createHook(${priority}) returns undefined`);
+      assert.equal(core.effect(() => {}, { priority, owner: el }), undefined, `effect({ priority: ${priority} }) returns undefined`);
+      assert.equal(createHook({ element: el, priority, callback: () => {} }), undefined, `createHook(${priority}) returns undefined`);
     });
     if (isProduction) assert.deepEqual(said, [], 'production refuses silently');
     else assert.ok(said.length === 2 && said.every((line) => line.startsWith('[vera]') && line.endsWith('(priority-not-finite)')), said.join(' | '));

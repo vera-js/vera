@@ -22,6 +22,8 @@ for (const key of ['document', 'HTMLElement', 'Node', 'Element', 'customElements
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { renderInto, renderer } = await load('renderer');
 const reactivity = await load('store');
 core.wire({ on: 'render', fn: renderInto, priority: 50 });
@@ -52,7 +54,7 @@ test("a 'store' module tracking kit.shape hears core add a key", () => {
   const kit = met.get('object');
   assert.ok(kit, 'CONTROL: the store insert was consulted for plain objects');
   let heard = 0;
-  const hook = core.createHook({ element: {}, priority: 10, callback: () => { heard++; kit.track(raw, kit.shape); } });
+  const hook = createHook({ element: {}, priority: 10, callback: () => { heard++; kit.track(raw, kit.shape); } });
   hook(undefined, true);
   state.b = 2;
   assert.equal(heard, 2, 'adding a key woke the module subscribed to the channel the kit names');

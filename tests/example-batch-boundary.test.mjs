@@ -10,6 +10,8 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.document = dom.window.document;
 const host = dom.window.document.getElementById('host');
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { batch, batching } = await import(new URL('../examples/cdn-js/src/inserts/batch.js', import.meta.url).href);
 const { errorBoundary } = await import(new URL('../examples/cdn-js/src/inserts/error-boundary.js', import.meta.url).href);
 let pass = 0, fail = 0;
@@ -18,7 +20,7 @@ const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
 core.wire({ on: 'store', fn: batching, priority: 60 });
 const state = core.createStore({ a: 0, b: 0 });
 let syncRuns = 0, lastA = -1;
-core.createHook({ element: host, priority: 60, callback: () => { syncRuns++; lastA = state.a; state.b; } });
+createHook({ element: host, priority: 60, callback: () => { syncRuns++; lastA = state.a; state.b; } });
 host._$h$[0].$n(undefined, true);
 const r0 = syncRuns;
 
@@ -35,7 +37,7 @@ core.wire({ on: 'error', fn: errorBoundary, priority: 50 });
 const el = dom.window.document.createElement('div');
 dom.window.document.body.appendChild(el);
 const oe = console.error; console.error = () => {};
-core.createHook({ element: el, priority: 60, callback: () => { throw new Error('boom'); } });
+createHook({ element: el, priority: 60, callback: () => { throw new Error('boom'); } });
 el._$h$[0].$n(undefined, true);
 console.error = oe;
 check('error boundary renders fallback with role=alert', el.querySelector('[role="alert"]')?.textContent.includes('wrong'));

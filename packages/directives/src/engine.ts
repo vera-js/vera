@@ -2,7 +2,7 @@
  * The @verajs/directives engine: registry, churn-first activation, per-key context resolution,
  * delegated events, the rejections registry, `settled()`, and the shared base/cloak sheet.
  *
- * The reactive half is core's own: each reflection instance is ONE `createHook` whose owner is a
+ * The reactive half is core's own: each reflection instance is ONE core's raw hook (internal) whose owner is a
  * plain object — reads through context stores inside the callback subscribe automatically, writes
  * re-run it on core's scheduler (no second timing model), and bumping the owner's `_$g$` is the
  * core-sanctioned kill switch that makes a torn-down instance permanently inert. The engine
@@ -12,7 +12,8 @@
  * listener per event type, matching by attribute at dispatch time (which is why a swapped-in
  * region's buttons work the instant the HTML lands).
  */
-import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts as bakedInserts, untrack as bakedUntrack } from '@verajs/core';
+import { createStore as bakedCreateStore, inserts as bakedInserts, untrack as bakedUntrack } from '@verajs/core';
+import type { Hook, HookCallback } from '@verajs/core';
 import { parseValue, parseLiteral, isPath, isObject, sameValue } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
@@ -39,7 +40,7 @@ import type { Payload } from './payload-defaults.js';
 type LoaderFn = (name: string, element: Element) => boolean | Promise<unknown> | void;
 type Substrate = {
   createStore: typeof bakedCreateStore;
-  createHook: typeof bakedCreateHook;
+  createHook: (hook: Hook) => HookCallback | undefined;
   /** Its `untrack`, when the substrate provides one — the core whose stores the engine created and whose hooks run. */
   untrack?: typeof bakedUntrack;
   /** The PAGE's insert registry, when adopted — where the `'loader'` chain lives. */
@@ -53,7 +54,13 @@ let substrate: Substrate | null = null;
  * the side channel 0.2.0 removed by construction. Wire before the markup activates — stores made earlier stay baked.
  */
 const core = (): Substrate =>
-  (substrate ??= { createStore: bakedCreateStore, createHook: bakedCreateHook, untrack: bakedUntrack, inserts: bakedInserts as unknown as Map<string, unknown[]> });
+  (substrate ??= {
+    createStore: bakedCreateStore,
+    /** The raw hook primitive is core-internal since `effect` (2026-10-22): the baked core hands it over as it hands any page's — `$s`. */
+    createHook: (bakedInserts as unknown as { $s: [number, unknown, Substrate['createHook']] }).$s[2],
+    untrack: bakedUntrack,
+    inserts: bakedInserts as unknown as Map<string, unknown[]>,
+  });
 /** The `$s` protocol this engine speaks — position 0 of core's hand-off. Another number is another release: declined. */
 const SUBSTRATE_PROTOCOL = 1;
 const adoptCore = (registry: Map<string, unknown[]>) => {
@@ -861,7 +868,7 @@ export const runAttrAssignments = (el: Element, attr: string): void => {
 type Instance = {
   _directive: AnyDirective;
   _attr: string;
-  /** Bumping `_$g$` makes the createHook permanently inert — core's own stale-guard as teardown. */
+  /** Bumping `_$g$` makes the raw hook permanently inert — core's own stale-guard as teardown. */
   _owner: { _$g$?: number };
   _teardown?: () => void;
   _cleanup?: () => void;

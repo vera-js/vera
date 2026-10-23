@@ -1,5 +1,5 @@
 /**
- * **A `useLayoutEffect` and `@verajs/directives`.** The directives' appliers are hooks of their own owners (one per
+ * **A a `'layout'` effect and `@verajs/directives`.** The directives' appliers are hooks of their own owners (one per
  * directive instance), never of the component — so the component's layout-effect priority does not order them; what a
  * layout effect sees of a directive is decided by when the directive applied. Pinned: after a write, a layout effect
  * sees the directive's result. On MOUNT it sees the rendered element without the directive's first application (the

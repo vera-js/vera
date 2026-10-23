@@ -31,11 +31,11 @@ export const reportHookError = (error: unknown, element: ComponentElement | unde
 };
 
 /**
- * The priority `useRender` registers at — before `useLayoutEffect` (60) and the effects (75), so a component's first
+ * The priority the setup's returned render registers at — before a `'layout'` effect (60) and the effects (75), so a component's first
  * pass draws before its layout effects measure it.
  */
 export const RENDER_PRIORITY = 50;
-/** `useLayoutEffect`'s and `useEffect`'s priorities — by NAME, because a cross-window move re-runs exactly these two (`rehome`). */
+/** The layout and the plain effect slots' priorities — by NAME, because a cross-window move re-runs exactly these two (`rehome`). */
 export const LAYOUT_PRIORITY = 60;
 export const EFFECT_PRIORITY = 75;
 
@@ -98,7 +98,7 @@ const threw = (error: unknown, owner: ComponentElement) =>
   reportHookError(error, owner, __DEV__ ? diagnostic('core', 'a hook', 'hook-threw', __DEV__ && PROSE['hook-threw']()) : '[vera] hook-threw');
 
 /**
- * How a hook runs: inside every write it hears (`createHook`), once per flush, or at once per write (`useSyncEffect`).
+ * How a hook runs: inside every write it hears (core's raw hook (internal)), once per flush, or at once per write (a `'sync'` effect).
  * Module-local, because `$n` reads them on every write — an exported binding is a live one, which V8 reaches less
  * directly (CLAUDE.md); `coalesce` takes the aliases.
  */
@@ -208,7 +208,7 @@ class HookState implements HookRecord {
       return;
     }
     /**
-     * **A self-feeding `useSyncEffect` is stopped and named at depth 50, in development** — it runs inside every
+     * **A self-feeding a `'sync'` effect is stopped and named at depth 50, in development** — it runs inside every
      * write, so an unguarded write to what it reads recursed to a stack overflow, which names the trap and not the
      * cause. Production carries neither the counter nor the check.
      */
@@ -216,7 +216,7 @@ class HookState implements HookRecord {
       const depth = this._dp ?? 0;
       if (depth >= 50) {
         this._q = undefined;
-        console.error(diagnostic('core', 'useSyncEffect', 'sync-loop', __DEV__ && PROSE['sync-loop']()));
+        console.error(diagnostic('core', "a 'sync' effect", 'sync-loop', __DEV__ && PROSE['sync-loop']()));
         return;
       }
       this._dp = depth + 1;
@@ -274,7 +274,7 @@ class HookState implements HookRecord {
       if (__DEV__ && !this._wa && typeof (out as { then?: unknown } | undefined)?.then === 'function') {
         this._wa = true;
         const priority = this._y;
-        const hook = priority === 60 ? 'useLayoutEffect' : priority === 75 ? (this._m === SYNC ? 'useSyncEffect' : 'useEffect') : 'useHook';
+        const hook = priority === 60 ? "a 'layout' effect" : this._m === SYNC ? "a 'sync' effect" : 'an effect';
         console.warn(diagnostic('core', `${hook}${owner.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
       }
       ok = true;
@@ -427,7 +427,7 @@ export const finite = (priority: unknown, subject: string) => {
   return false;
 };
 
-/** What `createHook` and `useHook` hand their caller: a function running the hook — `run(undefined, true)` is its first pass. */
+/** What the raw primitive (core-internal, `$s[2]`) hands its caller: a function running the hook — `run(undefined, true)` is its first pass. */
 export const callable = (hook: HookRecord) => (signal?: Change<unknown>, init?: boolean) => hook.$n(signal, init);
 
 /**

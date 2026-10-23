@@ -30,8 +30,8 @@ const check = (name, condition, extra = '') => (condition ? pass++ : failures.pu
 
 let probes = 0;
 /**
- * Subscribes to whatever `read` touches and counts how often a change reaches it. `useSyncEffect`
- * rather than `useEffect`: coalescing would hide a missing notification behind a later one.
+ * Subscribes to whatever `read` touches and counts how often a change reaches it. a `'sync'` effect
+ * rather than `effect`: coalescing would hide a missing notification behind a later one.
  */
 const watch = async (read) => {
   const counter = { runs: 0 };

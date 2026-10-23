@@ -90,7 +90,7 @@ test('an effect that throws stops neither its sibling nor the next run', async (
   assert.deepEqual(ran, { throwing: 3, quiet: 3 }, 'and both keep running afterwards');
 });
 
-/** `useSyncEffect` is documented as the sharp one, so it matters more that a throw is contained. */
+/** a `'sync'` effect is documented as the sharp one, so it matters more that a throw is contained. */
 test('and neither does a sync effect that throws', async () => {
   const store = core.createStore({ n: 0 });
   const ran = { throwing: 0, quiet: 0 };

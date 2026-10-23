@@ -29,8 +29,6 @@ export const wire: typeof register = (item) => {
 };
 export type * from '@verajs/inserts';
 export type * from './types.js';
-export { createHook } from './modules/createHook.js';
-export { useHook } from './hooks/coalesce.js';
 export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
 export { define } from './modules/define.js';
@@ -61,7 +59,7 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
   /** The record itself, not a `callable` wrapper: one closure fewer per list row (the keyed module calls its `$n`). */
   registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED);
 (inserts as unknown as { $z: typeof retire }).$z = retire;
-/** (2026-10-20) A keyed row's BARE hook — no owner hook list, retired directly — and the hook → owner read a shared row callback needs (`createHook.ts` explains). */
+/** (2026-10-20) A keyed row's BARE hook — no owner hook list, retired directly — and the hook → owner read a shared row callback needs (the hook module explains). */
 (inserts as unknown as { $qb: typeof bare; $zh: typeof retireHook; $ow: typeof ownerOf }).$qb = bare;
 (inserts as unknown as { $zh: typeof retireHook }).$zh = retireHook;
 (inserts as unknown as { $ow: typeof ownerOf }).$ow = ownerOf;
@@ -69,7 +67,7 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 (inserts as unknown as { $own: typeof own }).$own = own;
 /** (e″): a module whose own hooks own things settles them where their runs end (`$so(hook)`), or disposes all (`$so(hook, true)`). */
 (inserts as unknown as { $so: typeof settle }).$so = settle;
-/** Step 2 (a): a server render's turn — `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created (createHook.ts). */
+/** Step 2 (a): a server render's turn — `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created (the hook module). */
 (inserts as unknown as { $ss: typeof serverTurn }).$ss = serverTurn;
 /**
  * Step 2 (b), for `@verajs/renderer/native-elements` (imports nothing — a module never imports core at runtime): core's
@@ -95,9 +93,5 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
  * signatures it does not know. Bump it whenever a signature here changes.
  */
 (inserts as unknown as { $s: unknown[] }).$s = [1, createStoreFn, createHookFn, untrackFn];
-export { useRender } from './hooks/useRender.js';
 export { allowRenderLoop, flush, setRenderScheduler, microtask, frameBudget } from './modules/scheduler.js';
 export { html, mathml, svg } from './store/store.js';
-export { useEffect } from './hooks/useEffect.js';
-export { useLayoutEffect } from './hooks/useLayoutEffect.js';
-export { useSyncEffect } from './hooks/useSyncEffect.js';

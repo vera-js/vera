@@ -11,6 +11,8 @@ import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { collections } = await load('store/collections');
 core.wire(collections);
 const { computed } = core;
@@ -51,7 +53,7 @@ const mount = () => {
   const doubled = computed(() => state.n * 2);
   const host = mount();
   let renders = 0, seen;
-  core.createHook({ element: host, priority: 60, callback: () => { renders++; seen = doubled.value; } });
+  createHook({ element: host, priority: 60, callback: () => { renders++; seen = doubled.value; } });
   host._$h$[0].$n(undefined, true);
 
   check('a reader sees the value', seen === 2);
@@ -109,7 +111,7 @@ const mount = () => {
   core.wire({ on: 'error', fn: (error) => seen.push(error), priority: 25 });
   const bad = computed(() => { if (state.n > 1) throw new Error('boom'); return state.n; });
   let read;
-  core.createHook({ element: {}, priority: 20, callback: () => { read = bad.value; } })(undefined, true);
+  createHook({ element: {}, priority: 20, callback: () => { read = bad.value; } })(undefined, true);
   check('a watched computed that starts fine has its value', read === 1);
   let threw = false;
   try { state.n = 2; } catch { threw = true; }

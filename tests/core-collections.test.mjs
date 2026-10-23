@@ -6,6 +6,8 @@
 // Collections integrated in core: zero wiring, driven through a real store + hook.
 import { load } from './dist.mjs';
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { collections } = await load('store/collections');
 core.wire(collections);
 const { JSDOM } = await import('jsdom');
@@ -17,7 +19,7 @@ const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
 
 const state = core.createStore({ m: new Map(), s: new Set() });
 let runs = 0, snap = '';
-core.createHook({ element: host, priority: 60, callback: () => {
+createHook({ element: host, priority: 60, callback: () => {
   runs++;
   snap = [...state.m.entries()].map(([k, v]) => `${k}=${v}`).join(',') + '|' + state.m.size + '|' + state.s.size;
 }});
@@ -49,7 +51,7 @@ check('iteration protocols intact', [...state.s].length === 1 && JSON.stringify(
 const host2 = dom.window.document.createElement('div');
 dom.window.document.body.appendChild(host2);
 let keyedRuns = 0;
-core.createHook({ element: host2, priority: 60, callback: () => { keyedRuns++; state.m.get('a'); } });
+createHook({ element: host2, priority: 60, callback: () => { keyedRuns++; state.m.get('a'); } });
 host2._$h$[0].$n(undefined, true);
 const k0 = keyedRuns;
 state.m.set('b', 1);
@@ -89,7 +91,7 @@ boundary.when.setTime(5);
 check('an unproxied Date still works, it is only untracked', boundary.when.getTime() === 5);
 
 let wRuns = 0, wSnap = '';
-const runW = core.createHook({ element: host, priority: 60, callback: () => {
+const runW = createHook({ element: host, priority: 60, callback: () => {
   wRuns++;
   wSnap = `${boundary.weakMap.get(k1)}|${boundary.weakSet.has(k2)}|${boundary.objMap.get(k1)}`;
 }});
@@ -132,7 +134,7 @@ const iterHost = dom.window.document.createElement('div');
 dom.window.document.body.appendChild(iterHost);
 const iter = core.createStore({ m: new Map([['a', 1]]), s: new Set([1]) });
 let iterRuns = 0, spreadSnap = '', forOfSnap = '';
-core.createHook({ element: iterHost, priority: 60, callback: () => {
+createHook({ element: iterHost, priority: 60, callback: () => {
   iterRuns++;
   spreadSnap = [...iter.m].map(([k, v]) => `${k}${v}`).join('');
   let out = '';
@@ -172,7 +174,7 @@ check('and hears a delete', iterRuns === i0 + 3 && forOfSnap === '1');
 {
   const chained = core.createStore({ m: new Map(), s: new Set([1]) });
   let notifications = 0;
-  const runChained = core.createHook({ element: host, priority: 61, callback: () => {
+  const runChained = createHook({ element: host, priority: 61, callback: () => {
     notifications++;
     void chained.m.size;
     void chained.s.size;

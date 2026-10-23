@@ -12,6 +12,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { css } = await load('styles');
 
 /* ── falsy-but-legal values ──────────────────────────────────────────────────────────────────── */
@@ -41,10 +43,10 @@ test('a hook at priority 0 registers and runs', async () => {
   core.init({ host: el, shadow: 'open' });
   const state = core.createStore({ n: 0 });
   const order = [];
-  core.createHook({ element: el, priority: 0, callback: () => order.push(`zero:${state.n}`) });
-  core.createHook({ element: el, priority: 10, callback: () => order.push(`ten:${state.n}`) });
+  createHook({ element: el, priority: 0, callback: () => order.push(`zero:${state.n}`) });
+  createHook({ element: el, priority: 10, callback: () => order.push(`ten:${state.n}`) });
 
-  const hook = core.createHook({ element: el, priority: 5, callback: () => {} });
+  const hook = createHook({ element: el, priority: 5, callback: () => {} });
   assert.equal(typeof hook, 'function', 'createHook must hand back its wrapper');
 
   el._$h$?.forEach((cb) => cb.$n(undefined, true));
@@ -64,7 +66,7 @@ test('a hook with a non-finite priority is refused, and registers nothing', () =
   const error = console.error;
   console.error = () => {};
   try {
-    assert.equal(core.createHook({ element: el, priority: NaN, callback: () => {} }), undefined);
+    assert.equal(createHook({ element: el, priority: NaN, callback: () => {} }), undefined);
   } finally {
     console.error = error;
   }
@@ -93,7 +95,7 @@ test('defineProperty inside a setter still notifies', async () => {
   });
 
   const seen = [];
-  core.createHook({ element: el, priority: 50, callback: () => seen.push(other.shadow) });
+  createHook({ element: el, priority: 50, callback: () => seen.push(other.shadow) });
   el._$h$?.forEach((cb) => cb.$n(undefined, true));
   assert.deepEqual(seen, [0], 'the hook read the initial value');
 
@@ -109,7 +111,7 @@ test('an ordinary assignment notifies exactly once', async () => {
   core.init({ host: el, shadow: 'open' });
   const state = core.createStore({ n: 0 });
   let runs = 0;
-  core.createHook({
+  createHook({
     element: el,
     priority: 50,
     callback: () => {
@@ -124,10 +126,10 @@ test('an ordinary assignment notifies exactly once', async () => {
   assert.equal(runs, 1, 'one write, one run');
 });
 
-/* ── runaway useSyncEffect ───────────────────────────────────────────────────────────────────── */
+/* ── a runaway 'sync' effect ───────────────────────────────────────────────────────────────────── */
 
 /**
- * `useSyncEffect` runs on every individual change, so an unguarded write to state it also reads
+ * a `'sync'` effect runs on every individual change, so an unguarded write to state it also reads
  * feeds itself. That is inherent — Solid and Preact carry it too — but running it to a stack
  * overflow reports the trap rather than the cause. Development stops it at depth 50 and names it.
  */
@@ -155,7 +157,7 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
 
   if (isProduction) return;
   assert.ok(
-    errors.some((m) => m.includes('re-entered') && m.includes('useEffect') && m.includes('(sync-loop)')),
+    errors.some((m) => m.includes('re-entered') && m.includes('effect') && m.includes('(sync-loop)')),
     'it must name the hook, the cause and the alternative, by its code'
   );
 });
@@ -216,7 +218,7 @@ test('a sealed store still notifies on a write to an existing key', async () => 
   core.init({ host: el, shadow: 'open' });
   const state = core.createStore(Object.seal({ n: 0 }));
   const seen = [];
-  core.createHook({ element: el, priority: 50, callback: () => seen.push(state.n) });
+  createHook({ element: el, priority: 50, callback: () => seen.push(state.n) });
   el._$h$?.forEach((cb) => cb.$n(undefined, true));
   state.n = 1;
   await new Promise((r) => dom.window.requestAnimationFrame(r));

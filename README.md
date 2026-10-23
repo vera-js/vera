@@ -207,7 +207,7 @@ class ClickCounter extends HTMLElement {
 customElements.define('click-counter', ClickCounter);
 ```
 
-Reactivity is transparent — read `state.count` inside the render or a `useEffect` and that one
+Reactivity is transparent — read `state.count` inside the render or an `effect` and that one
 re-runs when it changes. There is no dependency array to maintain.
 
 ### Passing data to a child component

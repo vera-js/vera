@@ -18,6 +18,8 @@ import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const dom = new JSDOM('<body></body>');
 globalThis.HTMLElement = dom.window.HTMLElement;
 
@@ -30,7 +32,7 @@ const watch = (initial, read) => {
   dom.window.document.body.appendChild(host);
   const state = core.createStore(initial);
   const seen = { runs: 0, value: undefined };
-  core.createHook({
+  createHook({
     element: host,
     priority: 60,
     callback: () => { seen.runs++; seen.value = read(state); },

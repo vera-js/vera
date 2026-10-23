@@ -8,7 +8,7 @@ import type { Untracked } from '@verajs/shared-utils';
  * something it should not re-run for (Solid's `untrack`, Preact's `untracked`).
  *
  * ```js
- * useEffect(() => {
+ * effect(() => {
  *   const a = state.a;                       // re-runs when `a` changes
  *   const b = untrack(() => state.b);        // reads current `b`, stays unsubscribed
  * });

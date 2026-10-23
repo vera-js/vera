@@ -10,7 +10,9 @@ import { load } from './dist.mjs';
 const core = await load('core');
 const { collections } = await load('store/collections');
 core.wire([collections]);
-const { createStore, createHook, computed } = core;
+const { createStore, computed } = core;
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 /** A raw hook (it runs inside every write it hears), counting its runs after the first. */
 const watch = (read) => {
   let runs = 0;

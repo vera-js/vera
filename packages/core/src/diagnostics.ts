@@ -74,7 +74,7 @@ export const PROSE: Record<string, Prose> = {
   ],
   'priority-not-finite': (received) => [
     `the priority must be a finite number, and ${received} is not — the hook was not registered (in production too, silently).`,
-    'Lower runs first: 25 runs before the render, 50 is the render, 60 useLayoutEffect, 75 useEffect. A priority read from config with `parseInt` is NaN when the value is missing.',
+    'Lower runs first: 25 runs before the render, 50 is the render, 60 a layout effect, 75 an effect. A priority read from config with `parseInt` is NaN when the value is missing.',
   ],
   'scheduler-not-function': (received) => [
     `expected a function and received ${received}.`,
@@ -108,7 +108,7 @@ export const PROSE: Record<string, Prose> = {
   ],
   'nested-flush': () => [
     'flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.',
-    'To read the DOM a render made, read it in useLayoutEffect, which runs right after the render.',
+    'To read the DOM a render made, read it in an effect with `{ timing: \'layout\' }`, which runs right after the render.',
   ],
   'render-loop': (frames) => [
     `has re-run for ${frames} consecutive frames because it writes state it also reads — this will keep running for as long as the page is open.`,
@@ -129,7 +129,7 @@ export const PROSE: Record<string, Prose> = {
   'sync-loop': () => [
     're-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, ' +
       'so an unguarded write feeds itself.',
-    'Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces.',
+    'Guard the write (`if (next !== state.x) state.x = next`), or use a plain `effect`, which coalesces.',
   ],
   'no-owner': () => [
     `there is no component being set up. Hooks belong to a component's setup — the function \`init\` calls, ` +

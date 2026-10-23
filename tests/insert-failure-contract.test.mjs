@@ -1,7 +1,7 @@
 /**
  * **What happens when the extension point itself throws.**
  *
- * A `useEffect` that throws is isolated and reported, because core runs an element's hooks in one
+ * A `effect` that throws is isolated and reported, because core runs an element's hooks in one
  * loop and an escaping error would skip every hook after the failing one. An insert is not in that
  * position and does not get the same treatment — a `'store'` insert is consulted inside the store's
  * first use of a value, and the handler it supplies runs inside the store's own traps, so a throw
@@ -25,7 +25,9 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { init, createStore, createHook, wire, html, effect } = await load('core');
+const { init, createStore, wire, html, effect } = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = (await load('core')).inserts.$s[2];
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 

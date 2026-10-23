@@ -9,6 +9,12 @@ import { load } from './dist.mjs';
 
 const { createStore, inserts: coreInserts } = await load('core');
 /**
+ * The raw hook primitive is core-internal since `effect` (2026-10-22), reached through core's hand-off, `$s[2]` — taken
+ * HERE, at the top: a row below loads a SECOND copy of core, and in development the copies share one registry, so a
+ * later read of `$s` gets that copy's hook, which tracks in the other engine.
+ */
+const createHook = (await load('core')).inserts.$s[2];
+/**
  * This copy's walk, taken NOW: in the development build both copies of core share one external `inserts`, so loading a
  * second copy (below) replaces `$w` there with ITS walk, which does not know this copy's stores.
  */
@@ -168,7 +174,6 @@ test('a data record\'s fast write still runs a setter defined THROUGH the store 
 });
 
 test("'__proto__' assigned through a data record goes the full way: a later setter write still notifies", async () => {
-  const { createHook } = await load('core');
   const state = createStore({ o: { a: 1, n: 0 } });
   state.o.a = 2; // classified a data record
   state.o.__proto__ = { set x(v) { this.n = v; } };

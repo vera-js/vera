@@ -28,7 +28,7 @@ const hydrateInto = await hydrating();
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
 const { slots, slotted } = await load('renderer/slots');
-const { html, effect } = core;
+const { html } = core;
 /** The RENDERER has to be wired too, not just the module: the seam is resolved from the registry
  *  `connect()` hands the renderer, so wiring slots alone leaves it with nowhere to look. Caught by
  *  the CONTROL assertions below — a list of fallbacks reorders just as convincingly as real
@@ -320,7 +320,7 @@ test('keyed + spread: bags ride reorders, update in place, and leave with their 
  * test its shape).
  */
 test('styles + hold: five park/restore cycles adopt once and hoist once', async () => {
-  const { init, effect } = core;
+  const { init } = core;
   const { css } = await load('styles');
   const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
   const realWarn = console.warn;
@@ -375,7 +375,7 @@ test('styles + hold: five park/restore cycles adopt once and hoist once', async 
  * the collection trap.
  */
 test('collections + keyed: map mutations move rows by identity, batches coalesce', async () => {
-  const { init, createStore, effect } = core;
+  const { init, createStore } = core;
   core.wire([await load('store/collections').then((m) => m.collections)]);
   /**
    * This file's globals deliberately omit `requestAnimationFrame`, so the scheduler runs its
@@ -474,7 +474,7 @@ test('hold + keyed: rows share the call site and never each other\'s parked stat
  * the frame scheduler is installed for the test's duration (this file's globals omit rAF).
  */
 test('computed + untrack: one render per dep write, none per untracked write', async () => {
-  const { init, createStore, untrack, effect } = core;
+  const { init, createStore, untrack } = core;
   const { computed } = await load('core');
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
@@ -528,7 +528,7 @@ test('computed + untrack: one render per dep write, none per untracked write', a
  * holds stale by design; and the reassignment escape hatch shows it while identity still holds.
  */
 test('signal (shallow) + keyed: replace reconciles by identity, inner mutation stays invisible', async () => {
-  const { init, signal, effect } = core;
+  const { init, signal } = core;
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;

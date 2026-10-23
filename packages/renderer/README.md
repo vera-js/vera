@@ -315,7 +315,7 @@ re-runs on any item change — it opts out of keying, not of reactivity. **Hydra
 (their nodes, and a component row's element) instead of rebuilding them; a component row is handed its `.item` AFTER it
 upgrades — its first render may see `undefined`, so read it as `this.item?.label`. Not released; the design is still
 being measured. **A hidden list is released when the render that hid it returns**: a component's render, or a row's
-own render for a list nested in a row. A `.map` inside your own render-priority hook (`useHook(fn, 50)`) is a list too,
+own render for a list nested in a row. A `.map` inside your own render-priority hook (`effect(fn, { priority: 50 })`) is a list too,
 but one it hides is released only when that hook is torn down.
 
 **A list is keyed because `keyed()` marked it, not because its results have a `key` property.**

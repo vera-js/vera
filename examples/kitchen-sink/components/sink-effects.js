@@ -2,17 +2,17 @@
  * The three effect kinds, their ordering, and the signal they receive.
  *
  * Counters live in a **plain object**, not the store. An effect that increments reactive state it
- * also reads re-triggers itself forever — the docs warn about it for `useSyncEffect` and it is just
+ * also reads re-triggers itself forever — the docs warn about it for a `'sync'` effect and it is just
  * as true of the other two. Server-side that is a stack overflow; in a browser it is a hang. So the
  * effects read their one dependency (`void state.n` — a read in a hook is what subscribes) and write
  * somewhere untracked,
  * which is also the only way the counts are deterministic enough to compare across three modes.
  *
- * Ordering is `useLayoutEffect` (25) → render (50) → `useEffect` (75), so a render triggered by `n`
+ * Ordering is a `'layout'` effect (25) → render (50) → `effect` (75), so a render triggered by `n`
  * shows the layout count including this pass and the coalesced count from the pass before. That is
  * the contract, and rendering both is how a test sees it.
  */
-import { init, html, createStore, useEffect, effect } from '@verajs/core';
+import { init, html, createStore, effect } from '@verajs/core';
 
 export default class SinkEffects extends HTMLElement {
   connectedCallback() {
@@ -29,20 +29,20 @@ export default class SinkEffects extends HTMLElement {
         void state.n;
         counts.layout++;
       }, { timing: 'layout' });
-      useEffect((signal) => {
+      effect((change) => {
         void state.n;
         counts.coalesced++;
-        if (signal?.prop) counts.lastProp = String(signal.prop);
+        if (change?.prop) counts.lastProp = String(change.prop);
         /**
-         * Published from here because `useEffect` runs **after** the render, so a template reading the
-         * counters directly always shows this pass's `useEffect` count one behind. Writing a value the
+         * Published from here because `effect` runs **after** the render, so a template reading the
+         * counters directly always shows this pass's `effect` count one behind. Writing a value the
          * template does read — and that this effect never reads — schedules one more render, which
          * then shows the finished numbers. No loop: the only dependency is `state.n`.
          */
         state.report =
-          `useSyncEffect +${counts.sync - mark.sync}, ` +
-          `useEffect +${counts.coalesced - mark.coalesced}, ` +
-          `useLayoutEffect +${counts.layout - mark.layout}`;
+          `sync effect +${counts.sync - mark.sync}, ` +
+          `effect +${counts.coalesced - mark.coalesced}, ` +
+          `layout effect +${counts.layout - mark.layout}`;
       });
       effect(() => {
         void state.n;
@@ -57,7 +57,7 @@ export default class SinkEffects extends HTMLElement {
 
       return () => html`<section id="effects">
         <h2>Effects</h2>
-        <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>
+        <h3>A 'sync' effect observes every individual write; a plain effect observes one batch per flush</h3>
         <h4>Press each button once and read "that press caused" — the same three writes batch differently.</h4>
         <button id="bumpThree" @click=${() => this.bump(3)}>three writes in one turn</button>
         <button id="bumpOne" @click=${() => this.bump(1)}>one write</button>
@@ -67,9 +67,9 @@ export default class SinkEffects extends HTMLElement {
           three — which is the same framework behavior, not a different one.
         </p>
         <p>n: <span id="n">${state.n}</span></p>
-        <p>useSyncEffect runs: <span id="sync">${counts.sync}</span></p>
-        <p>useEffect runs: <span id="coalesced">${counts.coalesced}</span></p>
-        <p>useLayoutEffect runs: <span id="layout">${counts.layout}</span></p>
+        <p>sync effect runs: <span id="sync">${counts.sync}</span></p>
+        <p>effect runs: <span id="coalesced">${counts.coalesced}</span></p>
+        <p>layout effect runs: <span id="layout">${counts.layout}</span></p>
         <p>last changed: <span id="lastProp">${counts.lastProp}</span></p>
       </section>`;
     });

@@ -17,6 +17,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 const { renderer } = await load('renderer');
 core.wire([renderer]);
 const { html } = core;
@@ -446,7 +448,7 @@ test('createHook, the raw primitive, runs inside every write it hears — unbatc
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.createHook({ priority: 65, callback: (change, first) => { void state.n; if (!first) runs.push(state.n); } });
+        createHook({ priority: 65, callback: (change, first) => { void state.n; if (!first) runs.push(state.n); } });
       });
     }
   });
@@ -474,10 +476,10 @@ test('useHook and createHook take `element` alike: outside setup, the element gi
    * Called after setup: with no element being set up, only the one passed owns each hook — and nothing runs a first
    * pass for a hook made after the setup returned, so both return the hook and the caller runs it, which subscribes it.
    */
-  const scheduled = core.useHook(() => { const n = state.n; log.push(`scheduled ${n}`); return () => log.push(`clean ${n}`); }, 65, el);
-  const raw = core.createHook({ element: el, priority: 65, callback: () => { log.push(`raw ${state.n}`); } });
-  assert.ok(typeof scheduled === 'function' && typeof raw === 'function', 'CONTROL: both accepted the element as owner');
-  scheduled(undefined, true);
+  const scheduled = core.effect(() => { const n = state.n; log.push(`scheduled ${n}`); return () => log.push(`clean ${n}`); }, { priority: 65, owner: el });
+  const raw = createHook({ element: el, priority: 65, callback: () => { log.push(`raw ${state.n}`); } });
+  assert.ok(typeof scheduled?.run === 'function' && typeof raw === 'function', 'CONTROL: both accepted the element as owner');
+  scheduled.run();
   raw(undefined, true);
   log.length = 0;
   state.n = 1;

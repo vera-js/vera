@@ -27,7 +27,7 @@ import { dirname, relative, resolve } from 'node:path';
  * module that shares no runtime state with core — `@verajs/styles` and `@verajs/spread` import
  * nothing and are wired by the app. It is wrong for a module built *on* core's API: inlining would
  * give a CDN page a second copy of core, and with it a second insert registry and a second store
- * identity. `@verajs/computed` calls `createStore` and `createHook`, so core stays external and
+ * identity. `@verajs/computed` calls `createStore` and core's raw hook (internal), so core stays external and
  * resolves through the import map to the one everything else is using.
  */
 export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, options = {}) => {

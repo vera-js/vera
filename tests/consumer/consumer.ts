@@ -14,7 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { define, init, createStore, wire, html, signal, effect, createHook, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
+import { define, init, createStore, wire, html, signal, effect, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -52,7 +52,7 @@ class Demo extends HTMLElement {
       effect((signal) => { void signal?.prop; return () => {}; });
       effect(() => {}, { timing: 'layout' });
       effect(() => {}, { timing: 'sync' });
-      createHook({ element: this, priority: 10, callback: () => {} });
+      effect(() => {}, { owner: this, priority: 10 });
       untrack(() => state.n);
 
       return () => html`
@@ -95,7 +95,7 @@ wire([styles]);
 /** The longhand still compiles — the module is a convenience over it, not a replacement. */
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 void applyStyles('.a{}', document.createElement('div') as never);
-void inserts; void useRender; void domRender;
+void inserts; void domRender;
 setRenderScheduler(microtask);
 setMatchFunction(<P extends Record<string, string | string[] | undefined>>(pattern: string) =>
   (path: string) => (path === pattern ? { path, params: {} as P } : false));
@@ -112,7 +112,7 @@ back(); forward(); go(-1);
  * installed, and nothing has ever compiled a line against it. A `.d.ts` is documentation that
  * compiles, so an unexercised one is an unverified claim.
  */
-import { allowRenderLoop, effect } from '@verajs/core';
+import { allowRenderLoop } from '@verajs/core';
 import type { StoreInsert } from '@verajs/inserts';
 import {
   formatReport, getReport, isProfiling, profile, showProfiler, startProfiling, stopProfiling,

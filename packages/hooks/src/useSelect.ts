@@ -11,7 +11,7 @@
  * Everything here is a `createStore` store, so a host template that reads `select.state` re-renders
  * on exactly the changes it read — no subscription plumbing.
  */
-import { createStore, useEffect } from '@verajs/core';
+import { createStore, effect } from '@verajs/core';
 import { useDismiss } from './useDismiss.js';
 import type { AssignedParts, LifecycleElement, SelectConfig, SelectOption } from './types.js';
 
@@ -426,7 +426,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
    * Registered before the host's `render()` — hooks registered after it are ignored. The reads
    * inside `syncAssigned` (open, value) are what subscribe this effect to the store.
    */
-  useEffect(syncAssigned, element);
+  effect(syncAssigned, { owner: element });
 
   return {
     state,

@@ -194,7 +194,7 @@
       "code": "nested-flush",
       "params": [],
       "message": "flush() inside a running flush (a hook, a render, or an event one of them fired) does nothing: the DOM updates when this flush ends — nothing failed.",
-      "fix": "To read the DOM a render made, read it in useLayoutEffect, which runs right after the render."
+      "fix": "To read the DOM a render made, read it in an effect with `{ timing: 'layout' }`, which runs right after the render."
     },
     {
       "code": "no-collections",
@@ -206,7 +206,7 @@
       "code": "no-owner",
       "params": [],
       "message": "there is no component being set up. Hooks belong to a component's setup — the function `init` calls, synchronously — so after it returns, after an `await` inside it, or later in a handler, there is no component to attach them to.",
-      "fix": "To change what is shown later, write to a store. Await BEFORE `init(...)`, or inside an async setup with its hooks before the first `await`; or pass the element explicitly: `useEffect(fn, this)`."
+      "fix": "Called after an `await` in an async setup? Call effect() BEFORE the first `await`, and return the render after it. To change what is shown later, write to a store. A builder's own primitive names its owner: `effect(fn, { owner })`."
     },
     {
       "code": "no-renderer",
@@ -238,7 +238,7 @@
         "received"
       ],
       "message": "the priority must be a finite number, and {received} is not — the hook was not registered (in production too, silently).",
-      "fix": "Lower runs first: 25 runs before the render, 50 is the render, 60 useLayoutEffect, 75 useEffect. A priority read from config with `parseInt` is NaN when the value is missing."
+      "fix": "Lower runs first: 25 runs before the render, 50 is the render, 60 a layout effect, 75 an effect. A priority read from config with `parseInt` is NaN when the value is missing."
     },
     {
       "code": "render-loop",
@@ -316,7 +316,7 @@
       "code": "sync-loop",
       "params": [],
       "message": "re-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, so an unguarded write feeds itself.",
-      "fix": "Guard the write (`if (next !== state.x) state.x = next`), or use `useEffect`, which coalesces."
+      "fix": "Guard the write (`if (next !== state.x) state.x = next`), or use a plain `effect`, which coalesces."
     },
     {
       "code": "untrack-not-function",

@@ -41,7 +41,7 @@ const PROD = {
  * rather than implementing an extension point, so it must import core in every mode instead of
  * inlining it.
  *
- * This is not a preference. `createStore` and `createHook` reach module-level state inside core —
+ * This is not a preference. `createStore` and core's raw hook (internal) reach module-level state inside core —
  * the tracking cell, `proxyCallbacks` — so a bundle carrying its own copy would set a *different*
  * tracking cell and register into a *different* callback map. Every computed would evaluate once and
  * then never invalidate again: no error, no warning, and only in a production build. That is the

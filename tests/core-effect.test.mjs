@@ -1,6 +1,6 @@
 /**
- * **`effect(fn, options?)`** (2026-10-22) — the one primitive that replaced `useEffect`, `useLayoutEffect`,
- * `useSyncEffect`, `useHook` and `createHook`. Rows: the first-pass order of the timings and a custom priority; a
+ * **`effect(fn, options?)`** (2026-10-22) — the one primitive that replaced `effect`, a `'layout'` effect,
+ * a `'sync'` effect, `effect` with a `priority` and core's raw hook (internal). Rows: the first-pass order of the timings and a custom priority; a
  * default effect coalesces writes, a `'sync'` one runs on each; the handle — `run()` by hand, `stop()` inert after a
  * write, a removal and a persist pause/resume, inside its own run, and twice (its cleanup exactly once); an effect with
  * an explicit non-element owner has no automatic first run; no owner throws `no-owner`; a non-finite priority is refused.

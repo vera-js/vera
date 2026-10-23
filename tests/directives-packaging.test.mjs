@@ -29,7 +29,9 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 /** ORDER IS THE POINT: `wire([directives])` hands the engine the page's core BEFORE its first activation. */
-const { wire, createHook } = await load('core');
+const { wire } = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = (await load('core')).inserts.$s[2];
 const { directives, wireDirectives, interactions, expressions, settled, stateOf } = await load('directives');
 wire([directives]);
 wireDirectives([expressions, ...interactions]);

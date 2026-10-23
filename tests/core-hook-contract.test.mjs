@@ -1,8 +1,8 @@
 /**
- * **The hook contract — `createHook`'s and the effects' — held by checks that fail without it.**
+ * **The hook contract — core's raw hook (internal)'s and the effects' — held by checks that fail without it.**
  *
  * Found by mutation controls (2026-09-27): taking priority ordering or init
- * generations out of `createHook` turned nothing in the whole suite red, because every existing test
+ * generations out of core's raw hook (internal) turned nothing in the whole suite red, because every existing test
  * registered hooks in the order their priorities already implied, and no test wrote to a store after
  * a reconnect through a hook that could still run. Both are public behavior — "lower runs earlier",
  * and "a reconnect retires the previous connection's hooks", which `@verajs/directives` uses as its
@@ -23,6 +23,8 @@ for (const key of [
 const nextFrame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
 const core = await load('core');
+/** The raw hook primitive is core-internal since `effect` (2026-10-22): reached through core's own hand-off, `$s[2]`. */
+const createHook = core.inserts.$s[2];
 
 const element = () => {
   const el = document.createElement('div');
@@ -38,9 +40,9 @@ test('hooks run by priority, not by registration order', () => {
   const el = element();
   const order = [];
   core.init(el, () => {
-    core.createHook({ priority: 60, callback: () => order.push('sixty') });
-    core.createHook({ priority: 0, callback: () => order.push('zero') });
-    core.createHook({ priority: 25, callback: () => order.push('twenty-five') });
+    createHook({ priority: 60, callback: () => order.push('sixty') });
+    createHook({ priority: 0, callback: () => order.push('zero') });
+    createHook({ priority: 25, callback: () => order.push('twenty-five') });
     return () => null;
   });
   assert.deepEqual(order, ['zero', 'twenty-five', 'sixty'], 'lower priority first, whatever the registration order');
@@ -56,7 +58,7 @@ test('a reconnect retires the previous connection\'s hooks', () => {
   const state = core.createStore({ n: 0 });
   let runs = 0;
   core.init(el, () => {
-    core.createHook({ priority: 75, callback: () => void (state.n, runs++) });
+    createHook({ priority: 75, callback: () => void (state.n, runs++) });
     return () => null;
   });
   assert.equal(runs, 1, 'CONTROL: the first pass ran and subscribed');
@@ -73,7 +75,7 @@ test('bumping an owner\'s generation retires its hooks', () => {
   const owner = {};
   const state = core.createStore({ n: 0 });
   let runs = 0;
-  const hook = core.createHook({ element: owner, priority: 30, callback: () => void (state.n, runs++) });
+  const hook = createHook({ element: owner, priority: 30, callback: () => void (state.n, runs++) });
   hook(undefined, true);
   state.n = 1;
   assert.equal(runs, 2, 'CONTROL: live, the hook re-runs on a write');

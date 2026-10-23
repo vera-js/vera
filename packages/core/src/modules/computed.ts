@@ -31,7 +31,7 @@ const COMPUTED_PRIORITY = 10;
  *
  * **A diamond is not settled between its two halves**, as before: where two computeds read one store and a third
  * reads both, a write re-evaluates the third once per half; a coalesced render or effect sees only the settled value,
- * a `useSyncEffect` can see the step between (`tests/reactivity-graph.test.mjs` measures it).
+ * a a `'sync'` effect can see the step between (`tests/reactivity-graph.test.mjs` measures it).
  *
  * A throw in a WATCHED evaluation (inside a write) is reported once (the `'error'` chain) and the value stays the last
  * good one; a throw in a read from plain code reaches that code, as TC39's `Signal.Computed` rethrows.

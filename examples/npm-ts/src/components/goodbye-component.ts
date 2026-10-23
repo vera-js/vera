@@ -1,6 +1,6 @@
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
-import { init, createStore, useEffect, signal, html, effect } from '@verajs/core';
+import { init, createStore, signal, html, effect } from '@verajs/core';
 import { css } from '@verajs/styles';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
@@ -71,22 +71,22 @@ class GoodbyeComponent extends HTMLElement {
 
       // const stateMachine = signal(new Map([['hello', 'goodbye']]), { deep: true });
 
-      // useEffect(() => {
+      // effect(() => {
       //   console.log('State machine value: ', stateMachine.value.get('hello'));
       // });
-      // useEffect(() => {
+      // effect(() => {
       //   console.log('State map value: ', state.map.get('hello'));
       // });
-      // useEffect(() => {
+      // effect(() => {
       //   // console.log('State set value: ', state.set);
 
       //   const newValue = state.testSet.has('goodbye');
       //   console.log("state.testSet.has('goodbye') changed", newValue);
       // });
-      // useEffect(() => {
+      // effect(() => {
       //   state.map.get('hello');
       // });
-      // useEffect(() => {
+      // effect(() => {
       //   const newValue = testMap.get('hello');
       //   console.log("state.testMap.get('hello') changed", newValue);
       // });
@@ -94,7 +94,7 @@ class GoodbyeComponent extends HTMLElement {
       effect(() => {
         console.log(testRef);
       });
-      // useEffect(() => {
+      // effect(() => {
       //   state.testObject;
       // });
 

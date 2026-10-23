@@ -145,7 +145,7 @@ renders each case on both sides and compares the DOM. What a component does to i
 
 **Frames are drained before the markup is read.** A server never paints, so `requestAnimationFrame`
 (and `requestIdleCallback`) callbacks are queued and run once `connectedCallback` returns, then again
-for whatever those schedule — so a re-render and every `useEffect` land in the markup, coalesced
+for whatever those schedule — so a re-render and every `effect` land in the markup, coalesced
 exactly as a browser coalesces them.
 
 - **An endless animation loop is bounded**: 20 rounds, then the render ships. What the loop left
@@ -153,7 +153,7 @@ exactly as a browser coalesces them.
 - **The async chain lets promises settle between rounds.** A frame that returns a promise is awaited,
   whatever it awaits; work a frame starts without returning it is caught if it lands within three idle
   microtask turns (measured: a chain four microtasks deep).
-- **`useLayoutEffect` runs on a microtask.** Through `renderToStringAsync` its state reaches the
+- **a `'layout'` effect runs on a microtask.** Through `renderToStringAsync` its state reaches the
   markup, as on the client. Through `renderToString` it runs — a side effect inside one *happens* on the
   server — but after the template was serialized, so state it settles is not in the markup: settle it
   before `render()`, or use `renderToStringAsync`.

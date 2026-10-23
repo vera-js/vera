@@ -6,7 +6,7 @@
  * browser:
  *
  * - `requestAnimationFrame` was shimmed to `setTimeout`, so every re-render scheduled during
- *   `connectedCallback` and every `useEffect` landed after the response was already built. The
+ *   `connectedCallback` and every `effect` landed after the response was already built. The
  *   ordinary `render(); state.x = fromAttribute` shape shipped the pre-assignment markup.
  * - `attributeChangedCallback` never fired at all, on upgrade or afterwards — the only reactive
  *   attribute mechanism a plain custom element has.

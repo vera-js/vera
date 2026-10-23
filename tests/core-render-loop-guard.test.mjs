@@ -1,8 +1,8 @@
 /**
  * The self-feeding render loop: detected, named once, and never stopped.
  *
- * `useEffect(() => { state.total = sum(state.rows) })` next to a template reading `state.total`
- * re-runs every frame for as long as the page is open. `useSyncEffect` can refuse that outright
+ * `effect(() => { state.total = sum(state.rows) })` next to a template reading `state.total`
+ * re-runs every frame for as long as the page is open. a `'sync'` effect can refuse that outright
  * because a *synchronous* self-feeding write is never deliberate; the coalesced path cannot, because
  * an animation is a self-feeding loop on purpose — Vera's default scheduler is already a frame, so
  * one store write per frame is the natural way to write one here.
@@ -78,7 +78,7 @@ const OVER = 60;
     check('production says nothing', warnings.length === 0, warnings.join(' | '));
   } else {
     check('a self-feeding effect is named', warnings.length === 1, `${warnings.length}: ${warnings.join(' | ')}`);
-    check('and named as useEffect', warnings[0]?.includes('useEffect'), warnings[0]);
+    check('and named as an effect', warnings[0]?.includes('an effect on'), warnings[0]);
     check('with the [vera] prefix', warnings[0]?.startsWith('[vera]'), warnings[0]);
     check('naming the animation case as legitimate', warnings[0]?.includes('allowRenderLoop'), warnings[0]);
   }

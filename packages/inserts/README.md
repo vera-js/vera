@@ -61,12 +61,12 @@ Every callback in a chain runs, in priority order. An insert that wants to chang
 rather than merely watch — says so through its return value: a `'store'` insert returns the handler
 to use, each seeing the one chosen before it, so they compose.
 
-For a whole new *kind* of hook rather than a new implementation of an existing one, `createHook` in
-`@verajs/core` is the primitive `useEffect` and its siblings are built from.
+For a whole new *kind* of hook rather than a new implementation of an existing one, core's raw hook (internal) in
+`@verajs/core` is the primitive `effect` and its siblings are built from.
 
 ## An insert that throws
 
-**Nothing catches it, and that is deliberate — but it is not the same as a hook.** A `useEffect` that
+**Nothing catches it, and that is deliberate — but it is not the same as a hook.** An `effect` that
 throws is isolated and reported through the `'error'` insert, because core runs an element's hooks in
 one loop and an escaping error would skip every hook after the failing one. An insert is not in that
 position:

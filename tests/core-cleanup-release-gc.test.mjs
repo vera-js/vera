@@ -8,7 +8,7 @@
  * A hook can be held from outside in two ways, one row each:
  * - its ELEMENT, kept alive here on purpose (code holding a removed element: an exit animation, a test) — so the
  *   callback and cleanup can die only because teardown dropped the hook list;
- * - the function `useHook` returned, kept by the caller — so its cleanup can die only because removal cleared it.
+ * - the function `effect` with a `priority` returned, kept by the caller — so its cleanup can die only because removal cleared it.
  * Controls: the same shapes on a component still connected stay ALIVE; a dropped plain object dies (or gc never ran).
  * Each marker is made in its own function scope, so a closure sharing a V8 context cannot keep it alive by accident.
  * No slots, nothing a MutationObserver watches: jsdom holds observed nodes strongly and would fake a leak.
@@ -38,13 +38,13 @@ const child = () => JSON.parse(execFileSync(process.execPath, [...(isProduction 
       return () => { void captured; };
     };
   };
-  /** The functions useHook returned, kept as a caller would keep them. */
+  /** The effects returned, kept as a caller would keep them. */
   const kept = new Map();
   customElements.define('cr-x', class extends HTMLElement { connectedCallback() {
     const name = this.dataset.name;
     core.init(this, () => {
       core.effect(effectFor(name));
-      kept.set(name, core.useHook(effectFor(name + ':kept'), 65));
+      kept.set(name, core.effect(effectFor(name + ':kept'), { priority: 65 }));
       return () => core.html\`<p>x</p>\`;
     });
   } });
@@ -61,7 +61,7 @@ const child = () => JSON.parse(execFileSync(process.execPath, [...(isProduction 
   const alive = (name) => refs.get(name)?.deref() !== undefined;
   process.stdout.write(JSON.stringify({
     ran: refs.size === 8,
-    held: els.removed.localName === 'cr-x' && typeof kept.get('removed') === 'function',
+    held: els.removed.localName === 'cr-x' && typeof kept.get('removed')?.stop === 'function',
     removedEffect: alive('removed:effect'),
     removedCleanup: alive('removed:cleanup'),
     keptCleanup: alive('removed:kept:cleanup'),

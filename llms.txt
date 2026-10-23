@@ -42,7 +42,7 @@ Four things, and that is the whole framework:
 1. `init(this, setup)` in `connectedCallback` attaches VeraJS to a plain custom element. The setup runs ONCE.
 2. `createStore(obj)` / `signal(v)` make state reactive. **Reading a property subscribes to it.**
 3. The setup RETURNS its render, `() => template`, which re-runs whenever anything it read changes.
-4. `useEffect(fn)` does the same for side effects.
+4. `effect(fn)` does the same for side effects (`{ timing: 'layout' }` right after the render, `{ timing: 'sync' }` on every write).
 
 There are no dependency arrays, no reactive-property declarations, and no base class.
 
@@ -116,8 +116,8 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 
 **The setup is the whole component, and it runs once.** Everything in it — stores, hooks, helpers — is created on
 connect; only the function it returns re-runs. Hooks register while it runs: one registered after an `await` in an
-async setup, or from a handler later, throws `no-owner` in every build (pass the element explicitly —
-`useEffect(fn, this)` — when that is what you mean). An async setup is atomic: nothing it registered runs until it
+async setup, or from a handler later, throws `no-owner` in every build — make effects before the first `await`, and
+return the render after it (a module's own effect names its owner: `effect(fn, { owner })`). An async setup is atomic: nothing it registered runs until it
 resolves, and a rejection is reported once through the error chain and draws nothing. Removed while it is pending, the
 component waits up to 5 s: re-added in time, the SAME setup carries on (never set up twice); still out, it is torn down.
 
@@ -166,7 +166,6 @@ the right tool.
 | `setRenderScheduler` | `(scheduler) => previous` | When a FLUSH runs. Default: `microtask`. A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | THE DEFAULT: every flush as a microtask. |
 | `frameBudget` | `RenderScheduler` | Opt-in, for bursts of data: a microtask within ~4 ms of flush work per frame; past it the element's own window's next frame (or a short timer where there are none). After `await` the DOM may not be current yet — `flush()` first. |
-| `useRender` | `(template, element) => void` | Lower-level, inside a setup: registers a second render that draws into `element`, on this component's lifecycle. |
 
 ### Props — passing data to a child component
 
@@ -232,44 +231,48 @@ card.heading = 'Groceries';   // after connect: repaints
 | **Name the setup for stack traces** | `define('x-card', function XCard(host) { … })` — engines print function names; the generated class's name is not what they show. |
 | **Redefine in development** | `wire([renderer, hot])` from `@verajs/hot` (development only, wired FIRST): defining a tag again swaps its live elements in place — setup, methods, props, callbacks — keeping the element and its props. A shadow-mode or `formAssociated` change is a cancelable `vera-hot-reload` event instead. `define` returns the registered class either way. |
 | **Async data** | `resource((signal) => fetchUser(state.id, { signal }))` from `@verajs/store/resource`, in a setup: `{ loading, value, error, refreshing }`; refetches when what the source read (before its first `await`) changes, aborting the previous request; only the latest writes; removal aborts. On a server it does not fetch (renders `loading`). |
-| **Moves into another window** | A component moved into a `window.open` window or an iframe (plain DOM) and back is KEPT: setup runs once; every `useEffect`/`useLayoutEffect` re-runs (cleanup first) against the new window; styles re-apply. Read the window in an effect, not setup. Reset = `remove()` then `append()`. Focus is dropped by the browser. |
+| **Moves into another window** | A component moved into a `window.open` window or an iframe (plain DOM) and back is KEPT: setup runs once; every plain and `'layout'` effect re-runs (cleanup first) against the new window; styles re-apply. Read the window in an effect, not setup. Reset = `remove()` then `append()`. Focus is dropped by the browser. |
 
 ### Effects
 
-| Export | When it runs | Batching |
-| --- | --- | --- |
-| `useLayoutEffect` | right after the render, before every `useEffect` — sees the new DOM, as in React (priority 60) | coalesced, one flush |
-| `useEffect` | after the render, same flush, before paint (priority 75) | coalesced, one flush |
-| `useSyncEffect` | immediately on every change (priority 75) | **not** batched |
-| `useHook` | `(callback, priority, element?)` — at the priority you give it (any finite number; a non-finite priority registers nothing — development says why); 25 runs before the render and sees the DOM the last render left | coalesced, one flush |
+`effect(fn, options?)` — ONE primitive (it replaced `useEffect`, `useLayoutEffect`, `useSyncEffect`, `useHook` and
+`createHook` on 2026-10-22). Options: `timing`, `priority`, `owner`.
 
-All three accept `(callback, element?)` and **run a returned function as cleanup** — before the
-next pass, and **on element removal** (no `disconnectedCallback` code needed; an author's own
-`disconnectedCallback` still runs first if present):
+| Call | When it runs | Batching |
+| --- | --- | --- |
+| `effect(fn)` | after the render, same flush, before paint (priority 75) | coalesced, one flush |
+| `effect(fn, { timing: 'layout' })` | right after the render, before every plain effect — sees the new DOM (priority 60) | coalesced, one flush |
+| `effect(fn, { timing: 'sync' })` | immediately on every change | **not** batched |
+| `effect(fn, { priority })` | at the priority you give it (any finite number; a non-finite one registers nothing — development says why); 25 runs before the render and sees the DOM the last render left | coalesced, one flush |
+
+Its owner is the component being set up; `owner` names another (any object — a module's own value), and such an
+effect runs when its `run()` is called. **A returned function is its cleanup** — before the next run, and **on
+element removal** (no `disconnectedCallback` code needed; an author's own `disconnectedCallback` still runs first if
+present). `effect` returns the effect itself: `run()` runs it now, `stop()` ends it for good (its cleanup once).
 
 ```js
-useEffect(() => {
+effect(() => {
   const id = setInterval(tick, 1000);
   return () => clearInterval(id);   // runs before the next pass
 });
 ```
 
-**Coalesced vs sync.** `useEffect` runs once per flush no matter how many writes landed, so it only
+**Coalesced vs sync.** A plain `effect` runs once per flush no matter how many writes landed, so it only
 ever observes final state. Order in a flush: renders, layout effects, effects (React's order) — parents
 before children. A hook may run twice in one flush (a measure-then-set lands before paint); a third run
-waits for the next frame. `useSyncEffect` runs once per individual write and observes every
+waits for the next frame. A `'sync'` effect runs once per individual write and observes every
 intermediate value — the Solid/Preact model.
 
 ```js
 state.n = 1; state.n = 2; state.n = 3;
-// useEffect     -> one run, sees 3
-// useSyncEffect -> three runs, sees 1, 2, 3
+// effect(fn)                     -> one run, sees 3
+// effect(fn, { timing: 'sync' }) -> three runs, sees 1, 2, 3
 ```
 
-⚠️ `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
-write or use `useEffect`. Development stops and names the recursion at depth 50.
+⚠️ A `'sync'` effect **can infinite-loop** if it unconditionally writes state it also reads. Guard the
+write or use a plain `effect`. Development stops and names the recursion at depth 50.
 
-⚠️ `useEffect` and templates can loop too, and there it is ambiguous — an effect that writes what it
+⚠️ A plain `effect` and templates can loop too, and there it is ambiguous — an effect that writes what it
 reads runs twice per flush and then once more per frame (it never freezes the page), which is also
 one way an animation is written. Development **warns without stopping it** after 50 consecutive
 held frames, naming the hook that writes; production carries neither the counter nor the text.
@@ -284,7 +287,7 @@ scheduled from your own `requestAnimationFrame`, a timer or an event never trips
 ```js
 init(this, () => {
   allowRenderLoop(this);
-  useEffect(() => { state.t = state.t + 1 });   // an animation, not a bug
+  effect(() => { state.t = state.t + 1 });   // an animation, not a bug
 });
 ```
 
@@ -335,20 +338,20 @@ A HAND-WRITTEN template without the module wired is the same story: ``Frame(html
 `html` alone would produce an `HTMLUnknownElement` named `circle`, which parses fine and never
 renders. Bindings, keyed lists and in-place updates all work the same inside these tags.
 
-### The signal argument
+### The change argument
 
-Every effect receives a signal describing what changed:
+Every effect receives the change that woke it (its type is `Change`):
 
 ```js
-useEffect((signal) => {
-  signal.prop;       // name of the change that scheduled this run
-  signal.value;
-  signal.prevValue;
+effect((change) => {
+  change.prop;       // name of the change that scheduled this run
+  change.value;
+  change.prevValue;
 });
 ```
 
-A coalesced run (`useEffect`, `useLayoutEffect`, a render) describes the write that scheduled it;
-`useSyncEffect` runs once per write, so it sees every one.
+A coalesced run (a plain or `'layout'` effect, a render) describes the write that scheduled it; a `'sync'` effect runs
+once per write, so it sees every one.
 
 ### Extension
 
@@ -357,7 +360,7 @@ A coalesced run (`useEffect`, `useLayoutEffect`, a render) describes the write t
 | `wire` | `(descriptor \| connector \| array) => void` — arrays nest, so a module made of several descriptors is itself an array; a descriptor is `{ on, fn, priority, name? }`, **priority is required** |
 | `inserts` | the registry `Map` |
 | `connect` | optional on a descriptor — handed the registry before `fn` is registered, so a module that keeps none can be given core's |
-| `createHook` | `({ callback, priority, element? }) => run` — the raw hook primitive: it runs INSIDE every write it hears, unbatched (what a `computed` needs); for a scheduled hook use `useHook`. Returns the wrapped callback so a standalone value can drive its own first pass (`run(undefined, true)`), or `undefined` if refused — no callback, or a priority that is not a finite number (registers nothing, in both builds; development says why: `priority-not-finite`) |
+| `effect` (for modules) | `(fn, { owner, priority }) => Effect` — a module's own reactive work, owned by `owner`, started by `run()`, ended by `stop()`; `undefined` if refused (a priority that is not a finite number: registers nothing, in both builds; development says why: `priority-not-finite`) |
 
 There is no reconciliation step. A module that would otherwise carry its own registry is handed
 core's instead — `wire([router])` — which reads the same under a bundler and on a CDN page.
@@ -567,7 +570,7 @@ The differences worth knowing, all deliberate:
   child is no longer a direct child — see the insertBefore warning above), never worse ordering of
   the ones you can.
 - `slotchange` only ever fires for a slot that HAS an assignment — here and in a shadow root alike.
-  A component that must wire itself even when given nothing should do that once from a `useEffect`
+  A component that must wire itself even when given nothing should do that once from an `effect`
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only generic hooks it plugs into, and the module is
@@ -1714,8 +1717,8 @@ Rules an assistant must not guess around:
   **always for a router**: only the async chain waits for the initial navigation, so it serves the
   route `location` names; the sync chain serves the shell with an empty `[view]` outlet.
 - Core's queued renders and effects, and frames (`requestAnimationFrame`), are drained before
-  serializing — interleaved, bounded at 20 rounds — so re-renders, `useEffect` and
-  `useLayoutEffect` reach the markup through BOTH entry points.
+  serializing — interleaved, bounded at 20 rounds — so re-renders, plain and `'layout'`
+  effects reach the markup through BOTH entry points.
 - Renders take a turn each across both entry points, so concurrent calls cannot see each other's
   state. Pass `location` per call; never assign `globalThis.location`.
 - **A component that throws rejects the render** — it is never silently empty markup. Catch and
@@ -1817,7 +1820,7 @@ form you hold, the full explanation of a code is at `https://verajs.dev/e/<code>
    throws `no-owner`, in every build. Register hooks before the first `await`, or pass the element explicitly.
    The old `init(this, { mode })` → the object is ignored in every build (no shadow root) and development names
    the fix once: `init({ host: this, shadow: 'open' }, setup)`.
-8. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
+8. Expecting an `effect` to run per mutation → it is coalesced; use `effect(fn, { timing: 'sync' })`.
 9. An autoloaded file that loads and defines a different tag than its name → reported via
    `vera:autoload-error` and the console; the module must define the element it is named for.
 10. **TypeScript: a plain class field on a custom element silently destroys values set before the

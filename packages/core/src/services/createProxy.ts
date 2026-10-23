@@ -74,7 +74,7 @@ let wakes = 0;
  * 500 readers made 500).
  *
  * **In insertion order, as the `Set` it replaced**: a raw or sync hook runs inside this loop, in this order
- * (a priority-0 `createHook` runs first), and its run may make a hook LEAVE this cell, which moves the cell's last hook
+ * (a priority-0 core's raw hook (internal) runs first), and its run may make a hook LEAVE this cell, which moves the cell's last hook
  * into the leaver's slot, possibly behind the walk. So a leave (the count at index 0 changed) restarts the walk from the start: every hook
  * already reached carries this wake's number and is skipped, so none is missed and none runs twice. A hook that JOINS
  * during the walk is reached too, as a `Set` reached an entry added while it was being iterated.
@@ -175,7 +175,7 @@ export const counting = { on: false };
 /**
  * **A built-in that writes several slots notifies ONCE, after it finishes** (2026-10-18). Called through the proxy,
  * `splice`, `shift`, `sort` … write index by index through the `set` trap: a hook that runs on each write (a raw
- * `createHook`, `useSyncEffect`) ran BETWEEN those writes and saw the array half-shifted, a value twice or a hole, and
+ * core's raw hook (internal), a `'sync'` effect) ran BETWEEN those writes and saw the array half-shifted, a value twice or a hole, and
  * `splice(400, 1)` on 1000 rows sent 601 notifications. Here the method runs on the RAW array, so no trap fires midway,
  * and every hook subscribed to anything it changed (an index in the range; `length` and the shape when the length
  * moved) is told once, with one signal. What crosses back goes through the store as a read would: removed values and

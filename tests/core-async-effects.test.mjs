@@ -31,11 +31,12 @@ const listen = async (run) => {
   return said;
 };
 
-for (const [hook, register] of [
-  ['useEffect', (fn) => core.effect(fn)],
-  ['useLayoutEffect', (fn) => core.effect(fn, { timing: 'layout' })],
-  ['useHook', (fn) => core.effect(fn, { priority: 65 })],
-]) test(`an async ${hook} runs on every change and throws nothing on its next run or on removal`, async () => {
+/** [what the warning calls it, how it is made] — the subject is the effect's kind (2026-10-22: one `effect`). */
+for (const [kind, hook, register] of [
+  ['plain', 'an effect', (fn) => core.effect(fn)],
+  ['layout', "a 'layout' effect", (fn) => core.effect(fn, { timing: 'layout' })],
+  ['priority 65', 'an effect', (fn) => core.effect(fn, { priority: 65 })],
+]) test(`an async effect (${kind}) runs on every change and throws nothing on its next run or on removal`, async () => {
   const state = core.createStore({ n: 0 });
   const runs = [];
   const name = `x-async-${seq++}`;
@@ -60,7 +61,7 @@ for (const [hook, register] of [
   if (isProduction) assert.deepEqual(said, [], 'production is silent');
   else {
     assert.equal(said.length, 1, `development names it ONCE, not per run: ${said.join(' | ')}`);
-    assert.match(said[0], new RegExp(`^warn \\[vera\\] core: ${hook} on <${name}> — returned a promise[\\s\\S]*\\(async-callback\\)$`), 'naming the hook, the component and the code');
+    assert.match(said[0], new RegExp(`^warn \\[vera\\] core: ${hook.replace(/'/g, "'")} on <${name}> — returned a promise[\\s\\S]*\\(async-callback\\)$`), 'naming the hook, the component and the code');
   }
 });
 
