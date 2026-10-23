@@ -420,7 +420,8 @@ const veraP1Impl = (store) => (mount) => {
 const veraAutoImpl = (mount) => {
   setRenderScheduler(microtask);
   wireVera();
-  wire([keyedModule.lists]);
+  /** `lists` since 2026-10-22, `eachList` before: by presence, so one page serves builds on either side. */
+  wire([keyedModule.lists ?? keyedModule.eachList]);
   const host = document.createElement('div');
   mount.appendChild(host);
   const state = createStore({ rows: [], selected: -1 });
@@ -1043,7 +1044,7 @@ export const IMPLEMENTATIONS = [
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
   { name: 'VeraJS store default', note: "today's idiom with createStore rows (the store app's baseline)", factory: veraStoreDefaultImpl },
-  ...(keyedModule.lists && keyedModule.createSelector ? [{ name: 'VeraJS auto', note: 'automatic .map lists: a store array, no keyed(), createSelector', factory: veraAutoImpl }] : []),
+  ...((keyedModule.lists ?? keyedModule.eachList) && keyedModule.createSelector ? [{ name: 'VeraJS auto', note: 'automatic .map lists: a store array, no keyed(), createSelector', factory: veraAutoImpl }] : []),
   ...(keyedModule.each ? [
     { name: 'VeraJS each', note: 'P1: each + a store selector, plain rows', factory: veraP1Impl(false) },
     { name: 'VeraJS each store', note: 'P1: each + a store selector, createStore rows', factory: veraP1Impl(true) },
