@@ -354,6 +354,15 @@ rest of this file.
   qualified when the registry is not core's (`wireDirectives`), and that parallel is deliberate:
   the same idea carries the same verb. Recipes and prose write the array form, `wire([renderer])`,
   even for one module — `wire` accepts a bare descriptor too, but the docs teach one shape.
+- **The naming convention for everything else, decided 2026-10-22 (Brian) — it extends the verb grammar above.**
+  (1) **Verbs are actions** on the app or page — they do something now and return nothing you keep: `init`, `define`,
+  `wire`, `flush`, `untrack`, `renderInto`. (2) **`create*`** makes a standalone instance whose natural variable name IS
+  the noun (`createStore`, `createSelector` — `const store = store(…)` would collide). (3) **The name of what you get**
+  for everything created in a setup, **owned by where it is created** (a setup: the component; a render: that render;
+  module scope: you): `signal`, `computed`, `effect`, `resource`, `portal` — in the field's established term where one
+  exists (`computed`, as TC39's `Signal.Computed`). (4) **No `use*` prefix, anywhere**: in React it signals call-order
+  rules, and a Vera setup runs once and has none. Headless behaviors are nouns too when they return (`lightDismiss`,
+  `listbox` — the `@verajs/hooks` renames, done when `ui` returns to scope).
 - **What a wireable module LOOKS like follows from whether it has options** (surveyed 2026-09-07;
   the rule was already in force unwritten, and a new module should not have to re-derive it):
   **no options → a bare descriptor** (`renderer`, `styles`, `collections`, `slots` — plain objects;
