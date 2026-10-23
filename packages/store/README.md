@@ -8,8 +8,8 @@ would otherwise pay for.
 
 | Entry | | |
 | --- | ---: | --- |
-| `@verajs/store/collections` | <!--size:collections.gzip-->665 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
-| `@verajs/store/resource` | <!--size:resource.gzip-->390 B<!--/size:resource.gzip--> | async data as a reactive cell |
+| `@verajs/store/collections` | <!--size:collections.gzip-->672 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
+| `@verajs/store/resource` | <!--size:resource.gzip-->396 B<!--/size:resource.gzip--> | async data as a reactive cell |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
 subpath and a buildless page downloads only that one. Every entry is **additive**: none inlines core,
