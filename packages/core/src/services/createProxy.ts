@@ -87,6 +87,14 @@ const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
     if (hook === undefined || hook.e === epoch) continue;
     hook.e = epoch;
     hook.$n(signal);
+    /**
+     * **The stamp again, after the run** (2026-10-22): a raw or sync hook runs INSIDE this call, and a write it makes to a
+     * key it read wakes it again — nested — stamping it with that NEWER wake, so this loop would no longer recognize it
+     * and would run it a second time through a second link to the same key (two runs per write). Re-stamping
+     * here restores what this loop gave it. It replaced a save-and-restore inside every hook run, which charged every
+     * run — creation's first runs included — for what only a write's loop needs (WebKit create +0.8–1.1%, the final race).
+     */
+    hook.e = epoch;
     if (cell.m !== m) {
       m = cell.m;
       p = -1;
@@ -96,16 +104,16 @@ const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
 
 /** Wakes every hook that read `obj[prop]`. */
 const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
+  const epoch = ++wakes;
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, ++wakes);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
   /**
-   * **An unread write moves the count too — once any `computed` has been read outside a run** (2026-10-22). An
-   * unwatched computed caches its untracked value against the count, and its sources are often keys nobody reads:
-   * counting only writes that woke someone left that cache stale (measured: 10 after the source became 2). Ticking on
-   * every unread write cost +0.9% on a write loop, 12/12 paired rounds; gated by this flag, 0.0% (6/12) for a page that
-   * never pulls a computed outside a run (Node, core min, 12 rotated rounds, one process per variant, A/A).
+   * **The count moves on EVERY write, read or not** (2026-10-22): an unwatched `computed` caches its untracked value
+   * against it, and its sources are often keys nobody reads — counting only writes that woke someone left that cache
+   * stale (measured: 10 after the source became 2). A GATE on unread writes (tick only once a computed was pulled outside
+   * a run) bought Node +0.9% on a write loop and cost Firefox's attribute writes ~2% headless and +1.5% headed (the final
+   * race, 11/12; bisected to the gate) — so it is gone: one tick, first, as here.
    */
-  else if (counting.on) ++wakes;
 };
 
 /**
@@ -163,9 +171,6 @@ const kit: StoreKit = { track, trigger, shape: GLOBAL, prune, operation };
 export const trackKey = track;
 export const triggerKey = trigger;
 export const wakeCount = () => wakes;
-/** Set by the first `computed` read outside a run (`computed.ts`): from then on, every write moves the count. A const
- *  object with a mutable field, never an exported `let`, as `tracking` is. */
-export const counting = { on: false };
 /**
  * (2026-10-20) The same kit handed to a module OFF the store chain (`$k`), so the keyed
  * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.

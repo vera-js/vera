@@ -97,7 +97,7 @@ test('a nested run that reads MORE than its outer run links the extra key too (t
 });
 
 /**
- * **…and never links a key TWICE** (vera-5a, 2026-10-22). After the nested run, the outer run read `q` again while
+ * **…and never links a key TWICE** (2026-10-22). After the nested run, the outer run read `q` again while
  * ANOTHER hook was `q`'s last reader: a second link to `q`, so each write to it ran A twice — a sync effect with a side
  * effect fires twice per write. Exact runs per write, with the sharing reader that exposes it and a control without it.
  */

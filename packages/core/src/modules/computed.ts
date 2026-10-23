@@ -2,7 +2,7 @@ import type { ComponentElement, HookRecord } from '../types.js';
 import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { proxyCallbacks, tracking, unlinkFrom, whenEmptied } from '../store/store.js';
-import { counting, trackKey, triggerKey, wakeCount } from '../services/createProxy.js';
+import { trackKey, triggerKey, wakeCount } from '../services/createProxy.js';
 import { MODE_RAW, register } from './createHook.js';
 
 /**
@@ -71,7 +71,6 @@ class Computed<T> {
       } else trackKey(this, 'value');
     } else if (!this._w) {
       /** Pulled from plain code: evaluated untracked (no links to make and drop), cached until the next store write. */
-      counting.on = true;
       const now = wakeCount();
       /**
        * A throw REACHES THE CALLER (Brian 2026-10-22; TC39's `Signal.Computed` rethrows): plain code asked for the value

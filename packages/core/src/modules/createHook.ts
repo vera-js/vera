@@ -256,20 +256,12 @@ class HookState implements HookRecord {
      * end, and only the outermost run's end unlinks what nobody reached — outer prefix, nested reads and outer suffix
      * reconcile as ONE run, so nothing read by any of them is lost and the nesting links nothing twice. (A key re-read in
      * one run after ANOTHER hook read it can still hold a second link — over-subscription, never an extra run, thanks to the
-     * stamp below; a dedupe in `track` would cost every read.) (2026-10-22: the nested
+     * wake loop's re-stamp (`createProxy.ts`); a dedupe in `track` would cost every read.) (2026-10-22: the nested
      * run used to restart the cursor and reconcile `s` to ITS reads alone, assuming it read at least what the outer run
      * had; a callback that guards against re-entry — `if (busy) return`, as `data-vd-list` does — reads NOTHING, which
      * unlinked every source and left the hook deaf. `tests/core-nested-run-links.test.mjs`.)
      */
     const nested = outer === this;
-    /**
-     * **The wake stamp, restored at the end** (2026-10-22): a write this run makes to a key it read wakes it again —
-     * nested, as above — and stamps it with that NEWER wake, so the loop that woke this run no longer recognized it and
-     * ran it AGAIN through a second link to the same key (a re-read after another hook became the key's last reader):
-     * two runs per write (vera-5a). Restored, the loop that woke it still skips it; every other hook is reached exactly
-     * as before.
-     */
-    const stamp = this.e;
     const first = this.v === 0;
     this.v++;
     if (!nested) this.i = first ? -1 : 0;
@@ -297,7 +289,6 @@ class HookState implements HookRecord {
       threw(error, owner);
     } finally {
       tracking.hook = outer;
-      this.e = stamp;
       /** A re-run that matched its last run's reads to the end of what it read: the sources it no longer reached leave. */
       if (ok && !nested && this.i >= 0 && this.i < this.s.length) unlinkFrom(this, this.i);
     }
