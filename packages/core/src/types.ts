@@ -61,11 +61,6 @@ export interface ComponentElement extends HTMLElement {
    * removed element's fields alive until its cycle collector frees the node — BROWSER-LEDGER).
    */
   _$v$?: Record<string, unknown>;
-  /**
-   * A `define` tag's DEFAULTS, on its prototype: builds or completes the record the first time `propsOf` makes the store
-   * (the record whole from the defaults when there is none yet; the missing ones when an adopted key started it).
-   */
-  _$fill$?: (raw: Record<string, unknown> | undefined) => Record<string, unknown>;
   /** Non-element owners created while this element was being set up (a `computed`'s): retired with it. */
   _$o$?: ComponentElement[];
 }

@@ -89,13 +89,13 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
 
 /**
  * **The element's props store** — ONE per record, cached on the element (`_$v$`), shared by adopted and declared props:
- * a `define` tag's defaults (`_$fill$`, on its prototype) build or complete the record the first time. Read through it,
+ * a `define` tag's defaults (its `filledOf` filler, a closure of `define`) build or complete the record the first time. Read through it,
  * never through a captured store, so core's teardown can RELEASE it at a real removal (swap the record for a plain copy,
  * drop the store) and every accessor follows the new record on its next read (2026-10-21).
  */
 export const propsOf = (element: ComponentElement): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createStore((element._$raw$ ??= {})));
-/** A `define` tag's: the store with its defaults written first (no `_$fill$` read on a CLASS component's path). */
+/** A `define` tag's: the store with its defaults written first (a CLASS component's path never reaches a filler). */
 export const filledOf = (element: ComponentElement, fill: (raw: Record<string, unknown> | undefined) => Record<string, unknown>): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createOwned((element._$raw$ = fill(element._$raw$))));
 

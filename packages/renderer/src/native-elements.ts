@@ -145,7 +145,8 @@ type Wire = (item: never) => void;
 export const nativeElements = (registry: Registry, w: Wire) => {
   /** Core's seams, typed loosely on the registry (as the keyed module's are): a connector is handed core's `Inserts`. */
   core = registry as unknown as Core;
-  (registry as unknown as { $ne?: unknown }).$ne = true;
+  /** Read only by core's development check, so written only in development (R3, 2026-10-22). */
+  if (__DEV__) (registry as unknown as { $ne?: unknown }).$ne = true;
   /** FIRST of the `'init'` inserts (priority 0): a deferral stops every insert after it, so none runs on a detached host twice. */
   w({ on: 'init', fn: onInit, priority: 0 } as never);
 };

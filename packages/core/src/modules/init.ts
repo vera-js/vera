@@ -58,9 +58,10 @@ const unclaimedMarkup = (element: ComponentElement) => {
 const OPEN: ShadowRootInit = { mode: 'open' };
 const CLOSED: ShadowRootInit = { mode: 'closed' };
 /** Development: what was said once per component class — a static setup return, a near-miss `setup` spelling. */
-const saidStatic = new WeakSet<object>();
-const saidNearMiss = new WeakSet<object>();
-const saidOptions = new WeakSet<object>();
+/** `@__PURE__`: read only under `__DEV__`, so production drops the allocation with the reads (R2, 2026-10-22). */
+const saidStatic = /* @__PURE__ */ new WeakSet<object>();
+const saidNearMiss = /* @__PURE__ */ new WeakSet<object>();
+const saidOptions = /* @__PURE__ */ new WeakSet<object>();
 /** Development: the built-in-host warning, said once per page. */
 let saidBuiltIn = false;
 /** Development: an invalid app default is said once per page (a component's own invalid option, at each connect). */
