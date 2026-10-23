@@ -209,7 +209,9 @@ function rowCb(this: RowHook, signal?: unknown, init?: boolean) {
 /** Core's retire (`$z`): what releases a row's subscriptions. */
 let retire: ((owner: Owner) => void) | undefined;
 /** Core's raw walk of a store array (`$w`), when core is wired; otherwise the list walks itself. */
-let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void) => boolean) | undefined;
+let walk: ((list: unknown, visit: (raw: unknown, item: unknown) => void, from?: number, to?: number) => boolean) | undefined;
+/** Core's raw read of a store array WITHOUT subscribing (`$wr`): what the list compares its unchanged ends on. */
+let rawOf: ((list: unknown) => unknown[] | undefined) | undefined;
 /** The render counter: a row stamped with this render's `t` was met in it; one not met is swept (`eachValue`). */
 let tick = 0;
 
@@ -256,9 +258,11 @@ class Row {
   declare inst: Item | undefined;
   declare key: unknown;
   declare item: unknown;
+  /** The RAW slot value the row was last met as: the list's cheap "same row, same place" test compares it. */
+  declare src: unknown;
   declare row: (item: unknown) => unknown;
   declare seen: number;
-  constructor(p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined) {
+  constructor(p: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, t: number, list: List | undefined, src: unknown) {
     this._$g$ = 1;
     this._$x$ = false;
     this._$h$ = undefined;
@@ -270,6 +274,7 @@ class Row {
     this.inst = undefined;
     this.key = k;
     this.item = item;
+    this.src = src;
     this.row = row;
     this.seen = t;
   }
@@ -315,8 +320,8 @@ function rowRun(this: Row, _signal?: unknown, init?: boolean) {
     }
   }
 }
-const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, list?: List): Row => {
-  const rec = new Row(part, k, item, row, tick, list);
+const makeRow = (part: EachPart | undefined, k: unknown, item: unknown, row: (item: unknown) => unknown, list: List | undefined, src: unknown): Row => {
+  const rec = new Row(part, k, item, row, tick, list, src);
   rec.h = bareHook!(rec, rowCb);
   /** `init`: a hook's first run is immediate (a queued hook's write-time run would only enqueue it). */
   rec.h.$n(undefined, true);
@@ -487,6 +492,12 @@ const commitList = (list: List, part: EachPart) => {
       recs[i].part = part;
     }
 };
+/**
+ * The row last met as raw slot `value` is met again unchanged: the same raw object AND the same key (`id` written in
+ * place re-keys the row, as a full walk would; a row keyed by identity has `key === src`).
+ */
+const same = (rec: Row, value: unknown) =>
+  rec.src === value && (rec.key === value || (value !== null && typeof value === 'object' && (value as { id?: unknown }).id === rec.key));
 /** The list's run: walk the array (subscribing the list to its shape), reuse / create / sweep rows, mark the result. */
 function listRun(this: List): void {
   const all = this.all;
@@ -501,10 +512,48 @@ function listRun(this: List): void {
   const values: unknown[] = new Array(n);
   let i = 0;
   let restart = false;
+  /**
+   * **The unchanged ends, settled on RAW slots before any key is resolved** (the reconcile's two-ends idea, one level
+   * up). A swap or a splice changes a few slots and re-ran this whole walk — a Map lookup, an `hasOwn`, a proxy read per
+   * row, 63% of a Chrome swap (2026-10-23). Off when every row must re-run (`all`), and off unless core can hand the raw
+   * slots (`rawOf`: a plain store array) — the fallback below reads through the proxy, whose per-index reads are links.
+   * Every row kept here is stamped `seen` BEFORE the middle runs, so a middle item repeating its key is still a duplicate.
+   */
+  let front = 0;
+  let back = 0;
+  const raw = all ? undefined : rawOf?.(this.items);
+  if (raw !== undefined) {
+    const m = prev.length;
+    const lim = n < m ? n : m;
+    while (front < lim && same(prev[front], raw[front])) front++;
+    while (back < lim - front && same(prev[m - 1 - back], raw[n - 1 - back])) back++;
+    for (let j = 0; j < front; j++) {
+      const rec = prev[j];
+      rec.seen = t;
+      recs[j] = rec;
+      values[j] = rec.result;
+    }
+    for (let j = 1; j <= back; j++) {
+      const rec = prev[m - j];
+      rec.seen = t;
+      recs[n - j] = rec;
+      values[n - j] = rec.result;
+    }
+    i = front;
+  }
   const visit = (source: unknown, item: unknown) => {
     if (restart) return;
-    const k = this.ident || !Object.hasOwn(source as object, 'id') ? source : (source as { id: unknown }).id;
-    let rec = cache.get(k);
+    /** The row last run at this position, met again as the same raw slot: no key to resolve (a swap's untouched middle). */
+    const at = raw === undefined ? undefined : prev[i];
+    let rec: Row | undefined;
+    let k: unknown;
+    if (at !== undefined && at.seen !== t && same(at, source)) {
+      rec = at;
+      k = at.key;
+    } else {
+      k = this.ident || !Object.hasOwn(source as object, 'id') ? source : (source as { id: unknown }).id;
+      rec = cache.get(k);
+    }
     if (rec !== undefined && rec.seen === t) {
       if (!this.ident) {
         /** A repeated id: identity keys from now on, and this run again from the start. */
@@ -517,9 +566,9 @@ function listRun(this: List): void {
         return;
       }
       /** The same object twice under identity keys: a row of its own, never cached. */
-      rec = makeRow(undefined, {}, item, fn, this);
+      rec = makeRow(undefined, {}, item, fn, this, source);
     } else if (rec === undefined) {
-      rec = makeRow(undefined, k, item, fn, this);
+      rec = makeRow(undefined, k, item, fn, this, source);
       cache.set(k, rec);
     } else if (all || rec.item !== item) {
       /** Through the row's OWN hook: what it reads subscribes the row, never the list or the parent. */
@@ -528,10 +577,11 @@ function listRun(this: List): void {
       rec.h.$n(undefined, true);
     }
     rec.seen = t;
+    rec.src = source;
     recs[i] = rec;
     values[i++] = rec.result;
   };
-  if (!walk!(this.items, visit))
+  if (!walk!(this.items, visit, front, n - back))
     for (let j = 0; j < n; j++) {
       const item = this.items[j];
       visit(item, item);
@@ -548,8 +598,8 @@ function listRun(this: List): void {
     else this.parent.$n();
     return;
   }
-  /** Last run's rows this run did not meet: swept (each drops its own subscriptions). */
-  for (let j = 0; j < prev.length; j++) {
+  /** Last run's rows this run did not meet: swept (each drops its own subscriptions). The kept ends were all met. */
+  for (let j = front; j < prev.length - back; j++) {
     const rec = prev[j];
     if (rec.seen !== t) {
       if (cache.get(rec.key) === rec) cache.delete(rec.key);
@@ -759,7 +809,7 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
  * Wire it: `wire([renderer, lists])`. A CONNECTOR (a function `wire` hands the registry): core's registry carries the
  * hook machinery (`$q`, `$z`) and the raw walk (`$w`); automatic `.map` results are recognized on the renderer's `'value'` insert.
  */
-export const lists = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
+export const lists = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $ow?: unknown; $own?: unknown; $so?: unknown; $z?: unknown; $w?: unknown; $wr?: unknown; $M?: unknown; $t?: unknown; $k?: unknown; $s?: unknown }, w: (item: unknown) => void) => {
   hook = registry.$q as typeof hook;
   bareHook = registry.$qb as typeof bareHook;
   retireHook = registry.$zh as typeof retireHook;
@@ -773,5 +823,6 @@ export const lists = (registry: { $q?: unknown; $qb?: unknown; $zh?: unknown; $o
   kit = registry.$k as typeof kit;
   makeHook = (registry.$s as unknown[] | undefined)?.[2] as typeof makeHook;
   walk = registry.$w as typeof walk;
+  rawOf = registry.$wr as typeof rawOf;
   w({ on: 'value', fn: eachValue, priority: 50 });
 };

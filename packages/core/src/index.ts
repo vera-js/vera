@@ -39,7 +39,7 @@ export { untrack } from './modules/untrack.js';
 export { computed } from './modules/computed.js';
 export { effect } from './hooks/effect.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
-import { walkItems } from './services/createProxy.js';
+import { walkItems, rawItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
 import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own, settle, serverTurn } from './modules/createHook.js';
@@ -84,6 +84,8 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
  * `each` store swap 232 → 55 µs and remove 287 → 58 in Chrome once it walks raw). Without it a list walks the proxy (measured on the since-retired `each`).
  */
 (inserts as unknown as { $w: typeof walkItems }).$w = walkItems;
+/** Its raw read without a subscription (`rawItems`): a keyed list compares the slots it already met, then walks only the rest. */
+(inserts as unknown as { $wr: typeof rawItems }).$wr = rawItems;
 /**
  * Core's store machinery, handed the same way to a module that keeps stores of its own (`@verajs/directives`): a
  * production directives bundle inlines its own copy of core, and without this its stores and the page's hooks lived in
