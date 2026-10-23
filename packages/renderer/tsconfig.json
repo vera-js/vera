@@ -1,5 +1,6 @@
 {
   "extends": "../../tsconfig.json",
-  // When using rollup composite mode caching, limits cache to only necessary packages
-  "include": ["src/**/*", "../shared-utils/src/**/*"]
+  // When using rollup composite mode caching, limits cache to only necessary packages. Core is here for ONE entry:
+  // `src/portal.ts` imports `effect` and `inserts` from `@verajs/core` (kept external in every build); nothing else does.
+  "include": ["src/**/*", "../shared-utils/src/**/*", "../core/src/**/*", "../inserts/src/**/*", "../shared-types/src/**/*"]
 }

@@ -33,6 +33,7 @@ const PACKAGES = {
   '@verajs/renderer/slots': 'renderer/slots',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/elements': 'renderer/elements',
+  '@verajs/renderer/portal': 'renderer/portal',
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/hydration': 'renderer/hydration',
   '@verajs/renderer/hydrate-slots': 'renderer/hydrate-slots',

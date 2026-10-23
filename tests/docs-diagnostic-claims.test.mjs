@@ -83,6 +83,7 @@ const CLAIMS = new Map([
   ['llms.txt#fbe3ae57cf', 'priority-not-finite'], // `effect(fn, { priority })` … a non-finite one registers nothing — development says why
   ['llms.txt#9ffa401764', 'priority-not-finite'], // `effect` (for modules) `(fn, { owner, priority }) => Effect` … `undefined` if refused — a priority that is not a finite number
   ['packages/inserts/README.md#d14e7dacd0', 'not a promise: error routing of a throwing effect, not a message'], // **Nothing catches it, and that is deliberate — but it is not the same as a hook.** An `effect` that throws
+  ['llms.txt#31ffcc8893', 'portal-no-renderer'], // Without a renderer of the same release wired, it draws nothing and says so once
   ['packages/core/README.md#f5f35dd95f', 'pinned by tests/core-hook-order.test.mjs: a non-finite priority registers nothing from effect and wire in both builds; development\'s line ends on its code'], // … a non-finite priority registers nothing, in both builds, and development says why, as for `wire`
   ['llms.txt#304378b23d', 'pinned by tests/jsx-coded-errors.test.mjs: the production compiler says exactly position + docs link'], // **On this map a compile error names its position and its code** — `app.jsx:1:15 — https://verajs.dev/e/…`
   ['llms.txt#11ecc1a63b', 'jsx-uncontrolled'], // While developing, map `@verajs/jsx` to …/dist/development/vera-jsx-standalone.js instead

@@ -47,6 +47,10 @@ Nothing here declares a dependency. The returned render and the `effect` subscri
 read while they run, so a write to `state.count` schedules exactly the work that read it — and the
 setup around them, which reads nothing tracked, never runs again.
 
+The returned render draws into the component's own root. To draw somewhere else — a modal or a toast on
+`document.body` — call `portal(target, template)` from `@verajs/renderer/portal` in the setup: it draws in a range of
+its own, updates like the render, and leaves with the component.
+
 `define(tag, setup)` and `define({ tag, …options }, setup)` register the element and return its
 class. **Name the setup** — `define('tap-counter', function TapCounter() { … })` — and a stack trace
 from inside the component reads `TapCounter`: engines print function names, and the setup is where a

@@ -104,5 +104,11 @@ export default [
    * `'template'` insert and the `$`-named instance hook, and claimants reach it through `'element'`.
    */
   defaultRollupConfig(`${pkg.filename}-elements`, [], /^_[a-z]/, { input: 'src/elements.ts' }),
+  /**
+   * Additive, and the one entry that keeps `@verajs/core` EXTERNAL (as `@verajs/store` does): a portal is an `effect` of
+   * the component being set up, so it must be core's own — inlined, it would be a second core. It imports no renderer;
+   * it reaches the one wired through its hand-off (`$H`).
+   */
+  defaultRollupConfig(`${pkg.filename}-portal`, ['@verajs/core'], /^_[a-z]/, { input: 'src/portal.ts', alwaysExternal: ['@verajs/core'] }),
   ...(isProduction ? [] : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),
 ];

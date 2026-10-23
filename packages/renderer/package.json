@@ -69,6 +69,11 @@
       "development": "./dist/development/vera-renderer-elements.js",
       "default": "./dist/vera-renderer-elements.min.js"
     },
+    "./portal": {
+      "types": "./dist/development/vera-renderer-portal.d.ts",
+      "development": "./dist/development/vera-renderer-portal.js",
+      "default": "./dist/vera-renderer-portal.min.js"
+    },
     "./namespaces": {
       "types": "./dist/development/vera-renderer-namespaces.d.ts",
       "development": "./dist/development/vera-renderer-namespaces.js",
@@ -155,5 +160,13 @@
     "web-components",
     "buildless"
   ],
-  "sideEffects": false
+  "sideEffects": false,
+  "peerDependencies": {
+    "@verajs/core": ">=0.3.1"
+  },
+  "peerDependenciesMeta": {
+    "@verajs/core": {
+      "optional": true
+    }
+  }
 }

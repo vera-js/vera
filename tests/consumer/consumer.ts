@@ -25,6 +25,7 @@ import { namespaces } from '@verajs/renderer/namespaces';
 import { elements } from '@verajs/renderer/elements';
 import type { ElementBehavior } from '@verajs/renderer/elements';
 import { nativeElements } from '@verajs/renderer/native-elements';
+import { portal } from '@verajs/renderer/portal';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
@@ -266,3 +267,11 @@ if (!user.loading && user.error === undefined) {
 // @ts-expect-error — while loading, `value` is undefined
 const early: { name: string } = user.value;
 void early;
+
+/** `portal`: an `Element` or a fragment as the target; a template, or a function returning one (handed the change). */
+define('x-consumer-portal', () => {
+  portal(document.body, () => html`<aside>${String(count)}</aside>`);
+  portal(document.createDocumentFragment(), html`<b></b>`);
+  // @ts-expect-error — a target is a node to append to, not a selector
+  portal('body', html`<b></b>`);
+});

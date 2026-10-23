@@ -405,6 +405,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/slots` | `slots` (wire it) + `slotted(host, name?)` — light-DOM `<slot>` distribution | yes |
 | `@verajs/renderer/namespaces` | `namespaces` (wire it) — an `html` template parsed in the namespace of where it lands | yes |
 | `@verajs/renderer/elements` | `elements` (wire it) — behavior attached to claimed elements in templates, mounted and unmounted with their instances | yes |
+| `@verajs/renderer/portal` | `portal(target, template)` — a component draws into ANOTHER element (a modal on `document.body`), in a range of its own | yes |
 | `@verajs/renderer/native-elements` | `nativeElements` (wire it) — `init` on a built-in element (a `div`, a `section`…) with a custom element's lifecycle | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
@@ -543,6 +544,51 @@ and layout match a host without it.
 Also: a built-in element built in a document with no window (`document.implementation.createHTMLDocument`, a
 `DOMParser` result) is not set up; and a component left inside a window when that window closes (an iframe removed, a
 pop-out closed, with the component still in it) is the app's to remove.
+
+## `@verajs/renderer/portal` — drawing into another element
+
+A component's own render goes into its own root. To draw somewhere ELSE — a modal or a toast on `document.body`, a
+tooltip in an overlay layer — call `portal(target, template)` in its setup:
+
+<!-- recipe -->
+```js
+import { wire, define, html, createStore } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { portal } from '@verajs/renderer/portal';
+
+wire([renderer]);
+
+const state = createStore({ open: true, title: 'Saved' });
+define('x-toast', () => {
+  portal(document.body, () => (state.open ? html`<div role="status">${state.title}</div>` : ''));
+  return () => html`<button @click=${() => (state.open = !state.open)}>toggle</button>`;
+});
+
+const toast = document.createElement('x-toast');
+document.body.append(toast);   // the button in the component, the status line at the end of <body>
+toast.remove();                // the status line goes with it
+```
+
+- **A range of its own.** It appends two comment markers to `target` and draws between them, so any number of portals
+  share one target and none touches what was there before it.
+- **The render's slot.** It is drawn when the component's render is (a keyed `.map` keeps its rows with their items, and
+  layout effects see it drawn), it updates from what it reads like any render, and what a draw made and no longer
+  reaches — a hidden automatic list, a computed — is released as a render's is.
+- **Owned by the component.** Removing the component takes its content and its markers out of `target`; a component
+  that `persist`s takes them out while it is away and draws them again when it is back. Moving the component into
+  another window's document (a pop-out) leaves the portal where it is — `target` is where it was asked to draw — and it
+  stays live.
+- **Light DOM.** It draws into `target` itself, never into a shadow root: into a shadow host, the content is the host's
+  light content, placed by its `<slot>`. Styles are therefore `target`'s, not the component's — a shadow component's
+  `static styles` do not reach a portal's content (style it in the document, or with its own `<style>`). Events bubble
+  from the content up through `target`'s ancestors, not through the component.
+- **The client only.** On a server a portal registers nothing: the server renders the component's own template, and
+  hydration adopts that and then draws the portal once.
+- **Call it in a setup.** It belongs to the component being set up; after an `await` in an async setup none is, and it
+  throws, as `effect` does (`no-owner`).
+
+It keeps `@verajs/core` external in every build (its draw is one of core's effects; inlined, it would be a second core),
+so a CDN page's import map names `@verajs/core` beside it — as it already does for `@verajs/store`.
 
 ## `@verajs/renderer/namespaces` — a template parsed where it lands
 

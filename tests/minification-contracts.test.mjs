@@ -53,6 +53,8 @@ const PROD = {
 const EXTERNAL_CORE = {
   reactivity: 'packages/store/dist/vera-store.min.js',
   resource: 'packages/store/dist/vera-store-resource.min.js',
+  /** `portal` draws through one of core's effects, owned by the component being set up — it must be core's own. */
+  portal: 'packages/renderer/dist/vera-renderer-portal.min.js',
 };
 
 // ── cross-bundle contracts ──────────────────────────────────────────────────

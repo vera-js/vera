@@ -84,6 +84,7 @@ const NOT_A_LITERAL = new Map([
   ['motion/src/ssr.ts', [1, "the server-written script prints problemLine()'s lines"]],
   /** One renderer wired into two cores: diagnostic()'s line in development, the bare code in production (28 B, 2026-10-22). */
   ['renderer/src/renderer.ts', [1, "renderer-two-cores: diagnostic()'s line or '[vera] renderer-two-cores' — both branches prefixed"]],
+  ['renderer/src/portal.ts', [1, "portal-no-renderer: diagnostic()'s line or '[vera] portal-no-renderer' — both branches prefixed"]],
 ]);
 
 /**

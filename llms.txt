@@ -586,6 +586,31 @@ it the server states no light tree, and every component it rendered re-renders o
 Serve the server's HTML unmodified, comments included: stripped markers mean the host renders fresh. Node-safe to import (it
 imports nothing and touches no DOM until something renders).
 
+### Drawing into another element (`@verajs/renderer/portal`)
+
+`portal(target, template)`, called in a setup, draws `template` (a template, or a function returning one — reactive like
+a render) into `target`: a modal or a toast on `document.body`, a tooltip in an overlay layer.
+
+```js
+import { portal } from '@verajs/renderer/portal';
+define('x-toast', () => {
+  portal(document.body, () => (state.open ? html`<div role="status">${state.title}</div>` : ''));
+  return () => html`<button @click=${() => (state.open = !state.open)}>toggle</button>`;
+});
+```
+
+- Its own range: two comment markers appended to `target` — any number of portals share one target.
+- Drawn in the render's slot (priority 50): a keyed `.map` keeps rows with their items; layout effects see it drawn; what
+  a draw made and no longer reaches (a hidden automatic list, a computed) is released.
+- Owned by the component being set up: removing it takes the content and markers out of `target`; a `persist`ing
+  component takes them out while away and draws them again when back; a move into another window's document leaves the
+  portal where it is, live. After an `await` no component is being set up and it throws (`no-owner`).
+- Light DOM: `target` itself, never a shadow root; so styles are `target`'s (a shadow component's `static styles` do not
+  reach it) and events bubble through `target`'s ancestors, not the component.
+- Client only: on a server it registers nothing; hydration adopts the component's own template, then the portal draws once.
+- Keeps `@verajs/core` external in every build (a CDN import map names `@verajs/core` beside it). Without a renderer of
+  the same release wired, it draws nothing and says so once (`portal-no-renderer`).
+
 ### Element claims (`@verajs/renderer/elements`)
 
 Attach behavior to elements in templates without a directive system. A claimant is an `'element'`

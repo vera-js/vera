@@ -48,6 +48,7 @@ const PACKAGES = {
   '@verajs/renderer/hydrate-slots': 'renderer/hydrate-slots',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/elements': 'renderer/elements',
+  '@verajs/renderer/portal': 'renderer/portal',
   '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
   '@verajs/jsx': 'jsx',
@@ -87,7 +88,7 @@ const resolveImports = (code, generation) =>
      * naming neither the file nor the missing map entry. Saying it plainly costs one line.
      */
     if (!PACKAGES[spec]) throw new Error(`tests/docs-recipes: add "${spec}" to PACKAGES to run a recipe that imports it`);
-    return `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'`;
+    return `from '${distUrl(PACKAGES[spec], generation === null ? '' : `?recipe=${generation}`)}'`;
   });
 
 let generation = 0;
@@ -249,7 +250,7 @@ const EXPECTED_RECIPES = {
   'packages/directives/README.md': 1,
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
-  'packages/renderer/README.md': 8, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02); 7 → 8: native-elements (2026-10-21)
+  'packages/renderer/README.md': 9, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02); 7 → 8: native-elements (2026-10-21); 8 → 9: portal (2026-10-22)
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
   /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */
@@ -318,8 +319,16 @@ for (const { path, body, index } of recipes) {
     ? 'the profiler has no production build'
     : false;
   test(`${path} — recipe ${index} runs clean`, { skip: developmentOnly }, () => {
-    const resolved = resolveImports(body, `recipe-${index}`);
-    const result = spawnSync('node', [RUNNER, Buffer.from(resolved).toString('base64')], {
+    /**
+     * **One core, as an app has** (2026-10-22): an entry that keeps `@verajs/core` external (`@verajs/renderer/portal`,
+     * `@verajs/store`) imports it BARE, so the recipe's own core must be the very file that bare import resolves to. Two
+     * things split them, and both are undone here: a `?recipe=` query makes the same file a second module instance (each
+     * recipe has its own process already, so it isolates nothing), and a runner without `--conditions development`
+     * resolves the bare import to `exports.default`, the minified core, while the recipe's mapping names the development
+     * one. The first README recipe to import such an entry found it — `no-owner` from a portal registering in the other core.
+     */
+    const resolved = resolveImports(body, null);
+    const result = spawnSync('node', [...(isProduction ? [] : ['--conditions', 'development']), RUNNER, Buffer.from(resolved).toString('base64')], {
       encoding: 'utf8',
     });
     assert.equal(result.status, 0, `${path} recipe ${index} threw:\n${result.stderr}`);

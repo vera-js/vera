@@ -67,6 +67,7 @@ const SAFE = [
   '@verajs/renderer/hydrate-slots',
   '@verajs/renderer/namespaces',
   '@verajs/renderer/elements',
+  '@verajs/renderer/portal',
   '@verajs/renderer/native-elements',
   '@verajs/renderer/spread',
   '@verajs/renderer/tag',

@@ -60,6 +60,7 @@ export const ENTRY = {
   'renderer/slots': ['renderer', 'vera-renderer-slots'],
   'renderer/namespaces': ['renderer', 'vera-renderer-namespaces'],
   'renderer/elements': ['renderer', 'vera-renderer-elements'],
+  'renderer/portal': ['renderer', 'vera-renderer-portal'],
   'renderer/spread': ['renderer', 'vera-renderer-spread'],
   'renderer/tag': ['renderer', 'vera-renderer-tag'],
   styles: ['styles', 'vera-styles'],
