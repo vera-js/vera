@@ -27,7 +27,8 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
    * paid once, not on every render.
    */
   let target: ShadowRoot | HTMLElement | undefined;
-  coalesce(
+  /** NOT inlined (2026-10-23): its one caller here would be pasted as an IIFE — see `commit` in `init.ts`. */
+  /*@__NOINLINE__*/ coalesce(
     (signal) => {
       /** This render's own hook, taken BEFORE the renderers run: settling it must not depend on every nested run restoring `tracking`. */
       const self = tracking.hook;

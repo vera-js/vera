@@ -277,7 +277,12 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
  */
 const commit = (element: ComponentElement, out: unknown, owns: boolean) => {
   if (out != null) {
-    drawInto(out, element, owns);
+    /**
+     * NOT inlined (2026-10-23): with this its only caller, the minifier pasted `drawInto` here as an immediately-invoked
+     * arrow — a function object built on every component's creation — and headed Firefox paid ~1–2% on bound class
+     * creation and churn (measured by restoring the call; `tests/minifier-iife-sites.test.mjs` guards the count).
+     */
+    /*@__NOINLINE__*/ drawInto(out, element, owns);
     if (__DEV__ && typeof out !== 'function') staticReturn(element, out);
   }
   currentInstance.element = null;
