@@ -311,7 +311,9 @@ moved. Rows are keyed by an item's own `id`, else by the item itself. `createSel
 `isSelected(key)`, which re-renders only the old and the new key's rows on a change. Without `lists` wired, development says so once
 (`lists-unwired`) when such a `.map` returns templates, since rows are then matched by position; to match by position on
 purpose, map a plain copy, `[...state.rows].map(…)`. The copy still TRACKS — spreading reads every index, so the render
-re-runs on any item change — it opts out of keying, not of reactivity. Not released; the design is still
+re-runs on any item change — it opts out of keying, not of reactivity. **Hydrated, an automatic list adopts the server's rows**
+(their nodes, and a component row's element) instead of rebuilding them; a component row is handed its `.item` AFTER it
+upgrades — its first render may see `undefined`, so read it as `this.item?.label`. Not released; the design is still
 being measured. **A hidden list is released when the render that hid it returns**: a component's render, or a row's
 own render for a list nested in a row. A `.map` inside your own render-priority hook (`useHook(fn, 50)`) is a list too,
 but one it hides is released only when that hook is torn down.
