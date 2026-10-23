@@ -59,11 +59,11 @@ const results = dom.window.eval(`(() => {
   ${toIIFE('Vera', CORE)}
   const { createStore, init } = Vera;
   /**
-   * A TRACKED EFFECT ON A FRESH ELEMENT, in whichever API the measured core has (2026-10-23): a core with mount()
-   * opens a setup with init(el), takes useEffect and commits with mount(); a core without it (effect, since 2026-10-22)
-   * takes the setup as init's function and runs the effect's first pass at the flush. One script, so one measurement
-   * sees builds on either side; written after the bench silently broke on the newer core (no-owner). No backticks in
-   * this comment: the bench body is evaluated from a template literal.
+   * A TRACKED EFFECT ON A FRESH ELEMENT, in whichever API the measured core has (2026-10-23): the released engine's
+   * cores open a setup on the element, register the effect, and commit in a separate step; today's take the setup as
+   * init's function and run the effect's first pass at the flush. One script, so one measurement sees builds on either
+   * side; written after the bench silently broke on the newer core (no-owner). No backticks in this comment: the bench
+   * body is evaluated from a template literal.
    */
   const hooked = (fn) => {
     const el = document.createElement('div');
