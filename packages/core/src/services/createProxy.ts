@@ -103,7 +103,7 @@ const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown)
    * unwatched computed caches its untracked value against the count, and its sources are often keys nobody reads:
    * counting only writes that woke someone left that cache stale (measured: 10 after the source became 2). Ticking on
    * every unread write cost +0.9% on a write loop, 12/12 paired rounds; gated by this flag, 0.0% (6/12) for a page that
-   * never pulls a computed outside a run (internal c10/write-race*.mjs).
+   * never pulls a computed outside a run (Node, core min, 12 rotated rounds, one process per variant, A/A).
    */
   else if (counting.on) ++wakes;
 };
@@ -142,7 +142,7 @@ const operation = (obj: object, found: Map<unknown, Cell> | undefined = proxyCal
   /**
    * What the sender captures lives in THIS block, never in the function's scope: a captured function-scope binding
    * makes V8 allocate the context on EVERY call, the early return included — an unread array's `push` paid it (+12–15%,
-   * 12/12, internal a14 race). A block context is made only when the block runs.
+   * 12/12, measured). A block context is made only when the block runs.
    */
   {
     const epoch = at;

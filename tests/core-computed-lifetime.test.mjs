@@ -155,7 +155,7 @@ test('a chain lets go link by link: a component reads c2, c2 reads c1 — remove
 });
 
 /**
- * **Pre-existing, pinned (vera-5a):** a run that THROWS after diverging at read `i` has already unlinked what the
+ * **Pre-existing, pinned:** a run that THROWS after diverging at read `i` has already unlinked what the
  * previous run read after `i` — so "a throwing render keeps its links" means the links BEFORE the divergence. The
  * component stops hearing the later sources until a write to an earlier one re-runs it. Not new with C10: it is how a
  * re-run's divergence works.

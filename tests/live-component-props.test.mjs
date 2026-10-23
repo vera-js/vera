@@ -89,7 +89,7 @@ test('an unchanged `!name` across ten parent renders renders the child zero extr
 /**
  * **E8 (2026-10-22): a name `Object.prototype` also has.** A component's raw props record is a plain object, so the
  * compare's `name in raw` sees an inherited `toString`/`valueOf`/`constructor` before the component has received one.
- * Measured (the portal's e8 probe): of the 12 `Object.prototype` names, 10 read the same through the record as through
+ * Measured (each Object.prototype name read through `{}` and through an element): of the 12 `Object.prototype` names, 10 read the same through the record as through
  * the element, and `constructor`/`__proto__` differ only for a bound value of `Object` itself — so `in` stays, with no
  * `hasOwn` on the hot path. These rows hold what that rests on: each name is delivered on the first render and on a
  * change, and an unchanged one re-renders nothing, in a template and through spread.

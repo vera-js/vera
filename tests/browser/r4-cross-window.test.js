@@ -205,6 +205,26 @@ describe('R4: cross-window moves keep the component', () => {
     f.remove();
   });
 
+  it('a PAUSED component (persist) re-added in ANOTHER window stays live past its window: the timer is cleared where it was set', async () => {
+    let setups = 0;
+    const s = createStore({ n: 1 });
+    define({ tag: 'r4-persist', persist: 0.3 }, () => { setups++; return () => html`<b>${s.n}</b>`; });
+    const el = document.createElement('r4-persist');
+    document.body.append(el);
+    await frame();
+    el.remove();
+    const f = await iframe();
+    f.contentDocument.body.append(el);
+    await frame();
+    await new Promise((r) => setTimeout(r, 600));
+    s.n = 2;
+    await frame(f.contentWindow);
+    await frame();
+    expect({ connected: el.isConnected, setups, live: el.textContent === '2' }).to.deep.equal({ connected: true, setups: 1, live: true });
+    el.remove();
+    f.remove();
+  });
+
   it('a real window.open pop-out: out and back, setup once, state kept', async function () {
     let setups = 0;
     const s = createStore({ n: 1 });

@@ -702,7 +702,7 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
 };
 
 /**
- * **Each row a LIGHT custom element** (vera-5a, 2026-10-18): a plain `init` component with no slot, the shape a real
+ * **Each row a LIGHT custom element** (2026-10-18): a plain `init` component with no slot, the shape a real
  * app's list has. Raced with slots unwired and wired, it is where slots' tax on plain components (#16) shows, which
  * the template rows above cannot. Rows are `<div>`s, since a custom element inside `<tbody>` is foster-parented out of
  * the table when a template is parsed.

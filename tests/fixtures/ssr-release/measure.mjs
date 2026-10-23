@@ -20,7 +20,7 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
   }
   await gc();
   /**
-   * **A count that dereferences nothing** (vera-5a, 2026-10-22), taken FIRST: live instances of the component's class,
+   * **A count that dereferences nothing** (2026-10-22), taken FIRST: live instances of the component's class,
    * as the subscription sweep counts. A WeakRef `deref()` puts its target on V8's keep-during-job list — the capture's
    * only strong root for the intermittent's survivors — so this count cannot keep alive what it measures. Reported
    * beside `alive`; the assertion is unchanged until the two are compared over gates.
@@ -36,7 +36,7 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
   const refs = globalThis.__refs ?? [];
   Object.assign(out, { rendered: refs.length, markup: markup.includes('<b>0</b>'), late: markup.includes('<i>late</i>'), alive: refs.filter((r) => r.deref() !== undefined).length });
   /**
-   * EVIDENCE when it fails (2026-10-22; vera-5a — an intermittent "3 alive" was seen once in three full gates and never
+   * EVIDENCE when it fails (2026-10-22 — an intermittent "3 alive" was seen once in three full gates and never
    * standalone): a heap snapshot to name the retainer, and a recount after the 100 ms fallback timer and another gc.
    * Gone after the wait is a TIMING survivor (a pending server-side callback); still there is structural. Costs
    * nothing when green.

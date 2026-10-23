@@ -53,7 +53,7 @@ test('persist: removed and re-added in time — one setup, effects cleaned at re
   el.remove();
 });
 
-test('vera-5a’s blocker: a store write while paused is drawn at resume with no further write', async () => {
+test('a store write while paused is drawn at resume with no further write', async () => {
   const { el, s } = persisting(0.3);
   document.body.append(el);
   await settle();
@@ -127,7 +127,7 @@ test('persist: 0 is the default, said nothing: torn down at removal', async () =
   assert.equal(warns.filter((w) => w.includes('persist-not-seconds')).length, 0);
 });
 
-/** The async-setup hazard (internal e5/stale.mjs): removed and re-added while the setup awaits. */
+/** The async-setup hazard (measured: the old continuation doubled every effect): removed and re-added while the setup awaits. */
 test('a PENDING async setup re-added before it settles carries on: one setup, its after-await hook never doubled', async () => {
   const t = tag();
   const s = createStore({ n: 0 });
@@ -201,4 +201,71 @@ test(`a pending setup that NEVER settles: the removed component is torn down at 
   }
   /** Its OWN tag: an earlier row's component, removed with a fresh pending setup, can reach its bound during this wait. */
   assert.equal(warns.filter((w) => w.includes('setup-outlived-removal') && w.includes(`<${t}>`)).length, isProduction ? 0 : 1);
+});
+
+test('a pending setup that SETTLES while the component is out draws when it is re-added (its commit was held)', async () => {
+  const t = tag();
+  let release;
+  let setups = 0;
+  let effects = 0;
+  define(t, async () => {
+    setups++;
+    useEffect(() => { effects++; });
+    await new Promise((r) => (release = r));
+    return () => html`<b>drawn</b>`;
+  });
+  const el = document.createElement(t);
+  document.body.append(el);
+  await settle();
+  el.remove();
+  release();
+  await settle();
+  assert.equal(effects, 0, 'nothing ran while it was out');
+  await wait(20);
+  document.body.append(el);
+  await settle();
+  assert.equal(el.textContent, 'drawn', 'the held commit drew at the resume');
+  assert.deepEqual([setups, effects], [1, 1], 'one setup, the effect run once');
+  el.remove();
+});
+
+test('CONTROL: the same setup settling while connected draws', async () => {
+  const t = tag();
+  let release;
+  define(t, async () => { await new Promise((r) => (release = r)); return () => html`<b>drawn</b>`; });
+  const el = document.createElement(t);
+  document.body.append(el);
+  await settle();
+  release();
+  await settle();
+  assert.equal(el.textContent, 'drawn');
+  el.remove();
+});
+
+test('settled while out and never re-added: torn down once at the bound — its held commit dropped, no effect ever run', async () => {
+  const t = tag();
+  let release;
+  let setups = 0;
+  let effects = 0;
+  let cleanups = 0;
+  define(t, async () => {
+    setups++;
+    useEffect(() => { effects++; return () => cleanups++; });
+    await new Promise((r) => (release = r));
+    return () => html`<b>drawn</b>`;
+  });
+  const el = document.createElement(t);
+  document.body.append(el);
+  await settle();
+  el.remove();
+  release();
+  await wait(5100);
+  assert.deepEqual([effects, cleanups], [0, 0], 'the held commit never ran');
+  document.body.append(el);
+  await settle();
+  assert.equal(setups, 2, 'a fresh setup after the bound');
+  release();
+  await settle();
+  assert.equal(el.textContent, 'drawn', 'which draws when ITS await settles');
+  el.remove();
 });

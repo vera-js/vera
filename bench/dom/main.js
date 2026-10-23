@@ -43,7 +43,7 @@ const WARMUP = 2;
  * 267%. Under `?batch`, a sample of select / swap / remove is the op run back to back in ONE task until the sample
  * reaches its time box (50 ms), each run awaited (every framework has written the DOM before the next run starts;
  * `&verify=1` proves it), and is reported per op; the paint that follows is outside the sample. **An op whose per-run
- * work depends on the run index gets a FIXED N, never a time box** (vera-5a, 2026-10-18), or a faster framework's later
+ * work depends on the run index gets a FIXED N, never a time box** (2026-10-18), or a faster framework's later
  * runs face different work: update10 runs 200 (its labels grow each run), remove 500 (the table shrinks each run, and
  * a boxed faster framework would remove against a smaller one). A fixed N of 100 couldn't resolve compiled Solid's 10 µs select on a whole-ms clock (one tick). Batched,
  * style and layout happen once for the net change, so the number is script + DOM writes per op; `&layout=1` forces

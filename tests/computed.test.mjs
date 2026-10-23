@@ -102,20 +102,20 @@ const mount = () => {
   check('derives through nested objects', deep.value === 11);
 }
 
-/* ── a throwing evaluation is reported, not propagated ──────────────────────────────────────── */
+/* ── a WATCHED evaluation that throws is reported, not propagated into the write ───────────────── */
 {
   const state = core.createStore({ n: 1 });
   const seen = [];
   core.wire({ on: 'error', fn: (error) => seen.push(error), priority: 25 });
+  const bad = computed(() => { if (state.n > 1) throw new Error('boom'); return state.n; });
+  let read;
+  core.createHook({ element: {}, priority: 20, callback: () => { read = bad.value; } })(undefined, true);
+  check('a watched computed that starts fine has its value', read === 1);
   let threw = false;
-  try {
-    const bad = computed(() => { if (state.n > 1) throw new Error('boom'); return state.n; });
-    check('a computed that starts fine has its value', bad.value === 1);
-    state.n = 2;
-    void bad.value;
-  } catch { threw = true; }
-  check('an evaluation that throws does not escape', threw === false);
+  try { state.n = 2; } catch { threw = true; }
+  check('the write that made it throw does not throw', threw === false);
   check('it reaches the error insert instead', seen.some((e) => e?.message === 'boom'));
+  check('and keeps the last good value', bad.value === 1, String(bad.value));
 }
 
 /**
@@ -134,12 +134,18 @@ const mount = () => {
   check('and reading again does not re-evaluate, which is the memoization', derived.value === 6 && runs === 1, String(runs));
 }
 
+/** A read from PLAIN code (unwatched) whose evaluation throws: the throw reaches the reader (TC39), and the next read retries. */
 {
   const state = core.createStore({ n: 1 });
   const derived = computed(() => { if (state.n === 2) throw new Error('boom'); return state.n * 2; });
   check('a computed evaluates normally', derived.value === 2, String(derived.value));
   state.n = 2;
-  check('a throwing evaluation does not escape, and keeps the last good value', derived.value === 2, String(derived.value));
+  let caught = null;
+  try { void derived.value; } catch (error) { caught = error; }
+  check('a throwing evaluation reaches the plain-code reader', caught?.message === 'boom', String(caught));
+  caught = null;
+  try { void derived.value; } catch (error) { caught = error; }
+  check('and the next read tries again (not cached)', caught?.message === 'boom');
   state.n = 3;
   check('and the next good input recovers', derived.value === 6, String(derived.value));
 }

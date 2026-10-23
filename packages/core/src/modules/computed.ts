@@ -1,9 +1,9 @@
 import type { ComponentElement, HookRecord } from '../types.js';
-import { diagnostic, misuse } from '@verajs/shared-utils';
+import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { proxyCallbacks, tracking, unlinkFrom, whenEmptied } from '../store/store.js';
 import { counting, trackKey, triggerKey, wakeCount } from '../services/createProxy.js';
-import { MODE_RAW, register, reportHookError } from './createHook.js';
+import { MODE_RAW, register } from './createHook.js';
 
 /**
  * Below the 50 a renderer registers at, so a computed is already up to date by the time anything renders from it.
@@ -33,8 +33,8 @@ const COMPUTED_PRIORITY = 10;
  * reads both, a write re-evaluates the third once per half; a coalesced render or effect sees only the settled value,
  * a `useSyncEffect` can see the step between (`tests/reactivity-graph.test.mjs` measures it).
  *
- * A throw inside an evaluation — watched or pulled — is reported once (the `'error'` chain) and the value stays the last
- * good one, as before.
+ * A throw in a WATCHED evaluation (inside a write) is reported once (the `'error'` chain) and the value stays the last
+ * good one; a throw in a read from plain code reaches that code, as TC39's `Signal.Computed` rethrows.
  */
 class Computed<T> {
   declare _f: () => T;
@@ -73,14 +73,14 @@ class Computed<T> {
       /** Pulled from plain code: evaluated untracked (no links to make and drop), cached until the next store write. */
       counting.on = true;
       const now = wakeCount();
+      /**
+       * A throw REACHES THE CALLER (Brian 2026-10-22; TC39's `Signal.Computed` rethrows): plain code asked for the value
+       * and can catch. Only a WATCHED evaluation — inside someone else's write — is reported instead (its hook's run).
+       * The count is taken after a successful evaluation, so the next read tries again.
+       */
       if (this._e !== now) {
+        this._v = this._f();
         this._e = now;
-        try {
-          this._v = this._f();
-        } catch (error) {
-          /** As a watched evaluation's throw is (its hook reports it): reported once, the last good value kept. */
-          reportHookError(error, undefined, __DEV__ ? diagnostic('core', 'a computed', 'hook-threw', __DEV__ && PROSE['hook-threw']()) : '[vera] hook-threw');
-        }
       }
     }
     return this._v as T;

@@ -27,7 +27,7 @@ const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.
 const only = flag('only') ?? 'VeraJS own,VeraJS default';
 const ops = flag('ops');
 /**
- * **One implementation per fresh browser** (vera-5a, 2026-10-18): implementations sharing a page left their garbage in
+ * **One implementation per fresh browser** (2026-10-18): implementations sharing a page left their garbage in
  * the next one's timed window, and a rotation that was the same every session put each behind the same neighbor (the
  * A/A split 5/5: clear10k 70 vs 35 ms). Each (variant, implementation) page is its own browser now, in a seeded order
  * per session, so the A/A is two independent browsers running the same bundle.
@@ -64,14 +64,14 @@ const quiet = async () => {
   }
 };
 /**
- * **What each number describes** (vera-5a, 2026-10-18): the tree, and a hash of every bundle and of the shipped Vera
+ * **What each number describes** (2026-10-18): the tree, and a hash of every bundle and of the shipped Vera
  * dists it inlined, printed before anything runs, so a later reader can tell which source a record measured.
  */
 const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12);
 const root = new URL('../..', import.meta.url).pathname;
 console.log(`tree ${execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim()}${execSync('git status --porcelain -- packages', { cwd: root }).toString().trim() ? ' (packages/ DIRTY)' : ''} at ${root}`);
 /**
- * The harness's OWN source, hashed as it runs (vera-5a, 2026-10-18): `tree` is HEAD, which says nothing about a working
+ * The harness's OWN source, hashed as it runs (2026-10-18): `tree` is HEAD, which says nothing about a working
  * tree that differs from it, so the header names the git blob race.mjs and main.js match, or says they're uncommitted.
  */
 for (const file of ['bench/dom/race.mjs', 'bench/dom/main.js', 'bench/dom/impls.js']) {
@@ -91,7 +91,7 @@ const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length
 const contended = [];
 
 /**
- * update10's fixed N per ENGINE (vera-5a, 2026-10-18): set in advance, the same for every implementation on that engine,
+ * update10's fixed N per ENGINE (2026-10-18): set in advance, the same for every implementation on that engine,
  * never derived from anyone's speed. WebKit runs update10 at ~0.1 ms/op, so 200 runs was a ~20 ms sample and one clock
  * tick was ~5%; 1000 makes it ~100 ms. Chrome and Firefox run it at ~5–6 ms/op with layout, already ~1 s at 200.
  */
@@ -105,7 +105,7 @@ for (const engine of engines) {
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
-    /** The conditions, ignored daemons INCLUDED (vera-5a, 2026-10-18): the A/A is the defense; this line says whether it was needed. */
+    /** The conditions, ignored daemons INCLUDED (2026-10-18): the A/A is the defense; this line says whether it was needed. */
     const top = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 4).map((l) => { const m = l.trim().match(/^([\d.]+)\s+(.*)$/); return `${m[1]} ${m[2].split('/').pop()}`; }).join(', ');
     const pressure = execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1];
     console.log(`${engine}/${session}: thermal ${pressure} | ${top}`);

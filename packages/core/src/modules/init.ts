@@ -58,7 +58,7 @@ const unclaimedMarkup = (element: ComponentElement) => {
 /**
  * **How long a removed component whose async setup is still PENDING stays paused** (2026-10-22): long enough for
  * "away and straight back" to keep the in-flight setup (one setup, one fetch, never doubled), short enough that a
- * removed tree is not held. Brian's number to set; 5 s proposed (vera-5a).
+ * removed tree is not held. Brian's number to set; 5 s proposed.
  */
 const PENDING_SECONDS = 5;
 /** Set by the first `persist` option seen: until then a removal never reads `_$P$` (a miss walks the DOM prototype chain). */
@@ -302,14 +302,22 @@ const pending = (element: ComponentElement, out: PromiseLike<unknown>, generatio
   (element as Moving)._$s$ = out.then(
     (value) => {
       settled(element as Moving);
-      if (element._$g$ !== generation || !element.isConnected) return;
-      const previous = currentInstance.element;
-      currentInstance.element = element;
-      try {
-        commit(element, value, owns);
-      } finally {
-        currentInstance.element = previous;
-      }
+      if (element._$g$ !== generation) return;
+      const go = () => {
+        const previous = currentInstance.element;
+        currentInstance.element = element;
+        try {
+          commit(element, value, owns);
+        } finally {
+          currentInstance.element = previous;
+        }
+      };
+      /**
+       * Settled while PAUSED (out of the page, kept): the commit is HELD for the resume — nothing runs while it is out — and
+       * dropped if the pause expires. Out and not paused: a removal tore it down; nothing to draw.
+       */
+      if (element.isConnected) go();
+      else if ((element as Moving)._$m$) (element as Moving)._$q$ = go;
     },
     (error) => {
       settled(element as Moving);
@@ -325,8 +333,10 @@ const settled = (element: Moving) => {
 /**
  * **Deferred teardown — ONE mechanism, two uses** (Brian 2026-10-22): a REMOVED component is PAUSED — the author's
  * `disconnectedCallback` runs, every hook's cleanup runs (listeners and intervals stop), its setup state, stores and DOM
- * stay — and a timer (the element's own window's) starts. Re-added in time it RESUMES (`resume`); the timer firing, or
- * a pending setup settling while it is still out, tears it down through the one `retireElement`, once. Used when the
+ * stay — and a timer (the element's own window's) starts. Re-added in time it RESUMES (`resume`); the timer firing tears
+ * it down through the one `retireElement`, once (a setup that settled while it was out has its commit HELD for the
+ * resume, and dropped at expiry). If that window closes while it is paused, its timer never fires — the element is then
+ * garbage with its document, unless it was adopted elsewhere. Used when the
  * component asked (`persist: seconds`) and, automatically, while its async setup is still PENDING: re-added, the
  * in-flight setup carries on — one setup, never two continuations doubling its effects.
  */
@@ -338,6 +348,7 @@ const pause = (element: Moving, seconds: number) => {
   retire(element);
   element._$m$ = windowOf(element).setTimeout(() => {
     element._$m$ = false;
+    element._$q$ = undefined;
     if (__DEV__ && element._$w$) console.warn(diagnostic('core', `<${element.localName}>`, 'setup-outlived-removal', __DEV__ && PROSE['setup-outlived-removal'](String(PENDING_SECONDS))));
     retireElement(element);
   }, seconds * 1000);
@@ -348,10 +359,15 @@ const pause = (element: Moving, seconds: number) => {
  * shadow root's adopted sheets; within one, re-applying is a no-op's cost on a rare path).
  */
 const resume = (element: Moving, timer: ReturnType<typeof setTimeout>) => {
-  windowOf(element).clearTimeout(timer);
+  /** Cleared on the window that SET it — its document of the last connect — before a cross-window resume records the new one (timer ids are per window). */
+  (element._$d$!.defaultView ?? globalThis).clearTimeout(timer);
   element._$d$ = element.ownerDocument;
   (inserts as unknown as { $rs?: (element: ComponentElement) => void }).$rs?.(element);
-  firstPasses(element);
+  /** A setup that settled while it was out commits now (its commit runs the first passes); otherwise every hook runs once. */
+  const held = element._$q$;
+  element._$q$ = undefined;
+  if (held) held();
+  else firstPasses(element);
 };
 
 /**
@@ -539,7 +555,7 @@ const nearMiss = (element: ComponentElement) => {
  * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
 /** `_$m$`: `true` while a move is under way, a pause's TIMER while paused (`pause`), else falsy. */
-type Moving = ComponentElement & { _$m$?: boolean | ReturnType<typeof setTimeout>; _$d$?: Document; _$s$?: PromiseLike<unknown>; _$w$?: boolean; _$P$?: number };
+type Moving = ComponentElement & { _$m$?: boolean | ReturnType<typeof setTimeout>; _$d$?: Document; _$s$?: PromiseLike<unknown>; _$w$?: boolean; _$P$?: number; _$q$?: () => void };
 if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {

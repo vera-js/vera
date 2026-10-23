@@ -67,7 +67,7 @@ test('every live reader redraws on one write — 300 of them, through a move and
  * - `inner`   — components whose SETUP creates a computed reading the key (retired with the component);
  * - `free`    — free-standing computeds created and dropped, never read (lazy since C10: they never link at all);
  * - `visit`   — free-standing computeds created per batch over a key NEVER written (a route visit's), each READ by one
- *               component of the batch, which is then removed: watched, then dropped (vera-5a's unbounded case — a
+ *               component of the batch, which is then removed: watched, then dropped (the unbounded case — a
  *               computed whose sources never change must still let go when its last reader leaves).
  */
 const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--expose-gc', '--no-warnings', '--input-type=module', '-e', `
