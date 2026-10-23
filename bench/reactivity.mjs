@@ -58,8 +58,25 @@ const dom = new JSDOM('<!doctype html><body></body>', {
 const results = dom.window.eval(`(() => {
   ${toIIFE('Vera', CORE)}
   const { createStore, init } = Vera;
-  /** effect since 2026-10-22 (it replaced useEffect): taken by presence, so one script measures builds on either side. */
-  const useEffect = Vera.effect ?? Vera.useEffect;
+  /**
+   * A TRACKED EFFECT ON A FRESH ELEMENT, in whichever API the measured core has (2026-10-23): a core with mount()
+   * opens a setup with init(el), takes useEffect and commits with mount(); a core without it (effect, since 2026-10-22)
+   * takes the setup as init's function and runs the effect's first pass at the flush. One script, so one measurement
+   * sees builds on either side; written after the bench silently broke on the newer core (no-owner). No backticks in
+   * this comment: the bench body is evaluated from a template literal.
+   */
+  const hooked = (fn) => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    if (typeof Vera.mount === 'function') {
+      init(el);
+      Vera.useEffect(fn);
+      Vera.mount();
+    } else {
+      init(el, () => { Vera.effect(fn); });
+      Vera.flush?.();
+    }
+  };
 
   const N = 200000;
   let sink = 0;
@@ -87,42 +104,29 @@ const results = dom.window.eval(`(() => {
   const unNested     = time(() => { for (let i=0;i<N;i++) sink += store.nested.deep.value; });
 
   /* ---- tracked: inside a live hook, dependency registration runs --------- */
-  const el = document.createElement('div');
-  document.body.appendChild(el);
-  init(el);
-
   let trFlat = 0, trNested = 0;
-  useEffect(() => {
+  hooked(() => {
     trFlat   = time(() => { for (let i=0;i<N;i++) sink += store.flat; }, 3);
     trNested = time(() => { for (let i=0;i<N;i++) sink += store.nested.deep.value; }, 3);
   });
-  Vera.mount();
 
   /* ---- tracked WITH a store module wired ---------------------------------
      A passthrough 'store' insert wrapping core's get — the shape batching and devtools take.
      The insert itself is consulted once per value; what a read pays is one extra call through
      the composed trap, and that shows up here and nowhere else.                                */
   Vera.wire({ on: 'store', fn: (value, handler) => handler?.get && { ...handler, get: (o, p, r) => handler.get(o, p, r) }, priority: 50 });
-  const iEl = document.createElement('div');
-  document.body.appendChild(iEl);
-  init(iEl);
   const iStore = createStore({ flat: 1, nested: { deep: { value: 1 } } });
   let inFlat = 0, inNested = 0;
-  useEffect(() => {
+  hooked(() => {
     inFlat   = time(() => { for (let i=0;i<N;i++) sink += iStore.flat; }, 3);
     inNested = time(() => { for (let i=0;i<N;i++) sink += iStore.nested.deep.value; }, 3);
   });
-  Vera.mount();
 
   /* ---- write + propagation ---------------------------------------------- */
   const W = 20000;
-  const wEl = document.createElement('div');
-  document.body.appendChild(wEl);
-  init(wEl);
   const wStore = createStore({ n: 0 });
   let fired = 0;
-  useEffect(() => { wStore.n; fired++; });
-  Vera.mount();
+  hooked(() => { wStore.n; fired++; });
   const writes = time(() => { for (let i=0;i<W;i++) wStore.n = i; }, 3);
 
   /* ---- identity --------------------------------------------------------- */
