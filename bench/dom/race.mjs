@@ -119,6 +119,9 @@ for (const engine of engines) {
       await page.click('#run');
       await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
       const results = await page.evaluate(() => window.__RESULTS__);
+      /** A page whose build has no such implementation ran nothing for it (2026-10-23: `VeraJS auto` exists only where core
+       *  has `lists`): skipped, so one race can pair a build's implementation with another build's. */
+      if (!Object.values(results).some((byImpl) => byImpl && impl in byImpl)) { await browser.close(); continue; }
       /** The page must prove the wiring the variant names, or the variants all measure one program (2026-10-18: they did). */
       const wiring = await page.evaluate(() => window.__VERA_WIRING__);
       const mode = new URLSearchParams(query).get('vera');
@@ -151,9 +154,12 @@ for (const engine of engines) {
   for (const [impl, byOp] of Object.entries(data)) {
     console.log(`\n== ${engine} / ${impl}: ms to paint, median of ${sessions} session medians; Δ vs ${base} (sessions faster)`);
     for (const [op, byVariant] of Object.entries(byOp)) {
+      /** A variant whose build lacks this implementation has no data (skipped above): reported as absent, never as NaN. */
+      if (!byVariant[base]) { console.log(`  ${op.padEnd(10)} ${base} absent — ${Object.keys(byVariant).map((n) => `${n} ${med(byVariant[n]).toFixed(2)}`).join('  ')}`); continue; }
       const b = med(byVariant[base]);
       let line = `  ${op.padEnd(10)} ${base} ${b.toFixed(2).padStart(7)}`;
       for (const [name] of variants.slice(1)) {
+        if (!byVariant[name]) { line += `  ${name} absent`; continue; }
         const m = med(byVariant[name]);
         const wins = byVariant[name].filter((x, i) => x < byVariant[base][i]).length;
         line += `  ${name} ${(((m - b) / b) * 100).toFixed(1).padStart(6)}% (${wins}/${sessions})`;

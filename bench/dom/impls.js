@@ -411,6 +411,36 @@ const veraP1Impl = (store) => (mount) => {
 };
 
 /** Today's idiom with `createStore` rows (no `each`): the fair baseline for a store app. */
+/**
+ * **Automatic `.map` lists** (2026-10-23, the pre-strip record row): a store array mapped inside the render with `lists`
+ * wired and NO `keyed()` — rows key themselves by `id` — and selection through `createSelector`, which re-renders only
+ * the old and the new row. Microtask scheduling, as VeraJS own, so the two differ only in how the list is written. Only
+ * where the core has `lists` and `createSelector` (absent before 2026-10-22; the entry is skipped there).
+ */
+const veraAutoImpl = (mount) => {
+  setRenderScheduler(microtask);
+  wireVera();
+  wire([keyedModule.lists]);
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  const state = createStore({ rows: [], selected: -1 });
+  /** The selector is a hook, so it is made in the setup — the component owns it. */
+  init(host, () => {
+    const isSelected = keyedModule.createSelector(() => state.selected);
+    return () => rawHtml`<table><tbody>${state.rows.map((r) => rawHtml`<tr class="${isSelected(r.id) ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`)}</tbody></table>`;
+  });
+  return {
+    create: (n, seed) => { state.rows = buildData(n, seed); },
+    append: (n, seed) => { state.rows.push(...buildData(n, seed)); },
+    updateEvery10th: () => { const r = state.rows; for (let i = 0; i < r.length; i += 10) r[i].label += ' !!!'; },
+    swap: () => { const r = state.rows; if (r.length > 998) { const t = r[1]; r[1] = r[998]; r[998] = t; } },
+    select: (i) => { state.selected = state.rows[i]?.id ?? -1; },
+    remove: (i) => { state.rows.splice(i, 1); },
+    clear: () => { state.rows = []; },
+    teardown: () => { host.remove(); },
+  };
+};
+
 const veraStoreDefaultImpl = (mount) => {
   setRenderScheduler(DEFAULT_SCHEDULER);
   wireVera();
@@ -1013,6 +1043,7 @@ export const IMPLEMENTATIONS = [
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
   { name: 'VeraJS store default', note: "today's idiom with createStore rows (the store app's baseline)", factory: veraStoreDefaultImpl },
+  ...(keyedModule.lists && keyedModule.createSelector ? [{ name: 'VeraJS auto', note: 'automatic .map lists: a store array, no keyed(), createSelector', factory: veraAutoImpl }] : []),
   ...(keyedModule.each ? [
     { name: 'VeraJS each', note: 'P1: each + a store selector, plain rows', factory: veraP1Impl(false) },
     { name: 'VeraJS each store', note: 'P1: each + a store selector, createStore rows', factory: veraP1Impl(true) },
