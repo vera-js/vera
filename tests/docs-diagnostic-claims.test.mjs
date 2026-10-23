@@ -229,7 +229,9 @@ const CLAIMS = new Map([
   ['packages/core/README.md#06311ae242', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // (moved from the store README, 2026-10-22) An evaluation that throws is reported through the `'error'` insert rather than escaping, e
   ['llms.txt#e06ef33ea0', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // computed's API row: a throw is reported and the last good value kept
   ['packages/renderer/README.md#fd75b53ed5', 'renderer-two-cores'],
-  ['packages/renderer/README.md#2ee7b2f4c3', 'lists-unwired'], // an unwired store-array .map of templates: development says so once // one renderer wired into two cores: the production warning by code
+  ['packages/renderer/README.md#2ee7b2f4c3', 'lists-unwired'],
+  ['packages/core/README.md#5b4674d9a1', 'setup-outlived-removal'], // removed while its async setup is pending: up to 5 s, then torn down — development says so
+  ['packages/core/README.md#8b63863740', 'persist-not-seconds'], // persist takes seconds; anything else is 0 — development says so // an unwired store-array .map of templates: development says so once // one renderer wired into two cores: the production warning by code
   ['packages/styles/README.md#48e9ab9c5a', 'unwired-styles'], // Forget the wiring and a component with `static styles` renders unstyled — development says
   ['packages/styles/README.md#ab7656278f', 'slotted-light'], // Development says so if a light component's sheet uses `::slotted()`.
   ['packages/styles/README.md#b5c13c2241', 'no-scope'], // Development says so, once.

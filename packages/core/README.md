@@ -493,7 +493,7 @@ per write, so it sees every one.
 | | |
 | --- | --- |
 | `init(element, setup?)` | in `connectedCallback`. `setup(host)` runs once and returns the render — a function returning a template — or nothing. See below |
-| `init({ host, shadow, foreignNodes }, setup?)` | the same with options: `shadow` is `'open'`, `'closed'`, `false` (light DOM) or a `ShadowRootInit`; omitted, the app default `renderer({ shadow })`, else light DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary). `foreignNodes` is `'drop'` (the default: the template owns its shadow root, and nodes something else put there go when the template changes) or `'preserve'`; omitted, the app default `renderer({ foreignNodes })` |
+| `init({ host, shadow, foreignNodes, persist }, setup?)` | the same with options: `shadow` is `'open'`, `'closed'`, `false` (light DOM) or a `ShadowRootInit`; omitted, the app default `renderer({ shadow })`, else light DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary). `foreignNodes` is `'drop'` (the default: the template owns its shadow root, and nodes something else put there go when the template changes) or `'preserve'`; omitted, the app default `renderer({ foreignNodes })`. `persist`: seconds a removed component stays paused before it is torn down (see the setup section) |
 | `html` | the template tag. `@verajs/renderer` takes what it produces with no configuration |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `useRender(template, element)` | inside a setup: registers a second render, on this component's lifecycle, that draws into `element` — which may be a different element |
@@ -589,7 +589,21 @@ component left in a pop-out whose opener has closed is not supported: its code b
 hooks belong to the component up to its first `await`, and a hook after it finds no component and
 **throws** (`no-owner`) — every time, whatever else is on the page. An async setup is atomic: nothing it
 registered runs until it resolves, a write while it is pending does not run it again, and a rejection is
-reported once through the error chain and draws nothing.
+reported once through the error chain and draws nothing. **Removed while it is pending, the component waits up to 5 s
+for it:** re-added in that time, the SAME setup carries on — it is never set up twice, so it fetches once and nothing it
+registered runs twice; still out after 5 s, it is torn down (development says so).
+
+**`persist: seconds` keeps a removed component paused.** Removing a component normally tears it down at once. With
+`persist`, removal PAUSES it — every effect's cleanup runs (its listeners and intervals stop), its state and DOM are
+kept — and re-adding it within that many seconds RESUMES it: every hook runs once, so anything it missed is drawn, and
+its setup is not run again. Past the window it is torn down. Tabs, cached routes, a panel taken out and put back:
+
+```js
+define({ tag: 'x-tab', persist: 30 }, setup);   // removed: paused for up to 30 s, then torn down
+```
+
+`persist` takes seconds, 0 or more (0, the default: torn down at removal); anything else is 0, and development says so.
+Its author's `connectedCallback` does not run again on a resume, as on a move.
 
 ```js
 connectedCallback() {
