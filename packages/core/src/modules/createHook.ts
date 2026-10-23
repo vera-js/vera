@@ -401,7 +401,7 @@ export const register = (owner: ComponentElement, callback: HookCallback, priori
     (host._$o$ ??= []).push(owner);
   /**
    * ONE flat list in run order. Sequences only grow, so a hook joins at the end — unless a LOWER priority arrives after
-   * a higher one (a `useHook(…, 25)` registered after the render): then it moves back past the hooks that run after it.
+   * a higher one (an `effect(fn, { priority: 25 })` registered after the render): then it moves back past the hooks that run after it.
    * An equal priority never moves: the one already there was created first.
    */
   const hooks = (owner._$h$ ??= []);

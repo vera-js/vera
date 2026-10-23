@@ -575,7 +575,8 @@ toast.remove();                // the status line goes with it
   layout effects see it drawn), it updates from what it reads like any render, and what a draw made and no longer
   reaches — a hidden automatic list, a computed — is released as a render's is.
 - **Owned by the component.** Removing the component takes its content and its markers out of `target`; a component
-  that `persist`s takes them out while it is away and draws them again when it is back. Moving the component into
+  that `persist`s takes them out while it is away and draws them again when it is back — appended at the END of
+  `target` again, so its order among the target's other children (two open modals) can change. Moving the component into
   another window's document (a pop-out) leaves the portal where it is — `target` is where it was asked to draw — and it
   stays live.
 - **Light DOM.** It draws into `target` itself, never into a shadow root: into a shadow host, the content is the host's

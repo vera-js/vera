@@ -603,7 +603,8 @@ define('x-toast', () => {
 - Drawn in the render's slot (priority 50): a keyed `.map` keeps rows with their items; layout effects see it drawn; what
   a draw made and no longer reaches (a hidden automatic list, a computed) is released.
 - Owned by the component being set up: removing it takes the content and markers out of `target`; a `persist`ing
-  component takes them out while away and draws them again when back; a move into another window's document leaves the
+  component takes them out while away and draws them again when back (re-appended at the end of `target`, so its order
+  among `target`'s children can change); a move into another window's document leaves the
   portal where it is, live. After an `await` no component is being set up and it throws (`no-owner`).
 - Light DOM: `target` itself, never a shadow root; so styles are `target`'s (a shadow component's `static styles` do not
   reach it) and events bubble through `target`'s ancestors, not the component.
