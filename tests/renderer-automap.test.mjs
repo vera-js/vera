@@ -183,11 +183,10 @@ const child = (mode) => JSON.parse(execFileSync(process.execPath, [...(isProduct
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: { ...process.env } }));
 
 /**
- * KNOWN DEFECT, a `todo` (2026-10-20): the sweep is scheduled from inside an automatic `.map` call, so a parent run that HIDES
- * a list and maps nothing else schedules none — a hidden list over data nobody writes keeps its rows alive and subscribed
- * until the parent maps again or one of its rows is written. The complete fix needs a signal that does not depend on
- * `.map` being called (the renderer telling a list its part no longer shows it, or matching lists by their array instead of
- * their order): a design point for Brian, with raw-array-first matching. It flips to a plain test when fixed.
+ * A list HIDDEN by a run that maps nothing else must still be released. It was a `todo` (2026-10-20): the old sweep was
+ * scheduled from inside an automatic `.map` call, so such a run scheduled none and the rows stayed alive and subscribed.
+ * Fixed by run ownership: a list belongs to its parent's run (core's `$own`), and a run that ends without claiming it
+ * disposes it, `.map` call or not. Removing the claim in `keyed.ts` turns this row and the three after it red.
  */
 test('HIDING a list releases its rows too, with no further write: the parent run that hid it disposes it', () => {
   const r = child('hide');
