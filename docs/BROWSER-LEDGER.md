@@ -197,7 +197,9 @@ from another machine, or after that is undone, has a variable changed.
   Firefox pays for the closures each call allocates or for the caller's larger body (see the `initWith` entry above) is
   not separated. Consequence: removing a function's other callers changes what the minifier does to it — race a refactor
   that leaves a hot helper with one caller, and count the inlined-IIFE sites in a production bundle before and after.
-  (Headed Firefox 153; 2026-10-23. Chrome and WebKit: pending.)
+  Chrome 155 and WebKit 26.5 with the same two marks: create −0.1% / +0.5%, churn +2.0% / 0.0% (slower in 3–6 of 8
+  sessions, inside their A/As) — neither engine paid for the inlined form. (Headed Firefox 153, Chrome 155, Playwright
+  WebKit 26.5; 2026-10-23.)
 
 - **V8 inlines a function only while its bytecode is ≤ `--max-inlined-bytecode-size` (460)**, so a hot function near
   the budget pays for ANY growth, even code that never runs (a never-taken `if` cost 4.0%). Consequence: move rarely
