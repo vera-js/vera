@@ -141,6 +141,20 @@ if (snapshot && !snapshotStale) {
   values['app.count'] = String(apps.length);
 
   /**
+   * **The positioning sentence's numbers, generated** (2026-10-22): docs/features/README.md said "above Lit and Preact +
+   * signals by a little over a kilobyte, about 8x under React, two exceptions" by hand, and it went false in both the
+   * margin (~6 KB) and the count (five tools smaller) without `--check` noticing. Every figure it quotes is now a marker.
+   */
+  const lit = apps.find((a) => a.name === 'Lit');
+  const preact = apps.find((a) => a.name === 'Preact + signals');
+  const smaller = apps.filter((a) => a.gzip < own.gzip && !a.name.startsWith('VeraJS'));
+  values['app.over.lit.kb'] = kb(own.gzip - lit.gzip, 1);
+  values['app.over.preact.kb'] = kb(own.gzip - preact.gzip, 1);
+  values['app.react.ratio'] = (react.gzip / own.gzip).toFixed(1);
+  values['app.smaller.count'] = String(smaller.length);
+  values['app.smaller.names'] = smaller.length < 2 ? smaller.map((a) => a.name).join('') : `${smaller.slice(0, -1).map((a) => a.name).join(', ')} and ${smaller.at(-1).name}`;
+
+  /**
    * **The same framework with no reactive state**, which is what a bundler ships for a page that
    * renders once. Deliberately not a row in the comparative table: it is not the same app as the
    * entries there — it updates nothing, where every one of those renders reactive state — and

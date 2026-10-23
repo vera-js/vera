@@ -50,10 +50,13 @@ Being wrong once in public costs more than every correct claim gains.
 - **Not "the only zero-dependency framework".** Van.js, petite-vue and Preact + signals ship zero
   too, and React ships one. State zero as a property, not a distinction — what is uncommon is
   holding it across a router, an SSR renderer and a JSX compiler rather than a micro-library.
-- **Not "smallest".** Van.js is smaller, and Solid is smaller if you accept its compiler. VeraJS is
-  **above Lit and Preact + signals**, by a little over a kilobyte, and about 8x under React. Say *that*,
-  name the two exceptions yourself, and quote the measured figure rather than a remembered one;
-  this claim has been wrong in both directions.
+- **Not "smallest".** <!--size:app.smaller.count-->5<!--/size:app.smaller.count--> of the measured tools are smaller:
+  <!--size:app.smaller.names-->Van.js, Solid, Lit, Preact + signals and petite-vue<!--/size:app.smaller.names--> (Solid if you
+  accept its compiler). VeraJS is **<!--size:app.over.lit.kb-->5.9 KB<!--/size:app.over.lit.kb--> above Lit** and
+  <!--size:app.over.preact.kb-->5.8 KB<!--/size:app.over.preact.kb--> above Preact + signals, and about
+  <!--size:app.react.ratio-->5.1<!--/size:app.react.ratio-->x under React. Say *that*, name the smaller ones yourself, and
+  quote the measured figure rather than a remembered one; this claim has been wrong in both directions, which is why
+  every figure in this sentence is now generated from the measured table.
 
 ## Where the positioning should aim
 

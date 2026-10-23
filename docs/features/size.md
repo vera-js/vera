@@ -97,13 +97,14 @@ toolchain — say it exactly that way, because a reader who checks will find the
 (<!--size:app.bytes-->11 923 B<!--/size:app.bytes-->) is above Lit
 (<!--size:app.lit.bytes-->5 871 B<!--/size:app.lit.bytes-->) and Preact + signals
 (<!--size:app.preact-signals.bytes-->6 031 B<!--/size:app.preact-signals.bytes-->); the lit-html pairing
-(<!--size:app.verajs-lit-html.bytes-->9 402 B<!--/size:app.verajs-lit-html.bytes-->) is under both. This paragraph said "level with Lit" long after
+(<!--size:app.verajs-lit-html.bytes-->9 402 B<!--/size:app.verajs-lit-html.bytes-->) is a different trade, not a smaller VeraJS — read it in the table. This paragraph said "level with Lit" long after
 the figures stopped supporting it, which is exactly the drift quoting the measured number exists to
 prevent.
 
 It has moved twice: `static styles` leaving core recovered 300 B and put VeraJS under Lit at 0.2.0,
-and the work since — correctness fixes, contextual namespaces, the slots seam — has put it back above,
-by more than a kilobyte. Each step was deliberate.
+and the work since — correctness fixes, contextual namespaces, the slots seam — has put it back above, by
+<!--size:app.over.lit.kb-->5.9 KB<!--/size:app.over.lit.kb--> today, after the per-key reactivity engine, automatic lists,
+deferred teardown and `computed` in core. Each step was deliberate.
 Quote the measured figure rather than a remembered one — this line has been wrong in both
 directions.
 
