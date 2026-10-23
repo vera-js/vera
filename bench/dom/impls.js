@@ -670,18 +670,25 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
   const rows = signal([]);
   const selected = signal(-1);
 
-  init(host, () => {
-    return () => {
-      const list = rows.value;
-      const sel = selected.value;
-      return rawHtml`<table><tbody>${list.map((r) =>
+  const view = () => {
+    const list = rows.value;
+    const sel = selected.value;
+    return rawHtml`<table><tbody>${list.map((r) =>
       keyed(
         r.id,
         rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`
       )
     )}</tbody></table>`;
-    };
-  });
+  };
+  /**
+   * The setup in whichever form the core has (2026-10-23), so ONE page measures a core of either era: a core that
+   * exports `render` and `mount` (the released engine) opens with `init(host)` and installs the render with `render()`;
+   * today's takes the setup as `init`'s function. The template is the same either way.
+   */
+  if (typeof vera.render === 'function' && typeof vera.mount === 'function') {
+    init(host);
+    vera.render(view);
+  } else init(host, () => view);
 
   return {
     create: (n, seed) => { rows.value = buildData(n, seed); },

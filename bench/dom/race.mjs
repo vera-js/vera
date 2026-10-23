@@ -96,7 +96,8 @@ const contended = [];
  * tick was ~5%; 1000 makes it ~100 ms. Chrome and Firefox run it at ~5–6 ms/op with layout, already ~1 s at 200.
  */
 const N10 = { chrome: 200, firefox: 200, webkit: 1000 };
-const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch() : webkit.launch();
+/** HEADED, all three (CLAUDE.md, Brian 2026-10-18): bare firefox/webkit.launch() is headless, whose frames are not tied to a compositor. */
+const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch({ headless: false }) : webkit.launch({ headless: false });
 for (const engine of engines) {
   console.log(`${engine}: update10 fixed N = ${N10[engine]}`);
   const data = {};
