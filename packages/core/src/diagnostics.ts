@@ -44,6 +44,14 @@ export const PROSE: Record<string, Prose> = {
     `it has a \`${name}\` method and no \`setup\`, so init found nothing to run.`,
     'Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns.',
   ],
+  'persist-not-seconds': (received) => [
+    `was given persist: ${received}, which is not a finite number of seconds, so it is torn down at removal.`,
+    'Pass the seconds to keep it paused after a removal — init({ host: this, persist: 30 }) — or leave persist out.',
+  ],
+  'setup-outlived-removal': (seconds) => [
+    `was removed while its async setup was still running, and the setup had not settled ${seconds} s later — so it was torn down without ever drawing.`,
+    "If the component may come back later, let the setup finish faster (pass its abort signal to fetch), or keep it with persist: seconds.",
+  ],
   'lists-unwired': () => [
     'returned templates, but no list module is wired, so its rows are matched by position: reorder the array and a row\'s DOM state (a focused input, a typed value) and its component state show against another item.',
     'Wire the automatic lists once at your entry — wire([renderer, lists]) with lists from @verajs/renderer/keyed — or key each row with keyed(key, row). To match by position on purpose (rows with no state), map a plain copy: [...state.rows].map(…).',

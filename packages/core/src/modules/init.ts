@@ -55,6 +55,14 @@ const unclaimedMarkup = (element: ComponentElement) => {
 (inserts as unknown as { $S?: unknown }).$S = undefined;
 /** Defined up front like `$S`, so every connect's read of the `foreignNodes` default is a hit. */
 (inserts as unknown as { $F?: unknown }).$F = undefined;
+/**
+ * **How long a removed component whose async setup is still PENDING stays paused** (2026-10-22): long enough for
+ * "away and straight back" to keep the in-flight setup (one setup, one fetch, never doubled), short enough that a
+ * removed tree is not held. Brian's number to set; 5 s proposed (vera-5a).
+ */
+const PENDING_SECONDS = 5;
+/** Set by the first `persist` option seen: until then a removal never reads `_$P$` (a miss walks the DOM prototype chain). */
+let anyPersist = false;
 const OPEN: ShadowRootInit = { mode: 'open' };
 const CLOSED: ShadowRootInit = { mode: 'closed' };
 /** Development: what was said once per component class — a static setup return, a near-miss `setup` spelling. */
@@ -201,6 +209,14 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
     (options !== undefined && options.foreignNodes !== undefined ? options.foreignNodes : (inserts as unknown as { $F?: InitOptions['foreignNodes'] }).$F) !==
     'preserve';
   if (__DEV__) checkOptions(element, options, shadow);
+  /** `persist`: seconds paused after a removal — a finite number, 0 or more (0: torn down at once); else 0, and development names it. */
+  if (options !== undefined && options.persist !== undefined) {
+    const seconds = options.persist;
+    const valid = typeof seconds === 'number' && seconds >= 0 && seconds < Infinity;
+    if (__DEV__ && !valid) console.warn(diagnostic('core', `<${element.localName}>`, 'persist-not-seconds', __DEV__ && PROSE['persist-not-seconds'](String(seconds))));
+    anyPersist = true;
+    (element as Moving)._$P$ = valid ? seconds : 0;
+  }
   if (shadow) {
     const root = shadow === 'open' ? OPEN : shadow === 'closed' ? CLOSED : (shadow as ShadowRootInit).mode ? (shadow as ShadowRootInit) : undefined;
     if (root && !element.shadowRoot && !element._$r$) element._$r$ = element.attachShadow(root);
@@ -282,8 +298,10 @@ let anyAsync = false;
  */
 const pending = (element: ComponentElement, out: PromiseLike<unknown>, generation: number, owns: boolean) => {
   anyAsync = true;
+  (element as Moving)._$w$ = true;
   (element as Moving)._$s$ = out.then(
     (value) => {
+      settled(element as Moving);
       if (element._$g$ !== generation || !element.isConnected) return;
       const previous = currentInstance.element;
       currentInstance.element = element;
@@ -293,9 +311,47 @@ const pending = (element: ComponentElement, out: PromiseLike<unknown>, generatio
         currentInstance.element = previous;
       }
     },
-    (error) =>
-      reportHookError(error, element, __DEV__ ? diagnostic('core', `<${element.localName}>`, 'setup-rejected', __DEV__ && PROSE['setup-rejected']()) : '[vera] setup-rejected')
+    (error) => {
+      settled(element as Moving);
+      reportHookError(error, element, __DEV__ ? diagnostic('core', `<${element.localName}>`, 'setup-rejected', __DEV__ && PROSE['setup-rejected']()) : '[vera] setup-rejected');
+    }
   );
+};
+/** An async setup settled (resolved or rejected). A component paused for it and still out goes at its timer (its cleanups ran at the pause). */
+const settled = (element: Moving) => {
+  element._$w$ = false;
+};
+
+/**
+ * **Deferred teardown — ONE mechanism, two uses** (Brian 2026-10-22): a REMOVED component is PAUSED — the author's
+ * `disconnectedCallback` runs, every hook's cleanup runs (listeners and intervals stop), its setup state, stores and DOM
+ * stay — and a timer (the element's own window's) starts. Re-added in time it RESUMES (`resume`); the timer firing, or
+ * a pending setup settling while it is still out, tears it down through the one `retireElement`, once. Used when the
+ * component asked (`persist: seconds`) and, automatically, while its async setup is still PENDING: re-added, the
+ * in-flight setup carries on — one setup, never two continuations doubling its effects.
+ */
+/** The element's own window — its timers belong to it. */
+const windowOf = (element: Element) => element.ownerDocument.defaultView ?? globalThis;
+/** `_$m$`, the move mark, holds the pause's TIMER: either way a connect finds the component kept, never sets it up again. */
+const pause = (element: Moving, seconds: number) => {
+  /** The hooks RETIRED but kept listed: each runs its cleanup and leaves every store (nothing wakes it while out); a resume's first pass links them again. */
+  retire(element);
+  element._$m$ = windowOf(element).setTimeout(() => {
+    element._$m$ = false;
+    if (__DEV__ && element._$w$) console.warn(diagnostic('core', `<${element.localName}>`, 'setup-outlived-removal', __DEV__ && PROSE['setup-outlived-removal'](String(PENDING_SECONDS))));
+    retireElement(element);
+  }, seconds * 1000);
+};
+/**
+ * Back in time: every hook runs once (the render first, by priority) — what it missed while out of the page included —
+ * and, as a re-home does, its document is recorded and its styles re-applied (a move into another document empties a
+ * shadow root's adopted sheets; within one, re-applying is a no-op's cost on a rare path).
+ */
+const resume = (element: Moving, timer: ReturnType<typeof setTimeout>) => {
+  windowOf(element).clearTimeout(timer);
+  element._$d$ = element.ownerDocument;
+  (inserts as unknown as { $rs?: (element: ComponentElement) => void }).$rs?.(element);
+  firstPasses(element);
 };
 
 /**
@@ -410,8 +466,8 @@ const checkOptions = (element: ComponentElement, options: InitOptions | undefine
   if (options) {
     const keys = claims();
     for (const key in options)
-      if (key !== 'host' && key !== 'shadow' && key !== 'foreignNodes' && !keys.has(key))
-        console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, ['foreignNodes', 'host', 'shadow', ...keys.keys()].sort().join(', '))));
+      if (key !== 'host' && key !== 'shadow' && key !== 'foreignNodes' && key !== 'persist' && !keys.has(key))
+        console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, ['foreignNodes', 'host', 'persist', 'shadow', ...keys.keys()].sort().join(', '))));
     if (own !== undefined && !validShadow(own))
       console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(own), platformRefuses(own))));
     if (ownForeign !== undefined && !validForeign(ownForeign))
@@ -482,24 +538,14 @@ const nearMiss = (element: ComponentElement) => {
  * `_$x$` is set after the teardown, so a cleanup registered from then on — an effect that removed
  * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
-type Moving = ComponentElement & { _$m$?: boolean; _$d$?: Document; _$s$?: PromiseLike<unknown> };
+/** `_$m$`: `true` while a move is under way, a pause's TIMER while paused (`pause`), else falsy. */
+type Moving = ComponentElement & { _$m$?: boolean | ReturnType<typeof setTimeout>; _$d$?: Document; _$s$?: PromiseLike<unknown>; _$w$?: boolean; _$P$?: number };
 if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {
     const proto = Class.prototype as Moving & { connectedCallback?: () => unknown };
     const own = proto.disconnectedCallback;
     const connected = proto.connectedCallback;
-    /**
-     * A removal: the author's own callback, the generation retired (cleanups run, hooks out of every store) — and the hook
-     * lists DROPPED. Each hook is a closure over its element, so a removed element still holding them is a DOM↔JS cycle
-     * that only Firefox's CYCLE collector can free: 10 000 removed components per frame cost it 1.4 s pauses and doubled
-     * a churn page's time (2026-10-11, measured with Firefox's own profiler). Dropped, a removed component is
-     * plain garbage the ordinary collector frees; a reconnect's `init` rebuilds them.
-     */
-    const teardown = (element: Moving) => {
-      own?.call(element);
-      retireElement(element);
-    };
     /**
      * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never
      * mangled — a brand no other library has). The wrapper sees every class defined after core loads, a third party's
@@ -515,7 +561,13 @@ if (typeof customElements !== 'undefined') {
     proto.disconnectedCallback = function (this: Moving) {
       if ((this as Mine)[MINE] === undefined) return own?.call(this);
       this._$m$ = this.isConnected;
-      if (!this._$m$) teardown(this);
+      if (!this._$m$) {
+        own?.call(this);
+        /** Paused instead of torn down: asked for (`persist`), or its async setup is still pending. Read only once either exists. */
+        const seconds = (anyPersist && this._$P$) || (anyAsync && this._$w$ ? PENDING_SECONDS : 0);
+        if (seconds) pause(this, seconds);
+        else retireElement(this);
+      }
     };
     /**
      * A move into ANOTHER document (a pop-out window, an iframe) is kept as well (R4), and re-homed: its effects re-run
@@ -525,10 +577,13 @@ if (typeof customElements !== 'undefined') {
      * — and that is correct: a first connect has nothing to keep. Do not move `init` earlier to "fix" it.
      */
     proto.connectedCallback = function (this: Moving) {
-      if ((this as Mine)[MINE] !== undefined && this._$m$) {
+      let kept;
+      if ((this as Mine)[MINE] !== undefined && (kept = this._$m$)) {
         this._$m$ = false;
+        /** A paused component back in time: resumed (every hook once), never set up again. */
+        if (kept !== true) resume(this, kept);
         /** A move into another document is kept too, and re-homed: what belongs to a window re-runs (see `rehomeElement`). */
-        if (this.ownerDocument !== this._$d$) rehomeElement(this);
+        else if (this.ownerDocument !== this._$d$) rehomeElement(this);
         return;
       }
       /**

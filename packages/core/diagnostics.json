@@ -225,6 +225,14 @@
       "fix": "Wire only one module that takes this option, or ask the module to rename its key."
     },
     {
+      "code": "persist-not-seconds",
+      "params": [
+        "received"
+      ],
+      "message": "was given persist: {received}, which is not a finite number of seconds, so it is torn down at removal.",
+      "fix": "Pass the seconds to keep it paused after a removal — init({ host: this, persist: 30 }) — or leave persist out."
+    },
+    {
       "code": "priority-not-finite",
       "params": [
         "received"
@@ -255,6 +263,14 @@
       ],
       "message": "it has a `{name}` method and no `setup`, so init found nothing to run.",
       "fix": "Name the method `setup` — init(this) calls `this.setup(host)` and renders the function it returns."
+    },
+    {
+      "code": "setup-outlived-removal",
+      "params": [
+        "seconds"
+      ],
+      "message": "was removed while its async setup was still running, and the setup had not settled {seconds} s later — so it was torn down without ever drawing.",
+      "fix": "If the component may come back later, let the setup finish faster (pass its abort signal to fetch), or keep it with persist: seconds."
     },
     {
       "code": "setup-rejected",

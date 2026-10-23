@@ -195,6 +195,12 @@ export interface InitOptions extends VeraInitOptions {
   host: ComponentElement;
   shadow?: ShadowOption;
   foreignNodes?: ForeignNodesOption;
+  /**
+   * **Seconds a REMOVED component stays paused before it is torn down** (2026-10-22). Paused, its effects' cleanups have
+   * run and its state and DOM are kept; re-added in time it resumes (every hook runs once, the render included). Default
+   * 0: torn down at removal. A value that is not a finite number of seconds, 0 or more, is 0 (development says so).
+   */
+  persist?: number;
 }
 /** `define`'s options: the tag, then everything `init` takes but the host (one object per tag, shared by its instances). */
 export type DefineOptions = Omit<InitOptions, 'host'> & { tag: string };

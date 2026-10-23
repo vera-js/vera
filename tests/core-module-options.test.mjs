@@ -74,7 +74,7 @@ test('a claimed key is accepted silently; an unknown key is ignored — and name
   if (isProduction) assert.deepEqual(loud, [], 'production says nothing');
   else {
     assert.equal(loud.length, 1, loud.join('\n'));
-    assert.match(loud[0], /^\[vera\].*`tnoe` is not an option.*foreignNodes, host, shadow, tone/s);
+    assert.match(loud[0], /^\[vera\].*`tnoe` is not an option.*foreignNodes, host, persist, shadow, tone/s);
   }
 });
 
