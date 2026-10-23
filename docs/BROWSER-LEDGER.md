@@ -187,6 +187,18 @@ from another machine, or after that is undone, has a variable changed.
   inside the A/A — nothing. Consequence: `initWith` is size-sensitive on SpiderMonkey as `serializeValue` is on V8; keep
   rarely-run code out of it, and race a change to it on headed Firefox. (Headed Firefox 153 and Chrome 155; 2026-10-21)
 
+- **The minifier inlines a function with ONE caller into that caller — and on Firefox that cost component creation and
+  churn ~1–2%.** A refactor removed core's last exports of two small helpers (the render hook's builder and its
+  registration), leaving each with one call site; terser then substituted both into `init`'s render path as nested
+  immediately-invoked arrow functions. No source diff showed it — the hot code was unchanged; only the deleted exports
+  differed. Restoring the exports as dead code, or marking the two calls `/*@__NOINLINE__*/`, made the helpers named
+  functions again: class components bound through a template, create −2.2% and churn −1.1% (each faster in 8/8
+  sessions, headed Firefox 153); renaming the mangled fields alone (three variants) moved nothing beyond ±0.6%. Whether
+  Firefox pays for the closures each call allocates or for the caller's larger body (see the `initWith` entry above) is
+  not separated. Consequence: removing a function's other callers changes what the minifier does to it — race a refactor
+  that leaves a hot helper with one caller, and count the inlined-IIFE sites in a production bundle before and after.
+  (Headed Firefox 153; 2026-10-23. Chrome and WebKit: pending.)
+
 - **V8 inlines a function only while its bytecode is ≤ `--max-inlined-bytecode-size` (460)**, so a hot function near
   the budget pays for ANY growth, even code that never runs (a never-taken `if` cost 4.0%). Consequence: move rarely
   run code out of line; `tests/ssr-inlining-budget.test.mjs` prints `serializeValue`'s headroom. Firefox and Safari
