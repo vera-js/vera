@@ -32,7 +32,7 @@ test('after a write, a useLayoutEffect sees the class a directive applied to wha
   customElements.define('x-le-directive', class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.useLayoutEffect(() => { seen.push([state.n, this.querySelector('nav')?.classList.contains('busy')]); });
+        core.effect(() => { seen.push([state.n, this.querySelector('nav')?.classList.contains('busy')]); }, { timing: 'layout' });
         return () => core.html`<div data-vd-state="{ count: 5 }"><nav data-vd-class="{ busy: count > 3 }">${state.n}</nav></div>`;
       });
     }

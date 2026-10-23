@@ -243,6 +243,11 @@ export type TemplateResult<T extends ResultType = 1> = {
  * identity, writes to it, or aborts through it — and nothing may: a per-hook field here (a run id, an abort controller)
  * would leak one subscriber's state into all of them. Per-hook state belongs on the hook.
  */
+/** `effect()`'s options (2026-10-22): when it runs, its order within a flush, and an owner that is not the component being set up. */
+export type EffectOptions = { timing?: 'layout' | 'sync' | 'raw'; priority?: number; owner?: object };
+/** What `effect()` returns: `run()` runs it now; `stop()` ends it for good (its cleanup runs once). */
+export type Effect = { run(): void; stop(): void };
+
 /** What `signal()` returns: one value, read and written as `.value`. */
 export type Signal<T> = { value: T };
 

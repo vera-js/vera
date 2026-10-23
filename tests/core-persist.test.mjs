@@ -13,7 +13,7 @@ import { isProduction, load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
-const { define, html, wire, createStore, useEffect, useHook, flush } = await load('core');
+const { define, html, wire, createStore, effect, flush } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,7 +28,7 @@ const persisting = (persist) => {
   const c = { setups: 0, runs: 0, cleanups: 0 };
   define({ tag: t, persist }, () => {
     c.setups++;
-    useEffect(() => { void s.n; c.runs++; return () => c.cleanups++; });
+    effect(() => { void s.n; c.runs++; return () => c.cleanups++; });
     return () => html`<b>${s.n}</b>`;
   });
   const el = document.createElement(t);
@@ -137,7 +137,7 @@ test('a PENDING async setup re-added before it settles carries on: one setup, it
   define(t, async (host) => {
     setups++;
     await new Promise((r) => (release = r));
-    useHook(() => { void s.n; runs++; }, 75, host);
+    effect(() => { void s.n; runs++; }, { priority: 75, owner: host });
     return () => html`<b>${s.n}</b>`;
   });
   const el = document.createElement(t);
@@ -210,7 +210,7 @@ test('a pending setup that SETTLES while the component is out draws when it is r
   let effects = 0;
   define(t, async () => {
     setups++;
-    useEffect(() => { effects++; });
+    effect(() => { effects++; });
     await new Promise((r) => (release = r));
     return () => html`<b>drawn</b>`;
   });
@@ -250,7 +250,7 @@ test('settled while out and never re-added: torn down once at the bound — its 
   let cleanups = 0;
   define(t, async () => {
     setups++;
-    useEffect(() => { effects++; return () => cleanups++; });
+    effect(() => { effects++; return () => cleanups++; });
     await new Promise((r) => (release = r));
     return () => html`<b>drawn</b>`;
   });

@@ -1,6 +1,6 @@
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
-import { init, createStore, useEffect, useLayoutEffect, signal, html } from '@verajs/core';
+import { init, createStore, useEffect, signal, html, effect } from '@verajs/core';
 import { css } from '@verajs/styles';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
@@ -62,10 +62,10 @@ class GoodbyeComponent extends HTMLElement {
 
       const testRef = signal(0);
 
-      useEffect(() => {
+      effect(() => {
         console.log(state.hello);
       });
-      useEffect(() => {
+      effect(() => {
         console.log('STATE CHANGED!!!', state.hello.name.last);
       });
 
@@ -91,14 +91,14 @@ class GoodbyeComponent extends HTMLElement {
       //   console.log("state.testMap.get('hello') changed", newValue);
       // });
 
-      useEffect(() => {
+      effect(() => {
         console.log(testRef);
       });
       // useEffect(() => {
       //   state.testObject;
       // });
 
-      useEffect(() => {
+      effect(() => {
         const router = initRouter(this, { view: 'main' });
 
         router?.addRoutes([
@@ -110,7 +110,7 @@ class GoodbyeComponent extends HTMLElement {
         ]);
       });
 
-      useEffect((signal) => {
+      effect((signal) => {
         // const { hello: hello2 } = hello;
         void [state.hello.name.first, state.goodbye, state.color]; // reading them is what subscribes
         if (componentInit) {
@@ -120,11 +120,11 @@ class GoodbyeComponent extends HTMLElement {
           if (signal?.prop === 'color') console.log('color changed', state.color);
         }
       });
-      useEffect(() => {
+      effect(() => {
         void state.bigTest.littleTest;
         if (componentInit) console.log(state.bigTest.littleTest);
       });
-      useEffect(() => {
+      effect(() => {
         console.log('first run EFFECT');
       });
 
@@ -132,10 +132,10 @@ class GoodbyeComponent extends HTMLElement {
         console.log('unmounting');
       };
 
-      useLayoutEffect(() => {
+      effect(() => {
         console.log('useLayoutEffect *** Global State Hello', globalState.hello);
-      });
-      useEffect(() => {
+      }, { timing: 'layout' });
+      effect(() => {
         console.log('useEffect *** Global State Hello', globalState.hello);
       });
 
@@ -167,7 +167,7 @@ class GoodbyeComponent extends HTMLElement {
         // console.log(stateMachine.value);
       };
 
-      useEffect(() => {
+      effect(() => {
         discover(this.shadowRoot);
       });
       return () => {

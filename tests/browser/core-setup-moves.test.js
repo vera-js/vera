@@ -6,7 +6,7 @@
  * `moveBefore` take the same row through `insertBefore`, the one-operation move the wrapper was built for.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, init, html, createStore, useEffect } from '../../packages/core/dist/development/vera.js';
+import { wire, init, html, createStore, effect } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 
 wire([renderer]);
@@ -19,7 +19,7 @@ customElements.define('mv-card', class extends HTMLElement {
       setups++;
       const s = createStore({ n: 1 });
       this.state = s;
-      useEffect(() => () => { cleanups++; });
+      effect(() => () => { cleanups++; });
       return () => html`<p>${s.n}</p>`;
     });
   }

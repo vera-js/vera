@@ -8,7 +8,7 @@
  * Written against the `paths` aliases in the root tsconfig, so they check each package's `src` — the
  * source of truth — rather than a possibly stale `dist`.
  */
-import { signal, createStore, untrack, useEffect, useLayoutEffect, useHook } from '@verajs/core';
+import { signal, createStore, untrack, effect } from '@verajs/core';
 import type { ParseRouteParams, RouteParams, RouterMethods } from '@verajs/router';
 
 /** Fails to compile unless A and B are the same type, including union arity. */
@@ -215,7 +215,7 @@ export { _literalTrue, _objectTrue, _noneTrue, _tLiteral, _tObject, _tNone, _tOb
  * An `async` callback must typecheck: it runs (a returned promise is never taken as a cleanup). The old
  * `void | HookCleanup` return type rejected all three with TS2345.
  */
-useEffect(async () => { await Promise.resolve(); });
-useLayoutEffect(async () => {});
-useHook(async () => {}, 65);
-useEffect(() => () => {});
+effect(async () => { await Promise.resolve(); });
+effect(async () => {}, { timing: 'layout' });
+effect(async () => {}, { priority: 65 });
+effect(() => () => {});

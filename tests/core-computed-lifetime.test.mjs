@@ -14,7 +14,7 @@ import { load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
-const { define, html, wire, createStore, computed, useEffect, flush, inserts } = await load('core');
+const { define, html, wire, createStore, computed, effect, flush, inserts } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 /** Thrown renders are reported through the error chain; collected here so the run stays quiet. */
@@ -94,7 +94,7 @@ test('an effect making a computed per run keeps one linked after 20 runs', async
   let evals = 0;
   let runs = 0;
   const t = tag();
-  define(t, () => { useEffect(() => { void s.tick; runs++; void computed(() => { evals++; return s.n; }).value; }); return () => html`<i></i>`; });
+  define(t, () => { effect(() => { void s.tick; runs++; void computed(() => { evals++; return s.n; }).value; }); return () => html`<i></i>`; });
   const el = await mount(t);
   for (let i = 0; i < 20; i++) { s.tick++; await settle(); }
   assert.equal(runs, 21, 'CONTROL: the effect ran 21 times');

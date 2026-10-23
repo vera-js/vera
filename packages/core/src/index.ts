@@ -39,6 +39,7 @@ export { signal } from './modules/signal.js';
 export type { DeepOption } from './modules/signal.js';
 export { untrack } from './modules/untrack.js';
 export { computed } from './modules/computed.js';
+export { effect } from './hooks/effect.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
 import { walkItems } from './services/createProxy.js';
 import { createStore as createStoreFn } from './modules/createStore.js';

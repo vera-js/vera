@@ -97,7 +97,7 @@ test('an effect that writes what it read steps twice per flush, then a frame, ra
   const state = core.createStore({ go: false, n: 0 });
   let runs = 0;
   core.init(el, () => {
-    core.useEffect(() => {
+    core.effect(() => {
       runs++;
       if (state.go && state.n < 3) state.n++;
     });
@@ -122,7 +122,7 @@ test('a coalesced effect receives the signal of the write that queued it', async
   const state = core.createStore({ n: 0 });
   const seen = [];
   core.init(el, () => {
-    core.useEffect((signal) => {
+    core.effect((signal) => {
       void state.n;
       seen.push(signal?.prop === undefined ? 'init' : `${signal.prop}=${signal.value}`);
     });

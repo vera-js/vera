@@ -12,7 +12,7 @@ import { load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body><iframe></iframe></body>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'requestAnimationFrame', 'cancelAnimationFrame', 'MutationObserver'])
   globalThis[k] = dom.window[k];
-const { html, wire, init, createStore, useEffect, useLayoutEffect } = await load('core');
+const { html, wire, init, createStore, effect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 const doc = dom.window.document;
@@ -80,8 +80,8 @@ test('a throwing setup, then a same-document move, a store write and a parent re
     connectedCallback() {
       try {
         init(this, () => {
-          useEffect(() => { ran.push(`effect ${shared.v}`); });
-          useLayoutEffect(() => { ran.push(`layout ${shared.v}`); });
+          effect(() => { ran.push(`effect ${shared.v}`); });
+          effect(() => { ran.push(`layout ${shared.v}`); }, { timing: 'layout' });
           throw new Error('setup boom');
         });
       } catch { /* the author's own call failed */ }

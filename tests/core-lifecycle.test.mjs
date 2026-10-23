@@ -33,7 +33,7 @@ class TickerEl extends window.HTMLElement {
   connectedCallback() {
     core.init(this, () => {
       this.state = core.createStore({ n: 0 });
-      core.useEffect(() => { effectRuns++; this.state.n; return () => cleanups++; });
+      core.effect(() => { effectRuns++; this.state.n; return () => cleanups++; });
       return () => String(this.state.n);
     });
   }
@@ -61,7 +61,7 @@ class SyncEl extends window.HTMLElement {
   connectedCallback() {
     core.init(this, () => {
       this.state = core.createStore({ n: 0 });
-      core.useSyncEffect(() => { this.state.n; return () => syncCleanups++; });
+      core.effect(() => { this.state.n; return () => syncCleanups++; }, { timing: 'sync' });
       return () => '';
     });
   }
@@ -76,7 +76,7 @@ check('useSyncEffect cleanup runs on removal', syncCleanups >= 1);
 // Since 2026-10-09 (Brian: one rule for every "no owner" case) — it was dropped with a development warning, and
 // silently in production, so a component lost its effect with no word.
 let orphan = '';
-try { core.useEffect(() => {}); } catch (error) { orphan = String(error); }
+try { core.effect(() => {}); } catch (error) { orphan = String(error); }
 check('late/orphan hook throws no-owner, in every build', /no-owner/.test(orphan));
 
 // ---- error messages ----
@@ -123,8 +123,8 @@ check('no styles injected inside light element', l1.querySelectorAll('style').le
       core.init({ host: this, shadow: 'open' }, () => {
         const state = core.createStore({ n: 0 });
         this._state = state;
-        core.useLayoutEffect(() => { order.push('layout'); void state.n; });
-        core.useEffect(() => { order.push('effect'); void state.n; });
+        core.effect(() => { order.push('layout'); void state.n; }, { timing: 'layout' });
+        core.effect(() => { order.push('effect'); void state.n; });
         return () => { order.push('render'); return core.html`<p>${state.n}</p>`; };
       });
     }

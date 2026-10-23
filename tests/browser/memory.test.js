@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, useEffect, signal, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, signal, wire, html, effect } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
@@ -127,8 +127,8 @@ const outliving = createStore({ n: 0, rows: [1, 2, 3] });
 const SHAPES = [
   ['a plain rendering component', () => () => html`<i>x</i>`],
   ['one subscribed to a store that outlives it', () => () => html`<i>${outliving.n}</i>`],
-  ['one with an effect on that store', () => { useEffect(() => { void outliving.n; }); }],
-  ['one whose effect registers a cleanup', () => { useEffect(() => { void outliving.n; return () => {}; }); }],
+  ['one with an effect on that store', () => { effect(() => { void outliving.n; }); }],
+  ['one whose effect registers a cleanup', () => { effect(() => { void outliving.n; return () => {}; }); }],
   ['one with an event listener in its template', () => () => html`<button @click=${() => {}}>go</button>`],
   ['one rendering a keyed list', () => () => html`<ul>${outliving.rows.map((r) => keyed(r, html`<li>${r}</li>`))}</ul>`],
   ['one listening to itself', (self) => { self.addEventListener('custom', () => {}); return () => html`<i>x</i>`; }],

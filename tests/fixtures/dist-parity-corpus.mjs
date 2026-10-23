@@ -23,7 +23,7 @@ for (const n of ['window','document','HTMLElement','customElements','CSSStyleShe
 const which = process.env.VERA_DIST === 'production' ? 'production' : 'development';
 const load = async (spec) => import(spec);
 const core = await load('@verajs/core');
-const { html, init, createStore, signal, useEffect, useSyncEffect, wire, untrack } = core;
+const { html, init, createStore, signal, effect, wire, untrack } = core;
 const { css } = await load('@verajs/styles');
 const { renderer, renderInto, hold } = await load('@verajs/renderer');
 const { keyed } = await load('@verajs/renderer/keyed');
@@ -149,8 +149,8 @@ const shape = (el) => el.innerHTML;
   dom.window.customElements.define(tagName, class extends dom.window.HTMLElement {
     connectedCallback() {
       init({ host: this, shadow: 'open' }, () => {
-        useEffect(() => { effects.push(`effect ${state.n}`); return () => effects.push(`cleanup ${state.n}`); });
-        useSyncEffect(() => { effects.push(`sync ${state.n}`); });
+        effect(() => { effects.push(`effect ${state.n}`); return () => effects.push(`cleanup ${state.n}`); });
+        effect(() => { effects.push(`sync ${state.n}`); }, { timing: 'sync' });
         return () => html`<i ${box}>${doubled.value}</i><b>${[...state.tags].join(',')}</b><u>${state.map.size}</u>`;
       });
     }
@@ -172,7 +172,7 @@ const shape = (el) => el.innerHTML;
   const t2 = 'x-p25-shallow';
   dom.window.customElements.define(t2, class extends dom.window.HTMLElement {
     connectedCallback() { init({ host: this, shadow: 'open' }, () => {
-      useSyncEffect(() => { void shallow.value.deep.n; shallowRuns++; });
+      effect(() => { void shallow.value.deep.n; shallowRuns++; }, { timing: 'sync' });
     }); }
   });
   host.appendChild(D.createElement(t2));

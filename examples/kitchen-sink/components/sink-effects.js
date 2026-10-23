@@ -12,7 +12,7 @@
  * shows the layout count including this pass and the coalesced count from the pass before. That is
  * the contract, and rendering both is how a test sees it.
  */
-import { init, html, createStore, useEffect, useLayoutEffect, useSyncEffect } from '@verajs/core';
+import { init, html, createStore, useEffect, effect } from '@verajs/core';
 
 export default class SinkEffects extends HTMLElement {
   connectedCallback() {
@@ -25,10 +25,10 @@ export default class SinkEffects extends HTMLElement {
       this.state = state;
       this.counts = counts;
 
-      useLayoutEffect(() => {
+      effect(() => {
         void state.n;
         counts.layout++;
-      });
+      }, { timing: 'layout' });
       useEffect((signal) => {
         void state.n;
         counts.coalesced++;
@@ -44,10 +44,10 @@ export default class SinkEffects extends HTMLElement {
           `useEffect +${counts.coalesced - mark.coalesced}, ` +
           `useLayoutEffect +${counts.layout - mark.layout}`;
       });
-      useSyncEffect(() => {
+      effect(() => {
         void state.n;
         counts.sync++;
-      });
+      }, { timing: 'sync' });
 
       /** Marks the counters before writing, so what the press caused can be reported on its own. */
       this.bump = (times = 1) => {

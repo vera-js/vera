@@ -135,8 +135,8 @@ export const PROSE: Record<string, Prose> = {
     `there is no component being set up. Hooks belong to a component's setup — the function \`init\` calls, ` +
       `synchronously — so after it returns, after an \`await\` inside it, or later in a handler, there is no component ` +
       `to attach them to.`,
-    'To change what is shown later, write to a store. Await BEFORE `init(...)`, or inside an async setup with its ' +
-      'hooks before the first `await`; or pass the element explicitly: `useEffect(fn, this)`.',
+    'Called after an `await` in an async setup? Call effect() BEFORE the first `await`, and return the render after it. ' +
+      'To change what is shown later, write to a store. A builder\'s own primitive names its owner: `effect(fn, { owner })`.',
   ],
   'define-tag': (received) => [
     `expected a custom element name — a string with a hyphen, not at the start — and received ${received}.`,

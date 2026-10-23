@@ -14,7 +14,7 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
-import { define, init, createStore, wire, html, signal, useEffect, useLayoutEffect, useSyncEffect, createHook, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
+import { define, init, createStore, wire, html, signal, effect, createHook, untrack, computed, microtask, setRenderScheduler, svg, mathml, inserts, useRender } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
@@ -49,9 +49,9 @@ class Demo extends HTMLElement {
       void shallow.value;
       const total = computed(() => state.rows.length + state.n);
 
-      useEffect((signal) => { void signal?.prop; return () => {}; });
-      useLayoutEffect(() => {});
-      useSyncEffect(() => {});
+      effect((signal) => { void signal?.prop; return () => {}; });
+      effect(() => {}, { timing: 'layout' });
+      effect(() => {}, { timing: 'sync' });
       createHook({ element: this, priority: 10, callback: () => {} });
       untrack(() => state.n);
 
@@ -73,7 +73,7 @@ class Headless extends HTMLElement {
   connectedCallback() {
     init(this, () => {
       const state = createStore({ online: true });
-      useEffect(() => void state.online);
+      effect(() => void state.online);
     });
   }
 }
@@ -112,7 +112,7 @@ back(); forward(); go(-1);
  * installed, and nothing has ever compiled a line against it. A `.d.ts` is documentation that
  * compiles, so an unexercised one is an unverified claim.
  */
-import { allowRenderLoop } from '@verajs/core';
+import { allowRenderLoop, effect } from '@verajs/core';
 import type { StoreInsert } from '@verajs/inserts';
 import {
   formatReport, getReport, isProfiling, profile, showProfiler, startProfiling, stopProfiling,

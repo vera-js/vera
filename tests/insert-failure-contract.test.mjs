@@ -25,7 +25,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { init, createStore, createHook, wire, html, useEffect } = await load('core');
+const { init, createStore, createHook, wire, html, effect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 
@@ -97,9 +97,9 @@ test('a hook that throws does not, and the hooks beside it still run', async () 
   try {
     mount(function () {
       init({ host: this, shadow: 'open' }, () => {
-        useEffect(() => { ran.push('a'); throw new Error('from the hook'); });
-        useEffect(() => ran.push('b'));
-        useEffect(() => ran.push('c'));
+        effect(() => { ran.push('a'); throw new Error('from the hook'); });
+        effect(() => ran.push('b'));
+        effect(() => ran.push('c'));
         return () => html`<p>x</p>`;
       });
     });

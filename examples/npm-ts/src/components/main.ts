@@ -10,7 +10,7 @@
  * Hydration in this framework is `hydration` from `@verajs/renderer/hydration`, wired beside the renderer
  * (`wire([renderer, hydration])`), exercised for real by `examples/ssr-node` and the browser suite's fixtures.
  */
-import { html, init, useEffect } from '@verajs/core';
+import { html, init, effect } from '@verajs/core';
 
 import './parent-element.js';
 import './child-element.js';
@@ -21,7 +21,7 @@ import './wcc-single-element.js';
 class MainElement extends HTMLElement {
   connectedCallback() {
     init(this, () => {
-      useEffect(() => {});
+      effect(() => {});
 
       const template = () => {
         return html`<parent-element><div>HI FRIENDS!!</div></parent-element>`;

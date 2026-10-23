@@ -142,9 +142,9 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
   const nativeError = console.error;
   console.error = (...args) => errors.push(String(args[0]));
   try {
-    core.useSyncEffect(() => {
+    core.effect(() => {
       state.n = state.n + 1;
-    }, el);
+    }, { timing: 'sync', owner: el });
     el._$h$?.forEach((cb) => cb.$n(undefined, true));
   } catch (error) {
     if (isProduction) return; // production has no guard; a stack overflow here is the documented cost

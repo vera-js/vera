@@ -58,7 +58,7 @@ const CASES = {
     body: `
       const state = createStore({ n: 1, doubled: 0 });
       init({ host: this, shadow: 'open' }, () => {
-        useEffect(() => { state.doubled = state.n * 2; });
+        effect(() => { state.doubled = state.n * 2; });
         return () => html\`<p>\${state.n}/\${state.doubled}</p>\`;
       });
       state.n = 4;
@@ -69,7 +69,7 @@ const CASES = {
       const state = createStore({ n: 1 });
       init({ host: this, shadow: 'open' }, () => {
         const seen = [];
-        useEffect(() => { seen.push(state.n); });
+        effect(() => { seen.push(state.n); });
         return () => html\`<p>\${state.n} seen=\${seen.length > 0}</p>\`;
       });
       state.n = 2;
@@ -365,7 +365,7 @@ const CASES = {
     body: `
       init({ host: this, shadow: 'open' }, () => {
         const state = createStore({ n: 0 });
-        useEffect(() => { void state.n; this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
+        effect(() => { void state.n; this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
       });
     `,
   },
@@ -602,7 +602,7 @@ CASES['useLayoutEffect reaches the markup on the server, as on the client'] = {
   body: `
     const state = createStore({ label: 'start' });
     init({ host: this, shadow: 'open' }, () => {
-      useLayoutEffect(() => { if (state.label === 'start') state.label = 'layout-ran'; });
+      effect(() => { if (state.label === 'start') state.label = 'layout-ran'; }, { timing: 'layout' });
       return () => html\`<p>\${state.label}</p>\`;
     });
     state.label = 'start';
@@ -610,7 +610,7 @@ CASES['useLayoutEffect reaches the markup on the server, as on the client'] = {
 };
 
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
-const IMPORTS = `import { init, html, createStore, useEffect, useLayoutEffect } from '@verajs/core';`;
+const IMPORTS = `import { init, html, createStore, effect } from '@verajs/core';`;
 const source = (name, spec) => `${IMPORTS}
 ${spec.defines ?? ''}
 class C extends HTMLElement {
@@ -738,8 +738,7 @@ for (const [name, spec] of Object.entries(ALL)) {
     'render',
     'html',
     'createStore',
-    'useEffect',
-    'useLayoutEffect',
+    'effect',
     'HTMLElement',
     'customElements',
     'document',
@@ -753,8 +752,7 @@ for (const [name, spec] of Object.entries(ALL)) {
     core.render,
     core.html,
     core.createStore,
-    core.useEffect,
-    core.useLayoutEffect,
+    core.effect,
     dom.window.HTMLElement,
     dom.window.customElements,
     dom.window.document

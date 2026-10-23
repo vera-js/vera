@@ -18,7 +18,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 const core = await load('core');
 const { renderer } = await load('renderer');
 core.wire([renderer]);
-const { init, html, createStore, useEffect, flush, wire, inserts } = core;
+const { init, html, createStore, effect, flush, wire, inserts } = core;
 const doc = dom.window.document;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let seq = 0;
@@ -109,14 +109,14 @@ test('a setup is UNTRACKED: a read in it re-renders neither the parent that conn
 test('the window is the call: a hook outside a setup has no owner — after a return and after a throw', async () => {
   const tag = component((host) => init(host, () => () => html`<i></i>`));
   await mount(tag);
-  assert.throws(() => useEffect(() => {}), /no-owner/, 'after the setup returned, no component is being set up');
+  assert.throws(() => effect(() => {}), /no-owner/, 'after the setup returned, no component is being set up');
   let called = 0;
   const failing = component((host) => {
     try { init(host, () => { called++; throw new Error('setup boom'); }); } catch { /* the author's own call failed */ }
   });
   await mount(failing);
   assert.equal(called, 1, 'CONTROL: the throwing setup was actually called');
-  assert.throws(() => useEffect(() => {}), /no-owner/, 'a throw closes the window too');
+  assert.throws(() => effect(() => {}), /no-owner/, 'a throw closes the window too');
 });
 
 test('a setup that throws: init rethrows it; the hooks it registered never run; the next connect renders normally', async () => {
@@ -126,7 +126,7 @@ test('a setup that throws: init rethrows it; the hooks it registered never run; 
   const tag = component((host) => {
     try {
       init(host, () => {
-        useEffect(() => { effects++; });
+        effect(() => { effects++; });
         if (fail) throw new Error('setup boom');
         return () => html`<p>ok</p>`;
       });
@@ -147,8 +147,8 @@ test('a nested init inside a setup restores the outer component as the owner', a
   const order = [];
   const inner = doc.createElement('div');
   const tag = component((host) => init(host, () => {
-    init(inner, () => { useEffect(() => order.push('inner')); return () => html`<i></i>`; });
-    useEffect(() => order.push('outer')); // registered AFTER the nested init: must belong to the outer host
+    init(inner, () => { effect(() => order.push('inner')); return () => html`<i></i>`; });
+    effect(() => order.push('outer')); // registered AFTER the nested init: must belong to the outer host
     return () => html`<b></b>`;
   }));
   await mount(tag);
@@ -158,7 +158,7 @@ test('a nested init inside a setup restores the outer component as the owner', a
 test('a hook created inside a render callback has no owner', async () => {
   let thrown = null;
   const tag = component((host) => init(host, () => () => {
-    try { useEffect(() => {}); } catch (error) { thrown = error; }
+    try { effect(() => {}); } catch (error) { thrown = error; }
     return html`<i></i>`;
   }));
   await mount(tag);
@@ -167,7 +167,7 @@ test('a hook created inside a render callback has no owner', async () => {
 
 test('a setup returning nothing is a side-effect setup: its effects run, nothing renders', async () => {
   let ran = 0;
-  const tag = component((host) => init(host, () => { useEffect(() => { ran++; }); }));
+  const tag = component((host) => init(host, () => { effect(() => { ran++; }); }));
   const el = await mount(tag);
   assert.equal(ran, 1);
   assert.equal(el.childNodes.length, 0);
@@ -268,7 +268,7 @@ test('a rejected async setup is reported ONCE through the error chain — never 
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
         init(this, async () => {
-          useEffect(() => { ran++; });
+          effect(() => { ran++; });
           await Promise.resolve();
           throw new Error('the fetch failed');
         });

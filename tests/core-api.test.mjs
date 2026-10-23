@@ -21,7 +21,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
 
 const core = await load('core');
-const { init, createStore, useEffect, useSyncEffect, useLayoutEffect, useRender, signal, untrack, html, setRenderScheduler, microtask, wire } = core;
+const { init, createStore, effect, useRender, signal, untrack, html, setRenderScheduler, microtask, wire } = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -54,11 +54,11 @@ test('untrack reads the current value without subscribing', async () => {
   let seenB;
   const state = createStore({ a: 0, b: 'first' });
   mount(() => {
-    useSyncEffect(() => {
+    effect(() => {
       void state.a;                       // tracked
       seenB = untrack(() => state.b);     // read, but not subscribed
       runs++;
-    });
+    }, { timing: 'sync' });
     return () => html`<i>${state.a}</i>`;
   });
   await settle();
@@ -81,7 +81,7 @@ test('ref is reactive through nested properties', async () => {
   let runs = 0;
   const box = signal({ nested: { n: 0 } }, { deep: true });
   mount(() => {
-    useSyncEffect(() => { void box.value.nested.n; runs++; });
+    effect(() => { void box.value.nested.n; runs++; }, { timing: 'sync' });
     return () => html`<i>x</i>`;
   });
   await settle();
@@ -95,7 +95,7 @@ test('signal (shallow) does not proxy what it holds, but replacing .value notifi
   let runs = 0;
   const box = signal({ nested: { n: 0 } });
   mount(() => {
-    useSyncEffect(() => { void box.value; runs++; });
+    effect(() => { void box.value; runs++; }, { timing: 'sync' });
     return () => html`<i>x</i>`;
   });
   await settle();
@@ -191,8 +191,8 @@ test('useLayoutEffect runs, and before useEffect', async () => {
   wire({ on: 'render', fn: () => {}, priority: 50 });
   const state = createStore({ n: 0 });
   mount(() => {
-    useLayoutEffect(() => { void state.n; order.push('layout'); });
-    useEffect(() => { void state.n; order.push('effect'); });
+    effect(() => { void state.n; order.push('layout'); }, { timing: 'layout' });
+    effect(() => { void state.n; order.push('effect'); });
     return () => html`<i>${state.n}</i>`;
   });
   await settle();

@@ -105,9 +105,9 @@ test('the effects contract survives the microtask scheduler', async () => {
         core.init({ host: this, shadow: 'open' }, () => {
           const state = core.createStore({ n: 0 });
           this._state = state;
-          core.useSyncEffect(() => { order.push(`sync:${state.n}`); });
-          core.useLayoutEffect(() => { void state.n; order.push('layout'); });
-          core.useEffect(() => { void state.n; order.push('effect'); });
+          core.effect(() => { order.push(`sync:${state.n}`); }, { timing: 'sync' });
+          core.effect(() => { void state.n; order.push('layout'); }, { timing: 'layout' });
+          core.effect(() => { void state.n; order.push('effect'); });
           return () => { renders++; return core.html`<p>${state.n}</p>`; };
         });
       }
@@ -142,7 +142,7 @@ test('the effects contract survives the microtask scheduler', async () => {
  */
 test('a scheduler that throws does not freeze the component permanently', async () => {
   let effects = 0;
-  const element = counter((state) => core.useEffect(() => { void state.n; effects++; }));
+  const element = counter((state) => core.effect(() => { void state.n; effects++; }));
   await frame();
   const settled = effects;
 
@@ -205,7 +205,7 @@ test('a scheduler that keeps throwing is reported on every write', async () => {
  */
 test('a scheduler that silently drops the pass does not freeze the component once it is replaced', async () => {
   let effects = 0;
-  const element = counter((state) => core.useEffect(() => { void state.n; effects++; }));
+  const element = counter((state) => core.effect(() => { void state.n; effects++; }));
   await frame();
   const settled = effects;
 
@@ -294,7 +294,7 @@ test('an element in a window without requestAnimationFrame still re-runs on a wr
   const state = core.createStore({ n: 0 });
   const seen = [];
   core.init(el, () => {
-    core.useEffect(() => { seen.push(state.n); });
+    core.effect(() => { seen.push(state.n); });
   });
   state.n = 1;
   /** The scheduler flushes as a microtask in every window (2026-10-08): a frame-less one no longer runs it synchronously. */

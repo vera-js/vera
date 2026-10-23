@@ -53,7 +53,7 @@ test('awaiting before init lets concurrent async components both render', async 
         const data = await new Promise((resolve) => setTimeout(() => resolve(value), delay));
         core.init({ host: this, shadow: 'open' }, () => {
           const store = core.createStore({ v: data });
-          core.useEffect(() => { void store.v; });
+          core.effect(() => { void store.v; });
           return () => html`<p>${store.v}</p>`;
         });
       }
@@ -98,7 +98,7 @@ test('an async setup awaiting before its render renders — hooks before the awa
     connectedCallback() {
       core.init({ host: this, shadow: 'open' }, async () => {
         const store = core.createStore({ n: 1 });
-        core.useEffect(() => { void store.n; });
+        core.effect(() => { void store.n; });
         await Promise.resolve();
         return () => html`<p>${store.n}</p>`;
       });
@@ -115,7 +115,7 @@ test('a hook made AFTER the await in an async setup is reported once (no-owner, 
     connectedCallback() {
       core.init({ host: this, shadow: 'open' }, async () => {
         await Promise.resolve();
-        core.useEffect(() => {});
+        core.effect(() => {});
         return () => html`<p>1</p>`;
       });
     }
@@ -134,7 +134,7 @@ test('two async setups making a hook after their await are both reported, whiche
       connectedCallback() {
         core.init({ host: this, shadow: 'open' }, async () => {
           await new Promise((resolve) => setTimeout(resolve, delay));
-          core.useEffect(() => {});
+          core.effect(() => {});
           return () => html`<p>x</p>`;
         });
       }

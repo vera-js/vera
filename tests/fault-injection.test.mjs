@@ -23,7 +23,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { html, init, createStore, useEffect, wire } = core;
+const { html, init, createStore, effect, wire } = core;
 const { renderer } = await load('renderer');
 wire([renderer]);
 
@@ -79,7 +79,7 @@ test('an effect survives a cleanup that throws', async () => {
   const state = createStore({ n: 0 });
   const ran = [];
   await capture(async () => {
-    define(() => useEffect(() => { ran.push(state.n); return () => { throw new Error('cleanup-boom'); }; }), { renders: false });
+    define(() => effect(() => { ran.push(state.n); return () => { throw new Error('cleanup-boom'); }; }), { renders: false });
     await settle();
     for (const n of [1, 2, 3]) {
       state.n = n;
@@ -92,7 +92,7 @@ test('an effect survives a cleanup that throws', async () => {
 test('the control: the same effect with a cleanup that does not throw', async () => {
   const state = createStore({ n: 0 });
   const ran = [];
-  define(() => useEffect(() => { ran.push(state.n); return () => {}; }), { renders: false });
+  define(() => effect(() => { ran.push(state.n); return () => {}; }), { renders: false });
   await settle();
   for (const n of [1, 2, 3]) {
     state.n = n;
@@ -114,7 +114,7 @@ test('a cleanup runs exactly once per setup, even when the effect body throws', 
   const state = createStore({ n: 0 });
   const log = [];
   await capture(async () => {
-    define(() => useEffect(() => {
+    define(() => effect(() => {
       const at = state.n;
       log.push(`setup ${at}`);
       if (at === 1) throw new Error('body-boom');
@@ -188,8 +188,8 @@ test('a throwing effect does not stop the next effect on the same component', as
   let after = 0;
   await capture(async () => {
     define(() => {
-      useEffect(() => { void state.n; throw new Error('effect-boom'); });
-      useEffect(() => { void state.n; after++; });
+      effect(() => { void state.n; throw new Error('effect-boom'); });
+      effect(() => { void state.n; after++; });
     }, { renders: false });
     await settle();
   });

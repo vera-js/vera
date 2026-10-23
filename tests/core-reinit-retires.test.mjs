@@ -14,7 +14,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true 
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
-const { init, html, wire, createStore, useEffect, inserts } = await load('core');
+const { init, html, wire, createStore, effect, inserts } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 const doc = dom.window.document;
@@ -28,7 +28,7 @@ test("a sequential re-init runs the first generation's cleanup once, and the sec
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       init(this, () => {
-        useEffect(() => () => { ran.s1Cleanup++; });
+        effect(() => () => { ran.s1Cleanup++; });
         return () => { ran.s1Renders++; return html`<p>s1 ${store.n}</p>`; };
       });
       init(this, () => () => { ran.s2Renders++; return html`<p>s2 ${store.n}</p>`; });
@@ -59,8 +59,8 @@ test("a throwing cleanup does not abort the re-init: it is reported once, the ne
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
         init(this, () => {
-          useEffect(() => () => { throw new Error('first cleanup threw'); });
-          useEffect(() => () => { ran.second++; });
+          effect(() => () => { throw new Error('first cleanup threw'); });
+          effect(() => () => { ran.second++; });
           return () => html`<p>s1</p>`;
         });
         init(this, () => () => html`<p>s2</p>`);
@@ -97,7 +97,7 @@ test('init on its own host from INSIDE its setup is named once in development (i
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
         init(this, (host) => {
-          useEffect(() => {});
+          effect(() => {});
           init(host, () => () => html`<p>inner</p>`);
           return () => html`<p>outer</p>`;
         });
@@ -114,7 +114,7 @@ test('a SEQUENTIAL re-init, and a reconnect, are not init-twice', async () => {
   const lines = await said(async () => {
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
-        init(this, () => { useEffect(() => {}); return () => html`<p>s1</p>`; });
+        init(this, () => { effect(() => {}); return () => html`<p>s1</p>`; });
         init(this, () => () => html`<p>s2</p>`);
       }
     });
@@ -142,7 +142,7 @@ test('a removed component drops its hook lists — and a reconnect rebuilds them
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       init(this, () => {
-        useEffect(() => {});
+        effect(() => {});
         return () => html`<p>${store.n}</p>`;
       });
     }

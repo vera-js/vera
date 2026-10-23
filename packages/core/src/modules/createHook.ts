@@ -180,6 +180,19 @@ class HookState implements HookRecord {
       born.push(this);
   }
 
+  /**
+   * **`effect()`'s handle** (2026-10-22): the record itself, so the handle allocates nothing. `run()` runs it now (a first
+   * pass when it never ran); `stop()` ends it for good — out of every store, its cleanup run once (`retireHook`), and its
+   * generation spent so `$n` returns on every path after (a write, a resume's first passes, a re-home).
+   */
+  run() {
+    this.$n(undefined, true);
+  }
+  stop() {
+    retireHook(this);
+    this._g = NaN;
+  }
+
   $n(signal?: Change<unknown>, init?: boolean) {
     const owner = this._o;
     if (owner._$g$ !== this._g || (!init && owner.isConnected === false)) return;

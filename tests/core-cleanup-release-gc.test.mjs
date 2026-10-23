@@ -43,7 +43,7 @@ const child = () => JSON.parse(execFileSync(process.execPath, [...(isProduction 
   customElements.define('cr-x', class extends HTMLElement { connectedCallback() {
     const name = this.dataset.name;
     core.init(this, () => {
-      core.useEffect(effectFor(name));
+      core.effect(effectFor(name));
       kept.set(name, core.useHook(effectFor(name + ':kept'), 65));
       return () => core.html\`<p>x</p>\`;
     });

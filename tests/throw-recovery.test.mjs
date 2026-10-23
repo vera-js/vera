@@ -74,8 +74,8 @@ test('an effect that throws stops neither its sibling nor the next run', async (
   const host = dom.window.document.createElement('div');
   app.appendChild(host);
   core.init({ host, shadow: 'open' }, () => {
-    core.useEffect(() => { ran.throwing++; store.n; if (boom) throw new Error('effect threw'); });
-    core.useEffect(() => { ran.quiet++; store.n; });
+    core.effect(() => { ran.throwing++; store.n; if (boom) throw new Error('effect threw'); });
+    core.effect(() => { ran.quiet++; store.n; });
     return () => html`<p>${store.n}</p>`;
   });
   await frame();
@@ -98,8 +98,8 @@ test('and neither does a sync effect that throws', async () => {
   const host = dom.window.document.createElement('div');
   app.appendChild(host);
   core.init({ host, shadow: 'open' }, () => {
-    core.useSyncEffect(() => { ran.throwing++; store.n; if (boom) throw new Error('sync effect threw'); });
-    core.useSyncEffect(() => { ran.quiet++; store.n; });
+    core.effect(() => { ran.throwing++; store.n; if (boom) throw new Error('sync effect threw'); }, { timing: 'sync' });
+    core.effect(() => { ran.quiet++; store.n; }, { timing: 'sync' });
     return () => html`<p>${store.n}</p>`;
   });
   await frame();
@@ -124,9 +124,9 @@ test('a cleanup that throws stops neither its siblings nor the next element', as
     connectedCallback() {
       const name = this.getAttribute('name');
       core.init({ host: this, shadow: 'open' }, () => {
-        core.useEffect(() => () => { cleaned.push(`${name}-1`); });
-        core.useEffect(() => () => { cleaned.push(`${name}-2`); throw new Error(`cleanup ${name} threw`); });
-        core.useEffect(() => () => { cleaned.push(`${name}-3`); });
+        core.effect(() => () => { cleaned.push(`${name}-1`); });
+        core.effect(() => () => { cleaned.push(`${name}-2`); throw new Error(`cleanup ${name} threw`); });
+        core.effect(() => () => { cleaned.push(`${name}-3`); });
         return () => html`<p>${name}</p>`;
       });
     }

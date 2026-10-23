@@ -26,17 +26,17 @@ different value, which is a real capability. **VeraJS is the only one that offer
 ## What it looks like
 
 ```js
-import { useEffect, useSyncEffect } from '@verajs/core';
+import { effect } from '@verajs/core';
 
 // Batched: one run per flush (a microtask), no matter how many writes landed.
-useEffect(() => {
+effect(() => {
   save(state.draft);                 // runs once, after all three writes
 });
 
 // Per-change: one run per write, observing every intermediate value.
-useSyncEffect((signal) => {
+effect((signal) => {
   history.push(signal.value);        // 1, then 2, then 3
-});
+}, { timing: 'sync' });
 ```
 
 ## Why this exists

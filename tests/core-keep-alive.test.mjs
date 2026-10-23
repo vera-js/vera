@@ -10,7 +10,7 @@ import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body><iframe></iframe></body>', { pretendToBeVisual: true });
 for (const k of ['window','document','HTMLElement','customElements','Node','Element','DocumentFragment','Text','Comment','Event','CustomEvent','requestAnimationFrame','cancelAnimationFrame','MutationObserver']) globalThis[k] = dom.window[k];
-const { html, wire, init, useEffect } = await load('core');
+const { html, wire, init, effect } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { slots } = await load('renderer/slots');
@@ -22,7 +22,7 @@ const log = [];
 const count = (word) => log.filter((l) => l.startsWith(word)).length;
 customElements.define('ka-kid', class extends dom.window.HTMLElement {
   connectedCallback() { log.push(`setup ${this.id}`); init(this, () => {
-    useEffect(() => () => log.push(`cleanup ${this.id}`));
+    effect(() => () => log.push(`cleanup ${this.id}`));
     return () => html`<i>${this.id}</i>`;
   }); }
   disconnectedCallback() { log.push(`dc ${this.id}`); }

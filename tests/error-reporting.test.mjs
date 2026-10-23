@@ -27,7 +27,7 @@ for (const key of [
 const core = await load('core');
 const { renderer } = await load('renderer');
 core.wire([renderer]);
-const { html, init, useEffect } = core;
+const { html, init, effect } = core;
 const frame = () => new Promise((resolve) => setTimeout(resolve, 40));
 
 customElements.define('x-ref-throws', class extends HTMLElement {
@@ -47,7 +47,7 @@ customElements.define('x-shadow-ref-throws', class extends HTMLElement {
 customElements.define('x-effect-throws', class extends HTMLElement {
   connectedCallback() {
     init(this, () => {
-      useEffect(() => { throw new Error('effect failed'); });
+      effect(() => { throw new Error('effect failed'); });
       return () => html`<p>e</p>`;
     });
   }

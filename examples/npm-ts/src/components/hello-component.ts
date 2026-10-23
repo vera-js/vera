@@ -1,5 +1,5 @@
 import { globalState } from '../globalState.js';
-import { createStore, init, useEffect, html } from '@verajs/core';
+import { createStore, init, effect, html } from '@verajs/core';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
 class HelloComponent extends HTMLElement {
@@ -20,12 +20,12 @@ class HelloComponent extends HTMLElement {
         globalState.goodbye = globalState.goodbye === 'success' ? 'danger' : 'success';
       };
 
-      useEffect(() => {
+      effect(() => {
         // const { goodbye } = globalState;
         console.log('CALLING THAT ONE FUNCTION');
       });
 
-      useEffect(() => {
+      effect(() => {
         discover(this.shadowRoot);
       });
       console.log('RIGHT BEFORE RENDER');

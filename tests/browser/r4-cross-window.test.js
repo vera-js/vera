@@ -7,7 +7,7 @@
  * anything from another document (CLAUDE.md: a failing cross-realm inspection reads as a timeout).
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, define, init, html, createStore, useEffect } from '../../packages/core/dist/development/vera.js';
+import { wire, define, init, html, createStore, effect } from '../../packages/core/dist/development/vera.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { nativeElements } from '../../packages/renderer/dist/development/vera-renderer-native-elements.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
@@ -48,7 +48,7 @@ describe('R4: cross-window moves keep the component', () => {
     let cleanups = 0;
     const heard = [];
     define('r4-listen', (host) => {
-      useEffect(() => {
+      effect(() => {
         const win = host.ownerDocument.defaultView;
         const on = () => heard.push(win === window ? 'main' : 'other');
         win.addEventListener('r4-ping', on);
@@ -151,7 +151,7 @@ describe('R4: cross-window moves keep the component', () => {
 
   it('a keyed reorder within one document re-runs no effect', async () => {
     let runs = 0;
-    define('r4-row', () => { useEffect(() => { runs++; }); return () => html`<i></i>`; });
+    define('r4-row', () => { effect(() => { runs++; }); return () => html`<i></i>`; });
     const host = document.createElement('div');
     document.body.append(host);
     const rows = (ids) => html`${ids.map((id) => keyed(id, html`<r4-row id=${id}></r4-row>`))}`;
@@ -186,7 +186,7 @@ describe('R4: cross-window moves keep the component', () => {
     const heard = [];
     const host = document.createElement('div');
     init(host, () => {
-      useEffect(() => {
+      effect(() => {
         const win = host.ownerDocument.defaultView;
         const on = () => heard.push(win === window ? 'main' : 'other');
         win.addEventListener('r4-ping2', on);

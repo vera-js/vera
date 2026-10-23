@@ -65,7 +65,7 @@ const OVER = 60;
         const state = core.createStore({ n: 0 });
         element._state = state;
         /** Reads `n` and writes it: the write feeds the pass that made it. */
-        core.useEffect(() => { ran++; state.n = state.n + 1; });
+        core.effect(() => { ran++; state.n = state.n + 1; });
         return () => core.html`<p>${state.n}</p>`;
       });
     });
@@ -105,7 +105,7 @@ const OVER = 60;
          * The write lands in a *later* frame, not inside the pass that scheduled it — which is the
          * whole discriminator. This is the shape an animation takes, and it must never warn.
          */
-        core.useEffect(() => {
+        core.effect(() => {
           void state.t;
           ticks++;
           dom.window.requestAnimationFrame(() => { state.t = state.t + 1; });
@@ -157,7 +157,7 @@ const OVER = 60;
         const state = core.createStore({ t: 0 });
         element._state = state;
         core.allowRenderLoop(element);
-        core.useEffect(() => { ran++; state.t = state.t + 1; });
+        core.effect(() => { ran++; state.t = state.t + 1; });
         return () => core.html`<p>${state.t}</p>`;
       });
     });
@@ -184,7 +184,7 @@ const OVER = 60;
         core.init({ host: element, shadow: 'open' }, () => {
           const state = core.createStore({ n: 0, echo: 0 });
           element._state = state;
-          core.useEffect(() => { state.echo = state.n; });
+          core.effect(() => { state.echo = state.n; });
           return () => core.html`<p>${state.echo}</p>`;
         });
       }));
@@ -210,7 +210,7 @@ const OVER = 60;
       core.init({ host: element, shadow: 'open' }, () => {
         const state = core.createStore({ n: 0 });
         element._state = state;
-        core.useEffect(() => { ran++; state.n = state.n + 1; });
+        core.effect(() => { ran++; state.n = state.n + 1; });
         return () => core.html`<p>${state.n}</p>`;
       });
     });
@@ -267,7 +267,7 @@ const OVER = 60;
       core.init({ host: element, shadow: 'open' }, () => {
         const state = core.createStore({ n: 0, target: 0 });
         element._state = state;
-        core.useEffect(() => {
+        core.effect(() => {
           passes++;
           if (state.n !== state.target) state.n = state.n + 1;
         });

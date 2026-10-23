@@ -32,7 +32,7 @@ const run = async (name, draw, probe = () => undefined) => {
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.useEffect(() => {
+        core.effect(() => {
           void state.n;
           effectRuns++;
           /** Clicks once, on a LATER change — after directives activated: a click during mount reached no handler. */

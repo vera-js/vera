@@ -31,7 +31,7 @@ test('an effect that writes what its own render reads: that render runs again BE
       const name = this.dataset.name;
       const own = core.createStore({ v: 0 });
       core.init(this, () => {
-        core.useEffect(() => {
+        core.effect(() => {
           void shared.n;
           order.push(`effect ${name}`);
           /** A's effect, on the shared write, writes what A's render reads (read untracked: the effect hears only `shared.n`). */
@@ -66,7 +66,7 @@ test('a write waking components that each render AND run an effect sorts nothing
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.useEffect(() => { void state.n; });
+        core.effect(() => { void state.n; });
         return () => core.html`<i>${state.n}</i>`;
       });
     }

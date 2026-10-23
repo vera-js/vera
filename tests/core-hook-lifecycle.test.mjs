@@ -40,7 +40,7 @@ const define = (setup) => {
     core.init({ host: element, shadow: 'open' }, () => {
       const state = core.createStore({ n: 0 });
       element._state = state;
-      core.useEffect(() => { effects++; return () => { cleanups++; }; });
+      core.effect(() => { effects++; return () => { cleanups++; }; });
       return () => { renders++; return core.html`<p>${state.n}</p>`; };
     });
   });
@@ -93,9 +93,9 @@ const define = (setup) => {
     core.init({ host: element, shadow: 'open' }, () => {
       const state = core.createStore({ n: 0 });
       element._state = state;
-      core.useEffect(() => { before++; void state.n; });
-      core.useEffect(() => { void state.n; throw new Error('middle hook'); });
-      core.useEffect(() => { after++; void state.n; });
+      core.effect(() => { before++; void state.n; });
+      core.effect(() => { void state.n; throw new Error('middle hook'); });
+      core.effect(() => { after++; void state.n; });
       return () => core.html`<p>${state.n}</p>`;
     });
   });
@@ -115,7 +115,7 @@ const define = (setup) => {
     core.init({ host: element, shadow: 'open' }, () => {
       const state = core.createStore({ seen: 0, hidden: 0 });
       element._state = state;
-      core.useEffect(() => { runs++; void state.seen; core.untrack(() => void state.hidden); });
+      core.effect(() => { runs++; void state.seen; core.untrack(() => void state.hidden); });
       return () => core.html`<p>${state.seen}</p>`;
     });
   });
@@ -147,7 +147,7 @@ const define = (setup) => {
       const state = core.createStore({ n: 0 });
       element._state = state;
       element.innerHTML = '<span>pre-existing</span>';
-      core.useEffect(() => { ran++; void state.n; });
+      core.effect(() => { ran++; void state.n; });
     });
   });
   check('a setup returning nothing runs its first pass synchronously', ran === 1);
@@ -160,7 +160,7 @@ const define = (setup) => {
 
   /** Since 2026-10-09 (Brian): no component being set up THROWS, in every build — it used to do nothing, silently. */
   const throwsNoOwner = (call) => { try { call(); return false; } catch (error) { return /no-owner/.test(String(error)); } };
-  check('a hook outside a component throws no-owner', throwsNoOwner(() => core.useEffect(() => {})));
+  check('a hook outside a component throws no-owner', throwsNoOwner(() => core.effect(() => {})));
 }
 
 /* ── createHook runs at the priority it was given ──────────────────────────────────────────────
@@ -175,7 +175,7 @@ const define = (setup) => {
       core.init(this, () => {
         core.createHook({ callback: () => order.push('early'), priority: 10 });
         core.createHook({ callback: () => order.push('late'), priority: 90 });
-        core.useEffect(() => order.push('effect'));
+        core.effect(() => order.push('effect'));
         return () => '';
       });
     }
@@ -217,7 +217,7 @@ const define = (setup) => {
     class extends HTMLElement {
       connectedCallback() {
         core.init({ host: this, shadow: 'open' }, () => {
-          core.useEffect(() => {
+          core.effect(() => {
             void state.n;
             effects++;
           });
@@ -281,8 +281,8 @@ const define = (setup) => {
       core.init({ host: this, shadow: 'open' }, () => {
         const state = core.createStore({ n: 0 });
         this._state = state;
-        core.useLayoutEffect(() => () => order.push('layout cleanup'));
-        core.useEffect(() => () => order.push('effect cleanup'));
+        core.effect(() => () => order.push('layout cleanup'), { timing: 'layout' });
+        core.effect(() => () => order.push('effect cleanup'));
         return () => core.html`<p>${state.n}</p>`;
       });
     }
@@ -315,7 +315,7 @@ const define = (setup) => {
       core.init({ host: this, shadow: 'open' }, () => {
         const state = core.createStore({ n: 0 });
         this._state = state;
-        core.useEffect(() => { runs++; void state.n; return () => { cleanups++; }; });
+        core.effect(() => { runs++; void state.n; return () => { cleanups++; }; });
         return () => core.html`<p>${state.n}</p>`;
       });
     }
@@ -357,8 +357,8 @@ const define = (setup) => {
   class Throwing extends HTMLElement {
     connectedCallback() {
       core.init({ host: this, shadow: 'open' }, () => {
-        core.useEffect(() => () => { done.push('first'); throw new Error('cleanup exploded'); });
-        core.useEffect(() => () => done.push('second'));
+        core.effect(() => () => { done.push('first'); throw new Error('cleanup exploded'); });
+        core.effect(() => () => done.push('second'));
         return () => core.html`<p>x</p>`;
       });
     }
@@ -396,14 +396,14 @@ const define = (setup) => {
     /** The one form's only way to call it twice in one setup: `init` on the host from inside its own setup. */
     const lossy = define((element) => {
       core.init({ host: element, shadow: 'open' }, () => {
-        core.useEffect(() => { effects++; });
+        core.effect(() => { effects++; });
         core.init({ host: element, shadow: 'open' }, () => () => core.html`<p>x</p>`);
         return () => core.html`<p>outer</p>`;
       });
     });
     const control = define((element) => {
       core.init({ host: element, shadow: 'open' }, () => {
-        core.useEffect(() => { effectsWithoutSecondInit++; });
+        core.effect(() => { effectsWithoutSecondInit++; });
         return () => core.html`<p>x</p>`;
       });
     });
@@ -436,7 +436,7 @@ const define = (setup) => {
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
         core.init({ host: this, shadow: 'open' }, () => {
-          core.useEffect(() => { runs++; });
+          core.effect(() => { runs++; });
           return () => core.html`<p>x</p>`;
         });
       }
@@ -473,7 +473,7 @@ const define = (setup) => {
     customElements.define(tag, class extends HTMLElement {
       connectedCallback() {
         core.init({ host: this, shadow: 'open' }, () => {
-          core.useEffect(() => {
+          core.effect(() => {
             if (when === 'in-effect') this.remove();
             return () => { cleanups++; };
           });
@@ -530,7 +530,7 @@ const define = (setup) => {
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       core.init({ host: this, shadow: 'open' }, () => {
-        core.useEffect(() => {
+        core.effect(() => {
           this.remove();
           return () => { ran.push('cleanup'); throw new Error('toast cleanup threw'); };
         });
@@ -565,7 +565,7 @@ const define = (setup) => {
 }
 
 /* ── a subclass that registers hooks after super's setup has closed ────────────────────────────
- * `class Child extends Base { connectedCallback() { super.connectedCallback(); useEffect(...) } }`
+ * `class Child extends Base { connectedCallback() { super.connectedCallback(); effect(...) } }`
  * is the natural way to extend a component, and it does not work: `super.connectedCallback()` ends
  * with `render()`, which *commits* the setup, so anything registered after it is past the boundary.
  *
@@ -588,7 +588,7 @@ const define = (setup) => {
   class SubBase extends dom.window.HTMLElement {
     connectedCallback() {
       core.init({ host: this, shadow: 'open' }, () => {
-        core.useEffect(() => { runs.base++; });
+        core.effect(() => { runs.base++; });
         return () => core.html`<p>${this.localName}</p>`;
       });
     }
@@ -596,7 +596,7 @@ const define = (setup) => {
   class SubChild extends SubBase {
     connectedCallback() {
       super.connectedCallback();
-      core.useEffect(() => { runs.child++; });
+      core.effect(() => { runs.child++; });
     }
   }
   dom.window.customElements.define(baseTag, SubBase);

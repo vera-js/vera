@@ -122,7 +122,7 @@ test('a hook that re-runs thousands of times does not make writes progressively 
       core.init({ host: this, shadow: 'open' }, () => {
         const state = core.createStore({ n: 0 });
         this._state = state;
-        core.useSyncEffect(() => { void state.n; });
+        core.effect(() => { void state.n; }, { timing: 'sync' });
         return () => core.html`<p>${state.n}</p>`;
       });
     }

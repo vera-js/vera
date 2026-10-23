@@ -1,4 +1,4 @@
-import { init, createStore, useEffect, useLayoutEffect, html } from '@verajs/core';
+import { init, createStore, effect, html } from '@verajs/core';
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
@@ -14,7 +14,7 @@ class Base extends HTMLElement {
     /** Written after the setup returns (below), so it lives outside it. */
     const silentState = { init: false };
     init({ host: this, shadow: 'open' }, () => {
-      useEffect(() => {
+      effect(() => {
         const router = initRouter(this, { view: 'main' })!;
         router.addRoutes([
           { path: '/', title: 'Home', component: () => html`<p>Home is where the heart is</p>` },
@@ -65,9 +65,9 @@ class Base extends HTMLElement {
 
       const testingState = testingChunks();
 
-      useLayoutEffect(() => {
+      effect(() => {
         console.log('TESTING STATE CHUNK GLDKJGLDKGFJKL', testingState, testingState.test);
-      });
+      }, { timing: 'layout' });
       const state = createStore({
         harry: 'harry',
         hermione: { name: { name: 'hermione' } },
@@ -75,21 +75,21 @@ class Base extends HTMLElement {
       });
 
       // bindStore(globalState, app);
-      useLayoutEffect(() => {
+      effect(() => {
         console.log('USE LAYOUT EFFECT');
         console.log('harry changed!', state.harry);
-      });
-      useEffect(() => {
+      }, { timing: 'layout' });
+      effect(() => {
         console.log('USE EFFECT');
         console.log('harry changed!', state.harry);
       });
-      useEffect(() => {
+      effect(() => {
         console.log('HELLO CHANGED!!!', globalState.goodbye);
       });
-      useEffect(() => {
+      effect(() => {
         console.log('Hermione always watching', state.hermione);
       });
-      useEffect(() => {
+      effect(() => {
         const { hermione } = state;
         const { name } = hermione;
         const { name: name2 } = name;
@@ -110,7 +110,7 @@ class Base extends HTMLElement {
         state.showButton = !state.showButton;
       };
 
-      useEffect(() => {
+      effect(() => {
         discover(this.shadowRoot);
       });
 

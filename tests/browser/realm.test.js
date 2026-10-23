@@ -14,7 +14,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { renderInto, renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { html, wire, init, useEffect, createStore } from '../../packages/core/dist/development/vera.js';
+import { html, wire, init, effect, createStore } from '../../packages/core/dist/development/vera.js';
 
 wire([renderer]);
 
@@ -23,7 +23,7 @@ let effects = 0;
 customElements.define('x-realm-counter', class extends HTMLElement {
   connectedCallback() {
     init(this, () => {
-      useEffect(() => {
+      effect(() => {
         store.count;
         effects++;
       });
@@ -39,7 +39,7 @@ customElements.define('x-realm-loop', class extends HTMLElement {
     init(this, () => {
       const state = createStore({ n: 0 });
       this._state = state;
-      useEffect(() => {
+      effect(() => {
         if (state.n < loop.until) state.n++;
       });
       return () => html`<b>${state.n}</b>`;

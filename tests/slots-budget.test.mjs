@@ -33,7 +33,7 @@ test('with frameBudget opted in and spent, a render waits for the frame while a 
   performance.now = () => Math.max(now, real());
   try {
     customElements.define('sb-spend', class extends HTMLElement { connectedCallback() { core.init(this, () => {
-      core.useEffect(() => { if (spend.go) now += 5; });
+      core.effect(() => { if (spend.go) now += 5; });
     }); } });
     customElements.define('sb-n', class extends HTMLElement { connectedCallback() { core.init(this, () => {
       return () => core.html`<p>${state.n}</p>`;

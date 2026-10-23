@@ -32,9 +32,9 @@ const listen = async (run) => {
 };
 
 for (const [hook, register] of [
-  ['useEffect', (fn) => core.useEffect(fn)],
-  ['useLayoutEffect', (fn) => core.useLayoutEffect(fn)],
-  ['useHook', (fn) => core.useHook(fn, 65)],
+  ['useEffect', (fn) => core.effect(fn)],
+  ['useLayoutEffect', (fn) => core.effect(fn, { timing: 'layout' })],
+  ['useHook', (fn) => core.effect(fn, { priority: 65 })],
 ]) test(`an async ${hook} runs on every change and throws nothing on its next run or on removal`, async () => {
   const state = core.createStore({ n: 0 });
   const runs = [];
@@ -70,7 +70,7 @@ test('a cleanup returned SYNCHRONOUSLY still runs — before the next run, and o
   customElements.define('x-async-sync', class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.useEffect(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); });
+        core.effect(() => { const n = state.n; log.push(`run ${n}`); return () => log.push(`clean ${n}`); });
       });
     }
   });
@@ -88,7 +88,7 @@ test('a cleanup that throws, with no error chain wired, is printed as a CLEANUP 
   customElements.define(name, class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.useEffect(() => () => { throw new Error('cleanup boom'); });
+        core.effect(() => () => { throw new Error('cleanup boom'); });
       });
     }
   });

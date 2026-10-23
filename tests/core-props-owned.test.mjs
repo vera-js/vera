@@ -12,7 +12,7 @@ import { load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
-const { define, init, html, wire, createStore, flush, useEffect } = await load('core');
+const { define, init, html, wire, createStore, flush, effect } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 const settle = async () => { flush(); await new Promise((resolve) => setTimeout(resolve, 0)); flush(); };
@@ -27,7 +27,7 @@ test('ONE store: createStore(record) is the accessor\'s proxy, and a write throu
   const viaStore = createStore(raw);
   assert.equal(viaStore, el._$v$, 'the same proxy');
   const seen = [];
-  define('x-own-reader', () => { useEffect(() => { seen.push(viaStore.a); }); return () => html`<i></i>`; });
+  define('x-own-reader', () => { effect(() => { seen.push(viaStore.a); }); return () => html`<i></i>`; });
   const reader = document.createElement('x-own-reader');
   document.body.append(reader);
   await settle();
@@ -98,7 +98,7 @@ test('two cores on one page: each props record carries ITS core\'s slot, and eac
   /** A second copy of core (its own module instance, as core-define's two-cores row loads it). No renderer is wired into it. */
   const second = await load('core', '?copy=2');
   const seen = { one: [], two: [] };
-  define({ tag: 'x-own-core1', props: { a: 1 } }, (host) => { useEffect(() => { seen.one.push(host.a); }); return () => html`<b></b>`; });
+  define({ tag: 'x-own-core1', props: { a: 1 } }, (host) => { effect(() => { seen.one.push(host.a); }); return () => html`<b></b>`; });
   second.define({ tag: 'x-own-core2', props: { a: 1 } }, (host) => { second.useEffect(() => { seen.two.push(host.a); }); });
   const one = document.createElement('x-own-core1');
   const two = document.createElement('x-own-core2');

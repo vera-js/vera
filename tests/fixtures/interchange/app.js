@@ -5,7 +5,7 @@
  * renders it through @verajs/ssr in one process and hydrates the output in another; a module that needs a guard here is
  * a defect.
  */
-import { wire, init, html, createStore, useEffect } from '@verajs/core';
+import { wire, init, html, createStore, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { hydration } from '@verajs/renderer/hydration';
 import { slots } from '@verajs/renderer/slots';
@@ -20,7 +20,7 @@ customElements.define('ia-counter', class extends HTMLElement {
     init(this, (host) => {
       const state = createStore({ n: 1 });
       /** Counts its runs on the element: the server's markup carries the server run, the client adds its own. */
-      useEffect(() => { host.dataset.effects = String(Number(host.dataset.effects ?? 0) + 1); });
+      effect(() => { host.dataset.effects = String(Number(host.dataset.effects ?? 0) + 1); });
       return () => html`<p>count ${state.n}</p><button @click=${() => state.n++}>more</button>`;
     });
   }

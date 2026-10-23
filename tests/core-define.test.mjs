@@ -13,7 +13,7 @@ import { isProduction, load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
-const { define, html, wire, createStore, flush, useEffect, inserts } = await load('core');
+const { define, html, wire, createStore, flush, effect, inserts } = await load('core');
 const { renderer } = await load('renderer');
 const seen = [];
 wire([renderer, { on: 'init', fn: (element, options) => { if (element.localName.startsWith('x-def-')) seen.push([element.localName, options]); }, priority: 0 }]);
@@ -47,7 +47,7 @@ test('removed then re-added: setup EXACTLY twice, teardown EXACTLY once per remo
   let teardowns = 0;
   define('x-def-cycle', () => {
     setups++;
-    useEffect(() => () => teardowns++);
+    effect(() => () => teardowns++);
     return () => html`<i>c</i>`;
   });
   const el = document.createElement('x-def-cycle');
@@ -70,7 +70,7 @@ test('a one-operation move keeps it: setup once, no teardown, still live', async
   let teardowns = 0;
   define('x-def-move', () => {
     setups++;
-    useEffect(() => () => teardowns++);
+    effect(() => () => teardowns++);
     return () => html`<b>${state.n}</b>`;
   });
   const a = document.createElement('section');
@@ -153,7 +153,7 @@ test('two cores on one page: a define tag from each, each set up once and torn d
   const counts = { s1: 0, t1: 0, s2: 0, t2: 0 };
   define('x-def-core1', () => {
     counts.s1++;
-    useEffect(() => () => counts.t1++);
+    effect(() => () => counts.t1++);
   });
   second.define('x-def-core2', () => {
     counts.s2++;
@@ -265,7 +265,7 @@ test('props: a plain-JS write AFTER connect repaints (an undeclared prop does no
 test('props: an effect follows a prop that arrives late', async () => {
   const seenValues = [];
   define({ tag: 'x-def-late', props: { value: null } }, (host) => {
-    useEffect(() => { seenValues.push(host.value); });
+    effect(() => { seenValues.push(host.value); });
     return () => html`<p>l</p>`;
   });
   const el = document.createElement('x-def-late');
@@ -311,7 +311,7 @@ test('props: a parent binding a declared prop is NOT re-rendered by the child re
   let childRenders = 0;
   let childEffects = 0;
   define({ tag: 'x-def-child', props: { heading: 'same' } }, (host) => {
-    useEffect(() => { void host.heading; childEffects++; });
+    effect(() => { void host.heading; childEffects++; });
     return () => { childRenders++; return html`<b>${host.heading}</b>`; };
   });
   define('x-def-parent', () => () => { parentRenders++; return html`<x-def-child .heading=${parentState.heading}></x-def-child>`; });
@@ -487,7 +487,7 @@ test('release at removal: a component MIXING declared and adopted props — both
 
 test('release at removal: a CLASS component with adopted props, removed then re-added, still hears its parent', async () => {
   const parentState = createStore({ name: 'a' });
-  const { init } = await load('core');
+  const { init, effect } = await load('core');
   customElements.define('x-def-classadopt', class extends HTMLElement { connectedCallback() { init(this, (host) => () => html`<b>${host.name}</b>`); } });
   const parent = document.createElement('div');
   document.body.append(parent);
@@ -517,7 +517,7 @@ test('release at removal: a CLASS component with adopted props, removed then re-
  */
 test('release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)', async () => {
   const parentState = createStore({ name: 'a', tick: 0 });
-  const { init } = await load('core');
+  const { init, effect } = await load('core');
   customElements.define('x-def-livecopy', class extends HTMLElement { connectedCallback() { init(this, (host) => () => html`<b>${host.name}</b>`); } });
   const parent = document.createElement('div');
   document.body.append(parent);

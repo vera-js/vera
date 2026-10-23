@@ -24,7 +24,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
-const { createStore, useSyncEffect, useEffect, init, html, wire } = core;
+const { createStore, effect, init, html, wire } = core;
 const { renderer } = await load('renderer');
 const { computed } = await load('core');
 wire([renderer]);
@@ -79,7 +79,7 @@ test('nothing that renders can observe a half-settled diamond', async () => {
 
   const seen = [];
   const other = diamond();
-  mount(() => useEffect(() => { seen.push(other.sum.value); }));
+  mount(() => effect(() => { seen.push(other.sum.value); }));
   await settle();
   other.state.n = 2;
   await settle();
@@ -91,7 +91,7 @@ test('nothing that renders can observe a half-settled diamond', async () => {
 test('a synchronous effect does see a half-settled diamond, and that is the documented edge', () => {
   const { state, sum } = diamond();
   const seen = [];
-  mount(() => useSyncEffect(() => { seen.push(sum.value); }));
+  mount(() => effect(() => { seen.push(sum.value); }, { timing: 'sync' }));
   state.n = 2;
   state.n = 3;
   /**
@@ -115,7 +115,7 @@ test('the extra work a diamond costs is one evaluation of the dependent', () => 
   const double = computed(() => { doubles++; return state.n * 2; });
   const triple = computed(() => { triples++; return state.n * 3; });
   const sum = computed(() => { sums++; return double.value + triple.value; });
-  mount(() => useSyncEffect(() => { void sum.value; }));
+  mount(() => effect(() => { void sum.value; }, { timing: 'sync' }));
   const before = [doubles, triples, sums];
   state.n = 2;
   assert.deepEqual(
@@ -133,7 +133,7 @@ test('a computed evaluates once per change and not at all for an unrelated write
   const state = createStore({ watched: 1, unrelated: 1 });
   let evaluations = 0;
   const value = computed(() => { evaluations++; return state.watched; });
-  mount(() => useSyncEffect(() => { void value.value; }));
+  mount(() => effect(() => { void value.value; }, { timing: 'sync' }));
   const baseline = evaluations;
   for (let i = 0; i < 10; i++) state.unrelated = i;
   assert.equal(evaluations - baseline, 0, 'an unrelated store write costs none at all');
@@ -164,7 +164,7 @@ test('a branch that was not taken is not subscribed, and one abandoned is unsubs
   const state = createStore({ useA: true, a: 1, b: 100 });
   const pick = computed(() => (state.useA ? state.a : state.b));
   let runs = 0;
-  mount(() => useSyncEffect(() => { void pick.value; runs++; }));
+  mount(() => effect(() => { void pick.value; runs++; }, { timing: 'sync' }));
   const afterSetup = runs;
   state.b = 101;
   assert.equal(runs, afterSetup, 'b is never read while useA is true, so writing it notifies nobody');
@@ -181,7 +181,7 @@ test('a write that changes nothing notifies nobody', () => {
   const held = { deep: 1 };
   const state = createStore({ n: 1, o: held });
   let runs = 0;
-  mount(() => useSyncEffect(() => { void state.n; void state.o; runs++; }));
+  mount(() => effect(() => { void state.n; void state.o; runs++; }, { timing: 'sync' }));
   const afterSetup = runs;
   /** Without this the test passed with the effect never running at all — "nobody was notified" is
    *  satisfied perfectly by nobody listening (found when `mount` was missing, 2026-09-27). */
@@ -209,7 +209,7 @@ test('a twenty-deep chain of computeds settles', () => {
 test('a deep store notifies for every kind of mutation', () => {
   const state = createStore({ deep: { list: [1, 2, 3], map: { a: 1 } } });
   const seen = [];
-  mount(() => useSyncEffect(() => { seen.push(JSON.parse(JSON.stringify(state.deep))); }));
+  mount(() => effect(() => { seen.push(JSON.parse(JSON.stringify(state.deep))); }, { timing: 'sync' }));
   const afterSetup = seen.length;
   state.deep.list.push(4);
   state.deep.list[0] = 9;
@@ -234,7 +234,7 @@ test('a store inside a store is the same store, and a write through it notifies 
   const outer = createStore({ child: inner });
   assert.equal(outer.child, inner, 'the nested store is the store itself');
   let runs = 0;
-  mount(() => useSyncEffect(() => { void outer.child.n; runs++; }));
+  mount(() => effect(() => { void outer.child.n; runs++; }, { timing: 'sync' }));
   assert.equal(runs, 1, 'CONTROL: the effect ran and subscribed');
   outer.child.n = 1;
   assert.equal(runs, 2, 'one write, one notification');
@@ -284,7 +284,7 @@ test('a store whose raw object was frozen behind its back does not throw when pl
 test('asking `key in` subscribes: the answer follows the key being added and removed', () => {
   const state = createStore({ o: {} });
   const answers = [];
-  mount(() => useSyncEffect(() => { answers.push('b' in state.o); }));
+  mount(() => effect(() => { answers.push('b' in state.o); }, { timing: 'sync' }));
   assert.deepEqual(answers, [false], 'CONTROL: the effect ran and asked');
   state.o.b = 1;
   delete state.o.b;
@@ -298,7 +298,7 @@ test('a sync effect that writes what it reads is stopped by name, not by a stack
   let runs = 0;
   /** Guarded, so this one terminates on its own — the unguarded case is what the depth-50 check in
    * `useSyncEffect` is for, and is covered where that diagnostic lives. */
-  mount(() => useSyncEffect(() => { runs++; if (state.n < 3) state.n = state.n + 1; }));
+  mount(() => effect(() => { runs++; if (state.n < 3) state.n = state.n + 1; }, { timing: 'sync' }));
   assert.equal(state.n, 3);
   assert.equal(runs, 4, 'one setup pass and one per write it made');
 });
@@ -324,7 +324,7 @@ test('a nested object assigned back to its own slot is not a change', () => {
   const target = { n: 1, o: original };
   const state = createStore(target);
   let runs = 0;
-  mount(() => useSyncEffect(() => { void state.n; void state.o.deep; runs++; }));
+  mount(() => effect(() => { void state.n; void state.o.deep; runs++; }, { timing: 'sync' }));
 
   const afterSetup = runs;
   state.n = 1;

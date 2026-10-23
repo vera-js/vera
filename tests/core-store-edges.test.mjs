@@ -41,10 +41,10 @@ const watch = async (read) => {
     class extends HTMLElement {
       connectedCallback() {
         core.init(this, () => {
-          core.useSyncEffect(() => {
+          core.effect(() => {
             read();
             counter.runs++;
-          });
+          }, { timing: 'sync' });
         });
       }
     }

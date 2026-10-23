@@ -148,7 +148,7 @@ Runnable: [`examples/light-slots/`](examples/light-slots/) — `npm run dev:slot
 </script>
 
 <script type="module">
-  import { init, createStore, wire, html } from '@verajs/core';
+  import { init, createStore, wire, html, effect } from '@verajs/core';
   import { renderer } from '@verajs/renderer';
 
   /** Core ships no renderer. Wire one once, here, and nothing else needs to know. */
@@ -183,7 +183,7 @@ npm install @verajs/core @verajs/renderer
 ```
 
 ```ts
-import { init, createStore, useEffect, wire, html } from '@verajs/core';
+import { init, createStore, wire, html, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -193,7 +193,7 @@ class ClickCounter extends HTMLElement {
     init({ host: this, shadow: 'open' }, () => {
       const state = createStore({ count: 0 });
 
-      useEffect(() => {
+      effect(() => {
         console.log('count is now', state.count);
       });
 
@@ -256,7 +256,7 @@ Standalone bundles inline their dependencies, so a module that carried its own r
 second one. None of them do: each takes the registry it writes to, and `wire` hands it over.
 
 ```js
-import { wire } from '@verajs/core';
+import { wire, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';

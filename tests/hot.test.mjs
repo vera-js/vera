@@ -12,7 +12,7 @@ import { isProduction, load } from './dist.mjs';
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
-const { define, html, wire, createStore, flush, useEffect, inserts } = await load('core');
+const { define, html, wire, createStore, flush, effect, inserts } = await load('core');
 const { renderer } = await load('renderer');
 const { hot } = await load('hot');
 /** Defined BEFORE hot is wired: its registration is the real class, so a redefine refuses. */
@@ -30,7 +30,7 @@ test('wired twice: the second does nothing, and nothing throws', () => {
 
 test('a redefined setup swaps IN PLACE: old cleanup exactly once, new setup runs, the element kept', async () => {
   const counts = { old: 0, oldCleanup: 0, next: 0 };
-  define('x-hot-basic', () => { counts.old++; useEffect(() => () => counts.oldCleanup++); return () => html`<b>one</b>`; });
+  define('x-hot-basic', () => { counts.old++; effect(() => () => counts.oldCleanup++); return () => html`<b>one</b>`; });
   const el = document.createElement('x-hot-basic');
   document.body.append(el);
   await settle();

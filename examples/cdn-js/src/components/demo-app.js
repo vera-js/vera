@@ -1,4 +1,4 @@
-import { init, createStore, useEffect, html } from '@verajs/core';
+import { init, createStore, effect, html } from '@verajs/core';
 import { initRouter } from '@verajs/router';
 
 /**
@@ -14,11 +14,11 @@ class DemoApp extends HTMLElement {
 
       const state = createStore({ name: 'world', showCounter: false });
 
-      useEffect(() => {
+      effect(() => {
         console.log('name changed:', state.name);
       });
 
-      useEffect(() => {
+      effect(() => {
         const router = initRouter(this, { view: 'main' });
 
         router.addRoutes([

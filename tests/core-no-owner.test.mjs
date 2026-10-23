@@ -21,7 +21,7 @@ const { renderer } = await load('renderer');
 core.wire([renderer]);
 const doc = dom.window.document;
 let seq = 0;
-const NO_OWNER = isProduction ? /\[vera\] core: .+ — https:\/\/verajs\.dev\/e\/no-owner$/ : /no component being set up[\s\S]*before the first `await`[\s\S]*useEffect\(fn, this\)/;
+const NO_OWNER = isProduction ? /\[vera\] core: .+ — https:\/\/verajs\.dev\/e\/no-owner$/ : /no component being set up[\s\S]*before the first `await`[\s\S]*effect\(fn, \{ owner \}\)/i;
 
 /** A component whose setup awaits, then creates a hook; `ready` settles with what that did. */
 const awaiting = () => {
@@ -31,7 +31,7 @@ const awaiting = () => {
       this.ready = (async () => {
         core.init(this);
         await null;
-        core.useEffect(() => {});
+        core.effect(() => {});
       })();
     }
   });
@@ -68,7 +68,7 @@ test('a hook after setup throws no-owner — from a handler, later', async () =>
   const el = doc.createElement(name);
   doc.body.append(el);
   await null;
-  assert.throws(() => core.useEffect(() => {}), NO_OWNER, 'a hook');
+  assert.throws(() => core.effect(() => {}), NO_OWNER, 'a hook');
   el.remove();
 });
 

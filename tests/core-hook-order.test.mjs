@@ -29,9 +29,9 @@ test('a lower priority registered AFTER a higher one still runs first on the fir
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       core.init(this, () => {
-        core.useEffect(() => { order.push('effect 75'); });
-        core.useHook(() => { order.push('hook 25'); }, 25);
-        core.useLayoutEffect(() => { order.push('layout 60'); });
+        core.effect(() => { order.push('effect 75'); });
+        core.effect(() => { order.push('hook 25'); }, { priority: 25 });
+        core.effect(() => { order.push('layout 60'); }, { timing: 'layout' });
         return () => { order.push('render 50'); return core.html`<p>x</p>`; };
       });
     }
@@ -161,8 +161,8 @@ test('removal runs every cleanup in priority order, even after a re-run, then th
       core.init(this, (host) => {
         /** A third party's removal cleanup, registered the way `useDismiss` does — it reads what core's cleanup wrote. */
         (host._$c$ ??= new Set()).add(() => order.push(`third party (saw closed: ${seen.closed})`));
-        core.useLayoutEffect(() => { state.width; layoutRuns++; return () => order.push('layout cleanup'); });
-        core.useEffect(() => () => { seen.closed = true; order.push('effect cleanup'); });
+        core.effect(() => { state.width; layoutRuns++; return () => order.push('layout cleanup'); }, { timing: 'layout' });
+        core.effect(() => () => { seen.closed = true; order.push('effect cleanup'); });
         return () => core.html`<p>x</p>`;
       });
     }

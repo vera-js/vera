@@ -8,7 +8,7 @@
  * the page's real core, and the `<mirror-count>` component on the State page subscribes to a
  * DIRECTIVE's store through ordinary component hooks — one registry, two paradigms.
  */
-import { wire, html, init, useEffect } from '@verajs/core';
+import { wire, html, init, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { initRouter, setBasePath, router } from '@verajs/router';
 import { directiveLoader } from '@verajs/autoloader';
@@ -126,7 +126,7 @@ customElements.define('mirror-count', class extends HTMLElement {
   connectedCallback() {
     init(this);
     const carrier = this.closest('[data-vd-state]');
-    useEffect(() => {
+    effect(() => {
       const store = carrier && stateOf(carrier);
       this.textContent = store ? `the component reads ${store.n} through core's hooks` : '…';
     });
@@ -216,7 +216,7 @@ const HOME = `
   <em>the markup that built it</em>, rendered from the same nodes so it cannot lie. No build step:
   the import map points at the production bundles, exactly as a CDN page would.</p>
   <demo-block caption="The entire wiring of this page — nothing else is set up anywhere.">
-    <pre><code>import { wire } from '@verajs/core';
+    <pre><code>import { wire, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import {

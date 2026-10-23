@@ -25,7 +25,7 @@ foreign renderer through it — but no alternative renderer is offered as a supp
 
 <!-- recipe -->
 ```js
-import { define, createStore, wire, html, useEffect } from '@verajs/core';
+import { define, createStore, wire, html, useEffect, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);   // once, at your app entry, before any component defines itself
@@ -33,7 +33,7 @@ wire([renderer]);   // once, at your app entry, before any component defines its
 define({ tag: 'tap-counter', shadow: 'open' }, () => {   // shadow DOM; define('tap-counter', () => …) for light DOM
   const state = createStore({ count: 0 });                 // the setup runs once per connect
 
-  useEffect(() => {
+  effect(() => {
     document.title = `${state.count} taps`;                // re-runs whenever what it read changes
   });
 
@@ -62,7 +62,7 @@ defined once: a second `define` of it throws, as the platform's `customElements.
 
 <!-- recipe -->
 ```js
-import { init, createStore, wire, html } from '@verajs/core';
+import { init, createStore, wire, html, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -92,7 +92,7 @@ on either side — no `static properties`, no props argument:
 
 <!-- recipe -->
 ```js
-import { define, wire, html } from '@verajs/core';
+import { define, wire, html, effect } from '@verajs/core';
 import { renderer, renderInto } from '@verajs/renderer';
 import { props } from '@verajs/renderer/spread';
 
@@ -144,7 +144,7 @@ be known. Declaring it is how:
 
 <!-- recipe -->
 ```js
-import { define, wire, html } from '@verajs/core';
+import { define, wire, html, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -181,7 +181,7 @@ a tag that declares none carries no attribute callback at all.
 
 <!-- recipe -->
 ```js
-import { define, wire, html } from '@verajs/core';
+import { define, wire, html, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -216,7 +216,7 @@ tag, in light DOM. The option wins over `static styles` when both are given; `st
 
 <!-- recipe -->
 ```js
-import { define, wire, html } from '@verajs/core';
+import { define, wire, html, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -261,7 +261,7 @@ store, wire that, and mutating methods notify like any other write. Without it c
 time one is read.
 
 ```js
-import { createStore, signal, untrack } from '@verajs/core';
+import { createStore, signal, untrack, effect } from '@verajs/core';
 
 const state = createStore({ filter: 'all', rows: [] });
 const focus = signal(null);                          // read and written as focus.value
@@ -276,7 +276,7 @@ const total = () => untrack(() => state.rows.length);  // read without subscribi
 
 <!-- recipe -->
 ```js
-import { init, createStore, computed, wire, html } from '@verajs/core';
+import { init, createStore, computed, wire, html, effect } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 
 wire([renderer]);
@@ -425,7 +425,7 @@ cleanup — run before the next pass, **and on element removal**. No `disconnect
 one of its own, it still runs first.
 
 ```js
-useEffect(() => {
+effect(() => {
   const id = setInterval(tick, 1000);
   return () => clearInterval(id);
 });
@@ -463,7 +463,7 @@ loop is plainest written with `requestAnimationFrame`; if a self-feeding effect 
 ```js
 init(this, () => {
   allowRenderLoop(this);         // an animation driven by its own writes, on purpose
-  useEffect(() => { state.t = state.t + 1 });
+  effect(() => { state.t = state.t + 1 });
 });
 ```
 
@@ -502,12 +502,12 @@ per write, so it sees every one.
 | `setRenderScheduler(fn)` | when a FLUSH runs. The default, `microtask`, runs every flush at once. `frameBudget` opts into merging bursts of data: a microtask within about 4 ms of flush work per frame, and past it the **element's own window's** next frame (a component in a popped-out window or an iframe waits on that window's frames). A scheduler receives `(run, element)` and returns the one it replaced |
 
 ```js
-import { init, useRender, useEffect, mathml, html, flush } from '@verajs/core';
+import { init, useRender, useEffect, mathml, html, flush, effect } from '@verajs/core';
 
 class TickerLogger extends HTMLElement {
   connectedCallback() {
     init(this, () => {                   // light DOM: no options
-      useEffect(() => console.log(state.tick));
+      effect(() => console.log(state.tick));
     });                                  // returns nothing — this component draws nothing
   }
 }
@@ -609,7 +609,7 @@ Its author's `connectedCallback` does not run again on a resume, as on a move.
 connectedCallback() {
   init({ host: this, shadow: 'open' }, async () => {
     const state = createStore({ data: null });
-    useEffect(() => { document.title = state.data?.title ?? '…'; });   // hooks before the first await
+    effect(() => { document.title = state.data?.title ?? '…'; });   // hooks before the first await
     state.data = await fetch(this.dataset.url).then((r) => r.json());
     return () => html`<p>${state.data.title}</p>`;
   });
@@ -689,7 +689,7 @@ the renderer has no built-in answer for).
 [`@verajs/inserts`](../inserts) documents each one, with signatures.
 
 ```js
-import { wire, inserts, createHook } from '@verajs/core';
+import { wire, inserts, createHook, effect } from '@verajs/core';
 
 wire({ on: 'error', fn: (error, element) => report(error, element?.localName), priority: 50 });
 

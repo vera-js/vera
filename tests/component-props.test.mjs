@@ -23,7 +23,7 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
                  'requestAnimationFrame', 'cancelAnimationFrame', 'CSSStyleSheet'])
   globalThis[k] = dom.window[k];
 
-const { html, wire, init, signal, createStore, useEffect } = await load('core');
+const { html, wire, init, signal, createStore, effect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 const { spread, props } = await load('renderer/spread');
 wire([renderer]);
@@ -194,7 +194,7 @@ test('a key arriving AFTER init() is adopted live — the conditional-keys idiom
   customElements.define('cp-late', class extends HTMLElement {
     connectedCallback() {
       init({ host: this, shadow: 'open' }, () => {
-        useEffect(() => {
+        effect(() => {
           effectRuns++;
         });
         return () => html`<p>${String(this.a)} ${this.b === undefined ? 'no-b' : String(this.b)}</p>`;

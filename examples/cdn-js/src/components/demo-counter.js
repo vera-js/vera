@@ -1,4 +1,4 @@
-import { init, createStore, useEffect, html } from '@verajs/core';
+import { init, createStore, effect, html } from '@verajs/core';
 import { computed } from '../inserts/computed.js';
 
 /**
@@ -20,7 +20,7 @@ class DemoCounter extends HTMLElement {
       });
       const tallies = createStore(new Map([['clicks', 0]]));
 
-      useEffect(() => {
+      effect(() => {
         console.log('count is now', state.count);
       });
 

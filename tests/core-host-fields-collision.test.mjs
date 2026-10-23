@@ -21,7 +21,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true 
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
-const { init, html, wire, createStore, useEffect } = await load('core');
+const { init, html, wire, createStore, effect } = await load('core');
 const { renderer } = await load('renderer');
 wire([renderer]);
 const doc = dom.window.document;
@@ -45,7 +45,7 @@ const lifecycle = async (tag, Base) => {
     connectedCallback() {
       init(this, () => {
         const s = createStore({ n: 1 });
-        useEffect(() => () => {});
+        effect(() => () => {});
         return () => html`<p>${s.n}</p>`;
       });
     }

@@ -5,7 +5,7 @@
  * `'init'` insert (priority −1) replaces none of the others: native-elements (0) and slots (10…) still run with it wired.
  */
 import { expect } from '@esm-bundle/chai';
-import { wire, define, init, html, createStore, useEffect } from '../../packages/core/dist/development/vera.js';
+import { wire, define, init, html, createStore, effect } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { slots } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
 import { nativeElements } from '../../packages/renderer/dist/development/vera-renderer-native-elements.js';
@@ -20,7 +20,7 @@ describe('@verajs/hot', () => {
   it('swaps a live component in place inside a closed root: old cleanup once, new setup once, element kept', async () => {
     const counts = { old: 0, cleanup: 0, next: 0 };
     const state = createStore({ n: 1 });
-    define({ tag: 'hot-card', shadow: 'closed' }, () => { counts.old++; useEffect(() => () => counts.cleanup++); return () => html`<b>a${state.n}</b>`; });
+    define({ tag: 'hot-card', shadow: 'closed' }, () => { counts.old++; effect(() => () => counts.cleanup++); return () => html`<b>a${state.n}</b>`; });
     define({ tag: 'hot-shell', shadow: 'closed' }, () => () => html`<hot-card></hot-card>`);
     const shell = document.createElement('hot-shell');
     document.body.append(shell);
