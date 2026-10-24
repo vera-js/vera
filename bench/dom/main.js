@@ -56,7 +56,7 @@ const params = new URLSearchParams(location.search);
 /** `?batch[=ms]`: the time box of one batched sample (50 ms), about 2% of resolution on a whole-millisecond clock. */
 const BATCH = params.has('batch') ? Number(params.get('batch')) || 50 : 0;
 const LAYOUT = params.has('layout');
-/** `&plant=µs`: the positive control's planted cost (see the `-dom` rows). */
+/** `&plant=N`: the positive control's planted work, in loop iterations (see the `-dom` rows). */
 const PLANT = Number(params.get('plant')) || 0;
 /**
  * `&verify=1` (a smoke, never timed): counts batched runs after which the DOM had NOT changed. It must be 0 for every
@@ -169,11 +169,17 @@ async function measure(impl, op) {
         await op.run(app);
         void document.body.offsetHeight;
         /**
-         * `&plant=µs` — the POSITIVE CONTROL (CLAUDE.md, "a frequency bar, a median bar and a control bar"): a fixed busy
-         * wait inside the timed run of the rows marked `plant`, sized to the effect a race must be able to see. An arm
-         * carrying it must read REAL slower, or that race could not have seen a real loss of that size.
+         * `&plant=N` — the POSITIVE CONTROL (CLAUDE.md, "a frequency bar, a median bar and a control bar"): N iterations of
+         * fixed WORK inside the timed run of the rows marked `plant`, into a global sink the engine cannot drop, sized to the
+         * effect a race must be able to see. An arm carrying it must read REAL slower, or that race could not have seen a
+         * real loss of that size. Counted work, never a timed wait: Firefox and WebKit coarsen `performance.now()`, so a
+         * "100 µs" wait read ~0 or ~1 ms per run (vera-5a). Calibrated once in Node: 13 000 ≈ 100 µs (~7.8 ns each).
          */
-        if (PLANT && op.plant) for (const end = performance.now() + PLANT / 1000; performance.now() < end; );
+        if (PLANT && op.plant) {
+          let acc = window.__PLANT_SINK__ | 0;
+          for (let i = 0; i < PLANT; i++) acc = (acc * 31 + i) | 0;
+          window.__PLANT_SINK__ = acc;
+        }
         total += performance.now() - t0;
         await painted();
       }
