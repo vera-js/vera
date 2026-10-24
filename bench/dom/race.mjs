@@ -97,6 +97,7 @@ const contended = [];
  */
 const N10 = { chrome: 200, firefox: 200, webkit: 1000 };
 /** HEADED, all three (CLAUDE.md, Brian 2026-10-18): bare firefox/webkit.launch() is headless, whose frames are not tied to a compositor. */
+const plantSeen = {};
 const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch({ headless: false }) : webkit.launch({ headless: false });
 for (const engine of engines) {
   console.log(`${engine}: update10 fixed N = ${N10[engine]}`);
@@ -119,6 +120,9 @@ for (const engine of engines) {
       await page.click('#run');
       await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
       const results = await page.evaluate(() => window.__RESULTS__);
+      /** The positive control's real size on this engine (`&plant`), printed once per engine and variant. */
+      const plantUs = await page.evaluate(() => window.__PLANT_US__);
+      if (plantUs !== undefined && !(plantSeen[`${engine}/${name}`])) { plantSeen[`${engine}/${name}`] = true; console.log(`${engine}/${name}: the planted work costs ${plantUs.toFixed(1)} µs per run on this engine`); }
       /** A page whose build has no such implementation ran nothing for it (2026-10-23: `VeraJS auto` exists only where core
        *  has `lists`): skipped, so one race can pair a build's implementation with another build's. */
       if (!Object.values(results).some((byImpl) => byImpl && impl in byImpl)) { await browser.close(); continue; }

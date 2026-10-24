@@ -59,6 +59,18 @@ const LAYOUT = params.has('layout');
 /** `&plant=N`: the positive control's planted work, in loop iterations (see the `-dom` rows). */
 const PLANT = Number(params.get('plant')) || 0;
 /**
+ * The plant's ACTUAL cost on THIS engine (vera-5a): N was calibrated on V8, so SpiderMonkey or JavaScriptCore may make
+ * 0.5–2× of it. Timed once, as 200 × N in one block (~20 ms: tens of times a coarsened clock's tick), and reported with
+ * the results, so the control's measured Δ can be compared with its real size.
+ */
+if (PLANT) {
+  let acc = 0;
+  const t0 = performance.now();
+  for (let r = 0; r < 200; r++) for (let i = 0; i < PLANT; i++) acc = (acc * 31 + i) | 0;
+  window.__PLANT_US__ = ((performance.now() - t0) / 200) * 1000;
+  window.__PLANT_SINK__ = acc;
+}
+/**
  * `&verify=1` (a smoke, never timed): counts batched runs after which the DOM had NOT changed. It must be 0 for every
  * op but noop, or a framework deferred its write past the await and the sample timed less than the op.
  */
