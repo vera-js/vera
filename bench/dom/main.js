@@ -78,18 +78,18 @@ const median = (xs) => {
 };
 
 const OPERATIONS = [
-  { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1) },
+  { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1), rebatch: 8 },
   { key: 'create10k', label: 'create 10 000 rows',    setup: (a) => a.clear(),        run: (a) => a.create(10000, 2) },
-  { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4) },
+  { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4), rebatch: 8 },
   { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th(), fixed: Number(params.get('n10')) || 200 },
   { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + (k % 600)) },
   { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap(), each: (a) => a.swap() },
   { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400), fixed: 500 },
-  { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear() },
+  { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear(), rebatch: 8 },
   /** Batched runs only: clear can't repeat without a create, so its sample is made tens of ms by size instead. */
   ...(BATCH ? [
     { key: 'noop',     label: `nothing, ${BATCH}× (the floor)`, setup: (a) => a.create(1000, 11), run: () => {}, each: () => {} },
-    { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear() },
+    { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear(), rebatch: 3 },
   ] : []),
   /** Under `layout`, one row still timed through to paint, as the reference for what the paint-excluded column leaves out. */
   ...(LAYOUT ? [{ key: 'create1k+paint', label: 'create 1 000 rows, to paint', setup: (a) => a.clear(), run: (a) => a.create(1000, 1), paint: true }] : []),
@@ -138,7 +138,27 @@ async function measure(impl, op) {
     await settle();
 
     let dt;
-    if (!(BATCH && op.each)) {
+    if (BATCH && op.rebatch) {
+      /**
+       * **An op that needs fresh state each run, re-batched** (2026-10-24, L6): a create or a clear cannot repeat back to
+       * back, so under `?batch` a sample is `rebatch` runs, each set up UNTIMED, each timed until it has written the DOM
+       * (as a batched op is), the paint after each outside the sample, and the times averaged. Firefox and WebKit report
+       * whole milliseconds: a 10 ms clear read 9, 10 or 11 per sample; averaged over the runs, the rounding averages out.
+       */
+      let total = 0;
+      for (let r = 0; r < op.rebatch; r++) {
+        if (r > 0) {
+          await op.setup(app);
+          await painted();
+          await settle();
+        }
+        const t0 = performance.now();
+        await op.run(app);
+        total += performance.now() - t0;
+        await painted();
+      }
+      dt = total / op.rebatch;
+    } else if (!(BATCH && op.each)) {
       const t0 = performance.now();
       await op.run(app); // resolves when this framework has finished writing the DOM
       if (LAYOUT && !op.paint) {
