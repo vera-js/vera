@@ -172,7 +172,7 @@ for (const engine of engines) {
        */
       const all = Object.values(byVariant).flat().filter(Number.isFinite);
       const spread = Math.max(...Object.values(byVariant).map((xs) => (Math.max(...xs) - Math.min(...xs)) / med(xs)));
-      if (spread > 0.2) {
+      if (spread > 0.2 && !op.startsWith('noop')) {
         const slow = 1.15 * Math.min(...all);
         line += `   [two-mode: slow ${Object.entries(byVariant).map(([n, xs]) => `${n} ${xs.filter((x) => x > slow).length}/${xs.length}`).join(', ')}]`;
       }
