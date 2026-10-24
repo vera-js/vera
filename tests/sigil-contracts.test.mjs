@@ -78,7 +78,9 @@ const SHARED = {
   _$x$: ['core', 'renderer'],
   /**
    * A component's props record and store, carried across a development-only REDEFINITION by `@verajs/hot` (2026-10-22):
-   * the new class's element takes the old one's, so state survives the edit.
+   * the new class's element takes the old one's, so state survives the edit. Development only — `@verajs/hot` never runs
+   * in a production page, which is what makes a second writer of these fields acceptable. (Core's own retirement swaps
+   * the same two fields; both writers are known.)
    */
   _$raw$: ['core', 'hot'],
   _$v$: ['core', 'hot'],
