@@ -388,6 +388,11 @@ that holds no store proxies is kept as it is: the store and your variable are th
 were. Either way, write through the store (`state.rows.push(…)`), never through a variable you kept: a write the store
 does not see renders nothing.
 
+The copy is one level deep and of plain arrays and objects only, so a few shapes still keep proxies inside — each a
+somewhat slower list, never a wrong answer: a frozen or sealed object (`Object.freeze({ ...row })`), a class instance
+(`new Todo(…)` rows), and a second level (`state.grid = state.grid.map((r) => r.slice())` stores plain arrays of the
+cell proxies). Build such values from fresh data, or mutate in place (`splice`, `sort`), where it matters.
+
 **Use a `signal` for list data.** Putting 1 000 row objects through `createStore` proxies every one
 of them, and reading every field back through those proxies costs about 15× the same read on a plain array
 (the median ratio, 2026-10-16, Apple M1, Node 24 — `VERA_DIST=production node --test tests/perf-claims.test.mjs` prints
