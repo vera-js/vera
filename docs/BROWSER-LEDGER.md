@@ -201,6 +201,19 @@ from another machine, or after that is undone, has a variable changed.
   sessions, inside their A/As) — neither engine paid for the inlined form. (Headed Firefox 153, Chrome 155, Playwright
   WebKit 26.5; 2026-10-23.)
 
+- **Moving a store object's subscription map from a WeakMap onto a field of the object made Firefox's cycle collector
+  run a large collection far more often** — the map then hangs off the data by a plain field (data → map → cells → hooks
+  → rows → DOM nodes), a path the collector must trace, where the WeakMap gave it an ephemeron edge. Churning an
+  automatic list (create 10 000 rows, clear, × 30; a 10 s idle tail so the deferred collection lands in the profile),
+  cycle-collector time from the Gecko profiler's CC markers: a large collection (> 800 ms) in **8 of 13** runs with the
+  field against **3 of 13** with the WeakMap; median **1366 ms vs 119 ms**; elapsed time level. The field's gain was a
+  ~15–25 ns cheaper lookup (Node), 2.5% of a Chrome row update. The instrument needed a positive control: 10 000 divs
+  per round each holding a closure over itself showed 0 ms with a 4 s tail and the `js` feature alone, and 1686 ms
+  with a 10 s tail and `js,stackwalk,memory` — a quiet CC reading means nothing until a control shows it can see CC.
+  Consequence: a field that links data to the hooks that read it is a cycle-collector cost on Firefox even when the
+  lookup is faster; the WeakMap stays (the field-versus-weak-collection rule: race it, both engines, with the CC
+  measured). (Headed Firefox 153 via Playwright; 2026-10-24.)
+
 - **V8 inlines a function only while its bytecode is ≤ `--max-inlined-bytecode-size` (460)**, so a hot function near
   the budget pays for ANY growth, even code that never runs (a never-taken `if` cost 4.0%). Consequence: move rarely
   run code out of line; `tests/ssr-inlining-budget.test.mjs` prints `serializeValue`'s headroom. Firefox and Safari
