@@ -80,3 +80,21 @@ test('no production bundle grew an inlined single-use function (each count exact
   const changed = bundles.filter((b) => counts[b] !== PINS[b]).map((b) => `${b}: ${PINS[b]} pinned, ${counts[b]} now`);
   assert.deepEqual(changed, [], 'a higher count is a new inlined single-use function — race it headed on three engines first (a lower one: lower the pin)');
 });
+
+/**
+ * **No doc comment ships in a production bundle** (2026-10-24): terser keeps any comment that carries an annotation, so
+ * a why-comment that SPELLED the no-inline mark beside the call it explains shipped whole — three lines of prose, 240 B
+ * gzip, in `vera-renderer.min.js`. Pinned like the IIFEs, exact: the only ones today are a CSS comment inside a style
+ * string in `ui` (string content terser cannot strip — real bytes, logged for the ui pass).
+ */
+const DOC = /\/\*\*/g;
+const DOC_PINS = { 'packages/ui/dist/vera-ui-elements.min.js': 1, 'packages/ui/dist/vera-ui.min.js': 1 };
+test('no doc comment survives into a production bundle (each count exactly as pinned)', () => {
+  assert.ok(('x /** y */ z'.match(DOC) ?? []).length === 1, 'CONTROL: the pattern sees a doc comment');
+  const off = bundles
+    .map((b) => [b, (readFileSync(join(root, b), 'utf8').match(DOC) ?? []).length])
+    .filter(([b, n]) => n !== (DOC_PINS[b] ?? 0))
+    .map(([b, n]) => `${b}: ${DOC_PINS[b] ?? 0} pinned, ${n} found`);
+  assert.deepEqual(off, [], 'a doc comment shipped (a why-comment spelling an annotation keeps the whole comment)');
+});
+
