@@ -105,8 +105,13 @@ const releaseAll = () => {
   releasing = undefined;
   for (let i = 0; i < all.length; i++) {
     const c = all[i]!;
-    const cell = proxyCallbacks.get(c)!.get('value')!;
-    if (c._w && cell.n === cell.d) {
+    /**
+     * The value cell may be GONE: core sweeps a big key map's reader-less cells (createProxy's `sweepIfDue`). A computed's
+     * map holds one key and never reaches the sweep size today; tolerating the absence keeps it safe if that changes — a
+     * swept cell is one nobody reads, so releasing is right.
+     */
+    const cell = proxyCallbacks.get(c)?.get('value');
+    if (c._w && (cell === undefined || cell.n === cell.d)) {
       c._w = false;
       c._e = -1;
       unlinkFrom(c._h!, 0);

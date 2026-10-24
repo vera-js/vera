@@ -38,7 +38,8 @@ const track = (obj: object, prop: unknown) => {
    * linked this run is skipped (below); the first read that DIFFERS unlinks every source not yet matched and links directly from
    * there, so every read is linked at once (a run that reads a key and then writes it hears its own write). The common
    * paths stay INLINE: out of line, a stable re-render paid a call per read (+28%, Node), and `track` must stay small
-   * enough for V8 to inline into the traps (BROWSER-LEDGER, the inlining budget).
+   * enough for V8 to inline into the traps (BROWSER-LEDGER, the inlining budget): 410 bytes of bytecode of 460 in the
+   * development build (2026-10-23, after the key-map sweep's gate; `--print-bytecode --print-bytecode-filter=track`).
    */
   const s = sub.s;
   const i = sub.i;
