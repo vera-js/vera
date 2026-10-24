@@ -99,6 +99,22 @@ test('identity and reactivity survive the unwrap: the same proxy before and afte
   host.remove();
 });
 
+test('a SHALLOW store (a signal) keeps what it is given: store rows put in a signal stay store rows', async () => {
+  const { signal } = await load('core');
+  const state = createStore({ rows: make(4) });
+  const picked = signal([]);
+  picked.value = state.rows.filter((r) => r.done);
+  assert.equal(picked.value[0], state.rows[0], 'the signal hands back the store row it was given (the proxy)');
+  const host = document.createElement('div');
+  document.body.append(host);
+  init(host, () => () => html`<p>${picked.value.map((r) => r.t).join(',')}</p>`);
+  await settle();
+  picked.value[0].t = 'R1';
+  await settle();
+  assert.equal(host.textContent, 'R1,r3', 'a write through the signal\'s row still reaches the store and renders');
+  host.remove();
+});
+
 test('one level, plain containers only: deeper proxies and class instances are stored as they are', () => {
   const state = createStore({ rows: make(2), other: [{ deep: { x: 1 } }] });
   const deep = { inner: { held: state.rows[0] } };
