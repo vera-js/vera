@@ -213,6 +213,14 @@ code, so they are not re-litigated.
   2026-10-18 on the store's subscription `read`: four ablations "did nothing" until `--trace-turbo-inlining` showed the
   switches had made `read` uninlinable. Build a clean variant per hypothesis, and confirm with the trace that its hot
   function inlines like the baseline's before trusting the number.
+- **Removing a function's other callers changes what the minifier does to it** (Brian approved, 2026-10-23). Terser
+  substitutes a function with ONE call site into that caller — in a hot path as an immediately-invoked arrow, a fresh
+  closure on every call. A refactor that deleted core's last exports of two small helpers did exactly that to `init`'s
+  render path, and Firefox paid ~1–2% on component creation and churn while no source diff touched the hot code
+  (BROWSER-LEDGER, "the minifier inlines a function with ONE caller"). So a refactor that leaves a hot helper with one
+  caller is raced, and the inlined-IIFE sites of the production bundle are counted before and after; a hot call that
+  must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (the guard row that pins each bundle's site count
+  comes with the rebuild's core).
 - **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
   remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
   it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
