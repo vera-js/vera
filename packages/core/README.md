@@ -380,6 +380,14 @@ keys rather than on any one of them, and hears about a key arriving or leaving. 
 matrix: every container kind crossed with every way of mutating it, against the data itself
 (`tests/core-reactivity-matrix.test.mjs`).
 
+**What a store keeps of what you assign: your object, unless it holds the store's own proxies.** Reading a store
+hands you proxies, so `state.rows = state.rows.filter((r) => !r.done)` (or `slice`, or `[...state.rows].sort(…)`)
+builds an array OF proxies. The store keeps a raw copy of such an array instead — one level deep, so a row replaced
+with `{ ...row, label }` keeps its nested objects raw too — and leaves your array exactly as it was. An array or object
+that holds no store proxies is kept as it is: the store and your variable are then the same array, as they always
+were. Either way, write through the store (`state.rows.push(…)`), never through a variable you kept: a write the store
+does not see renders nothing.
+
 **Use a `signal` for list data.** Putting 1 000 row objects through `createStore` proxies every one
 of them, and reading every field back through those proxies costs about 15× the same read on a plain array
 (the median ratio, 2026-10-16, Apple M1, Node 24 — `VERA_DIST=production node --test tests/perf-claims.test.mjs` prints

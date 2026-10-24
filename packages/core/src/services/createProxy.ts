@@ -219,12 +219,50 @@ export const wakeCount = () => wakes;
  */
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
- * A store proxy → the raw object it wraps; anything else as it is. Used where a whole-array method INSERTS values, so
- * raw data never holds a proxy (why: see the `set` trap's "stored RAW"). A proxy of another kind or another copy of core
- * does not answer `RAW` and passes through unchanged.
+ * **What a store keeps of a value written into it: raw, one level deep** (2026-10-23) — the ONE place a write (`set`)
+ * and a whole-array method's inserted values (`atomic`) are made raw, so raw data never holds a proxy (why: see the
+ * `set` trap's "stored RAW"). A store proxy → its raw object. A plain array or plain object holding this store's
+ * proxies ONE level down → a raw COPY: `state.rows = state.rows.filter(…)` (also `slice`, `[...rows].sort()`) hands back
+ * an array of the proxies the reads produced, and stored as it was, every later list walk met a proxy in every slot
+ * (swaps +47–56%, measured); `state.rows[i] = { ...r, label }` copies a nested `r.user` in as a proxy the same way.
+ *
+ * - **Copied only when a proxy is found, never rewritten in place:** the user's own array or object is never changed
+ *   behind their back. So the rule a reader can rely on: an assigned value is stored AS IT IS (aliased) unless it holds
+ *   this store's proxies, and then a raw copy is stored.
+ * - **One level:** a proxy two levels down (`{ a: { b: proxy } }`) is kept — a deep scan of every written object would
+ *   tax every write; the idioms above are one level.
+ * - **Plain containers only** (an `Array` or an object whose prototype is `Object.prototype` or `null`, extensible): a
+ *   class instance, a frozen object, a collection is stored as it is. A copy keeps an array's holes; an array's
+ *   non-index properties and an object's non-enumerable ones are not copied (a plain container has none in practice).
+ * - A proxy of another kind or of another copy of core does not answer `RAW` and stays as it is.
  */
 const unwrap = (value: unknown) =>
-  value !== null && typeof value === 'object' ? ((value as Record<symbol, unknown>)[RAW] ?? value) : value;
+  value !== null && typeof value === 'object' ? ((value as Record<symbol, unknown>)[RAW] ?? rawCopy(value)) : value;
+/** A store proxy's raw object, or `undefined` for anything else. */
+const rawOfProxy = (value: unknown) =>
+  value !== null && typeof value === 'object' ? ((value as Record<symbol, unknown>)[RAW] as object | undefined) : undefined;
+/** `container` with this store's proxies one level down replaced by their raw objects — a copy, or `container` itself. */
+const rawCopy = (container: object): object => {
+  const proto = Object.getPrototypeOf(container);
+  if (proto === Array.prototype) {
+    const list = container as unknown[];
+    for (let i = 0; i < list.length; i++)
+      if (rawOfProxy(list[i]) !== undefined) {
+        const copy = list.slice();
+        for (let j = i; j < copy.length; j++) if (j in copy) copy[j] = rawOfProxy(copy[j]) ?? copy[j];
+        return copy;
+      }
+  } else if ((proto === Object.prototype || proto === null) && Object.isExtensible(container)) {
+    const record = container as Record<string, unknown>;
+    for (const key in record)
+      if (Object.hasOwn(record, key) && rawOfProxy(record[key]) !== undefined) {
+        const copy: Record<string, unknown> = proto === null ? Object.assign(Object.create(null), record) : { ...record };
+        for (const k in copy) copy[k] = rawOfProxy(copy[k]) ?? copy[k];
+        return copy;
+      }
+  }
+  return container;
+};
 const toStore = (value: unknown) => (value !== null && typeof value === 'object' ? createProxy(value) : value);
 const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => unknown, proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
@@ -510,10 +548,8 @@ const handler: ProxyHandler<object> = {
      * proxy is a trap call the engine cannot cache: Chrome's swap paid +12% for two such slots). A store of another
      * kind (`createShallow`) does not answer `RAW` and is kept as it is.
      */
-    if (value !== null && typeof value === 'object') {
-      const raw = (value as Record<symbol, object | undefined>)[RAW];
-      if (raw !== undefined) value = raw;
-    }
+    /** Raw, one level deep (`unwrap`): a proxy → its object; a plain container holding proxies → a raw copy. */
+    if (value !== null && typeof value === 'object') value = unwrap(value);
     const prevValue = Reflect.get(obj, prop, receiver);
     if (prevValue === value) return true;
     /**
