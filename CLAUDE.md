@@ -164,6 +164,14 @@ code, so they are not re-litigated.
   idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
   no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
   perfectly by an entry that never ran at all.
+- **A metric with two modes or a heavy tail gets a frequency bar, a median bar and a control bar — never a range bar**
+  (Brian approved, 2026-10-24). GC time, cycle-collector time, hydration's alternating modes: pre-register (1) how often
+  the HIGH mode occurs, with its threshold, (2) the median, and (3) the POSITIVE CONTROL's expected reading, the run
+  VOID when the control misses it (e.g. "the self-referencing control reads ≥ 500 ms of CC"). A bar like "not higher
+  than the base's own range" gets weaker the noisier the base is — exactly backwards. Measured 2026-10-24: a Firefox CC
+  check passed a change by its range bar (the base reached 2302 ms once) while the change made a large collection land
+  in 8 of 13 runs against 3 of 13 (median 1366 vs 119 ms) — and the same instrument first read 0 ms on its own
+  positive control, until the idle tail (10 s) and the profiler features (`js,stackwalk,memory`) were right.
 - **A browser-test failure can arrive as a TIMEOUT, and a mutation can test the wrong tree.** Two traps,
   both measured 2026-10-01. (1) chai builds a failure message by inspecting the values, and inspecting a
   CROSS-REALM DOM object (an iframe's `ShadowRoot`) never finishes — so a failing `expect(node).to.equal(null)`
