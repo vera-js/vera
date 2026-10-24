@@ -550,12 +550,13 @@ const handler: ProxyHandler<object> = {
      */
     /**
      * Raw, one level deep (`unwrap`): a proxy → its object; a plain container holding proxies → a raw copy — in a DEEP
-     * store only. A SHALLOW one (`signal`'s) hands its contents back exactly as stored, so it keeps them as given: a raw
-     * copy there would hand back raw rows where the user put store rows (their writes would stop rendering), and the scan
-     * cost every `signal.value = rows` a pass over the array (WebKit +2–5% on immutable-row updates, measured).
+     * store only. A SHALLOW one (`signal`'s) hands its contents back exactly as stored, so it keeps them EXACTLY as
+     * given, a store proxy included: unwrapped, `sig.value = state.rows` handed back the raw array and
+     * `sig.value = state.rows.filter(…)` raw rows — writes through them rendered nothing (the top-level unwrap did this
+     * from 2026-10-18 until 2026-10-23); and the scan cost every `signal.value = rows` a pass over the array (WebKit +2–5%
+     * on immutable-row updates, measured). A shallow store's contents are never walked raw, so nothing needs them raw.
      */
-    if (value !== null && typeof value === 'object')
-      value = this === shallowHandler ? ((value as Record<symbol, unknown>)[RAW] ?? value) : unwrap(value);
+    if (value !== null && typeof value === 'object' && this !== shallowHandler) value = unwrap(value);
     const prevValue = Reflect.get(obj, prop, receiver);
     if (prevValue === value) return true;
     /**

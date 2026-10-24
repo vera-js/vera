@@ -115,6 +115,22 @@ test('a SHALLOW store (a signal) keeps what it is given: store rows put in a sig
   host.remove();
 });
 
+test('a SHALLOW store given a store itself hands that store back: `sig.value = state.rows` stays live', async () => {
+  const { signal } = await load('core');
+  const state = createStore({ rows: make(3) });
+  const sig = signal([]);
+  sig.value = state.rows;
+  assert.equal(sig.value, state.rows, 'the signal hands back the store array it was given');
+  const host = document.createElement('div');
+  document.body.append(host);
+  init(host, () => () => html`<p>${state.rows.map((r) => r.t).join(',')}</p>`);
+  await settle();
+  sig.value[0].t = 'A';
+  await settle();
+  assert.equal(host.textContent, 'A,r2,r3', 'a write through the signal reaches the store and renders');
+  host.remove();
+});
+
 test('one level, plain containers only: deeper proxies and class instances are stored as they are', () => {
   const state = createStore({ rows: make(2), other: [{ deep: { x: 1 } }] });
   const deep = { inner: { held: state.rows[0] } };
