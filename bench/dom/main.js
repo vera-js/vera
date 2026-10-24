@@ -56,6 +56,8 @@ const params = new URLSearchParams(location.search);
 /** `?batch[=ms]`: the time box of one batched sample (50 ms), about 2% of resolution on a whole-millisecond clock. */
 const BATCH = params.has('batch') ? Number(params.get('batch')) || 50 : 0;
 const LAYOUT = params.has('layout');
+/** `&plant=µs`: the positive control's planted cost (see the `-dom` rows). */
+const PLANT = Number(params.get('plant')) || 0;
 /**
  * `&verify=1` (a smoke, never timed): counts batched runs after which the DOM had NOT changed. It must be 0 for every
  * op but noop, or a framework deferred its write past the await and the sample timed less than the op.
@@ -78,18 +80,28 @@ const median = (xs) => {
 };
 
 const OPERATIONS = [
-  { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1), rebatch: 16 },
+  { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1) },
   { key: 'create10k', label: 'create 10 000 rows',    setup: (a) => a.clear(),        run: (a) => a.create(10000, 2) },
-  { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4), rebatch: 16 },
+  { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4) },
   { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th(), fixed: Number(params.get('n10')) || 200 },
   { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + (k % 600)) },
   { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap(), each: (a) => a.swap() },
   { key: 'remove',    label: 'remove row',            setup: (a) => a.create(1000, 8), run: (a) => a.remove(400), each: (a) => a.remove(400), fixed: 500 },
-  { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear(), rebatch: 8 },
+  { key: 'clear',     label: 'clear 1 000 rows',      setup: (a) => a.create(1000, 9), run: (a) => a.clear() },
   /** Batched runs only: clear can't repeat without a create, so its sample is made tens of ms by size instead. */
   ...(BATCH ? [
     { key: 'noop',     label: `nothing, ${BATCH}× (the floor)`, setup: (a) => a.create(1000, 11), run: () => {}, each: () => {} },
-    { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear(), rebatch: 3 },
+    { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear() },
+    /**
+     * **The `-dom` rows** (2026-10-24, L6; vera-5a): the SAME ops re-batched — script + DOM + layout per run, the paint
+     * outside, averaged (`rebatch` below) — DISTINCT rows, never a redefinition of the to-paint ones above: the public
+     * table and every cross-framework comparison measure to paint, and a change that makes the DOM costlier to style or
+     * lay out shows only there. Layout is forced inside each run by DEFAULT here (DOM shape is what changes most).
+     */
+    { key: 'create1k-dom', label: 'create 1 000 rows, DOM + layout', setup: (a) => a.clear(), run: (a) => a.create(1000, 1), rebatch: 16, plant: true },
+    { key: 'append1k-dom', label: 'append 1 000, DOM + layout', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4), rebatch: 16 },
+    { key: 'clear-dom', label: 'clear 1 000 rows, DOM + layout', setup: (a) => a.create(1000, 9), run: (a) => a.clear(), rebatch: 8 },
+    { key: 'clear10k-dom', label: 'clear 10 000 rows, DOM + layout', setup: (a) => a.create(10000, 12), run: (a) => a.clear(), rebatch: 3 },
   ] : []),
   /** Under `layout`, one row still timed through to paint, as the reference for what the paint-excluded column leaves out. */
   ...(LAYOUT ? [{ key: 'create1k+paint', label: 'create 1 000 rows, to paint', setup: (a) => a.clear(), run: (a) => a.create(1000, 1), paint: true }] : []),
@@ -144,8 +156,7 @@ async function measure(impl, op) {
        * back, so under `?batch` a sample is `rebatch` runs, each set up UNTIMED, each timed until it has written the DOM
        * (as a batched op is), the paint after each outside the sample, and the times averaged. Firefox and WebKit report
        * whole milliseconds: a 10 ms clear read 9, 10 or 11 per sample; averaged over the runs, the rounding averages out
-       * (measured, Firefox A/A: clear 9–18% → 0.0%). Under `?batch` these rows are then script + DOM like the batched
-       * ops (create1k ~4.5 ms, not ~33 ms to paint); `&layout=1` adds each run's layout.
+       * (measured, Firefox A/A: clear 9–18% → 0.0%). Only the `-dom` rows carry `rebatch`; layout is forced inside each run.
        */
       let total = 0;
       for (let r = 0; r < op.rebatch; r++) {
@@ -156,8 +167,13 @@ async function measure(impl, op) {
         }
         const t0 = performance.now();
         await op.run(app);
-        /** Under `layout`, each run's layout is inside its time, as for the batched ops. */
-        if (LAYOUT) void document.body.offsetHeight;
+        void document.body.offsetHeight;
+        /**
+         * `&plant=µs` — the POSITIVE CONTROL (CLAUDE.md, "a frequency bar, a median bar and a control bar"): a fixed busy
+         * wait inside the timed run of the rows marked `plant`, sized to the effect a race must be able to see. An arm
+         * carrying it must read REAL slower, or that race could not have seen a real loss of that size.
+         */
+        if (PLANT && op.plant) for (const end = performance.now() + PLANT / 1000; performance.now() < end; );
         total += performance.now() - t0;
         await painted();
       }

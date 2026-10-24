@@ -168,12 +168,14 @@ for (const engine of engines) {
        * **A two-mode row is read by its slow-mode FREQUENCY, not its median** (2026-10-24, L6; CLAUDE.md, "a metric with
        * two modes"): Firefox lands each fresh instance in one of a few speed modes for some rows, so a session median
        * picks a mode and the A/A splits. When any variant's sessions spread more than 20%, each variant's count of
-       * sessions slower than 1.15× the fastest session (across all variants) is shown beside its median.
+       * sessions in the SLOW mode is shown beside its median. ONE boundary for every variant, from the POOLED sessions
+       * (per-variant boundaries make the counts incomparable), anchored on the median of the faster half (robust; a
+       * minimum moves with one lucky session): 1.15× it (vera-5a's review, pre-registered).
        */
-      const all = Object.values(byVariant).flat().filter(Number.isFinite);
+      const all = Object.values(byVariant).flat().filter(Number.isFinite).sort((a, b) => a - b);
       const spread = Math.max(...Object.values(byVariant).map((xs) => (Math.max(...xs) - Math.min(...xs)) / med(xs)));
       if (spread > 0.2 && !op.startsWith('noop')) {
-        const slow = 1.15 * Math.min(...all);
+        const slow = 1.15 * med(all.slice(0, Math.max(1, all.length >> 1)));
         line += `   [two-mode: slow ${Object.entries(byVariant).map(([n, xs]) => `${n} ${xs.filter((x) => x > slow).length}/${xs.length}`).join(', ')}]`;
       }
       console.log(line);
