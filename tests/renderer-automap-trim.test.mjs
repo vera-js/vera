@@ -150,6 +150,48 @@ test('an id written in place re-keys its row, as a full walk does', async () => 
   m.host.remove();
 });
 
+test('an END slot replaced by a NEW object with the SAME id re-runs its row with the new item', async () => {
+  const state = createStore({ rows: make('n', 5) });
+  const m = mount(state);
+  await settle();
+  const before = m.nodes();
+  /** Same position, same key, a different object: the row stays (its key) but must render the new item. */
+  state.rows[0] = { id: 1, t: 'fresh-front' };
+  await settle();
+  state.rows[4] = { id: 5, t: 'fresh-back' };
+  await settle();
+  assert.equal(m.texts(), 'fresh-front,n2,n3,n4,fresh-back');
+  const after = m.nodes();
+  assert.ok(after[0] === before[0] && after[4] === before[4], 'the same key keeps its node');
+  /** And the row now answers the NEW object: a write to it shows. */
+  state.rows[0].t = 'written';
+  await settle();
+  assert.equal(m.texts(), 'written,n2,n3,n4,fresh-back');
+  m.host.remove();
+});
+
+/**
+ * The one shape where the key alone would lie: an object ANOTHER list already walks (its slot carries a cached proxy)
+ * arriving at a kept end under the same id. A fresh object, or one only read, has no slot and never matches, so neither
+ * tests this.
+ */
+test('an END slot given an object another list walks, under the SAME id, renders that object', async () => {
+  const state = createStore({ rows: make('e', 4), other: [{ id: 1, t: 'other1' }] });
+  const host = document.createElement('div');
+  document.body.append(host);
+  init(host, () => () => html`<ul>${state.rows.map((r) => html`<li>${r.t}</li>`)}</ul><ol>${state.other.map((r) => html`<li>${r.t}</li>`)}</ol>`);
+  await settle();
+  const texts = () => [...host.querySelector('ul').children].map((li) => li.textContent).join();
+  assert.equal(texts(), 'e1,e2,e3,e4', 'CONTROL: it rendered');
+  state.rows[0] = state.other[0];
+  await settle();
+  assert.equal(texts(), 'other1,e2,e3,e4');
+  state.other[0].t = 'other-written';
+  await settle();
+  assert.equal(texts(), 'other-written,e2,e3,e4', 'the row follows the object it now shows');
+  host.remove();
+});
+
 test('an array-SUBCLASS store keeps the full walk: a swap, then a write to an end, re-runs the list', async () => {
   class Rows extends Array {}
   const rows = Rows.from(make('c', 5));
