@@ -67,8 +67,21 @@ const UNWRITTEN = {
 };
 /** Written by more than one package on purpose. */
 const SHARED = {
-  /** Directives' kill switch BUMPS core's generation on its own owners — core's stale guard as teardown. */
-  _$g$: ['core', 'directives'],
+  /**
+   * An owner's GENERATION: directives' kill switch bumps it on its own owners (core's stale guard as teardown), and the
+   * lists module's `Row` and `List` — hook OWNERS core runs (keyed.ts) — start it and bump it at drop, as every owner does.
+   */
+  _$g$: ['core', 'directives', 'renderer'],
+  /** An owner's hook list (core keeps it on the owner): a `Row` / `List` declares it in its constructor, so its first write is no shape change. */
+  _$h$: ['core', 'renderer'],
+  /** An owner's teardown flag: a `Row` / `List` starts it `false`, as core does for an element it initializes. */
+  _$x$: ['core', 'renderer'],
+  /**
+   * A component's props record and store, carried across a development-only REDEFINITION by `@verajs/hot` (2026-10-22):
+   * the new class's element takes the old one's, so state survives the edit.
+   */
+  _$raw$: ['core', 'hot'],
+  _$v$: ['core', 'hot'],
   /**
    * The release-on-unmount Set for OTHER packages' cleanups — @verajs/hooks' useDismiss, ui's select — created by the
    * first one through `??=`. Core only READS and drains it at removal: its own effects keep their cleanups on their hooks
