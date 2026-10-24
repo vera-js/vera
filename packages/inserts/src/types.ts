@@ -6,8 +6,6 @@ export type StoreKit = {
   track: (obj: object, key: unknown) => void;
   /** Wakes every hook subscribed to `obj[key]`, handing it the new and previous value. */
   trigger: (obj: object, key: unknown, value: unknown, prevValue: unknown) => void;
-  /** Deletes `obj`'s key cells that no reader holds any more and returns how many remain. */
-  prune?: (obj: object) => number;
   /**
    * Starts ONE operation over several keys of `obj` — one wake for a hook reached through many of them — and returns its
    * sender (call it per changed key, and with `shape` if the set of keys changed); `undefined` when nobody ever read

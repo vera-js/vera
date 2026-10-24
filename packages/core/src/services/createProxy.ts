@@ -21,7 +21,16 @@ const track = (obj: object, prop: unknown) => {
     proxyCallbacks.set(obj, props);
   }
   let cell = props.get(prop);
-  if (cell === undefined) props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
+  if (cell === undefined) {
+    /**
+     * A big key map is swept BEFORE its new cell exists (`sweepIfDue`, out of line): swept after, this new cell — empty,
+     * its key often absent (a dictionary reads `dict[id]` before `dict[id] = …`) — would be dropped, and its reader
+     * deaf to the write. A weak collection's container has no `size` and is never swept (its keys die with their
+     * objects).
+     */
+    if (props.size >= SWEEP_FLOOR) sweepIfDue(props);
+    props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
+  }
   /**
    * **Lazy in-order link reuse.** A hook's FIRST run links each read
    * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
@@ -125,18 +134,32 @@ const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown)
  */
 const GLOBAL = '_global';
 
-/** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 /**
- * **An object's key cells that no reader holds any more, deleted; returns how many remain**
- * (2026-10-20). A cell outlives its readers in its object's key map; for an object whose keys keep coming (a
- * selector's ids) that map grows forever, ~120 B per key ever read. `createSelector` calls this on an amortized budget.
+ * **An object's key map is bounded: a cell no reader holds is deleted**
+ * (2026-10-23; it was `prune`, which only `createSelector` called, on its own budget). A cell outlives its readers in
+ * its object's key map, so an object whose keys come and go — a dictionary, a cache, a selector's ids — grew by ~145 B
+ * per key it ever had (measured: 20 000 deleted keys, +2.8 MB over the control). `track` reaches this ONLY when it
+ * makes a new cell in a map of at least `SWEEP_FLOOR` keys (a row's two or three keys never pass it), and the map is
+ * swept when it has grown to twice what the last sweep left, plus the floor — so a sweep is paid for by as many new
+ * cells, and a map holds at most about twice its live keys.
+ *
+ * - **Empty** is prune's test, `n === d`: every slot a tombstone (a cell whose readers left but has not compacted yet).
+ *   Whether the object still HAS the key does not matter: a read makes the cell again. (A guard keeping present keys'
+ *   cells was tried and measured as protecting nothing reachable — a `computed`'s map, read back with `!`, holds one key
+ *   and never reaches the floor — while its `in` THREW for a collection's null-prototype keys, 2026-10-23.)
+ * - **Thresholds** live in a side table keyed by the map, made by the first big map: an expando on the `Map` would change
+ *   the shape `track`'s hot `props.get` reads, and a stateless rule (powers of two) sweeps the whole map on every new key
+ *   when the live count sits just under a power.
  */
-const prune = (obj: object) => {
-  const keys = proxyCallbacks.get(obj);
-  if (keys === undefined) return 0;
+const SWEEP_FLOOR = 64;
+let due: WeakMap<object, number> | undefined;
+const sweepIfDue = (keys: Map<unknown, Cell>) => {
+  const at = (due ??= new WeakMap()).get(keys) ?? SWEEP_FLOOR;
+  if (keys.size < at) return;
   for (const [key, cell] of keys) if (cell.n === cell.d) keys.delete(key);
-  return keys.size;
+  due.set(keys, 2 * keys.size + SWEEP_FLOOR);
 };
+/** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 /**
  * **ONE operation over several keys of `obj`** — the single choke point for every write that changes many keys at once
  * (A14, 2026-10-22): one wake number and ONE shared change (the shape channel, the object: "re-read"), so a hook reached
@@ -162,7 +185,7 @@ const operation = (obj: object, found: Map<unknown, Cell> | undefined = proxyCal
     };
   }
 };
-const kit: StoreKit = { track, trigger, shape: GLOBAL, prune, operation };
+const kit: StoreKit = { track, trigger, shape: GLOBAL, operation };
 /**
  * **For `computed`** (2026-10-22): the same subscribe and notify, and a read of the wake counter. ALIASES, never
  * `export` on `track`/`trigger` themselves — an exported binding is a live one, which V8 reaches less directly from the

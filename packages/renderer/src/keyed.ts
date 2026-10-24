@@ -769,7 +769,7 @@ const eachValue = (part: object, value: unknown, adopted?: object) => {
  * THROWS, as every hook does. Its watcher runs inside the write (a raw hook), so the woken rows render in the same flush.
  * Its keys are bounded: cells no row reads any more are pruned on an amortized budget (below).
  */
-let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void; prune(obj: object): number } | undefined;
+let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void } | undefined;
 let makeHook: ((hook: { callback: () => void; priority: number }) => ((signal?: unknown, init?: boolean) => void) | undefined) | undefined;
 export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
   if (kit === undefined || makeHook === undefined) throw new Error(misuse('createSelector', 'selector-not-wired', __DEV__ && PROSE['selector-not-wired']()));
@@ -789,18 +789,12 @@ export const createSelector = <K>(source: () => K): ((key: K) => boolean) => {
   });
   run?.(undefined, true);
   /**
-   * **Keys are bounded** (the agreed remedy): after `budget` calls the cells no row reads any more are pruned and
-   * the next budget is twice what remains, plus 64 — so a prune's cost is paid for by at least as many calls, and a list
-   * whose ids only increase (a feed, a log) keeps only its live keys.
+   * **Keys are bounded by core**: every big key map is swept as it grows (createProxy's `sweepIfDue`) — the cells no
+   * row reads any more go, so a list whose ids only increase (a feed, a log) keeps only about twice its live keys. (This
+   * selector had its own budgeted prune until core generalized it, 2026-10-23.)
    */
-  let calls = 0;
-  let budget = 64;
   return (key: K) => {
     k.track(target, key);
-    if (++calls > budget) {
-      calls = 0;
-      budget = 2 * k.prune(target) + 64;
-    }
     return current === key;
   };
 };
