@@ -159,6 +159,9 @@ for (const engine of engines) {
           ((fastest[impl] ??= {})[op] ??= {})[name] = [...(fastest[impl][op][name] ?? []), r?.min ?? NaN];
         }
     }
+    /** Written after EVERY session (2026-10-25, vera-5a): a crash or an alarm costs one session, never an engine (B4 lost 7). */
+    dump[engine] = { data, fastest, sessions: session + 1 };
+    if (json) writeFileSync(json, JSON.stringify(dump));
   }
   dump[engine] = { data, fastest };
   if (json) writeFileSync(json, JSON.stringify(dump));
