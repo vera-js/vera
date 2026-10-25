@@ -380,6 +380,16 @@ from another machine, or after that is undone, has a variable changed.
   under test; and per-object data on a hot WeakMap is worth racing against a field, per engine. (Installed Chrome 155,
   Playwright Firefox 153; 2026-10-22)
 
+- **A planted positive control's cost depends on the JIT tier, exactly as the code under test does — so a control sized
+  from a tight-loop calibration under- or over-reads on the real path.** A fixed counted loop run once per row inside a
+  hydration (36 iterations) read **+13%** on a 1k-row hydration that runs FIRST on a fresh page, while the plant is still
+  unoptimized, and **+1.4%** on the 10k-row hydration right after it, by when it is optimized; a tight-loop calibration of
+  the same function under-read the first row ~5x. Separately, a per-component-render plant sized from a tight loop to cost
+  ~3% of a render read only **+0.7–0.9%** on WebKit's render path (while Firefox's read +4.3–4.8%, above its target).
+  Consequence: size a control by a short pilot ON THE ROW IT GUARDS, per row and per engine, from what it READS; give each
+  row its own size when rows sit in different tiers; count its calls; and treat a control that misses its target as a
+  void run, not a weaker one. (Installed Chrome 155 headed, Playwright WebKit 26.5 and Firefox 153 headed; 2026-10-25)
+
 ## Test environments
 
 - **Inspecting a cross-realm DOM object (an iframe's `ShadowRoot`) in a chai failure message never finishes**, so a
