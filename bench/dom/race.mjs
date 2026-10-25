@@ -88,6 +88,12 @@ for (const file of ['bench/dom/race.mjs', 'bench/dom/main.js', 'bench/dom/impls.
 for (const [name, file, query] of variants) console.log(`  ${name}: ${join(directory, file)} sha ${sha(join(directory, file))}${query ? ` ?${query}` : ''}`);
 for (const dist of ['core/dist/vera.min.js', 'renderer/dist/vera-renderer.min.js', 'renderer/dist/vera-renderer-slots.min.js', 'renderer/dist/vera-renderer-keyed.min.js'])
   console.log(`  ${dist} sha ${sha(join(root, 'packages', dist))}`);
+/** Every competitor's version and the launch line (CLAUDE.md: print the mode and version; a field race is the one quoted). */
+{
+  const v = (pkg) => { try { return JSON.parse(readFileSync(join(root, 'bench/node_modules', pkg, 'package.json'), 'utf8')).version; } catch { return 'absent'; } };
+  console.log(`  competitors: ${['solid-js', 'vue', 'svelte', 'vanjs-core', 'react', 'react-dom', 'preact', 'lit'].map((p) => `${p} ${v(p)}`).join(', ')}`);
+  console.log('  launch: a FRESH browser per page — chrome = installed Chrome (channel: chrome) headed; firefox / webkit = Playwright builds headed (WebKit is not Safari)');
+}
 /** Batched ops are tens of µs per op: three decimals below 10 ms, or they all print as 0.1. */
 const fmt = (m) => (m < 10 ? m.toFixed(3) : m.toFixed(1));
 /** `--json=path` writes every session's medians and fastest runs, per engine, for a report to compute from. */
