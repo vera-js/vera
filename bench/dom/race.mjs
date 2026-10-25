@@ -41,6 +41,12 @@ const shuffle = (list, seed) => {
   return out;
 };
 const engines = (flag('engines') ?? 'chrome,firefox,webkit').split(',');
+/**
+ * `--subset=variant:implA|implB;…` (2026-10-25, the field race): a named variant runs ONLY those implementations — an A/A
+ * copy or a planted control of Vera's bundle need not run every framework again (it would double a 4-hour race).
+ */
+const subset = Object.fromEntries((flag('subset') ?? '').split(';').filter(Boolean).map((e) => { const at = e.indexOf(':'); return [e.slice(0, at), e.slice(at + 1).split('|')]; }));
+for (const [v, list] of Object.entries(subset)) for (const i of list) if (!impls.includes(i)) throw new Error(`--subset ${v}: ${i} is not in --only`);
 const directory = new URL('.', import.meta.url).pathname;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
 const server = createServer((request, response) => {
@@ -89,6 +95,13 @@ const json = flag('json');
 const dump = {};
 const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
 const contended = [];
+/**
+ * **Thermal pressure is checked before EVERY page** (Brian, 2026-10-19 and 2026-10-25: cool only when pressure > 0, checked
+ * per page): a fanless laptop throttles mid-session, so a check per session let throttled pages into the samples.
+ */
+const pressureNow = () => Number(execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1]);
+let cooledS = 0;
+const cool = async () => { while (pressureNow() > 0) { console.log(`  thermal ${pressureNow()}: waiting 15 s`); cooledS += 15; await new Promise((r) => setTimeout(r, 15000)); } };
 
 /**
  * update10's fixed N per ENGINE (2026-10-18): set in advance, the same for every implementation on that engine,
@@ -111,7 +124,8 @@ for (const engine of engines) {
     const top = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 4).map((l) => { const m = l.trim().match(/^([\d.]+)\s+(.*)$/); return `${m[1]} ${m[2].split('/').pop()}`; }).join(', ');
     const pressure = execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1];
     console.log(`${engine}/${session}: thermal ${pressure} | ${top}`);
-    for (const [[name, file, query], impl] of shuffle(variants.flatMap((v) => impls.map((i) => [v, i])), session)) {
+    for (const [[name, file, query], impl] of shuffle(variants.flatMap((v) => impls.filter((i) => !subset[v[0]] || subset[v[0]].includes(i)).map((i) => [v, i])), session)) {
+      await cool();
       const browser = await launch(engine);
       const page = await browser.newPage();
       await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
@@ -143,8 +157,8 @@ for (const engine of engines) {
   dump[engine] = { data, fastest };
   if (json) writeFileSync(json, JSON.stringify(dump));
   const base = variants[0][0];
-  if (variants.length === 1) {
-    /** One build: compare the IMPLEMENTATIONS — median of session medians, and sessions each was fastest in. */
+  if (variants.length === 1 || Object.keys(data).length > 1) {
+    /** The base build: compare the IMPLEMENTATIONS — median of session medians, and sessions each was fastest in. */
     const impls = Object.keys(data);
     console.log(`\n== ${engine}: ms per op (${/layout=1/.test(variants[0][2]) ? 'script + DOM + layout, paint excluded; +paint rows to paint' : 'to paint'}), median of ${sessions} session medians (sessions fastest)`);
     console.log('  ' + 'operation'.padEnd(15) + impls.map((n) => n.padStart(Math.max(17, n.length + 2))).join(''));
@@ -153,7 +167,7 @@ for (const engine of engines) {
       const wins = impls.map((n) => data[n][op][base].filter((x, s) => impls.every((m) => data[m][op][base][s] >= x)).length);
       console.log('  ' + op.padEnd(15) + meds.map((m, j) => `${fmt(m)} (${wins[j]})`.padStart(Math.max(17, impls[j].length + 2))).join(''));
     }
-    continue;
+    if (variants.length === 1) continue;
   }
   for (const [impl, byOp] of Object.entries(data)) {
     console.log(`\n== ${engine} / ${impl}: ms to paint, median of ${sessions} session medians; Δ vs ${base} (sessions faster)`);
@@ -186,5 +200,6 @@ for (const engine of engines) {
     }
   }
 }
+console.log(`cooled ${cooledS} s (thermal waits before pages)`);
 console.log(contended.length ? `\ncontended: ${contended.join('; ')}` : '\nquiet: every session started below 10% of a core');
 server.close();
