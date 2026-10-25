@@ -390,6 +390,16 @@ from another machine, or after that is undone, has a variable changed.
   row its own size when rows sit in different tiers; count its calls; and treat a control that misses its target as a
   void run, not a weaker one. (Installed Chrome 155 headed, Playwright WebKit 26.5 and Firefox 153 headed; 2026-10-25)
 
+- **Chrome runs a whole page at a per-PROCESS speed level, and on class-component rows with bindings that level spans
+  ±6–8%.** Ten fresh headed Chrome instances on the same page and bundle (20 class components created or churned per
+  sample, 30 samples) put the page's MEDIAN sample anywhere in a 11.5% range (create) or 15.8% (churn), while the collection
+  spikes (one ~200 ms sample and a few of 120–150 ms) were the same on every page. So the spread between pages is a level
+  the instance keeps for its whole life, not a collection landing in some windows; other rows on the same harness held their
+  byte-identical copies within 0.2–1.2%. Consequence: on such rows a longer page does not average the noise out, only more
+  fresh instances per variant do; a race there needs several pages per arm per session, or a quieter row, before a ~1–2%
+  verdict is possible. The cause of the level (core placement, JIT tiering per process, memory layout) is not yet known.
+  (Installed Chrome 155, headed, Apple-silicon laptop; 2026-10-25)
+
 ## Test environments
 
 - **Inspecting a cross-realm DOM object (an iframe's `ShadowRoot`) in a chai failure message never finishes**, so a
