@@ -48,7 +48,9 @@ const PINS = {
   'packages/renderer/dist/vera-renderer-keyed.min.js': 0,
   'packages/renderer/dist/vera-renderer-namespaces.min.js': 0,
   'packages/renderer/dist/vera-renderer-native-elements.min.js': 0,
-  'packages/renderer/dist/vera-renderer-portal.min.js': 1,
+  /** 2 (2026-10-25): both are `effect(…)` ARGUMENTS terser wrapped in parentheses (`n((…)=>{`), not inlined functions — the
+   *  target function's follow hook added the second; the bundle has no `})(` at all. */
+  'packages/renderer/dist/vera-renderer-portal.min.js': 2,
   'packages/renderer/dist/vera-renderer-slots.min.js': 10,
   'packages/renderer/dist/vera-renderer-spread.min.js': 0,
   'packages/renderer/dist/vera-renderer-tag.min.js': 0,
