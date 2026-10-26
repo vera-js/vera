@@ -1336,6 +1336,7 @@ type Probed = {
   readonly strings?: unknown;
   readonly $h?: unknown;
   readonly _$attrs$?: unknown;
+  readonly _$child$?: unknown;
   readonly [Symbol.iterator]?: unknown;
 };
 
@@ -1348,6 +1349,19 @@ type Probed = {
  */
 const refuseTemplateInText = (): never => {
   throw own(new Error(ssrMisuse('ssr-template-in-text', PROSE['ssr-template-in-text']!())));
+};
+
+/**
+ * **A child value that applies itself (`_$child$`) renders on a server what it would show FIRST on a client** (2026-10-26,
+ * found by `@verajs/renderer/until`'s server row: every such value served `[object Object]`). The applier runs against a
+ * server part whose `_$commit$` keeps what it commits; the last SYNCHRONOUS commit is served, as the client's first
+ * frame shows it. A commit that arrives later (a promise settling) lands on a part already served and dropped. Out of
+ * line: `serializeValue` sits near V8's inlining budget (`tests/ssr-inlining-budget.test.mjs`).
+ */
+const serializeChild = (value: { _$child$: (this: unknown, part: unknown, previous: unknown, adopting: boolean) => unknown }, depth: number, text: boolean): string => {
+  let committed: unknown;
+  value._$child$.call(value, { _$commit$: (next: unknown) => { committed = next; }, $R: null }, undefined, false);
+  return serializeValue(committed, false, depth, text);
 };
 
 export const serializeValue = (value: unknown, raw = false, depth = 0, text = false): string => {
@@ -1412,6 +1426,7 @@ export const serializeValue = (value: unknown, raw = false, depth = 0, text = fa
      * here and only here — principle #8 puts it at the render boundary, not at the source.
      */
     if (typeof (value as Probed)._$attrs$ === 'function') return '';
+    if (typeof (value as Probed)._$child$ === 'function') return serializeChild(value as never, depth, text);
 
     /**
      * **A DOM node writes nothing** (2026-10-09). The client inserts the node itself, and hydration's contract is that
