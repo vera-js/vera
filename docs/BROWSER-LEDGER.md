@@ -336,6 +336,18 @@ from another machine, or after that is undone, has a variable changed.
   dead in Firefox and Safari until the panel returns, unless the pop-out defines the same tags or the renderer builds the
   child in the component's HOME realm and adopts it (decided in R4). (Chromium 151, Firefox 153, WebKit 26.5, Playwright
   headless; a platform behavior, not a timing; 2026-10-22)
+- **REFINED (2026-10-25): what Chromium upgrades in another document is a child created by MARKUP inside a shadow root
+  attached in the home document — nothing else, and no other engine.** Plain DOM, a host with a shadow root made in the
+  main window and moved into a same-origin iframe or a `window.open` pop-out: `root.innerHTML = '<x-tag>'` upgrades with
+  the main registry in Chromium (the root keeps the registry it was made with) and in neither Firefox nor WebKit. A child
+  made in LIGHT DOM there, a node imported into the foreign document (`foreignDoc.importNode`), and a renderer render
+  straight into a foreign host upgrade in NO engine; iframe and pop-out alike. An element created in the HOME document and
+  then inserted into the foreign one KEEPS its home class in all three. Consequence: the renderer, for a target in a
+  foreign document, creates in its own document and lets insertion adopt; that is the one path that works on every engine.
+  Also measured: a same-document `moveBefore()` of an element WITHOUT `connectedMoveCallback` calls
+  `disconnectedCallback` (with `isConnected` still `true`) and then `connectedCallback`, the same signature as a
+  one-operation `append` move (Chromium, Firefox). (Installed Chrome 155, Playwright Firefox 153, WebKit 26.5, headless;
+  behavior, not timing.)
 - **`moveBefore()` and `connectedMoveCallback` ship in Chromium and Firefox, not in WebKit.** A same-document
   `moveBefore` of a connected custom element that defines `connectedMoveCallback` calls ONLY that callback (no disconnect
   or connect) in Chromium 151 and Firefox 153; WebKit 26.5 has no `Element.prototype.moveBefore`. Consequence: a component
