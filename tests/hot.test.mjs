@@ -15,6 +15,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node'
 const { define, html, wire, createStore, flush, effect, inserts } = await load('core');
 const { renderer } = await load('renderer');
 const { hot } = await load('hot');
+const { portal } = await load('renderer/portal');
 /** Defined BEFORE hot is wired: its registration is the real class, so a redefine refuses. */
 define('x-hot-early', () => () => html`<i>early</i>`);
 wire([renderer, hot]);
@@ -229,4 +230,78 @@ test('development: define-twice stays silent while hot is wired', { skip: isProd
     console.warn = warn;
   }
   assert.deepEqual(warns.filter((w) => w.includes('define-twice')), []);
+});
+
+test('a redefine while a RENDER IS PENDING: the new version renders once, nothing throws, the old render never lands', async () => {
+  const s = createStore({ n: 1 });
+  const counts = { oldRenders: 0, next: 0 };
+  define('x-hot-pend', () => () => (counts.oldRenders++, html`<b>old ${s.n}</b>`));
+  const el = document.createElement('x-hot-pend');
+  document.body.append(el);
+  await settle();
+  assert.equal(counts.oldRenders, 1, 'CONTROL: the old version rendered');
+  s.n = 2;
+  define('x-hot-pend', () => { counts.next++; return () => html`<b>new ${s.n}</b>`; });
+  await settle();
+  assert.deepEqual([counts.oldRenders, counts.next, el.textContent], [1, 1, 'new 2'], 'the queued old render did not run; the new one shows the write');
+  el.remove();
+});
+
+test('no doubled INTERVAL or LISTENER after a swap: exactly one of each is live', async () => {
+  const ticks = { old: 0, next: 0 }, heard = { old: 0, next: 0 };
+  const version = (which) => () => {
+    effect(() => { const id = setInterval(() => ticks[which]++, 5); return () => clearInterval(id); });
+    effect(() => { const on = () => heard[which]++; window.addEventListener('x-hot-ping', on); return () => window.removeEventListener('x-hot-ping', on); });
+    return () => html`<i>${which}</i>`;
+  };
+  define('x-hot-timers', version('old'));
+  const el = document.createElement('x-hot-timers');
+  document.body.append(el);
+  await settle();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(ticks.old > 0, true, 'CONTROL: the old interval ran');
+  define('x-hot-timers', version('next'));
+  await settle();
+  const oldAt = ticks.old;
+  window.dispatchEvent(new window.Event('x-hot-ping'));
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual([ticks.old - oldAt, ticks.next > 0, heard.old, heard.next], [0, true, 0, 1], 'the old ones stopped; one new interval, one new listener');
+  el.remove();
+  await settle();
+});
+
+test('a component NESTED in a redefined one: no doubled children, the child works (recreated when the new template differs)', async () => {
+  const s = createStore({ n: 1 });
+  let childSetups = 0;
+  define('x-hot-kid', () => { childSetups++; return () => html`<i>${s.n}</i>`; });
+  define('x-hot-parent', () => () => html`<p>v1</p><x-hot-kid></x-hot-kid>`);
+  const el = document.createElement('x-hot-parent');
+  document.body.append(el);
+  await settle();
+  assert.equal(childSetups, 1, 'CONTROL: the child set up');
+  define('x-hot-parent', () => () => html`<p>v2</p><x-hot-kid></x-hot-kid>`);
+  await settle();
+  s.n = 2;
+  await settle();
+  const kids = el.querySelectorAll('x-hot-kid');
+  assert.deepEqual([kids.length, el.querySelector('p').textContent, kids[0].textContent, childSetups], [1, 'v2', '2', 2], 'one child, live; set up again because the new template is a new template');
+  el.remove();
+  await settle();
+});
+
+test('a redefine of a component that owns a PORTAL: the old content removed exactly once, the new drawn once', async () => {
+  const target = document.createElement('div');
+  document.body.append(target);
+  define('x-hot-portal', () => { portal(target, () => html`<b>old</b>`); });
+  const el = document.createElement('x-hot-portal');
+  document.body.append(el);
+  await settle();
+  assert.equal(target.textContent, 'old', 'CONTROL: drawn');
+  define('x-hot-portal', () => { portal(target, () => html`<b>new</b>`); });
+  await settle();
+  assert.deepEqual([target.textContent, target.querySelectorAll('b').length, target.childNodes.length], ['new', 1, 3], 'only the new range: two markers and one <b>');
+  el.remove();
+  await settle();
+  assert.equal(target.childNodes.length, 0, 'removal takes it all');
+  target.remove();
 });

@@ -19,6 +19,32 @@ After that, defining a tag again does not throw. `define('x-card', …)` or `cus
 the live `<x-card>` elements to the new version in place. Studio's editor and a Vite plugin (`import.meta.hot`) are
 callers of the same thing.
 
+## With Vite
+
+```js
+// vite.config.js
+import { hotVite } from '@verajs/hot/vite';
+export default { plugins: [hotVite()] };
+```
+
+In `vite dev`, saving a component module re-runs it, and its second `define` swaps the live elements in place: the page
+keeps its state. The plugin is development-only (`apply: 'serve'`), loads only in Node (the `node` export condition), and
+imports nothing, `vite` included.
+
+- **Which modules:** one that calls `define(…)` or `customElements.define(…)`. A define reached another way (an alias, a
+  helper in another module) is not seen, and that module reloads as Vite would.
+- **Only when its exports are components:** nothing, what `define` returns (`export const XCard = define(…)`), or a class.
+  Re-running a module leaves its importers holding the OLD exports, so a component module that also exported a store would
+  leave two stores diverging; such a module is not swapped, and Vite updates it the usual way.
+- **Stores declared in the same file are made again** when it re-runs. Keep a store you want to outlive a save in its own
+  module.
+
+## Cost in development
+
+Wired, hot forwards each element's construction through its stand-in: creating 10 000 components took 26.3 ms against
+22.3 ms without it (+18%, the development build, headless Chrome, median of 8 fresh pages each; 2026-10-25). Production
+carries nothing of it.
+
 ## What a swap keeps
 
 | | |

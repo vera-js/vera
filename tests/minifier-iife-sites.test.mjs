@@ -80,6 +80,7 @@ const PINS = {
   'packages/directives/dist/vera-directives-standalone.min.js': 23,
   'packages/directives/dist/vera-directives.min.js': 70,
   'packages/hooks/dist/vera-hooks.min.js': 3,
+  'packages/hot/dist/vera-hot-vite.min.js': 0,
   'packages/hot/dist/vera-hot.min.js': 2,
   'packages/inserts/dist/vera-inserts.min.js': 0,
   'packages/jsx/dist/vera-jsx-standalone.min.js': 3,

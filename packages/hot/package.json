@@ -22,6 +22,10 @@
       "types": "./dist/development/vera-hot.d.ts",
       "development": "./dist/development/vera-hot.js",
       "default": "./dist/vera-hot.min.js"
+    },
+    "./vite": {
+      "types": "./dist/development/vera-hot-vite.d.ts",
+      "node": "./dist/development/vera-hot-vite.js"
     }
   },
   "files": [

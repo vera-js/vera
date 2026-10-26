@@ -87,4 +87,28 @@ describe('@verajs/hot', () => {
     host.remove();
     light.remove();
   });
+
+  it('a redefine while the component is POPPED OUT (R4) reaches it there, and it comes home on the new version, setup once per version', async () => {
+    const counts = { old: 0, next: 0 };
+    const state = createStore({ n: 1 });
+    define('hot-away', () => { counts.old++; return () => html`<b>a${state.n}</b>`; });
+    const el = document.createElement('hot-away');
+    document.body.append(el);
+    await frame();
+    const f = document.createElement('iframe');
+    document.body.append(f);
+    await new Promise((r) => (f.contentDocument?.readyState === 'complete' ? r() : f.addEventListener('load', r, { once: true })));
+    f.contentDocument.body.append(el);
+    await frame();
+    define('hot-away', () => { counts.next++; return () => html`<b>b${state.n}</b>`; });
+    await frame();
+    const there = el.ownerDocument === f.contentDocument && el.textContent === 'b1';
+    document.body.append(el);
+    state.n = 2;
+    await frame();
+    expect({ there, home: el.textContent === 'b2', counts }).to.deep.equal({ there: true, home: true, counts: { old: 1, next: 1 } });
+    el.remove();
+    f.remove();
+  });
 });
+
