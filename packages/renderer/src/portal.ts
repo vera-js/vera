@@ -66,9 +66,23 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
     /** No usable target yet: drawn into a fragment of THIS realm's document until one exists — portal is handed no element to take one from. */
     current = usable(first) ? first : document.createDocumentFragment();
   } else current = target;
-  /** The last value drawn, for a redraw when a dead window destroyed the range (below). */
+  /** The last value drawn, for a redraw when the range was destroyed (below). */
   let last: unknown;
   const registry = inserts as unknown as Registry;
+  /**
+   * **The range is INTACT while both markers sit in one parent** (2026-10-25). User code clearing the target —
+   * `container.innerHTML = ''`, a router swapping a container's children, an overlay library emptying its root — or a dead
+   * window taking its document's nodes (jsdom) removes them, and a draw into detached markers would be invisible (and a
+   * cleanup into them threw). The ONE check every path asks: the first draw, every draw, a target change, the removal.
+   */
+  const intact = () => part !== undefined && part.$s!.parentNode !== null && part.$s!.parentNode === part.$e!.parentNode;
+  /** A fresh range at the end of `into`, drawn with `value` — the first draw, and the redraw of a destroyed range. */
+  const fresh = (handoff: unknown[], into: Target, value: unknown) => {
+    const doc = into.ownerDocument!;
+    part = new (handoff[HANDOFF_CHILD_PART] as Part)(doc.createComment(''), doc.createComment(''));
+    into.append(part.$s!, part.$e!);
+    (handoff[HANDOFF_COMMIT_AS] as CommitAs)(into, part, value);
+  };
   const hook = effect(
     (change) => {
       const handoff = registry.$H;
@@ -80,12 +94,8 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
         return;
       }
       const value = (last = typeof template === 'function' ? (template as (change: unknown) => unknown)(change) : template);
-      if (part === undefined) {
-        const doc = current.ownerDocument!;
-        part = new (handoff[HANDOFF_CHILD_PART] as Part)(doc.createComment(''), doc.createComment(''));
-        current.append(part.$s!, part.$e!);
-      }
-      (handoff[HANDOFF_COMMIT_AS] as CommitAs)(current, part, value);
+      if (intact()) (handoff[HANDOFF_COMMIT_AS] as CommitAs)(current, part!, value);
+      else fresh(handoff, current, value);
       registry.$so?.(hook);
     },
     { priority: 50 }
@@ -97,8 +107,7 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
   effect(
     () => () => {
       if (part === undefined) return;
-      const handoff = registry.$H!;
-      (handoff[HANDOFF_COMMIT_AS] as CommitAs)(current, part, null);
+      if (intact()) (registry.$H![HANDOFF_COMMIT_AS] as CommitAs)(current, part, null);
       part.$s!.remove();
       (part.$e as ChildNode).remove();
       part = undefined;
@@ -117,19 +126,8 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
       const from = current;
       current = next;
       if (part === undefined) return;
-      /**
-       * **The range is gone** — a window that died took its document's nodes (jsdom empties a removed iframe's document;
-       * browsers keep them): the markers are no longer siblings. Drawn afresh into the new target from the last value; the
-       * components inside are set up again in this one case.
-       */
-      if (part.$s!.parentNode === null || part.$s!.parentNode !== part.$e!.parentNode) {
-        const handoff = registry.$H!;
-        const doc = next.ownerDocument!;
-        part = new (handoff[HANDOFF_CHILD_PART] as Part)(doc.createComment(''), doc.createComment(''));
-        next.append(part.$s!, part.$e!);
-        (handoff[HANDOFF_COMMIT_AS] as CommitAs)(next, part, last);
-        return;
-      }
+      /** A destroyed range is drawn afresh into the new target from the last value (its components set up again). */
+      if (!intact()) return fresh(registry.$H!, next, last);
       const nodes: Node[] = [];
       for (let n: Node | null = part.$s!; n !== null; n = n.nextSibling) {
         nodes.push(n);

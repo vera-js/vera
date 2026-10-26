@@ -368,6 +368,28 @@ test('a target in a window that DIED (a removed iframe) — nothing throws, and 
   fallback.remove();
 });
 
+test('USER CODE clearing the target (innerHTML = "", a router swapping children) — the next draw is VISIBLE again and removal throws nothing; plain and function targets', async () => {
+  for (const kind of ['plain', 'function']) {
+    const box = document.createElement('div');
+    document.body.append(box);
+    const s = createStore({ n: 1 });
+    const t = tag();
+    define(t, () => { portal(kind === 'plain' ? box : () => box, () => html`<b>${s.n}</b>`); });
+    const el = await mount(t);
+    assert.equal(box.textContent, '1', `CONTROL (${kind}): drawn`);
+    box.innerHTML = '';
+    s.n = 2;
+    await settle();
+    assert.deepEqual([kind, shape(box), box.textContent], [kind, ['#c', 'b', '#c'], '2'], 'drawn again, visible, one range');
+    const errors = [];
+    const original = console.error;
+    console.error = (...a) => errors.push(a.map(String).join(' '));
+    try { el.remove(); await settle(); } finally { console.error = original; }
+    assert.deepEqual([kind, errors.length, shape(box)], [kind, 0, []], 'removal: nothing threw, nothing left');
+    box.remove();
+  }
+});
+
 test('server output: the server draws no portal; the client adopts the component and draws the portal once', async () => {
   const { html: markup, runs, warned: serverWarned } = JSON.parse(served);
   assert.deepEqual(serverWarned, [], 'the server said nothing (it registers no portal, so nothing finds no renderer)');
