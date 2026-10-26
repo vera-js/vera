@@ -3,7 +3,9 @@
  * element under sigiled names — never mangled, never an author's — and styles, ui, hooks and directives read them by
  * string, across bundle boundaries; the renderer and its modules carry their own sigiled protocol marks the same way. A
  * rename on one side that forgets the other is no error anywhere: the read is simply `undefined`, in production. So the
- * sources are scanned (comments stripped) and two rules asserted:
+ * sources are scanned — as the JavaScript they EMIT (types stripped by esbuild, then comments), so a type literal
+ * `{ _$x$: T }` is never read as a write (2026-10-26: one was, and recorded a second writer that did not exist) — and two
+ * rules asserted:
  *
  * 1. Every sigiled name READ is WRITTEN somewhere in the sources (`.x =`, `??=`, an object-literal key, `['x'] =`).
  * 2. Every sigiled name has ONE writing package — a second package picking a short sigil (`_$g$`) recreates the
@@ -13,12 +15,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { transformSync } from 'esbuild';
 
 const root = new URL('../packages/', import.meta.url).pathname;
 const walk = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : []));
 const writes = new Map();
 const reads = new Map();
+/** A source file as the JavaScript it emits: types gone, then comments. */
+const emitted = (file) =>
+  transformSync(readFileSync(file, 'utf8'), { loader: 'ts' }).code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 const add = (map, name, pkg) => (map.get(name) ?? map.set(name, new Set()).get(name)).add(pkg);
 const SIGIL = '_\\$[A-Za-z]+\\$';
 const WRITE = new RegExp(`\\.(${SIGIL})\\s*(?:=(?!=)|\\?\\?=)|[{,]\\s*(${SIGIL})\\s*:|\\[['"](${SIGIL})['"]\\]\\s*(?:=(?!=)|:)`, 'g');
@@ -26,7 +32,7 @@ const READ = new RegExp(`\\.(${SIGIL})|\\[['"](${SIGIL})['"]\\]`, 'g');
 for (const pkg of readdirSync(root)) {
   if (!existsSync(join(root, pkg, 'src'))) continue;
   for (const file of walk(join(root, pkg, 'src'))) {
-    const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const code = emitted(file);
     for (const m of code.matchAll(WRITE)) add(writes, m[1] ?? m[2] ?? m[3], pkg);
     for (const m of code.matchAll(READ)) add(reads, m[1] ?? m[2], pkg);
   }
