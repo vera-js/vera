@@ -257,6 +257,117 @@ test('a cross-window MOVE of the owner leaves its portal where it is, live — n
   target.remove();
 });
 
+test('PIN: a cross-window move REDRAWS no portal — its template runs zero extra times (a move re-runs only layout and effect priorities)', async () => {
+  const target = document.createElement('div');
+  document.body.append(target);
+  let draws = 0;
+  const t = tag();
+  define(t, () => { portal(target, () => (draws++, html`<b>x</b>`)); });
+  const el = await mount(t);
+  assert.equal(draws, 1, 'CONTROL: drawn once');
+  const other = document.querySelector('iframe').contentDocument;
+  other.body.append(el);
+  await settle();
+  assert.equal(el.ownerDocument === other, true, 'CONTROL: it moved into the other document');
+  document.body.append(el);
+  await settle();
+  assert.equal(draws, 1, 'out and back: no redraw');
+  el.remove();
+  await settle();
+  target.remove();
+});
+
+test('a target FUNCTION follows its owner into another window and back — the range MOVES, never redrawn, and a component inside keeps its setup', async () => {
+  let draws = 0, inner = 0;
+  const child = tag();
+  define(child, () => { inner++; return () => html`<i>in</i>`; });
+  const t = tag();
+  define(t, (host) => { portal(() => host.ownerDocument.body, () => (draws++, { _$litType$: 1, strings: Object.assign([`<${child}></${child}>`], { raw: [`<${child}></${child}>`] }), values: [] })); });
+  const el = await mount(t);
+  assert.equal(document.body.querySelector(child) !== null, true, 'CONTROL: drawn into this document\'s body');
+  assert.deepEqual([draws, inner], [1, 1], 'CONTROL: drawn once, its component set up once');
+  const other = document.querySelector('iframe').contentDocument;
+  other.body.append(el);
+  await settle();
+  assert.equal(other.body.querySelector(child) !== null, true, 'the content followed into the other window\'s body');
+  assert.equal(document.body.querySelector(child), null, 'and left this one');
+  document.body.append(el);
+  await settle();
+  assert.equal(document.body.querySelector(child) !== null, true, 'and came back');
+  assert.deepEqual([draws, inner], [1, 1], 'never redrawn, its component never set up again');
+  el.remove();
+  await settle();
+  assert.equal(document.body.querySelector(child), null, 'a real removal still takes it out');
+});
+
+test('a REACTIVE target function moves the range when what it reads changes — no redraw', async () => {
+  const a = document.createElement('div'), b = document.createElement('div');
+  document.body.append(a, b);
+  const s = createStore({ where: 'a', n: 1 });
+  let draws = 0;
+  const t = tag();
+  define(t, () => { portal(() => (s.where === 'a' ? a : b), () => (draws++, html`<b>${s.n}</b>`)); });
+  const el = await mount(t);
+  assert.deepEqual([shape(a), shape(b), draws], [['#c', 'b', '#c'], [], 1], 'CONTROL: drawn into a');
+  s.where = 'b';
+  await settle();
+  assert.deepEqual([shape(a), shape(b), draws], [[], ['#c', 'b', '#c'], 1], 'moved to b, not redrawn');
+  s.n = 2;
+  await settle();
+  assert.deepEqual([b.textContent, a.textContent, draws], ['2', '', 2], 'a write after the move draws into the NEW target only')
+  el.remove();
+  await settle();
+  assert.deepEqual([shape(a), shape(b)], [[], []], 'removal takes it out of where it is');
+  a.remove(); b.remove();
+});
+
+test('a target function answering NOTHING leaves the range where it is (a fragment would be a removal) — the next real target gets it, its component set up once', async () => {
+  const box = document.createElement('div'), other = document.createElement('div');
+  document.body.append(box, other);
+  const s = createStore({ where: 'box', n: 1 });
+  let inner = 0;
+  const child = tag();
+  define(child, () => { inner++; return () => html`<i>${s.n}</i>`; });
+  const t = tag();
+  const strs = Object.assign([`<${child}></${child}>`], { raw: [`<${child}></${child}>`] });
+  define(t, () => { portal(() => (s.where === 'box' ? box : s.where === 'none' ? null : other), () => ({ _$litType$: 1, strings: strs, values: [] })); });
+  const el = await mount(t);
+  assert.equal(box.querySelector(child) !== null && inner === 1, true, 'CONTROL: drawn, set up once');
+  s.where = 'none';
+  await settle();
+  assert.equal(box.querySelector(child) !== null, true, 'no target: left where it is, nothing thrown');
+  s.n = 2;
+  await settle();
+  s.where = 'other';
+  await settle();
+  assert.deepEqual([other.querySelector(child)?.textContent, box.querySelector(child), inner], ['2', null, 1], 'the next target got it, updated, never set up again');
+  el.remove();
+  await settle();
+  box.remove(); other.remove();
+});
+
+test('a target in a window that DIED (a removed iframe) — nothing throws, and the next target gets the content (redrawn, as jsdom empties the dead document)', async () => {
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  await wait(0);
+  const s = createStore({ dead: false });
+  const fallback = document.createElement('div');
+  document.body.append(fallback);
+  const inFrame = frame.contentDocument.body;
+  const t = tag();
+  define(t, () => { portal(() => (s.dead ? fallback : inFrame), () => html`<b>x</b>`); });
+  const el = await mount(t);
+  assert.equal(inFrame.querySelector('b') !== null, true, 'CONTROL: drawn into the frame');
+  frame.remove();
+  await settle();
+  s.dead = true;
+  await settle();
+  assert.equal(fallback.querySelector('b') !== null, true, 'the next target got it');
+  el.remove();
+  await settle();
+  fallback.remove();
+});
+
 test('server output: the server draws no portal; the client adopts the component and draws the portal once', async () => {
   const { html: markup, runs, warned: serverWarned } = JSON.parse(served);
   assert.deepEqual(serverWarned, [], 'the server said nothing (it registers no portal, so nothing finds no renderer)');

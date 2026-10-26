@@ -1,4 +1,4 @@
-import { effect, inserts } from '@verajs/core';
+import { effect, inserts, untrack } from '@verajs/core';
 import { diagnostic } from '@verajs/shared-utils';
 import { HANDOFF_CHILD_PART, HANDOFF_COMMIT_AS, HANDOFF_PROTOCOL, PROTOCOL } from './kinds.js';
 import { PROSE } from './portal-diagnostics.js';
@@ -38,12 +38,36 @@ let warned = false;
  *   where the host's template says.
  * - **The client only.** A server renders a component's own template; a portal registers nothing there, so hydration
  *   finds no range to adopt and the client draws it once.
+ * - **A target FUNCTION follows** (R4, Brian 2026-10-25): `portal(() => host.ownerDocument.body, …)` is evaluated at setup
+ *   and again whenever what it reads changes or its component moves into another window (a cross-window move re-runs effect
+ *   priority), and a different answer MOVES the drawn range into the new target — never a redraw, so components inside
+ *   keep their state. A popped-out panel's modal then opens in the pop-out. A plain element target never moves.
  *
  * Additive, like `hydration`: it imports no renderer and reaches the one wired through its hand-off (`$H`).
  */
-export const portal = (target: Element | DocumentFragment, template: unknown): void => {
+type Target = Element | DocumentFragment;
+/**
+ * **No target, or a dead one, leaves the range WHERE IT IS** (2026-10-25): a falsy answer, or a target whose window is gone
+ * (a closed pop-out: no live `defaultView`), moves nothing — so nothing is removed and the components inside keep their
+ * state (holding the range in a detached fragment would be a REMOVAL, which tears them down) — and the next real target
+ * gets it. Nothing throws.
+ */
+const usable = (t: Target | null | undefined): t is Target => {
+  const view = t?.ownerDocument?.defaultView;
+  return view != null && !view.closed;
+};
+export const portal = (target: Target | (() => Target | null | undefined), template: unknown): void => {
   if (onServer) return;
   let part: ChildPart | undefined;
+  /** Where it draws now: a function target is read once here, untracked, so the draw does not subscribe to it. */
+  let current: Target;
+  if (typeof target === 'function') {
+    const first = untrack(target);
+    /** No usable target yet: drawn into a fragment of THIS realm's document until one exists — portal is handed no element to take one from. */
+    current = usable(first) ? first : document.createDocumentFragment();
+  } else current = target;
+  /** The last value drawn, for a redraw when a dead window destroyed the range (below). */
+  let last: unknown;
   const registry = inserts as unknown as Registry;
   const hook = effect(
     (change) => {
@@ -55,13 +79,13 @@ export const portal = (target: Element | DocumentFragment, template: unknown): v
         }
         return;
       }
-      const value = typeof template === 'function' ? (template as (change: unknown) => unknown)(change) : template;
+      const value = (last = typeof template === 'function' ? (template as (change: unknown) => unknown)(change) : template);
       if (part === undefined) {
-        const doc = target.ownerDocument!;
+        const doc = current.ownerDocument!;
         part = new (handoff[HANDOFF_CHILD_PART] as Part)(doc.createComment(''), doc.createComment(''));
-        target.append(part.$s!, part.$e!);
+        current.append(part.$s!, part.$e!);
       }
-      (handoff[HANDOFF_COMMIT_AS] as CommitAs)(target, part, value);
+      (handoff[HANDOFF_COMMIT_AS] as CommitAs)(current, part, value);
       registry.$so?.(hook);
     },
     { priority: 50 }
@@ -74,11 +98,51 @@ export const portal = (target: Element | DocumentFragment, template: unknown): v
     () => () => {
       if (part === undefined) return;
       const handoff = registry.$H!;
-      (handoff[HANDOFF_COMMIT_AS] as CommitAs)(target, part, null);
+      (handoff[HANDOFF_COMMIT_AS] as CommitAs)(current, part, null);
       part.$s!.remove();
       (part.$e as ChildNode).remove();
       part = undefined;
     },
     { priority: 50 }
   );
+  /**
+   * **A function target follows** — only then: a third hook, at EFFECT priority (75) so a cross-window move re-runs it,
+   * re-reads the target (tracked, so a store it reads moves it too) and, when the answer changed, moves the range — the
+   * markers and what lies between them — into it. Moving keeps every node, components included (R4).
+   */
+  if (typeof target === 'function')
+    effect(() => {
+      const next = target();
+      if (!usable(next) || next === current) return;
+      const from = current;
+      current = next;
+      if (part === undefined) return;
+      /**
+       * **The range is gone** — a window that died took its document's nodes (jsdom empties a removed iframe's document;
+       * browsers keep them): the markers are no longer siblings. Drawn afresh into the new target from the last value; the
+       * components inside are set up again in this one case.
+       */
+      if (part.$s!.parentNode === null || part.$s!.parentNode !== part.$e!.parentNode) {
+        const handoff = registry.$H!;
+        const doc = next.ownerDocument!;
+        part = new (handoff[HANDOFF_CHILD_PART] as Part)(doc.createComment(''), doc.createComment(''));
+        next.append(part.$s!, part.$e!);
+        (handoff[HANDOFF_COMMIT_AS] as CommitAs)(next, part, last);
+        return;
+      }
+      const nodes: Node[] = [];
+      for (let n: Node | null = part.$s!; n !== null; n = n.nextSibling) {
+        nodes.push(n);
+        if (n === part.$e) break;
+      }
+      /**
+       * Within ONE document, `moveBefore` (Chromium, Firefox) keeps what an insertion would reset — focus, a playing media
+       * element, an iframe — so a reactive target switching containers loses none of it. Across documents, or where it is
+       * absent (WebKit), `append`: a cross-document insertion adopts.
+       */
+      const move = (next as Partial<{ moveBefore: (n: Node, c: Node | null) => void }>).moveBefore;
+      if (move !== undefined && from.isConnected && next.isConnected && part.$s!.getRootNode() === next.getRootNode())
+        for (const n of nodes) move.call(next, n, null);
+      else next.append(...nodes);
+    });
 };
