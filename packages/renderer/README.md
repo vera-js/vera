@@ -406,6 +406,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/namespaces` | `namespaces` (wire it) — an `html` template parsed in the namespace of where it lands | yes |
 | `@verajs/renderer/elements` | `elements` (wire it) — behavior attached to claimed elements in templates, mounted and unmounted with their instances | yes |
 | `@verajs/renderer/portal` | `portal(target, template)` — a component draws into ANOTHER element (a modal on `document.body`), in a range of its own | yes |
+| `@verajs/renderer/until` | `until(promise, fallback)` — a promise at a child position: the fallback, then its value | yes |
 | `@verajs/renderer/native-elements` | `nativeElements` (wire it) — `init` on a built-in element (a `div`, a `section`…) with a custom element's lifecycle | yes |
 | `@verajs/renderer/multi-window` | `multiWindow` (wire it) — components left in a pop-out or an iframe are released when that window closes | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
@@ -486,6 +487,32 @@ What a claimant can rely on:
   at `wire`, for this module and every other that decides per template (`namespaces`, `slots`). An app that wires no
   claimant pays nothing; one that does pays one walk per new template, and one short walk per
   instance of a template something claimed.
+
+## `@verajs/renderer/until` — a promise in a template
+
+```js
+import { until } from '@verajs/renderer/until';
+
+define('x-user', () => {
+  const user = fetchUser();   // made ONCE, in the setup
+  return () => html`<p>${until(user, html`<em>loading…</em>`)}</p>`;
+});
+```
+
+It shows the fallback, then what the promise resolves to.
+
+- **The same promise again** (any re-render) keeps what is shown: no flash, no second subscription. Make the promise in
+  the setup, as above; one written inline in the template is a new promise, a new request, every render.
+- **A new promise** shows the fallback again, and the old one's late answer is dropped, so a slow first request never
+  overwrites a newer one.
+- **Removed before it settles,** the answer is dropped.
+- **Not a promise:** shown at once.
+- **A rejection** keeps the fallback and is reported (an `'error'` insert, else `reportError`). To SHOW an error, or a
+  refreshing state, use `resource()` from `@verajs/store/resource`, which carries `loading`, `value` and `error`.
+- **On a server** it renders the fallback and waits for nothing; hydration draws the fallback again and the value replaces
+  it.
+
+`until` is built on the `_$child$` protocol below; core and the renderer carry nothing for it.
 
 ## `@verajs/renderer/multi-window` — components in the windows your page opens
 

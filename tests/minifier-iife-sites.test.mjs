@@ -99,6 +99,7 @@ const PINS = {
   'packages/renderer/dist/vera-renderer-portal.min.js': 0,
   'packages/renderer/dist/vera-renderer-slots.min.js': 9,
   'packages/renderer/dist/vera-renderer-spread.min.js': 0,
+  'packages/renderer/dist/vera-renderer-until.min.js': 2,
   'packages/renderer/dist/vera-renderer-tag.min.js': 0,
   'packages/renderer/dist/vera-renderer.min.js': 4,
   'packages/router/dist/vera-router.min.js': 10,

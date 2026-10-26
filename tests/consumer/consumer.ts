@@ -26,6 +26,7 @@ import { elements } from '@verajs/renderer/elements';
 import type { ElementBehavior } from '@verajs/renderer/elements';
 import { nativeElements } from '@verajs/renderer/native-elements';
 import { multiWindow } from '@verajs/renderer/multi-window';
+import { until } from '@verajs/renderer/until';
 import { portal } from '@verajs/renderer/portal';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
@@ -207,6 +208,10 @@ wire([renderer, nativeElements]);
 
 /** **`@verajs/renderer/multi-window`, wired the documented way** — a connector, beside the renderer. */
 wire([renderer, multiWindow]);
+
+/** **`@verajs/renderer/until`** — a promise at a child position, with a fallback. */
+const userLine = html`<p>${until(Promise.resolve('Ada'), html`<em>loading…</em>`)}</p>`;
+void userLine;
 
 const slotHost: Element = document.createElement('div');
 const everything: Node[] = slotted(slotHost);

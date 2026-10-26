@@ -70,6 +70,7 @@ const SAFE = [
   '@verajs/renderer/portal',
   '@verajs/renderer/native-elements',
   '@verajs/renderer/multi-window',
+  '@verajs/renderer/until',
   '@verajs/renderer/spread',
   '@verajs/renderer/tag',
   '@verajs/router',

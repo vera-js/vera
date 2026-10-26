@@ -634,6 +634,19 @@ one element, each in wire order. No updates: react to values with a binding, not
 before anything renders. The example is a real platform gap: only the first `autofocus` rendered
 after page load takes focus — later forms need the claim.
 
+### A promise in a template (`@verajs/renderer/until`)
+
+```js
+import { until } from '@verajs/renderer/until';
+const user = fetchUser();                        // once, in the setup — inline, it is a new request every render
+return () => html`<p>${until(user, html`<em>loading…</em>`)}</p>`;
+```
+
+The fallback, then the value. The same promise across renders keeps what is shown; a new promise shows the fallback again
+and the old one's late answer is dropped; removed before it settles, dropped. A rejection keeps the fallback and is
+reported (`'error'` insert, else `reportError`); an error VIEW is `resource()`'s job. A server renders the fallback.
+A bare `${promise}` is NOT supported.
+
 ### Components in other windows (`@verajs/renderer/multi-window`)
 
 A component moved into a pop-out (`window.open`) or an iframe with plain DOM is KEPT, with its state, and comes back the
@@ -1125,7 +1138,7 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`, `renderer/native-elements`, `renderer/multi-window`,
+  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`, `renderer/native-elements`, `renderer/multi-window`, `renderer/until`,
   `renderer/hydration`, `renderer/hydrate-slots`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.

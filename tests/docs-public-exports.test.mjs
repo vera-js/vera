@@ -35,6 +35,7 @@ const PACKAGES = {
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/native-elements': 'renderer/native-elements',
   '@verajs/renderer/multi-window': 'renderer/multi-window',
+  '@verajs/renderer/until': 'renderer/until',
   '@verajs/renderer/slots': 'renderer/slots',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/elements': 'renderer/elements',

@@ -340,6 +340,12 @@
       "params": [],
       "message": "a portal has no renderer of this release to draw with, so it drew nothing.",
       "fix": "Wire the renderer once at your entry — `wire([renderer])` — from the same release as `@verajs/renderer/portal`."
+    },
+    {
+      "code": "until-rejected",
+      "params": [],
+      "message": "the promise given to until() rejected, so its position kept showing the fallback.",
+      "fix": "Handle the rejection in the promise (`.catch(…)`), or use `resource()` from `@verajs/store/resource`, whose `error` a template can show."
     }
   ]
 }

@@ -79,6 +79,11 @@
       "development": "./dist/development/vera-renderer-portal.js",
       "default": "./dist/vera-renderer-portal.min.js"
     },
+    "./until": {
+      "types": "./dist/development/vera-renderer-until.d.ts",
+      "development": "./dist/development/vera-renderer-until.js",
+      "default": "./dist/vera-renderer-until.min.js"
+    },
     "./namespaces": {
       "types": "./dist/development/vera-renderer-namespaces.d.ts",
       "development": "./dist/development/vera-renderer-namespaces.js",
