@@ -25,6 +25,7 @@ export const MODULES = [
   { pkg: 'resource', dir: 'store', dist: 'packages/store/dist/vera-store-resource.min.js', what: 'async data as a reactive cell' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
   { pkg: 'native-elements', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-native-elements.min.js', what: '`nativeElements` — `init` on a built-in host (a div, a section…) with a custom element\'s lifecycle, and the components of a window that goes away retired' },
+  { pkg: 'multi-window', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-multi-window.min.js', what: '`multiWindow` — components left in a pop-out or an iframe are released when that window closes' },
   { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },
   { pkg: 'namespaces', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-namespaces.min.js', what: 'an `html` template parsed in the namespace of the position it lands in — SVG children of components' },
   { pkg: 'elements', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-elements.min.js', what: 'behavior attached to claimed elements in templates, mounted and unmounted with their instances' },

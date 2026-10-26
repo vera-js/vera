@@ -12,8 +12,11 @@
  *   next task, so the app's own `pagehide` handlers run first, and moving a panel back home is what they do.
  * - **What.** The dead document is walked, shadow roots included (`_$r$` holds the closed ones core made), and every
  *   component of THIS core still in it is retired through core's own teardown (`$td`). Recognized by core's per-copy mark
- *   (`$m`), so two copies of core on one page never retire each other's components. A component moved back before the
- *   release is no longer there, and survives.
+ *   (`$m`), so two copies of core on one page never retire each other's components — in PRODUCTION, where each copy has
+ *   its own registry. In development two copies share one registry (core keeps `@verajs/inserts` external there), so `$m`
+ *   is whichever copy loaded last: two cores in development is the known mis-resolution trap, not a supported setup, and
+ *   the two-copies row runs in production only (vera-5a). A component moved back before the release is no longer there,
+ *   and survives.
  * - **A connector**, as `@verajs/hot` is: each core it is wired into gets its own watch and release, against its own
  *   teardown and mark. It imports nothing.
  */
