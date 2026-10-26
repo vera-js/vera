@@ -13,6 +13,7 @@ import { nativeElements } from '../../packages/renderer/dist/development/vera-re
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
 import { resource } from '../../packages/store/dist/development/vera-store-resource.js';
+import { portal } from '../../packages/renderer/dist/development/vera-renderer-portal.js';
 
 wire([renderer, styles, nativeElements]);
 const frame = (win = window) => new Promise((r) => win.requestAnimationFrame(() => setTimeout(r, 0)));
@@ -243,6 +244,105 @@ describe('R4: cross-window moves keep the component', () => {
     await frame();
     w.close();
     expect({ setups, out, home: el.textContent === '2' }).to.deep.equal({ setups: 1, out: true, home: true });
+    el.remove();
+  });
+
+  it('moveBefore() keeps a component: no teardown, no second setup (Chromium, Firefox; WebKit has no moveBefore)', async function () {
+    if (typeof Element.prototype.moveBefore !== 'function') this.skip();
+    let setups = 0, cleanups = 0;
+    define('r4-mb', () => { setups++; effect(() => () => { cleanups++; }); return () => html`<i></i>`; });
+    const a = document.createElement('div'), b = document.createElement('div');
+    document.body.append(a, b);
+    const el = document.createElement('r4-mb');
+    a.append(el);
+    await frame();
+    b.moveBefore(el, null);
+    await frame();
+    expect({ setups, cleanups, moved: el.parentNode === b }).to.deep.equal({ setups: 1, cleanups: 0, moved: true });
+    el.remove();
+    await frame();
+    expect(cleanups).to.equal(1);
+    a.remove(); b.remove();
+  });
+
+  it('focus across a cross-window move: lost, while the value and selection are kept (the platform; BROWSER-LEDGER 2026-10-22)', async () => {
+    define('r4-focus', () => () => html`<input value="hello">`);
+    const el = document.createElement('r4-focus');
+    document.body.append(el);
+    await frame();
+    const input = el.querySelector('input');
+    input.focus();
+    input.setSelectionRange(1, 3);
+    const f = await iframe();
+    f.contentDocument.body.append(el);
+    await frame();
+    const kept = { focused: f.contentDocument.activeElement === input || document.activeElement === input, value: input.value === 'hello', selection: input.selectionStart === 1 && input.selectionEnd === 3 };
+    document.body.append(el);
+    await frame();
+    expect(kept).to.deep.equal({ focused: false, value: true, selection: true });
+    el.remove();
+    f.remove();
+  });
+
+  it('a portal with a target FUNCTION follows its component into a real pop-out and back: moved, never redrawn, its inner component set up once', async function () {
+    let draws = 0, inner = 0;
+    define('r4-pin', () => { inner++; return () => html`<b>in</b>`; });
+    define('r4-pown', (host) => { portal(() => host.ownerDocument.body, () => (draws++, html`<r4-pin></r4-pin>`)); return () => html`<i>own</i>`; });
+    const el = document.createElement('r4-pown');
+    document.body.append(el);
+    await frame();
+    const w = window.open('about:blank', 'r4pop2', 'width=300,height=200');
+    if (w === null) this.skip();
+    w.document.body.append(el);
+    await new Promise((r) => setTimeout(r, 50));
+    const out = w.document.body.querySelector('r4-pin') !== null && document.body.querySelector('r4-pin') === null;
+    document.body.append(el);
+    await frame();
+    const home = document.body.querySelector('r4-pin') !== null;
+    w.close();
+    expect({ out, home, draws, inner }).to.deep.equal({ out: true, home: true, draws: 1, inner: 1 });
+    el.remove();
+    await frame();
+    expect(document.body.querySelector('r4-pin') === null).to.equal(true);
+  });
+
+  it('a REACTIVE portal target switched within one document keeps a focused input focused where moveBefore exists (Chromium, Firefox)', async () => {
+    const a = document.createElement('div'), b = document.createElement('div');
+    document.body.append(a, b);
+    const s = createStore({ where: 'a' });
+    define('r4-pfocus', () => { portal(() => (s.where === 'a' ? a : b), () => html`<input value="x">`); });
+    const el = document.createElement('r4-pfocus');
+    document.body.append(el);
+    await frame();
+    const input = a.querySelector('input');
+    input.focus();
+    s.where = 'b';
+    await frame();
+    const moved = b.querySelector('input') === input;
+    const focused = document.activeElement === input;
+    expect({ moved, focused }).to.deep.equal({ moved: true, focused: typeof Element.prototype.moveBefore === 'function' });
+    el.remove();
+    a.remove(); b.remove();
+  });
+
+  it('a portal whose pop-out CLOSES: nothing throws, and the next target gets its content (records whether the engine kept the nodes)', async function () {
+    let inner = 0;
+    define('r4-pdead', () => { inner++; return () => html`<b>in</b>`; });
+    const w = window.open('about:blank', 'r4pop3', 'width=300,height=200');
+    if (w === null) this.skip();
+    const s = createStore({ out: true });
+    define('r4-pdown', () => { portal(() => (s.out ? w.document.body : document.body), () => html`<r4-pdead></r4-pdead>`); });
+    const el = document.createElement('r4-pdown');
+    document.body.append(el);
+    await new Promise((r) => setTimeout(r, 50));
+    const wasOut = w.document.body.querySelector('r4-pdead') !== null;
+    w.close();
+    await new Promise((r) => setTimeout(r, 100));
+    s.out = false;
+    await frame();
+    const back = document.body.querySelector('r4-pdead') !== null;
+    console.log(`[r4-pdead] inner setups after the close: ${inner} (1 = the engine kept the nodes and they moved; 2 = redrawn)`);
+    expect({ wasOut, back }).to.deep.equal({ wasOut: true, back: true });
     el.remove();
   });
 });
