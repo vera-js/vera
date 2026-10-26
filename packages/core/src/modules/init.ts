@@ -410,8 +410,40 @@ const retireGeneration = (element: ComponentElement) => {
  *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).
  * `_$d$` becomes the new document, so the way back re-homes too; a move within one document never gets here.
  */
+/**
+ * **A window this realm's components went into is watched for its death** (R4, Brian 2026-10-25: "as long as it doesn't
+ * cost us anything" — so only on this cold path). When a pop-out or an iframe HIDES for good (`pagehide`, not
+ * `persisted`), the release waits for THIS realm's next task — the app's own `pagehide` handlers run first, and moving a
+ * panel back is what they do — then walks the dead document, shadow roots included (`_$r$` holds the closed ones core
+ * made), and retires every component of this core still in it: a panel left behind, and what it built while it was out.
+ * Nothing is held meanwhile (a WeakSet of windows; the walk finds the components), so the fix leaks nothing of its own.
+ * A component first connected in another window WITHOUT a move (appended there directly) registers no watch: documented.
+ */
+let watched: WeakSet<object> | undefined;
+const releaseDocument = (dead: Document) => {
+  const walk = (root: ParentNode) => {
+    for (const el of root.querySelectorAll('*')) {
+      const inner = el.shadowRoot ?? (el as ComponentElement)._$r$;
+      if (inner) walk(inner);
+      if ((el as Mine)[MINE] !== undefined && el.ownerDocument === dead) retireElement(el as ComponentElement);
+    }
+  };
+  walk(dead);
+};
+const watchWindow = (view: Window) => {
+  if ((watched ??= new WeakSet()).has(view)) return;
+  watched.add(view);
+  view.addEventListener('pagehide', (event) => {
+    if ((event as PageTransitionEvent).persisted) return;
+    const dead = view.document;
+    /** THIS realm's timer: the dead window's never fire. */
+    globalThis.setTimeout(() => releaseDocument(dead), 0);
+  });
+};
 export const rehomeElement = (element: ComponentElement) => {
   (element as Moving)._$d$ = element.ownerDocument;
+  const view = element.ownerDocument.defaultView;
+  if (view !== null && view !== (globalThis as unknown)) watchWindow(view);
   const hooks = element._$h$;
   if (hooks !== undefined)
     for (let i = 0; i < hooks.length; i++) {

@@ -75,7 +75,8 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
    * window taking its document's nodes (jsdom) removes them, and a draw into detached markers would be invisible (and a
    * cleanup into them threw). The ONE check every path asks: the first draw, every draw, a target change, the removal.
    */
-  const intact = () => part !== undefined && part.$s!.parentNode !== null && part.$s!.parentNode === part.$e!.parentNode;
+  /** …and a range in a document whose WINDOW is gone is not intact either: core's release retired its components (vera-5a). */
+  const intact = () => part !== undefined && part.$s!.parentNode !== null && part.$s!.parentNode === part.$e!.parentNode && usable(part.$s!.parentNode as Target);
   /** A fresh range at the end of `into`, drawn with `value` — the first draw, and the redraw of a destroyed range. */
   const fresh = (handoff: unknown[], into: Target, value: unknown) => {
     const doc = into.ownerDocument!;
