@@ -33,6 +33,7 @@ const PROD = {
   elements: 'packages/renderer/dist/vera-renderer-elements.min.js',
   'native-elements': 'packages/renderer/dist/vera-renderer-native-elements.min.js',
   'multi-window': 'packages/renderer/dist/vera-renderer-multi-window.min.js',
+  until: 'packages/renderer/dist/vera-renderer-until.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
   tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
 };
@@ -56,8 +57,6 @@ const EXTERNAL_CORE = {
   resource: 'packages/store/dist/vera-store-resource.min.js',
   /** `portal` draws through one of core's effects, owned by the component being set up — it must be core's own. */
   portal: 'packages/renderer/dist/vera-renderer-portal.min.js',
-  /** `until` reports a rejection to core's `'error'` chain — core's own registry, never an inlined copy's. */
-  until: 'packages/renderer/dist/vera-renderer-until.min.js',
 };
 
 // ── cross-bundle contracts ──────────────────────────────────────────────────

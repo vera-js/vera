@@ -9,13 +9,14 @@ import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { distUrl, isProduction, load } from './dist.mjs';
 
 /** The server half (`tests/fixtures/ssr/until-ssr.js`), through the real pipeline, timed. */
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr';
   const t0 = performance.now();
   const r = await renderToString(new URL('./tests/fixtures/ssr/until-ssr.js', 'file://' + process.cwd() + '/'), { tag: 'until-ssr' });
+  await new Promise((r) => setTimeout(r, 50));
   process.stdout.write(JSON.stringify({ html: r.html, ms: performance.now() - t0 }));
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 20000 });
 
@@ -26,8 +27,7 @@ const { define, html, wire, createStore, flush } = await load('core');
 const { renderer } = await load('renderer');
 const { hydration } = await load('renderer/hydration');
 const { until } = await load('renderer/until');
-const errors = [];
-wire([renderer, hydration, { on: 'error', fn: (error) => errors.push(error), priority: 50 }]);
+wire([renderer, hydration]);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const settle = async () => { flush(); await wait(0); flush(); };
 let seq = 0;
@@ -104,22 +104,41 @@ test('a value that is NOT a promise is shown at once — no fallback', async () 
   el.remove();
 });
 
-test("a REJECTION keeps the fallback and is reported to the 'error' chain", async () => {
-  const d = deferred();
-  const t = tag();
-  define(t, () => () => html`<p>${until(d.promise, 'loading')}</p>`);
-  const el = await mount(t);
-  const before = errors.length;
-  const boom = new Error('boom');
-  d.reject(boom);
-  await settle();
-  assert.deepEqual([el.textContent, errors.length - before, errors.at(-1) === boom], ['loading', 1, true]);
-  el.remove();
+/**
+ * The rejection row runs in a CHILD process: `until` leaves it unhandled ON PURPOSE, and `node --test` fails whichever test
+ * an unhandled rejection lands in. The child loads the same build and listens as the platform's report would be heard.
+ */
+const rejected = JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--input-type=module', '-e', `
+  import { JSDOM } from 'jsdom';
+  const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
+  for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame']) globalThis[key] = dom.window[key];
+  const { define, html, wire, flush } = await import(${JSON.stringify(distUrl('core'))});
+  const { renderer } = await import(${JSON.stringify(distUrl('renderer'))});
+  const { until } = await import(${JSON.stringify(distUrl('renderer/until'))});
+  wire([renderer]);
+  const unhandled = [], warned = [];
+  process.on('unhandledRejection', (reason) => unhandled.push(String(reason?.message)));
+  console.warn = (...a) => warned.push(a.join(' '));
+  let reject;
+  const promise = new Promise((_, b) => (reject = b));
+  define('x-until-rej', () => () => html\`<p>\${until(promise, 'loading')}</p>\`);
+  const el = document.createElement('x-until-rej');
+  document.body.append(el);
+  flush(); await new Promise((r) => setTimeout(r, 0)); flush();
+  reject(new Error('boom'));
+  await new Promise((r) => setTimeout(r, 20));
+  process.stdout.write(JSON.stringify({ shown: el.textContent, unhandled, hinted: warned.some((w) => w.includes('until-rejected')) }));
+`], { cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 20000 }));
+
+test('a REJECTION keeps the fallback and is left to the PLATFORM (unhandled, so reported with its stack); development adds a hint', () => {
+  assert.deepEqual([rejected.shown, rejected.unhandled], ['loading', ['boom']], 'the fallback kept; the platform heard the rejection, once');
+  assert.equal(rejected.hinted, !isProduction, 'the hint in development only');
 });
 
 test('on a SERVER: the fallback is rendered, and a promise that never settles does not hold the request', () => {
   const { html: markup, ms } = JSON.parse(served);
   assert.match(markup, /<p><em>loading<\/em><\/p>/, 'the fallback, served');
+  assert.match(markup, /<p><em>still serving<\/em><\/p>/, 'a REJECTING promise: served its fallback, and the process lived to say so');
   assert.ok(ms < 5000, `the server returned without waiting (${ms.toFixed(0)} ms)`);
 });
 
@@ -133,13 +152,13 @@ test('HYDRATION: the served fallback is drawn again, and the value replaces it, 
   const original = console.warn;
   console.warn = (...a) => warned.push(a.join(' '));
   try {
-    define('until-hy', () => () => html`<p>${until(d.promise, html`<em>loading</em>`)}</p>`);
+    define('until-hy', () => () => html`<p>${until(d.promise, html`<em>loading</em>`)}</p><p>${until(new Promise(() => {}), html`<em>still serving</em>`)}</p>`);
     await settle();
     const host = root.querySelector('until-hy');
-    assert.equal(host.textContent, 'loading', 'CONTROL: adopted and still waiting');
+    assert.equal(host.textContent, 'loadingstill serving', 'CONTROL: adopted and still waiting');
     d.resolve('Ada');
     await settle();
-    assert.deepEqual([host.textContent, warned.filter((w) => w.includes('[vera]'))], ['Ada', []]);
+    assert.deepEqual([host.textContent, warned.filter((w) => w.includes('[vera]'))], ['Adastill serving', []]);
   } finally {
     console.warn = original;
     root.remove();

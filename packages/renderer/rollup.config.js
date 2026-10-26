@@ -107,13 +107,12 @@ export default [
    */
   defaultRollupConfig(`${pkg.filename}-elements`, [], /^_[a-z]/, { input: 'src/elements.ts' }),
   /**
-   * Additive, and one of the two entries that keep `@verajs/core` EXTERNAL (as `@verajs/store` does; `until` is the other,
-   * for core's `'error'` chain): a portal is an `effect` of
+   * Additive, and the one entry that keeps `@verajs/core` EXTERNAL (as `@verajs/store` does): a portal is an `effect` of
    * the component being set up, so it must be core's own — inlined, it would be a second core. It imports no renderer;
    * it reaches the one wired through its hand-off (`$H`).
    */
   defaultRollupConfig(`${pkg.filename}-portal`, ['@verajs/core'], /^_[a-z]/, { input: 'src/portal.ts', alwaysExternal: ['@verajs/core'] }),
-  /** Additive: a `_$child$` applier on the renderer's protocol; imports core's registry only, for the error chain. */
-  defaultRollupConfig(`${pkg.filename}-until`, ['@verajs/core'], /^_[a-z]/, { input: 'src/until.ts', alwaysExternal: ['@verajs/core'] }),
+  /** Additive: a `_$child$` applier on the renderer's protocol; imports nothing. */
+  defaultRollupConfig(`${pkg.filename}-until`, [], /^_[a-z]/, { input: 'src/until.ts' }),
   ...(isProduction ? [] : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),
 ];
