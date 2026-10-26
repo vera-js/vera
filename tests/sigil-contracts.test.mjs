@@ -56,15 +56,12 @@ for (const pkg of readdirSync(root)) {
 const RETIRED_SIGILS = ['_$p$'];
 const reused = RETIRED_SIGILS.filter((name) => writes.has(name) || reads.has(name)).map((name) => `${name} (written by ${[...(writes.get(name) ?? [])].join(', ') || 'none'}, read by ${[...(reads.get(name) ?? [])].join(', ') || 'none'})`);
 
-/** Read and never written in these sources, with the reason. */
-const UNWRITTEN = {
-  /**
-   * A PUBLIC opt-in written by AUTHOR code, never by ours: "Teardown is opt-in, on the applier" — `applyThing._$detach$ =
-   * (previous) => …` (renderer README, the applier teardown section); declaring it arms the renderer's teardown walk.
-   * Read by renderer.ts and hydration.ts, covered by tests/renderer-teardown. Not dead code.
-   */
-  _$detach$: ['renderer'],
-};
+/**
+ * Read and never written in these sources, with the reason. Empty since 2026-10-26: `_$detach$`, the PUBLIC applier
+ * teardown opt-in written by author code ("Teardown is opt-in, on the applier", renderer README), is now also written by
+ * the renderer's own `until` — so the rule holds without an exception.
+ */
+const UNWRITTEN = {};
 /** Written by more than one package on purpose. */
 const SHARED = {
   /**

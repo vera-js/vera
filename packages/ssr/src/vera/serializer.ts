@@ -1358,7 +1358,9 @@ const refuseTemplateInText = (): never => {
  * frame shows it. A commit that arrives later (a promise settling) lands on a part already served and dropped. Out of
  * line: `serializeValue` sits near V8's inlining budget (`tests/ssr-inlining-budget.test.mjs`).
  */
-const serializeChild = (value: { _$child$: (this: unknown, part: unknown, previous: unknown, adopting: boolean) => unknown }, depth: number, text: boolean): string => {
+/** The applier protocol as the renderer calls it (a named type: `tests/sigil-contracts` reads an object-literal key as a write). */
+type Applies = { readonly _$child$: (this: unknown, part: unknown, previous: unknown, adopting: boolean) => unknown };
+const serializeChild = (value: Applies, depth: number, text: boolean): string => {
   let committed: unknown;
   value._$child$.call(value, { _$commit$: (next: unknown) => { committed = next; }, $R: null }, undefined, false);
   return serializeValue(committed, false, depth, text);
