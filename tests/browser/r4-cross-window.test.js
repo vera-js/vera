@@ -345,4 +345,96 @@ describe('R4: cross-window moves keep the component', () => {
     expect({ wasOut, back }).to.deep.equal({ wasOut: true, back: true });
     el.remove();
   });
+
+  describe('a component left in a pop-out that CLOSES is released (cold path; R4 decision 4)', () => {
+    const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
+    it('a panel left behind, and a child it built while out: each cleanup exactly once, and a later write wakes neither', async function () {
+      const counts = { panelClean: 0, childClean: 0, panelRenders: 0, childRenders: 0 };
+      const s = createStore({ n: 1, kid: false });
+      define('r4-rel-kid', () => { effect(() => () => counts.childClean++); return () => (counts.childRenders++, html`<i>${s.n}</i>`); });
+      define('r4-rel-panel', () => { effect(() => () => counts.panelClean++); return () => (counts.panelRenders++, html`<b>${s.n}</b>${s.kid ? html`<r4-rel-kid></r4-rel-kid>` : ''}`); });
+      const el = document.createElement('r4-rel-panel');
+      document.body.append(el);
+      await frame();
+      const w = window.open('about:blank', 'r4rel1', 'width=300,height=200');
+      if (w === null) this.skip();
+      w.document.body.append(el);
+      await settle(50);
+      s.kid = true;
+      await settle(50);
+      const childThere = w.document.querySelector('r4-rel-kid')?.textContent === '1';
+      /** The move in already ran the panel's cleanup once (a cross-window move re-runs its effects): the release adds ONE. */
+      const panelBefore = counts.panelClean;
+      w.close();
+      await settle();
+      const before = { ...counts };
+      s.n = 2;
+      await settle(50);
+      expect({ childThere, panelReleased: counts.panelClean - panelBefore, childClean: counts.childClean, woke: counts.panelRenders !== before.panelRenders || counts.childRenders !== before.childRenders })
+        .to.deep.equal({ childThere: true, panelReleased: 1, childClean: 1, woke: false });
+    });
+
+    it('a panel moved BACK during the pop-out\'s own pagehide survives: set up once, still live', async function () {
+      let setups = 0, cleans = 0;
+      const s = createStore({ n: 1 });
+      define('r4-rel-back', () => { setups++; effect(() => () => cleans++); return () => html`<b>${s.n}</b>`; });
+      const el = document.createElement('r4-rel-back');
+      document.body.append(el);
+      await frame();
+      const w = window.open('about:blank', 'r4rel2', 'width=300,height=200');
+      if (w === null) this.skip();
+      w.document.body.append(el);
+      await settle(50);
+      w.addEventListener('pagehide', () => document.body.append(el));
+      w.close();
+      await settle();
+      s.n = 2;
+      await settle(50);
+      /** Effects re-run on each cross-window move (cleanup, then run): out and back is two cleanups, never a release. */
+      expect({ home: el.ownerDocument === document, live: el.textContent === '2', setups }).to.deep.equal({ home: true, live: true, setups: 1 });
+      el.remove();
+    });
+
+    it('a PERSISTED hide (the back/forward cache) releases nothing', async function () {
+      let cleans = 0;
+      define('r4-rel-bf', () => { effect(() => () => cleans++); return () => html`<b>x</b>`; });
+      const el = document.createElement('r4-rel-bf');
+      document.body.append(el);
+      await frame();
+      const w = window.open('about:blank', 'r4rel3', 'width=300,height=200');
+      if (w === null) this.skip();
+      w.document.body.append(el);
+      await settle(50);
+      const afterMove = cleans;
+      w.dispatchEvent(new w.PageTransitionEvent('pagehide', { persisted: true }));
+      await settle();
+      const kept = cleans === afterMove;
+      w.close();
+      await settle();
+      expect({ kept, releasedOnClose: cleans === afterMove + 1 }).to.deep.equal({ kept: true, releasedOnClose: true });
+    });
+
+    it('a HOME component portals into the pop-out; the pop-out closes; the target returns home: the content is visible and LIVE (redrawn, not the released one)', async function () {
+      let inner = 0;
+      const w = window.open('about:blank', 'r4rel4', 'width=300,height=200');
+      if (w === null) this.skip();
+      const s = createStore({ out: true, n: 1 });
+      define('r4-rel-pin', () => { inner++; return () => html`<i>${s.n}</i>`; });
+      define('r4-rel-powner', () => { portal(() => (s.out ? w.document.body : document.body), () => html`<r4-rel-pin></r4-rel-pin>`); });
+      const el = document.createElement('r4-rel-powner');
+      document.body.append(el);
+      await settle(50);
+      w.close();
+      await settle();
+      s.out = false;
+      await settle(50);
+      s.n = 3;
+      await settle(50);
+      const pin = document.body.querySelector('r4-rel-pin');
+      expect({ visible: pin !== null, live: pin?.textContent === '3' }).to.deep.equal({ visible: true, live: true });
+      console.log(`[r4-rel-portal] inner setups: ${inner}`);
+      el.remove();
+    });
+  });
 });
+
