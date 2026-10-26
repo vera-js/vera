@@ -507,10 +507,19 @@ It shows the fallback, then what the promise resolves to.
   overwrites a newer one.
 - **Removed before it settles,** the answer is dropped.
 - **Not a promise:** shown at once.
-- **A rejection** keeps the fallback and is reported (an `'error'` insert, else `reportError`). To SHOW an error, or a
-  refreshing state, use `resource()` from `@verajs/store/resource`, which carries `loading`, `value` and `error`.
-- **On a server** it renders the fallback and waits for nothing; hydration draws the fallback again and the value replaces
-  it.
+- **A rejection** keeps the fallback, and the browser reports it, as any unhandled rejection: in the console with its
+  stack, and as an `unhandledrejection` event, which error monitoring hears. To SHOW an error, pass the caught promise —
+  a caught promise resolves to whatever the handler returns:
+
+  ```js
+  html`<p>${until(user.catch(() => html`<b>couldn't load</b>`), html`<em>loading…</em>`)}</p>`
+  ```
+
+  That also keeps the browser from reporting an error you handled. For a refreshing state too, use `resource()` from
+  `@verajs/store/resource`, which carries `loading`, `value` and `error`.
+- **On a server** it renders the fallback and waits for nothing, and a rejection there is consumed: the server never shows
+  the result, and an unhandled rejection would end a Node process. Hydration draws the fallback again and the value
+  replaces it.
 
 `until` is built on the `_$child$` protocol below; core and the renderer carry nothing for it.
 

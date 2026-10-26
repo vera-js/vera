@@ -643,9 +643,10 @@ return () => html`<p>${until(user, html`<em>loading…</em>`)}</p>`;
 ```
 
 The fallback, then the value. The same promise across renders keeps what is shown; a new promise shows the fallback again
-and the old one's late answer is dropped; removed before it settles, dropped. A rejection keeps the fallback and is
-reported (`'error'` insert, else `reportError`); an error VIEW is `resource()`'s job. A server renders the fallback.
-A bare `${promise}` is NOT supported.
+and the old one's late answer is dropped; removed before it settles, dropped. A rejection keeps the fallback and the
+BROWSER reports it (unhandled: console + `unhandledrejection`); for an error VIEW pass the caught promise —
+`until(p.catch(() => html\`<b>failed</b>\`), fallback)` — or use `resource()`. A server renders the fallback and consumes
+a rejection (Node would exit on an unhandled one). A bare `${promise}` is NOT supported.
 
 ### Components in other windows (`@verajs/renderer/multi-window`)
 
