@@ -15,54 +15,98 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-/** The terser output shape of an inlined single-use function: an arrow invoked where it is defined. */
-const IIFE = /\(\((\(?[a-zA-Z$_,]*\)?)=>\{/g;
+/**
+ * **Counts arrows IMMEDIATELY INVOKED where they are defined** — the terser shape of an inlined single-use function,
+ * `((a,b)=>{…})(x,y)` and `(t=>{…})(x)`: from each arrow's opening, its body is matched brace by brace (string and
+ * template literals skipped, `${}` nested) and counted only when `)(` follows it (2026-10-25, vera-5a). The pattern it
+ * replaced, any `((…)=>{` start, counted call ARGUMENTS terser wraps in parentheses (`n((o=>{…}),…)`) and missed the
+ * one-parenthesis form, so its pins mixed two things: portal's "2" was two wrapped arguments, motion's "7" hid five
+ * real sites. Its positive control, run on the real case: core built BEFORE the two `@__NOINLINE__` annotations counts 12,
+ * and with them 10 — exactly the two sites that cost Firefox.
+ */
+const OPEN = /\((?:\([\w$,]*\)|[\w$]+)=>\{/g;
+const iifes = (src) => {
+  let n = 0;
+  for (const m of src.matchAll(OPEN)) {
+    let i = m.index + m[0].length, depth = 1;
+    const skipString = (q) => { i++; while (i < src.length && src[i] !== q) i += src[i] === '\\' ? 2 : 1; i++; };
+    const skipTemplate = () => {
+      i++;
+      while (i < src.length && src[i] !== '`') {
+        if (src[i] === '\\') { i += 2; continue; }
+        if (src[i] === '$' && src[i + 1] === '{') {
+          i += 2;
+          let d = 1;
+          while (i < src.length && d > 0) {
+            const c = src[i];
+            if (c === '"' || c === "'") { skipString(c); continue; }
+            if (c === '`') { skipTemplate(); continue; }
+            if (c === '{') d++;
+            else if (c === '}') d--;
+            i++;
+          }
+          continue;
+        }
+        i++;
+      }
+      i++;
+    };
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === '"' || c === "'") { skipString(c); continue; }
+      if (c === '`') { skipTemplate(); continue; }
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+      i++;
+    }
+    if (src[i] === ')' && src[i + 1] === '(') n++;
+  }
+  return n;
+};
 const PINS = {
-  'packages/autoloader/dist/vera-autoloader.min.js': 2,
-  'packages/cms/dist/vera-cms-cli.min.js': 3,
-  'packages/cms/dist/vera-cms-content.min.js': 2,
-  'packages/cms/dist/vera-cms-node.min.js': 3,
-  'packages/cms/dist/vera-cms-publish.min.js': 3,
-  'packages/core/dist/vera.min.js': 13,
-  'packages/directives/dist/vera-directives-core.min.js': 8,
-  'packages/directives/dist/vera-directives-expressions.min.js': 1,
-  'packages/directives/dist/vera-directives-interactions.min.js': 1,
-  'packages/directives/dist/vera-directives-motion.min.js': 42,
-  'packages/directives/dist/vera-directives-query.min.js': 4,
-  'packages/directives/dist/vera-directives-remote.min.js': 5,
-  'packages/directives/dist/vera-directives-sensors.min.js': 7,
-  'packages/directives/dist/vera-directives-standalone.min.js': 20,
-  'packages/directives/dist/vera-directives.min.js': 78,
-  'packages/hooks/dist/vera-hooks.min.js': 2,
-  'packages/hot/dist/vera-hot.min.js': 3,
+  'packages/autoloader/dist/vera-autoloader.min.js': 0,
+  'packages/cms/dist/vera-cms-cli.min.js': 5,
+  'packages/cms/dist/vera-cms-content.min.js': 0,
+  'packages/cms/dist/vera-cms-node.min.js': 5,
+  'packages/cms/dist/vera-cms-publish.min.js': 1,
+  'packages/core/dist/vera.min.js': 10,
+  'packages/directives/dist/vera-directives-core.min.js': 11,
+  'packages/directives/dist/vera-directives-expressions.min.js': 0,
+  'packages/directives/dist/vera-directives-interactions.min.js': 0,
+  'packages/directives/dist/vera-directives-motion.min.js': 37,
+  'packages/directives/dist/vera-directives-query.min.js': 5,
+  'packages/directives/dist/vera-directives-remote.min.js': 3,
+  'packages/directives/dist/vera-directives-sensors.min.js': 1,
+  'packages/directives/dist/vera-directives-standalone.min.js': 23,
+  'packages/directives/dist/vera-directives.min.js': 70,
+  'packages/hooks/dist/vera-hooks.min.js': 3,
+  'packages/hot/dist/vera-hot.min.js': 2,
   'packages/inserts/dist/vera-inserts.min.js': 0,
   'packages/jsx/dist/vera-jsx-standalone.min.js': 3,
-  'packages/jsx/dist/vera-jsx.min.js': 2,
-  'packages/motion/dist/vera-motion-client.min.js': 1,
-  'packages/motion/dist/vera-motion-internal.min.js': 28,
-  'packages/motion/dist/vera-motion-ssr.min.js': 7,
-  'packages/motion/dist/vera-motion.min.js': 7,
+  'packages/jsx/dist/vera-jsx.min.js': 3,
+  'packages/motion/dist/vera-motion-client.min.js': 4,
+  'packages/motion/dist/vera-motion-internal.min.js': 29,
+  'packages/motion/dist/vera-motion-ssr.min.js': 11,
+  'packages/motion/dist/vera-motion.min.js': 12,
   'packages/renderer/dist/vera-renderer-elements.min.js': 2,
   'packages/renderer/dist/vera-renderer-hydrate-slots.min.js': 0,
   'packages/renderer/dist/vera-renderer-hydration.min.js': 2,
   'packages/renderer/dist/vera-renderer-keyed.min.js': 0,
   'packages/renderer/dist/vera-renderer-namespaces.min.js': 0,
-  'packages/renderer/dist/vera-renderer-native-elements.min.js': 0,
-  /** 2 (2026-10-25): both are `effect(…)` ARGUMENTS terser wrapped in parentheses (`n((…)=>{`), not inlined functions — the
-   *  target function's follow hook added the second; the bundle has no `})(` at all. */
-  'packages/renderer/dist/vera-renderer-portal.min.js': 2,
-  'packages/renderer/dist/vera-renderer-slots.min.js': 10,
+  'packages/renderer/dist/vera-renderer-native-elements.min.js': 1,
+  'packages/renderer/dist/vera-renderer-portal.min.js': 0,
+  'packages/renderer/dist/vera-renderer-slots.min.js': 9,
   'packages/renderer/dist/vera-renderer-spread.min.js': 0,
   'packages/renderer/dist/vera-renderer-tag.min.js': 0,
   'packages/renderer/dist/vera-renderer.min.js': 4,
-  'packages/router/dist/vera-router.min.js': 13,
-  'packages/shared-utils/dist/vera-shared-utils.min.js': 2,
-  'packages/store/dist/vera-store-collections.min.js': 0,
-  'packages/store/dist/vera-store-resource.min.js': 2,
-  'packages/store/dist/vera-store.min.js': 2,
+  'packages/router/dist/vera-router.min.js': 10,
+  'packages/shared-utils/dist/vera-shared-utils.min.js': 3,
+  'packages/store/dist/vera-store-collections.min.js': 1,
+  'packages/store/dist/vera-store-resource.min.js': 0,
+  'packages/store/dist/vera-store.min.js': 1,
   'packages/styles/dist/vera-styles.min.js': 0,
-  'packages/ui/dist/vera-ui-elements.min.js': 10,
-  'packages/ui/dist/vera-ui.min.js': 11,
+  'packages/ui/dist/vera-ui-elements.min.js': 2,
+  'packages/ui/dist/vera-ui.min.js': 3,
 };
 
 const bundles = readdirSync(join(root, 'packages'), { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) => {
@@ -76,8 +120,16 @@ test('every production bundle is pinned, and every pin names a bundle that exist
   assert.deepEqual(Object.keys(PINS).filter((b) => !bundles.includes(b)), [], 'a pin names a bundle that no longer exists');
 });
 
+test('CONTROL: the counter sees exactly the invoked shapes — a wrapped call argument is 0, both IIFE forms are 1, a brace in a template literal confuses nothing', () => {
+  assert.equal(iifes('n((o=>{x()}),{p:50})'), 0, 'a call argument terser wrapped in parentheses');
+  assert.equal(iifes('a=((t,e)=>{x()})(1,2)'), 1, 'the two-parenthesis form');
+  assert.equal(iifes('a=(t=>{x()})(1)'), 1, 'the one-parenthesis form');
+  assert.equal(iifes('a=(t=>{const s=`}${"}"}`;return s})(1)'), 1, 'a } inside a template literal and a string');
+  assert.equal(iifes('a=(t=>{if(t){}})(1),b=(()=>{})'), 1, 'nested braces; an arrow not invoked');
+});
+
 test('no production bundle grew an inlined single-use function (each count exactly as pinned)', () => {
-  const counts = Object.fromEntries(bundles.map((b) => [b, (readFileSync(join(root, b), 'utf8').match(IIFE) ?? []).length]));
+  const counts = Object.fromEntries(bundles.map((b) => [b, iifes(readFileSync(join(root, b), 'utf8'))]));
   assert.ok(Object.values(counts).some((n) => n > 0), 'CONTROL: the pattern matched nothing anywhere — it cannot see the shape');
   const changed = bundles.filter((b) => counts[b] !== PINS[b]).map((b) => `${b}: ${PINS[b]} pinned, ${counts[b]} now`);
   assert.deepEqual(changed, [], 'a higher count is a new inlined single-use function — race it headed on three engines first (a lower one: lower the pin)');
