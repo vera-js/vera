@@ -33,6 +33,7 @@ export { createStore } from './modules/createStore.js';
 export { init } from './modules/init.js';
 export { define } from './modules/define.js';
 import { initWith, rehomeElement, retireElement } from './modules/init.js';
+import { MINE } from './store/store.js';
 export { signal } from './modules/signal.js';
 export type { DeepOption } from './modules/signal.js';
 export { untrack } from './modules/untrack.js';
@@ -78,6 +79,11 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
 (inserts as unknown as { $td: typeof retireElement }).$td = retireElement;
 /** R4: a built-in host moved into another document re-homes as a component does (native-elements' sentinel calls it). */
 (inserts as unknown as { $rh: typeof rehomeElement }).$rh = rehomeElement;
+/**
+ * `multiWindow`: this copy's component mark (`MINE`, a Symbol private to each copy of core), so a release walking a dead
+ * window retires only THIS core's components — two copies on a page never retire each other's (vera-5a).
+ */
+(inserts as unknown as { $m: symbol }).$m = MINE;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so a keyed list can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;

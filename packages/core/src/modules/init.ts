@@ -366,8 +366,10 @@ const pause = (element: Moving, seconds: number) => {
 const resume = (element: Moving, timer: ReturnType<typeof setTimeout>) => {
   /** Cleared on the window that SET it — its document of the last connect — before a cross-window resume records the new one (timer ids are per window). */
   (element._$d$!.defaultView ?? globalThis).clearTimeout(timer);
+  /** Resumed in ANOTHER window: adopted there (`'adopted'`); resumed where it left, nothing to hear. */
+  const moved = element._$d$ !== element.ownerDocument;
   element._$d$ = element.ownerDocument;
-  (inserts as unknown as { $rs?: (element: ComponentElement) => void }).$rs?.(element);
+  if (moved) adopted(element);
   /** A setup that settled while it was out commits now (its commit runs the first passes); otherwise every hook runs once. */
   const held = element._$q$;
   element._$q$ = undefined;
@@ -406,52 +408,31 @@ const retireGeneration = (element: ComponentElement) => {
  *   again, so a listener on the element's window, a frame loop or an observer re-binds to the new one (Brian: every
  *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, an `effect` with a `priority` of your own — is not
  *   re-run: a move never refetches;
- * - `@verajs/styles`, through `$rs`: it re-applies its sheets, because a move EMPTIES a shadow root's
+ * - the `'adopted'` insert: `@verajs/styles` re-applies its sheets, because a move EMPTIES a shadow root's
  *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).
  * `_$d$` becomes the new document, so the way back re-homes too; a move within one document never gets here.
  */
 /**
- * **A window this realm's components went into is watched for its death** (R4, Brian 2026-10-25: "as long as it doesn't
- * cost us anything" — so only on this cold path). When a pop-out or an iframe HIDES for good (`pagehide`, not
- * `persisted`), the release waits for THIS realm's next task — the app's own `pagehide` handlers run first, and moving a
- * panel back is what they do — then walks the dead document, shadow roots included (`_$r$` holds the closed ones core
- * made), and retires every component of this core still in it: a panel left behind, and what it built while it was out.
- * Nothing is held meanwhile (a WeakSet of windows; the walk finds the components), so the fix leaks nothing of its own.
- * A component first connected in another window WITHOUT a move (appended there directly) registers no watch: documented.
+ * **`'adopted'` — a component now lives in ANOTHER document** (2026-10-26, Brian: the seam "as generalized as possible …
+ * extendable … tiny and free speed wise"). The platform's name for a node changing document (`adoptedCallback`, which a class
+ * must never define: it taxes every creation). Fired from core's two COLD cross-window paths only — a re-home and a paused
+ * component resumed in another window — so a same-document render, move or resume never reads the chain. Every module that
+ * keeps something per document or per window hangs here: `@verajs/styles` re-applies its sheets (a move empties a shadow
+ * root's adopted sheets), `multiWindow` watches the new window. No removal chain: removal is a hot path.
  */
-let watched: WeakSet<object> | undefined;
-const releaseDocument = (dead: Document) => {
-  const walk = (root: ParentNode) => {
-    for (const el of root.querySelectorAll('*')) {
-      const inner = el.shadowRoot ?? (el as ComponentElement)._$r$;
-      if (inner) walk(inner);
-      if ((el as Mine)[MINE] !== undefined && el.ownerDocument === dead) retireElement(el as ComponentElement);
-    }
-  };
-  walk(dead);
-};
-const watchWindow = (view: Window) => {
-  if ((watched ??= new WeakSet()).has(view)) return;
-  watched.add(view);
-  view.addEventListener('pagehide', (event) => {
-    if ((event as PageTransitionEvent).persisted) return;
-    const dead = view.document;
-    /** THIS realm's timer: the dead window's never fire. */
-    globalThis.setTimeout(() => releaseDocument(dead), 0);
-  });
+const adopted = (element: ComponentElement) => {
+  const chain = inserts.get('adopted');
+  if (chain !== undefined) for (let i = 0; i < chain.length; i++) (chain[i] as unknown as (element: Element) => void)(element);
 };
 export const rehomeElement = (element: ComponentElement) => {
   (element as Moving)._$d$ = element.ownerDocument;
-  const view = element.ownerDocument.defaultView;
-  if (view !== null && view !== (globalThis as unknown)) watchWindow(view);
   const hooks = element._$h$;
   if (hooks !== undefined)
     for (let i = 0; i < hooks.length; i++) {
       const hook = hooks[i]!;
       if (hook._y === LAYOUT_PRIORITY || hook._y === EFFECT_PRIORITY) hook.$n();
     }
-  /** `@verajs/styles` re-applies its sheets (the one module that needs to hear a move; it installs `$rs` when wired). */
-  (inserts as unknown as { $rs?: (element: ComponentElement) => void }).$rs?.(element);
+  adopted(element);
 };
 
 export const retireElement = (element: ComponentElement) => {

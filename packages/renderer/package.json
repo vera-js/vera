@@ -40,6 +40,11 @@
       "development": "./dist/development/vera-renderer-native-elements.js",
       "default": "./dist/vera-renderer-native-elements.min.js"
     },
+    "./multi-window": {
+      "types": "./dist/development/vera-renderer-multi-window.d.ts",
+      "development": "./dist/development/vera-renderer-multi-window.js",
+      "default": "./dist/vera-renderer-multi-window.min.js"
+    },
     "./profiler": {
       "types": "./dist/development/vera-renderer-profiler.d.ts",
       "default": "./dist/development/vera-renderer-profiler.js"

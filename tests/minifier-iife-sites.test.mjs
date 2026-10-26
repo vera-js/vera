@@ -94,6 +94,7 @@ const PINS = {
   'packages/renderer/dist/vera-renderer-hydration.min.js': 2,
   'packages/renderer/dist/vera-renderer-keyed.min.js': 0,
   'packages/renderer/dist/vera-renderer-namespaces.min.js': 0,
+  'packages/renderer/dist/vera-renderer-multi-window.min.js': 1,
   'packages/renderer/dist/vera-renderer-native-elements.min.js': 1,
   'packages/renderer/dist/vera-renderer-portal.min.js': 0,
   'packages/renderer/dist/vera-renderer-slots.min.js': 9,

@@ -94,6 +94,13 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
 export type InitInsert = (element: HTMLElement, options: object | undefined, setup?: unknown) => void | false;
 
 /**
+ * **A component now lives in ANOTHER document** — moved into a pop-out or an iframe, or resumed there — (2026-10-26): the
+ * platform's adoption, heard on core's cold cross-window path only. For anything a module keeps per document or per window
+ * (`@verajs/styles` re-applies its sheets; `multiWindow` watches the new window).
+ */
+export type AdoptedInsert = (element: HTMLElement) => void;
+
+/**
  * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.
  *
  * The point of this one is types you do not own. `_$child$` requires a property on the value, which
@@ -197,6 +204,7 @@ export type InsertFunctionMap = {
   'render': RendererInsert;
   'error': ErrorInsert;
   'init': InitInsert;
+  'adopted': AdoptedInsert;
   'value': ValueInsert;
   'slot': SlotInsert;
   'template': TemplateInsert;

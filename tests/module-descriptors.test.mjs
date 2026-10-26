@@ -37,15 +37,16 @@ const { styles } = await load('styles');
 const { collections } = await load('store/collections');
 
 /** Every descriptor-shaped module. `router` and `autoloader` are connectors, checked separately. */
-/** A module with several parts is an ARRAY (CLAUDE.md): `styles` is its `'init'` descriptor and a connector installing core's `$rs` (R4). */
+/** A module with several parts is an ARRAY (CLAUDE.md): `styles` is its `'init'` descriptor and its `'adopted'` descriptor (R4). */
 const MODULES = [
   ['renderer', renderer, 'render'],
   ['styles', styles[0], 'init'],
+  ['styles (adopted)', styles[1], 'adopted'],
   ['collections', collections, 'store'],
 ];
 
 test('every module is a well-formed descriptor', () => {
-  assert.ok(Array.isArray(styles) && styles.length === 2 && typeof styles[1] === 'function' && styles[1].on === undefined, 'styles is its descriptor and a connector');
+  assert.ok(Array.isArray(styles) && styles.length === 2 && styles.every((d) => typeof d === 'object'), 'styles is two descriptors: its \'init\' and its \'adopted\' (2026-10-26: \'adopted\' replaced the $rs connector)');
   for (const [label, module, on] of MODULES) {
     /** `renderer` is a DUAL (2026-10-10): a function carrying `on`, which `wire` reads as a descriptor. */
     assert.ok(typeof module === 'object' || (typeof module === 'function' && module.on !== undefined), `${label} is exported`);

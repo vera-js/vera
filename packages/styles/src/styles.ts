@@ -81,7 +81,7 @@ const HOISTED = '_$veraStyles$';
  * Adopts a component's styles — the `'init'` insert `styles` registers, so a component never calls it and core never
  * knows about styling. **Both ways (Brian 2026-10-21):** the `styles` OPTION — `define({ tag, styles })`, or
  * `init({ host, styles })` — and a class's `static styles`; the option wins when both are given. An element styled by
- * the option keeps it (`_$y$`, only on such elements) for `$rs`, which re-applies after a move into another document
+ * the option keeps it (`_$y$`, only on such elements) for its `'adopted'` insert, which re-applies after a move into another document
  * and is handed no options.
  */
 type Styles = CSSResultGroup | CSSResultGroup[] | string | null;
@@ -96,7 +96,7 @@ export const adoptStyles = (element: StyledElement, options?: { styles?: Styles 
   const owner = element.constructor as unknown as StyledClass;
   const option = options?.styles;
   /**
-   * Remembered for `$rs`, which is handed no options: once on the CLASS (a `define` tag's option is the same for every
+   * Remembered for the `'adopted'` insert, which is handed no options: once on the CLASS (a `define` tag's option is the same for every
    * element — no write on a component's creation path), and on the ELEMENT only where it differs from its class's (an
    * `init({ host, styles })` that varies per element). `null` means none. A class used both with and without the
    * option re-styles, after a move, with its remembered option: documented.
@@ -108,7 +108,7 @@ export const adoptStyles = (element: StyledElement, options?: { styles?: Styles 
   }
   return applyStyles((option !== undefined ? option : owner.styles) as CSSResultGroup, element);
 };
-/** `$rs`: after a move into another document, the element's styles as its setup chose them, applied again. */
+/** The `'adopted'` insert: after a move into another document, the element's styles as its setup chose them, applied again. */
 const restyle = (element: StyledElement) => {
   const owner = element.constructor as unknown as StyledClass;
   const own = (element as StyledElement & { _$y$?: Styles })._$y$;
@@ -211,17 +211,14 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
 
 /**
  * **The module.** `wire([renderer, styles])`. Priority 50 is the default-implementation convention. Two parts: the
- * `'init'` insert adopts the styles at setup, and a connector installs core's `$rs` hook, which core calls after a
- * component moves into another document (R4) — a move empties a shadow root's `adoptedStyleSheets`, and the way back
- * does not restore them (BROWSER-LEDGER 2026-10-22). Styles is the only module that needs to hear a move, so the hook
- * lives here rather than as an insert point. `adoptStyles` is idempotent and uses the element's own window, so the same
- * function serves both.
+ * `'init'` insert adopts the styles at setup, and the `'adopted'` insert re-applies them when a component moves into
+ * another document (R4) — a move empties a shadow root's `adoptedStyleSheets`, and the way back does not restore them
+ * (BROWSER-LEDGER 2026-10-22). (2026-10-26: `'adopted'` replaced styles' one-off `$rs` hook once a second module,
+ * `multiWindow`, needed to hear a move.)
  */
 export const styles = [
   { name: '@verajs/styles', on: 'init' as const, fn: adoptStyles as never, priority: 50 },
-  (registry: object) => {
-    (registry as { $rs?: unknown }).$rs = restyle;
-  },
+  { name: '@verajs/styles', on: 'adopted' as const, fn: restyle as never, priority: 50 },
 ];
 
 /** Development: `adoptStyles` is not the module — `wire` names `styles` instead (see the renderer's `renderInto` mark). */

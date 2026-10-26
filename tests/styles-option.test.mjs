@@ -3,7 +3,7 @@
  * `init({ host, styles })` and a class's `static styles`. Rows: option only, static only, both (the option wins), `null`
  * (none — never the static ones), a per-element `init` option, a subclass not inheriting a base's remembered option, a
  * frozen styles array, light DOM hoisted once per document, no unknown-option warning for `styles` (and still one for a
- * typo), and `$rs` (the re-style after a move) choosing exactly what setup chose. jsdom has no constructable sheets, so
+ * typo), and the `'adopted'` insert (the re-style after a move) choosing exactly what setup chose. jsdom has no constructable sheets, so
  * styles land as one `<style data-vm-sheet="styles">` per shadow root; its text is what the rows read.
  */
 import { test } from 'node:test';
@@ -24,6 +24,13 @@ const cssOf = (el) => el.shadowRoot?.querySelector('style[data-vm-sheet="styles"
 let seq = 0;
 const tag = () => `x-sty-${++seq}`;
 const mount = async (t) => { const el = document.createElement(t); document.body.append(el); await settle(); return el; };
+
+/** Runs core's `'adopted'` chain on an element, as a move into another document does (CONTROL: styles is on it). */
+const adopt = (element) => {
+  const chain = inserts.get('adopted');
+  assert.ok(chain?.length > 0, "CONTROL: the 'adopted' chain holds styles' re-style");
+  for (const fn of chain) fn(element);
+};
 
 test('the option alone styles a define component', async () => {
   const t = tag();
@@ -75,10 +82,10 @@ test('init({ host, styles }) per element: two elements of one class keep their o
   await settle();
   assert.match(cssOf(a), /red/);
   assert.match(cssOf(b), /blue/);
-  /** `$rs` (what a move into another document calls) chooses what setup chose, per element. */
+  /** The `'adopted'` insert (what a move into another document runs) chooses what setup chose, per element. */
   for (const el of [a, b]) el.shadowRoot.querySelector('style[data-vm-sheet="styles"]').remove();
-  inserts.$rs(a);
-  inserts.$rs(b);
+  adopt(a);
+  adopt(b);
   assert.match(cssOf(a), /red/, 're-styled with its own');
   assert.match(cssOf(b), /blue/, 're-styled with its own');
   a.remove();
@@ -97,7 +104,7 @@ test("a subclass does not inherit its base's remembered option", async () => {
   const b = await mount(base);
   const c = await mount(child);
   c.shadowRoot.querySelector('style[data-vm-sheet="styles"]')?.remove();
-  inserts.$rs(c);
+  adopt(c);
   assert.match(cssOf(c), /teal/, "the child's own static styles, not the base's option");
   b.remove();
   c.remove();

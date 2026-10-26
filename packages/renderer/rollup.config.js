@@ -78,6 +78,8 @@ export default [
    */
   defaultRollupConfig(`${pkg.filename}-keyed`, [], /^_[a-z]/, { input: 'src/keyed.ts' }),
   defaultRollupConfig(`${pkg.filename}-native-elements`, [], /^_[a-z]/, { input: 'src/native-elements.ts' }),
+  /** Additive: a connector on core's `'adopted'` and `'init'` points; imports nothing. */
+  defaultRollupConfig(`${pkg.filename}-multi-window`, [], /^_[a-z]/, { input: 'src/multi-window.ts' }),
   /** Additive for the same reason, and it inlines `spread` because it builds on that protocol. */
   defaultRollupConfig(`${pkg.filename}-tag`, [], /^_[a-z]/, { input: 'src/tag.ts' }),
   /**

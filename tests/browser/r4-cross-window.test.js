@@ -14,8 +14,9 @@ import { keyed } from '../../packages/renderer/dist/development/vera-renderer-ke
 import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
 import { resource } from '../../packages/store/dist/development/vera-store-resource.js';
 import { portal } from '../../packages/renderer/dist/development/vera-renderer-portal.js';
+import { multiWindow } from '../../packages/renderer/dist/development/vera-renderer-multi-window.js';
 
-wire([renderer, styles, nativeElements]);
+wire([renderer, styles, nativeElements, multiWindow]);
 const frame = (win = window) => new Promise((r) => win.requestAnimationFrame(() => setTimeout(r, 0)));
 const iframe = async () => {
   const f = document.createElement('iframe');
@@ -346,7 +347,7 @@ describe('R4: cross-window moves keep the component', () => {
     el.remove();
   });
 
-  describe('a component left in a pop-out that CLOSES is released (cold path; R4 decision 4)', () => {
+  describe('multiWindow: a component left in a pop-out that CLOSES is released (R4 decision 4)', () => {
     const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
     it('a panel left behind, and a child it built while out: each cleanup exactly once, and a later write wakes neither', async function () {
       const counts = { panelClean: 0, childClean: 0, panelRenders: 0, childRenders: 0 };
@@ -412,6 +413,23 @@ describe('R4: cross-window moves keep the component', () => {
       w.close();
       await settle();
       expect({ kept, releasedOnClose: cleans === afterMove + 1 }).to.deep.equal({ kept: true, releasedOnClose: true });
+    });
+
+    it('a component APPENDED directly into a pop-out (never moved) is released too (multiWindow\'s init watch)', async function () {
+      let cleans = 0, renders = 0;
+      const s = createStore({ n: 1 });
+      define('r4-rel-direct', () => { effect(() => () => cleans++); return () => (renders++, html`<b>${s.n}</b>`); });
+      const w = window.open('about:blank', 'r4rel5', 'width=300,height=200');
+      if (w === null) this.skip();
+      w.document.body.append(document.createElement('r4-rel-direct'));
+      await settle(50);
+      const ran = renders === 1;
+      w.close();
+      await settle();
+      const before = renders;
+      s.n = 2;
+      await settle(50);
+      expect({ ran, cleans, woke: renders !== before }).to.deep.equal({ ran: true, cleans: 1, woke: false });
     });
 
     it('a HOME component portals into the pop-out; the pop-out closes; the target returns home: the content is visible and LIVE (redrawn, not the released one)', async function () {
