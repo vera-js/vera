@@ -80,6 +80,8 @@ export const ENTRY = {
   'store/collections': ['store', 'vera-store-collections'],
   hooks: ['hooks', 'vera-hooks'],
   hot: ['hot', 'vera-hot'],
+  /** The Vite adapter: Node-side tooling (the `node` export condition), built like every entry. */
+  'hot/vite': ['hot', 'vera-hot-vite'],
   ui: ['ui', 'vera-ui'],
   'ui/elements': ['ui', 'vera-ui-elements'],
 };
