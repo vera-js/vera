@@ -407,6 +407,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/elements` | `elements` (wire it) — behavior attached to claimed elements in templates, mounted and unmounted with their instances | yes |
 | `@verajs/renderer/portal` | `portal(target, template)` — a component draws into ANOTHER element (a modal on `document.body`), in a range of its own | yes |
 | `@verajs/renderer/native-elements` | `nativeElements` (wire it) — `init` on a built-in element (a `div`, a `section`…) with a custom element's lifecycle | yes |
+| `@verajs/renderer/multi-window` | `multiWindow` (wire it) — components left in a pop-out or an iframe are released when that window closes | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
 `/profiler` re-exports the whole public API, so it is a drop-in replacement for the base import. **Never mix it
@@ -485,6 +486,38 @@ What a claimant can rely on:
   at `wire`, for this module and every other that decides per template (`namespaces`, `slots`). An app that wires no
   claimant pays nothing; one that does pays one walk per new template, and one short walk per
   instance of a template something claimed.
+
+## `@verajs/renderer/multi-window` — components in the windows your page opens
+
+A component moved into another window's document — a pop-out (`window.open`) or an iframe — is kept by core, state and
+all, and comes back the same way. When that window CLOSES with components still inside, nothing tells them: they stay
+subscribed to this window's stores, alive and running, for the life of the page. Wire `multiWindow` and they are
+released then:
+
+```js
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { multiWindow } from '@verajs/renderer/multi-window';
+
+wire([renderer, multiWindow]);
+
+const popup = window.open('', 'panel');
+popup.document.body.append(panel);              // pop out: kept
+popup.addEventListener('pagehide', () => document.body.append(panel));   // optional: bring it home as it closes
+```
+
+- **What is released:** every component of this core still in the closed window's document, shadow roots included —
+  one moved there, one built there while it was out, one appended there directly. Each runs its cleanups once, and no
+  write wakes it again.
+- **When:** at that window's final `pagehide`, on this window's NEXT task, so your own `pagehide` handler runs first; a
+  panel it moves home is no longer in the closed document and survives.
+- **Not released:** a back/forward-cached hide (`persisted`), which can come back.
+- **Cost:** nothing on any normal path (core hears a move into another document on its cold cross-window path only), and
+  nothing at all for an app that does not wire it. It imports nothing.
+
+In the platform's words: a `window.open` window is an *auxiliary browsing context*, an iframe's a *child navigable*,
+moving a node into another document is *adoption* (core's `'adopted'` insert point), and a closing window's document is
+*unloaded*.
 
 ## `@verajs/renderer/native-elements` — `init` on a built-in element
 

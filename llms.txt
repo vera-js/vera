@@ -366,7 +366,8 @@ There is no reconciliation step. A module that would otherwise carry its own reg
 core's instead — `wire([router])` — which reads the same under a bundler and on a CDN page.
 `connectInserts`, which replayed one registry into another, was removed in 0.2.0.
 
-Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
+Insert points: `'render'`, `'adopted'` (a component now lives in ANOTHER document — moved into a pop-out or an iframe, or
+resumed there; `(element)`; how `@verajs/styles` re-applies its sheets and `multiWindow` watches the window), `'init'` (an element was set up by `init()` — after its shadow root
 exists, before its first render; this is how `@verajs/styles` attaches; called `(element, options,
 setup)`, and answering `false` defers: the inserts after it and the setup do not run), `'store'` (decides how a
 TYPE of value is reactive in every store: `(type, handler, kit)`, where `type` is the lower-cased
@@ -632,6 +633,22 @@ tree in place, connected if its container is); `unmount(kept, element)` runs at 
 one element, each in wire order. No updates: react to values with a binding, not a claim. Wire it
 before anything renders. The example is a real platform gap: only the first `autofocus` rendered
 after page load takes focus — later forms need the claim.
+
+### Components in other windows (`@verajs/renderer/multi-window`)
+
+A component moved into a pop-out (`window.open`) or an iframe with plain DOM is KEPT, with its state, and comes back the
+same way. If that window closes with components still inside, they stay subscribed to this window's stores: wire
+`multiWindow` and they are released (cleanups run once; writes no longer wake them) when the window goes away for good.
+
+```js
+import { multiWindow } from '@verajs/renderer/multi-window';
+wire([renderer, multiWindow]);
+popup.document.body.append(panel);   // pop out (kept)
+// …the user closes the pop-out: what is still in it is released; a panel your own `pagehide` handler moves home survives
+```
+
+Covers components moved there, built there while out, or appended there directly. A back/forward-cached hide releases
+nothing. It imports nothing; apps that do not wire it pay nothing.
 
 ### Built-in hosts (`@verajs/renderer/native-elements`)
 
@@ -1108,7 +1125,7 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`, `renderer/native-elements`,
+  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`, `renderer/native-elements`, `renderer/multi-window`,
   `renderer/hydration`, `renderer/hydrate-slots`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.

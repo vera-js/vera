@@ -92,7 +92,15 @@ test('TWO copies of core on one page: each retires only its OWN components (the 
   f.contentDocument.body.append(document.createElement('x-mw-one'), document.createElement('x-mw-two'));
   core.flush(); other.flush();
   await wait(0);
-  await die(f.contentWindow);
-  assert.deepEqual(counts, { one: 1, two: 1 }, 'each copy released its own, once — neither retired the other copy\'s twice');
+  /** WHO retires what: each copy's own teardown, spied — a cleanup count alone cannot tell (a second retire of a retired
+   *  component does nothing visible), which is how a shared-field check slipped past the first version of this row. */
+  const retiredBy = { one: [], two: [] };
+  const originals = [[core.inserts, core.inserts.$td], [other.inserts, other.inserts.$td]];
+  for (const [copy, reg] of [['one', core.inserts], ['two', other.inserts]]) {
+    const own = reg.$td;
+    reg.$td = (el) => { retiredBy[copy].push(el.localName); return own(el); };
+  }
+  try { await die(f.contentWindow); } finally { for (const [reg, own] of originals) reg.$td = own; }
+  assert.deepEqual([counts, retiredBy], [{ one: 1, two: 1 }, { one: ['x-mw-one'], two: ['x-mw-two'] }], 'each copy retired exactly its own');
   f.remove();
 });
