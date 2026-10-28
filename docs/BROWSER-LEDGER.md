@@ -303,6 +303,18 @@ from another machine, or after that is undone, has a variable changed.
   the method out (the read and the call are back to back) cut a 2000-push + splice row from 1.20× to 1.08× the
   reference build, whose wrapper is a closure made per read and captures the array. (Node, 5 fresh processes per arm;
   2026-10-28)
+- **In Chrome, `Reflect.get` inside a proxy `get` trap costs a tracked array-index read ~10%, and the receiver has
+  nothing to do with it.** One-line ablations of the same store (each deliberately wrong, to isolate one cost): the trap
+  reading `Reflect.get(target, key, receiver)` 1.097 of the reference build, `Reflect.get(target, key)` 1.102, plain
+  `target[key]` 0.988; a byte copy of the reference 1.001. So the call is the cost, not the receiver it passes.
+  Consequence: a read that must run getters with the store as `this` pays it; a key that can carry no getter (an
+  index) is read directly. (Chrome 156.0.8078.48, headless, a fresh browser per page, 5 repeats; 2026-10-28)
+- **In Chrome, `Object.prototype.__lookupSetter__` costs ~25% of a write to a key the object owns, and Node's V8 did not
+  show it.** The same store's `set` trap asking it per write: 1.027 of the reference build; no check at all 0.786;
+  skipping it for owned keys 0.786; an own-descriptor check instead 0.973. Node 24.18.0 (V8 13.6.233.17) had measured
+  the same call as costing a write ~8–10 ns, about what a descriptor costs. Consequence: Node's V8 is not Chrome's (version
+  and build differ), so a Node measurement cannot clear even Chrome; a hot-path choice is made on the three browsers.
+  (Chrome 156.0.8078.48, headless, a fresh browser per page, 5 repeats; 2026-10-28)
 - **A helper shared by every object in an app goes megamorphic in the browser, and can be slower than the WeakMap it
   replaced, while the same code is faster in Node.** A Symbol-field read in one shared `cached()` sped every
   through-proxy read in Node (index 67 → 63 ns) and cost Chrome's store-list swap +12% and remove +6%, because in the
