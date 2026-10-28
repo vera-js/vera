@@ -45,8 +45,15 @@ indistinguishable in style from the code around it.
   shared helpers in `@verajs/shared-utils`; the `filename` field in each `package.json` drives every
   build output name.
   Match the surrounding comment density, naming, and idiom.
-- **Functional style by default; a `class` is permitted in exactly two places.** Public APIs,
-  modules, and app code are functions and closures. The exceptions: **the platform boundary** —
+- **Functional by default** (Brian, 2026-10-28). Logic is plain functions over plain data: no `this`-based APIs,
+  and no hidden mutation of a caller's inputs. **Pure wherever the work allows**: a function that can compute its
+  result from its arguments does so, without reading shared state. **Side effects live at named boundaries and nowhere
+  else**: the store's traps, the scheduler, the tracking state, and writes to the DOM. A reactive library's job IS
+  managed side effects, so the rule is where they live, not that they don't exist. Every piece of module-level mutable
+  state is declared at the top of its module with a comment saying why it must be shared; a new one is a design
+  decision, raised with Brian, never a convenience.
+- **A `class` is permitted in exactly two places.** Public APIs, modules, and app code are functions and closures.
+  The exceptions: **the platform boundary** —
   `extends HTMLElement` where the spec requires it, `@verajs/ssr`'s DOM shims, which *implement*
   platform interfaces (`extends EventTarget`) and are class-shaped because the contract they emulate
   is, and subclassing `Error`, which is the platform's own idiom — and **per-node hot-path

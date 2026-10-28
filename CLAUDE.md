@@ -15,6 +15,11 @@ code, so they are not re-litigated.
   calling it done. **The principles themselves are open to discussion, never to silent edits:** a principle
   that looks wrong or outdated, or a lesson that deserves a new one, is raised with Brian, with the evidence
   and a proposed wording, and `CODE-PRINCIPLES.md` changes only once he agrees.
+- **Functional by default, everywhere** (Brian, 2026-10-28; CODE-PRINCIPLES §1): plain functions over plain data, no
+  classes outside §1's two measured exceptions, no `this`-based APIs, no mutation of a caller's inputs, pure wherever
+  the work allows. Side effects live only at named boundaries (the store's traps, the scheduler, the tracking state, DOM
+  writes), and every piece of module-level mutable state is declared at the top of its module with why it must be
+  shared. Adding one is raised with Brian.
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
 - **Browser and engine behaviors: `docs/BROWSER-LEDGER.md`.** Every platform behavior, caveat or engine quirk that a
   design or a measurement choice rests on goes there THE MOMENT it is found, with the engines it was seen on, the date,
