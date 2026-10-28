@@ -3,10 +3,16 @@
 Operational conventions and project parameters. Records decisions that are **not** derivable from the
 code, so they are not re-litigated.
 
-- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (eleven principles, equally weighted).
-  Its §1 **Types** subsection is binding for every type written: one `types.ts` per package at
-  the import-graph root, single-file types local and unexported, `import type` for all
-  type-only flow. Read it before writing code, every session.
+- **The bar for EVERYTHING:** `docs/CODE-PRINCIPLES.md` (eleven principles, equally weighted).
+  **Every decision, every bit of code written or run, every audit and every test adheres to it**: source,
+  tooling, probes, benches, gates and the tests themselves, not only shipped code (Brian, 2026-10-27).
+  **When something does not, it is raised with Brian, never silently kept:** either `CODE-PRINCIPLES.md` is
+  updated (the rule was wrong or incomplete), or the violation is agreed as acceptable for a stated reason,
+  recorded where the code is. Its §1 **Types** subsection is binding for every type written: one `types.ts`
+  per package at the import-graph root, single-file types local and unexported, `extends` (never `&`) for
+  composition, JSDoc on every export, `import type` for all type-only flow. Re-read it at the start of every
+  session, including after a context compaction, and check each piece of work against all eleven before
+  calling it done.
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
 - **Browser and engine behaviors: `docs/BROWSER-LEDGER.md`.** Every platform behavior, caveat or engine quirk that a
   design or a measurement choice rests on goes there THE MOMENT it is found, with the engines it was seen on, the date,
