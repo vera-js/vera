@@ -278,6 +278,31 @@ from another machine, or after that is undone, has a variable changed.
   object was built made no difference (a literal and one assembled by `Object.assign` cost the same). Consequence: a
   hot walk over store data must read the RAW data, never through the proxy; and only reads that may meet an accessor
   pay for the receiver. (Node; 2026-10-18)
+- **Asking "can a setter run?" per write costs about the same however it is asked.** In a store's `set` trap, fetching
+  the own descriptor (`Reflect.getOwnPropertyDescriptor`, one allocation) and calling `Object.prototype.__lookupSetter__`
+  (no allocation, one builtin call) each cost a plain write ~8–10 ns over a per-object answer cached once: writes ran
+  0.93–0.97 of the reference build either way, against 0.84 cached. Caching is not free either: computing it walks every
+  own property once, which cost a fresh 10k-key record's first write 1.57×. Consequence: per-write asking, the exact
+  `__lookupSetter__` form, was chosen for being smaller and exact, not faster. (Node, 7-round shuffled race against the
+  reference build with a byte A/A ≤ 1%; 2026-10-28)
+- **Gating a proxy `get` trap on `Object.getPrototypeOf(target)` is expensive; gating on `Array.isArray` is free.** In
+  one store build, reading arrays without the receiver only when the prototype was `Array.prototype` cost an untracked
+  record read 41% and a nested read 15%, while the same read gated on `Array.isArray(target)` alone cost records
+  nothing (≤ 2.5%) and made a tracked index read 13% faster. Doing both checks (`Array.isArray` first) gave the array
+  gain back. Why the prototype check costs so much was not established. Consequence: an exact "plain arrays only" gate
+  is not affordable on the read path; see the decision it led to in the store. (Node, 5 fresh processes per arm,
+  interleaved, byte A/A ≤ 1%; 2026-10-28)
+- **Writing `-0` into an all-integer array converts the whole array to doubles.** V8 keeps an array of small integers in
+  a packed SMI backing store; one `-0` is not a small integer, so the array is re-stored as doubles, a copy of every
+  element. A store that compares with `===` before writing never writes `-0` over `0` (`0 === -0`), so it looks 13%
+  faster on a 10k-item first write, while losing the `-0` (`Object.is(store[0], -0)` is false where a plain array says
+  true); with values that are never `-0` the comparison store was the slower one (0.95). Consequence: a benchmark row
+  that writes `-i` from `i = 0` measures this conversion, not the store. (Node, 5 fresh processes per arm; 2026-10-28)
+- **A proxy trap call per array-method call was ~10% of a push-heavy row.** One shared `push` wrapper that finds its raw
+  array with `this[RAW]` pays a whole `get` trap per call; remembering the receiver and raw array in the `get` that handed
+  the method out (the read and the call are back to back) cut a 2000-push + splice row from 1.20× to 1.08× the
+  reference build, whose wrapper is a closure made per read and captures the array. (Node, 5 fresh processes per arm;
+  2026-10-28)
 - **A helper shared by every object in an app goes megamorphic in the browser, and can be slower than the WeakMap it
   replaced, while the same code is faster in Node.** A Symbol-field read in one shared `cached()` sped every
   through-proxy read in Node (index 67 → 63 ns) and cost Chrome's store-list swap +12% and remove +6%, because in the
