@@ -284,7 +284,8 @@ from another machine, or after that is undone, has a variable changed.
   0.93–0.97 of the reference build either way, against 0.84 cached. Caching is not free either: computing it walks every
   own property once, which cost a fresh 10k-key record's first write 1.57×. Consequence: per-write asking, the exact
   `__lookupSetter__` form, was chosen for being smaller and exact, not faster. (Node, 7-round shuffled race against the
-  reference build with a byte A/A ≤ 1%; 2026-10-28)
+  reference build with a byte A/A ≤ 1%; 2026-10-28) **NODE ONLY — wrong for Chrome** (found the same day): in Chrome
+  156 `__lookupSetter__` costs an owned-key write ~25% and a descriptor ~19%, against no check; see the entry below.
 - **Gating a proxy `get` trap on `Object.getPrototypeOf(target)` is expensive; gating on `Array.isArray` is free.** In
   one store build, reading arrays without the receiver only when the prototype was `Array.prototype` cost an untracked
   record read 41% and a nested read 15%, while the same read gated on `Array.isArray(target)` alone cost records
