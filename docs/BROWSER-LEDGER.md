@@ -316,6 +316,14 @@ from another machine, or after that is undone, has a variable changed.
   the same call as costing a write ~8–10 ns, about what a descriptor costs. Consequence: Node's V8 is not Chrome's (version
   and build differ), so a Node measurement cannot clear even Chrome; a hot-path choice is made on the three browsers.
   (Chrome 156.0.8078.48, headless, a fresh browser per page, 5 repeats; 2026-10-28)
+- **The three engines want three different store read paths, and no one design suits all of them.** Firefox charges ANY
+  extra branch in a record's `get` trap (an `Array.isArray` test 6–7%, a digit-first-key test 5–7%, an out-of-line shared
+  tail 24–31% on an untracked record read). Chrome charges `Reflect.get` on an array index ~9–10%. WebKit charges a SECOND,
+  array-only handler ~5–9% on a tracked `length` read, whatever that handler's read does (direct, or the same exact
+  `Reflect.get` the record handler uses), and a handler built by spreading the record one (`{ ...handler, get }`) worse
+  than one written as its own literal (1.045 → 0.903 of the reference in one run). Consequence: the store's read path is
+  a choice of which engine's row to concede, made by Brian with all three measured. (Chrome 156, Firefox 153, WebKit 26.5;
+  headless, 4 rounds, fresh browser per page; 2026-10-28)
 - **A helper shared by every object in an app goes megamorphic in the browser, and can be slower than the WeakMap it
   replaced, while the same code is faster in Node.** A Symbol-field read in one shared `cached()` sped every
   through-proxy read in Node (index 67 → 63 ns) and cost Chrome's store-list swap +12% and remove +6%, because in the
