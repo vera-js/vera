@@ -12,7 +12,9 @@ code, so they are not re-litigated.
   per package at the import-graph root, single-file types local and unexported, `extends` (never `&`) for
   composition, JSDoc on every export, `import type` for all type-only flow. Re-read it at the start of every
   session, including after a context compaction, and check each piece of work against all eleven before
-  calling it done.
+  calling it done. **The principles themselves are open to discussion, never to silent edits:** a principle
+  that looks wrong or outdated, or a lesson that deserves a new one, is raised with Brian, with the evidence
+  and a proposed wording, and `CODE-PRINCIPLES.md` changes only once he agrees.
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
 - **Browser and engine behaviors: `docs/BROWSER-LEDGER.md`.** Every platform behavior, caveat or engine quirk that a
   design or a measurement choice rests on goes there THE MOMENT it is found, with the engines it was seen on, the date,
