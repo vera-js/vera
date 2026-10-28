@@ -229,6 +229,14 @@ code, so they are not re-litigated.
   caller is raced, and the inlined-IIFE sites of the production bundle are counted before and after; a hot call that
   must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (the guard row that pins each bundle's site count
   comes with the rebuild's core).
+- **The bytes that LAND must be byte-identical to the bytes that were RACED, or the landing is re-raced** (Brian
+  approved, 2026-10-27). A probe or test export in a raced bundle is a caller like any other, so it changes what the
+  minifier does (the rule above). Measured: a hook-record race was built with a probe export that gave the record's
+  factory a second caller; the landing removed the export, Terser substituted the factory into `register` as an arrow
+  invoked on every hook created, and creation was ~1.5% slower than raced, with no race having seen it. So build every
+  timed arm with exactly the landing's exports (probe-only exports go in a separate build used only for shape or
+  inlining checks), and `cmp` the landed production bundle against the RACED arm, never against a fresh reproduction of
+  the landing.
 - **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
   remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
   it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
