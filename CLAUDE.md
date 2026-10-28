@@ -322,6 +322,11 @@ code, so they are not re-litigated.
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
   built `dist`; ssr is the one that does.
+  **A mutation run is the same trap from the other side** (Brian approved, 2026-10-28): a runner that builds each mutant
+  with rollup directly leaves `dist` holding the LAST mutant after it restores the source, and wireit, whose cache never
+  saw those builds, then skips the rebuild — so every later suite or gate run tests mutated code while reporting green.
+  The runner hashes both bundles (development and production) before the first mutation, rebuilds from the restored
+  source at the end, and fails unless both hashes match.
 - **A green `npm run build` and a green `npm test` do NOT mean the TypeScript parses.** The bundler
   strips types without fully parsing them, so a `.ts` file TypeScript cannot read still builds and
   still passes every suite — measured 2026-09-23, when a stray `*/` inside a doc comment left
