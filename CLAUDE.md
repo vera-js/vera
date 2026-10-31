@@ -219,6 +219,13 @@ code, so they are not re-litigated.
   tier-up is part of the cost, not noise: it is what a server's first requests pay. Keep what a hot loop reads module-local and export a separate alias (`export const
   RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
   every hot-path change gets a cold-process or race measurement before it lands.
+- **Before a NEW hot function is raced, it gets a read-through against the hot-path rules above and below** (Brian,
+  2026-10-31): an arrow or function capturing its own variables (even on a cold branch), sparse arrays, exported live
+  bindings, a one-caller helper the minifier will paste in as an IIFE, the inlining budget in BOTH bundles, a try/catch
+  doing work on the hot path. Automated where it can be: `tests/hot-path-closures.test.mjs` refuses captured closures in
+  the named hot functions (add a new hot function to its list), and the IIFE counter pins what the minifier substitutes.
+  Found the hard way: `computed`'s getter built two closures on its rarely-taken watch branch, and every cached read paid
+  for them (Firefox 31%, WebKit 33%), found only after a three-engine race and a bisect.
 - **A hot function near V8's inlining budget pays for ANY growth — even code that never runs.** V8 inlines a function
   into its caller only while its bytecode is at most `--max-inlined-bytecode-size` (460). `serializeValue`, inlined into
   `serializeTemplate`'s per-binding loop, sat at 455; the DOM-node case took it to 467 and cost 3.6% steady on renders
