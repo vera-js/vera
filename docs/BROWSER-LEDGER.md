@@ -458,6 +458,16 @@ from another machine, or after that is undone, has a variable changed.
   verdict is possible. The cause of the level (core placement, JIT tiering per process, memory layout) is not yet known.
   (Installed Chrome 155, headed, Apple-silicon laptop; 2026-10-25)
 
+- **A `__proto__` key in an object literal puts V8 on a slow creation path** (Chrome 156, headless, 2026-10-31). The hook
+  record built as `{ __proto__: RECORD, …17 fields }` (to share `run` / `stop` instead of a handle object): creating
+  1,000 effects 2.6× slower, stopping them 3× slower, component creation 8–12% slower; Firefox and WebKit 7–9%. The same
+  fields without the key are the fast boilerplate path. Consequence: a per-instance object on a hot creation path never
+  gets its prototype through a literal `__proto__` (a class record cost Firefox +6% instead, c7b): measure first.
+- **A NON-configurable property added to an existing object slows every later access on Firefox and WebKit** (Firefox
+  153 / WebKit 26.5, headless, 2026-10-31): a store cached on its raw object by `Object.defineProperty(raw, SLOT,
+  { value })` (defaults: non-configurable, non-writable) made an untracked read of that object 2.2× slower on Firefox and
+  most reads 13–47% slower on both; the same field defined `configurable: true` read at parity. Consequence: an internal
+  property added to a user's object is configurable, or it reshapes the object for good.
 - **A row's timing depends on the rows that ran before it in the same page** (Chrome 156, headless, 2026-10-31).
   `computed` through the store's kit, a 20-deep chain settling on a write: 15–18% SLOWER than the current build when it
   ran after three other computed rows in one page, and 3% FASTER (3/4) alone in its own page; Chrome's CPU profile of
