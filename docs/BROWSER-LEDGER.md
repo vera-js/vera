@@ -458,6 +458,14 @@ from another machine, or after that is undone, has a variable changed.
   verdict is possible. The cause of the level (core placement, JIT tiering per process, memory layout) is not yet known.
   (Installed Chrome 155, headed, Apple-silicon laptop; 2026-10-25)
 
+- **A row's timing depends on the rows that ran before it in the same page** (Chrome 156, headless, 2026-10-31).
+  `computed` through the store's kit, a 20-deep chain settling on a write: 15–18% SLOWER than the current build when it
+  ran after three other computed rows in one page, and 3% FASTER (3/4) alone in its own page; Chrome's CPU profile of
+  an isolated page agreed (883–887 µs against 901–918). Earlier rows leave the engine's type feedback shaped by THEIR
+  workloads, and the row inherits it. Firefox and WebKit not yet checked the same way. **Consequence:** a harness that
+  runs many rows per page reports each row with its predecessors in it; a loss there is a hypothesis until the row is
+  re-run alone (`ONLY=<row>` in the store bench), and every earlier many-rows-per-page verdict carries the caveat.
+
 ## Test environments
 
 - **Inspecting a cross-realm DOM object (an iframe's `ShadowRoot`) in a chai failure message never finishes**, so a
