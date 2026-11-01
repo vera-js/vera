@@ -161,6 +161,12 @@ from another machine, or after that is undone, has a variable changed.
   measured this way. 205k stores is the smallest sample timed, so a page-sized burst is unmeasured. Consequence: a creation row's RATIO is only defined at its stated reps, and a row that allocates through a weak collection is read by
   total and per-pass values, never by a median alone. Earlier ratios read at unstated reps (0.848 vs the previous build) carry this. All of it ran as one job with no macrotask, a regime an app does not run in. ("The released build" in the entry above means this previous build.)
 
+- **In Chrome, a WeakMap whose value strongly references its own key blocks for seconds under sustained creation; the same map with an unrelated value does not.** Chrome 156 headed, 2026-10-31, a blank page with no framework loaded, 3.68M objects in
+  bursts of ~10,000 with a MessageChannel gap, garbage at once, 6 pages each, worst block by max(burst, gap): no WeakMap 1-48 ms; proxies kept nowhere 4-45 ms; `map.set(key, {})` 43-49 ms; `map.set(key, { t: key })` 521-1,699 ms;
+  `map.set(key, new Proxy(key, handler))` 756-3,071 ms. The blocks sit at stable positions, ~760k objects (~200 ms) and ~2.1-2.6M (the long one), and a store built that way (a raw-to-proxy weak cache) blocks at the same positions. So the value
+  referencing its key is what does it, not proxies. The mechanism is not established, and no GC trace was on: candidates are an ephemeron table resolving the cycle by iterating, and entries whose value references the key surviving minor collections and piling up for a major one. Firefox 153 and WebKit 26.5, same run: the same two forms top out at 54-85 ms and 49-103 ms, against 10-19 and 55-58 ms for a plain value: tens of
+  ms, read roughly on their coarse clocks. Consequence: a per-object raw-to-proxy weak cache pays this on Chrome: a ~200 ms block near 760k creations in a page's life and the long one near 2.1-2.6M. It says nothing about a page that creates far fewer, and retained objects were not measured. Evidence: reproducible from the description above, with a timed burst loop and one fresh headed browser per page.
+
 ## Custom elements
 
 - **A custom element inside a CLOSED shadow root of a plain element hears that element's whole lifecycle.** A
