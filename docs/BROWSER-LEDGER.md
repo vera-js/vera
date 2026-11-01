@@ -154,12 +154,12 @@ from another machine, or after that is undone, has a variable changed.
   CDP-traced synchronous 4 s loop's "560 µs": a profiler or a trace in one long job is a different regime from the race, and its findings are about that instrument.
 
 - **CORRECTS the entry above (2026-10-31, same evening): the per-repetition MEDIAN of that loop hid its cost, and the sample-length reading was about the median, not about what the code pays.** Chrome 156 headed, the same loop,
-  alone in its page, 3 fresh browsers each, per repetition over warm-up + timed passes: the rebuild 126 / 335 / 255 / 279 µs at 512 / 1024 / 2048 / 4096 reps (its byte-identical copy 126 / 457 / 255 / 303), the released build
-  128 / 215 / 246 / 331, the build with no WeakMap on this path 55 / 54 / 54 / 53. Single passes of 1024 repetitions took up to 3.3 s on the rebuild and 2.5 s on the released build, while the medians read 59 and 95 µs; the no-WeakMap
-  build never spiked. So the released build also moves, the medians of these two builds are unusable for this row, and earlier rows moved WHICH pass the pauses landed in (median 59 → 113 at the same total, on one copy; the byte-identical
+  alone in its page, 3 fresh browsers each, per repetition over warm-up + timed passes: the rebuild 126 / 335 / 255 / 279 µs at 512 / 1024 / 2048 / 4096 reps (its byte-identical copy 126 / 457 / 255 / 303), the previous build
+  128 / 215 / 246 / 331, the build with no WeakMap on this path 55 / 54 / 54 / 53. Single passes of 1024 repetitions took up to 3.4 s on the rebuild and 2.5 s on the previous build, while the medians read 59 and 95 µs; the no-WeakMap
+  build never spiked. So the previous build also moves, the medians of these two builds are unusable for this row, and earlier rows moved WHICH pass the pauses landed in (median 59 → 113 at the same total, on one copy; the byte-identical
   copy's total moved 2.4× in the same comparison, so that reading is not established). Cause not established: no GC trace was on, and a total cannot see a collection after the row ends or work on helper threads. Firefox and WebKit not
   measured this way. 205k stores is the smallest sample timed, so a page-sized burst is unmeasured. Consequence: a creation row's RATIO is only defined at its stated reps, and a row that allocates through a weak collection is read by
-  total and per-pass values, never by a median alone. Earlier ratios read at unstated reps (0.848 vs the released build) carry this.
+  total and per-pass values, never by a median alone. Earlier ratios read at unstated reps (0.848 vs the previous build) carry this. All of it ran as one job with no macrotask, a regime an app does not run in. ("The released build" in the entry above means this previous build.)
 
 ## Custom elements
 
