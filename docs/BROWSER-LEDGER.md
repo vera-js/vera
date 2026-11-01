@@ -145,6 +145,14 @@ from another machine, or after that is undone, has a variable changed.
 - **A `const` binding keeps the last `WeakRef`'d object alive**, with no framework involved; so does the last call's
   objects in an async per-cycle function. Consequence: retention probes use a no-framework control. (Node; 2026-09-05)
 
+- **In Chrome, the per-repetition time of a store-creating loop depends on how long the sample runs, and a single sample length hides it** (Chrome 156 headed, 2026-10-31). `createStore` with a nested read,
+  200 per repetition (400 stores through one WeakMap), alone in its page, 3 fresh browsers each, µs per repetition, the rebuild / the released build / a build with no WeakMap on this path: 512 reps 52 / 86 / 55;
+  1024 reps 62 / 101 / 53; 2048 reps 127 / 109 / 53; 4096 reps 101 / 107 / 53. So the same code beats the released build at three lengths and loses at one, and only the no-WeakMap build stays flat. A
+  harness that calibrates reps per run can land on either side (1024 or 2048 here) and report the difference as a change in the code or in the rows before it: a bisect of earlier rows read "doubled" for groups
+  that had only ever run at 2048. Cause not established (a collection schedule against an ephemeron table is the hypothesis; 205k stores is the smallest sample this could time, so a page-sized burst is
+  unmeasured). Consequence: print a row's reps beside its value, force them when comparing across runs, and sweep them before calling a level a state. The same run shape found the row "61 µs" against a
+  CDP-traced synchronous 4 s loop's "560 µs": a profiler or a trace in one long job is a different regime from the race, and its findings are about that instrument.
+
 ## Custom elements
 
 - **A custom element inside a CLOSED shadow root of a plain element hears that element's whole lifecycle.** A
