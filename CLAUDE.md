@@ -386,6 +386,10 @@ rest of this file.
   multi-step change, a restructure, a file move, or a new dependency and narrate it afterwards.
 - **Get approval before acting.** Approval for one step is not approval for the next. Approval to
   investigate is not approval to change.
+  **Tests never need Brian's go** (Brian, 2026-11-04, a standing rule): a test, probe, profile or race runs when the work
+  needs it, without asking. The plan and its pre-registered reading still go to the auditor, Brian is told when windows
+  will open on his screen, and the machine-safety rules above still hold. What lands (code, fixes, trades, decisions)
+  still waits for his approval.
 - **Recommend, and argue for it.** Brian explicitly wants to be persuaded and nudged toward the right
   choice — not handed a neutral menu. When asked "what do you recommend?", answer with a specific
   recommendation and the reasoning, including the strongest counter-argument. A passive list of
