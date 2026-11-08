@@ -29,33 +29,47 @@ const isName = (id) => {
   );
 };
 
-/** The names a source file declares anywhere: only these are renamed. */
-const declaredIn = (sf) => {
-  const declared = new Set();
-  const bind = (b) => {
-    if (ts.isIdentifier(b)) declared.add(b.text);
-    else if (ts.isObjectBindingPattern(b) || ts.isArrayBindingPattern(b)) for (const e of b.elements) if (!ts.isOmittedExpression(e)) bind(e.name);
-  };
-  const visit = (n) => {
-    if ((ts.isVariableDeclaration(n) || ts.isParameter(n) || ts.isBindingElement(n)) && n.name) bind(n.name);
-    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isClassDeclaration(n) || ts.isClassExpression(n)) && n.name) declared.add(n.name.text);
-    if ((ts.isImportSpecifier(n) || ts.isNamespaceImport(n) || ts.isImportClause(n)) && n.name) declared.add(n.name.text);
-    ts.forEachChild(n, visit);
-  };
-  visit(sf);
-  return declared;
+/**
+ * The bundle parsed AND bound, as an in-memory JavaScript program with no lib: each identifier resolves to the symbol it
+ * names, so a local that SHADOWS a top-level binding (the minifier reuses short names) is a different name, and a global
+ * (`Map`, `Reflect`), which resolves to nothing, keeps its text.
+ */
+const bound = (file) => {
+  const text = readFileSync(file, 'utf8');
+  const name = '/bundle.js';
+  const options = { allowJs: true, noLib: true, noResolve: true, types: [], target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext };
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = (f, language) => (f === name ? ts.createSourceFile(f, text, language, true, ts.ScriptKind.JS) : undefined);
+  host.fileExists = (f) => f === name;
+  host.readFile = (f) => (f === name ? text : undefined);
+  const program = ts.createProgram([name], options, host);
+  return { sf: program.getSourceFile(name), checker: program.getTypeChecker() };
 };
 
-/** A unit's canonical key, its own names in order of first appearance, and its text. */
-const canonical = (sf, node, prefix, declared) => {
+/**
+ * A unit's canonical key, the names it must share one-to-one with the other bundle, and its text. Two namespaces, each
+ * renamed in order of first appearance: bindings, by the SYMBOL they resolve to, and property names (`#`), by text,
+ * because the production build mangles properties too, in an order-dependent way. Top-level bindings and every property
+ * name must then map one-to-one across the whole bundle (a property renamed in one place only is a change); a local
+ * binding is renamed freely inside its unit.
+ */
+const canonical = (sf, checker, node, prefix, topSymbols) => {
   const local = new Map();
   const names = [];
-  const rename = (text) => {
-    if (!local.has(text)) {
-      local.set(text, `$${local.size}`);
-      names.push(text);
+  const binding = (id, symbol) => {
+    if (!local.has(symbol)) {
+      local.set(symbol, '$' + local.size);
+      if (topSymbols.has(symbol)) names.push('b:' + id.text);
     }
-    return local.get(text);
+    return local.get(symbol);
+  };
+  const property = (text) => {
+    const key = 'p:' + text;
+    if (!local.has(key)) {
+      local.set(key, '#' + local.size);
+      names.push(key);
+    }
+    return local.get(key);
   };
   const parts = [prefix];
   const walk = (n) => {
@@ -63,11 +77,16 @@ const canonical = (sf, node, prefix, declared) => {
     if (n.kind >= ts.SyntaxKind.FirstJSDocNode && n.kind <= ts.SyntaxKind.LastJSDocNode) return;
     if (ts.isShorthandPropertyAssignment(n)) {
       /** `{x}` is `{x: x}`: the minifier writes either, depending on what x is named. */
-      parts.push(n.name.text, ':', declared.has(n.name.text) ? rename(n.name.text) : n.name.text);
+      const value = checker.getShorthandAssignmentValueSymbol(n);
+      parts.push(property(n.name.text), ':', value ? binding(n.name, value) : n.name.text);
       return;
     }
     if (ts.isIdentifier(n)) {
-      parts.push(isName(n) || !declared.has(n.text) ? n.text : rename(n.text));
+      if (isName(n)) parts.push(property(n.text));
+      else {
+        const symbol = checker.getSymbolAtLocation(n);
+        parts.push(symbol ? binding(n, symbol) : n.text);
+      }
       return;
     }
     if (n.getChildCount(sf) === 0) {
@@ -81,14 +100,31 @@ const canonical = (sf, node, prefix, declared) => {
 };
 
 const units = (file) => {
-  const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-  const declared = declaredIn(sf);
+  const { sf, checker } = bound(file);
+  /** The symbols the top level itself binds (declarators, functions, classes, imports). */
+  const topSymbols = new Set();
+  const top = (nameNode) => {
+    if (ts.isIdentifier(nameNode)) {
+      const symbol = checker.getSymbolAtLocation(nameNode);
+      if (symbol) topSymbols.add(symbol);
+    } else if (ts.isObjectBindingPattern(nameNode) || ts.isArrayBindingPattern(nameNode)) for (const e of nameNode.elements) if (!ts.isOmittedExpression(e)) top(e.name);
+  };
+  for (const st of sf.statements) {
+    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) top(d.name);
+    else if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name) top(st.name);
+    else if (ts.isImportDeclaration(st) && st.importClause) {
+      const c = st.importClause;
+      if (c.name) top(c.name);
+      if (c.namedBindings && ts.isNamespaceImport(c.namedBindings)) top(c.namedBindings.name);
+      if (c.namedBindings && ts.isNamedImports(c.namedBindings)) for (const e of c.namedBindings.elements) top(e.name);
+    }
+  }
   const out = [];
-  const add = (node, prefix = '') => out.push(canonical(sf, node, prefix, declared));
+  const add = (node, prefix = '') => out.push(canonical(sf, checker, node, prefix, topSymbols));
   for (const st of sf.statements) {
     if (ts.isVariableStatement(st)) {
       const kind = st.declarationList.flags & ts.NodeFlags.Const ? 'const' : st.declarationList.flags & ts.NodeFlags.Let ? 'let' : 'var';
-      for (const d of st.declarationList.declarations) add(d, `${kind} `);
+      for (const d of st.declarationList.declarations) add(d, kind + ' ');
     } else if (ts.isExpressionStatement(st)) {
       const operands = [];
       const flatten = (e) => (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.CommaToken ? (flatten(e.left), flatten(e.right)) : operands.push(e));
