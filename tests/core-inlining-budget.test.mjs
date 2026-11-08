@@ -20,12 +20,12 @@ const root = new URL('..', import.meta.url);
 const DEV = 'packages/core/dist/development/vera.js';
 const PROD = 'packages/core/dist/vera.min.js';
 /** Where `track` is defined in this tree. */
-const TRACK_FILE = 'packages/core/src/services/createProxy.ts';
+const TRACK_FILE = 'packages/core/src/services/track.ts';
 
 /** Production's name for `track`: the identifier the source map places at its definition (`TRACK_FILE`). */
 const prodName = () => {
   const source = readFileSync(new URL(TRACK_FILE, root), 'utf8').split('\n');
-  const line = source.findIndex((l) => l.startsWith('const track = ')) + 1;
+  const line = source.findIndex((l) => l.startsWith('export const track = ')) + 1;
   const map = new TraceMap(JSON.parse(readFileSync(new URL(`${PROD}.map`, root), 'utf8')));
   const file = map.sources.find((s) => s?.endsWith(TRACK_FILE.slice('packages/core/'.length)));
   const [at] = allGeneratedPositionsFor(map, { source: file, line, column: source[line - 1].indexOf('track') });

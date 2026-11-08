@@ -2,7 +2,7 @@ import type { ComponentElement, HookRecord } from '../types.js';
 import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { proxyCallbacks, tracking, unlinkFrom, whenEmptied } from '../store/store.js';
-import { trackKey, triggerKey, wakeCount } from '../services/createProxy.js';
+import { trackKey, triggerKey, wakeCount } from '../services/track.js';
 import { MODE_RAW, register } from './createHook.js';
 
 /**
