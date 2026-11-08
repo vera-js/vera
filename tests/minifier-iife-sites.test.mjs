@@ -13,101 +13,54 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { iifes } from './iife-count.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-/**
- * **Counts arrows IMMEDIATELY INVOKED where they are defined** — the terser shape of an inlined single-use function,
- * `((a,b)=>{…})(x,y)` and `(t=>{…})(x)`: from each arrow's opening, its body is matched brace by brace (string and
- * template literals skipped, `${}` nested) and counted only when `)(` follows it (2026-10-25, vera-5a). The pattern it
- * replaced, any `((…)=>{` start, counted call ARGUMENTS terser wraps in parentheses (`n((o=>{…}),…)`) and missed the
- * one-parenthesis form, so its pins mixed two things: portal's "2" was two wrapped arguments, motion's "7" hid five
- * real sites. Its positive control, run on the real case: core built BEFORE the two `@__NOINLINE__` annotations counts 12,
- * and with them 10 — exactly the two sites that cost Firefox.
- */
-const OPEN = /\((?:\([\w$,]*\)|[\w$]+)=>\{/g;
-const iifes = (src) => {
-  let n = 0;
-  for (const m of src.matchAll(OPEN)) {
-    let i = m.index + m[0].length, depth = 1;
-    const skipString = (q) => { i++; while (i < src.length && src[i] !== q) i += src[i] === '\\' ? 2 : 1; i++; };
-    const skipTemplate = () => {
-      i++;
-      while (i < src.length && src[i] !== '`') {
-        if (src[i] === '\\') { i += 2; continue; }
-        if (src[i] === '$' && src[i + 1] === '{') {
-          i += 2;
-          let d = 1;
-          while (i < src.length && d > 0) {
-            const c = src[i];
-            if (c === '"' || c === "'") { skipString(c); continue; }
-            if (c === '`') { skipTemplate(); continue; }
-            if (c === '{') d++;
-            else if (c === '}') d--;
-            i++;
-          }
-          continue;
-        }
-        i++;
-      }
-      i++;
-    };
-    while (i < src.length && depth > 0) {
-      const c = src[i];
-      if (c === '"' || c === "'") { skipString(c); continue; }
-      if (c === '`') { skipTemplate(); continue; }
-      if (c === '{') depth++;
-      else if (c === '}') depth--;
-      i++;
-    }
-    if (src[i] === ')' && src[i + 1] === '(') n++;
-  }
-  return n;
-};
 const PINS = {
   'packages/autoloader/dist/vera-autoloader.min.js': 0,
-  'packages/cms/dist/vera-cms-cli.min.js': 5,
-  'packages/cms/dist/vera-cms-content.min.js': 0,
-  'packages/cms/dist/vera-cms-node.min.js': 5,
-  'packages/cms/dist/vera-cms-publish.min.js': 1,
-  'packages/core/dist/vera.min.js': 10,
-  'packages/directives/dist/vera-directives-core.min.js': 11,
+  'packages/cms/dist/vera-cms-cli.min.js': 12,
+  'packages/cms/dist/vera-cms-content.min.js': 1,
+  'packages/cms/dist/vera-cms-node.min.js': 9,
+  'packages/cms/dist/vera-cms-publish.min.js': 2,
+  'packages/core/dist/vera.min.js': 12,
+  'packages/directives/dist/vera-directives-core.min.js': 13,
   'packages/directives/dist/vera-directives-expressions.min.js': 0,
-  'packages/directives/dist/vera-directives-interactions.min.js': 0,
-  'packages/directives/dist/vera-directives-motion.min.js': 37,
-  'packages/directives/dist/vera-directives-query.min.js': 5,
+  'packages/directives/dist/vera-directives-interactions.min.js': 1,
+  'packages/directives/dist/vera-directives-motion.min.js': 46,
+  'packages/directives/dist/vera-directives-query.min.js': 6,
   'packages/directives/dist/vera-directives-remote.min.js': 3,
-  'packages/directives/dist/vera-directives-sensors.min.js': 1,
-  'packages/directives/dist/vera-directives-standalone.min.js': 23,
-  'packages/directives/dist/vera-directives.min.js': 70,
+  'packages/directives/dist/vera-directives-sensors.min.js': 3,
+  'packages/directives/dist/vera-directives-standalone.min.js': 26,
+  'packages/directives/dist/vera-directives.min.js': 83,
   'packages/hooks/dist/vera-hooks.min.js': 3,
   'packages/hot/dist/vera-hot-vite.min.js': 0,
   'packages/hot/dist/vera-hot.min.js': 2,
   'packages/inserts/dist/vera-inserts.min.js': 0,
-  'packages/jsx/dist/vera-jsx-standalone.min.js': 3,
+  'packages/jsx/dist/vera-jsx-standalone.min.js': 7,
   'packages/jsx/dist/vera-jsx.min.js': 3,
-  'packages/motion/dist/vera-motion-client.min.js': 4,
-  'packages/motion/dist/vera-motion-internal.min.js': 29,
-  'packages/motion/dist/vera-motion-ssr.min.js': 11,
-  'packages/motion/dist/vera-motion.min.js': 12,
-  'packages/renderer/dist/vera-renderer-elements.min.js': 2,
+  'packages/motion/dist/vera-motion-client.min.js': 5,
+  'packages/motion/dist/vera-motion-internal.min.js': 34,
+  'packages/motion/dist/vera-motion-ssr.min.js': 15,
+  'packages/motion/dist/vera-motion.min.js': 16,
+  'packages/renderer/dist/vera-renderer-elements.min.js': 4,
   'packages/renderer/dist/vera-renderer-hydrate-slots.min.js': 0,
   'packages/renderer/dist/vera-renderer-hydration.min.js': 2,
   'packages/renderer/dist/vera-renderer-keyed.min.js': 0,
-  'packages/renderer/dist/vera-renderer-namespaces.min.js': 0,
   'packages/renderer/dist/vera-renderer-multi-window.min.js': 1,
+  'packages/renderer/dist/vera-renderer-namespaces.min.js': 0,
   'packages/renderer/dist/vera-renderer-native-elements.min.js': 1,
   'packages/renderer/dist/vera-renderer-portal.min.js': 0,
-  'packages/renderer/dist/vera-renderer-slots.min.js': 9,
-  'packages/renderer/dist/vera-renderer-spread.min.js': 0,
+  'packages/renderer/dist/vera-renderer-slots.min.js': 11,
+  'packages/renderer/dist/vera-renderer-spread.min.js': 1,
+  'packages/renderer/dist/vera-renderer-tag.min.js': 1,
   'packages/renderer/dist/vera-renderer-until.min.js': 0,
-  'packages/renderer/dist/vera-renderer-tag.min.js': 0,
   'packages/renderer/dist/vera-renderer.min.js': 4,
-  'packages/router/dist/vera-router.min.js': 10,
+  'packages/router/dist/vera-router.min.js': 12,
   'packages/shared-utils/dist/vera-shared-utils.min.js': 3,
   'packages/store/dist/vera-store-collections.min.js': 1,
   'packages/store/dist/vera-store-resource.min.js': 0,
   'packages/store/dist/vera-store.min.js': 1,
-  'packages/styles/dist/vera-styles.min.js': 0,
+  'packages/styles/dist/vera-styles.min.js': 1,
   'packages/ui/dist/vera-ui-elements.min.js': 2,
   'packages/ui/dist/vera-ui.min.js': 3,
 };
