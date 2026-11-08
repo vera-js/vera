@@ -2,9 +2,11 @@ import { claim, grow, placeAt, proxyCallbacks, readerAt, slotAt, tracking, unlin
 import { isWeakCollection, misuse } from '@verajs/shared-utils';
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert, StoreKit } from '@verajs/inserts';
-import type { Cell, HookRecord, Change } from '../types.js';
+import type { Cell, Change, Slot } from '../types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
+import { mapped } from './autoMap.js';
+import { FIXED, MARK, PROXY, RAW, cached, dataRecord, promote, proxies, remember, unclassify, wrap } from './identity.js';
 
 /**
  * Records the running hook, if any, as depending on `obj[prop]`. A weak collection's subscriptions
@@ -381,15 +383,6 @@ const decide = (tag: string) => {
   return chosen;
 };
 
-/**
- * **"Is this one of ours?" — asked of a value through the language, never a table.** Every store proxy
- * answers `MARK in proxy` with `true`: `settle` wraps each owned handler's `has` (a cold trap — the `in`
- * operator only), so the answer holds whatever handler a store module installed, and `shallowHandler`
- * answers it too. It replaced mapping every proxy to itself in `proxies`, which cost ~380 ns of a 514 ns
- * `createStore` — a WeakMap keyed by a PROXY is that expensive to insert into (measured, 74% of it).
- * Any target can answer it, frozen or not: the language checks a `has` trap only when it says `false`.
- */
-const MARK = Symbol();
 const marked = (has: ProxyHandler<object>['has']) => (target: object, prop: string | symbol) =>
   prop === MARK || (has ? has(target, prop) : Reflect.has(target, prop));
 
@@ -476,18 +469,6 @@ export const redecideStores = () => settle([...types.keys()]);
  * `Object.defineProperty` each read or change what a template can show.
  */
 /**
- * **Parents that are not extensible**, whose object-valued properties `get` hands back raw — marked where
- * they become so, never asked on the read path: `Object.isExtensible` in the trap cost ~170 ns on every
- * two-hop read (measured: 511 ns against 372 with this set), though the call alone is ~12 ns — its
- * presence changes how the engine compiles the trap. A value is marked when it is wrapped, and a target
- * when it is prevented from extending through the store (`preventExtensions`, which `Object.freeze` and
- * `Object.seal` call first). **Freezing the RAW object behind a
- * store, after the store has wrapped it, is not seen** — nothing in the store is told — and a later
- * object-valued read would then be refused by the engine; freeze a value before handing it to a store,
- * or through the store.
- */
-const FIXED = new WeakSet<object>();
-/**
  * An object-valued read hands back its store: cached per value, decided on the first miss. ONE function for the object
  * handler, the array handler and the raw walk, so the frozen-slot and store-in-a-store rules cannot diverge between them.
  */
@@ -568,7 +549,8 @@ const handler: ProxyHandler<object> = {
     /** `cached` reads a field, so `prevValue` must be an object first (a primitive has no store). */
     if (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value) return true;
     /** A data record needs no descriptor: no setter can run, and "added" is just "not own" (`dataRecord`). */
-    const fast = prop !== '__proto__' && dataRecord(obj);
+    /** NOT inlined: with this its one caller, the minifier pastes `dataRecord` into the write trap as an immediately-invoked arrow. */
+    const fast = prop !== '__proto__' && /*@__NOINLINE__*/ dataRecord(obj);
     const own = fast ? undefined : Reflect.getOwnPropertyDescriptor(obj, prop);
     const added = fast ? !Object.hasOwn(obj, prop) : own === undefined;
     /**
@@ -651,90 +633,6 @@ const handler: ProxyHandler<object> = {
   },
 };
 
-/**
- * Raw object → its proxy, for every store at once. The same object always comes back as the same
- * proxy — `state.a === state.a`, and `createStore(config) === createStore(config)` — where a fresh
- * proxy per read broke every identity comparison in consumer code (a list re-keying, a memo missing).
- * One map serves all stores because a value's handler is decided by its type (`handlerFor`), never
- * by which store reached it. **A store placed inside another store** — `state.child = otherStore` — is
- * recognized (`MARK`, then remembered here as mapping to itself) and handed back as it is, never wrapped
- * a second time, which tracked every read twice and notified every write twice.
- */
-const proxies = new WeakMap<object, object | null>();
-/**
- * **The same cache, kept ON the raw object** for the items a walk meets (`promote`), where the language allows (Brian,
- * 2026-10-18): a field under a Symbol
- * private to this copy of core, defined non-enumerable, so `Object.keys`, `for…in`, spreading and `JSON.stringify`
- * never see it (`Object.getOwnPropertySymbols` on the RAW object does; the store's `ownKeys` filters it). A WeakMap
- * lookup was most of a store list's walk in Firefox (measured: swap −30%, remove −25%). The field names its owner, so
- * an object that merely INHERITS from a stored one never answers with the parent's proxy. Where it can't be defined (a
- * frozen, sealed or non-extensible object), the WeakMap above keeps the answer.
- */
-const PROXY = Symbol();
-/**
- * `o` the owner (inheritance-safe), `p` its store (or `null`: hand back verbatim), `d` whether it is a DATA RECORD —
- * `1` yes, `0` no, `undefined` not yet asked (`dataRecord`, on its first write through the store).
- */
-type Slot = { o: object; p: object | null; d: 0 | 1 | undefined };
-const cached = (value: object): object | null | undefined => {
-  const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
-  return slot !== undefined && slot.o === value ? slot.p : proxies.get(value);
-};
-/**
- * **Is a write to `obj` free of setters, so it needs no property descriptor?** (2026-10-18) A DATA RECORD — its
- * prototype `Object.prototype`, `Array.prototype` or `null`, every own property a writable data property — has no
- * setter anywhere a write can reach (`__proto__` aside, which `set` routes the full way). Decided once, on the first
- * write through the store, and remembered on its field: the `set` trap's descriptor read was 5% of a store-row update
- * (measured: update every 10th, Chrome 189 → 180 µs, Firefox 222 → 210). What makes a record otherwise THROUGH the
- * store — defining an accessor or a read-only property, replacing the prototype — clears it (`defineProperty`,
- * `setPrototypeOf`). Done to the raw object behind the store's back, an accessor added later runs with the raw object
- * as `this`: a documented edge. An object without a field (frozen, sealed) is never one.
- */
-const dataRecord = (obj: object): boolean => {
-  const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
-  if (slot === undefined || slot.o !== obj) return false;
-  let d = slot.d;
-  if (d === undefined) {
-    const proto = Object.getPrototypeOf(obj);
-    d = 0;
-    if (proto === Object.prototype || proto === Array.prototype || proto === null) {
-      d = 1;
-      const all = Object.getOwnPropertyDescriptors(obj) as Record<PropertyKey, PropertyDescriptor>;
-      for (const key of Reflect.ownKeys(all))
-        if (all[key].writable !== true) {
-          d = 0;
-          break;
-        }
-    }
-    slot.d = d;
-  }
-  return d === 1;
-};
-/** A record's classification is dropped where it may have stopped being one (it is asked again on the next write). */
-const unclassify = (obj: object) => {
-  const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
-  if (slot !== undefined && slot.o === obj) slot.d = undefined;
-};
-const remember = (value: object, proxy: object | null) => {
-  proxies.set(value, proxy);
-};
-/**
- * **The field is given only where a walk reads it** (2026-10-18): defining it on EVERY object at its first proxying cost
- * store rows without `each` 8% of creating 1 000 (Chrome; with it on the WeakMap only, the baseline figure came back:
- * 3.59 → 3.33 vs 3.32 ms), while only `walkItems` gains from it (Firefox swap −29%, remove −24%). So `remember` keeps
- * the WeakMap, and the walk promotes the items it meets. Never onto a proxy (`MARK`'s self-mapping): defining through one
- * is its own trap. A non-extensible object refuses it and keeps the WeakMap.
- */
-const promote = (value: object, proxy: object | null) => {
-  Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy, d: undefined } satisfies Slot, writable: true, configurable: true });
-};
-
-/** A new proxy over `data` — over a non-extensible one, marked `FIXED`. */
-const wrap = (data: object, chosen: ProxyHandler<object>) => {
-  const proxy = new Proxy(data, chosen);
-  if (!Object.isExtensible(data)) FIXED.add(data);
-  return proxy;
-};
 
 /**
  * **An array's own handler** (2026-10-18): the object handler with a read path for arrays alone. A read is `obj[prop]`,
@@ -747,56 +645,10 @@ const wrap = (data: object, chosen: ProxyHandler<object>) => {
  * once per index. Records never pay for it: only these traps fire it.
  */
 const ITEMS = Symbol();
-/**
- * Answered by the object and array handlers (core's own stores): the raw object behind the proxy. Two uses: a walk
- * reads a list's raw array in one trap (`walkItems`), and a store written into a store is stored raw (`set`).
- */
-const RAW = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
   const cell = proxyCallbacks.get(obj)?.get(ITEMS);
   if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Change<unknown>, ++wakes);
-};
-/**
- * **Automatic `.map`** (Brian 2026-10-20): inside a RENDER hook (priority 50: a
- * component's render, or a keyed row's), with a list module wired (`$M`, the keyed module's `lists`), a store array's
- * `map(fn)` is handed to that module, which makes it a keyed list whose rows track themselves. Anywhere else — an effect,
- * a computed, plain code, no module, a borrowed `map`, a `thisArg` — the native method, as before. Nothing about `.map`'s
- * result changes: it is a real array either way.
- */
-/**
- * **Development: a store array's `.map` producing TEMPLATES inside a render, with no list module wired** (2026-10-22):
- * rows are then matched by POSITION, so reordering one shows its DOM state (a focused input, a typed value, a running
- * transition) and its component state against another item — measured. Said once per page, and only when the first
- * result is a template: the same decision automatic lists make, so it fires exactly when wiring `lists` would change
- * the behavior (a `.map(t => t.name).join(', ')` stays silent). The template test is the renderer's own —
- * `strings !== undefined`; keep it equal to renderer.ts's and keyed.ts's `isTemplateResult` (three addresses).
- */
-let warnedLists = false;
-const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) =>
-  function (this: unknown, ...args: unknown[]) {
-    const out = method.apply(this, args);
-    const first = out[0] as { strings?: unknown } | null | undefined;
-    if (!warnedLists && this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined) {
-      warnedLists = true;
-      console.warn(diagnostic('core', 'a store array\'s .map in a render', 'lists-unwired', __DEV__ && PROSE['lists-unwired']()));
-    }
-    return out;
-  };
-type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: HookRecord, owner: unknown, method: (...args: unknown[]) => unknown[]) => unknown[];
-const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[], proxy: unknown) => {
-  const list = (inserts as unknown as { $M?: AutoMap }).$M;
-  const hook = tracking.hook;
-  if (list === undefined || hook === undefined || hook._y !== 50) {
-    /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
-    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !warnedLists && !(inserts as unknown as { $ss?: (d: number) => unknown }).$ss?.(0))
-      return unwiredList(method, proxy);
-    return method;
-  }
-  return function (this: unknown, fn: unknown, ...rest: unknown[]) {
-    if (this !== proxy || rest.length) return method.apply(this, [fn, ...rest]);
-    return list(proxy, obj, fn, hook, hook._o, method);
-  };
 };
 
 const arrayHandler: ProxyHandler<object> = {

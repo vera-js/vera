@@ -102,6 +102,11 @@ export type Hooks = HookRecord[];
  * hook is unlinked exactly at its retirement.
  */
 export type Cell = { a: HookRecord | undefined; ja: number; h: (HookRecord | undefined)[] | undefined; j: number[] | undefined; m: number; n: number; d: number };
+/**
+ * What core keeps ON a raw object about it (under a symbol private to each copy of core): `o` the owner (inheritance-safe),
+ * `p` its store (or `null`: hand back verbatim), `d` whether it is a DATA RECORD (`1` yes, `0` no, `undefined` not yet asked).
+ */
+export type Slot = { o: object; p: object | null; d: 0 | 1 | undefined };
 
 /**
  * **A hook — ONE object, every field declared** (2026-10-11). It replaced three closures, two
