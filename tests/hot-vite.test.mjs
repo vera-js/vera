@@ -42,10 +42,11 @@ test('the plugin: development only, appends the accept to a swappable module and
 test('END TO END: a real Vite dev server, a real edit — swapped in place, a store from another module the SAME instance, setup once more', { timeout: 120000 }, async () => {
   const { createServer } = await import('vite');
   const { chromium } = await import('playwright');
+  /** `.probe/` is gitignored, so a fresh checkout has none: made here, or `mkdtemp` fails before the test begins. */
+  mkdirSync(join(root, '.probe'), { recursive: true });
   const dir = mkdtempSync(join(root, '.probe', 'hot-vite-'));
   const card = join(dir, 'card.js');
   const write = (label) => writeFileSync(card, `import { define, html } from '@verajs/core';\nimport { shared } from './shared.js';\nwindow.__setups = (window.__setups ?? 0) + 1;\ndefine('x-vcard', () => () => html\`<b>${label} \${shared.n}</b>\`);\n`);
-  mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'shared.js'), `import { createStore } from '@verajs/core';\nexport const shared = createStore({ n: 1 });\nwindow.__shared = shared;\n`);
   writeFileSync(join(dir, 'main.js'), `import { wire } from '@verajs/core';\nimport { renderer } from '@verajs/renderer';\nimport { hot } from '@verajs/hot';\nwire([renderer, hot]);\nawait import('./card.js');\ndocument.body.append(document.createElement('x-vcard'));\nwindow.__ready = true;\n`);
   writeFileSync(join(dir, 'index.html'), `<!doctype html><body><script type="module" src="/main.js"></script></body>`);
