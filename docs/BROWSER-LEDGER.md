@@ -201,6 +201,12 @@ from another machine, or after that is undone, has a variable changed.
   WebKit), and the temporary profile is still removed. Consequence: the DOM race kills each page's browser; a third of
   every Chrome page had been the close. (macOS, Playwright; 2026-11-08)
 
+- **A window's close is load-sensitive in Firefox.** `tests/browser/r4-cross-window.test.js`'s pop-out release row (a
+  component left in a pop-out that closes is released) failed once on Firefox while a CPU-heavy differential ran beside
+  the browser suite (the panel not released, its effect re-woken), and passed 3 of 3 runs alone on the same tree.
+  Consequence: the browser suite runs alone; a red on that row under load is re-run alone before it is called a
+  regression. (Playwright Firefox headed, macOS; 2026-11-08)
+
 ## Custom elements
 
 - **A custom element inside a CLOSED shadow root of a plain element hears that element's whole lifecycle.** A
