@@ -34,14 +34,14 @@ const track = (obj: object, prop: unknown) => {
     props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
   }
   /**
-   * **Lazy in-order link reuse.** A hook's FIRST run links each read
-   * directly, skipping only a consecutive repeat: a hook never re-run (most rows of a big list) pays nothing for reuse. A
-   * RE-run walks its previous sources in order: a read matching the cursor just advances it; a repeat of one already
-   * linked this run is skipped (below); the first read that DIFFERS unlinks every source not yet matched and links directly from
-   * there, so every read is linked at once (a run that reads a key and then writes it hears its own write). The common
-   * paths stay INLINE: out of line, a stable re-render paid a call per read (+28%, Node), and `track` must stay small
-   * enough for V8 to inline into the traps (BROWSER-LEDGER, the inlining budget): 410 bytes of bytecode of 460 in the
-   * development build (2026-10-23, after the key-map sweep's gate; `--print-bytecode --print-bytecode-filter=track`).
+   * **Lazy in-order link reuse.** A hook's FIRST run links each read directly, skipping only a consecutive repeat: a
+   * hook never re-run (most rows of a big list) pays nothing for reuse. A RE-run walks its previous sources in order: a
+   * read matching the cursor just advances it; a repeat of one already linked this run is skipped (below); the first
+   * read that DIFFERS unlinks every source not yet matched and links directly from there, so every read is linked at
+   * once (a run that reads a key and then writes it hears its own write).
+   *
+   * The common paths stay inline, and `track` stays small enough for V8 to inline into the traps:
+   * `tests/core-inlining-budget.test.mjs` prints its bytecode against the limit in both builds.
    */
   const s = sub.s;
   const i = sub.i;
@@ -74,22 +74,20 @@ const track = (obj: object, prop: unknown) => {
 };
 
 /**
- * The wake counter: every notification (one write, or one whole-array operation across all its keys) takes a new number,
- * and a hook it reached carries it (`e`), so the operation wakes each hook ONCE. It replaced the `seen` Set an
- * operation allocated.
+ * The wake counter: every notification (one write, or one whole-array operation across all its keys) takes a new
+ * number, and a hook it reached carries it (`e`), so an operation wakes each hook ONCE without allocating a set of the
+ * hooks it reached.
  */
 let wakes = 0;
 
 /**
- * Wakes every hook in `cell` with `signal`. The ONE place a notification goes out, for a single write and a whole-array
- * operation alike. ONE signal per write, shared by every subscriber — it is read, never written (a write to a key with
- * 500 readers made 500).
+ * Wakes every hook in `cell` with `signal`: the ONE place a notification goes out, for a single write and a whole-array
+ * operation alike. One signal per write, shared by every subscriber; it is read, never written.
  *
- * **In insertion order, as the `Set` it replaced**: a raw or sync hook runs inside this loop, in this order
- * (a priority-0 core's raw hook (internal) runs first), and its run may make a hook LEAVE this cell, which moves the cell's last hook
- * into the leaver's slot, possibly behind the walk. So a leave (the count at index 0 changed) restarts the walk from the start: every hook
- * already reached carries this wake's number and is skipped, so none is missed and none runs twice. A hook that JOINS
- * during the walk is reached too, as a `Set` reached an entry added while it was being iterated.
+ * **In insertion order.** A raw or sync hook runs inside this loop, in this order, and its run may make a hook LEAVE
+ * this cell, which moves the cell's last hook into the leaver's slot, possibly behind the walk. So a leave (the count
+ * at index 0 changed) restarts the walk from the start: every hook already reached carries this wake's number and is
+ * skipped, so none is missed and none runs twice. A hook that JOINS during the walk is reached too.
  */
 const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
   let m = cell.m;
@@ -100,11 +98,10 @@ const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
     hook.e = epoch;
     hook.$n(signal);
     /**
-     * **The stamp again, after the run** (2026-10-22): a raw or sync hook runs INSIDE this call, and a write it makes to a
-     * key it read wakes it again — nested — stamping it with that NEWER wake, so this loop would no longer recognize it
-     * and would run it a second time through a second link to the same key (two runs per write). Re-stamping
-     * here restores what this loop gave it. It replaced a save-and-restore inside every hook run, which charged every
-     * run — creation's first runs included — for what only a write's loop needs (WebKit create +0.8–1.1%, the final race).
+     * **The stamp again, after the run.** A raw or sync hook runs INSIDE this call, and a write it makes to a key it
+     * read wakes it again, nested, stamping it with that NEWER wake; this loop would then no longer recognize it and
+     * would run it a second time through a second link to the same key. Re-stamping here restores what this loop gave
+     * it, and only a write's loop pays for it, not every hook run.
      */
     hook.e = epoch;
     if (cell.m !== m) {
@@ -120,11 +117,10 @@ const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown)
   const cell = proxyCallbacks.get(obj)?.get(prop);
   if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
   /**
-   * **The count moves on EVERY write, read or not** (2026-10-22): an unwatched `computed` caches its untracked value
-   * against it, and its sources are often keys nobody reads — counting only writes that woke someone left that cache
-   * stale (measured: 10 after the source became 2). A GATE on unread writes (tick only once a computed was pulled outside
-   * a run) bought Node +0.9% on a write loop and cost Firefox's attribute writes ~2% headless and +1.5% headed (the final
-   * race, 11/12; bisected to the gate) — so it is gone: one tick, first, as here.
+   * **The count moves on EVERY write, read or not**: an unwatched `computed` caches its untracked value against it, and
+   * its sources are often keys nobody reads, so counting only writes that woke someone would leave that cache stale. It
+   * is one increment, first, with no gate in front of it: a gate on unread writes cost attribute writes more on Firefox
+   * than it saved elsewhere.
    */
 };
 
@@ -138,21 +134,19 @@ const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown)
 const GLOBAL = '_global';
 
 /**
- * **An object's key map is bounded: a cell no reader holds is deleted**
- * (2026-10-23; it was `prune`, which only `createSelector` called, on its own budget). A cell outlives its readers in
- * its object's key map, so an object whose keys come and go — a dictionary, a cache, a selector's ids — grew by ~145 B
- * per key it ever had (measured: 20 000 deleted keys, +2.8 MB over the control). `track` reaches this ONLY when it
- * makes a new cell in a map of at least `SWEEP_FLOOR` keys (a row's two or three keys never pass it), and the map is
- * swept when it has grown to twice what the last sweep left, plus the floor — so a sweep is paid for by as many new
- * cells, and a map holds at most about twice its live keys.
+ * **An object's key map is bounded: a cell no reader holds is deleted.** A cell outlives its readers in its object's
+ * key map, so an object whose keys come and go (a dictionary, a cache, a selector's ids) would grow by every key it
+ * ever had. `track` reaches this ONLY when it makes a new cell in a map of at least `SWEEP_FLOOR` keys (a row's two or
+ * three keys never pass it), and the map is swept when it has grown to twice what the last sweep left, plus the floor:
+ * a sweep is paid for by as many new cells, and a map holds at most about twice its live keys.
  *
- * - **Empty** is prune's test, `n === d`: every slot a tombstone (a cell whose readers left but has not compacted yet).
- *   Whether the object still HAS the key does not matter: a read makes the cell again. (A guard keeping present keys'
- *   cells was tried and measured as protecting nothing reachable — a `computed`'s map, read back with `!`, holds one key
- *   and never reaches the floor — while its `in` THREW for a collection's null-prototype keys, 2026-10-23.)
- * - **Thresholds** live in a side table keyed by the map, made by the first big map: an expando on the `Map` would change
- *   the shape `track`'s hot `props.get` reads, and a stateless rule (powers of two) sweeps the whole map on every new key
- *   when the live count sits just under a power.
+ * - **Empty** is `n === d`: every slot a tombstone (a cell whose readers left but has not compacted yet). Whether the
+ *   object still HAS the key does not matter: a read makes the cell again (and an `in` test would throw for a
+ *   collection's null-prototype keys).
+ *
+ * - **Thresholds** live in a side table keyed by the map: an expando on the `Map` would change the shape `track`'s hot
+ *   `props.get` reads, and a stateless rule (powers of two) would sweep the whole map on every new key while the live
+ *   count sits just under a power.
  */
 const SWEEP_FLOOR = 64;
 let due: WeakMap<object, number> | undefined;
@@ -162,21 +156,20 @@ const sweepIfDue = (keys: Map<unknown, Cell>) => {
   for (const [key, cell] of keys) if (cell.n === cell.d) keys.delete(key);
   due.set(keys, 2 * keys.size + SWEEP_FLOOR);
 };
-/** What a `'store'` insert is handed: core's subscribe and notify, and the shape channel's name. */
 /**
- * **ONE operation over several keys of `obj`** — the single choke point for every write that changes many keys at once
- * (A14, 2026-10-22): one wake number and ONE shared change (the shape channel, the object: "re-read"), so a hook reached
- * through many of the keys runs once. Core's whole-array methods (`atomic`) and a collection's `clear` both send through
- * it; a single write keeps `trigger`, the hot path. The count moves even when nothing is subscribed (an unwatched
- * `computed`'s cache reads it). `undefined` when no key of `obj` was ever read.
+ * **ONE operation over several keys of `obj`**: the single choke point for every write that changes many keys at once.
+ * One wake number and ONE shared change (the shape channel, the object: "re-read"), so a hook reached through many of
+ * the keys runs once. Core's whole-array methods (`atomic`) and a collection's `clear` both send through it; a single
+ * write keeps `trigger`, the hot path. The count moves even when nothing is subscribed (an unwatched `computed`'s cache
+ * reads it). `undefined` when no key of `obj` was ever read.
  */
 const operation = (obj: object, found: Map<unknown, Cell> | undefined = proxyCallbacks.get(obj)) => {
   const at = ++wakes;
   if (found === undefined) return;
   /**
    * What the sender captures lives in THIS block, never in the function's scope: a captured function-scope binding
-   * makes V8 allocate the context on EVERY call, the early return included — an unread array's `push` paid it (+12–15%,
-   * 12/12, measured). A block context is made only when the block runs.
+   * makes V8 allocate the context on EVERY call, the early return included. A block context is made only when the block
+   * runs.
    */
   {
     const epoch = at;
@@ -188,54 +181,58 @@ const operation = (obj: object, found: Map<unknown, Cell> | undefined = proxyCal
     };
   }
 };
+/** What a `'store'` insert is handed: core's subscribe and notify, the shape channel's name, and the operation. */
 const kit: StoreKit = { track, trigger, shape: GLOBAL, operation };
 /**
- * **For `computed`** (2026-10-22): the same subscribe and notify, and a read of the wake counter. ALIASES, never
- * `export` on `track`/`trigger` themselves — an exported binding is a live one, which V8 reaches less directly from the
- * traps that call them on every read and write (CLAUDE.md).
+ * **For `computed`**: the same subscribe and notify, and a read of the wake counter. ALIASES, never `export` on
+ * `track`/`trigger` themselves: an exported binding is a live one, which V8 reaches less directly from the traps that
+ * call them on every read and write.
  */
 export const trackKey = track;
 export const triggerKey = trigger;
 export const wakeCount = () => wakes;
 /**
- * (2026-10-20) The same kit handed to a module OFF the store chain (`$k`), so the keyed
- * module's `createSelector` can keep one cell per selection key on the one notification path. `$`-named: survives mangling.
+ * The same kit handed to a module OFF the store chain (`$k`), so the keyed module's `createSelector` keeps one cell per
+ * selection key on the one notification path. `$`-named: it survives mangling.
  */
 (inserts as unknown as { $k: StoreKit }).$k = kit;
 
 /**
- * **A built-in that writes several slots notifies ONCE, after it finishes** (2026-10-18). Called through the proxy,
- * `splice`, `shift`, `sort` … write index by index through the `set` trap: a hook that runs on each write (a raw
- * core's raw hook (internal), a `'sync'` effect) ran BETWEEN those writes and saw the array half-shifted, a value twice or a hole, and
- * `splice(400, 1)` on 1000 rows sent 601 notifications. Here the method runs on the RAW array, so no trap fires midway,
- * and every hook subscribed to anything it changed (an index in the range; `length` and the shape when the length
- * moved) is told once, with one signal. What crosses back goes through the store as a read would: removed values and
- * `sort`'s comparator arguments are proxies, and the array itself comes back as the store array.
+ * **A built-in that writes several slots notifies ONCE, after it finishes.** Called through the proxy, `splice`,
+ * `shift`, `sort` … write index by index through the `set` trap, and a hook that runs on each write (a raw hook, a
+ * `'sync'` effect) would run BETWEEN those writes and see the array half-shifted, a value twice or a hole, with one
+ * notification per slot moved. Here the method runs on the RAW array, so no trap fires midway, and every hook
+ * subscribed to anything it changed (an index in the range; `length` and the shape when the length moved) is told once,
+ * with one signal. What crosses back goes through the store as a read would: removed values and `sort`'s comparator
+ * arguments are proxies, and the array itself comes back as the store array.
  *
  * What it does NOT cover, on purpose: a user's own multi-statement write (`Object.assign(store, …)`) is several writes
  * in the language's terms and stays so; a method called OFF the array (`Array.prototype.push.apply(state.rows, more)`)
- * never reads it through the store, so it still writes index by index — call `state.rows.push(...more)`; `sort` on a
+ * never reads it through the store, so it still writes index by index (call `state.rows.push(...more)`); `sort` on a
  * SPARSE array moves its holes without changing its length, and enumeration readers are not told; a `sort` comparator
- * that WRITES to the store (caching a key on a row) is notified mid-sort, as any write is. Each read of a
- * mutator hands back a new function (`state.rows.push !== state.rows.push`).
+ * that WRITES to the store is notified mid-sort, as any write is. Each read of a mutator hands back a new function
+ * (`state.rows.push !== state.rows.push`).
  */
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
- * **What a store keeps of a value written into it: raw, one level deep** (2026-10-23) — the ONE place a write (`set`)
- * and a whole-array method's inserted values (`atomic`) are made raw, so raw data never holds a proxy (why: see the
- * `set` trap's "stored RAW"). A store proxy → its raw object. A plain array or plain object holding this store's
- * proxies ONE level down → a raw COPY: `state.rows = state.rows.filter(…)` (also `slice`, `[...rows].sort()`) hands back
- * an array of the proxies the reads produced, and stored as it was, every later list walk met a proxy in every slot
- * (swaps +47–56%, measured); `state.rows[i] = { ...r, label }` copies a nested `r.user` in as a proxy the same way.
+ * **What a store keeps of a value written into it: raw, one level deep.** The ONE place a write (`set`) and a
+ * whole-array method's inserted values (`atomic`) are made raw, so raw data never holds a proxy (why: the `set` trap's
+ * "stored RAW"). A store proxy → its raw object. A plain array or plain object holding this store's proxies ONE level
+ * down → a raw COPY: `state.rows = state.rows.filter(…)` (also `slice`, `[...rows].sort()`) hands back an array of the
+ * proxies the reads produced, and stored as it is, every later list walk would meet a proxy in every slot;
+ * `state.rows[i] = { ...r, label }` copies a nested `r.user` in as a proxy the same way.
  *
  * - **Copied only when a proxy is found, never rewritten in place:** the user's own array or object is never changed
- *   behind their back. So the rule a reader can rely on: an assigned value is stored AS IT IS (aliased) unless it holds
+ *   behind their back. The rule a reader can rely on: an assigned value is stored AS IT IS (aliased) unless it holds
  *   this store's proxies, and then a raw copy is stored.
- * - **One level:** a proxy two levels down (`{ a: { b: proxy } }`) is kept — a deep scan of every written object would
- *   tax every write; the idioms above are one level.
+ *
+ * - **One level:** a proxy two levels down (`{ a: { b: proxy } }`) is kept; a deep scan of every written object would
+ *   tax every write, and the idioms above are one level.
+ *
  * - **Plain containers only** (an `Array` or an object whose prototype is `Object.prototype` or `null`, extensible): a
  *   class instance, a frozen object, a collection is stored as it is. A copy keeps an array's holes; an array's
  *   non-index properties and an object's non-enumerable ones are not copied (a plain container has none in practice).
+ *
  * - A proxy of another kind or of another copy of core does not answer `RAW` and stays as it is.
  */
 const unwrap = (value: unknown) =>
@@ -280,27 +277,25 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     /** ONE operation (`operation`): a hook reached through several keys runs once. */
     const keys = proxyCallbacks.get(obj);
     /**
-     * Nobody ever read this array: only the count moves — inline, as before. Calling `operation` here cost an unread
-     * array's `push` +12–15% (12/12; a block context did not recover it), so the shared sender is reached only when
-     * there is someone to wake.
+     * Nobody ever read this array: only the count moves, inline. Reaching the shared sender costs an unread array's
+     * `push` a context allocation, so it is reached only when there is someone to wake.
      */
     if (keys === undefined) ++wakes;
     else {
       const send = operation(obj, keys);
       /**
        * The indices that can have changed, to the longer end: an append's and a pop's start at the tail; everything
-       * else from 0. `splice` could start at its own start, but that cost 47 B and saves only a re-run of a hook that
-       * reads an index BELOW it (`each` rows read their item, never an index: measured, the same rows re-render).
+       * else from 0. `splice` could start at its own start, but that costs bytes and saves only a re-run of a hook that
+       * reads an index BELOW it (`each` rows read their item, never an index).
        */
       const lo = name === 'push' ? before : name === 'pop' ? after : 0;
       const hi = before > after ? before : after;
       /**
-       * The change is the operation's — the shape channel, the array: "the contents changed, re-read". Not `length`:
+       * The change is the operation's (the shape channel, the array: "the contents changed, re-read"), not `length`:
        * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
-       */
-      /**
-       * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. A list rendered
-       * through a raw walk subscribes no index at all (`ITEMS` instead), so its splice checks a handful of keys, not 1000.
+       * The touched indices go through whichever is SHORTER: the range, or the keys anyone subscribed to. A list
+       * rendered through a raw walk subscribes no index at all (`ITEMS` instead), so its splice checks a handful of
+       * keys, not 1000.
        */
       if (keys.size < hi - lo) {
         for (const key of keys.keys())
@@ -331,21 +326,19 @@ let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
 
 /**
- * **One handler per TYPE of value, owned here and shared by every proxy of that type** — keyed by the
- * engine's own tag (`Object.prototype.toString`, a constant string: no allocation on a lookup).
+ * **One handler per TYPE of value, owned here and shared by every proxy of that type**, keyed by the engine's own tag
+ * (`Object.prototype.toString`, a constant string: no allocation on a lookup).
  *
- * Core's handler serves plain objects (class instances included) and arrays. Every other type — a
- * `Map`, a `Date`, a typed array, a DOM element — has internal slots a proxy in front of it breaks
- * (`this is not a Date object`), so it starts with an EMPTY handler: a store of one is transparent, and a
- * nested one is handed back raw. A `'store'` insert may claim a type or wrap core's handler.
+ * Core's handler serves plain objects (class instances included) and arrays. Every other type (a `Map`, a `Date`, a
+ * typed array, a DOM element) has internal slots a proxy in front of it breaks (`this is not a Date object`), so it
+ * starts with an EMPTY handler: a store of one is transparent, and a nested one is handed back raw. A `'store'` insert
+ * may claim a type or wrap core's handler.
  *
- * **A decision is made when its inputs change, never per store or per read.** A type is decided the
- * first time one is met; `wire` decides every known type again and writes the result INTO the owned
- * handler objects, so every existing proxy follows — a module wired after the app's stores exist (a
- * store at module scope, imported before the entry wires) reaches them all. The handlers are owned
- * copies because what a chain returns may be shared — core's own serves two types — and must never be
- * rewritten in place. Replaced per-store first-use placeholders, which cost ~2.6 µs of every component
- * with a store (measured): seven closures per store.
+ * **A decision is made when its inputs change, never per store or per read.** A type is decided the first time one is
+ * met; `wire` decides every known type again and writes the result INTO the owned handler objects, so every existing
+ * proxy follows: a module wired after the app's stores exist (a store at module scope, imported before the entry wires)
+ * reaches them all. The handlers are owned copies because what a chain returns may be shared (core's own serves two
+ * types) and must never be rewritten in place.
  */
 const TAG = Object.prototype.toString;
 const types = new Map<string, ProxyHandler<object>>();
@@ -367,7 +360,7 @@ const decide = (tag: string) => {
    * keep the full one. Both are core's defaults and every `'store'` insert still sees and may wrap either.
    */
   let chosen: ProxyHandler<object> | undefined = type === 'array' ? arrayHandler : type === 'object' ? handler : undefined;
-  /** A plain loop: `forEach` allocated a closure per decision — measured, once any module is wired. */
+  /** A plain loop: `forEach` would allocate a closure per decision. */
   const chain = inserts.get('store') as StoreInsert[] | undefined;
   if (chain)
     for (let i = 0; i < chain.length; i++) {
@@ -464,11 +457,6 @@ const handlerFor = (value: object) => {
 export const redecideStores = () => settle([...types.keys()]);
 
 /**
- * One handler for every store: a read subscribes, and a write that changes something wakes the
- * readers — through every door the language has, not only `=`: `in`, enumeration, `delete` and
- * `Object.defineProperty` each read or change what a template can show.
- */
-/**
  * An object-valued read hands back its store: cached per value, decided on the first miss. ONE function for the object
  * handler, the array handler and the raw walk, so the frozen-slot and store-in-a-store rules cannot diverge between them.
  */
@@ -483,6 +471,11 @@ const nested = (obj: object, prop: PropertyKey, value: object) => {
   }
   return proxy ?? value;
 };
+/**
+ * One handler for every store: a read subscribes, and a write that changes something wakes the readers, through every
+ * door the language has, not only `=`: `in`, enumeration, `delete` and `Object.defineProperty` each read or change what a
+ * template can show.
+ */
 const handler: ProxyHandler<object> = {
   get(obj: object, prop, receiver) {
     /**
@@ -524,18 +517,15 @@ const handler: ProxyHandler<object> = {
   },
   set(obj, prop, value, receiver) {
     /**
-     * **A store written into a store is stored RAW** (2026-10-18): what a read hands back is unchanged (one proxy per
-     * object, from the cache), but the raw data never holds a proxy, so a walk over it never meets one (a read on a
-     * proxy is a trap call the engine cannot cache: Chrome's swap paid +12% for two such slots). A store of another
-     * kind (`createShallow`) does not answer `RAW` and is kept as it is.
-     */
-    /**
-     * Raw, one level deep (`unwrap`): a proxy → its object; a plain container holding proxies → a raw copy — in a DEEP
-     * store only. A SHALLOW one (`signal`'s) hands its contents back exactly as stored, so it keeps them EXACTLY as
-     * given, a store proxy included: unwrapped, `sig.value = state.rows` handed back the raw array and
-     * `sig.value = state.rows.filter(…)` raw rows — writes through them rendered nothing (the top-level unwrap did this
-     * from 2026-10-18 until 2026-10-23); and the scan cost every `signal.value = rows` a pass over the array (WebKit +2–5%
-     * on immutable-row updates, measured). A shallow store's contents are never walked raw, so nothing needs them raw.
+     * **A store written into a store is stored RAW**: what a read hands back is unchanged (one proxy per object, from
+     * the cache), but the raw data never holds a proxy, so a walk over it never meets one (a read on a proxy is a trap
+     * call the engine cannot cache). A store of another kind (`createShallow`) does not answer `RAW` and is kept as it
+     * is.
+     *
+     * Raw, one level deep (`unwrap`), in a DEEP store only. A SHALLOW one (`signal`'s) hands its contents back exactly
+     * as stored, so it keeps them EXACTLY as given, a store proxy included: unwrapped, `sig.value = state.rows` would
+     * hand back the raw array, and writes through it would render nothing. A shallow store's contents are never walked
+     * raw, so nothing needs them raw, and `signal.value = rows` pays no scan.
      */
     if (value !== null && typeof value === 'object' && this !== shallowHandler) value = unwrap(value);
     const prevValue = Reflect.get(obj, prop, receiver);
@@ -564,12 +554,11 @@ const handler: ProxyHandler<object> = {
     let written;
     try {
       /**
-       * **The proxy is the receiver only where a setter could run.** Passing it is what binds a setter's
-       * `this` to the proxy (so writes inside one are tracked) — and for a plain data property it makes
-       * the language re-enter `defineProperty` through this proxy: a second trap call on every write.
-       * An own writable DATA property, or a key the object does not have anywhere on its chain, runs
-       * no setter, so it is written directly — measured: a write 55% faster, a write-to-render update
-       * 45% (448 → 200 ns, 609 → 332 ns). An own or inherited accessor keeps the receiver.
+       * **The proxy is the receiver only where a setter could run.** Passing it is what binds a setter's `this` to the
+       * proxy (so writes inside one are tracked), and for a plain data property it makes the language re-enter
+       * `defineProperty` through this proxy: a second trap call on every write. An own writable DATA property, or a key
+       * the object does not have anywhere on its chain, runs no setter, so it is written directly, at about half the
+       * cost. An own or inherited accessor keeps the receiver.
        */
       written = (fast || (own ? own.writable === true : !(prop in obj)))
         ? Reflect.set(obj, prop, value)
@@ -635,14 +624,14 @@ const handler: ProxyHandler<object> = {
 
 
 /**
- * **An array's own handler** (2026-10-18): the object handler with a read path for arrays alone. A read is `obj[prop]`,
- * no receiver: an array's slots and `length` are data, and `Reflect.get` with a receiver cost 22% of every read
- * (measured, V8). An accessor DEFINED on a store array runs with the raw array as `this`, untracked: a documented edge.
- * The whole-array methods are recognized here only, so a record's function-valued read no longer tests for them.
+ * **An array's own handler**: the object handler with a read path for arrays alone. A read is `obj[prop]`, no receiver:
+ * an array's slots and `length` are data, and `Reflect.get` with a receiver costs a fifth of every read in V8. An
+ * accessor DEFINED on a store array runs with the raw array as `this`, untracked: a documented edge. The whole-array
+ * methods are recognized here only, so a record's function-valued read never tests for them.
  *
  * Every change to an array's CONTENTS also wakes its `ITEMS` channel: an index written, defined or deleted, `length`
- * moved (a truncating `length = 0` included), a whole-array method. A walk subscribes there ONCE (`walkItems`) instead of
- * once per index. Records never pay for it: only these traps fire it.
+ * moved (a truncating `length = 0` included), a whole-array method. A walk subscribes there ONCE (`walkItems`) instead
+ * of once per index. Records never pay for it: only these traps fire it.
  */
 const ITEMS = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
@@ -728,8 +717,8 @@ export const walkItems = (list: unknown, visit: (raw: unknown, item: unknown) =>
     if (value === null || typeof value !== 'object' || fixed) visit(value, value);
     else {
       /**
-       * The cache field read HERE, not through `cached`: this site only ever meets one list's items, so the engine keeps
-       * the read monomorphic; `cached`, shared by every object in the app, goes megamorphic (measured: Chrome swap +12%).
+       * The cache field read HERE, not through `cached`: this site only ever meets one list's items, so the engine
+       * keeps the read monomorphic, where `cached`, shared by every object in the app, goes megamorphic.
        */
       const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
       if (slot !== undefined && slot.o === value) visit(value, slot.p ?? value);
@@ -758,23 +747,22 @@ const shallowHandler: ProxyHandler<object> = {
   },
 };
 /**
- * **A store over a record CORE just made — its proxy kept ON the record, never in the WeakMap** (2026-10-22). The props
- * record (`_$raw$`) is built at runtime for each element; V8 PRETENURES a constant object literal (old space) and not a
- * runtime-built object, so a young record paid the WeakMap's young-key cost on insert, on every lookup and in GC — a
- * hand-written class whose store came from a source literal ran 2.5% faster at creation on Chrome (headed race), and with
- * `--no-allocation-site-pretenuring` the two tied (BROWSER-LEDGER 2026-10-22). Given its slot here (`promote`'s
- * non-enumerable field: a spread or `Object.keys` never sees it, so the removal's `{ ...raw }` copy starts clean), the
- * record costs no WeakMap entry and no `cached()` miss: define with defaults −12.8% on Chrome, now faster than that
- * class, −2.5% Firefox (headless iteration; confirmed by the headed race). `cached()` reads the slot first, so
- * `createStore(record)` still answers the same proxy.
- * - ONLY for a record no store wraps yet — `define`'s props record, built FULL by its defaults filler (`filledOf`). It
+ * **A store over a record CORE just made, its proxy kept ON the record, never in the WeakMap.** The props record
+ * (`_$raw$`) is built at runtime for each element, and V8 pretenures a constant object literal (old space) but not a
+ * runtime-built object, so a young record would pay the WeakMap's young-key cost on insert, on every lookup and in GC.
+ * Given its slot here (`promote`'s non-enumerable field: a spread or `Object.keys` never sees it, so the removal's `{
+ * ...raw }` copy starts clean), the record costs no WeakMap entry and no `cached()` miss. `cached()` reads the slot
+ * first, so `createStore(record)` still answers the same proxy.
+ *
+ * - ONLY for a record no store wraps yet: `define`'s props record, built FULL by its defaults filler (`filledOf`). It
  *   skips `cached()` on purpose, which a record someone else had already wrapped would turn into a second proxy.
- * - NOT for a class component's record (`propsOf`): with the slot on it, Firefox ran bound class components +5.2%
- *   slower to create and +3.1% to churn (6/6 sessions each, headed race); on `createStore` both returned level and
- *   Chrome's define win stayed. The suspected cause, a HYPOTHESIS: that record starts empty and grows after the slot is
- *   defined, where define's is built full first.
- * - Not for every store: a field defined on EVERY proxied object cost store rows 8% (`promote`'s note); this is one
- *   record per component.
+ *
+ * - NOT for a class component's record (`propsOf`): with the slot on it, Firefox ran bound class components slower to
+ *   create and to churn; that record starts empty and grows after the slot would be defined, where define's is built
+ *   full first (the suspected cause, not established).
+ *
+ * - Not for every store: a field defined on EVERY proxied object costs store rows at creation (`promote`'s note); this
+ *   is one record per component.
  */
 export const createOwned = <T extends object>(data: T): T => {
   const proxy = wrap(data, handlerFor(data));
