@@ -44,6 +44,8 @@ const saved = new Map(files().map((f) => [f, readFileSync(join(dist, f))]));
 const before = { prod: sha(join(dist, prod)), dev: sha(join(dist, dev)) };
 
 const build = (mode) => execFileSync('npx', ['rollup', '-c', '--silent'], { cwd: dir, env: { ...process.env, ...(mode ? { MODE: mode } : {}) }, stdio: 'pipe' });
+/** Held until dist is put back and checked, so a refusal or a failed build still proves the restore. */
+let failure;
 try {
   build(undefined);
   build('prod');
@@ -58,10 +60,12 @@ try {
   const diff = execSync(`git diff -- packages/${pkg}`, { cwd: root });
   writeFileSync(join(out, 'STAMP'), `${pkg}/${name}\nsource diff ${createHash('sha256').update(diff).digest('hex').slice(0, 12)} (${diff.length} bytes)\n${files().map((f) => `${sha(join(dist, f))} ${f}`).join('\n')}\n`);
   console.log(`  written to .probe/variants/${name}/ (STAMP: source diff ${createHash('sha256').update(diff).digest('hex').slice(0, 12)})`);
-} finally {
-  /** The package's dist goes back to the bytes it had, whatever happened above. */
-  for (const [f, bytes] of saved) writeFileSync(join(dist, f), bytes);
-  const restored = { prod: sha(join(dist, prod)), dev: sha(join(dist, dev)) };
-  if (restored.prod !== before.prod || restored.dev !== before.dev) throw new Error('build-variant: dist was not restored');
-  console.log(`  dist restored (prod ${restored.prod}, dev ${restored.dev})`);
+} catch (error) {
+  failure = error;
 }
+/** The package's dist goes back to the bytes it had, whatever happened above, and the restore is checked on every path. */
+for (const [f, bytes] of saved) writeFileSync(join(dist, f), bytes);
+const restored = { prod: sha(join(dist, prod)), dev: sha(join(dist, dev)) };
+if (restored.prod !== before.prod || restored.dev !== before.dev) throw new Error('build-variant: dist was not restored');
+console.log(`  dist restored (prod ${restored.prod}, dev ${restored.dev})`);
+if (failure) throw failure;
