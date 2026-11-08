@@ -98,6 +98,7 @@ const CALIBRATE = params.has('calibrate');
  */
 const PAGE_MS = Number(params.get('pagems')) || 15000;
 /** Which harness sources this bundle was built from (`harness-sha.mjs`): the race checks it against the files on disk. */
+/* global __HARNESS__ -- defined by build.mjs at bundle time */
 window.__HARNESS__ = typeof __HARNESS__ === 'string' ? __HARNESS__ : 'unstamped';
 const pageStart = performance.now();
 /**
