@@ -526,8 +526,9 @@ from another machine, or after that is undone, has a variable changed.
 - **Chrome charges for a proxy handler that CARRIES `undefined`-valued trap keys, though no operation reaches them.** The
   store door (2026-11-06) gave every handler core owns all 13 trap names (`Object.getOwnPropertyNames(Reflect)`), six set
   to `undefined`, so a module wired later would only replace values. Four races reproduced the cost on a store-backed
-  list's swap (+1.9 to +3.2% median, every drop-one a loss); removing the undefined keys (core's own 7) cleared it in two
-  races, whether the fields were written once or twice (13 keys written once still lost: not V8's constant-field
+  list's swap (+3.1, +3.2, +2.8 and +1.9% median; every drop-one a loss in the first three, 5 of 8 in the fourth and
+  smallest); removing the undefined keys (core's own 7) cleared it in three races (two narrow, and the final three-engine
+  race on the landed form), whether the fields were written once or twice (13 keys written once still lost: not V8's constant-field
   tracking); a later wire that ADDS a trap to the 7-key handlers measured free in ONE race (the same module on both forms
   as the pair). A counting module showed swap reaches only `get`, `set` and `has`: no absent-trap path runs. Chrome only;
   Firefox and WebKit not isolated. The mechanism (the handler's shape in V8's proxy code) is a guess. Consequence: a
@@ -547,13 +548,17 @@ from another machine, or after that is undone, has a variable changed.
 - **jsdom builds Proxies of its own for every element** (a `NamedNodeMap` and a `DOMStringMap` per element: 12,021
   constructed while rendering 1000 table rows). Consequence: a probe that counts `new Proxy` to see whether code reaches a
   store must group the count by handler or target, or jsdom's own swamp it. (jsdom, Node; 2026-11-07)
-- **On macOS, `caffeinate -dimsu` keeps the display and system awake but does not stop the screensaver, and the Aerial
-  wallpaper keeps a process busy behind headed browsers.** `WallpaperAerialsExtension` held 10–15% of a core at the start
-  of 5 of 8 Chrome sessions and 1 of 8 Firefox sessions in one race, and kept running at 5–12% after the wallpaper was set
-  to a still image through System Events (the legacy setting; the newer wallpaper store still named an animated one). A
-  covered headed window can be throttled. Consequence: the race harness records whether a screensaver process is up at
-  every session and at the end, sessions it marks contended go into a removed-together suspect set, and the machine's
-  wallpaper is set to a still image in System Settings, not by script. (Headed races on macOS; 2026-11-06 and 11-07.)
+- **On macOS, the Aerial wallpaper keeps a process busy behind headed browsers, and `caffeinate -dimsu` does not stop it.**
+  In one three-engine race under caffeinate, `WallpaperAerialsExtension` was in the top three processes at the start of
+  all 16 Chrome and Firefox sessions, at 6.4–16.2% of a core (at or above 10% in 5 of 8 Chrome and 3 of 8 Firefox
+  sessions); no WebKit session showed it. After the wallpaper was set to a still image through System Events (the legacy
+  setting; the newer wallpaper store still named an animated one), it held 6.4–14.2% in all 8 sessions of the next race.
+  That race also ran for hours under caffeinate with the screensaver set to 10 minutes idle and recorded no screensaver
+  in any session, so caffeinate did keep the screensaver off there; the earlier dimming was in sessions run WITHOUT it.
+  Consequence: every headed run is caffeinated; the harness records whether a screensaver is up at every session and at
+  the end, and sessions it marks contended go into a removed-together suspect set, because a covered or contended
+  window could be throttled (not measured); and the wallpaper is set to a still image in System Settings, not by script.
+  (Headed races on macOS; 2026-11-06 and 11-07.)
 
 ## Competitors, as their own benchmark entries write them
 
