@@ -48,15 +48,16 @@ export const resetIds = () => { nextId = 1; };
  * exactly what the old call did.
  */
 import * as vera from '@verajs/core';
+import * as store from '@verajs/store';
 const { init, createStore, setRenderScheduler, microtask, wire } = vera;
 /** The raw hook: a public export until 2026-10-22, core's own hand-off since — by presence, so one page serves both builds. */
-const createHook = vera.createHook ?? vera.inserts.$s[2];
+const createHook = vera.createHook ?? vera.inserts.$s?.[2];
 /**
  * A reactive box for one value: `signal` (shallow by default) since 2026-10-22, `shallowRef` before it. Taken by
  * presence so the SAME page runs against a build from either side of the rename (a race's baseline may predate it).
  * Every box below holds a primitive or rows that are only ever replaced, so shallow is exact.
  */
-const signal = vera.signal ?? vera.shallowRef;
+const signal = vera.signal ?? vera.shallowRef ?? store.signal;
 import { html as litHtml, render as litRender, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 
@@ -468,6 +469,26 @@ const veraStoreDefaultImpl = (mount) => {
 import VueRows from './vue/Rows.vue';
 import { rows as vueRows, selected as vueSelected } from './vue/state.js';
 
+import VueReactiveRows from './vue/ReactiveRows.vue';
+import { state as vueState } from './vue/reactive-state.js';
+const vueReactiveImpl = (mount) => {
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  vueState.rows = [];
+  vueState.selected = -1;
+  const app = createApp(VueReactiveRows);
+  app.mount(host);
+  return {
+    create: (n, seed) => { vueState.rows = buildData(n, seed); return nextTick(); },
+    append: (n, seed) => { vueState.rows.push(...buildData(n, seed)); return nextTick(); },
+    updateEvery10th: () => { const r = vueState.rows; for (let i = 0; i < r.length; i += 10) r[i].label += ' !!!'; return nextTick(); },
+    swap: () => { const r = vueState.rows; if (r.length > 998) { const t = r[1]; r[1] = r[998]; r[998] = t; } return nextTick(); },
+    select: (i) => { vueState.selected = vueState.rows[i]?.id ?? -1; return nextTick(); },
+    remove: (i) => { vueState.rows.splice(i, 1); return nextTick(); },
+    clear: () => { vueState.rows = []; return nextTick(); },
+    teardown: () => { app.unmount(); host.remove(); },
+  };
+};
 const vueCompiledImpl = (mount) => {
   const host = document.createElement('div');
   mount.appendChild(host);
@@ -911,6 +932,39 @@ const solidImpl = (mount) => {
 
 /** Solid as Solid's own js-framework-benchmark entry writes it: compiled JSX, `<For>`, `createSelector`, a signal per label. */
 import { mountSolid } from './solid/Rows.jsx';
+/** No framework at all, the same markup, one JS array of rows: what the page costs with nothing reactive (2026-11-01, the churn tail's control). */
+const vanillaImpl = (mount, holdNodes = false) => {
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  mount.appendChild(table);
+  let rows = [];
+  let refs = [];
+  const makeRow = ({ id, label }) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${id}</td><td><a>${label}</a></td><td><a>x</a></td>`;
+    /** `Vanilla refs`: JS holding each row's nodes and one closure listener per row, what any code holding DOM does, with no framework. */
+    if (holdNodes) {
+      const held = { tr, id: tr.firstChild, a: tr.children[1].firstChild };
+      tr.addEventListener('click', () => { held.a.textContent += ''; });
+      refs.push(held);
+    }
+    return tr;
+  };
+  const add = (n, seed) => { const made = buildData(n, seed).map(makeRow); rows = rows.concat(made); tbody.append(...made); };
+  return {
+    create: (n, seed) => { tbody.textContent = ''; rows = []; refs = []; add(n, seed); },
+    append: (n, seed) => { add(n, seed); },
+    updateEvery10th: () => { for (let i = 0; i < rows.length; i += 10) { const a = rows[i].children[1].firstChild; a.textContent += ' !!!'; } },
+    swap: () => { if (rows.length > 998) { const a = rows[1], b = rows[998], after = b.nextSibling; a.before(b); tbody.insertBefore(a, after); rows[1] = b; rows[998] = a; } },
+    select: (i) => { for (const r of tbody.querySelectorAll('.selected')) r.className = ''; if (rows[i]) rows[i].className = 'selected'; },
+    remove: (i) => { rows[i]?.remove(); rows.splice(i, 1); },
+    clear: () => { tbody.textContent = ''; rows = []; refs = []; },
+    teardown: () => { table.remove(); },
+  };
+};
+import { mountSolidStore } from './solid/StoreRows.jsx';
+const solidStoreImpl = (mount) => { const host = document.createElement('div'); mount.appendChild(host); return mountSolidStore(host, buildData); };
 const solidCompiledImpl = (mount) => { const host = document.createElement('div'); mount.appendChild(host); return mountSolid(host, buildData); };
 
 /* ── Preact ─────────────────────────────────────────────────────────────────── */
@@ -1058,9 +1112,13 @@ export const IMPLEMENTATIONS = [
   { name: 'VeraJS fine P1e', note: 'P1 emulated with public APIs: table rows, a store + createHook per row', factory: veraFineP1eImpl },
   { name: 'VeraJS fine P0', note: 'userland ceiling: rows as init components with their own store; select / update write rows directly', factory: veraFineImpl },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
+  { name: 'Vanilla', note: 'plain createElement rows and one JS array, no framework (the churn tail control)', factory: (mount) => vanillaImpl(mount) },
+  { name: 'Vanilla refs', note: "the same, with JS holding each row's nodes and one closure listener per row", factory: (mount) => vanillaImpl(mount, true) },
   { name: 'Solid', note: 'solid-js compiled (babel-preset-solid), For + createSelector', factory: solidCompiledImpl },
+  { name: 'Solid store', note: 'solid-js/store, a store proxy per row on first read (the churn test)', factory: solidStoreImpl },
   { name: 'Solid (h)', note: 'solid-js/h, no compiler (the race used this one until 2026-10-18)', factory: solidImpl },
   { name: 'Vue', note: 'vue compiled template, keyed v-for + v-memo', factory: vueCompiledImpl },
+  { name: 'Vue reactive', note: 'vue reactive(), a reactive proxy per row on first read (the churn test)', factory: vueReactiveImpl },
   { name: 'Vue (h)', note: 'vue h(), no compiler or memo (the race used this one until 2026-10-18)', factory: vueImpl },
   { name: 'Van.js', note: 'vanjs-core, per-row states (its benchmark entry)', factory: vanIdiomaticImpl },
   { name: 'Van.js (rebuild)', note: 'vanjs-core, whole list rebuilt (the race used this one until 2026-10-18)', factory: vanImpl },

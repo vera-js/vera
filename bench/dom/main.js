@@ -59,7 +59,49 @@ const LAYOUT = params.has('layout');
 /** `&plant=N`: the positive control's planted work, in loop iterations (see the `-dom` rows). */
 const PLANT = Number(params.get('plant')) || 0;
 /**
- * The plant's ACTUAL cost on THIS engine (vera-5a): N was calibrated on V8, so SpiderMonkey or JavaScriptCore may make
+ * **`&plantpct=P`: the per-row positive control** (2026-11-08, the 5–10-minute test standard): every timed run of EVERY row
+ * carries counted work equal to P% of that row's own run time on this page (measured on its warm-up runs, which carry
+ * none), so an arm with it must read P% slower on every row the race reads, or that row cannot see a loss of that size.
+ * Iterations from this page's measured cost per iteration (never a timed wait: Firefox and WebKit coarsen the clock).
+ */
+const PLANTPCT = Number(params.get('plantpct')) || 0;
+const NS_PER_ITER = (() => {
+  if (!PLANTPCT) return 0;
+  let acc = 0, n = 0;
+  const t0 = performance.now();
+  while (performance.now() - t0 < 60) { for (let i = 0; i < 100000; i++) acc = (acc * 31 + i) | 0; n += 100000; }
+  window.__PLANT_SINK__ = acc;
+  return ((performance.now() - t0) * 1e6) / n;
+})();
+const spin = (ms) => {
+  let acc = window.__PLANT_SINK__ | 0;
+  const n = Math.round((ms * 1e6) / NS_PER_ITER);
+  for (let i = 0; i < n; i++) acc = (acc * 31 + i) | 0;
+  window.__PLANT_SINK__ = acc;
+};
+/** `&minms=M`: a re-batched sample holds at least M ms of the op's own work (its run count grows to reach it). */
+const MINMS = Number(params.get('minms')) || 0;
+/** The re-batch growth's ceiling: a row whose single run is tiny would otherwise ask for hundreds of set-ups (the stall
+ *  of 2026-11-08). A sample still short at the cap is printed as such by its row's own time. */
+const MAXREBATCH = 32;
+/**
+ * **`&counts=op:N,…`: every row's runs per sample, the SAME for every arm** (2026-11-08). Sizing a count from an arm's own
+ * speed gives a faster arm a larger N, which amortizes the sample's fixed overhead differently and leans the comparison
+ * toward it. So the race calibrates once per engine on its base arm (`&calibrate`: warm-ups only, the counts reported in
+ * `__COUNTS__`) and passes the same counts to every page. Without `counts`, the old per-page sizing and time boxes hold.
+ */
+const COUNTS = Object.fromEntries((params.get('counts') ?? '').split(',').filter(Boolean).map((pair) => [pair.split(':')[0], Number(pair.split(':')[1])]));
+const CALIBRATE = params.has('calibrate');
+/**
+ * **`&pagems=L`: a page's wall-time limit** (default 15 s): past it the page stops and reports `__PAGE_ERROR__`, and the
+ * race fails loudly rather than waiting. Every race is bounded by construction: pages × L, projected before launch.
+ */
+const PAGE_MS = Number(params.get('pagems')) || 15000;
+/** Which harness sources this bundle was built from (`harness-sha.mjs`): the race checks it against the files on disk. */
+window.__HARNESS__ = typeof __HARNESS__ === 'string' ? __HARNESS__ : 'unstamped';
+const pageStart = performance.now();
+/**
+ * The plant's ACTUAL cost on THIS engine: N was calibrated on V8, so SpiderMonkey or JavaScriptCore may make
  * 0.5–2× of it. Timed once, as 200 × N in one block (~20 ms: tens of times a coarsened clock's tick), and reported with
  * the results, so the control's measured Δ can be compared with its real size.
  */
@@ -105,7 +147,7 @@ const OPERATIONS = [
     { key: 'noop',     label: `nothing, ${BATCH}× (the floor)`, setup: (a) => a.create(1000, 11), run: () => {}, each: () => {} },
     { key: 'clear10k', label: 'clear 10 000 rows',     setup: (a) => a.create(10000, 12), run: (a) => a.clear() },
     /**
-     * **The `-dom` rows** (2026-10-24, L6; vera-5a): the SAME ops re-batched — script + DOM + layout per run, the paint
+     * **The `-dom` rows** (2026-10-24): the SAME ops re-batched — script + DOM + layout per run, the paint
      * outside, averaged (`rebatch` below) — DISTINCT rows, never a redefinition of the to-paint ones above: the public
      * table and every cross-framework comparison measure to paint, and a change that makes the DOM costlier to style or
      * lay out shows only there. Layout is forced inside each run by DEFAULT here (DOM shape is what changes most).
@@ -154,7 +196,13 @@ const cell = (html, cls) => {
 
 async function measure(impl, op) {
   const timings = [];
-  for (let i = 0; i < WARMUP + REPEATS; i++) {
+  /** The row's own run time from its warm-up runs (unplanted): sizes the per-row plant and the re-batch count. */
+  let perRun = 0;
+  /** Under `minms`, the first warm-up is ONE run (a cheap size probe) and every warm-up re-sizes the count from its own
+   *  per-run time: enough runs to hold MINMS ms of work, 2–32 (the fixed `rebatch` floors are for runs without `minms`). */
+  let rebatch = COUNTS[op.key] ?? (MINMS ? 1 : op.rebatch);
+  for (let i = 0; i < (CALIBRATE ? WARMUP : WARMUP + REPEATS); i++) {
+    if (performance.now() - pageStart > PAGE_MS) throw new Error(`page over its ${PAGE_MS} ms wall limit at ${op.key}`);
     const app = impl.factory(mount);
     resetIds();
     await op.setup(app);
@@ -164,18 +212,19 @@ async function measure(impl, op) {
     let dt;
     if (BATCH && op.rebatch) {
       /**
-       * **An op that needs fresh state each run, re-batched** (2026-10-24, L6): a create or a clear cannot repeat back to
+       * **An op that needs fresh state each run, re-batched** (2026-10-24): a create or a clear cannot repeat back to
        * back, so under `?batch` a sample is `rebatch` runs, each set up UNTIMED, each timed until it has written the DOM
        * (as a batched op is), the paint after each outside the sample, and the times averaged. Firefox and WebKit report
        * whole milliseconds: a 10 ms clear read 9, 10 or 11 per sample; averaged over the runs, the rounding averages out
        * (measured, Firefox A/A: clear 9–18% → 0.0%). Only the `-dom` rows carry `rebatch`; layout is forced inside each run.
        */
       let total = 0;
-      for (let r = 0; r < op.rebatch; r++) {
+      for (let r = 0; r < rebatch; r++) {
+        /** The set-up's paint stays outside the sample; the 30 ms settle is BETWEEN samples only, since every run here is
+         *  averaged into one (with it, a 1 ms clear at 30 runs cost ~20 s a row). */
         if (r > 0) {
           await op.setup(app);
           await painted();
-          await settle();
         }
         const t0 = performance.now();
         await op.run(app);
@@ -185,17 +234,19 @@ async function measure(impl, op) {
          * fixed WORK inside the timed run of the rows marked `plant`, into a global sink the engine cannot drop, sized to the
          * effect a race must be able to see. An arm carrying it must read REAL slower, or that race could not have seen a
          * real loss of that size. Counted work, never a timed wait: Firefox and WebKit coarsen `performance.now()`, so a
-         * "100 µs" wait read ~0 or ~1 ms per run (vera-5a). Calibrated once in Node: 13 000 ≈ 100 µs (~7.8 ns each).
+         * "100 µs" wait read ~0 or ~1 ms per run. Calibrated once in Node: 13 000 ≈ 100 µs (~7.8 ns each).
          */
         if (PLANT && op.plant) {
           let acc = window.__PLANT_SINK__ | 0;
           for (let i = 0; i < PLANT; i++) acc = (acc * 31 + i) | 0;
           window.__PLANT_SINK__ = acc;
         }
+        if (PLANTPCT && i >= WARMUP) spin((perRun * PLANTPCT) / 100);
         total += performance.now() - t0;
         await painted();
       }
-      dt = total / op.rebatch;
+      dt = total / rebatch;
+      if (i < WARMUP && MINMS && !(op.key in COUNTS)) rebatch = Math.min(MAXREBATCH, Math.max(2, Math.ceil(MINMS / Math.max(dt, 0.05))));
     } else if (!(BATCH && op.each)) {
       const t0 = performance.now();
       await op.run(app); // resolves when this framework has finished writing the DOM
@@ -214,14 +265,16 @@ async function measure(impl, op) {
       }
     } else {
       /** The paint is OUTSIDE a batched sample: a frame's wait spread over N runs was as large as the op itself. */
+      const fixedN = COUNTS[op.key] ?? op.fixed;
       const t0 = performance.now();
       let k = 0;
       do {
         if (VERIFY) before = mount.innerHTML;
         await op.each(app, k++);
         if (LAYOUT) void document.body.offsetHeight;
+        if (PLANTPCT && i >= WARMUP) spin((perRun * PLANTPCT) / 100);
         if (VERIFY && mount.innerHTML === before) unchanged[op.key] = (unchanged[op.key] ?? 0) + 1;
-      } while (op.fixed ? k < op.fixed : k < (op.cap ?? Infinity) && performance.now() - t0 < BATCH);
+      } while (fixedN ? k < fixedN : k < (op.cap ?? Infinity) && performance.now() - t0 < BATCH);
       dt = (performance.now() - t0) / k;
       runsOf[op.key] = Math.min(runsOf[op.key] ?? Infinity, k);
       await painted();
@@ -229,10 +282,14 @@ async function measure(impl, op) {
 
     app.teardown();
     mount.textContent = '';
+    if (i < WARMUP) perRun = dt; // the last warm-up's per-run time, unplanted
     if (i >= WARMUP) timings.push(dt);
     await settle();
   }
-  return { median: median(timings), min: Math.min(...timings), max: Math.max(...timings) };
+  /** Calibration: a re-batched row's count as its warm-ups sized it; a batched row's, enough ops to hold the sample's work. */
+  if (CALIBRATE && BATCH && (op.rebatch || op.each))
+    (window.__COUNTS__ ??= {})[op.key] = op.rebatch ? rebatch : Math.min(5000, Math.max(2, Math.ceil((MINMS || BATCH) / Math.max(perRun, 0.001))));
+  return { median: median(timings), min: Math.min(...timings), max: Math.max(...timings), timings };
 }
 
 async function runAll() {
@@ -242,8 +299,11 @@ async function runAll() {
   const total = OPERATIONS.length * IMPLEMENTATIONS.length;
   let done = 0;
 
+  /** Each row's wall time on this page (set-ups, paints and settles included): what sizes a race's rows and its bound. */
+  const rowMs = (window.__ROW_MS__ = {});
   for (const [opIndex, op] of OPERATIONS.entries()) {
     results[op.key] = {};
+    const rowStart = performance.now();
 
     /** Rotate the starting framework so running first is not a fixed advantage or penalty. */
     const order = IMPLEMENTATIONS.map((_, i) => IMPLEMENTATIONS[(i + opIndex) % IMPLEMENTATIONS.length]);
@@ -254,11 +314,16 @@ async function runAll() {
       try {
         results[op.key][impl.name] = await measure(impl, op);
       } catch (err) {
+        /** Past the wall limit the page stops; any other failure is still a row the race cannot read, so it is reported
+         *  (`__ROW_ERRORS__`, which fails the race) rather than left as a silent NaN. */
+        if (performance.now() - pageStart > PAGE_MS) throw err;
         results[op.key][impl.name] = null;
+        (window.__ROW_ERRORS__ ??= []).push(`${impl.name} / ${op.key}: ${err?.message ?? err}`);
         console.error(`${impl.name} / ${op.key}`, err);
       }
       mount.textContent = '';
     }
+    rowMs[op.key] = Math.round(performance.now() - rowStart);
 
     const row = document.createElement('tr');
     row.appendChild(cell(op.label));
@@ -310,5 +375,6 @@ for (const impl of IMPLEMENTATIONS) {
   head.appendChild(th);
 }
 
-runBtn.addEventListener('click', runAll);
+/** A page that throws (its wall limit, or a framework error) reports it, so the race fails loudly instead of waiting. */
+runBtn.addEventListener('click', () => runAll().catch((error) => { window.__PAGE_ERROR__ = String(error?.message ?? error); }));
 status.textContent = 'Ready.';

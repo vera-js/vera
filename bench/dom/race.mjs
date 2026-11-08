@@ -19,6 +19,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { holdRaceLock } from '../race-lock.mjs';
+import { harnessSha } from './harness-sha.mjs';
 
 const args = process.argv.slice(2);
 const sessions = Number(args[0]);
@@ -59,13 +61,29 @@ const server = createServer((request, response) => {
 await new Promise((resolve) => server.listen(8098, resolve));
 
 /** OS daemons are ignored, never waited on (Brian, 2026-10-18): media/photo analysis and Spotlight run when they like. */
-const BASELINE = /claude|Code Helper|WindowServer|\/ps$|Google Chrome|firefox|Firefox|WebKit|Playwright|node|mediaanalysisd|photoanalysisd|mds|mdworker|mds_stores|corespotlightd|spotlightknowledged|fseventsd|ospredictiond|ecosystemd|EcosystemAnalytics/;
+/**
+ * Processes a race does not wait for. **VS Code's `Code Helper` is NOT exempt** (Brian, 2026-11-05): it held 15-97% of a core
+ * at the start of several 2026-11-05 sessions while the old list let them run as "quiet". `WindowServer` stays exempt (the
+ * headed browsers drive it themselves), and so does `claude`, the session that runs the race. **Nor is `node`** (2026-11-05,
+ * Brian via "whatever you recommend"): a build, a test run or another probe beside a race was invisible to this check. Only
+ * THIS process and its descendants (the page server, Playwright's driver) are skipped, by PID.
+ */
+const BASELINE = /claude|WindowServer|\/ps$|Google Chrome|firefox|Firefox|WebKit|Playwright|mediaanalysisd|photoanalysisd|mds|mdworker|mds_stores|corespotlightd|spotlightknowledged|fseventsd|ospredictiond|ecosystemd|EcosystemAnalytics/;
+/** The whole race's quiet-machine waiting, bounded (2026-11-08): it is in the projected wall time, and a session that
+ *  starts once it is spent is marked contended (the A/A arm is the defense) rather than waited for. */
+const QUIET_BUDGET_MS = 90000;
+let quietLeft = QUIET_BUDGET_MS;
 const quiet = async () => {
-  for (let tries = 0; tries < 12; tries++) {
-    const rows = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 6).map((l) => l.trim().match(/^([\d.]+)\s+(.*)$/)).filter(Boolean);
+  for (;;) {
+    /** Our own process tree, by PID: a `node` there is the harness itself, never something to wait for. */
+    const all = execSync('ps -Ao pid=,ppid=,pcpu=,comm= -r').toString().trim().split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/)).filter(Boolean);
+    const ours = new Set([process.pid]);
+    for (let grew = true; grew; ) { grew = false; for (const m of all) if (!ours.has(Number(m[1])) && ours.has(Number(m[2]))) { ours.add(Number(m[1])); grew = true; } }
+    const rows = all.filter((m) => !ours.has(Number(m[1]))).slice(0, 5).map((m) => [m[0], m[3], m[4]]);
     const busy = rows.find((m) => Number(m[1]) > 10 && !BASELINE.test(m[2]));
     if (!busy) return null;
-    if (tries === 11) return `${busy[1]}% ${busy[2].slice(0, 60)}`;
+    if (quietLeft <= 0) return `${busy[1]}% ${busy[2].slice(0, 60)}`;
+    quietLeft -= 10000;
     await new Promise((r) => setTimeout(r, 10000));
   }
 };
@@ -75,6 +93,15 @@ const quiet = async () => {
  */
 const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12);
 const root = new URL('../..', import.meta.url).pathname;
+/** Every page's bundle must carry this stamp (`harness-sha.mjs`). */
+const HARNESS = harnessSha();
+console.log(`harness ${HARNESS} (main.js + impls.js; every bundle must carry it)`);
+/** Held while this race times: builds, typecheck and lint refuse under it (`../race-lock.mjs`). */
+holdRaceLock(root, 'bench/dom/race.mjs');
+/** The race's wall time, printed at the end (the 5–10-minute test standard, 2026-11-08). */
+const raceStart = Date.now();
+/** Whether the screensaver is up (2026-11-07): `caffeinate` stops sleep, not the screensaver, so each session records it. */
+const screensaver = () => { try { return execSync("pgrep -lx 'ScreenSaverEngine|legacyScreenSaver'").toString().trim().replace(/\n/g, ', ') || 'none'; } catch { return 'none'; } };
 console.log(`tree ${execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim()}${execSync('git status --porcelain -- packages', { cwd: root }).toString().trim() ? ' (packages/ DIRTY)' : ''} at ${root}`);
 /**
  * The harness's OWN source, hashed as it runs (2026-10-18): `tree` is HEAD, which says nothing about a working
@@ -115,31 +142,87 @@ const cool = async () => { while (pressureNow() > 0) { console.log(`  thermal ${
  * tick was ~5%; 1000 makes it ~100 ms. Chrome and Firefox run it at ~5–6 ms/op with layout, already ~1 s at 200.
  */
 const N10 = { chrome: 200, firefox: 200, webkit: 1000 };
+/**
+ * **Every race is bounded before it starts** (the 5–10-minute standard, 2026-11-08): each page carries a wall limit
+ * (`&pagems`, default 15 s, enforced in the page), so a race is at most pages × (limit + launch). That bound is printed
+ * BEFORE the first page, and a race projected over 10 minutes refuses to start unless `--long` (a checkpoint) is given.
+ */
+const PAGE_MS = Number(new URLSearchParams(variants[0]?.[2] ?? '').get('pagems')) || 15000;
+/** The page count includes each engine's calibration page (`calibrate` below). */
+const pageCount = engines.length + engines.length * sessions * variants.reduce((n, v) => n + impls.filter((i) => !subset[v[0]] || subset[v[0]].includes(i)).length, 0);
+const boundMin = (pageCount * (PAGE_MS + 3000) + QUIET_BUDGET_MS) / 60000;
+console.log(`bound: ${pageCount} pages × ≤${(PAGE_MS + 3000) / 1000} s + ≤${QUIET_BUDGET_MS / 1000} s quiet waits = ≤${boundMin.toFixed(1)} min`);
+if (boundMin > 10 && !args.includes('--long')) throw new Error(`projected ≤${boundMin.toFixed(1)} min is over 10: narrow the race (rows, arms, sessions, impls) or pass --long for a checkpoint`);
 /** HEADED, all three (CLAUDE.md, Brian 2026-10-18): bare firefox/webkit.launch() is headless, whose frames are not tied to a compositor. */
+/**
+ * One page, start to finish: a fresh browser, the variant's bundle, the run, and every check a page must pass before its
+ * numbers are read (its own error or wall limit, the harness stamp, row errors, `verify`). Returns the open page.
+ */
+const runPage = async (engine, label, file, impl, query) => {
+  const browser = await launch(engine);
+  const page = await browser.newPage();
+  await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
+  await page.goto(`http://localhost:8098/?only=${encodeURIComponent(impl)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}&n10=${N10[engine]}`);
+  await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Ready.', null, { timeout: 60000 });
+  await page.click('#run');
+  await page.waitForFunction(() => window.__RESULTS__ !== undefined || window.__PAGE_ERROR__ !== undefined, null, { timeout: PAGE_MS + 30000 });
+  const pageError = await page.evaluate(() => window.__PAGE_ERROR__);
+  if (pageError !== undefined) throw new Error(`${label}: ${pageError}`);
+  const stamp = await page.evaluate(() => window.__HARNESS__);
+  if (stamp !== HARNESS) throw new Error(`${label}: ${file} was built from harness ${stamp}, the files on disk are ${HARNESS}: rebuild it`);
+  const rowErrors = await page.evaluate(() => window.__ROW_ERRORS__);
+  if (rowErrors) throw new Error(`${label}: ${rowErrors.join('; ')}`);
+  /** `&verify=1`: every batched run must have changed the DOM (noop excepted), or the sample timed less than its op. */
+  if (/(^|&)verify=/.test(query)) {
+    const unchanged = await page.evaluate(() => window.__UNCHANGED__);
+    if (unchanged === undefined) throw new Error(`${label}: verify ran but the page reported nothing`);
+    const bad = Object.entries(unchanged).filter(([op]) => op !== 'noop');
+    if (bad.length) throw new Error(`${label}: runs that left the DOM unchanged: ${bad.map(([op, n]) => `${op} ${n}`).join(', ')}`);
+    console.log(`${label}: verify clean`);
+  }
+  return { browser, page };
+};
+/**
+ * **Counts calibrated once per engine, on the base arm** (`&minms`, 2026-11-08): one warm-ups-only page sizes every row's
+ * runs per sample, and every page of every arm on that engine runs those counts, so no arm's own speed sets its N.
+ */
+const counts = {};
+const calibrate = async (engine) => {
+  const [name, file, query] = variants[0];
+  if (!/(^|&)minms=/.test(query)) return;
+  const { browser, page } = await runPage(engine, `${engine} calibration (${name})`, file, impls[0], `${query}&calibrate`);
+  const sized = await page.evaluate(() => window.__COUNTS__);
+  await browser.close();
+  if (!sized || !Object.keys(sized).length) throw new Error(`${engine} calibration: the page sized no counts`);
+  counts[engine] = Object.entries(sized).map(([op, n]) => `${op}:${n}`).join(',');
+  console.log(`${engine}: counts per sample, calibrated on ${name} / ${impls[0]}: ${counts[engine]}`);
+};
 const plantSeen = {};
 const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch({ headless: false }) : webkit.launch({ headless: false });
 for (const engine of engines) {
   console.log(`${engine}: update10 fixed N = ${N10[engine]}`);
+  await calibrate(engine);
   const data = {};
   /** Each session's fastest run, kept for the reference column (the typical case, `data`, is the claim). */
   const fastest = {};
+  const runs = {};
+  const elapsed = {};
+  /** Each row's wall time per page (`__ROW_MS__`), for sizing a race's rows. */
+  const rowWall = {};
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
     /** The conditions, ignored daemons INCLUDED (2026-10-18): the A/A is the defense; this line says whether it was needed. */
     const top = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 4).map((l) => { const m = l.trim().match(/^([\d.]+)\s+(.*)$/); return `${m[1]} ${m[2].split('/').pop()}`; }).join(', ');
     const pressure = execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1];
-    console.log(`${engine}/${session}: thermal ${pressure} | ${top}`);
+    console.log(`${engine}/${session}: thermal ${pressure} | ${top} | screensaver ${screensaver()}`);
     for (const [[name, file, query], impl] of shuffle(variants.flatMap((v) => impls.filter((i) => !subset[v[0]] || subset[v[0]].includes(i)).map((i) => [v, i])), session)) {
       await cool();
-      const browser = await launch(engine);
-      const page = await browser.newPage();
-      await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
-      await page.goto(`http://localhost:8098/?only=${encodeURIComponent(impl)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}&n10=${N10[engine]}`);
-      await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Ready.', null, { timeout: 60000 });
-      await page.click('#run');
-      await page.waitForFunction(() => window.__RESULTS__ !== undefined, null, { timeout: 900000 });
+      const pageStart = Date.now();
+      const { browser, page } = await runPage(engine, `${engine}/${session} ${name} ${impl}`, file, impl, `${query}${counts[engine] ? `&counts=${counts[engine]}` : ''}`);
       const results = await page.evaluate(() => window.__RESULTS__);
+      const rowMs = await page.evaluate(() => window.__ROW_MS__);
+      for (const [op, ms] of Object.entries(rowMs ?? {})) ((((rowWall[impl] ??= {})[op] ??= {})[name] ??= []).push(ms));
       /** The positive control's real size on this engine (`&plant`), printed once per engine and variant. */
       const plantUs = await page.evaluate(() => window.__PLANT_US__);
       if (plantUs !== undefined && !(plantSeen[`${engine}/${name}`])) { plantSeen[`${engine}/${name}`] = true; console.log(`${engine}/${name}: the planted work costs ${plantUs.toFixed(1)} µs per run on this engine`); }
@@ -153,17 +236,21 @@ for (const engine of engines) {
       /** Only a Vera page wires Vera; a competitor's page has nothing to prove. */
       if (impl.startsWith('VeraJS') && wiring !== expected) throw new Error(`${engine}/${session} ${name}: the page wired ${wiring}, the variant asks for ${expected}`);
       await browser.close();
+      /** Every run and each page's elapsed time, for `--json`: a median of a page's repeats can skip a collection, and one landing between repeats is in no run at all (2026-10-31). */
+      ((elapsed[impl] ??= {})[name] ??= []).push(Date.now() - pageStart);
+      for (const [op, byImpl] of Object.entries(results))
+        for (const [i, r] of Object.entries(byImpl)) ((runs[i] ??= {})[op] ??= {})[name] = [...(runs[i]?.[op]?.[name] ?? []), r?.timings ?? []];
       for (const [op, byImpl] of Object.entries(results))
         for (const [impl, r] of Object.entries(byImpl)) {
           ((data[impl] ??= {})[op] ??= {})[name] = [...(data[impl][op][name] ?? []), r?.median ?? NaN];
           ((fastest[impl] ??= {})[op] ??= {})[name] = [...(fastest[impl][op][name] ?? []), r?.min ?? NaN];
         }
     }
-    /** Written after EVERY session (2026-10-25, vera-5a): a crash or an alarm costs one session, never an engine (B4 lost 7). */
-    dump[engine] = { data, fastest, sessions: session + 1 };
+    /** Written after EVERY session (2026-10-25): a crash or an alarm costs one session, never an engine (one crash once cost a whole engine its 7 sessions). */
+    dump[engine] = { data, fastest, runs, elapsed, rowWall, sessions: session + 1 };
     if (json) writeFileSync(json, JSON.stringify(dump));
   }
-  dump[engine] = { data, fastest };
+  dump[engine] = { data, fastest, runs, elapsed, rowWall };
   if (json) writeFileSync(json, JSON.stringify(dump));
   const base = variants[0][0];
   if (variants.length === 1 || Object.keys(data).length > 1) {
@@ -192,12 +279,12 @@ for (const engine of engines) {
         line += `  ${name} ${(((m - b) / b) * 100).toFixed(1).padStart(6)}% (${wins}/${sessions})`;
       }
       /**
-       * **A two-mode row is read by its slow-mode FREQUENCY, not its median** (2026-10-24, L6; CLAUDE.md, "a metric with
+       * **A two-mode row is read by its slow-mode FREQUENCY, not its median** (2026-10-24; CLAUDE.md, "a metric with
        * two modes"): Firefox lands each fresh instance in one of a few speed modes for some rows, so a session median
        * picks a mode and the A/A splits. When any variant's sessions spread more than 20%, each variant's count of
        * sessions in the SLOW mode is shown beside its median. ONE boundary for every variant, from the POOLED sessions
        * (per-variant boundaries make the counts incomparable), anchored on the median of the faster half (robust; a
-       * minimum moves with one lucky session): 1.15× it (vera-5a's review, pre-registered).
+       * minimum moves with one lucky session): 1.15× it (the review, pre-registered).
        */
       const all = Object.values(byVariant).flat().filter(Number.isFinite).sort((a, b) => a - b);
       const spread = Math.max(...Object.values(byVariant).map((xs) => (Math.max(...xs) - Math.min(...xs)) / med(xs)));
@@ -210,5 +297,7 @@ for (const engine of engines) {
   }
 }
 console.log(`cooled ${cooledS} s (thermal waits before pages)`);
+console.log(`screensaver at the end: ${screensaver()}`);
+console.log(`wall ${((Date.now() - raceStart) / 60000).toFixed(1)} min`);
 console.log(contended.length ? `\ncontended: ${contended.join('; ')}` : '\nquiet: every session started below 10% of a core');
 server.close();
