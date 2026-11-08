@@ -101,6 +101,20 @@ const PAGE_MS = Number(params.get('pagems')) || 15000;
 window.__HARNESS__ = typeof __HARNESS__ === 'string' ? __HARNESS__ : 'unstamped';
 const pageStart = performance.now();
 /**
+ * The clock this page times with: whether it is cross-origin isolated (`race.mjs --coi`) and the smallest nonzero step
+ * `performance.now()` takes here, sampled for ~20 ms (an engine coarsens it, toward 1 ms on Firefox and WebKit unless
+ * isolated). The race prints both per engine.
+ */
+window.__TIMER__ = (() => {
+  let tick = Infinity;
+  const t0 = performance.now();
+  for (let last = t0, now = t0; now - t0 < 20; now = performance.now()) {
+    if (now > last) tick = Math.min(tick, now - last);
+    last = now;
+  }
+  return { isolated: globalThis.crossOriginIsolated === true, tickUs: Math.round(tick * 1000 * 100) / 100 };
+})();
+/**
  * The plant's ACTUAL cost on THIS engine: N was calibrated on V8, so SpiderMonkey or JavaScriptCore may make
  * 0.5–2× of it. Timed once, as 200 × N in one block (~20 ms: tens of times a coarsened clock's tick), and reported with
  * the results, so the control's measured Δ can be compared with its real size.
@@ -324,6 +338,8 @@ async function runAll() {
       mount.textContent = '';
     }
     rowMs[op.key] = Math.round(performance.now() - rowStart);
+    /** A calibration page only sizes counts (`__COUNTS__`): it has no samples to show. */
+    if (CALIBRATE) continue;
 
     const row = document.createElement('tr');
     row.appendChild(cell(op.label));

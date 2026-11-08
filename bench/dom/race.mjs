@@ -51,11 +51,18 @@ const subset = Object.fromEntries((flag('subset') ?? '').split(';').filter(Boole
 for (const [v, list] of Object.entries(subset)) for (const i of list) if (!impls.includes(i)) throw new Error(`--subset ${v}: ${i} is not in --only`);
 const directory = new URL('.', import.meta.url).pathname;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
+/**
+ * **`--coi`: the page is cross-origin isolated** (COOP same-origin + COEP require-corp), which is what lets an engine give
+ * `performance.now()` its fine resolution (2026-11-08, the high-resolution-timer step), and Firefox is launched with
+ * `privacy.reduceTimerPrecision` off. Each page reports `crossOriginIsolated` and the tick it observes; the race prints them.
+ */
+const COI = args.includes('--coi');
+const ISOLATION = COI ? { 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' } : {};
 const server = createServer((request, response) => {
   const url = decodeURIComponent(request.url.split('?')[0]);
   const path = join(directory, url === '/' ? 'index.html' : url);
   if (!existsSync(path)) return response.writeHead(404), response.end();
-  response.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream' });
+  response.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream', ...ISOLATION });
   response.end(readFileSync(path));
 });
 await new Promise((resolve) => server.listen(8098, resolve));
@@ -155,19 +162,38 @@ console.log(`bound: ${pageCount} pages × ≤${(PAGE_MS + 3000) / 1000} s + ≤$
 if (boundMin > 10 && !args.includes('--long')) throw new Error(`projected ≤${boundMin.toFixed(1)} min is over 10: narrow the race (rows, arms, sessions, impls) or pass --long for a checkpoint`);
 /** HEADED, all three (CLAUDE.md, Brian 2026-10-18): bare firefox/webkit.launch() is headless, whose frames are not tied to a compositor. */
 /**
+ * A page's browser is KILLED at the end, never closed (2026-11-08): headed Chrome's graceful `close()` took 9.0 s even on
+ * a blank page, a third of every Chrome page, while `kill()` ends it in ~30 ms with its whole process tree gone at once
+ * (measured on all three engines: 0 of 7 / 6 / 2 processes left at 0 ms), and the temporary profile is still removed.
+ */
+const launch = async (engine) => {
+  const [type, options] = engine === 'chrome' ? [chromium, { channel: 'chrome' }] : [engine === 'firefox' ? firefox : webkit, {}];
+  const prefs = COI && engine === 'firefox' ? { firefoxUserPrefs: { 'privacy.reduceTimerPrecision': false, 'privacy.reduceTimerPrecision.unconditional': false } } : {};
+  const server = await type.launchServer({ ...options, ...prefs, headless: false });
+  return { browser: await type.connect(server.wsEndpoint()), end: () => server.kill() };
+};
+/**
  * One page, start to finish: a fresh browser, the variant's bundle, the run, and every check a page must pass before its
  * numbers are read (its own error or wall limit, the harness stamp, row errors, `verify`). Returns the open page.
  */
 const runPage = async (engine, label, file, impl, query) => {
-  const browser = await launch(engine);
+  const t0 = Date.now();
+  const { browser, end } = await launch(engine);
   const page = await browser.newPage();
-  await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript' }));
+  const launched = Date.now();
+  await page.route('**/bundle.js', (route) => route.fulfill({ body: readFileSync(join(directory, file)), contentType: 'text/javascript', headers: ISOLATION }));
   await page.goto(`http://localhost:8098/?only=${encodeURIComponent(impl)}${ops ? `&ops=${ops}` : ''}${query ? `&${query}` : ''}&n10=${N10[engine]}`);
   await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Ready.', null, { timeout: 60000 });
+  const loaded = Date.now();
   await page.click('#run');
   await page.waitForFunction(() => window.__RESULTS__ !== undefined || window.__PAGE_ERROR__ !== undefined, null, { timeout: PAGE_MS + 30000 });
+  /** Where a page's time goes (launch, load to Ready, the run), for sizing races; closing is timed by the caller. */
+  page.phases = [launched - t0, loaded - launched, Date.now() - loaded];
   const pageError = await page.evaluate(() => window.__PAGE_ERROR__);
   if (pageError !== undefined) throw new Error(`${label}: ${pageError}`);
+  const timer = await page.evaluate(() => window.__TIMER__);
+  if (!timerSeen[engine]) { timerSeen[engine] = true; console.log(`${engine}: crossOriginIsolated ${timer?.isolated}, observed timer tick ${timer?.tickUs} µs`); }
+  if (COI && timer?.isolated !== true) throw new Error(`${label}: --coi, but the page is not cross-origin isolated`);
   const stamp = await page.evaluate(() => window.__HARNESS__);
   if (stamp !== HARNESS) throw new Error(`${label}: ${file} was built from harness ${stamp}, the files on disk are ${HARNESS}: rebuild it`);
   const rowErrors = await page.evaluate(() => window.__ROW_ERRORS__);
@@ -180,25 +206,26 @@ const runPage = async (engine, label, file, impl, query) => {
     if (bad.length) throw new Error(`${label}: runs that left the DOM unchanged: ${bad.map(([op, n]) => `${op} ${n}`).join(', ')}`);
     console.log(`${label}: verify clean`);
   }
-  return { browser, page };
+  return { page, end };
 };
 /**
  * **Counts calibrated once per engine, on the base arm** (`&minms`, 2026-11-08): one warm-ups-only page sizes every row's
  * runs per sample, and every page of every arm on that engine runs those counts, so no arm's own speed sets its N.
  */
 const counts = {};
+/** Each engine's isolation and timer tick, printed from its first page. */
+const timerSeen = {};
 const calibrate = async (engine) => {
   const [name, file, query] = variants[0];
   if (!/(^|&)minms=/.test(query)) return;
-  const { browser, page } = await runPage(engine, `${engine} calibration (${name})`, file, impls[0], `${query}&calibrate`);
+  const { page, end } = await runPage(engine, `${engine} calibration (${name})`, file, impls[0], `${query}&calibrate`);
   const sized = await page.evaluate(() => window.__COUNTS__);
-  await browser.close();
+  await end();
   if (!sized || !Object.keys(sized).length) throw new Error(`${engine} calibration: the page sized no counts`);
   counts[engine] = Object.entries(sized).map(([op, n]) => `${op}:${n}`).join(',');
   console.log(`${engine}: counts per sample, calibrated on ${name} / ${impls[0]}: ${counts[engine]}`);
 };
 const plantSeen = {};
-const launch = (engine) => engine === 'chrome' ? chromium.launch({ channel: 'chrome', headless: false }) : engine === 'firefox' ? firefox.launch({ headless: false }) : webkit.launch({ headless: false });
 for (const engine of engines) {
   console.log(`${engine}: update10 fixed N = ${N10[engine]}`);
   await calibrate(engine);
@@ -209,6 +236,8 @@ for (const engine of engines) {
   const elapsed = {};
   /** Each row's wall time per page (`__ROW_MS__`), for sizing a race's rows. */
   const rowWall = {};
+  /** Per page: [launch, load, run, close] ms. */
+  const phases = {};
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
@@ -219,7 +248,7 @@ for (const engine of engines) {
     for (const [[name, file, query], impl] of shuffle(variants.flatMap((v) => impls.filter((i) => !subset[v[0]] || subset[v[0]].includes(i)).map((i) => [v, i])), session)) {
       await cool();
       const pageStart = Date.now();
-      const { browser, page } = await runPage(engine, `${engine}/${session} ${name} ${impl}`, file, impl, `${query}${counts[engine] ? `&counts=${counts[engine]}` : ''}`);
+      const { page, end } = await runPage(engine, `${engine}/${session} ${name} ${impl}`, file, impl, `${query}${counts[engine] ? `&counts=${counts[engine]}` : ''}`);
       const results = await page.evaluate(() => window.__RESULTS__);
       const rowMs = await page.evaluate(() => window.__ROW_MS__);
       for (const [op, ms] of Object.entries(rowMs ?? {})) ((((rowWall[impl] ??= {})[op] ??= {})[name] ??= []).push(ms));
@@ -228,16 +257,18 @@ for (const engine of engines) {
       if (plantUs !== undefined && !(plantSeen[`${engine}/${name}`])) { plantSeen[`${engine}/${name}`] = true; console.log(`${engine}/${name}: the planted work costs ${plantUs.toFixed(1)} µs per run on this engine`); }
       /** A page whose build has no such implementation ran nothing for it (2026-10-23: `VeraJS auto` exists only where core
        *  has `lists`): skipped, so one race can pair a build's implementation with another build's. */
-      if (!Object.values(results).some((byImpl) => byImpl && impl in byImpl)) { await browser.close(); continue; }
+      if (!Object.values(results).some((byImpl) => byImpl && impl in byImpl)) { await end(); continue; }
       /** The page must prove the wiring the variant names, or the variants all measure one program (2026-10-18: they did). */
       const wiring = await page.evaluate(() => window.__VERA_WIRING__);
       const mode = new URLSearchParams(query).get('vera');
       const expected = mode === 'slots' ? 'slots+slots' : mode === null ? 'legacy' : mode;
       /** Only a Vera page wires Vera; a competitor's page has nothing to prove. */
       if (impl.startsWith('VeraJS') && wiring !== expected) throw new Error(`${engine}/${session} ${name}: the page wired ${wiring}, the variant asks for ${expected}`);
-      await browser.close();
+      const closeStart = Date.now();
+      await end();
       /** Every run and each page's elapsed time, for `--json`: a median of a page's repeats can skip a collection, and one landing between repeats is in no run at all (2026-10-31). */
       ((elapsed[impl] ??= {})[name] ??= []).push(Date.now() - pageStart);
+      ((phases[impl] ??= {})[name] ??= []).push([...page.phases, Date.now() - closeStart]);
       for (const [op, byImpl] of Object.entries(results))
         for (const [i, r] of Object.entries(byImpl)) ((runs[i] ??= {})[op] ??= {})[name] = [...(runs[i]?.[op]?.[name] ?? []), r?.timings ?? []];
       for (const [op, byImpl] of Object.entries(results))
@@ -247,10 +278,10 @@ for (const engine of engines) {
         }
     }
     /** Written after EVERY session (2026-10-25): a crash or an alarm costs one session, never an engine (one crash once cost a whole engine its 7 sessions). */
-    dump[engine] = { data, fastest, runs, elapsed, rowWall, sessions: session + 1 };
+    dump[engine] = { data, fastest, runs, elapsed, rowWall, phases, sessions: session + 1 };
     if (json) writeFileSync(json, JSON.stringify(dump));
   }
-  dump[engine] = { data, fastest, runs, elapsed, rowWall };
+  dump[engine] = { data, fastest, runs, elapsed, rowWall, phases };
   if (json) writeFileSync(json, JSON.stringify(dump));
   const base = variants[0][0];
   if (variants.length === 1 || Object.keys(data).length > 1) {
