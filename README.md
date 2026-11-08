@@ -8,11 +8,11 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 17.97 KB | **7.11 KB** |
+| `@verajs/core` | 18.72 KB | **7.33 KB** |
 | `@verajs/renderer` | 13.70 KB | 5.67 KB |
 | `@verajs/router` | 10.65 KB | 4.42 KB |
 | `@verajs/autoloader` | 3.85 KB | 1.58 KB |
-| `@verajs/styles` | 1.84 KB | 983 B |
+| `@verajs/styles` | 1.88 KB | 987 B |
 | `@verajs/renderer/spread` | 3.20 KB | 1.60 KB |
 | `@verajs/renderer/tag` | 4.80 KB | 2.35 KB |
 | `@verajs/store` | 1.80 KB | 925 B |
@@ -20,17 +20,19 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/jsx/standalone` | 4.35 KB | 2.05 KB |
 | `@verajs/store/collections` | 1.26 KB | 672 B |
 | `@verajs/store/resource` | 634 B | 396 B |
-| `@verajs/renderer/keyed` | 6.09 KB | 2.51 KB |
+| `@verajs/renderer/keyed` | 6.52 KB | 2.69 KB |
 | `@verajs/renderer/native-elements` | 1.05 KB | 626 B |
+| `@verajs/renderer/multi-window` | 670 B | 425 B |
+| `@verajs/renderer/until` | 462 B | 318 B |
 | `@verajs/renderer/slots` | 17.48 KB | 6.24 KB |
 | `@verajs/renderer/namespaces` | 1.09 KB | 667 B |
 | `@verajs/renderer/elements` | 1.51 KB | 800 B |
-| `@verajs/renderer/portal` | 616 B | 409 B |
+| `@verajs/renderer/portal` | 1.25 KB | 707 B |
 | `@verajs/renderer/hydration` | 8.05 KB | 3.39 KB |
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.63 KB |
 | `@verajs/inserts` | 496 B | 363 B |
 | `@verajs/directives` | 15.81 KB | 6.18 KB |
-| `@verajs/directives/directives-standalone` | 30.34 KB | 11.43 KB |
+| `@verajs/directives/directives-standalone` | 31.07 KB | 11.64 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
@@ -42,12 +44,12 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/motion/motion-client` | 8.36 KB | 3.08 KB |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->11.6 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->11.8 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — a component without one warns (in every build) and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->11.6 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->11.8 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
