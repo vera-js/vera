@@ -45,11 +45,11 @@ box.value = undefined;
 const _emptyShallow = signal<string>();
 type _emptyShallowRef = Expect<Equal<typeof _emptyShallow, { value: string | undefined }>>;
 
-/** `deep` keeps the value's type, and `createStore`'s option keeps the store's (2026-10-22). */
+/** `deep` keeps the value's type; `createStore` takes no options (a store is always deep). */
 const _deep = signal({ n: 1 }, { deep: true });
 type _deepKeepsItsType = Expect<Equal<typeof _deep, { value: { n: number } }>>;
-const _flatStore = createStore({ n: 1 }, { deep: false });
-_flatStore.n = 2;
+// @ts-expect-error createStore takes no options
+createStore({ n: 1 }, { deep: false });
 
 /** And the valued form keeps its narrow type, which is the whole reason there are two signatures. */
 const _narrow = signal(0);

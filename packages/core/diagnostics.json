@@ -41,7 +41,7 @@
         "received"
       ],
       "message": "was given deep: {received}, which is not true or false, so it used its default.",
-      "fix": "Pass a boolean — signal(value, { deep: true }), createStore(obj, { deep: false })."
+      "fix": "Pass a boolean: signal(value, { deep: true })."
     },
     {
       "code": "define-attribute-reflected",

@@ -72,7 +72,7 @@ const decide = (tag: string) => {
     }
   return chosen;
 };
-export const marked = (has: ProxyHandler<object>['has']) => (target: object, prop: string | symbol) =>
+const marked = (has: ProxyHandler<object>['has']) => (target: object, prop: string | symbol) =>
   prop === MARK || (has ? has(target, prop) : Reflect.has(target, prop));
 /**
  * **Decides `tags` and writes each into its type's owned handler** — every trap cleared, then the

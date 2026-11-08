@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->7.36 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->7.39 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -254,8 +254,8 @@ that too.
 
 | | |
 | --- | --- |
-| `createStore(obj)` | deep reactive proxy — nested objects are tracked too; `{ deep: false }` tracks only its top-level keys |
-| `signal(value)` | a reactive box for one value, read and written as `.value` — **shallow**: replacing `.value` notifies, the contents are not proxied |
+| `createStore(obj)` | deep reactive proxy — nested objects are tracked too (for a value held as it is, use `signal`) |
+| `signal(value)` | a reactive box for one value, read and written as `.value` — **shallow**: replacing `.value` notifies, the contents are not proxied. `value` lives on a shared prototype: `JSON.stringify(sig)` is the value, `Object.keys(sig)` is `[]`, and only reading `.value` subscribes |
 | `signal(value, { deep: true })` | the same, with the contents tracked too — a value you both replace and mutate inside (what `ref` was) |
 | `computed(fn)` | a memoized derived value, read as `.value` — lazy, and linked only while something reads it |
 | `untrack(fn)` | read current state without subscribing to it |

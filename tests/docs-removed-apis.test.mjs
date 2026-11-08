@@ -30,6 +30,7 @@ import { walkFiles, readIfPresent } from './walk.mjs';
 
 /** Name -> what to use instead, so the failure carries the fix rather than just the complaint. */
 const REMOVED = {
+  'deep: false': 'signal(value) for a value held as it is; a store is always deep',
   setRenderer: 'wire(renderer)',
   connectInserts: 'wire([router]) — the router is handed core’s registry',
   setAutoloader: 'wire(autoloader(…))',

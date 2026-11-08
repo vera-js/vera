@@ -35,7 +35,7 @@ export { define } from './modules/define.js';
 import { initWith, rehomeElement, retireElement } from './modules/init.js';
 import { MINE } from './store/store.js';
 export { signal } from './modules/signal.js';
-export type { DeepOption } from './modules/signal.js';
+export type { DeepOption } from './types.js';
 export { untrack } from './modules/untrack.js';
 export { computed } from './modules/computed.js';
 export { effect } from './hooks/effect.js';

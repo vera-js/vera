@@ -58,7 +58,7 @@ export const PROSE: Record<string, Prose> = {
   ],
   'deep-not-boolean': (received) => [
     `was given deep: ${received}, which is not true or false, so it used its default.`,
-    'Pass a boolean — signal(value, { deep: true }), createStore(obj, { deep: false }).',
+    'Pass a boolean: signal(value, { deep: true }).',
   ],
   'computed-not-function': (received) => [
     `expected a function to derive the value from, and received ${received}.`,

@@ -248,6 +248,8 @@ export type Effect = { run(): void; stop(): void };
 
 /** What `signal()` returns: one value, read and written as `.value`. */
 export type Signal<T> = { value: T };
+/** `signal`'s one option: `{ deep: true }` holds the value in a store, so mutating inside it notifies too. */
+export type DeepOption = { deep?: boolean };
 
 /**
  * **What a write was — ONE read-only object per write, shared by every hook it reaches** (2026-10-11: `trigger`

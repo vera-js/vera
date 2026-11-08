@@ -5,7 +5,7 @@
 
 `computed` is core's, and `ref` / `shallowRef` became `signal` — shallow by default
 
-**Breaking.** Three changes to state, in one release:
+**Breaking.** Four changes to state, in one release:
 
 - **`computed` moved into core** (`import { computed } from '@verajs/core'`); `@verajs/store/computed` is removed. It is
   now **lazy and linked only while something reads it**: read by a render, an effect or another computed, it stays
@@ -18,10 +18,14 @@
   `signal(v, { deep: true })` (a primitive, or a value only ever replaced, needs no option). Replacing `.value` always
   notifies; with the default, mutating inside it does not — the semantics of every signals library and TC39's
   `Signal.State`. An element ref is `signal()`, as `ref()` was.
-- **`createStore(obj, { deep: false })`** tracks only the store's top-level keys; what they hold comes back as it is.
+- **A signal is a small object, not a Proxy: its `value` lives on a prototype every signal shares.** Reading `.value`
+  subscribes and a write `!==` the held value notifies. `JSON.stringify(signal)` writes the value it holds (`toJSON`);
+  `Object.keys(signal)` is `[]` and a spread or `structuredClone` copies no `value`; `'value' in signal` is `true`. Only
+  reading `.value` subscribes: `in`, `Object.keys` and `for…in` on a signal subscribe to nothing. Its tag is
+  `[object Signal]`, so a store never wraps one written into it.
 
-`deep` takes effect only as `true` (on a signal) or `false` (on a store), in both builds; any other value is the default,
-and development names it (`deep-not-boolean`).
+`deep` takes effect only as `true`, in both builds; any other value is the default, and development names it
+(`deep-not-boolean`).
 
 **TypeScript:** `Signal` is now the type `signal()` returns (`{ value: T }`); the change payload a hook is handed —
 what `Signal<V>` used to name — is `Change<V>`. Code importing the old `Signal` type for a hook's argument switches to

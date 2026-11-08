@@ -1,4 +1,4 @@
-/** Core's own traps: what a read, a write and a whole-array method do to a record, an array or a shallow store. */
+/** Core's own traps: what a read, a write and a whole-array method do to a record or an array in a store. */
 import { proxyCallbacks } from '../store/store.js';
 import { misuse } from '@verajs/shared-utils';
 import type { StoreInsert } from '@verajs/inserts';
@@ -6,7 +6,7 @@ import type { Change, Slot } from '../types.js';
 import { PROSE } from '../diagnostics.js';
 import { mapped } from './autoMap.js';
 import { createProxy } from './createProxy.js';
-import { claimed, handlerFor, marked, useDefaults } from './door.js';
+import { claimed, handlerFor, useDefaults } from './door.js';
 import { FIXED, MARK, PROXY, RAW, cached, dataRecord, proxies, remember, unclassify, wrap } from './identity.js';
 import { GLOBAL, nextWake, operation, track, trigger, wake } from './track.js';
 
@@ -220,15 +220,10 @@ const handler: ProxyHandler<object> = {
     /**
      * **A store written into a store is stored RAW**: what a read hands back is unchanged (one proxy per object, from
      * the cache), but the raw data never holds a proxy, so a walk over it never meets one (a read on a proxy is a trap
-     * call the engine cannot cache). A store of another kind (`createShallow`) does not answer `RAW` and is kept as it
-     * is.
-     *
-     * Raw, one level deep (`unwrap`), in a DEEP store only. A SHALLOW one (`signal`'s) hands its contents back exactly
-     * as stored, so it keeps them EXACTLY as given, a store proxy included: unwrapped, `sig.value = state.rows` would
-     * hand back the raw array, and writes through it would render nothing. A shallow store's contents are never walked
-     * raw, so nothing needs them raw, and `signal.value = rows` pays no scan.
+     * call the engine cannot cache). Raw, one level deep (`unwrap`). A store of another copy of core does not answer
+     * `RAW` and is kept as it is.
      */
-    if (value !== null && typeof value === 'object' && this !== shallowHandler) value = unwrap(value);
+    if (value !== null && typeof value === 'object') value = unwrap(value);
     const prevValue = Reflect.get(obj, prop, receiver);
     if (prevValue === value) return true;
     /**
@@ -383,21 +378,6 @@ const arrayHandler: ProxyHandler<object> = {
     return deleted;
   },
 };
-/**
- * A SHALLOW view of `data`: reads subscribe and writes notify like any store, but what a read returns
- * is handed back as it is — never wrapped. `signal`'s handler (shallow by default): a large immutable value (a list of
- * rows, a parsed document) behind a deep store costs a proxy and a subscription per nested read, for
- * objects that never mutate; replacing `.value` is the change that matters, and it notifies.
- */
-const shallowHandler: ProxyHandler<object> = {
-  ...handler,
-  has: marked(handler.has),
-  get(obj, prop, receiver) {
-    track(obj, prop);
-    return Reflect.get(obj, prop, receiver);
-  },
-};
-export const createShallow = <T extends object>(data: T): T => wrap(data, shallowHandler) as T;
 /**
  * **This copy's own handlers, handed to the door** (its first link, before the shared chain): arrays get their own
  * (`arrayHandler`: a leaner read, the whole-array methods, the `ITEMS` channel), records keep the full one, and every other
