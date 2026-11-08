@@ -523,6 +523,18 @@ from another machine, or after that is undone, has a variable changed.
   runs many rows per page reports each row with its predecessors in it; a loss there is a hypothesis until the row is
   re-run alone (`ONLY=<row>` in the store bench), and every earlier many-rows-per-page verdict carries the caveat.
 
+- **Chrome charges for a proxy handler that CARRIES `undefined`-valued trap keys, though no operation reaches them.** The
+  store door (2026-11-06) gave every handler core owns all 13 trap names (`Object.getOwnPropertyNames(Reflect)`), six set
+  to `undefined`, so a module wired later would only replace values. Four races reproduced the cost on a store-backed
+  list's swap (+1.9 to +3.2% median, every drop-one a loss); removing the undefined keys (core's own 7) cleared it in two
+  races, whether the fields were written once or twice (13 keys written once still lost: not V8's constant-field
+  tracking); a later wire that ADDS a trap to the 7-key handlers measured free in ONE race (the same module on both forms
+  as the pair). A counting module showed swap reaches only `get`, `set` and `has`: no absent-trap path runs. Chrome only;
+  Firefox and WebKit not isolated. The mechanism (the handler's shape in V8's proxy code) is a guess. Consequence: a
+  proxy handler carries only the traps it uses; never pad one with `undefined` keys for shape stability. (Headed
+  installed Chrome, version not recorded by the race harness, Playwright 1.62.1; the narrow races Chrome-only; 2026-11-06
+  and 11-07.)
+
 ## Test environments
 
 - **Inspecting a cross-realm DOM object (an iframe's `ShadowRoot`) in a chai failure message never finishes**, so a
@@ -532,6 +544,16 @@ from another machine, or after that is undone, has a variable changed.
   Consequence: probes read direct children with `[...el.children]`. (2026-10-02)
 - **Linux WebKit exposes `PublicKeyCredential`, macOS WebKit does not**; a recorded DOM surface must not depend on it.
   (`tests/dom-surface.mjs`)
+- **jsdom builds Proxies of its own for every element** (a `NamedNodeMap` and a `DOMStringMap` per element: 12,021
+  constructed while rendering 1000 table rows). Consequence: a probe that counts `new Proxy` to see whether code reaches a
+  store must group the count by handler or target, or jsdom's own swamp it. (jsdom, Node; 2026-11-07)
+- **On macOS, `caffeinate -dimsu` keeps the display and system awake but does not stop the screensaver, and the Aerial
+  wallpaper keeps a process busy behind headed browsers.** `WallpaperAerialsExtension` held 10–15% of a core at the start
+  of 5 of 8 Chrome sessions and 1 of 8 Firefox sessions in one race, and kept running at 5–12% after the wallpaper was set
+  to a still image through System Events (the legacy setting; the newer wallpaper store still named an animated one). A
+  covered headed window can be throttled. Consequence: the race harness records whether a screensaver process is up at
+  every session and at the end, sessions it marks contended go into a removed-together suspect set, and the machine's
+  wallpaper is set to a still image in System Settings, not by script. (Headed races on macOS; 2026-11-06 and 11-07.)
 
 ## Competitors, as their own benchmark entries write them
 
