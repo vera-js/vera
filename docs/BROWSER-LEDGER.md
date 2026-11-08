@@ -545,8 +545,8 @@ from another machine, or after that is undone, has a variable changed.
   Consequence: probes read direct children with `[...el.children]`. (2026-10-02)
 - **Linux WebKit exposes `PublicKeyCredential`, macOS WebKit does not**; a recorded DOM surface must not depend on it.
   (`tests/dom-surface.mjs`)
-- **jsdom builds Proxies of its own for every element** (a `NamedNodeMap` and a `DOMStringMap` per element: 12,021
-  constructed while rendering 1000 table rows). Consequence: a probe that counts `new Proxy` to see whether code reaches a
+- **jsdom builds Proxies of its own for its elements** (a `NamedNodeMap` per element, and a `DOMStringMap` per HTML or SVG
+  element: 12,021 constructed while rendering 1000 table rows). Consequence: a probe that counts `new Proxy` to see whether code reaches a
   store must group the count by handler or target, or jsdom's own swamp it. (jsdom, Node; 2026-11-07)
 - **On macOS, the Aerial wallpaper keeps a process busy behind headed browsers, and `caffeinate -dimsu` does not stop it.**
   In one three-engine race under caffeinate, `WallpaperAerialsExtension` was in the top three processes at the start of
