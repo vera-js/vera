@@ -10,6 +10,10 @@
  * prints (raised as `SHARED['code']`, never re-entered in a second table); its `sources` are its own files that print.
  * `checkedBy` names the test that holds a package's manifest when the generic call pattern cannot read its raises.
  */
+import { readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 /** `tagCalled` → `tag-called`: a shared table's export name IS its code (see shared-utils' diagnostics.ts). */
 export const codeOf = (name) => name.replace(/[A-Z0-9]/g, (c) => `-${c.toLowerCase()}`);
 /**
@@ -19,19 +23,33 @@ export const codeOf = (name) => name.replace(/[A-Z0-9]/g, (c) => `-${c.toLowerCa
 export const proseOf = (module) =>
   module.PROSE ?? Object.fromEntries(Object.entries(module).filter(([, fn]) => typeof fn === 'function').map(([name, fn]) => [codeOf(name), fn]));
 
-export const TABLES = [
-  { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: ['src/adopt-property.ts', 'src/utils.ts', 'src/markup-grammar.ts'] },
+/**
+ * **Every file a package prints from, derived** (2026-11-08): its `.ts` sources under `src/`, its table files and
+ * declaration files excepted. A hand-kept list missed a file split out of another (a code raised from the new file went
+ * unread, and the check failed for a correct tree); a file that raises nothing contributes nothing. A package read by its
+ * own scanner (`checkedBy`) keeps an empty list.
+ */
+const SOURCES = Symbol('derived');
+const tsUnder = (dir, base = dir) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return tsUnder(path, base);
+    return entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') ? [relative(base, path)] : [];
+  });
+const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));
+const LISTED = [
+  { name: 'shared-utils', tables: ['src/diagnostics.ts'], sources: SOURCES },
   {
     name: 'renderer',
     tables: ['src/hydration-diagnostics.ts', 'src/renderer-diagnostics.ts', 'src/spread-diagnostics.ts', 'src/tag-diagnostics.ts', 'src/keyed-diagnostics.ts', 'src/elements-diagnostics.ts', 'src/slots-diagnostics.ts', 'src/hydrate-slots-diagnostics.ts', 'src/native-elements-diagnostics.ts', 'src/portal-diagnostics.ts', 'src/until-diagnostics.ts'],
-    sources: ['src/hydration.ts', 'src/renderer.ts', 'src/spread.ts', 'src/tag.ts', 'src/keyed.ts', 'src/elements.ts', 'src/slots.ts', 'src/hydrate-slots.ts', 'src/native-elements.ts', 'src/portal.ts', 'src/until.ts', 'src/multi-window.ts'],
+    sources: SOURCES,
   },
-  { name: 'styles', tables: ['src/diagnostics.ts'], sources: ['src/styles.ts'] },
-  { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: ['src/autoloader.ts', 'src/loader.ts'] },
-  { name: 'inserts', tables: ['src/diagnostics.ts'], sources: ['src/inserts.ts'] },
-  { name: 'ui', tables: ['src/diagnostics.ts'], sources: ['src/register.ts', 'src/select/element.ts'] },
-  { name: 'router', tables: ['src/diagnostics.ts'], sources: ['src/events.ts', 'src/methods.ts', 'src/router.ts', 'src/services.ts'] },
-  { name: 'hot', tables: ['src/diagnostics.ts'], sources: ['src/index.ts'] },
+  { name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'ui', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'router', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'hot', tables: ['src/diagnostics.ts'], sources: SOURCES },
   /**
    * Motion raises through routes of its own (`pageProblem`, refusal objects, a settings-type map), which the generic
    * call pattern cannot read — so its manifest is held by the motion-aware scanner in `checkedBy`, beside directives'
@@ -49,11 +67,17 @@ export const TABLES = [
    * cms: one table per side — `publish-diagnostics` (schema, manifests, the build, the writer) for the entries
    * read by the person who fixes the error (built with `words: true`), and the content side's for a visitor's page.
    */
-  { name: 'cms', tables: ['src/publish-diagnostics.ts', 'src/content-diagnostics.ts'], sources: ['src/schema.ts', 'src/manifest.ts', 'src/node.ts', 'src/taxonomy.ts', 'src/frontmatter.ts', 'src/markdown.ts', 'src/reader.ts', 'src/writer.ts'] },
+  { name: 'cms', tables: ['src/publish-diagnostics.ts', 'src/content-diagnostics.ts'], sources: SOURCES },
   /** The compiler's table keeps its words in every build; the standalone loader's is development-only. */
-  { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: ['src/transform.ts', 'src/parser.ts', 'src/standalone.ts'] },
-  { name: 'core', tables: ['src/diagnostics.ts'], sources: ['src/modules/define.ts', 'src/modules/createHook.ts', 'src/hooks/coalesce.ts', 'src/hooks/drawInto.ts', 'src/hooks/effect.ts', 'src/services/createProxy.ts', 'src/services/autoMap.ts', 'src/modules/untrack.ts', 'src/modules/computed.ts', 'src/modules/signal.ts', 'src/modules/init.ts', 'src/modules/adoptProps.ts', 'src/modules/scheduler.ts', 'src/store/store.ts', 'src/modules/createStore.ts', 'src/index.ts'] },
+  { name: 'jsx', tables: ['src/compiler-diagnostics.ts', 'src/standalone-diagnostics.ts'], sources: SOURCES },
+  { name: 'core', tables: ['src/diagnostics.ts'], sources: SOURCES },
 ];
+
+export const TABLES = LISTED.map((entry) =>
+  entry.sources === SOURCES
+    ? { ...entry, sources: tsUnder(join(ROOT, entry.name, 'src')).map((file) => `src/${file}`).filter((file) => !entry.tables.includes(file)).sort() }
+    : entry,
+);
 
 /**
  * **Directives' tables** — the engine's and each pack's own (one per pack entry, as the renderer's) — merged into one
