@@ -296,6 +296,12 @@
       "fix": "Use 'open', 'closed', false (light DOM) or a ShadowRootInit such as { mode: 'open', delegatesFocus: true }."
     },
     {
+      "code": "store-defaults-twice",
+      "params": [],
+      "message": "core's own store handlers were handed to the store door twice, which means two copies of core's traps module were bundled into one copy of core.",
+      "fix": "This is a build error: check that the bundler resolves core to one module graph."
+    },
+    {
       "code": "store-not-object",
       "params": [
         "received"

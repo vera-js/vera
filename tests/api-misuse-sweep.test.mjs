@@ -18,6 +18,7 @@ import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calls } from './source-calls.mjs';
+import { buildSync } from 'esbuild';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -99,7 +100,16 @@ const CASES = [
 ];
 
 /** Guards behind an async API: they REJECT rather than throw, so the coverage check below awaits them. */
-const REJECTING = [['navigate(notAPath)', () => navigate(42)], ...[...CMS_REJECTIONS, ...CMS_WRITER_REJECTIONS].map(([code, run]) => [`cms: ${code}`, run])];
+/**
+ * Core's store door taking its own handlers twice is a BUILD error (two copies of the traps module in one copy of core),
+ * unreachable through the public API: it is exercised by bundling the door from source and handing them over twice.
+ */
+const doorTwice = () =>
+  import(`data:text/javascript,${encodeURIComponent(buildSync({
+    stdin: { contents: "import { useDefaults } from './packages/core/src/services/door.ts'; const f = () => undefined; useDefaults(f); useDefaults(f);", resolveDir: join(root), loader: 'ts' },
+    bundle: true, write: false, format: 'esm', platform: 'node', define: { __DEV__: 'true' }, tsconfigRaw: '{}', logLevel: 'silent',
+  }).outputFiles[0].text)}`);
+const REJECTING = [['navigate(notAPath)', () => navigate(42)], ['core: store-defaults-twice', doorTwice], ...[...CMS_REJECTIONS, ...CMS_WRITER_REJECTIONS].map(([code, run]) => [`cms: ${code}`, run])];
 
 for (const [label, call, expected] of CASES) {
   test(`${label} names the mistake`, { skip }, () => {

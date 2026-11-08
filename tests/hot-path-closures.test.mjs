@@ -23,7 +23,7 @@ import ts from 'typescript';
 const HOT = {
   'packages/core/src/services/identity.ts': ['cached', 'dataRecord'],
   'packages/core/src/services/track.ts': ['track', 'wake', 'trigger', 'operation'],
-  'packages/core/src/services/createProxy.ts': ['handler.get', 'handler.set', 'handler.has', 'handler.ownKeys', 'handler.deleteProperty', 'arrayHandler.get', 'arrayHandler.set', 'shallowHandler.get'],
+  'packages/core/src/services/traps.ts': ['handler.get', 'handler.set', 'handler.has', 'handler.ownKeys', 'handler.deleteProperty', 'arrayHandler.get', 'arrayHandler.set', 'shallowHandler.get'],
   'packages/core/src/store/store.ts': ['unlinkFrom', 'compactCell', 'placeAt', 'grow', 'claim', 'readerAt', 'slotAt'],
   'packages/core/src/modules/scheduler.ts': ['enqueue', 'drain', 'regroup'],
   /** A hook's run and its notification: every write that reaches a hook goes through `$n`, every flushed run through `$t`. */

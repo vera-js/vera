@@ -5,6 +5,10 @@
  * root's adopted sheets); a child component created while it is out is upgraded (built in the home realm); a keyed
  * reorder re-runs nothing; a resource does not refetch; a built-in host re-homes too. Assertions are booleans for
  * anything from another document (CLAUDE.md: a failing cross-realm inspection reads as a timeout).
+ *
+ * **Load-sensitive**: the pop-out release row ("a component left in a pop-out that CLOSES is released") went red on
+ * Firefox while a CPU-heavy job ran beside the suite (panel not released, `woke` true), and was green 3 of 3 alone on the
+ * same tree (2026-11-08). Read a red there under load as load until it reproduces alone.
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, define, init, html, createStore, effect } from '../../packages/core/dist/development/vera.js';

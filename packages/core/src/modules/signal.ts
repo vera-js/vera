@@ -1,6 +1,7 @@
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
-import { createProxy, createShallow } from '../services/createProxy.js';
+import { createProxy } from '../services/createProxy.js';
+import { createShallow } from '../services/traps.js';
 import type { Signal } from '../types.js';
 
 /** `signal`'s and `createStore`'s one option (2026-10-22): whether nested values are tracked. */

@@ -118,6 +118,10 @@ export const PROSE: Record<string, Prose> = {
     'declares `static styles`, but nothing is adopting them, so it renders unstyled.',
     "Style adoption lives in `@verajs/styles`. Wire it once at your app entry: `import { styles } from '@verajs/styles'; wire([styles]);`",
   ],
+  'store-defaults-twice': () => [
+    "core's own store handlers were handed to the store door twice, which means two copies of core's traps module were bundled into one copy of core.",
+    'This is a build error: check that the bundler resolves core to one module graph.',
+  ],
   'no-collections': () => [
     'is handed back as it is — it works, but nothing that reads it updates when it changes.',
     "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call.",

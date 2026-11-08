@@ -25,7 +25,13 @@ const SRC = 'packages/core/src/';
 const BASE = [];
 const REACTIVE = [];
 /** The floor's names while the layer lists are empty: modules any working core build holds. */
-const FLOOR = ['index.ts', 'services/createProxy.ts', 'modules/scheduler.ts', 'modules/createHook.ts', 'modules/init.ts', 'modules/define.ts'];
+const FLOOR = ['index.ts', 'services/createProxy.ts', 'services/door.ts', 'services/traps.ts', 'modules/scheduler.ts', 'modules/createHook.ts', 'modules/init.ts', 'modules/define.ts'];
+/**
+ * **The store door never reaches core's own traps**: the door decides which handler a type gets, and this copy's handlers
+ * reach it as its first link (`useDefaults`, at the traps' load), never by import. An import from the door to the traps
+ * is the cycle the door's first link exists to remove (traps → nested → handlerFor → decide → traps).
+ */
+const APART = [['services/door.ts', 'services/traps.ts']];
 
 /** The graph as { module: [the modules it imports] }, for core's own modules. */
 const coreGraph = () => {
@@ -78,4 +84,11 @@ test("core's module graph: the base never reaches the reactive layer, and nothin
   assert.ok(modules.length >= FLOOR.length, `CONTROL: the graph holds ${modules.length} modules`);
   for (const m of named) assert.ok(modules.includes(m), `CONTROL: ${m} is in the graph (renamed? update BASE / REACTIVE)`);
   assert.deepEqual(violations(graph, BASE.map((f) => SRC + f), REACTIVE.map((f) => SRC + f)), []);
+});
+
+test('the store door never reaches the traps (and the rule fires on a planted import)', () => {
+  const planted = { [SRC + 'services/door.ts']: [SRC + 'services/x.ts'], [SRC + 'services/x.ts']: [SRC + 'services/traps.ts'], [SRC + 'services/traps.ts']: [] };
+  assert.deepEqual(violations(planted, [SRC + 'services/door.ts'], [SRC + 'services/traps.ts']), [`the base ${SRC}services/door.ts reaches ${SRC}services/traps.ts`], 'CONTROL: a door reaching the traps through another module is named');
+  const graph = coreGraph();
+  for (const [from, to] of APART) assert.deepEqual(violations(graph, [SRC + from], [SRC + to]), [], `${from} must not reach ${to}`);
 });

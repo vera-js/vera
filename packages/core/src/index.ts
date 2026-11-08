@@ -1,6 +1,6 @@
 import { wire as register, inserts } from '@verajs/inserts';
 import { diagnostic, SHARED } from '@verajs/shared-utils';
-import { redecideStores } from './services/createProxy.js';
+import { redecideStores } from './services/door.js';
 export { inserts };
 
 /**
@@ -40,7 +40,7 @@ export { untrack } from './modules/untrack.js';
 export { computed } from './modules/computed.js';
 export { effect } from './hooks/effect.js';
 import { untracked, untrack as untrackFn } from './modules/untrack.js';
-import { walkItems, rawItems } from './services/createProxy.js';
+import { walkItems, rawItems } from './services/lists.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
 import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own, settle, serverTurn } from './modules/createHook.js';
