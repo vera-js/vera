@@ -393,7 +393,8 @@ const arrayHandler: ProxyHandler<object> = {
         const keys = proxyCallbacks.get(obj);
         if (keys !== undefined) {
           const send = operation(obj, keys)!;
-          span(keys, send, after, length);
+          /** NOT inlined: with this its one caller, the minifier pastes `span` here as an immediately-invoked arrow. */
+          /*@__NOINLINE__*/ span(keys, send, after, length);
           send(GLOBAL);
         }
       }
