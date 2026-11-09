@@ -355,6 +355,20 @@ There is no warning for this. A `Date` read to format it is far more common than
 mutate it, so a warning would be noise on the ordinary case — which is why it is written down here
 instead.
 
+### A write that changes nothing wakes nothing
+
+Writing a key the value it already has is not a change: `state.count = state.count` re-renders
+nothing, and neither does `state.items = update(state.items)` when `update` returns its input. A key
+behind a setter that already returns the value is not written either (the setter does not run).
+
+Writing `undefined` to a key the object does not have **is** a change, as it is in the language: the
+key now exists, so `'k' in state`, `Object.keys(state)` and anything listing the keys see it.
+
+One deliberate exception: a value the object only **inherits** (from its prototype), written onto
+it as itself (`state.x = state.x` where `x` comes from the prototype), is treated as no change, although
+the language would create an own key there. Telling the two apart would cost every same-value write;
+write a different value, or use `Object.defineProperty`, to create the own key.
+
 ### A frozen source object stays frozen
 
 A store is a proxy, and a proxy has to respect its target's rules. `createStore(Object.freeze(…))`

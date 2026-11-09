@@ -36,6 +36,8 @@ let writingProp: PropertyKey | null = null;
  * that WRITES to the store is notified mid-sort, as any write is. Each read of a mutator hands back a new function
  * (`state.rows.push !== state.rows.push`).
  */
+/** `Object.prototype.__lookupSetter__`: the setter of the first property named `key` along the chain, in one call. */
+const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: object, key: PropertyKey): unknown }).__lookupSetter__;
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
  * **What a store keeps of a value written into it: raw, one level deep.** The ONE place a write (`set`) and a
@@ -241,15 +243,28 @@ const handler: ProxyHandler<object> = {
      */
     if (value !== null && typeof value === 'object') value = unwrap(value);
     const prevValue = Reflect.get(obj, prop, receiver);
-    if (prevValue === value) return true;
     /**
-     * **The same nested object, read back and assigned, is not a change either.** Reads hand out the
-     * proxy while the target holds the raw object, so `state.o = state.o` arrives as proxy-against-raw
-     * — and `state.items = update(state.items)`, returning its input when there is nothing to do, is
-     * how "no change" is normally written. It also stops the proxy being written into the target.
+     * **No change: the value the key already gives, unless that value is an `undefined` the object neither owns nor gets
+     * from a setter.** Writing `undefined` to an ABSENT key is a real write: the language creates the own key, and `in`,
+     * `Object.keys` and `hasOwn` readers see it. Behind a setter it is no change and the setter does not run (the getter
+     * already returns the value). **The same nested object, read back and assigned, is no change either**: reads hand out
+     * the proxy while the target holds the raw object, so `state.o = state.o` arrives as proxy-against-raw, and
+     * `state.items = update(state.items)`, returning its input when there is nothing to do, is how "no change" is normally
+     * written. It also stops the proxy being written into the target. `cached` reads a field, so `prevValue` must be an
+     * object first (a primitive has no store).
+     *
+     * **A DEFINED value an object inherits, written as itself, stays no change** (a decision, 2026-11-08), although the
+     * language creates an own key there too. Telling it apart takes an own-key check on every same-value write, and that
+     * cost the same-value write path 11–12% (instructions, V8 and Node); the inherited value written onto itself reads
+     * the same through every door but the own-key ones (`hasOwn`, `Object.keys`, `JSON.stringify`). The `undefined` case
+     * pays its check only when the value is `undefined`.
      */
-    /** `cached` reads a field, so `prevValue` must be an object first (a primitive has no store). */
-    if (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value) return true;
+    if (
+      (prevValue === value ||
+        (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value)) &&
+      (prevValue !== undefined || Object.hasOwn(obj, prop) || LOOKUP_SETTER.call(obj, prop) !== undefined)
+    )
+      return true;
     /** A data record needs no descriptor: no setter can run, and "added" is just "not own" (`dataRecord`). */
     /** NOT inlined: with this its one caller, the minifier pastes `dataRecord` into the write trap as an immediately-invoked arrow. */
     const fast = prop !== '__proto__' && /*@__NOINLINE__*/ dataRecord(obj);
