@@ -113,6 +113,12 @@ code, so they are not re-litigated.
   restoring, every time. The same applies to timings: `bench/reactivity.mjs` read 163 ns/op straight
   after the browser suite and 132 on a quiet machine, so take three runs before believing a
   regression.
+  **A direct `rollup -c` in a package without `MODE=prod` writes only `dist/development`** (Brian approved,
+  2026-11-08): the production min keeps its old bytes and timestamp, so every production number taken from it measures
+  the previous build. Measured on 2026-11-08 with a planted marker (present in the dev bundle, absent from the min); it
+  voided an import-order experiment, a planted control's production half and four variant counts. Build every variant
+  through the one variant script (`scripts/build-variant.mjs`), which sets `MODE=prod`, builds both bundles and refuses
+  unless both changed, and print every arm's bundle hash in a measurement's header.
 - **A timing sample must be tens of milliseconds long, and the machine is not the first suspect.**
   Firefox and WebKit deliberately coarsen `performance.now()` (toward 1 ms, a fingerprinting
   defense), so timing ONE ~3 ms render measures mostly rounding: measured 2026-09-27, the A/A control
