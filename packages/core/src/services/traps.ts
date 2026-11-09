@@ -86,6 +86,20 @@ const rawCopy = (container: object): object => {
   return container;
 };
 const toStore = (value: unknown) => (value !== null && typeof value === 'object' ? createProxy(value) : value);
+/**
+ * **The indices `[lo, hi)` of an array, sent through one operation**, through whichever is SHORTER: the range, or the keys
+ * anyone subscribed to. A list rendered through a raw walk subscribes no index at all (`ITEMS` instead), so a splice on
+ * 1000 rows checks a handful of keys, not 1000. For a truncating `length`; `atomic` keeps its own copy (see there).
+ */
+const span = (keys: Map<unknown, unknown>, send: (key: unknown) => void, lo: number, hi: number) => {
+  if (keys.size < hi - lo) {
+    for (const key of keys.keys())
+      if (typeof key === 'string') {
+        const index = +key;
+        if (index >= lo && index < hi) send(key);
+      }
+  } else for (let i = lo; i < hi; i++) send(String(i));
+};
 const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => unknown, proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
     /** Borrowed onto something else (`state.rows.push.call(other, x)`): that is not this store's write. */
@@ -116,9 +130,11 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
       /**
        * The change is the operation's (the shape channel, the array: "the contents changed, re-read"), not `length`:
        * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
-       * The touched indices go through whichever is SHORTER: the range, or the keys anyone subscribed to. A list
-       * rendered through a raw walk subscribes no index at all (`ITEMS` instead), so its splice checks a handful of
-       * keys, not 1000.
+       */
+      /**
+       * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. WRITTEN HERE, not
+       * through `span` (a second address, deliberately): calling the shared walk with this sender cost a splice +66%
+       * on JSC and +13% on SpiderMonkey (instructions), the sender no longer inlined; `span` serves the cold truncation.
        */
       if (keys.size < hi - lo) {
         for (const key of keys.keys())
@@ -367,7 +383,22 @@ const arrayHandler: ProxyHandler<object> = {
     const before = (obj as Record<PropertyKey, unknown>)[prop];
     const length = (obj as unknown[]).length;
     const written = handler.set!(obj, prop, value, receiver);
-    if (written && ((obj as Record<PropertyKey, unknown>)[prop] !== before || (obj as unknown[]).length !== length)) items(obj);
+    if (written) {
+      const after = (obj as unknown[]).length;
+      /**
+       * **A truncating `length = n` deletes the indices past `n` without any index trap firing**: their readers, and
+       * whoever read the key set, are told here, as one operation (the indices that were there and are gone).
+       */
+      if (after < length) {
+        const keys = proxyCallbacks.get(obj);
+        if (keys !== undefined) {
+          const send = operation(obj, keys)!;
+          span(keys, send, after, length);
+          send(GLOBAL);
+        }
+      }
+      if ((obj as Record<PropertyKey, unknown>)[prop] !== before || after !== length) items(obj);
+    }
     return written;
   },
   defineProperty(obj, prop, descriptor) {
