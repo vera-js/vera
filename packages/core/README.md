@@ -407,6 +407,11 @@ somewhat slower list, never a wrong answer: a frozen or sealed object (`Object.f
 (`new Todo(…)` rows), and a second level (`state.grid = state.grid.map((r) => r.slice())` stores plain arrays of the
 cell proxies). Build such values from fresh data, or mutate in place (`splice`, `sort`), where it matters.
 
+**An array's mutators are fresh functions on every read.** `state.rows.push` runs the whole `push` and notifies once
+(a hook never sees the array half-written), and to do that each read hands back a new function: `state.rows.push ===
+state.rows.push` is `false`, unlike a plain array's. Call it where you read it; a kept reference still works, it is just
+not `===` to the next read. A stable function per name was measured and cost a `push` on an unwatched array 18–35%.
+
 **Use a `signal` for list data.** Putting 1 000 row objects through `createStore` proxies every one
 of them, and reading every field back through those proxies costs about 15× the same read on a plain array
 (the median ratio, 2026-10-16, Apple M1, Node 24 — `VERA_DIST=production node --test tests/perf-claims.test.mjs` prints
