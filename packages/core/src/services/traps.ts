@@ -306,12 +306,13 @@ const handler: ProxyHandler<object> = {
   },
   /** Deleting a key changes both the key's value (to `undefined`, what a read now returns) and the shape. */
   deleteProperty(obj, prop) {
-    const had = prop in obj;
     /**
      * The value being deleted, from the OWN descriptor: deleting never runs a getter in the language, so it never does
      * here (a getter that throws would have made `delete` throw). An accessor's previous value is not known: `undefined`.
+     * Only an OWN key is deleted: a key the object merely inherits is untouched by `delete`, so nobody is woken.
      */
     const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+    const had = own !== undefined;
     const prevValue = own !== undefined && 'value' in own ? own.value : undefined;
     const deleted = Reflect.deleteProperty(obj, prop);
     if (__DEV__ && !deleted && had) throw refusedWrite(obj, prop, 'deleted');
@@ -376,8 +377,8 @@ const arrayHandler: ProxyHandler<object> = {
     return defined;
   },
   deleteProperty(obj, prop) {
-    /** Only a key that was there: deleting a missing index changes nothing anyone walked. */
-    const had = prop in obj;
+    /** Only an own key that was there: deleting a missing or inherited one changes nothing anyone walked. */
+    const had = Object.hasOwn(obj, prop);
     const deleted = handler.deleteProperty!(obj, prop);
     if (deleted && had) items(obj);
     return deleted;
