@@ -44,6 +44,12 @@ const refuse = (element: Element, key: string) => {
  * element. Its props store is `createStore` of the element's raw record, which returns the same proxy every time.
  */
 function adopt(this: ComponentElement, key: string, value: unknown) {
+    /**
+     * **`__proto__` is never adopted** (D21, 2026-11-10): the chain walk below would find `Object.prototype`'s accessor and
+     * replace the element's prototype. Refused at this receiver because `_$props$` is a cross-package field any module can
+     * write; shared-utils' `adoptProperty` refuses it too (the renderer's path), each the other's second address.
+     */
+    if (key === '__proto__') return;
     const el = this as unknown as Record<string, unknown>;
     /**
      * **A key something already receives is handed over, never adopted** — an accessor of the

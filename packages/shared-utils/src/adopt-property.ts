@@ -31,6 +31,13 @@ import * as SHARED from './diagnostics.js';
 let refused: WeakMap<PropertyHost, Set<string>> | undefined;
 
 export const adoptProperty = (element: PropertyHost, name: string, value: unknown): 0 | 1 | 2 => {
+  /**
+   * **`__proto__` is refused HERE, at the receiver** (D21, 2026-11-10): `element.__proto__ = v` replaces the element's
+   * prototype, and an own `__proto__` key reaches a bag through `JSON.parse`. This is the choke point every delivery
+   * passes; the renderer's template binding and spread's bag key refuse it first, with a development warning naming
+   * where it was written (their second addresses: renderer.ts `proto-binding`, spread.ts refusal 3).
+   */
+  if (name === '__proto__') return 2;
   const adopt = element._$adopt$ as ((key: string, value: unknown) => void) | undefined;
   /** The walk comes first: what it finds decides whether writing is even legal. */
   for (let carrier: object | null = element; carrier !== null; carrier = Object.getPrototypeOf(carrier)) {
