@@ -25,8 +25,17 @@ const touchesSource = staged.some((file) => /^packages\/[^/]+\/src\//.test(file)
 const rows = message.match(/\b[DRQ]\d{1,3}[a-z]?\b/g);
 if (!touchesSource || rows === null) process.exit(0);
 
+/** A field's whole text: its line and the wrapped lines after it, up to a blank line or the next `Label:` line. */
+const field = (label) => {
+  const lines = message.split('\n');
+  const at = lines.findIndex((line) => line.startsWith(label));
+  if (at === -1) return '';
+  let end = at + 1;
+  while (end < lines.length && lines[end].trim() !== '' && !/^[A-Z][A-Za-z =]*:/.test(lines[end])) end++;
+  return lines.slice(at, end).join(' ');
+};
 const required = [
-  ['Differential:', /^Differential:.*\bpower\b/im, 'a `Differential:` line naming the run AND its power control ("power: …")'],
+  ['Differential:', { test: () => /\bpower\b/i.test(field('Differential:')) }, 'a `Differential:` field naming the run AND its power control ("power: …")'],
   ['Counts:', /^Counts:\s*\S/im, 'a `Counts:` line (or `Counts: n/a (<reason>)`)'],
   ['Bytes:', /^Bytes:\s*\S/im, 'a `Bytes:` line'],
   ['Landed = measured:', /^Landed = measured:\s*\S/im, 'a `Landed = measured:` line with the cmp and its hash'],
