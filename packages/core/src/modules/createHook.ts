@@ -22,8 +22,9 @@ export const noOwner = (subject: string) => diagnostic('core', subject, 'no-owne
  *
  * Never rethrown: an owner's hooks run in one loop, so an escaping error stopped every hook after
  * the failing one — a single bad effect took out its siblings.
+ *
+ * A deliberate twin of shared-utils' `reportTo` (the same rule, +11 B there): change both together.
  */
-/** A deliberate twin of shared-utils' `reportTo` (the same rule, +11 B there): change both together. */
 export const reportHookError = (error: unknown, element: ComponentElement | undefined, line: string) => {
   const handlers = inserts.get('error');
   if (handlers?.length) for (const handler of handlers) (handler as ErrorInsert)(error, element);

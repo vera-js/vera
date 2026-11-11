@@ -5,26 +5,6 @@ import { createStore } from './createStore.js';
 import type { ComponentElement } from '../types.js';
 
 /**
- * **Adopt what the parent's property bindings delivered — no declaration required.**
- *
- * `_$props$` is the renderer's record of every `.name`/`props()` value nothing received: on a LAZY tag
- * the raw write was clobbered by the class's field initializers at upgrade, and on an EAGER one it
- * survived but is indistinguishable from the component's own fields by now — the record is what tells
- * them apart, which is why adoption needs neither `static properties` nor a props argument. Draining it
- * seeds one store with the bound values and puts a store-backed accessor where each raw property was,
- * so `this.date` read in a render is TRACKED and the parent's next commit lands in the setter:
- * reactivity in both directions. A bound value outranks a class default, which is what props mean.
- *
- * The record only covers values that arrived before `init()`. A hydrated child is defined, connected
- * and drained before its parent's parts commit, and a spread bag can grow a key on a live element, so
- * each key goes through **`_$adopt$`**, the live receiver this installs on each element (sigiled: the
- * recorders live in other bundles) — a late delivery takes the same door instead of a record nobody
- * reads again. ONE shared function for every element, called as a method; the store is the element's
- * own (`createStore` of its `_$raw$`, the same proxy every time), so every generation shares it.
- *
- * @param element The element `init()` is setting up
- */
-/**
  * Development: a bound property met a GETTER-ONLY class member — refused, and said once per element and name (without
  * it, the binding vanished silently). The renderer's eager path hands the value
  * here (`_$adopt$`), so this is the one place both arrival orders end.
@@ -126,6 +106,26 @@ const accessorFor = (key: string) => {
   return pair;
 };
 
+/**
+ * **Adopt what the parent's property bindings delivered — no declaration required.**
+ *
+ * `_$props$` is the renderer's record of every `.name`/`props()` value nothing received: on a LAZY tag
+ * the raw write was clobbered by the class's field initializers at upgrade, and on an EAGER one it
+ * survived but is indistinguishable from the component's own fields by now — the record is what tells
+ * them apart, which is why adoption needs neither `static properties` nor a props argument. Draining it
+ * seeds one store with the bound values and puts a store-backed accessor where each raw property was,
+ * so `this.date` read in a render is TRACKED and the parent's next commit lands in the setter:
+ * reactivity in both directions. A bound value outranks a class default, which is what props mean.
+ *
+ * The record only covers values that arrived before `init()`. A hydrated child is defined, connected
+ * and drained before its parent's parts commit, and a spread bag can grow a key on a live element, so
+ * each key goes through **`_$adopt$`**, the live receiver this installs on each element (sigiled: the
+ * recorders live in other bundles) — a late delivery takes the same door instead of a record nobody
+ * reads again. ONE shared function for every element, called as a method; the store is the element's
+ * own (`createStore` of its `_$raw$`, the same proxy every time), so every generation shares it.
+ *
+ * @param element The element `init()` is setting up
+ */
 export const adoptProps = (element: ComponentElement) => {
   element._$adopt$ ??= adopt;
   const record = element._$props$;

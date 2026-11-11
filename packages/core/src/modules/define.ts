@@ -63,8 +63,8 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   if (__DEV__) Object.freeze(options);
   const entry = { o: options, s: setup as Setup };
   let pending: ((element: ComponentElement) => void) | undefined;
-  /** The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all). */
   /**
+   * The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all).
    * An own `__proto__` key (`JSON.parse` makes one; an object literal never does) is skipped in both builds, props
    * and methods alike: assigned onto the record or the class it would replace a prototype instead of adding a key.
    * Development says so (`define-proto-key`, `checkProps` / `checkMethods`).
@@ -91,8 +91,6 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
        * **A value set before the tag was defined** (`el.heading = …` on an element made before `define` ran) is an OWN
        * data property, which hides the prototype accessor: handed over through the setter, before the setup runs. Only
        * declared names; `Object.hasOwn`, never `in`. Here, never in `initWith` (Firefox charges its size, measured).
-       */
-      /**
        * A fresh element has no own enumerable property at all: one `Object.keys` guards the per-name test (measured).
        */
       if (keys && Object.keys(this).length !== 0)
@@ -107,12 +105,6 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       initWith(this, entry.o, entry.s);
     },
   });
-  /**
-   * Observed attributes: the callbacks exist ONLY on a tag that declares some — an observed attribute is per-element
-   * engine work, and every callback a class defines is creation work. Assigned after `methods`, so it wins over
-   * a method of the same name (development says so). The platform calls it before `connectedCallback` for attributes
-   * present at upgrade: that is a write through the setter before the setup runs, which the store handles.
-   */
   /**
    * **Declared props** (Brian 2026-10-21: optional, names and defaults): a get/set pair per name on the
    * PROTOTYPE, backed by the element's ONE props store — `createStore(_$raw$)`, the store `adoptProps` keeps — so a write
@@ -170,6 +162,11 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
      * it as an OWN data property at upgrade, when the platform delivers the attributes — `this[name] =` would overwrite
      * that own value and the attribute would win; through the store, the connect-time hand-over then moves the property's
      * value in, so a PROPERTY set before upgrade beats the markup's attribute (pinned).
+     *
+     * Observed attributes: the callbacks exist ONLY on a tag that declares some — an observed attribute is per-element
+     * engine work, and every callback a class defines is creation work. Assigned after `methods`, so it wins over
+     * a method of the same name (development says so). The platform calls it before `connectedCallback` for attributes
+     * present at upgrade: that is a write through the setter before the setup runs, which the store handles.
      */
     if (attributes?.length) {
       (Class as unknown as { observedAttributes: readonly string[] }).observedAttributes = attributes;

@@ -65,8 +65,10 @@ const PENDING_SECONDS = 5;
 let anyPersist = false;
 const OPEN: ShadowRootInit = { mode: 'open' };
 const CLOSED: ShadowRootInit = { mode: 'closed' };
-/** Development: what was said once per component class — a static setup return, a near-miss `setup` spelling. */
-/** `@__PURE__`: read only under `__DEV__`, so production drops the allocation with the reads (R2, 2026-10-22). */
+/**
+ * Development: what was said once per component class — a static setup return, a near-miss `setup` spelling.
+ * `@__PURE__`: read only under `__DEV__`, so production drops the allocation with the reads.
+ */
 const saidStatic = /* @__PURE__ */ new WeakSet<object>();
 const saidNearMiss = /* @__PURE__ */ new WeakSet<object>();
 const saidOptions = /* @__PURE__ */ new WeakSet<object>();
@@ -118,6 +120,18 @@ const isOptions = (target: unknown) => {
 };
 
 /**
+ * The `'init'` inserts, OUT OF LINE: true when one answered `false` (it defers the setup). The loop inside `initWith` —
+ * never even run on a page with no `'init'` insert — cost Firefox's component creation +2.4%, 6 of 6 sessions;
+ * with the loop as it was, the same build measured −1.0%: `initWith`'s size, not its work (the inlining cliff,
+ * CLAUDE.md). Here it costs `initWith` one call, made only where inserts exist. A plain loop: no closure per connect (a
+ * `forEach` arrow captured `element` on every connect of every styled app).
+ */
+const runInits = (initInserts: unknown[], element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
+  for (let i = 0; i < initInserts.length; i++) if ((initInserts[i] as InitInsert)(element, options, given) === false) return true;
+  return false;
+};
+
+/**
  * The one entry `init` and `define` share: the host and its options SEPARATELY, so `define`'s generated class can
  * hand over one options object per tag and allocate nothing per connect.
  *
@@ -129,16 +143,6 @@ const isOptions = (target: unknown) => {
  * generation exists), a root (a `shadow` asks for one), an async branch (a promise came back), the cleanup Set (an
  * effect returned a cleanup — see `coalesce`).
  */
-/**
- * The `'init'` inserts, OUT OF LINE: true when one answered `false` (it defers the setup). The loop inside `initWith` —
- * never even run on a page with no `'init'` insert — cost Firefox's component creation +2.4%, 6 of 6 sessions;
- * with the loop as it was, the same build measured −1.0%: `initWith`'s size, not its work (the inlining cliff,
- * CLAUDE.md). Here it costs `initWith` one call, made only where inserts exist.
- */
-const runInits = (initInserts: unknown[], element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
-  for (let i = 0; i < initInserts.length; i++) if ((initInserts[i] as InitInsert)(element, options, given) === false) return true;
-  return false;
-};
 
 export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {
   if (__DEV__ && (element as Partial<Node> | null)?.nodeType !== 1)
@@ -227,12 +231,9 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * `@verajs/styles` adopts `static styles`, and the place for instrumentation or per-element registration.
    */
   const initInserts = inserts.get('init');
-  /** A plain loop: no closure per connect (a `forEach` arrow captured `element` on every connect of every styled app). */
   /**
    * Each is handed the component's options object too: a module's own key travels on it (`observeSlots`, slots) — and
    * the setup as given (`@verajs/renderer/native-elements` sets a built-in host up again when it returns, 2026-10-21).
-   */
-  /**
    * An insert that answers `false` DEFERS the setup (Brian, 2026-10-21): native-elements holds a built-in host's setup
    * until its first connect, as a custom element's runs in its connectedCallback — so a host built off the page and
    * never attached links nothing.
@@ -335,6 +336,9 @@ const settled = (element: Moving) => {
   element._$w$ = false;
 };
 
+/** The element's own window — its timers belong to it. */
+const windowOf = (element: Element) => element.ownerDocument.defaultView ?? globalThis;
+
 /**
  * **Deferred teardown — ONE mechanism, two uses** (Brian 2026-10-22): a REMOVED component is PAUSED — the author's
  * `disconnectedCallback` runs, every hook's cleanup runs (listeners and intervals stop), its setup state, stores and DOM
@@ -343,11 +347,9 @@ const settled = (element: Moving) => {
  * resume, and dropped at expiry). If that window closes while it is paused, its timer never fires — the element is then
  * garbage with its document, unless it was adopted elsewhere. Used when the
  * component asked (`persist: seconds`) and, automatically, while its async setup is still PENDING: re-added, the
- * in-flight setup carries on — one setup, never two continuations doubling its effects.
+ * in-flight setup carries on — one setup, never two continuations doubling its effects. `_$m$`, the move mark, holds
+ * the pause's TIMER: either way a connect finds the component kept, never sets it up again.
  */
-/** The element's own window — its timers belong to it. */
-const windowOf = (element: Element) => element.ownerDocument.defaultView ?? globalThis;
-/** `_$m$`, the move mark, holds the pause's TIMER: either way a connect finds the component kept, never sets it up again. */
 const pause = (element: Moving, seconds: number) => {
   /** The hooks RETIRED but kept listed: each runs its cleanup and leaves every store (nothing wakes it while out); a resume's first pass links them again. */
   retire(element);
@@ -396,24 +398,6 @@ const retireGeneration = (element: ComponentElement) => {
 };
 
 /**
- * **A removal's whole teardown, one function** (lifted 2026-10-21 for `@verajs/renderer/native-elements`): the
- * generation retired, the hook lists DROPPED (each hook is a closure over its element: a removed element still holding
- * them is a DOM↔JS cycle only Firefox's cycle collector frees — 2026-10-11), the renderer's release of the
- * component's root part (`$x`; absent on a server), and `_$x$`. The define wrapper runs it after the author's own
- * `disconnectedCallback`; the native-elements module runs it (`$td`) when a built-in host leaves the document.
- */
-/**
- * **A component moved into ANOTHER document — a pop-out window, an iframe — and back** (R4, Brian 2026-10-21/22). It is
- * KEPT: its setup, its state and its DOM (which moved with it) stay. What belongs to a window re-runs, both ways:
- * - its layout effects and plain effects, EXACTLY those two priorities (by name): each runs its cleanup and then runs
- *   again, so a listener on the element's window, a frame loop or an observer re-binds to the new one (Brian: every
- *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, an `effect` with a `priority` of your own — is not
- *   re-run: a move never refetches;
- * - the `'adopted'` insert: `@verajs/styles` re-applies its sheets, because a move EMPTIES a shadow root's
- *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).
- * `_$d$` becomes the new document, so the way back re-homes too; a move within one document never gets here.
- */
-/**
  * **`'adopted'` — a component now lives in ANOTHER document** (2026-10-26, Brian: the seam "as generalized as possible …
  * extendable … tiny and free speed wise"). The platform's name for a node changing document (`adoptedCallback`, which a class
  * must never define: it taxes every creation). Fired from core's two COLD cross-window paths only — a re-home and a paused
@@ -425,6 +409,17 @@ const adopted = (element: ComponentElement) => {
   const chain = inserts.get('adopted');
   if (chain !== undefined) for (let i = 0; i < chain.length; i++) (chain[i] as unknown as (element: Element) => void)(element);
 };
+/**
+ * **A component moved into ANOTHER document — a pop-out window, an iframe — and back** (Brian 2026-10-21/22). It is
+ * KEPT: its setup, its state and its DOM (which moved with it) stay. What belongs to a window re-runs, both ways:
+ * - its layout effects and plain effects, EXACTLY those two priorities (by name): each runs its cleanup and then runs
+ *   again, so a listener on the element's window, a frame loop or an observer re-binds to the new one (Brian: every
+ *   effect, as if its inputs changed). A hook at any other priority — `resource()`'s, an `effect` with a `priority` of your own — is not
+ *   re-run: a move never refetches;
+ * - the `'adopted'` insert: `@verajs/styles` re-applies its sheets, because a move EMPTIES a shadow root's
+ *   `adoptedStyleSheets` and the way back does not restore them (BROWSER-LEDGER 2026-10-22).
+ * `_$d$` becomes the new document, so the way back re-homes too; a move within one document never gets here.
+ */
 export const rehomeElement = (element: ComponentElement) => {
   (element as Moving)._$d$ = element.ownerDocument;
   const hooks = element._$h$;
@@ -436,6 +431,13 @@ export const rehomeElement = (element: ComponentElement) => {
   adopted(element);
 };
 
+/**
+ * **A removal's whole teardown, one function** (lifted 2026-10-21 for `@verajs/renderer/native-elements`): the
+ * generation retired, the hook lists DROPPED (each hook is a closure over its element: a removed element still holding
+ * them is a DOM↔JS cycle only Firefox's cycle collector frees — 2026-10-11), the renderer's release of the
+ * component's root part (`$x`; absent on a server), and `_$x$`. The define wrapper runs it after the author's own
+ * `disconnectedCallback`; the native-elements module runs it (`$td`) when a built-in host leaves the document.
+ */
 export const retireElement = (element: ComponentElement) => {
   retireGeneration(element);
   element._$h$ = undefined;
@@ -455,21 +457,16 @@ export const retireElement = (element: ComponentElement) => {
   element._$x$ = true;
 };
 
-/**
- * Development: an invalid app default or own `shadow` or `foreignNodes`, and an unknown option key — said by name, before
- * the fallback (light DOM for `shadow`; `'drop'` for `foreignNodes`, the built-in default).
- */
+let saidClaimedTwice = false;
 /**
  * Development: the option keys the wired `'init'` hooks claim (`$keys` on the hook function — never on its descriptor,
  * which `chain()` does not reach), each with the module that claims it. Two modules claiming one key, or a module
  * claiming one of core's, is said once per page; both hooks still get the object (core cannot know which one meant it).
- */
-/**
+ *
  * Read fresh each time, never cached: a hook REPLACED at a taken priority keeps the array's identity and length, so a
  * cache keyed on them goes stale. Development only, once per `init` that has options. Nothing at module scope
  * is constructed: production keeps a constructor call it cannot prove unused (+8 B measured).
  */
-let saidClaimedTwice = false;
 const claims = (): Map<string, string> => {
   const hooks = inserts.get('init') as unknown[] | undefined;
   const optionKeys = new Map<string, string>();
@@ -486,6 +483,10 @@ const claims = (): Map<string, string> => {
   }
   return optionKeys;
 };
+/**
+ * Development: an invalid app default or own `shadow` or `foreignNodes`, and an unknown option key — said by name, before
+ * the fallback (light DOM for `shadow`; `'drop'` for `foreignNodes`, the built-in default).
+ */
 const checkOptions = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
   const own = options?.shadow;
   if (own === undefined && shadow !== undefined && !saidShadowDefault && !validShadow(shadow)) {
@@ -553,6 +554,9 @@ const nearMiss = (element: ComponentElement) => {
       }
 };
 
+/** `_$m$`: `true` while a move is under way, a pause's TIMER while paused (`pause`), else falsy. */
+type Moving = ComponentElement & { _$m$?: boolean | ReturnType<typeof setTimeout>; _$d$?: Document; _$s$?: PromiseLike<unknown>; _$w$?: boolean; _$P$?: number; _$q$?: () => void };
+
 /**
  * Removal runs every cleanup an element's effects returned. This must live on the **prototype at
  * definition time**: the custom-elements reaction system snapshots lifecycle callbacks when `define()`
@@ -573,8 +577,6 @@ const nearMiss = (element: ComponentElement) => {
  * `_$x$` is set after the teardown, so a cleanup registered from then on — an effect that removed
  * its own element and has not returned yet — runs at once instead of into a set nothing drains again.
  */
-/** `_$m$`: `true` while a move is under way, a pause's TIMER while paused (`pause`), else falsy. */
-type Moving = ComponentElement & { _$m$?: boolean | ReturnType<typeof setTimeout>; _$d$?: Document; _$s$?: PromiseLike<unknown>; _$w$?: boolean; _$P$?: number; _$q$?: () => void };
 if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {

@@ -5,11 +5,6 @@ import type { ComponentElement, ResultType, HookRecord, Cell, TemplateResult } f
 export const currentInstance: { element: ComponentElement | null } = { element: null };
 
 /**
- * The hooks currently running, innermost last. A store read records whatever is on top as a
- * dependency. A stack rather than one slot because a hook can run inside another — a nested
- * component rendering in the middle of its parent's template.
- */
-/**
  * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down: a field
  * under a `Symbol` private to this copy of core (a page can load two copies — a bundle inlining it — and each must know
  * only its own). It was a WeakSet keyed by the element; a weak collection keyed by DOM nodes costs both engines'

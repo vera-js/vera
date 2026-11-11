@@ -14,9 +14,8 @@ import type { Store } from '../types.js';
  */
 export const createStore = <T extends object>(initialStore: T) => {
   if (initialStore === null || (typeof initialStore !== 'object' && typeof initialStore !== 'function'))
-    /** The throw is unconditional; only the explanation folds away in production. */
     /**
-     * Production keeps its own short text: the coded form (`createStore: <docs>store-not-object`) measured 1 B LONGER,
+     * The throw is unconditional; only the explanation folds away in production. Production keeps its own short text: the coded form (`createStore: <docs>store-not-object`) measured 1 B LONGER,
      * and a package converts only where its bundle measures smaller (Brian, 2026-10-02).
      */
     throw new TypeError(

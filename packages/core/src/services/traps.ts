@@ -20,6 +20,8 @@ import { GLOBAL, nextWake, operation, same, track, trigger, triggerAt, wake } fr
  */
 let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
+/** `Object.prototype.__lookupSetter__`: the setter of the first property named `key` along the chain, in one call. */
+const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: object, key: PropertyKey): unknown }).__lookupSetter__;
 /**
  * **A built-in that writes several slots notifies ONCE, after it finishes.** Called through the proxy, `splice`,
  * `shift`, `sort` … write index by index through the `set` trap, and a hook that runs on each write (a raw hook, a
@@ -36,8 +38,6 @@ let writingProp: PropertyKey | null = null;
  * that WRITES to the store is notified mid-sort, as any write is. Each read of a mutator hands back a new function
  * (`state.rows.push !== state.rows.push`).
  */
-/** `Object.prototype.__lookupSetter__`: the setter of the first property named `key` along the chain, in one call. */
-const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: object, key: PropertyKey): unknown }).__lookupSetter__;
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
  * **What a store keeps of a value written into it.** The ONE place a write (`set`) and a whole-array method's inserted
@@ -133,8 +133,6 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
         /**
          * The change is the operation's (the shape channel, the array: "the contents changed, re-read"), not `length`:
          * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
-         */
-        /**
          * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. WRITTEN HERE, not
          * through `span` (a second address, deliberately): calling the shared walk with this sender cost a splice +66%
          * on JSC and +13% on SpiderMonkey (instructions), the sender no longer inlined; `span` serves the cold truncation.
@@ -278,16 +276,18 @@ const handler: ProxyHandler<object> = {
       (prevValue !== undefined || Object.hasOwn(obj, prop) || LOOKUP_SETTER.call(obj, prop) !== undefined)
     )
       return true;
-    /** A data record needs no descriptor: no setter can run, and "added" is just "not own" (`dataRecord`). */
-    /** NOT inlined: with this its one caller, the minifier pastes `dataRecord` into the write trap as an immediately-invoked arrow. */
+    /**
+     * A data record needs no descriptor: no setter can run, and "added" is just "not own" (`dataRecord`). NOT inlined: with
+     * this its one caller, the minifier pastes `dataRecord` into the write trap as an immediately-invoked arrow.
+     */
     const fast = prop !== '__proto__' && /*@__NOINLINE__*/ dataRecord(obj);
     const own = fast ? undefined : Reflect.getOwnPropertyDescriptor(obj, prop);
     const added = fast ? !Object.hasOwn(obj, prop) : own === undefined;
     /**
      * Assigning past the end of an array moves `length` as an internal consequence, never through
-     * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write.
+     * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write. A symbol key
+     * (a library's tag on an array) is never an index — and `+symbol` throws.
      */
-    /** A symbol key (a library's tag on an array) is never an index — and `+symbol` throws. */
     const grew = Array.isArray(obj) && typeof prop === 'string' && +prop >= obj.length;
     writingObj = obj;
     writingProp = prop;
@@ -341,15 +341,15 @@ const handler: ProxyHandler<object> = {
     }
     return defined;
   },
-  /**
-   * Where a target stops being extensible through the store — `Object.preventExtensions`, and
-   * `Object.freeze`/`Object.seal`, which call it first — so `get` knows (`FIXED`).
-   */
   /** A new prototype may carry setters: the record is asked again (`dataRecord`). */
   setPrototypeOf(obj, proto) {
     unclassify(obj);
     return Reflect.setPrototypeOf(obj, proto);
   },
+  /**
+   * Where a target stops being extensible through the store — `Object.preventExtensions`, and
+   * `Object.freeze`/`Object.seal`, which call it first — so `get` knows (`FIXED`).
+   */
   preventExtensions(obj) {
     FIXED.add(obj);
     /** The cache field leaves first, for the WeakMap: a non-extensible target's keys could no longer hide it. */
