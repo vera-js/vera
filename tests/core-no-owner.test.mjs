@@ -21,7 +21,8 @@ const { renderer } = await load('renderer');
 core.wire([renderer]);
 const doc = dom.window.document;
 let seq = 0;
-const NO_OWNER = isProduction ? /\[vera\] core: .+ — https:\/\/verajs\.dev\/e\/no-owner$/ : /no component being set up[\s\S]*before the first `await`[\s\S]*effect\(fn, \{ owner \}\)/i;
+/** Thrown, so in misuse's function-first shape (the subject: `a hook`, `an effect`), coded in production (Brian, 2026-11-11). */
+const NO_OWNER = isProduction ? /(a hook|an effect): https:\/\/verajs\.dev\/e\/no-owner$/ : /no component being set up[\s\S]*before the first `await`[\s\S]*effect\(fn, \{ owner \}\)/i;
 
 /** A component whose setup awaits, then creates a hook; `ready` settles with what that did. */
 const awaiting = () => {

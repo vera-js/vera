@@ -18,8 +18,8 @@ export const DOCS = 'https://verajs.dev/e/';
  * the table goes unreferenced in production and rollup drops it whole. Production prints the code inside the link, so
  * the reader is one click from the explanation, which `scripts/sync-diagnostics.mjs` publishes from the same tables.
  *
- * A package converts only where its production bundle measured SMALLER for it (Brian, 2026-10-02): a bundle whose
- * messages are already a few words keeps them rather than paying for `DOCS`.
+ * **Every production message is coded** (Brian, 2026-11-11; this supersedes "convert where smaller", 2026-10-02):
+ * consistency over a few bytes, so no package keeps a hand-written production line beside its table.
  */
 /*
  * The parameter names are deliberately unlike anything a caller holds: terser will not inline a function whose

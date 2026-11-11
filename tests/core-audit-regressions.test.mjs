@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element'])
@@ -176,10 +176,13 @@ test('a frozen store is accepted and still reads', () => {
   assert.equal(frozen.nested.b, 2);
 });
 
-/** A primitive has nothing for a store to proxy; `signal()` is the box for one value, and the error says so. */
-test('createStore refuses a primitive, naming signal', () => {
+/**
+ * A primitive has nothing for a store to proxy; `signal()` is the box for one value, and development says so. Production
+ * is coded (Brian, 2026-11-11): the code links to the entry that names signal().
+ */
+test('createStore refuses a primitive, naming signal (development) or its code (production)', () => {
   for (const value of [0, 'text', true, null, undefined]) {
-    assert.throws(() => core.createStore(value), /signal\(/, `createStore(${String(value)}) names signal()`);
+    assert.throws(() => core.createStore(value), isProduction ? /store-not-object/ : /signal\(/, `createStore(${String(value)}) names signal() or its code`);
   }
 });
 

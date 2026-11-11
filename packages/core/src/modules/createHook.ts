@@ -1,7 +1,7 @@
 import type { Cell, ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Change } from '../types.js';
 import { currentInstance, tracking, unlinkFrom } from '../store/store.js';
 import { enqueue } from './scheduler.js';
-import { diagnostic, reportUncaught } from '@verajs/shared-utils';
+import { diagnostic, misuse, reportUncaught } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { ErrorInsert } from '@verajs/inserts';
@@ -12,7 +12,7 @@ import type { ErrorInsert } from '@verajs/inserts';
  * whichever component connected meanwhile. `init()` now ends setup at the end of its microtask turn, so the answer no
  * longer depends on what else connected: it fails here, the same way every time.
  */
-export const noOwner = (subject: string) => diagnostic('core', subject, 'no-owner', __DEV__ && PROSE['no-owner']());
+export const noOwner = (subject: string) => misuse(subject, 'no-owner', __DEV__ && PROSE['no-owner']());
 
 
 /**
@@ -78,7 +78,7 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
     cleanup();
   } catch (error) {
     /** Named as a CLEANUP (main did): the hook ran fine — what threw is what it returned. */
-    reportHookError(error, owner ?? undefined, __DEV__ ? diagnostic('core', 'a cleanup', 'cleanup-threw', __DEV__ && PROSE['cleanup-threw']()) : '[vera] cleanup-threw');
+    reportHookError(error, owner ?? undefined, diagnostic('core', 'a cleanup', 'cleanup-threw', __DEV__ && PROSE['cleanup-threw']()));
   }
 };
 
@@ -96,7 +96,7 @@ const spend = (hook: HookRecord) => {
 };
 
 const threw = (error: unknown, owner: ComponentElement) =>
-  reportHookError(error, owner, __DEV__ ? diagnostic('core', 'a hook', 'hook-threw', __DEV__ && PROSE['hook-threw']()) : '[vera] hook-threw');
+  reportHookError(error, owner, diagnostic('core', 'a hook', 'hook-threw', __DEV__ && PROSE['hook-threw']()));
 
 /**
  * How a hook runs: inside every write it hears (core's raw hook (internal)), once per flush, or at once per write (a `'sync'` effect).

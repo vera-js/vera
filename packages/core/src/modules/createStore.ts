@@ -15,14 +15,11 @@ import type { Store } from '../types.js';
 export const createStore = <T extends object>(initialStore: T) => {
   if (initialStore === null || (typeof initialStore !== 'object' && typeof initialStore !== 'function'))
     /**
-     * The throw is unconditional; only the explanation folds away in production. Production keeps its own short text: the coded form (`createStore: <docs>store-not-object`) measured 1 B LONGER,
-     * and a package converts only where its bundle measures smaller (Brian, 2026-10-02).
+     * The throw is unconditional; only the explanation folds away in production, which prints the code and its link
+     * (`createStore: <docs>store-not-object`): every production message is coded (Brian, 2026-11-11; this supersedes
+     * "convert where smaller", 2026-10-02).
      */
-    throw new TypeError(
-      __DEV__
-        ? misuse('createStore', 'store-not-object', __DEV__ && PROSE['store-not-object'](String(initialStore)))
-        : 'createStore: object required — use signal()'
-    );
+    throw new TypeError(misuse('createStore', 'store-not-object', __DEV__ && PROSE['store-not-object'](String(initialStore))));
   /**
    * NOT inlined: where `createStore` is its one remaining caller (a bundle that drops `signal`'s deep form, as the
    * directives bundles do), the minifier pastes `createProxy` in as an immediately-invoked arrow, a fresh closure on

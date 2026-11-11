@@ -108,10 +108,10 @@ test('off-browser, with no reportError, both still reach the console', async () 
   }
   assert.ok(printed.some((line) => line.includes('ref failed')), 'the ref error is printed');
   assert.ok(printed.some((line) => line.includes('effect failed')), 'the hook error is printed');
-  /** Each beside its CODE — the bare code in production, the sentence ending on it in development. */
+  /** Each beside its CODE: production's line ends on it (coded, or a bare code where a package still prints one), development's sentence too. */
   const line = (code, failed) => printed.find((said) => said.includes(failed))?.split(' Error: ')[0];
   for (const [code, failed] of [['ref-threw', 'ref failed'], ['hook-threw', 'effect failed']])
-    if (isProduction) assert.equal(line(code, failed), `[vera] ${code}`);
+    if (isProduction) assert.ok(line(code, failed)?.endsWith(code), `production: ${line(code, failed)}`);
     else assert.ok(line(code, failed)?.endsWith(`(${code})`), `development: ${line(code, failed)}`);
   ref.remove();
   effect.remove();

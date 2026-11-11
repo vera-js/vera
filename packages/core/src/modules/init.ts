@@ -327,7 +327,7 @@ const pending = (element: ComponentElement, out: PromiseLike<unknown>, generatio
     },
     (error) => {
       settled(element as Moving);
-      reportHookError(error, element, __DEV__ ? diagnostic('core', `<${element.localName}>`, 'setup-rejected', __DEV__ && PROSE['setup-rejected']()) : '[vera] setup-rejected');
+      reportHookError(error, element, diagnostic('core', `<${element.localName}>`, 'setup-rejected', __DEV__ && PROSE['setup-rejected']()));
     }
   );
 };

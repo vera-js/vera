@@ -99,5 +99,5 @@ test('a cleanup that throws, with no error chain wired, is printed as a CLEANUP 
   const said = await listen(async () => { el.remove(); await tick(); });
   const ours = said.filter((line) => line.includes('cleanup boom'));
   assert.equal(ours.length, 1, `printed once: ${said.join(' | ')}`);
-  assert.match(ours[0], isProduction ? /^error \[vera\] cleanup-threw / : /^error \[vera\] core: a cleanup — threw \(the function a hook returned[\s\S]*\(cleanup-threw\) /, 'attributed to the cleanup, by code, in every build');
+  assert.match(ours[0], isProduction ? /^error \[vera\] core: a cleanup — https:\/\/verajs\.dev\/e\/cleanup-threw / : /^error \[vera\] core: a cleanup — threw \(the function a hook returned[\s\S]*\(cleanup-threw\) /, 'attributed to the cleanup, by code, in every build');
 });

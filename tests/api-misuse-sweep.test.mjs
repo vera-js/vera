@@ -50,6 +50,7 @@ const CASES = [
   ['define(tag, notASetup)', () => core.define('x-misuse-sweep', 'nope'), /define: the second argument is the SETUP/],
   ['define({ attributes: notAnArray })', () => core.define({ tag: 'x-misuse-attrs', attributes: 'label' }, () => {}), /define: expected an array of attribute names/],
   ['createStore(notAnObject)', () => core.createStore(42), /createStore: expected an object/],
+  ['effect(fn) outside a setup, with no owner', () => core.effect(() => {}), /an effect: .*\(no-owner\)/s],
   ['applyStyles([notCSS], element)', () => styleModule.applyStyles([42], document.createElement('div')), /applyStyles: expected CSS/],
   ['a frozen store refusing a write', () => { const store = core.createStore(Object.freeze({ n: 1 })); store.n = 2; }, /createStore: this store's source object refused the write/],
   ['html("markup")', () => core.html('<p>x</p>'), /html: expected a template literal/],
