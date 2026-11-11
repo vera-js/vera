@@ -419,6 +419,26 @@ but a render that reads it is not woken when `state.list[0]` changes: the getter
 the store. Read through the indices (`state.list[0]`), or put the logic in a `computed` that reads them. A getter on a
 plain object, a class instance included, runs with the store as `this` and is tracked.
 
+**A subclass's own mutator runs with the raw array as `this`, so a field it writes isn't tracked.** With
+`class Log extends Array { push(...x) { this.added = (this.added ?? 0) + x.length; return super.push(...x); } }` in a
+store, `state.log.push(…)` updates the items and the length (both tracked), but a render reading `state.log.added` is
+not woken. Development says so once per class (`subclass-mutator`), for a list held in a store (a store made from
+the subclass itself is not checked). Keep that state in the store beside the list
+(`state.log.push(x); state.added++`), derive it (`computed(() => state.log.length)`), or write the field through the
+store (a helper taking `state.log`).
+
+<!-- recipe -->
+```js
+import { createStore, effect } from '@verajs/core';
+
+const state = createStore({ log: [], added: 0 });
+let seen = -1;
+effect(() => { seen = state.added; }, { owner: {}, timing: 'sync' }).run();
+state.log.push('a');
+state.added++;                                          // the count lives in the store, beside the list
+if (seen !== 1 || state.log.length !== 1) throw new Error('the count kept in the store was not tracked');
+```
+
 **To clone, send or save state, take a `snapshot`.** A record is stored as given, so the raw data you passed to
 `createStore` can hold stores, and a store can't be cloned (`structuredClone`, `postMessage` and IndexedDB throw on
 one). `snapshot(state)` is a deep plain copy: every store replaced by its data at every depth, `Map`s and `Set`s copied

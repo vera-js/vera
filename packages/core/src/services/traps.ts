@@ -39,6 +39,32 @@ const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: o
  */
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
+ * Development: the Array subclasses already told about (`subclass-mutator`, once per class, Brian's ruling 2026-11-11).
+ * Module-level because "once" spans every store; read only under `__DEV__`, so production drops it with the check.
+ */
+const saidSubclass = /* @__PURE__ */ new WeakSet<object>();
+/**
+ * **Development: an Array subclass that OWNS a mutator, met by a store** (Brian's ruling, 2026-11-11: a documented limit,
+ * said once per class). Its override runs with the raw array as `this`, so a field it writes is not tracked (the items
+ * and the length are, through the store's own notification). Called where a store first meets an array inside it
+ * (`nested`, every read of one), and only under `__DEV__`: on no path of production's. Not from `createProxy` (a store
+ * whose own root is the subclass): importing this there reorders the production bundle's modules, which changes code
+ * the minifier emits elsewhere.
+ */
+const subclassMutator = (data: object) => {
+  if (!Array.isArray(data)) return;
+  const first = Object.getPrototypeOf(data) as object | null;
+  if (first === Array.prototype || first === null || saidSubclass.has(first)) return;
+  saidSubclass.add(first);
+  for (let proto: object | null = first; proto !== null && proto !== Array.prototype; proto = Object.getPrototypeOf(proto))
+    for (const name of MUTATORS)
+      if (Object.hasOwn(proto, name)) {
+        const cls = (first as { constructor?: { name?: string } }).constructor?.name || 'an Array subclass';
+        console.error(diagnostic('core', `${cls} in a store`, 'subclass-mutator', __DEV__ && PROSE['subclass-mutator'](cls, name)));
+        return;
+      }
+};
+/**
  * **What a store keeps of a value written into it.** The ONE place a write (`set`) and a whole-array method's inserted
  * values (`atomic`) decide it. A store proxy → its raw object, so raw data never holds this store's proxy at the top
  * (why: the `set` trap's "stored RAW"). A plain ARRAY holding this store's proxies one level down → a raw COPY:
@@ -208,6 +234,7 @@ export const nested = (obj: object, prop: PropertyKey, value: object) => {
      * key and the cure (Brian's ruling, 2026-11-06: silent non-reactivity is worse than a crash, so it is never silent).
      */
     if (__DEV__ && locked) console.error(diagnostic('core', 'a store read', 'readonly-slot', __DEV__ && PROSE['readonly-slot'](String(prop))));
+    if (__DEV__) subclassMutator(value);
     const owned = locked ? undefined : handlerFor(value);
     remember(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
   }

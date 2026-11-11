@@ -88,6 +88,10 @@ export const PROSE: Record<string, Prose> = {
     `read an object from \`${key}\`, a property locked with defineProperty (non-writable, non-configurable), which a store must hand back exactly as it is: it is not a store, so changes inside it render nothing.`,
     'Do not lock the slot with defineProperty; to read an object as it is on purpose, freeze the parent object.',
   ],
+  'subclass-mutator': (cls, name) => [
+    `${cls} defines its own \`${name}\`, which runs with the raw array as \`this\`: a field it writes is not tracked (the items and the length are).`,
+    `Keep that state in the store beside the list (\`state.list.push(x); state.added++\`), derive it (\`computed(() => state.list.length)\`), or write the field through the store.`,
+  ],
   'store-not-object': (received) => [`expected an object and received ${received}.`, 'To hold one value, use signal(value).'],
   'store-refused': (operation, why) => [
     `this store's source object refused the ${operation} — ${why}.`,
