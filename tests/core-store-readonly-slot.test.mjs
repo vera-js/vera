@@ -1,5 +1,5 @@
 /**
- * **A locked slot's object is handed back as it is, and development says so** (D15, Brian's A2 ruling "c+",
+ * **A locked slot's object is handed back as it is, and development says so** (Brian's ruling,
  * 2026-11-06). A property locked with defineProperty (non-writable, non-configurable) must be returned exactly, so the
  * object in it is not a store: production is unchanged (the object as it is), development reports `readonly-slot` once
  * per object, naming the key. CONTROL: a frozen parent, read as it is on purpose, reports nothing.

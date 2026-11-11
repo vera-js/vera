@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
  * **A fix to a register row lands with its evidence in its message, or not at all** (2026-11-10). A commit that changes
- * package source (`packages/<name>/src/`) and names a register row (`D7`, `R3`, `Q12`, …) must carry four lines:
+ * package source (`packages/<name>/src/`) and names a tracked issue (an id such as `D7`) must carry four lines:
  *
  *   Differential: <worlds, sequences, masks lifted> … power: <the pre-fix control and what it showed>
  *   Counts: <instructions / native cycles per engine>          (or `Counts: n/a (<reason>)`)
  *   Bytes: <gzipped before → after>
  *   Landed = measured: <the cmp of the landed production bundle against the counted variant, with its hash>
  *
- * Why: a fix landed on its rows and counts with no differential run (D7), and nothing stopped it but the next run's
+ * Why: a fix landed on its rows and counts with no differential run, and nothing stopped it but the next run's
  * mask guard. A commit naming no row (tooling, docs) or touching no package source passes untouched.
  *
  * Install once per clone (hooks are not versioned by git): `git config core.hooksPath scripts/hooks`.

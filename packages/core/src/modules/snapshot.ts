@@ -5,7 +5,7 @@ import { RAW } from '../services/identity.js';
  * JSON): every store replaced by its data at EVERY depth, every plain object and array copied once (so cycles are kept),
  * a `Map` or `Set` copied with its entries; anything else (a class instance, a `Date`) kept as given.
  *
- * A record written into a store is stored as given (Brian, 2026-11-08, D5), so the raw data passed to `createStore` can
+ * A record written into a store is stored as given (Brian, 2026-11-08), so the raw data passed to `createStore` can
  * hold stores, which can't be cloned; this is the way to a plain copy. It costs a walk of what it copies, only when called.
  *
  * @example structuredClone(snapshot(state))

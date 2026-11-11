@@ -106,7 +106,7 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     /** What the method INSERTS is stored raw, as a `set` stores it (`push(state.rows[0])` hands in a proxy). */
     else for (let i = name === 'splice' ? 2 : 0; i < (name === 'fill' ? 1 : args.length); i++) args[i] = unwrap(args[i]);
     /**
-     * **Notified even when the method throws** (D8): a `sort` comparator, or a subclass's override, can throw after the
+     * **Notified even when the method throws**: a `sort` comparator, or a subclass's override, can throw after the
      * method has rewritten some slots; their readers are told anyway, in `finally`, and the error then propagates.
      */
     let result: unknown;
@@ -157,7 +157,7 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     return name === 'splice' ? (result as unknown[]).map(toStore) : toStore(result);
   };
 /**
- * **A write or delete the LANGUAGE refused throws, in BOTH builds** (D14, ruled 2026-11-08), explained in development.
+ * **A write or delete the LANGUAGE refused throws, in BOTH builds** (Brian's ruling, 2026-11-08), explained in development.
  * A proxy reports a refused write by returning `false`: strict code then throws "'set' on proxy: trap returned
  * falsish" (a message about the trap, framework internals the reader never wrote), and sloppy code loses the write
  * silently. `createStore(Object.freeze(x))` is an ordinary thing to write. Every case is one of the language's own
@@ -195,7 +195,7 @@ export const nested = (obj: object, prop: PropertyKey, value: object) => {
     /**
      * **A LOCKED slot (non-writable, non-configurable) must be handed back exactly as it is**, so the object in it is not a
      * store and changes inside it render nothing. Production is unchanged; development says so once per object, naming the
-     * key and the cure (D15, Brian's A2 ruling "c+": silent non-reactivity is worse than a crash, so it is never silent).
+     * key and the cure (Brian's ruling, 2026-11-06: silent non-reactivity is worse than a crash, so it is never silent).
      */
     if (__DEV__ && locked) console.error(diagnostic('core', 'a store read', 'readonly-slot', __DEV__ && PROSE['readonly-slot'](String(prop))));
     const owned = locked ? undefined : handlerFor(value);
@@ -306,7 +306,7 @@ const handler: ProxyHandler<object> = {
     } finally {
       writingObj = null;
     }
-    /** A write the language refused throws, in BOTH builds (D14, ruled): sloppy-mode code would otherwise lose it silently. */
+    /** A write the language refused throws, in BOTH builds (Brian's ruling): sloppy-mode code would otherwise lose it silently. */
     if (!written) throw refusedWrite(obj, prop, 'changed');
     if (written) {
       /**

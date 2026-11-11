@@ -1,9 +1,9 @@
 /**
- * **`__proto__` is refused at the props RECEIVERS** (D21, 2026-11-10): `element.__proto__ = v` replaces the element's
+ * **`__proto__` is refused at the props RECEIVERS** (2026-11-10): `element.__proto__ = v` replaces the element's
  * prototype, and `JSON.parse` makes `__proto__` an ordinary own key of a props bag. The receivers are the choke point:
  * shared-utils' `adoptProperty` (every renderer and spread delivery) and core's `adopt` (the `_$props$` drain, a field any
  * module can write). Both rows reach the receiver with every upstream guard bypassed. PIN: the entry points upstream
- * (a template `.__proto__` binding, a spread bag key, `props()`) still refuse it before it gets there; JSX's is D23's row.
+ * (a template `.__proto__` binding, a spread bag key, `props()`) still refuse it before it gets there; JSX's has its own row (tests/jsx-proto-names).
  * CONTROL: an ordinary key in the same bag is delivered.
  */
 import { test } from 'node:test';
@@ -66,5 +66,5 @@ test('PIN: a template binding, a spread bag key and props() still refuse `.__pro
   quiet(() => renderInto(viaProps(JSON.parse('{"__proto__": {"polluted": 1}}')), host));
   await flush();
   assert.equal(host.querySelector('x-proto').polluted, undefined, 'props() key refused');
-  /** JSX: its `__proto__` prop is mis-transformed today (an attribute named `[object Object]`), a row of its own (D23). */
+  /** JSX: its `__proto__` prop is mis-transformed today (an attribute named `[object Object]`), pinned in tests/jsx-proto-names. */
 });

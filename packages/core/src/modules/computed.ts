@@ -55,7 +55,7 @@ class Computed<T> {
   }
 
   /**
-   * **A computed is its own type to a store** (D12, 2026-11-11): `[object Computed]`, a type nothing claims, so a
+   * **A computed is its own type to a store** (2026-11-11): `[object Computed]`, a type nothing claims, so a
    * computed written into a store comes back as itself, never wrapped, as a signal does (its tag `Signal`). Reading
    * `.value` through it subscribes as reading it anywhere does.
    */

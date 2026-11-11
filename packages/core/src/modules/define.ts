@@ -65,7 +65,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   let pending: ((element: ComponentElement) => void) | undefined;
   /** The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all). */
   /**
-   * An own `__proto__` key (D22: `JSON.parse` makes one; an object literal never does) is skipped in both builds, props
+   * An own `__proto__` key (`JSON.parse` makes one; an object literal never does) is skipped in both builds, props
    * and methods alike: assigned onto the record or the class it would replace a prototype instead of adding a key.
    * Development says so (`define-proto-key`, `checkProps` / `checkMethods`).
    */
@@ -81,7 +81,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    *   the prototype already sees every WebIDL member, all enumerable.
    */
   const Class = class extends HTMLElement {};
-  /** A spread copies an own `__proto__` as a plain key (it DEFINES); deleting it then leaves only the methods (D22). */
+  /** A spread copies an own `__proto__` as a plain key (it DEFINES); deleting it then leaves only the methods. */
   const own = { ...methods };
   delete own.__proto__;
   Object.assign(Class.prototype, own, {

@@ -1,8 +1,8 @@
 /**
- * **A JSX prop named like an `Object.prototype` member compiles to its own name** (D23, 2026-11-10). The transform
+ * **A JSX prop named like an `Object.prototype` member compiles to its own name** (2026-11-10). The transform
  * renamed props through a plain-object table, so `__proto__` became an attribute literally named `[object Object]` and
  * `constructor` / `toString` would have become a function's source text. Now only the table's OWN keys rename
- * (`className` → `class`, the CONTROL). And JSX, the fourth entry point of the props `__proto__` guard (D21): a
+ * (`className` → `class`, the CONTROL). And JSX, the fourth entry point of the props `__proto__` guard: a
  * `__proto__` prop compiled and rendered reaches the renderer's refusal, so the element's prototype is kept.
  */
 import { test } from 'node:test';

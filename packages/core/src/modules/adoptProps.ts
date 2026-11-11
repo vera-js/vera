@@ -45,7 +45,7 @@ const refuse = (element: Element, key: string) => {
  */
 function adopt(this: ComponentElement, key: string, value: unknown) {
     /**
-     * **`__proto__` is never adopted** (D21, 2026-11-10): the chain walk below would find `Object.prototype`'s accessor and
+     * **`__proto__` is never adopted** (2026-11-10): the chain walk below would find `Object.prototype`'s accessor and
      * replace the element's prototype. Refused at this receiver because `_$props$` is a cross-package field any module can
      * write; shared-utils' `adoptProperty` refuses it too (the renderer's path), each the other's second address.
      */

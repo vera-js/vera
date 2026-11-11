@@ -1,5 +1,5 @@
 /**
- * **`define`'s author inputs skip an own `__proto__` key** (D22, 2026-11-10): `JSON.parse` makes one (an object literal
+ * **`define`'s author inputs skip an own `__proto__` key** (2026-11-10): `JSON.parse` makes one (an object literal
  * never does), and assigned onto the props record or the class prototype it would replace a prototype instead of adding
  * a prop or a method. Skipped in both builds; development says so once per input (`define-proto-key`). CONTROL: the
  * other keys of the same inputs work.

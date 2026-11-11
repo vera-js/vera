@@ -1,5 +1,5 @@
 /**
- * **A computed written into a store comes back as itself** (D12's computed half, 2026-11-11), never wrapped, as a
+ * **A computed written into a store comes back as itself** (2026-11-11), never wrapped, as a
  * signal does: its tag is `[object Computed]`, a type nothing claims. A read through the store still subscribes, through
  * the computed itself. CONTROL: a plain object written into a store comes back as a store.
  */

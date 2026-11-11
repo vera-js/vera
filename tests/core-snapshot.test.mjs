@@ -1,5 +1,5 @@
 /**
- * **`snapshot(value)`: a deep plain copy for cloning and export** (Brian: A4, and D5 on the base 2026-11-08).
+ * **`snapshot(value)`: a deep plain copy for cloning and export** (Brian, 2026-11-08).
  * A record written into a store is stored as given, so raw data can hold stores, which can't be cloned; a snapshot can.
  * The CONTROL row proves the raw data really fails to clone, so the snapshot rows mean something.
  */

@@ -1,5 +1,5 @@
 /**
- * **A record written into a store is stored as given: its getters never run on the write** (D5, Brian 2026-11-08). A
+ * **A record written into a store is stored as given: its getters never run on the write** (Brian, 2026-11-08). A
  * throwing getter does not throw, a counting one counts nothing, and the stored record keeps its accessor. An ARRAY
  * written into a store is still scanned for the store's proxies (a one-level raw copy), so a getter defined on an array
  * INDEX runs: a documented limit, pinned here so a change to it is noticed. CONTROL: a record holding a store child

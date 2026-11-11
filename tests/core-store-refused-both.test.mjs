@@ -1,5 +1,5 @@
 /**
- * **A write or delete the language refuses throws, in BOTH builds** (D14, ruled 2026-11-08), even from sloppy-mode code,
+ * **A write or delete the language refuses throws, in BOTH builds** (Brian's ruling, 2026-11-08), even from sloppy-mode code,
  * which would otherwise lose it silently. The error is a TypeError coded `store-refused`. CONTROL: a write the language
  * allows succeeds.
  */

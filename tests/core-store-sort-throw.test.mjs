@@ -1,5 +1,5 @@
 /**
- * **A whole-array method that THROWS still notifies** (D8, 2026-11-10): a `sort` whose comparator throws, or a
+ * **A whole-array method that THROWS still notifies** (2026-11-10): a `sort` whose comparator throws, or a
  * subclass's override, may have rewritten some slots before the error (engines differ in how much), so every slot it
  * could have touched, the walkers and the key set are told, and the error then propagates. CONTROL: a sort that completes
  * notifies once.
