@@ -31,13 +31,18 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const file = fileURLToPath(distUrl('core'));
 const code = readFileSync(file, 'utf8').split('\n');
 const names = new Set();
+/**
+ * `__proto__` is the language's own accessor, not a field core keeps on an element: core's code mentions it (a define
+ * input skips an own `__proto__` key), and assigning it here would replace the test element's prototype.
+ */
+const NOT_A_FIELD = new Set(['__proto__']);
 eachMapping(new TraceMap(readFileSync(`${file}.map`, 'utf8')), (m) => {
   if (!m.name || !/^_[\w$]/.test(m.name)) return;
   const id = code[m.generatedLine - 1].slice(m.generatedColumn).match(/^[A-Za-z_$][\w$]*/)?.[0];
-  if (id) names.add(id);
+  if (id && !NOT_A_FIELD.has(id)) names.add(id);
 });
 /** An unminified build keeps the source names and its map carries none: they are the property accesses themselves. */
-for (const line of code) for (const [, name] of line.matchAll(/\.(_[\w$]+)/g)) names.add(name);
+for (const line of code) for (const [, name] of line.matchAll(/\.(_[\w$]+)/g)) if (!NOT_A_FIELD.has(name)) names.add(name);
 
 /** A component exercising what core keeps: a store, an effect with a cleanup, a render; then a move and a removal. */
 const lifecycle = async (tag, Base) => {
