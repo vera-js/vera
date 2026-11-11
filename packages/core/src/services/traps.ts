@@ -157,14 +157,18 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     return name === 'splice' ? (result as unknown[]).map(toStore) : toStore(result);
   };
 /**
- * **A write or delete the LANGUAGE refused, explained — development only**.
- * A proxy reports a refused write by returning `false`, and the engine turns that into "'set' on proxy: trap returned
- * falsish" — a message about the trap, framework internals the reader never wrote. `createStore(Object.freeze(x))` is
- * an ordinary thing to write. Every case is one of the language's own invariants (frozen; sealed or non-extensible with
- * a new key; a non-writable property; a getter with no setter), derived from the target. It throws either way, so the
- * two builds agree on what the program does; production folds the check out of the hot write path.
+ * **A write or delete the LANGUAGE refused throws, in BOTH builds** (D14, ruled 2026-11-08), explained in development.
+ * A proxy reports a refused write by returning `false`: strict code then throws "'set' on proxy: trap returned
+ * falsish" (a message about the trap, framework internals the reader never wrote), and sloppy code loses the write
+ * silently. `createStore(Object.freeze(x))` is an ordinary thing to write. Every case is one of the language's own
+ * invariants (frozen; sealed or non-extensible with a new key; a non-writable property; a getter with no setter): the
+ * error is coded in production (`store-refused`) and says which one in development (`refusal`), derived from the target.
+ * The check runs only after a write was refused, never on a write that succeeded.
  */
-const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
+const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') =>
+  new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))));
+/** Development: what the language refused the write or delete FOR, derived from the target. */
+const refusal = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
   const key = `\`${String(prop)}\``;
   const own = Reflect.getOwnPropertyDescriptor(obj, prop);
   const state = Object.isFrozen(obj) ? 'frozen' : Object.isSealed(obj) ? 'sealed' : null;
@@ -175,7 +179,7 @@ const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted
       : state
         ? `the object is ${state}, so ${key} cannot be ${verb}`
         : `${key} is not ${verb === 'deleted' ? 'configurable' : 'writable'}`;
-  return new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', why)));
+  return why;
 };
 /**
  * An object-valued read hands back its store: cached per value, decided on the first miss. ONE function for the object
@@ -295,7 +299,8 @@ const handler: ProxyHandler<object> = {
     } finally {
       writingObj = null;
     }
-    if (__DEV__ && !written) throw refusedWrite(obj, prop, 'changed');
+    /** A write the language refused throws, in BOTH builds (D14, ruled): sloppy-mode code would otherwise lose it silently. */
+    if (!written) throw refusedWrite(obj, prop, 'changed');
     if (written) {
       /**
        * One write, one wake number across the channels it changes (`trigger`): a hook that read two of them runs once. An
@@ -356,7 +361,7 @@ const handler: ProxyHandler<object> = {
     const had = own !== undefined;
     const prevValue = own !== undefined && 'value' in own ? own.value : undefined;
     const deleted = Reflect.deleteProperty(obj, prop);
-    if (__DEV__ && !deleted && had) throw refusedWrite(obj, prop, 'deleted');
+    if (!deleted && had) throw refusedWrite(obj, prop, 'deleted');
     if (deleted && had) {
       const epoch = nextWake();
       triggerAt(obj, prop, undefined, prevValue, epoch);
