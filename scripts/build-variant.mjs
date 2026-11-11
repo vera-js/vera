@@ -30,18 +30,23 @@ const files = () => [
   ...readdirSync(dist).filter((f) => f.endsWith('.min.js') || f.endsWith('.min.js.map')),
   ...(existsSync(join(dist, 'development')) ? readdirSync(join(dist, 'development')).map((f) => `development/${f}`) : []),
 ];
-/** The package's main bundles: its first production and first development `.js`, the pair the guard compares. */
-const mains = () => {
-  const prod = files().filter((f) => f.endsWith('.min.js')).sort()[0];
-  const dev = files().filter((f) => f.startsWith('development/') && f.endsWith('.js')).sort()[0];
-  if (!prod || !dev) throw new Error(`build-variant: ${pkg} has no built bundles; build the tree first (npm run build)`);
+/**
+ * The package's bundles the guard compares: EVERY production `.min.js` and every development `.js` (2026-11-10). It
+ * compared only the first of each, sorted, and for a package whose first bundle does not hold the change (jsx: the
+ * standalone loader sorts before the transform) every variant was refused as unchanged.
+ */
+const bundles = () => {
+  const prod = files().filter((f) => f.endsWith('.min.js')).sort();
+  const dev = files().filter((f) => f.startsWith('development/') && f.endsWith('.js')).sort();
+  if (prod.length === 0 || dev.length === 0) throw new Error(`build-variant: ${pkg} has no built bundles; build the tree first (npm run build)`);
   return { prod, dev };
 };
+const hashes = (list) => new Map(list.map((f) => [f, sha(join(dist, f))]));
 
 /** The current build, byte for byte, so it can be put back after the variant is copied out. */
-const { prod, dev } = mains();
+const { prod, dev } = bundles();
 const saved = new Map(files().map((f) => [f, readFileSync(join(dist, f))]));
-const before = { prod: sha(join(dist, prod)), dev: sha(join(dist, dev)) };
+const before = { prod: hashes(prod), dev: hashes(dev) };
 
 const build = (mode) => execFileSync('npx', ['rollup', '-c', '--silent'], { cwd: dir, env: { ...process.env, ...(mode ? { MODE: mode } : {}) }, stdio: 'pipe' });
 /** Held until dist is put back and checked, so a refusal or a failed build still proves the restore. */
@@ -49,9 +54,14 @@ let failure;
 try {
   build(undefined);
   build('prod');
-  const after = { prod: sha(join(dist, prod)), dev: sha(join(dist, dev)) };
-  const changed = { prod: after.prod !== before.prod, dev: after.dev !== before.dev };
-  console.log(`${pkg}/${name}: prod ${before.prod} -> ${after.prod}${changed.prod ? '' : ' (UNCHANGED)'}; dev ${before.dev} -> ${after.dev}${changed.dev ? '' : ' (UNCHANGED)'}`);
+  const after = { prod: hashes(prod), dev: hashes(dev) };
+  const moved = (kind) => [...after[kind]].filter(([f, h]) => before[kind].get(f) !== h).map(([f]) => f);
+  const changed = { prod: moved('prod').length > 0, dev: moved('dev').length > 0 };
+  for (const kind of ['prod', 'dev'])
+    for (const f of kind === 'prod' ? prod : dev) {
+      const was = before[kind].get(f), now = after[kind].get(f);
+      if (was !== now || f === (kind === 'prod' ? prod : dev)[0]) console.log(`${pkg}/${name}: ${kind} ${f} ${was} -> ${now}${was === now ? ' (UNCHANGED)' : ''}`);
+    }
   if (same ? changed.prod || changed.dev : !(changed.prod && changed.dev))
     throw new Error(same ? 'build-variant --same: a bundle changed, so this is not an A/A copy' : 'build-variant: a bundle did not change, so the variant would measure the current build; refused');
   const out = join(root, '.probe', 'variants', name);
@@ -65,7 +75,8 @@ try {
 }
 /** The package's dist goes back to the bytes it had, whatever happened above, and the restore is checked on every path. */
 for (const [f, bytes] of saved) writeFileSync(join(dist, f), bytes);
-const restored = { prod: sha(join(dist, prod)), dev: sha(join(dist, dev)) };
-if (restored.prod !== before.prod || restored.dev !== before.dev) throw new Error('build-variant: dist was not restored');
-console.log(`  dist restored (prod ${restored.prod}, dev ${restored.dev})`);
+const restored = { prod: hashes(prod), dev: hashes(dev) };
+for (const kind of ['prod', 'dev'])
+  for (const [f, h] of before[kind]) if (restored[kind].get(f) !== h) throw new Error(`build-variant: dist was not restored (${f})`);
+console.log(`  dist restored (prod ${restored.prod.get(prod[0])}, dev ${restored.dev.get(dev[0])}, and every other bundle)`);
 if (failure) throw failure;
