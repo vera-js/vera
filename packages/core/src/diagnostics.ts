@@ -131,7 +131,7 @@ export const PROSE: Record<string, Prose> = {
     'This is a build error: check that the bundler resolves core to one module graph.',
   ],
   'no-collections': () => [
-    'is handed back as it is — it works, but nothing that reads it updates when it changes.',
+    'works, but nothing that reads it updates when it changes.',
     "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call.",
   ],
   'no-renderer': () => [

@@ -47,6 +47,31 @@ let saidNoCollections = false;
  * door keeps one link per copy, with the same signature as any insert, and the traps module hands it in at load.
  */
 let defaults: StoreInsert | undefined;
+/**
+ * **A store of a type nothing claims is USABLE, and not reactive** (D11, Brian's ruling 2026-11-11; the rebuild's form).
+ * `createStore(new Map())` before `collections` is wired, or `createStore(new Date(0))`: its methods run on the real
+ * object (a native method refuses a proxy as `this`), so `m.get('a')`, `m.size` and `for (… of m)` work and nothing
+ * updates, until a module claims the type: then `settle` replaces the traps in place and the same store is reactive.
+ * A method read twice is the SAME function (`m.get === m.get`), cached per object and name and re-made only if the
+ * object's method changed; one that returns its object (`set`, `add`) returns the STORE. Module state, cold: `bound`
+ * holds those methods per object, weakly, reached only through a store of a type nothing claims.
+ */
+const bound = new WeakMap<object, Map<PropertyKey, { m: (...args: unknown[]) => unknown; b: (...args: unknown[]) => unknown }>>();
+const transparent = (target: object, key: PropertyKey, receiver: object): unknown => {
+  const value = Reflect.get(target, key, target);
+  if (typeof value !== 'function') return value;
+  let methods = bound.get(target);
+  if (methods === undefined) bound.set(target, (methods = new Map()));
+  const known = methods.get(key);
+  if (known !== undefined && known.m === value) return known.b;
+  const method = value as (...args: unknown[]) => unknown;
+  const b = function (this: unknown, ...args: unknown[]) {
+    const result = method.apply(this === receiver ? target : this, args);
+    return result === target ? receiver : result;
+  };
+  methods.set(key, { m: method, b });
+  return b;
+};
 /** Hands the door this copy's own handlers (`traps.ts`, at load). Once per copy: a second call is a build error. */
 export const useDefaults = (fn: StoreInsert) => {
   if (__DEV__ && defaults !== undefined) throw new Error(misuse('createStore', 'store-defaults-twice', __DEV__ && PROSE['store-defaults-twice']()));
@@ -89,6 +114,8 @@ const settle = (tags: string[]) => {
       const chosen = decide(tags[i]);
       for (const trap in owned) owned[trap] = undefined;
       Object.assign(owned, chosen);
+      /** Nothing claims the type: its stores stay usable (`transparent`); a later claim replaces it in place. */
+      if (chosen === undefined) owned.get = transparent;
       owned.has = marked(chosen?.has);
       claimed[chosen ? 'add' : 'delete'](owned);
     } catch (error) {
