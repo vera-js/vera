@@ -389,7 +389,8 @@ const retireGeneration = (element: ComponentElement) => {
   retire(element);
   const cleanups = element._$c$;
   if (cleanups !== undefined) {
-    cleanups.forEach((cleanup) => runCleanup(cleanup, element));
+    /** A plain loop: a `forEach` arrow captured `element` on every component removed. */
+    for (const cleanup of cleanups) runCleanup(cleanup, element);
     cleanups.clear();
   }
 };

@@ -26,7 +26,7 @@ export const noOwner = (subject: string) => diagnostic('core', subject, 'no-owne
 /** A deliberate twin of shared-utils' `reportTo` (the same rule, +11 B there): change both together. */
 export const reportHookError = (error: unknown, element: ComponentElement | undefined, line: string) => {
   const handlers = inserts.get('error');
-  if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)(error, element));
+  if (handlers?.length) for (const handler of handlers) (handler as ErrorInsert)(error, element);
   else reportUncaught(error, line);
 };
 
