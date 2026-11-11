@@ -1,6 +1,6 @@
 /** Core's own traps: what a read, a write and a whole-array method do to a record or an array in a store. */
 import { proxyCallbacks } from '../store/store.js';
-import { misuse } from '@verajs/shared-utils';
+import { diagnostic, misuse } from '@verajs/shared-utils';
 import type { StoreInsert } from '@verajs/inserts';
 import type { Change, Slot } from '../types.js';
 import { PROSE } from '../diagnostics.js';
@@ -191,7 +191,14 @@ export const nested = (obj: object, prop: PropertyKey, value: object) => {
   if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
   if (proxy === undefined) {
     const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-    const owned = own && !own.writable && !own.configurable ? undefined : handlerFor(value);
+    const locked = own !== undefined && !own.writable && !own.configurable;
+    /**
+     * **A LOCKED slot (non-writable, non-configurable) must be handed back exactly as it is**, so the object in it is not a
+     * store and changes inside it render nothing. Production is unchanged; development says so once per object, naming the
+     * key and the cure (D15, Brian's A2 ruling "c+": silent non-reactivity is worse than a crash, so it is never silent).
+     */
+    if (__DEV__ && locked) console.error(diagnostic('core', 'a store read', 'readonly-slot', __DEV__ && PROSE['readonly-slot'](String(prop))));
+    const owned = locked ? undefined : handlerFor(value);
     remember(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
   }
   return proxy ?? value;

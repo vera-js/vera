@@ -84,6 +84,10 @@ export const PROSE: Record<string, Prose> = {
     `expected a component element and received ${received}.`,
     'Pass the element whose loop is intentional — `allowRenderLoop(this)` inside the component.',
   ],
+  'readonly-slot': (key) => [
+    `read an object from \`${key}\`, a property locked with defineProperty (non-writable, non-configurable), which a store must hand back exactly as it is: it is not a store, so changes inside it render nothing.`,
+    'Do not lock the slot with defineProperty; to read an object as it is on purpose, freeze the parent object.',
+  ],
   'store-not-object': (received) => [`expected an object and received ${received}.`, 'To hold one value, use signal(value).'],
   'store-refused': (operation, why) => [
     `this store's source object refused the ${operation} — ${why}.`,
