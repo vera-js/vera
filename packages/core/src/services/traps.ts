@@ -105,44 +105,52 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
     if (name === 'sort' && typeof compare === 'function') args[0] = (a: unknown, b: unknown) => compare(toStore(a), toStore(b));
     /** What the method INSERTS is stored raw, as a `set` stores it (`push(state.rows[0])` hands in a proxy). */
     else for (let i = name === 'splice' ? 2 : 0; i < (name === 'fill' ? 1 : args.length); i++) args[i] = unwrap(args[i]);
-    const result = method.apply(obj, args);
-    const after = obj.length;
-    /** ONE operation (`operation`): a hook reached through several keys runs once. */
-    const keys = proxyCallbacks.get(obj);
     /**
-     * Nobody ever read this array: only the count moves, inline. Reaching the shared sender costs an unread array's
-     * `push` a context allocation, so it is reached only when there is someone to wake.
+     * **Notified even when the method throws** (D8): a `sort` comparator, or a subclass's override, can throw after the
+     * method has rewritten some slots; their readers are told anyway, in `finally`, and the error then propagates.
      */
-    if (keys === undefined) nextWake();
-    else {
-      const send = operation(obj, keys);
+    let result: unknown;
+    try {
+      result = method.apply(obj, args);
+    } finally {
+      const after = obj.length;
+      /** ONE operation (`operation`): a hook reached through several keys runs once. */
+      const keys = proxyCallbacks.get(obj);
       /**
-       * The indices that can have changed, to the longer end: an append's and a pop's start at the tail; everything
-       * else from 0. `splice` could start at its own start, but that costs bytes and saves only a re-run of a hook that
-       * reads an index BELOW it (`each` rows read their item, never an index).
+       * Nobody ever read this array: only the count moves, inline. Reaching the shared sender costs an unread array's
+       * `push` a context allocation, so it is reached only when there is someone to wake.
        */
-      const lo = name === 'push' ? before : name === 'pop' ? after : 0;
-      const hi = before > after ? before : after;
-      /**
-       * The change is the operation's (the shape channel, the array: "the contents changed, re-read"), not `length`:
-       * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
-       */
-      /**
-       * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. WRITTEN HERE, not
-       * through `span` (a second address, deliberately): calling the shared walk with this sender cost a splice +66%
-       * on JSC and +13% on SpiderMonkey (instructions), the sender no longer inlined; `span` serves the cold truncation.
-       */
-      if (keys.size < hi - lo) {
-        for (const key of keys.keys())
-          if (typeof key === 'string') {
-            const index = +key;
-            if (index >= lo && index < hi) send!(key);
-          }
-      } else for (let i = lo; i < hi; i++) send!(String(i));
-      send!(ITEMS);
-      if (after !== before) {
-        send!('length');
-        send!(GLOBAL);
+      if (keys === undefined) nextWake();
+      else {
+        const send = operation(obj, keys);
+        /**
+         * The indices that can have changed, to the longer end: an append's and a pop's start at the tail; everything
+         * else from 0. `splice` could start at its own start, but that costs bytes and saves only a re-run of a hook that
+         * reads an index BELOW it (`each` rows read their item, never an index).
+         */
+        const lo = name === 'push' ? before : name === 'pop' ? after : 0;
+        const hi = before > after ? before : after;
+        /**
+         * The change is the operation's (the shape channel, the array: "the contents changed, re-read"), not `length`:
+         * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
+         */
+        /**
+         * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. WRITTEN HERE, not
+         * through `span` (a second address, deliberately): calling the shared walk with this sender cost a splice +66%
+         * on JSC and +13% on SpiderMonkey (instructions), the sender no longer inlined; `span` serves the cold truncation.
+         */
+        if (keys.size < hi - lo) {
+          for (const key of keys.keys())
+            if (typeof key === 'string') {
+              const index = +key;
+              if (index >= lo && index < hi) send!(key);
+            }
+        } else for (let i = lo; i < hi; i++) send!(String(i));
+        send!(ITEMS);
+        if (after !== before) {
+          send!('length');
+          send!(GLOBAL);
+        }
       }
     }
     if (result === obj) return proxy;
