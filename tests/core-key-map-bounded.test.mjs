@@ -72,22 +72,37 @@ const child = (mode, K = 10000) => JSON.parse(execFileSync(process.execPath, [..
   console.log(JSON.stringify({ grew: h1 - h0, rows: mode === 'live' ? rows - K : rows }));
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: { ...process.env } }));
 
+/**
+ * **Three runs per arm, the median kept, and a margin from the control's own spread** (2026-11-11): heap growth read
+ * beside the full suite's other processes moves with the machine. A fixed 0.4 MB bar failed once under the full suite
+ * (selector 1.33 vs none 0.78) and passed 3 of 3 alone. The bar is now growth over the control's median by at most
+ * max(0.4 MB, 3 × the spread of the control's three readings). POWER: with the sweep disabled (a mutant core), the
+ * dictionary and the selector arms still fail it (~1.4 MB unbounded).
+ */
+const measured = (mode) => {
+  const runs = [child(mode), child(mode), child(mode)];
+  const grew = runs.map((r) => r.grew).sort((x, y) => x - y);
+  return { grew: grew[1], spread: grew[2] - grew[0], rows: Math.min(...runs.map((r) => r.rows)), runs: grew };
+};
+const margin = (none) => Math.max(0.4, 3 * none.spread);
+const show = (arm) => `${arm.grew.toFixed(2)} MB (runs ${arm.runs.map((g) => g.toFixed(2)).join(', ')})`;
+
 test('a dictionary whose keys come and go stays bounded; cells with readers are kept (both controls)', () => {
-  const none = child('none');
+  const none = measured('none');
   const live = child('live');
-  const dict = child('dict');
+  const dict = measured('dict');
   assert.ok(none.rows === 1000 && live.rows === 1000 && dict.rows === 1000, `CONTROL: every run kept 1000 rows (${JSON.stringify({ none, live, dict })})`);
   /** The retained control: 10 000 more rows that stay, each with its key, value and live cell, must show as growth. */
   assert.ok(live.grew - none.grew > 1, `CONTROL: the instrument sees kept cells (live ${live.grew.toFixed(2)} MB vs none ${none.grew.toFixed(2)})`);
   /** Unbounded, 10 000 deleted keys left ~1.4 MB of cells; bounded, about the control's. */
-  assert.ok(dict.grew - none.grew < 0.4, `a deleted dictionary's cells are swept (dict ${dict.grew.toFixed(2)} MB vs none ${none.grew.toFixed(2)})`);
+  assert.ok(dict.grew - none.grew <= margin(none), `a deleted dictionary's cells are swept (dict ${show(dict)} vs none ${show(none)}, margin ${margin(none).toFixed(2)})`);
 });
 
 test('a selector whose ids only increase stays bounded', () => {
-  const none = child('none');
-  const selector = child('selector');
+  const none = measured('none');
+  const selector = measured('selector');
   assert.ok(none.rows === 1000 && selector.rows === 1000, 'CONTROL: every run kept 1000 rows');
-  assert.ok(selector.grew - none.grew < 0.4, `the selector's spent ids are swept (selector ${selector.grew.toFixed(2)} MB vs none ${none.grew.toFixed(2)})`);
+  assert.ok(selector.grew - none.grew <= margin(none), `the selector's spent ids are swept (selector ${show(selector)} vs none ${show(none)}, margin ${margin(none).toFixed(2)})`);
 });
 
 test('a read of a MISSING key, made just as the map is swept, still hears the write that adds it', async () => {
