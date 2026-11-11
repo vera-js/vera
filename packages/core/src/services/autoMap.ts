@@ -13,14 +13,14 @@ import type { HookRecord } from '../types.js';
  * t.name).join(', ')` stays silent). The template test is the renderer's own, `strings !== undefined`; keep it equal to
  * renderer.ts's and keyed.ts's `isTemplateResult` (three addresses).
  */
-let warnedLists = false;
+let saidLists = false;
 type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: HookRecord, owner: unknown, method: (...args: unknown[]) => unknown[]) => unknown[];
 const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
     const out = method.apply(this, args);
     const first = out[0] as { strings?: unknown } | null | undefined;
-    if (!warnedLists && this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined) {
-      warnedLists = true;
+    if (!saidLists && this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined) {
+      saidLists = true;
       console.warn(diagnostic('core', 'a store array\'s .map in a render', 'lists-unwired', __DEV__ && PROSE['lists-unwired']()));
     }
     return out;
@@ -36,7 +36,7 @@ export const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[]
   const hook = tracking.hook;
   if (list === undefined || hook === undefined || hook._y !== 50) {
     /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
-    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !warnedLists && !(inserts as unknown as { $ss?: (d: number) => unknown }).$ss?.(0))
+    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !saidLists && !(inserts as unknown as { $ss?: (d: number) => unknown }).$ss?.(0))
       return unwiredList(method, proxy);
     return method;
   }

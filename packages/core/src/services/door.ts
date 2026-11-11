@@ -38,7 +38,7 @@ const broken = new WeakSet<StoreInsert>();
  * page, the worst failure mode there is: silent. Checked when its TYPE is first decided (once per page, so once), a
  * microtask later — a module wired after a store was first read (supported: `wire` re-decides) is not a false alarm.
  */
-let warnedNoCollections = false;
+let saidNoCollections = false;
 /**
  * **This copy of core's own handlers: the first link of every decision, held HERE, never in the shared chain.** The shared
  * `'store'` chain is page-wide: in development two copies of core on one page share one registry, and a default
@@ -106,10 +106,10 @@ export const handlerFor = (value: object) => {
   if (owned === undefined) {
     types.set(tag, (owned = {}));
     settle([tag]);
-    if (__DEV__ && COLLECTION.test(tag) && !warnedNoCollections)
+    if (__DEV__ && COLLECTION.test(tag) && !saidNoCollections)
       queueMicrotask(() => {
-        if (warnedNoCollections || claimed.has(types.get(tag)!)) return;
-        warnedNoCollections = true;
+        if (saidNoCollections || claimed.has(types.get(tag)!)) return;
+        saidNoCollections = true;
         console.error(diagnostic('core', `a ${tag.slice(8, -1)} in a store`, 'no-collections', __DEV__ && PROSE['no-collections']()));
       });
   }

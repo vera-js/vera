@@ -12,7 +12,7 @@ import { PROSE } from '../diagnostics.js';
  * renderer, so a blank page is the expected first mistake — and a page pasting `vera.min.js` from a CDN never runs a
  * development build, so a development-only warning left it in complete silence. Only the explanation folds away.
  */
-let warnedNoRenderer = false;
+let saidNoRenderer = false;
 
 /**
  * The render hook. `owns` is the component's resolved `foreignNodes` — true for `'drop'`: the template owns its root —
@@ -36,8 +36,8 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
       target ??= element._$r$ ?? element.shadowRoot ?? element;
       const renderers = inserts.get('render');
       if (!renderers?.length) {
-        if (!warnedNoRenderer) {
-          warnedNoRenderer = true;
+        if (!saidNoRenderer) {
+          saidNoRenderer = true;
           console.warn(diagnostic('core', `<${element.localName}>`, 'no-renderer', __DEV__ && PROSE['no-renderer']()));
         }
         return;

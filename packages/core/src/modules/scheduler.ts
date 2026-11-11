@@ -218,11 +218,11 @@ const drain = () => {
  * 2026-10-09): everything queued still runs before that flush ends — to read what a render made, read it in
  * a `'layout'` effect, which runs right after the render. In production this IS `drain`: zero bytes for the warning.
  */
-let warnedNested = false;
+let saidNested = false;
 export const flush = __DEV__
   ? () => {
-      if (flushing && !warnedNested) {
-        warnedNested = true;
+      if (flushing && !saidNested) {
+        saidNested = true;
         console.warn(diagnostic('core', 'flush()', 'nested-flush', __DEV__ && PROSE['nested-flush']()));
       }
       drain();

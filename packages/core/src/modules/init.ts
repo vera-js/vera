@@ -16,13 +16,13 @@ import type { ComponentElement, InitOptions, Setup } from '../types.js';
  * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
  * where every caller folds away — drops it whole (a top-level one survives: a call with effects terser cannot prove).
  */
-let warnedAboutClaims = false;
+let saidUnwiredDirectives = false;
 /** Development: `static styles` with nothing adopting them — said once per page. */
-let warnedAboutStyles = false;
+let saidUnadoptedStyles = false;
 const claimed = (prefix: string): boolean =>
   ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
 const unclaimedMarkup = (element: ComponentElement) => {
-  if (warnedAboutClaims || claimed('data-vd-')) return;
+  if (saidUnwiredDirectives || claimed('data-vd-')) return;
   const root = (element.shadowRoot ?? element._$r$ ?? element) as ParentNode;
   /**
    * A plain walk, not `querySelectorAll`: a selector engine may keep the last root it searched (jsdom's does), and
@@ -35,7 +35,7 @@ const unclaimedMarkup = (element: ComponentElement) => {
     const attrs = el.attributes;
     for (let i = 0; i < attrs.length; i++)
       if (attrs[i]!.name.startsWith('data-vd-')) {
-        warnedAboutClaims = true;
+        saidUnwiredDirectives = true;
         console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-directives', __DEV__ && PROSE['unwired-directives'](attrs[i]!.name)));
         return;
       }
@@ -73,14 +73,14 @@ const saidOptions = /* @__PURE__ */ new WeakSet<object>();
 /** Development: the built-in-host warning, said once per page. */
 let saidBuiltIn = false;
 /** Development: an invalid app default is said once per page (a component's own invalid option, at each connect). */
-let warnedAboutDefault = false;
+let saidShadowDefault = false;
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
 const validShadow = (value: unknown) =>
   value === false || value === 'open' || value === 'closed' || (value as ShadowRootInit | null)?.mode === 'open' || (value as ShadowRootInit | null)?.mode === 'closed';
 /** What `foreignNodes` may be. */
 const validForeign = (value: unknown) => value === 'preserve' || value === 'drop';
 /** Development: an invalid `foreignNodes` app default is said once per page, like `shadow`'s. */
-let warnedAboutForeignDefault = false;
+let saidForeignDefault = false;
 /** Development: how a `shadow` value is shown in shadow-option, and whether it is the platform's to refuse (it names a mode). */
 const shown = (value: unknown) => {
   const mode = (value as ShadowRootInit | null)?.mode;
@@ -469,7 +469,7 @@ export const retireElement = (element: ComponentElement) => {
  * cache keyed on them goes stale. Development only, once per `init` that has options. Nothing at module scope
  * is constructed: production keeps a constructor call it cannot prove unused (+8 B measured).
  */
-let warnedClaims = false;
+let saidClaimedTwice = false;
 const claims = (): Map<string, string> => {
   const hooks = inserts.get('init') as unknown[] | undefined;
   const optionKeys = new Map<string, string>();
@@ -477,8 +477,8 @@ const claims = (): Map<string, string> => {
     const { $keys, $module } = hook as { $keys?: string[]; $module?: string };
     for (const key of $keys ?? []) {
       const other = key === 'host' || key === 'shadow' || key === 'foreignNodes' ? 'core' : optionKeys.get(key);
-      if (other !== undefined && !warnedClaims) {
-        warnedClaims = true;
+      if (other !== undefined && !saidClaimedTwice) {
+        saidClaimedTwice = true;
         console.warn(diagnostic('core', 'init()', 'option-claimed-twice', __DEV__ && PROSE['option-claimed-twice'](key, other, $module ?? 'a module')));
       }
       optionKeys.set(key, $module ?? 'a module');
@@ -488,14 +488,14 @@ const claims = (): Map<string, string> => {
 };
 const checkOptions = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
   const own = options?.shadow;
-  if (own === undefined && shadow !== undefined && !warnedAboutDefault && !validShadow(shadow)) {
-    warnedAboutDefault = true;
+  if (own === undefined && shadow !== undefined && !saidShadowDefault && !validShadow(shadow)) {
+    saidShadowDefault = true;
     console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
   }
   const ownForeign = options?.foreignNodes;
   const foreign = (inserts as unknown as { $F?: unknown }).$F;
-  if (ownForeign === undefined && foreign !== undefined && !warnedAboutForeignDefault && !validForeign(foreign)) {
-    warnedAboutForeignDefault = true;
+  if (ownForeign === undefined && foreign !== undefined && !saidForeignDefault && !validForeign(foreign)) {
+    saidForeignDefault = true;
     console.warn(diagnostic('core', 'renderer({ foreignNodes })', 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(foreign))));
   }
   if (options) {
@@ -516,11 +516,11 @@ const checkOptions = (element: ComponentElement, options: InitOptions | undefine
  */
 const unwiredStyles = (element: ComponentElement) => {
   if (
-    !warnedAboutStyles &&
+    !saidUnadoptedStyles &&
     (element.constructor as { styles?: unknown }).styles !== undefined &&
     !inserts.get('init')?.some((fn) => (fn as { $module?: string }).$module === 'styles')
   ) {
-    warnedAboutStyles = true;
+    saidUnadoptedStyles = true;
     console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-styles', __DEV__ && PROSE['unwired-styles']()));
   }
 };
