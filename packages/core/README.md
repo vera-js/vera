@@ -435,6 +435,40 @@ const copy = structuredClone(plain);                  // so it clones; the raw d
 if (copy.profile.user.name !== 'Ana' || !copy.profile.tags.has('admin')) throw new Error('snapshot lost data');
 ```
 
+**A store isn't meant to be a prototype.** A write through `Object.create(store)` to a key the child doesn't own, or a
+`Reflect.set` with a foreign receiver, lands in the store, not on the child or the receiver as it would with a plain
+object. Telling the two apart costs every store write a check, so the store doesn't. When you want a child that keeps
+its own values:
+
+1. Give the child its own keys first, so it keeps them: `Object.create(store, { k: { value, writable: true,
+   enumerable: true, configurable: true } })`, or `Object.defineProperty(child, k, …)`. Keys it doesn't own still read
+   through to the store.
+2. Make an independent reactive copy: `createStore({ ...snapshot(store), k })`.
+3. Make a merged reactive view: `computed(() => ({ ...store, ...overrides }))`, which follows the store.
+4. For `Reflect.set`, write to the receiver directly.
+
+<!-- recipe -->
+```js
+import { createStore } from '@verajs/core';
+
+const settings = createStore({ theme: 'light', size: 14 });
+const child = Object.create(settings, { theme: { value: 'light', writable: true, enumerable: true, configurable: true } });
+child.theme = 'dark';                                  // the child owns `theme`, so it keeps the write
+if (child.theme !== 'dark' || settings.theme !== 'light') throw new Error('the own key did not stay on the child');
+if (child.size !== 14) throw new Error('a key the child does not own reads through to the store');
+```
+
+<!-- recipe -->
+```js
+import { createStore, snapshot } from '@verajs/core';
+
+const settings = createStore({ theme: 'light', size: 14 });
+const draft = createStore({ ...snapshot(settings), theme: 'dark' });   // its own reactive store
+draft.size = 16;
+if (settings.size !== 14 || settings.theme !== 'light') throw new Error('the copy wrote back into the original');
+if (draft.size !== 16 || draft.theme !== 'dark') throw new Error('the copy lost its own values');
+```
+
 **An array's mutators are fresh functions on every read.** `state.rows.push` runs the whole `push` and notifies once
 (a hook never sees the array half-written), and to do that each read hands back a new function: `state.rows.push ===
 state.rows.push` is `false`, unlike a plain array's. Call it where you read it; a kept reference still works, it is just

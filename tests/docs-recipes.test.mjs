@@ -248,7 +248,7 @@ const EXPECTED_RECIPES = {
    * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
    * quick start is executed rather than merely printed. */
   'packages/autoloader/README.md': 1,
-  'packages/core/README.md': 8, // 6 → 7: computed moved into core (2026-10-22); 7 → 8: snapshot (2026-11-10)
+  'packages/core/README.md': 10, // 6 → 7: computed moved into core (2026-10-22); 7 → 8: snapshot (2026-11-10); 8 → 10: a store as a prototype's two workarounds (2026-11-11)
   'packages/directives/README.md': 1,
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
