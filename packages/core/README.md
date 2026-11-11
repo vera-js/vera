@@ -409,6 +409,25 @@ list, never a wrong answer: a frozen array, an Array subclass, and a second leve
 r.slice())` stores plain arrays of the cell proxies). One known limit: the copy reads every index, so a getter defined
 on an array INDEX (`Object.defineProperty(list, 0, { get })`) runs when that array is written into a store.
 
+**To clone, send or save state, take a `snapshot`.** A record is stored as given, so the raw data you passed to
+`createStore` can hold stores, and a store can't be cloned (`structuredClone`, `postMessage` and IndexedDB throw on
+one). `snapshot(state)` is a deep plain copy: every store replaced by its data at every depth, `Map`s and `Set`s copied
+with their entries, cycles kept; anything else (a class instance, a `Date`) kept as it is. It costs a walk of what it
+copies, only when you call it.
+
+<!-- recipe -->
+```js
+import { createStore, snapshot } from '@verajs/core';
+
+const user = createStore({ name: 'Ana' });
+const state = createStore({ profile: null });
+state.profile = { user, tags: new Set(['admin']) };   // a plain object holding a store
+
+const plain = snapshot(state);                        // stores unwrapped at every depth
+const copy = structuredClone(plain);                  // so it clones; the raw data itself would throw
+if (copy.profile.user.name !== 'Ana' || !copy.profile.tags.has('admin')) throw new Error('snapshot lost data');
+```
+
 **An array's mutators are fresh functions on every read.** `state.rows.push` runs the whole `push` and notifies once
 (a hook never sees the array half-written), and to do that each read hands back a new function: `state.rows.push ===
 state.rows.push` is `false`, unlike a plain array's. Call it where you read it; a kept reference still works, it is just

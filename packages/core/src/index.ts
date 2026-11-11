@@ -30,6 +30,7 @@ export const wire: typeof register = (item) => {
 export type * from '@verajs/inserts';
 export type * from './types.js';
 export { createStore } from './modules/createStore.js';
+export { snapshot } from './modules/snapshot.js';
 export { init } from './modules/init.js';
 export { define } from './modules/define.js';
 import { initWith, rehomeElement, retireElement } from './modules/init.js';
