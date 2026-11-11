@@ -117,10 +117,14 @@ const forgetOtherVersions = (): void => {
  */
 const RENDERER_ENTRY = /^@verajs\/renderer\/([a-z]+)$/;
 let mapped: Record<string, string> | undefined;
-/** The page's import maps — EVERY one, merged first-wins as engines that allow several merge them. */
+/**
+ * The page's import maps — EVERY one, merged first-wins as engines that allow several merge them. The table has no
+ * prototype: over `{}`, an entry named `constructor` or `toString` found the inherited built-in, was dropped, and its
+ * specifier then read as mapped.
+ */
 const maps = (): Record<string, string> => {
   if (mapped === undefined) {
-    mapped = {};
+    mapped = Object.create(null) as Record<string, string>;
     for (const map of document.querySelectorAll('script[type="importmap"]')) {
       try {
         const imports = (JSON.parse(map.textContent ?? '{}') as { imports?: Record<string, string> }).imports ?? {};
