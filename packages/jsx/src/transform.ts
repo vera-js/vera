@@ -930,7 +930,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       tpl.expr(bound ? expression! : JSON.stringify(literal));
       return;
     }
-    name = (NAME_MAP as Record<string, string>)[name] ?? name;
+    /** An OWN key only (D23): a plain-object lookup resolved `__proto__`, `constructor` and `toString` to built-ins. */
+    if (Object.hasOwn(NAME_MAP, name)) name = (NAME_MAP as Record<string, string>)[name]!;
     if (/^on[A-Z]/.test(name)) {
       tpl.static(` @${name.slice(2).toLowerCase()}=`);
       tpl.expr(bound ? expression! : JSON.stringify(literal));
