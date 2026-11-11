@@ -63,6 +63,16 @@ class Computed<T> {
     return 'Computed';
   }
 
+  /**
+   * **JSON gives the value** (Brian's ruling, 2026-11-11): a computed's internals are own properties, so
+   * `JSON.stringify` of one, or of a store holding one, listed them (its function, its cache, its hook) where the value
+   * was meant. Hiding them from every enumeration cost creation 3.6–34% on all four engines; this costs nothing measured.
+   * `Object.keys` and a spread still see the internals; read `.value`.
+   */
+  toJSON() {
+    return this.value;
+  }
+
   get value(): T {
     if (tracking.hook !== undefined) {
       /** NOT inlined: with this its one caller, the minifier would paste `watch` back in as an immediately-invoked arrow. */

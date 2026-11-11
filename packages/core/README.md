@@ -327,6 +327,9 @@ evaluate; one that should live across renders belongs in the setup.
 An evaluation that throws is reported through the `'error'` insert rather than escaping, and `.value`
 keeps the **last good value**.
 
+**A computed's internals are own properties: read `.value`.** `JSON.stringify` gives the value (of a computed, or of a
+store or object holding one), but `Object.keys`, `for…in` and a spread see its internal fields.
+
 **A diamond is not settled between its halves.** Where two computeds read one store and a third reads
 both, a write re-evaluates the third once per half. A render or a plain `effect` (both coalesced) only ever
 sees the settled value; a `'sync'` effect, which runs at once per write, can see the step between.

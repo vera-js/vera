@@ -228,7 +228,7 @@ const CLAIMS = new Map([
   ['packages/ssr/README.md#1e3a0a07fa', "not a promise: the instance marker's behavior, no message"], // **It only ever produces the component it was written for**: a copy of it on another tag is
   ['packages/ssr/README.md#777bd846a5', 'ssr-styles-vary'], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
   ['packages/core/README.md#06311ae242', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // (moved from the store README, 2026-10-22) An evaluation that throws is reported through the `'error'` insert rather than escaping, e
-  ['llms.txt#e06ef33ea0', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // computed's API row: a throw is reported and the last good value kept
+  ['llms.txt#abff1f3801', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // computed's API row: a throw is reported and the last good value kept
   ['packages/renderer/README.md#fd75b53ed5', 'renderer-two-cores'],
   ['packages/renderer/README.md#2ee7b2f4c3', 'lists-unwired'],
   ['packages/core/README.md#5b4674d9a1', 'setup-outlived-removal'], // removed while its async setup is pending: up to 5 s, then torn down — development says so
