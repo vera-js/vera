@@ -574,6 +574,12 @@ from another machine, or after that is undone, has a variable changed.
   the end, and sessions it marks contended go into a removed-together suspect set, because a covered or contended
   window could be throttled (not measured); and the wallpaper is set to a still image in System Settings, not by script.
   (Headed races on macOS; 2026-11-06 and 11-07.)
+- **Heap growth measured in a `--expose-gc` child process moves with the load beside it.** A fixed 0.4 MB bar between
+  two arms of `tests/core-key-map-bounded` failed once inside the full development suite (selector 1.33 MB vs control
+  0.78, a 0.55 gap) and passed 3 of 3 alone and in five other full runs the same night. Consequence: a memory bar is
+  measured three times per arm, the median kept, with a margin of max(0.4 MB, 3 × the control's own spread); with the
+  sweep disabled (a mutant core) both swept arms still fail it by over 1.1 MB. (Node 24, macOS, full fast suite;
+  2026-11-11.)
 
 ## Competitors, as their own benchmark entries write them
 
