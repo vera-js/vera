@@ -23,5 +23,10 @@ export const createStore = <T extends object>(initialStore: T) => {
         ? misuse('createStore', 'store-not-object', __DEV__ && PROSE['store-not-object'](String(initialStore)))
         : 'createStore: object required — use signal()'
     );
-  return createProxy(initialStore) as Store<T>;
+  /**
+   * NOT inlined: where `createStore` is its one remaining caller (a bundle that drops `signal`'s deep form, as the
+   * directives bundles do), the minifier pastes `createProxy` in as an immediately-invoked arrow, a fresh closure on
+   * every store created.
+   */
+  return /*@__NOINLINE__*/ createProxy(initialStore) as Store<T>;
 };

@@ -5,7 +5,6 @@ import type { StoreInsert } from '@verajs/inserts';
 import type { Change, Slot } from '../types.js';
 import { PROSE } from '../diagnostics.js';
 import { mapped } from './autoMap.js';
-import { createProxy } from './createProxy.js';
 import { claimed, handlerFor, useDefaults } from './door.js';
 import { FIXED, MARK, PROXY, RAW, cached, dataRecord, proxies, remember, unclassify, wrap } from './identity.js';
 import { GLOBAL, nextWake, operation, same, track, trigger, triggerAt, wake } from './track.js';
@@ -81,7 +80,20 @@ const rawCopy = (container: object): object => {
   }
   return container;
 };
-const toStore = (value: unknown) => (value !== null && typeof value === 'object' ? createProxy(value) : value);
+/**
+ * **What a mutator hands back, and what `sort` hands its comparator: the value a read of the index gives**, through the
+ * read's own decision (`nested`), asked of no slot (`NO_SLOT` owns nothing, so nothing is locked): a store for a type a
+ * module claims, the value as it is otherwise. It went through `createProxy`, which wraps any object behind its type's
+ * handler, so a `Date` (or a `Map` nothing claims) came back as an empty proxy whose methods throw, and sorting a store of
+ * `Date`s threw.
+ */
+const NO_SLOT = {};
+const toStore = (value: unknown) => {
+  if (value === null || typeof value !== 'object') return value;
+  /** The hit, inline (a comparator's two arguments on every call): the cached store, or `null` for "as it is". */
+  const known = cached(value);
+  return known !== undefined ? (known ?? value) : nested(NO_SLOT, '', value);
+};
 /**
  * **The indices `[lo, hi)` of an array, sent through one operation**, through whichever is SHORTER: the range, or the keys
  * anyone subscribed to. A list rendered through a raw walk subscribes no index at all (`ITEMS` instead), so a splice on
