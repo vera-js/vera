@@ -160,6 +160,10 @@ export const PROSE: Record<string, Prose> = {
       ? 'A setup is where per-instance work goes: `define(tag, (host) => { … })`.'
       : 'Put connect-time work in the setup; for work on removal, a `disconnectedCallback` in methods runs as the teardown hook.',
   ],
+  'define-proto-key': (kind) => [
+    `is skipped, in every build: written onto the ${kind === 'prop' ? 'props record' : 'class prototype'} it would replace a prototype instead of adding a ${kind}.`,
+    'Rename the key. An own `__proto__` comes from `JSON.parse` or `Object.defineProperty`, never from an object literal.',
+  ],
   'define-method-not-function': () => [
     'is not a function, so it is installed as a plain value shared by every instance — and a getter ran ONCE, here.',
     'Methods are functions; a value that changes per element is a prop (`props: { name: default }`).',

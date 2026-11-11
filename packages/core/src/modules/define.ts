@@ -64,7 +64,12 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   const entry = { o: options, s: setup as Setup };
   let pending: ((element: ComponentElement) => void) | undefined;
   /** The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all). */
-  const keys = props && Object.keys(props);
+  /**
+   * An own `__proto__` key (D22: `JSON.parse` makes one; an object literal never does) is skipped in both builds, props
+   * and methods alike: assigned onto the record or the class it would replace a prototype instead of adding a key.
+   * Development says so (`define-proto-key`, `checkProps` / `checkMethods`).
+   */
+  const keys = props && Object.keys(props).filter((key) => key !== '__proto__');
   /**
    * **ONE assign builds the prototype** — `methods` (public methods: one function per tag, nothing per instance; `this` is
    * the element, as in a class; Brian 2026-10-21), then the class's `constructor` and the generated `connectedCallback`
@@ -76,7 +81,10 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    *   the prototype already sees every WebIDL member, all enumerable.
    */
   const Class = class extends HTMLElement {};
-  Object.assign(Class.prototype, methods, {
+  /** A spread copies an own `__proto__` as a plain key (it DEFINES); deleting it then leaves only the methods (D22). */
+  const own = { ...methods };
+  delete own.__proto__;
+  Object.assign(Class.prototype, own, {
     constructor: Class,
     connectedCallback(this: ComponentElement) {
       /**
@@ -226,6 +234,10 @@ const checkProps = (tag: string, props: unknown, methods: object | undefined) =>
   }
   for (const name of Object.keys(props)) {
     const subject = `define('${tag}') props.${name}`;
+    if (name === '__proto__') {
+      console.error(diagnostic('core', subject, 'define-proto-key', __DEV__ && PROSE['define-proto-key']('prop')));
+      continue;
+    }
     const value = (props as Record<string, unknown>)[name];
     if (methods && Object.hasOwn(methods, name)) console.warn(diagnostic('core', subject, 'define-prop-method', __DEV__ && PROSE['define-prop-method'](name)));
     else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
@@ -241,6 +253,10 @@ const checkProps = (tag: string, props: unknown, methods: object | undefined) =>
 const checkMethods = (tag: string, methods: object, attributes: readonly string[] | undefined) => {
   for (const name of Object.keys(methods)) {
     const subject = `define('${tag}') methods.${name}`;
+    if (name === '__proto__') {
+      console.error(diagnostic('core', subject, 'define-proto-key', __DEV__ && PROSE['define-proto-key']('method')));
+      continue;
+    }
     const value = Object.getOwnPropertyDescriptor(methods, name)?.value as unknown;
     /** The two names core re-asserts. A comparison, not a module-level `Set`: a top-level `new Set` SURVIVES production
      *  (terser cannot prove the call free of effects — it cost +33 B gz here, 2026-10-21). */
