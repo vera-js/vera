@@ -65,19 +65,9 @@ class Computed<T> {
 
   get value(): T {
     if (tracking.hook !== undefined) {
-      if (!this._w) {
-        this._w = true;
-        (this._h ??= register({} as ComponentElement, () => {
-          const value = this._f();
-          const previous = this._v;
-          if (!same(previous, value)) {
-            this._v = value;
-            triggerKey(this, 'value', value, previous);
-          }
-        }, COMPUTED_PRIORITY, MODE_RAW)).$n(undefined, true);
-        trackKey(this, 'value');
-        whenEmptied(proxyCallbacks.get(this)!.get('value')!, () => release(this));
-      } else trackKey(this, 'value');
+      /** NOT inlined: with this its one caller, the minifier would paste `watch` back in as an immediately-invoked arrow. */
+      if (!this._w) /*@__NOINLINE__*/ watch(this as Computed<unknown>);
+      else trackKey(this, 'value');
     } else if (!this._w) {
       /** Pulled from plain code: evaluated untracked (no links to make and drop), cached until the next store write. */
       const now = wakeCount();
@@ -94,6 +84,25 @@ class Computed<T> {
     return this._v as T;
   }
 }
+
+/**
+ * **The first watched read: link to the sources and keep current inside the writes.** Out of the getter on purpose: the
+ * two arrows here (the hook's run, the emptied callback) capture the computed, and inside `value` they made every
+ * cached read pay for a context (the rebuild's computed: Firefox +31%, WebKit +33%). Here they are built once per watch.
+ */
+const watch = (c: Computed<unknown>) => {
+  c._w = true;
+  (c._h ??= register({} as ComponentElement, () => {
+    const value = c._f();
+    const previous = c._v;
+    if (!same(previous, value)) {
+      c._v = value;
+      triggerKey(c, 'value', value, previous);
+    }
+  }, COMPUTED_PRIORITY, MODE_RAW)).$n(undefined, true);
+  trackKey(c, 'value');
+  whenEmptied(proxyCallbacks.get(c)!.get('value')!, () => release(c));
+};
 
 /**
  * **A computed whose last reader left lets go at the end of this microtask, if none came back** (2026-10-22). At once

@@ -42,8 +42,6 @@ const ALLOWED = {
  * the base's cleanup removes each one in its file's pass and deletes the entry with it.
  */
 const KNOWN_RED = {
-  'packages/core/src/modules/computed.ts Computed.value':
-    "the watch branch builds two arrows capturing `this` (the hook's callback, the emptied callback): the pattern that made every cached read 31% slower on Firefox and 33% on WebKit in the rebuild's computed, until moved to a separate function.",
 };
 
 const isFn = (n) => ts.isArrowFunction(n) || ts.isFunctionExpression(n) || ts.isFunctionDeclaration(n) || ts.isMethodDeclaration(n) || ts.isGetAccessor(n) || ts.isSetAccessor(n);
