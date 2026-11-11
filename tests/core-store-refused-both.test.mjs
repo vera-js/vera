@@ -1,6 +1,7 @@
 /**
  * **A write or delete the language refuses throws, in BOTH builds** (Brian's ruling, 2026-11-08), even from sloppy-mode code,
- * which would otherwise lose it silently. The error is a TypeError coded `store-refused`. CONTROL: a write the language
+ * which would otherwise lose it silently, and through `Reflect.set` / `Reflect.deleteProperty`, which would otherwise
+ * answer `false` (B3 changes that answer on purpose; the README says so). The error is a TypeError coded `store-refused`. CONTROL: a write the language
  * allows succeeds.
  */
 import { test } from 'node:test';
@@ -22,6 +23,14 @@ test('a refused write throws, even from sloppy code: frozen, non-writable, gette
 
 test('a refused delete throws, even from sloppy code', () => {
   assert.throws(() => sloppyDelete(createStore(Object.seal({ x: 1 })), 'x'), /store-refused/);
+});
+
+test('through Reflect: a refused set and a refused delete throw, where a plain object answers false', () => {
+  assert.equal(Reflect.set(Object.freeze({ x: 1 }), 'x', 2), false, 'CONTROL: the language answers false on a plain object');
+  assert.equal(Reflect.deleteProperty(Object.seal({ x: 1 }), 'x'), false, 'CONTROL: and on a delete');
+  assert.throws(() => Reflect.set(createStore(Object.freeze({ x: 1 })), 'x', 2), /store-refused/);
+  assert.throws(() => Reflect.deleteProperty(createStore(Object.seal({ x: 1 })), 'x'), /store-refused/);
+  assert.equal(Reflect.set(createStore({ x: 1 }), 'x', 2), true, 'CONTROL: an allowed Reflect.set answers true');
 });
 
 test('CONTROL: a write the language allows succeeds', () => {

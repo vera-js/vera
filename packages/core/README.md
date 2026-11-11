@@ -384,9 +384,10 @@ existing keys, setters run with `this` bound through the proxy, class instances 
 getters, `Object.create(null)` objects and symbol keys both round-trip.
 
 In development the error names the rule that refused — *"the object is frozen, so `n` cannot be
-changed"*. In production you get the engine's own `TypeError: 'set' on proxy: trap returned falsish`,
-which is a message about the proxy's internals; the development build exists to tell you what it
-actually means. It throws either way.
+changed"*. In production it is a short `TypeError` carrying the code, `store-refused`, which the
+docs explain. It throws either way, **and a refused write throws even through `Reflect.set`**, which
+on a plain object would return `false` instead: through a store, a write the language refuses is
+always an error, never a quiet `false`. A refused `delete` throws the same way.
 
 **Adding and removing keys counts as a change.** A component that enumerates — `Object.keys`,
 `for…in`, `{ ...state.filters }`, `JSON.stringify`, or `key in state.form` — depends on the set of
