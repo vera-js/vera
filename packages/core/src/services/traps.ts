@@ -482,6 +482,21 @@ const arrayHandler: ProxyHandler<object> = {
     return written;
   },
   defineProperty(obj, prop, descriptor) {
+    /**
+     * **An accessor defined on a store array through the store runs with the store as `this`** (2026-11-11). The read
+     * trap takes a slot off the raw array (`obj[prop]`, its fast path), which would run a getter with the raw array as
+     * `this`, untracked; the define is where the store sees it, so the getter is wrapped here, one function per accessor
+     * defined and nothing per read. The raw array holds the wrapper (its descriptor's `get` is not the author's), and a
+     * second copy of core over the same raw array reads through this copy's store. An accessor on the raw array before
+     * it was wrapped is not seen (an Array subclass's getter: a documented limit).
+     */
+    if (descriptor.get !== undefined) {
+      /** In this block, never the trap's scope: a captured binding there would allocate a context on every define. */
+      const store = cached(obj);
+      const get = descriptor.get;
+      /** A copy: the caller's descriptor is never changed. */
+      if (store != null) descriptor = { ...descriptor, get: () => get.call(store) };
+    }
     const defined = handler.defineProperty!(obj, prop, descriptor);
     /** The `set` trap's own re-entry is reported by `set`. */
     if (defined && !(obj === writingObj && prop === writingProp)) items(obj);

@@ -417,7 +417,11 @@ on an array INDEX (`Object.defineProperty(list, 0, { get })`) runs when that arr
 `class List extends Array { get first() { return this[0]; } }` in a store, `state.list.first` returns the right value,
 but a render that reads it is not woken when `state.list[0]` changes: the getter runs with the raw array as `this`, not
 the store. Read through the indices (`state.list[0]`), or put the logic in a `computed` that reads them. A getter on a
-plain object, a class instance included, runs with the store as `this` and is tracked.
+plain object, a class instance included, runs with the store as `this` and is tracked. An accessor defined on a store
+array THROUGH the store (`Object.defineProperty(state.list, 'total', { get() { … } })`) is tracked too: it is defined
+on the underlying array with the store as its `this`, so its descriptor's `get` is a wrapper rather than your function,
+and a read of the raw array outside the store still runs it against the store. One defined on the array before it went
+into a store is not seen, like an Array subclass's getter.
 
 **A subclass's own mutator runs with the raw array as `this`, so a field it writes isn't tracked.** With
 `class Log extends Array { push(...x) { this.added = (this.added ?? 0) + x.length; return super.push(...x); } }` in a
