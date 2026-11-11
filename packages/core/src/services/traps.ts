@@ -377,6 +377,8 @@ const handler: ProxyHandler<object> = {
       if (!previous || !same(descriptor.value, previous.value) || descriptor.get !== previous.get)
         triggerAt(obj, prop, descriptor.value, previous?.value, epoch);
       if (!previous) triggerAt(obj, GLOBAL, descriptor.value, undefined, epoch);
+      /** `Object.freeze` through the store locks each slot here, after `preventExtensions`: the last one makes it `FIXED`. */
+      if (descriptor.writable === false && !Object.isExtensible(obj) && Object.isFrozen(obj)) FIXED.add(obj);
     }
     return defined;
   },
@@ -387,10 +389,10 @@ const handler: ProxyHandler<object> = {
   },
   /**
    * Where a target stops being extensible through the store — `Object.preventExtensions`, and
-   * `Object.freeze`/`Object.seal`, which call it first — so `get` knows (`FIXED`).
+   * `Object.freeze`/`Object.seal`, which call it first. Not `FIXED` here: only a FROZEN object is (its slots all locked),
+   * marked by `defineProperty` as `Object.freeze` locks the last slot; a sealed one's children stay stores.
    */
   preventExtensions(obj) {
-    FIXED.add(obj);
     /** The cache field leaves first, for the WeakMap: a non-extensible target's keys could no longer hide it. */
     const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
     if (slot !== undefined && slot.o === obj && Reflect.deleteProperty(obj, PROXY)) proxies.set(obj, slot.p);

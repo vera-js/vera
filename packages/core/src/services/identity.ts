@@ -33,13 +33,15 @@ export const proxies = new WeakMap<object, object | null>();
  */
 export const PROXY = Symbol();
 /**
- * **Parents that are not extensible**, whose object-valued properties `get` hands back raw: marked where they become
- * so, never asked on the read path, because `Object.isExtensible` in the trap changes how the engine compiles it and
- * costs every nested read far more than the call itself. A value is marked when it is wrapped, and a target when it is
- * prevented from extending through the store (`preventExtensions`, which `Object.freeze` and `Object.seal` call first).
- * **Freezing the RAW object behind a store, after the store has wrapped it, is not seen** (nothing in the store is
- * told), and a later object-valued read would then be refused by the engine; freeze a value before handing it to a
- * store, or through the store.
+ * **Parents that are FROZEN**, whose object-valued properties `get` hands back raw: every slot of a frozen object is
+ * non-writable and non-configurable, which the language requires to read back exactly as it is. Only frozen ones
+ * (2026-11-11): a sealed or preventExtensions parent's slots are not locked, so its children are stores, and a single
+ * slot locked with `defineProperty` is caught by `nested` on the cache miss, as on an extensible object. Marked where
+ * an object is wrapped frozen (`wrap`) or frozen through the store (the `defineProperty` trap locking its last slot),
+ * never asked on the read path, because `Object.isExtensible` in the trap changes how the engine compiles it and costs
+ * every nested read far more than the call itself. **Freezing the RAW object behind a store, after the store has wrapped
+ * it, is not seen** (nothing in the store is told), and a later object-valued read would then be refused by the engine;
+ * freeze a value before handing it to a store, or through the store.
  */
 export const FIXED = new WeakSet<object>();
 /** The store `value` already has: its own field first, else the WeakMap; `null` is "hand back verbatim", `undefined` "not decided". */
@@ -94,9 +96,9 @@ export const promote = (value: object, proxy: object | null) => {
   Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy, d: undefined } satisfies Slot, writable: true, configurable: true });
 };
 
-/** A new proxy over `data` — over a non-extensible one, marked `FIXED`. */
+/** A new proxy over `data` — over a FROZEN one, marked `FIXED`. */
 export const wrap = (data: object, chosen: ProxyHandler<object>) => {
   const proxy = new Proxy(data, chosen);
-  if (!Object.isExtensible(data)) FIXED.add(data);
+  if (!Object.isExtensible(data) && Object.isFrozen(data)) FIXED.add(data);
   return proxy;
 };
