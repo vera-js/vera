@@ -2,7 +2,7 @@ import type { ComponentElement, HookRecord } from '../types.js';
 import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { proxyCallbacks, tracking, unlinkFrom, whenEmptied } from '../store/store.js';
-import { trackKey, triggerKey, wakeCount } from '../services/track.js';
+import { same, trackKey, triggerKey, wakeCount } from '../services/track.js';
 import { MODE_RAW, register } from './createHook.js';
 
 /**
@@ -61,7 +61,7 @@ class Computed<T> {
         (this._h ??= register({} as ComponentElement, () => {
           const value = this._f();
           const previous = this._v;
-          if (value !== previous) {
+          if (!same(previous, value)) {
             this._v = value;
             triggerKey(this, 'value', value, previous);
           }

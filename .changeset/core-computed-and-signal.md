@@ -19,10 +19,15 @@
   notifies; with the default, mutating inside it does not — the semantics of every signals library and TC39's
   `Signal.State`. An element ref is `signal()`, as `ref()` was.
 - **A signal is a small object, not a Proxy: its `value` lives on a prototype every signal shares.** Reading `.value`
-  subscribes and a write `!==` the held value notifies. `JSON.stringify(signal)` writes the value it holds (`toJSON`);
+  subscribes and a write that is not `Object.is` the held value notifies (see the equality rule below). `JSON.stringify(signal)` writes the value it holds (`toJSON`);
   `Object.keys(signal)` is `[]` and a spread or `structuredClone` copies no `value`; `'value' in signal` is `true`. Only
   reading `.value` subscribes: `in`, `Object.keys` and `for…in` on a signal subscribe to nothing. Its tag is
   `[object Signal]`, so a store never wraps one written into it.
+
+**One equality rule for stores, signals and computeds: `Object.is`.** A write, a definition or a recomputation is a
+change when the new value is not `Object.is` the old one: `-0` written over `0` is stored and notified (it was dropped as
+no change), and `NaN` over `NaN` is no change (a signal, an array's walkers and a computed were notified). Every other
+value compares as `===`, at the same cost.
 
 `deep` takes effect only as `true`, in both builds; any other value is the default, and development names it
 (`deep-not-boolean`).

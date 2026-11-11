@@ -357,7 +357,8 @@ instead.
 
 ### A write that changes nothing wakes nothing
 
-Writing a key the value it already has is not a change: `state.count = state.count` re-renders
+Writing a key the value it already has is not a change, by `Object.is`, the one rule stores, signals and computeds share:
+`-0` over `0` is a change (stored and notified), `NaN` over `NaN` is not. `state.count = state.count` re-renders
 nothing, and neither does `state.items = update(state.items)` when `update` returns its input. A key
 behind a setter that already returns the value is not written either (the setter does not run).
 

@@ -1,7 +1,7 @@
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { createProxy } from '../services/createProxy.js';
-import { track, trigger } from '../services/track.js';
+import { same, track, trigger } from '../services/track.js';
 import type { DeepOption, Signal } from '../types.js';
 
 /** Where a signal keeps its value: a symbol private to this copy of core, so no key, spread or JSON ever shows it. */
@@ -31,7 +31,7 @@ const SIGNAL = Object.freeze(
         },
         set(this: Held, next: unknown) {
           const previous = this[HELD];
-          if (previous === next) return;
+          if (same(previous, next)) return;
           this[HELD] = next;
           trigger(this, 'value', next, previous);
         },

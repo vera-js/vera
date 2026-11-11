@@ -8,7 +8,7 @@ import { mapped } from './autoMap.js';
 import { createProxy } from './createProxy.js';
 import { claimed, handlerFor, useDefaults } from './door.js';
 import { FIXED, MARK, PROXY, RAW, cached, dataRecord, proxies, remember, unclassify, wrap } from './identity.js';
-import { GLOBAL, nextWake, operation, track, trigger, triggerAt, wake } from './track.js';
+import { GLOBAL, nextWake, operation, same, track, trigger, triggerAt, wake } from './track.js';
 
 /**
  * The exact property the `set` trap is writing, which `defineProperty` reads to recognize its own
@@ -260,7 +260,7 @@ const handler: ProxyHandler<object> = {
      * pays its check only when the value is `undefined`.
      */
     if (
-      (prevValue === value ||
+      (same(prevValue, value) ||
         (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value)) &&
       (prevValue !== undefined || Object.hasOwn(obj, prop) || LOOKUP_SETTER.call(obj, prop) !== undefined)
     )
@@ -321,7 +321,7 @@ const handler: ProxyHandler<object> = {
     const defined = Reflect.defineProperty(obj, prop, descriptor);
     if (defined) {
       const epoch = nextWake();
-      if (!previous || descriptor.value !== previous.value || descriptor.get !== previous.get)
+      if (!previous || !same(descriptor.value, previous.value) || descriptor.get !== previous.get)
         triggerAt(obj, prop, descriptor.value, previous?.value, epoch);
       if (!previous) triggerAt(obj, GLOBAL, descriptor.value, undefined, epoch);
     }
@@ -422,7 +422,7 @@ const arrayHandler: ProxyHandler<object> = {
           send(GLOBAL);
         }
       }
-      if ((obj as Record<PropertyKey, unknown>)[prop] !== before || after !== length) items(obj);
+      if (!same((obj as Record<PropertyKey, unknown>)[prop], before) || after !== length) items(obj);
     }
     return written;
   },

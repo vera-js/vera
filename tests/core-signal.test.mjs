@@ -71,7 +71,7 @@ test("`in`, keys and for-in on a signal subscribe to nothing (no traps): only re
   assert.deepEqual([inRuns(), keyRuns(), valueRuns()], [0, 0, 1], 'CONTROL: the value reader re-ran');
 });
 
-test('a write notifies when the new value is !== the held one: not the same value, not -0 over 0, but NaN over NaN', () => {
+test('a write notifies when the new value is not Object.is the held one: -0 over 0 is a change, NaN over NaN is not', () => {
   const same = signal(1);
   const sameRuns = watch(() => same.value);
   same.value = 1;
@@ -82,8 +82,8 @@ test('a write notifies when the new value is !== the held one: not the same valu
   const nanRuns = watch(() => nan.value);
   nan.value = NaN;
   same.value = 2;
-  assert.deepEqual([sameRuns(), zeroRuns(), nanRuns()], [1, 0, 1], 'CONTROL included: a different value notifies');
-  assert.ok(Object.is(zero.value, 0), '-0 over 0 is no write: the held 0 stays (as a store keeps it), never changed silently');
+  assert.deepEqual([sameRuns(), zeroRuns(), nanRuns()], [1, 1, 0], 'CONTROL included: a different value notifies');
+  assert.ok(Object.is(zero.value, -0), '-0 over 0 is stored');
 });
 
 test('what a signal holds comes back as written, and mutating inside it notifies nothing', () => {

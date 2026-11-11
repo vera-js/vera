@@ -204,6 +204,14 @@ export const kit: StoreKit = { track, trigger, shape: GLOBAL, operation };
 export const trackKey = track;
 export const triggerKey = trigger;
 export const wakeCount = () => wakes;
+/**
+ * **The ONE rule for "is this a change", and so for notifying: `Object.is`** (Brian's ruling, 2026-11-08), for stores,
+ * signals and computeds alike, as TC39's `Signal` and Vue use. `NaN` over `NaN` is no change; `-0` over `0` (or back) is
+ * one, stored and notified; every other value as `===`. The built-in itself, not a hand-written form: V8 lowers it to one
+ * SameValue node, and a two-branch version with the extra checks on the rare branches cost more (instructions, V8:
+ * no-change writes +2.2% vs +0.65%, swap +0.6% vs +0.1%). Bundled, this is a module-local constant, not a live binding.
+ */
+export const same = Object.is;
 /** A new wake number, for a notification sent from outside this file (an unread array's operation; its `ITEMS` walkers). */
 export const nextWake = () => ++wakes;
 /**
