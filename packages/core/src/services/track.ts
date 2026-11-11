@@ -134,7 +134,11 @@ export const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
   }
 };
 
-/** Wakes every hook that read `obj[prop]`. */
+/**
+ * Wakes every hook that read `obj[prop]`. Its last two lines are also `triggerAt`'s (below), a second address on purpose:
+ * an optional wake number here cost every plain write 0.4–0.6% (native cycles, SpiderMonkey and JSC), so the shared one
+ * lives there; `tests/core-trigger-twins` fails if the two drift apart.
+ */
 export const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
   const epoch = ++wakes;
   const cell = proxyCallbacks.get(obj)?.get(prop);
@@ -147,6 +151,17 @@ export const trigger = (obj: object, prop: unknown, value: unknown, prevValue: u
    */
 };
 
+
+/**
+ * **`trigger` with the wake number given**: for ONE write that notifies several channels (a key added: the key and the key
+ * set; deleted; defined new; an index past the end: `length` too), so a hook that read more than one of them runs once,
+ * as for a whole-array method (`operation`). Its two lines are `trigger`'s, a second address on purpose: an optional
+ * `epoch` on `trigger` itself cost every plain write 0.4–0.6% (native cycles, SpiderMonkey and JSC).
+ */
+export const triggerAt = (obj: object, prop: unknown, value: unknown, prevValue: unknown, epoch: number) => {
+  const cell = proxyCallbacks.get(obj)?.get(prop);
+  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
+};
 
 const sweepIfDue = (keys: Map<unknown, Cell>) => {
   const at = (due ??= new WeakMap()).get(keys) ?? SWEEP_FLOOR;

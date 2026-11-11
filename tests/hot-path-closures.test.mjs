@@ -22,7 +22,7 @@ import ts from 'typescript';
 /** file → the hot functions in it: a `const name = (…) => …`, a `function name`, or `object.member` for a literal's method or accessor. */
 const HOT = {
   'packages/core/src/services/identity.ts': ['cached', 'dataRecord'],
-  'packages/core/src/services/track.ts': ['track', 'wake', 'trigger', 'operation'],
+  'packages/core/src/services/track.ts': ['track', 'wake', 'trigger', 'triggerAt', 'operation'],
   'packages/core/src/services/traps.ts': ['handler.get', 'handler.set', 'handler.has', 'handler.ownKeys', 'handler.deleteProperty', 'arrayHandler.get', 'arrayHandler.set'],
   'packages/core/src/store/store.ts': ['unlinkFrom', 'compactCell', 'placeAt', 'grow', 'claim', 'readerAt', 'slotAt'],
   'packages/core/src/modules/scheduler.ts': ['enqueue', 'drain', 'regroup'],

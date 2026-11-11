@@ -8,7 +8,7 @@ import { mapped } from './autoMap.js';
 import { createProxy } from './createProxy.js';
 import { claimed, handlerFor, useDefaults } from './door.js';
 import { FIXED, MARK, PROXY, RAW, cached, dataRecord, proxies, remember, unclassify, wrap } from './identity.js';
-import { GLOBAL, nextWake, operation, track, trigger, wake } from './track.js';
+import { GLOBAL, nextWake, operation, track, trigger, triggerAt, wake } from './track.js';
 
 /**
  * The exact property the `set` trap is writing, which `defineProperty` reads to recognize its own
@@ -295,9 +295,16 @@ const handler: ProxyHandler<object> = {
     }
     if (__DEV__ && !written) throw refusedWrite(obj, prop, 'changed');
     if (written) {
-      trigger(obj, prop, value, prevValue);
-      if (added) trigger(obj, GLOBAL, value, prevValue);
-      if (grew) trigger(obj, 'length', (obj as unknown[]).length, +(prop as string));
+      /**
+       * One write, one wake number across the channels it changes (`trigger`): a hook that read two of them runs once. An
+       * own key overwritten changes one channel and keeps the plain call.
+       */
+      if (added || grew) {
+        const epoch = nextWake();
+        triggerAt(obj, prop, value, prevValue, epoch);
+        if (added) triggerAt(obj, GLOBAL, value, prevValue, epoch);
+        if (grew) triggerAt(obj, 'length', (obj as unknown[]).length, +(prop as string), epoch);
+      } else trigger(obj, prop, value, prevValue);
     }
     return written;
   },
@@ -313,9 +320,10 @@ const handler: ProxyHandler<object> = {
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
     const defined = Reflect.defineProperty(obj, prop, descriptor);
     if (defined) {
+      const epoch = nextWake();
       if (!previous || descriptor.value !== previous.value || descriptor.get !== previous.get)
-        trigger(obj, prop, descriptor.value, previous?.value);
-      if (!previous) trigger(obj, GLOBAL, descriptor.value, undefined);
+        triggerAt(obj, prop, descriptor.value, previous?.value, epoch);
+      if (!previous) triggerAt(obj, GLOBAL, descriptor.value, undefined, epoch);
     }
     return defined;
   },
@@ -348,8 +356,9 @@ const handler: ProxyHandler<object> = {
     const deleted = Reflect.deleteProperty(obj, prop);
     if (__DEV__ && !deleted && had) throw refusedWrite(obj, prop, 'deleted');
     if (deleted && had) {
-      trigger(obj, prop, undefined, prevValue);
-      trigger(obj, GLOBAL, undefined, prevValue);
+      const epoch = nextWake();
+      triggerAt(obj, prop, undefined, prevValue, epoch);
+      triggerAt(obj, GLOBAL, undefined, prevValue, epoch);
     }
     return deleted;
   },
