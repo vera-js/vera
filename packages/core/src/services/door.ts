@@ -48,6 +48,17 @@ let saidNoCollections = false;
  */
 let defaults: StoreInsert | undefined;
 /**
+ * Development: the types of which a value was already handed back AS IT IS, nothing claiming them yet (D26, Brian's
+ * ruling 2026-11-11: a documented limit, said in development). Such a value keeps that answer: a module wired later
+ * reaches only values not read yet, so the claim that finds its type here says so once. Module-level because "already
+ * handed back" spans every store; tags only, never the values, so nothing is kept alive. Production drops it.
+ */
+const handedBack = /* @__PURE__ */ new Set<string>();
+/** Development: `value` was handed back as it is, its type unclaimed (`nested`). */
+export const handedBackUnclaimed = (value: object) => {
+  handedBack.add(TAG.call(value));
+};
+/**
  * **A store of a type nothing claims is USABLE, and not reactive** (D11, Brian's ruling 2026-11-11; the rebuild's form).
  * `createStore(new Map())` before `collections` is wired, or `createStore(new Date(0))`: its methods run on the real
  * object (a native method refuses a proxy as `this`), so `m.get('a')`, `m.size` and `for (… of m)` work and nothing
@@ -117,6 +128,8 @@ const settle = (tags: string[]) => {
       /** Nothing claims the type: its stores stay usable (`transparent`); a later claim replaces it in place. */
       if (chosen === undefined) owned.get = transparent;
       owned.has = marked(chosen?.has);
+      if (__DEV__ && chosen && !claimed.has(owned) && handedBack.delete(tags[i]))
+        console.error(diagnostic('core', `a ${tags[i].slice(8, -1)} read from a store before its module was wired`, 'wired-late', __DEV__ && PROSE['wired-late']()));
       claimed[chosen ? 'add' : 'delete'](owned);
     } catch (error) {
       errors.push(error);

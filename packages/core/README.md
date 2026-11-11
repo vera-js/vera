@@ -392,6 +392,11 @@ docs explain. It throws either way, **and a refused write throws even through `R
 on a plain object would return `false` instead: through a store, a write the language refuses is
 always an error, never a quiet `false`. A refused `delete` throws the same way.
 
+**Wire store modules before creating stores.** A value of a type nothing claims yet (a `Map` before `collections` is
+wired) is handed back as it is the first time it is read, and keeps that answer: a module wired later reaches only
+values not read yet. A store made from the value itself is the exception, re-decided in place. Development says so
+when the late module is wired (`wired-late`).
+
 **Adding and removing keys counts as a change.** A component that enumerates — `Object.keys`,
 `for…in`, `{ ...state.filters }`, `JSON.stringify`, or `key in state.form` — depends on the set of
 keys rather than on any one of them, and hears about a key arriving or leaving. That is what makes

@@ -134,6 +134,10 @@ export const PROSE: Record<string, Prose> = {
     'works, but nothing that reads it updates when it changes.',
     "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call.",
   ],
+  'wired-late': () => [
+    'was handed back as it is before the module that makes it reactive was wired, and stays that way: wiring later reaches only values not read yet.',
+    'Wire store modules before creating stores (`wire([collections])` first, in the entry).',
+  ],
   'no-renderer': () => [
     'no renderer is wired, so nothing will appear.',
     "Wire one once, at your app entry: `import { renderer } from '@verajs/renderer'; wire([renderer]);`",
