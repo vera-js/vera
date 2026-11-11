@@ -410,6 +410,12 @@ list, never a wrong answer: a frozen array, an Array subclass, and a second leve
 r.slice())` stores plain arrays of the cell proxies). One known limit: the copy reads every index, so a getter defined
 on an array INDEX (`Object.defineProperty(list, 0, { get })`) runs when that array is written into a store.
 
+**A getter on an Array subclass sees the raw array, so its reads are untracked.** With
+`class List extends Array { get first() { return this[0]; } }` in a store, `state.list.first` returns the right value,
+but a render that reads it is not woken when `state.list[0]` changes: the getter runs with the raw array as `this`, not
+the store. Read through the indices (`state.list[0]`), or put the logic in a `computed` that reads them. A getter on a
+plain object, a class instance included, runs with the store as `this` and is tracked.
+
 **To clone, send or save state, take a `snapshot`.** A record is stored as given, so the raw data you passed to
 `createStore` can hold stores, and a store can't be cloned (`structuredClone`, `postMessage` and IndexedDB throw on
 one). `snapshot(state)` is a deep plain copy: every store replaced by its data at every depth, `Map`s and `Set`s copied
