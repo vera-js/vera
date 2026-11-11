@@ -201,8 +201,10 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
  * error is coded in production (`store-refused`) and says which one in development (`refusal`), derived from the target.
  * The check runs only after a write was refused, never on a write that succeeded.
  */
-const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') =>
-  new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))));
+/** Production's builder takes nothing: the target, key and verb only feed development's explanation. */
+const refusedWrite: (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => TypeError = __DEV__
+  ? (obj, prop, verb) => new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))))
+  : () => new TypeError(misuse('createStore', 'store-refused', false));
 /** Development: what the language refused the write or delete FOR, derived from the target. */
 const refusal = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
   const key = `\`${String(prop)}\``;
