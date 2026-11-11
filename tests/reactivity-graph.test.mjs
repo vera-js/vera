@@ -217,9 +217,9 @@ test('a deep store notifies for every kind of mutation', () => {
   delete state.deep.map.a;
   state.deep.list.length = 2;
   assert.deepEqual(seen.at(-1), { list: [9, 2], map: { b: 2 } });
-  /** `push` moves an index *and* the length, so it notifies twice — a proxy over an array cannot
-   * tell one write from two, and every library built this way reports the same. */
-  assert.equal(seen.length - afterSetup, 6, 'five statements, six notifications: push counts twice');
+  /** One notification per statement: `push` runs whole as one operation, and a `delete` that changes the key and the
+   * key set wakes a hook that read both once (since 2026-11-10; it woke it twice, which this row used to pin as six). */
+  assert.equal(seen.length - afterSetup, 5, 'five statements, five notifications');
 });
 
 /**
