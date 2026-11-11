@@ -40,23 +40,25 @@ let writingProp: PropertyKey | null = null;
 const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: object, key: PropertyKey): unknown }).__lookupSetter__;
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
- * **What a store keeps of a value written into it: raw, one level deep.** The ONE place a write (`set`) and a
- * whole-array method's inserted values (`atomic`) are made raw, so raw data never holds a proxy (why: the `set` trap's
- * "stored RAW"). A store proxy → its raw object. A plain array or plain object holding this store's proxies ONE level
- * down → a raw COPY: `state.rows = state.rows.filter(…)` (also `slice`, `[...rows].sort()`) hands back an array of the
- * proxies the reads produced, and stored as it is, every later list walk would meet a proxy in every slot;
- * `state.rows[i] = { ...r, label }` copies a nested `r.user` in as a proxy the same way.
+ * **What a store keeps of a value written into it.** The ONE place a write (`set`) and a whole-array method's inserted
+ * values (`atomic`) decide it. A store proxy → its raw object, so raw data never holds this store's proxy at the top
+ * (why: the `set` trap's "stored RAW"). A plain ARRAY holding this store's proxies one level down → a raw COPY:
+ * `state.rows = state.rows.filter(…)` (also `slice`, `[...rows].sort()`) hands back an array of the proxies the reads
+ * produced, and stored as it is, every later list walk would meet a proxy in every slot (measured: dropping this copy
+ * cost a list replaced by a reordered copy of its own rows 4–8%, every engine). Anything else is stored AS GIVEN.
  *
- * - **Copied only when a proxy is found, never rewritten in place:** the user's own array or object is never changed
- *   behind their back. The rule a reader can rely on: an assigned value is stored AS IT IS (aliased) unless it holds
- *   this store's proxies, and then a raw copy is stored.
+ * - **A plain RECORD is stored as given, never scanned** (Brian, 2026-11-08): `state.row = { ...r, label }` keeps a
+ *   nested store child as its proxy in the raw data. Scanning ran the record's getters on every write (a throwing one
+ *   threw), and dropping the scan was faster on every engine (a record holding a store child, written and read through:
+ *   SpiderMonkey −32%, JSC −16%, Node −10%; V8 −2%). Reading through the store is unchanged; only the raw data differs,
+ *   and `snapshot` gives a plain copy at every depth.
  *
- * - **One level:** a proxy two levels down (`{ a: { b: proxy } }`) is kept; a deep scan of every written object would
- *   tax every write, and the idioms above are one level.
+ * - **Copied only when a proxy is found, never rewritten in place:** the user's own array is never changed behind their
+ *   back. **One level:** a proxy two levels down is kept. **Plain arrays only:** a subclass, a frozen array, a collection
+ *   is stored as it is. A copy keeps holes; an array's non-index properties are not copied.
  *
- * - **Plain containers only** (an `Array` or an object whose prototype is `Object.prototype` or `null`, extensible): a
- *   class instance, a frozen object, a collection is stored as it is. A copy keeps an array's holes; an array's
- *   non-index properties and an object's non-enumerable ones are not copied (a plain container has none in practice).
+ * - **A known limit:** the array scan reads every index, so a getter DEFINED on an array index
+ *   (`Object.defineProperty(list, 0, { get })`) runs when that array is written into a store (a row pins it).
  *
  * - A proxy of another kind or of another copy of core does not answer `RAW` and stays as it is.
  */
@@ -65,7 +67,7 @@ const unwrap = (value: unknown) =>
 /** A store proxy's raw object, or `undefined` for anything else. */
 const rawOfProxy = (value: unknown) =>
   value !== null && typeof value === 'object' ? ((value as Record<symbol, unknown>)[RAW] as object | undefined) : undefined;
-/** `container` with this store's proxies one level down replaced by their raw objects — a copy, or `container` itself. */
+/** A plain array with this store's proxies one level down replaced by their raw objects (a copy), or `container` itself. */
 const rawCopy = (container: object): object => {
   const proto = Object.getPrototypeOf(container);
   if (proto === Array.prototype) {
@@ -74,14 +76,6 @@ const rawCopy = (container: object): object => {
       if (rawOfProxy(list[i]) !== undefined) {
         const copy = list.slice();
         for (let j = i; j < copy.length; j++) if (j in copy) copy[j] = rawOfProxy(copy[j]) ?? copy[j];
-        return copy;
-      }
-  } else if ((proto === Object.prototype || proto === null) && Object.isExtensible(container)) {
-    const record = container as Record<string, unknown>;
-    for (const key in record)
-      if (Object.hasOwn(record, key) && rawOfProxy(record[key]) !== undefined) {
-        const copy: Record<string, unknown> = proto === null ? Object.assign(Object.create(null), record) : { ...record };
-        for (const k in copy) copy[k] = rawOfProxy(copy[k]) ?? copy[k];
         return copy;
       }
   }
@@ -237,9 +231,9 @@ const handler: ProxyHandler<object> = {
   set(obj, prop, value, receiver) {
     /**
      * **A store written into a store is stored RAW**: what a read hands back is unchanged (one proxy per object, from
-     * the cache), but the raw data never holds a proxy, so a walk over it never meets one (a read on a proxy is a trap
-     * call the engine cannot cache). Raw, one level deep (`unwrap`). A store of another copy of core does not answer
-     * `RAW` and is kept as it is.
+     * the cache), and the raw data does not hold it, so a walk over it does not meet one (a read on a proxy is a trap
+     * call the engine cannot cache). A plain array of this store's proxies is copied raw one level; a record is stored as
+     * given (`unwrap`). A store of another copy of core does not answer `RAW` and is kept as it is.
      */
     if (value !== null && typeof value === 'object') value = unwrap(value);
     const prevValue = Reflect.get(obj, prop, receiver);

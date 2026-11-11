@@ -395,18 +395,19 @@ keys rather than on any one of them, and hears about a key arriving or leaving. 
 matrix: every container kind crossed with every way of mutating it, against the data itself
 (`tests/core-reactivity-matrix.test.mjs`).
 
-**What a store keeps of what you assign: your object, unless it holds the store's own proxies.** Reading a store
-hands you proxies, so `state.rows = state.rows.filter((r) => !r.done)` (or `slice`, or `[...state.rows].sort(…)`)
-builds an array OF proxies. The store keeps a raw copy of such an array instead — one level deep, so a row replaced
-with `{ ...row, label }` keeps its nested objects raw too — and leaves your array exactly as it was. An array or object
-that holds no store proxies is kept as it is: the store and your variable are then the same array, as they always
-were. Either way, write through the store (`state.rows.push(…)`), never through a variable you kept: a write the store
-does not see renders nothing.
+**What a store keeps of what you assign: your object as you gave it, except an array of the store's own proxies.**
+Reading a store hands you proxies, so `state.rows = state.rows.filter((r) => !r.done)` (or `slice`, or
+`[...state.rows].sort(…)`) builds an array OF proxies. The store keeps a raw copy of such an array instead, one level
+deep, and leaves your array exactly as it was; a list walked later then meets plain rows, which is faster. Anything
+else is kept as you gave it, a record included: `state.row = { ...row, label }` is stored as that object, and the
+store never scans it (so its getters never run on a write). Reading through the store is the same either way.
+Write through the store (`state.rows.push(…)`), never through a variable you kept: a write the store does not see
+renders nothing.
 
-The copy is one level deep and of plain arrays and objects only, so a few shapes still keep proxies inside — each a
-somewhat slower list, never a wrong answer: a frozen or sealed object (`Object.freeze({ ...row })`), a class instance
-(`new Todo(…)` rows), and a second level (`state.grid = state.grid.map((r) => r.slice())` stores plain arrays of the
-cell proxies). Build such values from fresh data, or mutate in place (`splice`, `sort`), where it matters.
+The copy is one level deep and of plain arrays only, so a few shapes keep proxies inside, each a somewhat slower
+list, never a wrong answer: a frozen array, an Array subclass, and a second level (`state.grid = state.grid.map((r) =>
+r.slice())` stores plain arrays of the cell proxies). One known limit: the copy reads every index, so a getter defined
+on an array INDEX (`Object.defineProperty(list, 0, { get })`) runs when that array is written into a store.
 
 **An array's mutators are fresh functions on every read.** `state.rows.push` runs the whole `push` and notifies once
 (a hook never sees the array half-written), and to do that each read hands back a new function: `state.rows.push ===

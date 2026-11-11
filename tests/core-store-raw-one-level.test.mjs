@@ -2,9 +2,11 @@
  * **A store keeps what is written into it RAW, one level deep** (2026-10-23): `state.rows = state.rows.filter(…)` hands
  * back an array of the proxies the reads produced, and it was stored as it was — every later list walk met a proxy in
  * every slot (swaps +47–56%, measured). Now a write, and a whole-array method's inserted values, store a proxy as its raw
- * object, and a plain array or object holding proxies one level down as a raw COPY. These rows pin:
+ * object, and a plain ARRAY holding proxies one level down as a raw COPY; a record is stored as given (D5, 2026-11-08:
+ * scanning one ran its getters, and dropping it was faster on every engine). These rows pin:
  *
- * - the common idioms (`filter`, `slice`, a copy then `sort`, a row replaced by a spread) leave no proxy in raw data;
+ * - the common list idioms (`filter`, `slice`, a copy then `sort`) leave no proxy in an array's raw slots, and a row
+ *   replaced by a spread is stored as given (by decision);
  * - the user's own array is never rewritten (a copy is stored only when it held proxies; otherwise it is aliased);
  * - identity and reactivity survive: a row read after the unwrap is the SAME proxy as before, and still reactive;
  * - one level only, and plain containers only (a class instance is stored as it is).
@@ -55,14 +57,14 @@ test('filter, slice and a copy then sort, reassigned, leave no proxy in raw data
   }
 });
 
-test('a row replaced by a spread, and a pushed spread, store their nested objects raw', () => {
+test('BY DECISION (D5, 2026-11-08): a row replaced by a spread, and a pushed spread, are stored as given (never scanned)', () => {
   const state = createStore({ rows: make(3) });
   state.rows[0] = { ...state.rows[0], t: 'replaced' };
   state.rows.push({ ...state.rows[1], id: 50 });
   const raw = rawOf(state.rows);
   assert.equal(raw[0].t, 'replaced', 'CONTROL: the replacement is stored');
-  assert.ok(raw[0].user !== state.rows[0].user, 'the replaced row\'s nested object is raw, not the proxy a read hands out');
-  assert.ok(raw[3].user !== state.rows[3].user, 'the pushed row\'s nested object is raw');
+  assert.equal(raw[0].user, state.rows[0].user, 'the replaced row keeps its nested object as given (the proxy the spread copied)');
+  assert.equal(raw[3].user, state.rows[3].user, 'the pushed row too');
   assert.equal(state.rows[0].user.name, 'u1', 'and reads the same through the store');
 });
 
