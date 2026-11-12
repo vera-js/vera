@@ -4,6 +4,9 @@ import { createOwned } from '../services/createProxy.js';
 import { createStore } from './createStore.js';
 import type { ComponentElement } from '../types.js';
 
+/** One accessor pair per KEY, shared by every element that adopts it (it reads `this`) — no closure per element. */
+const accessors = new Map<string, PropertyDescriptor>();
+
 /**
  * A bound property met a GETTER-ONLY class member: refused, and said once per element and name (without it, the binding
  * vanished silently). The renderer's eager path hands the value here (`_$adopt$`), so this is the one place both
@@ -79,8 +82,6 @@ export const propsOf = (element: ComponentElement): Record<string, unknown> =>
 export const filledOf = (element: ComponentElement, fill: (raw: Record<string, unknown> | undefined) => Record<string, unknown>): Record<string, unknown> =>
   element._$v$ ?? (element._$v$ = createOwned((element._$raw$ = fill(element._$raw$))));
 
-/** One accessor pair per KEY, shared by every element that adopts it (it reads `this`) — no closure per element. */
-const accessors = new Map<string, PropertyDescriptor>();
 const accessorFor = (key: string) => {
   let pair = accessors.get(key);
   if (pair === undefined)

@@ -81,9 +81,8 @@ export type Hook = {
 /** Returned from an effect to undo whatever it set up; run before its next run. */
 export type HookCleanup = () => void;
 
-/** A hook's callback: handed the signal that woke it, and `init` on the first pass. */
 /**
- * Returns nothing, a cleanup, or — an `async` callback — a promise, which runs but is never a cleanup (only a function
+ * A hook's callback: handed the signal that woke it, and `init` on the first pass. Returns nothing, a cleanup, or — an `async` callback — a promise, which runs but is never a cleanup (only a function
  * is; development names an async callback once).
  */
 export type HookCallback = <V>(change?: Change<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
@@ -176,7 +175,6 @@ export type HookRecord = {
    * was made this run (`track`). `_lastWake` is the last
    * wake that reached it, so one write wakes it once.
    */
-  /** The cells it reads, in read order. */
   _sources: Cell[];
   /** Where it sits in each of those cells (the slot `_sources[k]` holds it at). */
   _places: number[];
@@ -208,7 +206,6 @@ export type RenderTemplate = <V>(change?: Change<V>) => any;
 
 /** The root a component renders into: `'open'` / `'closed'` shadow, `false` for light DOM, or any `ShadowRootInit`. */
 export type ShadowOption = 'open' | 'closed' | false | ShadowRootInit;
-/** `init({ host, …options }, setup?)`'s first argument: the element, with the options that travel with it. */
 /**
  * What happens to FOREIGN NODES — nodes placed in a component's root by anything other than its own template (a browser
  * extension, a third-party script, code appending by hand). `'drop'` (the default): the template owns the root — an
@@ -228,7 +225,10 @@ declare global {
   // eslint-disable-next-line no-restricted-syntax, @typescript-eslint/no-empty-object-type -- merging IS the point: modules add their keys
   interface VeraInitOptions {}
 }
-/** Core's own options, and every key a wired module added to `VeraInitOptions`. */
+/**
+ * `init({ host, …options }, setup?)`'s first argument: the element, with the options that travel with it — core's own,
+ * and every key a wired module added to `VeraInitOptions`.
+ */
 export interface InitOptions extends VeraInitOptions {
   host: ComponentElement;
   shadow?: ShadowOption;

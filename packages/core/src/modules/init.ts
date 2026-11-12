@@ -17,23 +17,10 @@ import { seams } from '../services/seams.js';
  *   prototype chain).
  * - `anyAsync`: set the first time ANY setup is async; until then the define wrapper never reads `_$s$`, a field ordinary
  *   components lack.
- * The rest is development's said-once memory, each a warning said once per page (or, for the sets, once per component
- * class): unwired directive markup, `static styles` nothing adopts, a built-in host, an invalid `shadow` or
- * `foreignNodes` app default (a component's own invalid option is said at each connect), an option key claimed by two
- * `'init'` hooks; and per class, a static setup return, a near-miss `setup` spelling, an options object passed where the setup goes. `@__PURE__`: the
- * sets are read only under `__DEV__`, so production drops the allocations with the reads.
+ * Development's said-once warnings keep their memory in shared-utils (`warnOnce`, D29), not here.
  */
 let anyPersist = false;
 let anyAsync = false;
-let saidUnwiredDirectives = false;
-let saidUnadoptedStyles = false;
-let saidBuiltIn = false;
-let saidShadowDefault = false;
-let saidForeignDefault = false;
-let saidClaimedTwice = false;
-const saidStatic = /* @__PURE__ */ new WeakSet<object>();
-const saidNearMiss = /* @__PURE__ */ new WeakSet<object>();
-const saidOptions = /* @__PURE__ */ new WeakSet<object>();
 
 /**
  * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once

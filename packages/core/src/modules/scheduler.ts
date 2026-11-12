@@ -24,7 +24,7 @@ export const microtask: RenderScheduler = (run) => queueMicrotask(run);
  * - `renderScheduler`: when flushes run (`setRenderScheduler`); a live binding, read whenever one is scheduled.
  * - `scheduled`, `flushing`, `flushes`: a flush is coming; one is running; how many have run (each pass is stamped
  *   with its flush, to count its runs there).
- * - `running` (development): the pass running now. `saidNested` (development): a nested `flush()` was reported once.
+ * - `running` (development): the pass running now. (A nested `flush()` is reported once through shared-utils' `warnOnce`.)
  */
 let queue: HookRecord[] = [];
 let next = 0;
@@ -38,7 +38,6 @@ let scheduled = false;
 let flushing = false;
 let flushes = 0;
 let running: HookRecord | undefined;
-let saidNested = false;
 
 /** Run order: priority (`_priority`), then creation (`_sequence`) — two fields, never packed into one number (see `HookRecord`). */
 const runsBefore = (a: HookRecord, b: HookRecord) => a._priority < b._priority || (a._priority === b._priority && a._sequence < b._sequence);

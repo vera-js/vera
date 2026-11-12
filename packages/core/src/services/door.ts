@@ -23,6 +23,7 @@ import { kit } from './track.js';
  */
 const TAG = Object.prototype.toString;
 const COLLECTION = /^\[object (?:Weak)?(?:Map|Set)\]$/;
+/** Each type tag's decided handlers: owned copies, rewritten in place when a store module is wired (`redecide`). */
 const types = new Map<string, ProxyHandler<object>>();
 /** The owned handlers some insert or core claimed — an empty one means "not reactive, hand back raw". */
 export const claimedHandlers = new WeakSet<object>();
@@ -47,6 +48,8 @@ let defaults: StoreInsert | undefined;
  * handed back" spans every store; tags only, never the values, so nothing is kept alive. Production drops it.
  */
 const handedBack = /* @__PURE__ */ new Set<string>();
+/** The methods of a store of a type nothing claims, bound once per object and name (`transparent`, below). Weak. */
+const bound = new WeakMap<object, Map<PropertyKey, { m: (...args: unknown[]) => unknown; b: (...args: unknown[]) => unknown }>>();
 /** Development: `value` was handed back as it is, its type unclaimed (`nested`). */
 export const handedBackUnclaimed = (value: object) => {
   handedBack.add(TAG.call(value));
@@ -60,7 +63,6 @@ export const handedBackUnclaimed = (value: object) => {
  * object's method changed; one that returns its object (`set`, `add`) returns the STORE. Module state, cold: `bound`
  * holds those methods per object, weakly, reached only through a store of a type nothing claims.
  */
-const bound = new WeakMap<object, Map<PropertyKey, { m: (...args: unknown[]) => unknown; b: (...args: unknown[]) => unknown }>>();
 const transparent = (target: object, key: PropertyKey, receiver: object): unknown => {
   const value = Reflect.get(target, key, target);
   if (typeof value !== 'function') return value;
