@@ -237,19 +237,34 @@ const refusal = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') =>
  * An object-valued read hands back its store: cached per value, decided on the first miss. ONE function for the object
  * handler, the array handler and the raw walk, so the frozen-slot and store-in-a-store rules cannot diverge between them.
  */
+/**
+ * The parents the store saw lock a slot (`defineProperty` through it, non-writable and non-configurable): only their
+ * slots are asked on a first read (`nested`). Module-level because a lock on one store's object is seen by every read of
+ * it; `anyLocked` keeps the read free (one boolean) until the first lock is ever seen. Weak: nothing is kept alive.
+ */
+const lockedParents = new WeakSet<object>();
+let anyLocked = false;
+const lockedSlot = (obj: object, prop: PropertyKey) => {
+  const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+  return own !== undefined && !own.writable && !own.configurable;
+};
 export const nested = (obj: object, prop: PropertyKey, value: object) => {
   let proxy = cached(value);
   /** A store in a slot answers itself: remembered in the WeakMap, never by defining through it (a trap). */
   if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
   if (proxy === undefined) {
-    const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-    const locked = own !== undefined && !own.writable && !own.configurable;
     /**
      * **A LOCKED slot (non-writable, non-configurable) must be handed back exactly as it is**, so the object in it is not a
-     * store and changes inside it render nothing. Production is unchanged; development says so once per object, naming the
-     * key and the cure (Brian's ruling, 2026-11-06: silent non-reactivity is worse than a crash, so it is never silent).
+     * store and changes inside it render nothing (development says so: silent non-reactivity is never silent). Asked only
+     * of a parent the store SAW locking a slot (`lockedParents`, marked by the `defineProperty` trap; `anyLocked` keeps it
+     * free until the first): asking every first read cost it 13-16% on V8, SpiderMonkey and JSC (Brian's ruling,
+     * 2026-11-12). A slot locked BEFORE its object went into a store is not seen: the engine refuses the read (its own
+     * TypeError, in both builds), and development names the key and the cure first.
      */
+    /** NOT inlined: production's only caller, and the minifier would paste `lockedSlot` in as an immediately-invoked arrow. */
+    const locked = anyLocked && lockedParents.has(obj) && /*@__NOINLINE__*/ lockedSlot(obj, prop);
     if (__DEV__ && locked) console.error(diagnostic('core', 'a store read', 'readonly-slot', __DEV__ && PROSE['readonly-slot'](String(prop))));
+    if (__DEV__ && !locked && lockedSlot(obj, prop)) console.error(diagnostic('core', 'a store read', 'readonly-slot-unseen', __DEV__ && PROSE['readonly-slot-unseen'](String(prop))));
     if (__DEV__) subclassMutator(value);
     const owned = locked ? undefined : handlerFor(value);
     remember(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
@@ -392,6 +407,11 @@ const handler: ProxyHandler<object> = {
     if (descriptor.get !== undefined || descriptor.set !== undefined || descriptor.writable === false) unclassify(obj);
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
     const defined = Reflect.defineProperty(obj, prop, descriptor);
+    /** A slot locked through the store: `nested` asks this parent's slots from now on (`lockedParents`). */
+    if (defined && descriptor.writable === false && descriptor.configurable === false) {
+      lockedParents.add(obj);
+      anyLocked = true;
+    }
     if (defined) {
       const epoch = nextWake();
       if (!previous || !same(descriptor.value, previous.value) || descriptor.get !== previous.get)

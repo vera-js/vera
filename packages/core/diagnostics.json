@@ -117,6 +117,14 @@
       "fix": "Name each prop with its default: `props: { heading: '', items: [] }`."
     },
     {
+      "code": "define-proto-key",
+      "params": [
+        "kind"
+      ],
+      "message": "is skipped, in every build: written onto the class prototype it would replace a prototype instead of adding a {kind}.",
+      "fix": "Rename the key. An own `__proto__` comes from `JSON.parse` or `Object.defineProperty`, never from an object literal."
+    },
+    {
       "code": "define-setup",
       "params": [
         "received"
@@ -199,7 +207,7 @@
     {
       "code": "no-collections",
       "params": [],
-      "message": "is handed back as it is — it works, but nothing that reads it updates when it changes.",
+      "message": "works, but nothing that reads it updates when it changes.",
       "fix": "Make it reactive: `import { collections } from '@verajs/store/collections'` and add it to your `wire([…])` call."
     },
     {
@@ -241,12 +249,36 @@
       "fix": "Lower runs first: 25 runs before the render, 50 is the render, 60 a layout effect, 75 an effect. A priority read from config with `parseInt` is NaN when the value is missing."
     },
     {
+      "code": "readonly-slot",
+      "params": [
+        "key"
+      ],
+      "message": "read an object from `{key}`, a property locked with defineProperty (non-writable, non-configurable), which a store must hand back exactly as it is: it is not a store, so changes inside it render nothing.",
+      "fix": "Do not lock the slot with defineProperty; to read an object as it is on purpose, freeze the parent object."
+    },
+    {
+      "code": "readonly-slot-unseen",
+      "params": [
+        "key"
+      ],
+      "message": "read an object from `{key}`, a property locked with defineProperty (non-writable, non-configurable) before its object went into a store: the store did not see the lock, so the engine refuses this read.",
+      "fix": "Lock the slot through the store (`Object.defineProperty(state.obj, key, …)`), freeze the parent object, or do not lock the slot."
+    },
+    {
       "code": "render-loop",
       "params": [
         "frames"
       ],
       "message": "has re-run for {frames} consecutive frames because it writes state it also reads — this will keep running for as long as the page is open.",
       "fix": "Guard the write (`if (next !== state.x) state.x = next`), or move it out of the pass. More than one hook may be involved: a template reading what an effect writes is caught here too. If it is deliberate — an animation driven by one store write per frame — silence it with `allowRenderLoop(this)` from @verajs/core, or drive it with `requestAnimationFrame`."
+    },
+    {
+      "code": "same-onto-locked",
+      "params": [
+        "key"
+      ],
+      "message": "wrote `{key}` the value it already has, on a key the language would refuse to write (read-only, or a frozen object): nothing changed, so nothing is thrown, but a write that CHANGES it throws.",
+      "fix": "To check first: `Object.getOwnPropertyDescriptor(obj, key)?.writable`, or `Object.isFrozen(snapshot(obj))`."
     },
     {
       "code": "scheduler-not-function",
@@ -319,6 +351,15 @@
       "fix": "A store proxies the object it was given and cannot override what JavaScript declines. Pass a mutable object to createStore, or keep this one outside the store and read it directly."
     },
     {
+      "code": "subclass-mutator",
+      "params": [
+        "cls",
+        "name"
+      ],
+      "message": "{cls} defines its own `{name}`, which runs with the raw array as `this`: a field it writes is not tracked (the items and the length are).",
+      "fix": "Keep that state in the store beside the list (`state.list.push(x); state.added++`), derive it (`computed(() => state.list.length)`), or write the field through the store."
+    },
+    {
       "code": "sync-loop",
       "params": [],
       "message": "re-entered 50 times and was stopped — it writes state it also reads, and it runs synchronously on every change, so an unguarded write feeds itself.",
@@ -345,6 +386,12 @@
       "params": [],
       "message": "declares `static styles`, but nothing is adopting them, so it renders unstyled.",
       "fix": "Style adoption lives in `@verajs/styles`. Wire it once at your app entry: `import { styles } from '@verajs/styles'; wire([styles]);`"
+    },
+    {
+      "code": "wired-late",
+      "params": [],
+      "message": "was handed back as it is before the module that makes it reactive was wired, and stays that way: wiring later reaches only values not read yet.",
+      "fix": "Wire store modules before creating stores (`wire([collections])` first, in the entry)."
     }
   ]
 }

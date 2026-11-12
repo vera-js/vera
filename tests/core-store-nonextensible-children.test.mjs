@@ -69,12 +69,12 @@ test('through the store: Object.freeze makes the children come back as they are;
   assert.equal(woke(), 1);
 });
 
-test('PIN (a documented edge, on any parent): an object already a store through one slot, read from a LOCKED slot, throws', () => {
+test('an object shared with a LOCKED slot: locked before the store saw it, the read throws; locked through the store, it reads', () => {
   /**
-   * A slot locked with `defineProperty` is checked on the cache MISS (`nested`), once per value; a value first read as
-   * a store through another slot is a cache HIT, and the engine refuses a store from the locked slot. The same on an
-   * extensible parent and on a sealed one: only a FROZEN parent asks its slots on every read. If this turns green the
-   * edge closed.
+   * A store looks for a lock only on objects locked through it (rebuild-wins piece 2, Brian 2026-11-12): a slot locked
+   * with `defineProperty` before its parent went into the store is not seen, so the engine refuses the store handed from
+   * it, whether or not the object was already a store through another slot (the documented limit, `readonly-slot-unseen`).
+   * Locked through the store, the same shared object reads back. The same on an extensible parent and on a sealed one.
    */
   for (const lock of [(o) => o, Object.seal]) {
     const shared = { n: 1 };
@@ -82,6 +82,11 @@ test('PIN (a documented edge, on any parent): an object already a store through 
     Object.defineProperty(parent, 'locked', { value: shared, writable: false, configurable: false, enumerable: true });
     const s = createStore({ p: lock(parent) });
     void s.p.open;
-    assert.throws(() => s.p.locked, TypeError);
+    assert.throws(() => s.p.locked, TypeError, 'locked before the store saw it');
+    const t = createStore({ p: { open: { n: 1 } } });
+    const store = t.p.open;
+    Object.defineProperty(t.p, 'locked', { value: store, writable: false, configurable: false, enumerable: true });
+    lock(t.p);
+    assert.equal(typeof t.p.locked, 'object', 'locked through the store');
   }
 });

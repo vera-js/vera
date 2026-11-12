@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->7.39 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->8.09 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -386,6 +386,14 @@ amount of proxying changes that. The same goes for a sealed object gaining a *ne
 under `Object.preventExtensions`, a property defined `writable: false`, and a getter with no setter —
 and it applies to a frozen object nested inside an ordinary store, which is the way it usually turns
 up: a constants table sitting in state.
+
+One case reads differently: an object in a property locked with `defineProperty` (non-writable AND non-configurable)
+before its parent went into the store. JavaScript requires a proxy to hand such a value back exactly as it is, and a
+store does not inspect every property it reads for a lock (that check slowed every first read of a nested object), so
+the engine refuses the read with a `TypeError`; development names the key (`readonly-slot-unseen`). Lock the property
+through the store instead (`Object.defineProperty(state.obj, key, …)`) and the store sees it: that object is then handed
+back as it is, not as a store, so changes inside it render nothing (development says `readonly-slot`). Freezing the
+parent object reads it as it is too.
 
 Everything that is *not* forbidden works, which is the larger half. Sealed objects take writes to
 existing keys, setters run with `this` bound through the proxy, class instances keep their prototype
