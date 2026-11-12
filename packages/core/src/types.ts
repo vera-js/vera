@@ -19,7 +19,7 @@ export interface ComponentElement extends HTMLElement {
   _$h$?: Hooks;
   /**
    * How many times this element has been `init()`ed. A hook captures the value it was created
-   * under and does nothing when it no longer matches — see core's raw hook (internal).
+   * under and does nothing when it no longer matches — see core's immediate hook (internal).
    */
   _$g$?: number;
   /**
@@ -68,7 +68,7 @@ export interface ComponentElement extends HTMLElement {
   _$o$?: ComponentElement[];
 }
 
-/** What core's raw hook (internal) registers: the callback, its priority, and optionally its owner. */
+/** What core's immediate hook (internal) registers: the callback, its priority, and optionally its owner. */
 export type Hook = {
   /** Run on the first pass and again whenever a store it read changes. */
   callback: HookCallback | null;
@@ -154,7 +154,7 @@ export type HookRecord = {
   /** Its priority (lower runs first) and its creation sequence — two fields, compared in that order. */
   _priority: number;
   _sequence: number;
-  /** 0 raw (core-internal: runs inside every write), 1 queued (one run per flush), 2 sync (`effect`'s `timing: 'sync'`). */
+  /** 0 immediate (core-internal: runs inside every write), 1 queued (one run per flush), 2 sync (`effect`'s `timing: 'sync'`). */
   _mode: number;
   /** The cleanup the last run returned. */
   _cleanup: HookCleanup | undefined;
@@ -195,7 +195,7 @@ export type HookRecord = {
   _heldBy?: HookRecord;
   /**
    * **The ONE place a hook is handed a change** — a write reaching it, a first pass, or a caller running the hook
-   * core's raw hook (internal)/`effect` with a `priority` returned. The single tracked-run choke point native signals would plug into.
+   * core's immediate hook (internal)/`effect` with a `priority` returned. The single tracked-run choke point native signals would plug into.
    */
   $n(signal?: Change<unknown>, init?: boolean): void;
   /** The queued pass: run once, with the first write's signal since the last run. */

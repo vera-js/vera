@@ -755,7 +755,7 @@ const eachValue = (part: object, value: unknown, adopted?: object) => {
  * ```
  *
  * Made in a component's setup, it is that component's (its watcher retires with it); with no component being set up it
- * THROWS, as every hook does. Its watcher runs inside the write (a raw hook), so the woken rows render in the same flush.
+ * THROWS, as every hook does. Its watcher runs inside the write (an immediate hook), so the woken rows render in the same flush.
  * Its keys are bounded: cells no row reads any more are pruned on an amortized budget (below).
  */
 let kit: { track(obj: object, key: unknown): void; trigger(obj: object, key: unknown, value: unknown, prev: unknown): void } | undefined;

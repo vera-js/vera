@@ -23,7 +23,7 @@ let writingProp: PropertyKey | null = null;
 const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: object, key: PropertyKey): unknown }).__lookupSetter__;
 /**
  * **A built-in that writes several slots notifies ONCE, after it finishes.** Called through the proxy, `splice`,
- * `shift`, `sort` … write index by index through the `set` trap, and a hook that runs on each write (a raw hook, a
+ * `shift`, `sort` … write index by index through the `set` trap, and a hook that runs on each write (an immediate hook, a
  * `'sync'` effect) would run BETWEEN those writes and see the array half-shifted, a value twice or a hole, with one
  * notification per slot moved. Here the method runs on the RAW array, so no trap fires midway, and every hook
  * subscribed to anything it changed (an index in the range; `length` and the shape when the length moved) is told once,

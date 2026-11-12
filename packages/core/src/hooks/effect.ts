@@ -4,8 +4,8 @@ import type { ComponentElement, Effect, EffectOptions, HookCallback } from '../t
 
 /**
  * **`effect(fn, options?)` — the ONE primitive for work that follows state** (2026-10-22, the API distillation): it
- * replaced the five `use*` hook functions; core's raw hook stays internal (its `'raw'` timing is not public — Brian,
- * 2026-10-22: added back if a need appears).
+ * replaced the five `use*` hook functions; core's immediate hook stays internal (it is not a public timing — Brian,
+ * 2026-10-22: added if a need appears).
  *
  * ```js
  * effect(() => { document.title = state.title; });                 // after the render, once per flush

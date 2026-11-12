@@ -3,7 +3,7 @@ import { misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { proxyCallbacks, tracking, unlinkFrom, whenEmptied } from '../store/store.js';
 import { same, trackKey, triggerKey, wakeCount } from '../services/track.js';
-import { MODE_RAW, register } from './createHook.js';
+import { MODE_IMMEDIATE, register } from './createHook.js';
 
 /**
  * Below the 50 a renderer registers at, so a computed is already up to date by the time anything renders from it.
@@ -109,7 +109,7 @@ const watch = (c: Computed<unknown>) => {
       c._v = value;
       triggerKey(c, 'value', value, previous);
     }
-  }, COMPUTED_PRIORITY, MODE_RAW)).$n(undefined, true);
+  }, COMPUTED_PRIORITY, MODE_IMMEDIATE)).$n(undefined, true);
   trackKey(c, 'value');
   whenEmptied(proxyCallbacks.get(c)!.get('value')!, () => release(c));
 };

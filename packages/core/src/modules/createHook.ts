@@ -99,16 +99,16 @@ const threw = (error: unknown, owner: ComponentElement) =>
   reportHookError(error, owner, diagnostic('core', 'a hook', 'hook-threw', __DEV__ && PROSE['hook-threw']()));
 
 /**
- * How a hook runs: inside every write it hears (core's raw hook (internal)), once per flush, or at once per write (a `'sync'` effect).
+ * How a hook runs: inside every write it hears (core's immediate hook, internal), once per flush, or at once per write (a `'sync'` effect).
  * Module-local, because `$n` reads them on every write — an exported binding is a live one, which V8 reaches less
  * directly (CLAUDE.md); `coalesce` takes the aliases.
  */
-const RAW = 0;
+const IMMEDIATE = 0;
 const QUEUED = 1;
 const SYNC = 2;
 export const MODE_QUEUED = QUEUED;
 export const MODE_SYNC = SYNC;
-export const MODE_RAW = RAW;
+export const MODE_IMMEDIATE = IMMEDIATE;
 
 /** Every hook's creation, in order: `_sequence`, which breaks ties within one priority. */
 let created = 0;
@@ -197,7 +197,7 @@ class HookState implements HookRecord {
   $n(signal?: Change<unknown>, init?: boolean) {
     const owner = this._owner;
     if (owner._$g$ !== this._generation || (!init && owner.isConnected === false)) return;
-    if (init || this._mode === RAW) return this.$t(signal, init);
+    if (init || this._mode === IMMEDIATE) return this.$t(signal, init);
     /** A write: remembered, then queued — or, for a sync hook, run at once. */
     this._change ??= signal;
     if (this._mode === QUEUED) {
@@ -237,7 +237,7 @@ class HookState implements HookRecord {
   }
 
   /**
-   * **The run, tracked**: what it reads subscribes it. A raw hook just runs; any other runs its previous cleanup first
+   * **The run, tracked**: what it reads subscribes it. An immediate hook just runs; any other runs its previous cleanup first
    * and keeps a returned FUNCTION as the next — an `async` callback returns a promise, which was called as a cleanup on
    * the next run and on removal (`[vera] a hook threw:` twice, measured 2026-10-09); now an async effect just runs.
    * The cleanup stays ON the hook (`_cleanup`), where removal's walk finds it (`retire`); an owner that removed itself during
@@ -252,7 +252,7 @@ class HookState implements HookRecord {
      * starts its cursor at 0 (`track`). `ok` turns true only when the callback returned: a run that THREW leaves the
      * links it did not reach in place, so the hook still hears what it read last time.
      *
-     * **A run of THIS hook nested inside its own run** (a raw hook or a `'sync'` effect writing what it read re-runs
+     * **A run of THIS hook nested inside its own run** (an immediate hook or a `'sync'` effect writing what it read re-runs
      * synchronously) is part of the OUTER run: it carries on from the outer run's cursor and leaves it where its reads
      * end, and only the outermost run's end unlinks what nobody reached — outer prefix, nested reads and outer suffix
      * reconcile as ONE run, so nothing read by any of them is lost and the nesting links nothing twice. (A key re-read in
@@ -268,7 +268,7 @@ class HookState implements HookRecord {
     if (!nested) this._cursor = first ? -1 : 0;
     let ok = false;
     try {
-      if (this._mode === RAW) {
+      if (this._mode === IMMEDIATE) {
         this._cb(signal, init);
         ok = true;
         return;
@@ -435,7 +435,7 @@ export const finite = (priority: unknown, subject: string) => {
 export const callable = (hook: HookRecord) => (signal?: Change<unknown>, init?: boolean) => hook.$n(signal, init);
 
 /**
- * **The raw hook primitive**: registers a hook on its owner — the element being set up, or `element` when given — and
+ * **The immediate hook primitive**: registers a hook on its owner — the element being set up, or `element` when given — and
  * returns a function running it: run it and it records what it reads, which is how it is subscribed. A component never
  * needs the return value (its commit runs the first pass); anything owning its own reactive value does, and a
  * `computed`'s owner is a plain object rather than an element. It runs inside every write it hears, unbatched.
@@ -452,5 +452,5 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
   if (!callback || !finite(priority, 'createHook')) return;
-  return callable(register(owner, callback, priority as number, RAW)) as HookCallback;
+  return callable(register(owner, callback, priority as number, IMMEDIATE)) as HookCallback;
 };
