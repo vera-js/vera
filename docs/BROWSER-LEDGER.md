@@ -580,6 +580,17 @@ from another machine, or after that is undone, has a variable changed.
   measured three times per arm, the median kept, with a margin of max(0.4 MB, 3 × the control's own spread); with the
   sweep disabled (a mutant core) both swept arms still fail it by over 1.1 MB. (Node 24, macOS, full fast suite;
   2026-11-11.)
+- **On node's V8 (13.6), dropping a short-lived allocation from a hot path can DOUBLE full-collection time on a long
+  allocation-heavy run.** Sixty rounds of 100k first reads of fresh nested store objects (heap past 500 MB):
+  current core spends 3.5 s in 5 mark-compacts; a core whose nested read no longer allocates a property descriptor
+  spends 6.9 s in the same 5, and its scavenges fall from 66 to 44 for the same total time (3.2 s). The heap after a
+  forced gc is identical (36 MB), so nothing leaks, and with gc forced between rounds the leaner core is faster. The
+  archived rebuild, whose nested read is leaner still, shows the same doubling (4 mark-compacts, 6.6 s), so the cost
+  belongs to the leaner allocation pattern, not to one change; there its other savings outweigh it (11.6 s total
+  against 13.4). d8 15.9 (and Chrome 157's V8 ≈ 15.7) show the leaner core faster on short counted runs; a long run
+  there was not measured. Consequence: a hot-path change that removes an allocation gets a long node run with
+  `--trace-gc` as well as the short counted ones, and the split (scavenge vs mark-compact time) is reported, not only the
+  total. (Node 24 / V8 13.6, macOS; 2026-11-12.)
 
 ## Competitors, as their own benchmark entries write them
 
