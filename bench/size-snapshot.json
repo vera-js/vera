@@ -4,7 +4,7 @@
   "modules": {
     "core": {
       "raw": 21388,
-      "gzip": 8221
+      "gzip": 8222
     },
     "renderer": {
       "raw": 14058,
@@ -204,7 +204,7 @@
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
       "raw": 24658,
-      "gzip": 9997,
+      "gzip": 9993,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -216,7 +216,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
       "raw": 31348,
-      "gzip": 12510,
+      "gzip": 12508,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -300,7 +300,7 @@
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
       "raw": 31351,
-      "gzip": 12515
+      "gzip": 12511
     }
   ]
 }
