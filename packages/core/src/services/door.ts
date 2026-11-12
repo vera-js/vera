@@ -55,7 +55,7 @@ export const handedBackUnclaimed = (value: object) => {
  * **A store of a type nothing claims is USABLE, and not reactive** (D11, Brian's ruling 2026-11-11; the rebuild's form).
  * `createStore(new Map())` before `collections` is wired, or `createStore(new Date(0))`: its methods run on the real
  * object (a native method refuses a proxy as `this`), so `m.get('a')`, `m.size` and `for (… of m)` work and nothing
- * updates, until a module claims the type: then `settle` replaces the traps in place and the same store is reactive.
+ * updates, until a module claims the type: then `redecide` replaces the traps in place and the same store is reactive.
  * A method read twice is the SAME function (`m.get === m.get`), cached per object and name and re-made only if the
  * object's method changed; one that returns its object (`set`, `add`) returns the STORE. Module state, cold: `bound`
  * holds those methods per object, weakly, reached only through a store of a type nothing claims.
@@ -110,7 +110,7 @@ const marked = (has: ProxyHandler<object>['has']) => (target: object, prop: stri
  * so each handler reflects exactly the healthy modules before the first failure is thrown: from the
  * `wire` that brought the module in, or the read that first met a new type — once.
  */
-const settle = (tags: string[]) => {
+const redecide = (tags: string[]) => {
   const errors: unknown[] = [];
   for (let i = 0; i < tags.length; i++) {
     const owned = types.get(tags[i]) as Record<string, unknown>;
@@ -138,7 +138,7 @@ export const handlerFor = (value: object) => {
   let owned = types.get(tag);
   if (owned === undefined) {
     types.set(tag, (owned = {}));
-    settle([tag]);
+    redecide([tag]);
     /**
      * **A collection in a store with nothing to make it reactive is said once, in development.** A `Map`/`Set` no
      * `'store'` module claims is handed back RAW: it works and never updates the page, the worst failure mode there is,
@@ -154,4 +154,4 @@ export const handlerFor = (value: object) => {
   return owned;
 };
 /** Every known type decided again — what `wire` calls when the `'store'` chain changed. */
-export const redecideStores = () => settle([...types.keys()]);
+export const redecideStores = () => redecide([...types.keys()]);
