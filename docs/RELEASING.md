@@ -17,6 +17,12 @@ generated from it at release time.
 
 ## Maintainers — cutting a release
 
+**Before the release, the coverage floor:** `node scripts/coverage-floor.mjs` runs the production suite under
+coverage (about 5 minutes, about 1 GB of temporary files it removes) and fails if any byte of core's production bundle
+is run by no test, outside its short list of known, reasoned exceptions. It runs at each release checkpoint rather
+than in every gate run; it joins the gate only if a regression slips through between checkpoints.
+`node scripts/coverage-floor.mjs --self-check` proves the analyzer finds a planted dead branch.
+
 ```sh
 npx changeset version            # bump versions, write CHANGELOGs, consume changesets
 git diff                         # review — this is the release gate
