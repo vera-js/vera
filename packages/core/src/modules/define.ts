@@ -62,7 +62,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   }
   if (__DEV__) Object.freeze(options);
   const entry = { o: options, s: setup as Setup };
-  let pending: ((element: ComponentElement) => void) | undefined;
+  let adoptPending: ((element: ComponentElement) => void) | undefined;
   /**
    * The declared names, once per tag: the connect-time pre-upgrade hand-over walks only these (none: no loop at all).
    * An own `__proto__` key (`JSON.parse` makes one; an object literal never does) is skipped in both builds, props
@@ -101,7 +101,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
             (this as unknown as Record<string, unknown>)[key] = value;
           }
       /** Adopted values pending on a define element — build the store with its defaults first. */
-      pending?.(this);
+      adoptPending?.(this);
       initWith(this, entry.o, entry.s);
     },
   });
@@ -156,7 +156,7 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       return raw;
     };
     const store = (element: ComponentElement) => filledOf(element, fillDefaults);
-    pending = (element: ComponentElement) => { if (element._$props$ !== undefined) store(element); };
+    adoptPending = (element: ComponentElement) => { if (element._$props$ !== undefined) store(element); };
     /**
      * The callback writes the STORE, not `this[name]`: an element given a property before the tag was defined still holds
      * it as an OWN data property at upgrade, when the platform delivers the attributes — `this[name] =` would overwrite

@@ -245,7 +245,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
   /** A render function — the common return — is never a promise: one `typeof`, not a `.then` miss on every component. */
   if (typeof out !== 'function' && typeof (out as PromiseLike<unknown> | null)?.then === 'function') {
     currentInstance.element = previous;
-    pending(element, out as PromiseLike<unknown>, element._$g$, owns);
+    awaitSetup(element, out as PromiseLike<unknown>, element._$g$, owns);
     return;
   }
   commit(element, out, owns);
@@ -284,7 +284,7 @@ let anyAsync = false;
  * chain, so it never rejects: a setup that rejects commits nothing (like one that throws) and is reported once through
  * the `'error'` chain — never as an unhandled rejection.
  */
-const pending = (element: ComponentElement, out: PromiseLike<unknown>, generation: number, owns: boolean) => {
+const awaitSetup = (element: ComponentElement, out: PromiseLike<unknown>, generation: number, owns: boolean) => {
   anyAsync = true;
   (element as Moving)._$w$ = true;
   (element as Moving)._$s$ = out.then(
