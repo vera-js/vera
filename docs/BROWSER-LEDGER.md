@@ -602,6 +602,15 @@ from another machine, or after that is undone, has a variable changed.
   trigger a scavenge, so an allocation's cost does not show at all. Consequence: a slope counts only when two N pairs
   (10k/30k and 100k/300k) agree within 1%, and an allocation change is counted at an N whose window holds a collection.
   (2026-11-12, the W1 variant of the store's write path.)
+- **For a small object with a fixed set of fields and shared methods, a `class` beats every class-free form on all
+  engines.** Measured on core's hook (16 fields) and computed (5 fields), 12 fresh processes per arm, A/A arm:
+  `Object.create(proto)` plus field writes RETAINS more per instance (hook 627.6 vs 611.6 B, computed 160 vs 128 B, node,
+  `--expose-gc` child with retained and dropped controls: it misses the constructor's slack tracking) and creates slower
+  (hook +5 to +35%, computed +12 to +26% on SpiderMonkey and JSC); a literal `{ __proto__: proto, …fields }` keeps the
+  memory but creates far slower (hook +56 to +105% on node and V8, computed +58 to +409% on all four); a literal with the
+  methods as own fields costs +40 B per hook. Reads tie in every form. Consequence: core's two classes stay as the
+  measured hot-path exception, with these numbers recorded at the classes. (node 24, d8 15.9, SpiderMonkey, JSC;
+  2026-11-12.)
 
 ## Competitors, as their own benchmark entries write them
 
