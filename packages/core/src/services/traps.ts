@@ -5,7 +5,7 @@ import type { StoreInsert } from '@verajs/inserts';
 import type { Change, Slot } from '../types.js';
 import { PROSE } from '../diagnostics.js';
 import { mapped } from './autoMap.js';
-import { claimed, handedBackUnclaimed, handlerFor, useDefaults } from './door.js';
+import { claimedHandlers, handedBackUnclaimed, handlerFor, useDefaults } from './door.js';
 import { FIXED, MARK, PROXY, RAW, cached, dataRecord, proxies, remember, unclassify, wrap } from './identity.js';
 import { GLOBAL, nextWake, operation, same, track, trigger, triggerAt, wake } from './track.js';
 
@@ -248,7 +248,7 @@ export const nested = (obj: object, prop: PropertyKey, value: object) => {
     if (__DEV__ && locked) console.error(diagnostic('core', 'a store read', 'readonly-slot', __DEV__ && PROSE['readonly-slot'](String(prop))));
     if (__DEV__) subclassMutator(value);
     const owned = locked ? undefined : handlerFor(value);
-    remember(value, (proxy = owned && claimed.has(owned) ? wrap(value, owned) : null));
+    remember(value, (proxy = owned && claimedHandlers.has(owned) ? wrap(value, owned) : null));
     if (__DEV__ && proxy === null && owned) handedBackUnclaimed(value);
   }
   return proxy ?? value;

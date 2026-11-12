@@ -17,11 +17,11 @@ import { seams } from '../services/seams.js';
  * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
  * where every caller folds away — drops it whole (a top-level one survives: a call with effects terser cannot prove).
  */
-const claimed = (prefix: string): boolean =>
+const isPrefixClaimed = (prefix: string): boolean =>
   ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
 const unclaimedMarkup = (element: ComponentElement) => {
   /** `hasWarned` first: this walks the whole tree on every component's first pass, so once said it stops walking. */
-  if (hasWarned('unwired-directives') || claimed('data-vd-')) return;
+  if (hasWarned('unwired-directives') || isPrefixClaimed('data-vd-')) return;
   const root = (element.shadowRoot ?? element._$r$ ?? element) as ParentNode;
   /**
    * A plain walk, not `querySelectorAll`: a selector engine may keep the last root it searched (jsdom's does), and

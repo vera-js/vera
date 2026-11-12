@@ -25,7 +25,7 @@ const TAG = Object.prototype.toString;
 const COLLECTION = /^\[object (?:Weak)?(?:Map|Set)\]$/;
 const types = new Map<string, ProxyHandler<object>>();
 /** The owned handlers some insert or core claimed — an empty one means "not reactive, hand back raw". */
-export const claimed = new WeakSet<object>();
+export const claimedHandlers = new WeakSet<object>();
 /**
  * Store modules that threw while deciding: skipped for EVERY type until replaced — a module that fails
  * for one type is not half-installed across the others, and one bad module cannot make every later
@@ -121,9 +121,9 @@ const redecide = (tags: string[]) => {
       /** Nothing claims the type: its stores stay usable (`transparent`); a later claim replaces it in place. */
       if (chosen === undefined) owned.get = transparent;
       owned.has = marked(chosen?.has);
-      if (__DEV__ && chosen && !claimed.has(owned) && handedBack.delete(tags[i]))
+      if (__DEV__ && chosen && !claimedHandlers.has(owned) && handedBack.delete(tags[i]))
         console.error(diagnostic('core', `a ${tags[i].slice(8, -1)} read from a store before its module was wired`, 'wired-late', __DEV__ && PROSE['wired-late']()));
-      claimed[chosen ? 'add' : 'delete'](owned);
+      claimedHandlers[chosen ? 'add' : 'delete'](owned);
     } catch (error) {
       errors.push(error);
       tags = [...types.keys()];
@@ -147,7 +147,7 @@ export const handlerFor = (value: object) => {
      */
     if (__DEV__ && COLLECTION.test(tag) && !hasWarned('no-collections'))
       queueMicrotask(() => {
-        if (claimed.has(types.get(tag)!)) return;
+        if (claimedHandlers.has(types.get(tag)!)) return;
         errorOnce('core', `a ${tag.slice(8, -1)} in a store`, 'no-collections', __DEV__ && (() => PROSE['no-collections']()));
       });
   }
