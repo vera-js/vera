@@ -99,6 +99,16 @@ from another machine, or after that is undone, has a variable changed.
   a split sample, never a one-shot one; `bench/dom/main.js` does this for clear and create 1k. (Chrome, Firefox,
   WebKit headless; 2026-10-18)
 
+- **Removing many just-inserted rows costs 3–5× more in some fresh Chrome instances than in others, with the same page
+  and the same bundle.** Chunks of 1000 rows against a connected 1000-row table, each kind in its own fresh headed
+  browser: `removeChild` read 290 ns per row in one browser and 1450 in its A/A twin (twice); inserting 1000 rows and
+  then removing them, timed together, read ~1900 ns per row in one browser and ~550 in the next (twice). Each mode is
+  tight within its own browser, so it is a property of the INSTANCE, not of the sample. Not yet isolated (window focus
+  or visibility, accessibility, a deferred insertion cost paid at removal are candidates). Single-call kinds that do not
+  remove (data, className, clone, insert alone) held their A/A within ~3%. Consequence: a removal cost from one Chrome
+  instance is not a cost; it needs several fresh instances, and an A/A per instance. (Chrome 157 headed, a copy with a
+  temporary profile, macOS; 2026-11-12; the stub-DOM validation's Chrome page.)
+
 ## Process and garbage
 
 - **Same-site pages in one Firefox share a content process**, so one page's garbage is collected inside the next
