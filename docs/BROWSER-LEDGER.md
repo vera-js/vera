@@ -588,7 +588,11 @@ from another machine, or after that is undone, has a variable changed.
   archived rebuild, whose nested read is leaner still, shows the same doubling (4 mark-compacts, 6.6 s), so the cost
   belongs to the leaner allocation pattern, not to one change; there its other savings outweigh it (11.6 s total
   against 13.4). d8 15.9 (and Chrome 157's V8 ≈ 15.7) show the leaner core faster on short counted runs; a long run
-  there was not measured. Consequence: a hot-path change that removes an allocation gets a long node run with
+  there was not measured. A REAL server render does not show it: `renderToString` of a store-backed page (a fresh nested
+  store per request, 8 fresh processes per arm, an A/A arm within 2%) is 28% faster per render at steady state with the
+  leaner core, with 40% less GC time, and ties cold; a signal-backed page ties. The doubling needs a heap grown past
+  ~500 MB of live store objects, which a per-request render never builds. Consequence: a hot-path change that removes an
+  allocation gets a long node run with
   `--trace-gc` as well as the short counted ones, and the split (scavenge vs mark-compact time) is reported, not only the
   total. (Node 24 / V8 13.6, macOS; 2026-11-12.)
 
