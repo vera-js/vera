@@ -44,11 +44,18 @@ test('CONTROL: planted pointers are found, after a regex and a template too; cod
 
 test('no package source comment holds a private pointer', () => {
   const hits = [];
-  for (const file of globSync('packages/*/src/**/*.ts'))
-    for (const p of pointers(readFileSync(file, 'utf8'))) {
+  const files = globSync('packages/*/src/**/*.ts');
+  let read = 0;
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8');
+    read += comments(text).length;
+    for (const p of pointers(text)) {
       const key = `${file}|${p.text}`;
       if (ALLOWED.has(key)) continue;
       hits.push(`${file}:${p.line} [${p.token}] ${p.text.trim().slice(0, 110)}`);
     }
+  }
+  /** The floor: an empty walk would pass an empty list. Every package's sources and thousands of comments are read. */
+  assert.ok(files.length > 100 && read > 2000, `the scan read ${files.length} files and ${read} comments: the walk is broken, not the source`);
   assert.deepEqual(hits, [], `state the fact instead of the label:\n  ${hits.join('\n  ')}`);
 });
