@@ -129,6 +129,12 @@ let created = 0;
  * back is what catches it up: `connectedCallback` runs `init()` and a fresh first pass, reading the store as it is now.
  *
  * A throw is isolated here (`reportHookError`): every run goes through `$t`, so no caller needs its own catch.
+ *
+ * **A class, measured** (2026-11-12; CODE-PRINCIPLES §1's hot-path exception, Brian's ruling): every class-free form of
+ * this record lost. `Object.create(proto)` plus the same field writes retains 627.6 B per effect against 611.6 (it misses
+ * the constructor's slack tracking) and creates 5–35% slower; a literal `{ __proto__, …fields }` keeps the memory but
+ * creates 56–105% slower on node and V8; a literal holding the methods as own fields retains 651.6 B. Reads tied in
+ * every form (threadrace, 12 fresh processes per arm, node / V8 / SpiderMonkey / JSC, two windows; BROWSER-LEDGER).
  */
 class HookState implements HookRecord {
   declare _owner: ComponentElement;
