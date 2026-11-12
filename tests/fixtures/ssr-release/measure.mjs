@@ -39,12 +39,13 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
    * EVIDENCE when it fails (2026-10-22 — an intermittent "3 alive" was seen once in three full gates and never
    * standalone): a heap snapshot to name the retainer, and a recount after the 100 ms fallback timer and another gc.
    * Gone after the wait is a TIMING survivor (a pending server-side callback); still there is structural. Costs
-   * nothing when green.
+   * nothing when green. ONE file per mode, overwritten by the next failure (2026-11-11): named by process id, every
+   * failing run left 7 MB per mode in the temp directory for good (24 of them, 156 MB, found when the disk filled).
    */
   if (out.alive > 0) {
     const { writeHeapSnapshot } = await import('node:v8');
     const { tmpdir } = await import('node:os');
-    out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}-${process.pid}.heapsnapshot`);
+    out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}.heapsnapshot`);
     await new Promise((r) => setTimeout(r, 250));
     await gc();
     out.objectsAfterWait = queryObjects(Class, { format: 'count' });
