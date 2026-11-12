@@ -9,6 +9,8 @@ import { MODE_IMMEDIATE, register } from './createHook.js';
  * Below the 50 a renderer registers at, so a computed is already up to date by the time anything renders from it.
  */
 const COMPUTED_PRIORITY = 10;
+/** The computeds whose last reader left this microtask, released together at its end (`release`, below). */
+let releasing: Computed<unknown>[] | undefined;
 
 /**
  * **A memoized derived value, owned by whoever reads it** (C10, 2026-10-22 — into core from `@verajs/store`).
@@ -125,7 +127,6 @@ const watch = (c: Computed<unknown>) => {
  * and reads it again a moment later. Batched in one list per microtask (a microtask per release cost a render making
  * computeds per run +4.8%); one queued twice is harmless — the check below is idempotent.
  */
-let releasing: Computed<unknown>[] | undefined;
 const release = (c: Computed<unknown>) => {
   if (releasing === undefined) {
     releasing = [];

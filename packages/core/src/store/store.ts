@@ -3,6 +3,8 @@ import type { ComponentElement, ResultType, HookRecord, Cell, TemplateResult } f
 
 /** The element between `init()` and the `render()` that commits it — hooks register against it. */
 export const currentInstance: { element: ComponentElement | null } = { element: null };
+/** What runs when a cell loses its last reader, made by the first computed (`whenEmptied`, below). */
+let emptied: WeakMap<Cell, () => void> | undefined;
 
 /**
  * **The components THIS copy of core initialized** — what its `customElements.define` wrapper may tear down: a field
@@ -85,7 +87,6 @@ const compactCell = (cell: Cell) => {
  * field is the alternative a churn race prices). Made by the first computed: a page without one checks `undefined`
  * only, and only when a cell compacts to empty.
  */
-let emptied: WeakMap<Cell, () => void> | undefined;
 export const whenEmptied = (cell: Cell, fn: () => void) => (emptied ??= new WeakMap()).set(cell, fn);
 
 /**

@@ -15,7 +15,8 @@ import { GLOBAL, nextWake, operation, same, track, trigger, triggerAt, wake } fr
  * proxy, so writes inside one are tracked — routes the write through the receiver's
  * `[[DefineOwnProperty]]`, which re-enters that trap for a write `set` already reports. Matching on the
  * pair suppresses exactly that one duplicate: a setter that defines some *other* property still
- * notifies. Cleared in a `finally`, so a throwing setter cannot leave writes suppressed.
+ * notifies. Cleared in a `finally`, so a throwing setter cannot leave writes suppressed. The pair: `writingObj` and
+ * `writingProp`.
  */
 let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;

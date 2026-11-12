@@ -12,6 +12,30 @@ import type { ComponentElement, InitOptions, Setup } from '../types.js';
 import { seams } from '../services/seams.js';
 
 /**
+ * **init's state** (one per copy of core). Two flags let a page that never uses a feature skip its reads:
+ * - `anyPersist`: set by the first `persist` option seen; until then a removal never reads `_$P$` (a miss walks the DOM
+ *   prototype chain).
+ * - `anyAsync`: set the first time ANY setup is async; until then the define wrapper never reads `_$s$`, a field ordinary
+ *   components lack.
+ * The rest is development's said-once memory, each a warning said once per page (or, for the sets, once per component
+ * class): unwired directive markup, `static styles` nothing adopts, a built-in host, an invalid `shadow` or
+ * `foreignNodes` app default (a component's own invalid option is said at each connect), an option key claimed by two
+ * `'init'` hooks; and per class, a static setup return, a near-miss `setup` spelling, an options object passed where the setup goes. `@__PURE__`: the
+ * sets are read only under `__DEV__`, so production drops the allocations with the reads.
+ */
+let anyPersist = false;
+let anyAsync = false;
+let saidUnwiredDirectives = false;
+let saidUnadoptedStyles = false;
+let saidBuiltIn = false;
+let saidShadowDefault = false;
+let saidForeignDefault = false;
+let saidClaimedTwice = false;
+const saidStatic = /* @__PURE__ */ new WeakSet<object>();
+const saidNearMiss = /* @__PURE__ */ new WeakSet<object>();
+const saidOptions = /* @__PURE__ */ new WeakSet<object>();
+
+/**
  * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once
  * (`@verajs/directives` claims `data-vd-` from both its doors).
  * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
@@ -59,8 +83,6 @@ seams.$F = undefined;
  * removed tree is not held. Brian's number to set; 5 s proposed.
  */
 const PENDING_SECONDS = 5;
-/** Set by the first `persist` option seen: until then a removal never reads `_$P$` (a miss walks the DOM prototype chain). */
-let anyPersist = false;
 const OPEN: ShadowRootInit = { mode: 'open' };
 const CLOSED: ShadowRootInit = { mode: 'closed' };
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
@@ -273,9 +295,6 @@ const commit = (element: ComponentElement, out: unknown, owns: boolean) => {
   /** Development: the first pass has committed, so there is a subtree to check for markup no module claimed. */
   if (__DEV__) unclaimedMarkup(element);
 };
-
-/** Set the first time ANY setup is async: until then the define wrapper never reads `_$s$`, a field ordinary components lack. */
-let anyAsync = false;
 
 /**
  * **An async setup** — rare, so out of line: `initWith`'s size is what every synchronous component pays. It commits

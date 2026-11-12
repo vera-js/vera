@@ -2,6 +2,9 @@ import { misuse, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js';
 
+/** A plain microtask — every flush at once, however many land in a frame. THE DEFAULT (Brian, 2026-10-09). */
+export const microtask: RenderScheduler = (run) => queueMicrotask(run);
+
 /**
  * **One queue, drained by one flush.** Every deferred hook pass — a layout effect, a render, an effect — joins ONE
  * queue, and ONE scheduled flush runs it all; a scheduler decides only when a flush runs (Brian, 2026-10-08, after the
@@ -11,16 +14,34 @@ import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js'
  * registered them. Passes queued in key order — a store write waking renders — never reorder at all: that path is one
  * comparison per pass. A pass arriving OUT of order marks the queue, and the rest of it is REGROUPED before the next
  * pass is taken (`regroup`, below) — linear, where a sort was n log n.
+ *
+ * **The scheduler's state, shared by every function in this module** (one queue and one flush per copy of core):
+ * - `queue`, `next`, `unsorted`, `spare`: the queue of passes; the index of the next pass to take; whether a pass arrived
+ *   out of key order (the rest is regrouped before the next take); and the array a regroup fills, swapped with `queue`,
+ *   so a regroup allocates nothing; `priorities`, the distinct priorities a regroup found, ascending (in practice two or
+ *   three), refilled by each regroup.
+ * - `windowStart`, `spent`: `frameBudget`'s 16 ms window and the flush work spent in it.
+ * - `renderScheduler`: when flushes run (`setRenderScheduler`); a live binding, read whenever one is scheduled.
+ * - `scheduled`, `flushing`, `flushes`: a flush is coming; one is running; how many have run (each pass is stamped
+ *   with its flush, to count its runs there).
+ * - `running` (development): the pass running now. `saidNested` (development): a nested `flush()` was reported once.
  */
 let queue: HookRecord[] = [];
-/** Run order: priority (`_priority`), then creation (`_sequence`) — two fields, never packed into one number (see `HookRecord`). */
-const runsBefore = (a: HookRecord, b: HookRecord) => a._priority < b._priority || (a._priority === b._priority && a._sequence < b._sequence);
 let next = 0;
 let unsorted = false;
-/** The array a regroup fills, swapped with `queue` — kept, so a regroup allocates nothing. */
 let spare: HookRecord[] = [];
-/** The distinct priorities a regroup found, ascending — in practice two or three. */
 const priorities: number[] = [];
+let windowStart = -Infinity;
+let spent = 0;
+let renderScheduler: RenderScheduler = microtask;
+let scheduled = false;
+let flushing = false;
+let flushes = 0;
+let running: HookRecord | undefined;
+let saidNested = false;
+
+/** Run order: priority (`_priority`), then creation (`_sequence`) — two fields, never packed into one number (see `HookRecord`). */
+const runsBefore = (a: HookRecord, b: HookRecord) => a._priority < b._priority || (a._priority === b._priority && a._sequence < b._sequence);
 const created = (a: HookRecord, b: HookRecord) => a._sequence - b._sequence;
 
 /**
@@ -87,9 +108,6 @@ const frameOrTimer = (run: () => void, element?: Element) => {
   const frame = view.requestAnimationFrame?.(go);
 };
 
-/** A plain microtask — every flush at once, however many land in a frame. THE DEFAULT (Brian, 2026-10-09). */
-export const microtask: RenderScheduler = (run) => queueMicrotask(run);
-
 /**
  * **The opt-in flood scheduler: ~4 ms of flush work per 16 ms, by the clock.** Within it a flush runs as a microtask;
  * past it, the next flush waits for the element window's frame (or a timer), so a burst of data arriving as many tasks
@@ -105,8 +123,6 @@ export const microtask: RenderScheduler = (run) => queueMicrotask(run);
  */
 const BUDGET = 4;
 const WINDOW = 16;
-let windowStart = -Infinity;
-let spent = 0;
 export const frameBudget: RenderScheduler = (run, element) => {
   const now = performance.now();
   if (now - windowStart >= WINDOW) {
@@ -121,15 +137,6 @@ export const frameBudget: RenderScheduler = (run, element) => {
   if (spent < BUDGET) queueMicrotask(timed);
   else frameOrTimer(timed, element);
 };
-
-/** When flushes run. A live binding, read whenever one is scheduled. */
-let renderScheduler: RenderScheduler = microtask;
-
-let scheduled = false;
-let flushing = false;
-let flushes = 0;
-/** Development: the pass running now. */
-let running: HookRecord | undefined;
 
 /**
  * Queues a hook's pass, once, and makes sure a flush is coming. A pass already queued is not queued twice. A flush

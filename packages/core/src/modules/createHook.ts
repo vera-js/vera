@@ -7,6 +7,18 @@ import { inserts } from '@verajs/inserts';
 import type { ErrorInsert } from '@verajs/inserts';
 
 /**
+ * **The hook module's state** (one per copy of core):
+ * - `created`: how many hooks this copy has made; each hook's `_sequence`, which breaks ties within one priority.
+ * - `serverScope`, `born`: the depth of the server render's turn now open, and every hook created inside it, which
+ *   leaves every cell it joined when the turn ends (`serverTurn`).
+ * - `ownedBy`: what each hook's runs own, a side table made at the first `ownForRun` (see there).
+ */
+let created = 0;
+let serverScope = 0;
+let born: HookRecord[] = [];
+let ownedBy: WeakMap<HookRecord, Owned[]> | undefined;
+
+/**
  * **No component being set up: THROWS, in every build** (Brian, 2026-10-09 — one rule for every "no owner" case). A
  * hook, `render()` or `mount()` with none used to be dropped silently, or — after an `await` in setup — attached to
  * whichever component connected meanwhile. `init()` now ends setup at the end of its microtask turn, so the answer no
@@ -109,9 +121,6 @@ const SYNC = 2;
 export const MODE_QUEUED = QUEUED;
 export const MODE_SYNC = SYNC;
 export const MODE_IMMEDIATE = IMMEDIATE;
-
-/** Every hook's creation, in order: `_sequence`, which breaks ties within one priority. */
-let created = 0;
 
 /**
  * **A hook — ONE object**: what was three closures, two contexts, a `WeakRef` and expandos on a
@@ -318,10 +327,7 @@ export const bare = (owner: ComponentElement, callback: HookCallback): HookRecor
  * as the earlier engine never ran them either. `@verajs/ssr` opens and closes the turn (`$ss(1)` / `$ss(-1)`) around
  * each render — one at a time per process (its `takeTurn`), so the depth is the turn. A hook created while a turn
  * awaits — client code in the same process — is the documented edge (the ssr README's limits).
- */
-let serverScope = 0;
-let born: HookRecord[] = [];
-/**
+ *
  * `$ss(1)` opens a server turn, `$ss(-1)` closes it, and **`$ss(0)` is the READ**: it answers the depth (truthy inside a
  * turn, `undefined` outside — where `born` is empty, so the close below unlinks nothing). `@verajs/store/resource` reads
  * it so a server render never starts a fetch nobody waits for. Do not turn the read into a no-op.
@@ -342,13 +348,13 @@ export const retireHook = (hook: HookRecord) => {
 };
 
 /**
- * **What each hook's runs own** (2026-10-20): a side table, made at the first `own()`, so the hook class keeps
+ * **What each hook's runs own** (2026-10-20): a side table, made at the first `ownForRun`, so the hook class keeps
  * its shape and a page with nothing owned never builds it. Things a run creates or claims — an automatic `.map` list
  * today, a render-made computed next — are disposed when a run ENDS without claiming them, and when the
  * hook retires.
+ *
+ * Claims `item` for `hook`'s CURRENT run (a module calls it during the run that uses the item).
  */
-let ownedBy: WeakMap<HookRecord, Owned[]> | undefined;
-/** Claims `item` for `hook`'s CURRENT run (a module calls it during the run that uses the item). */
 export const ownForRun = (hook: HookRecord, item: Owned) => {
   item.$r = hook.v;
   if (item.$h !== hook) {
