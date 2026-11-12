@@ -467,9 +467,9 @@ const claims = (): Map<string, string> => {
  * the fallback (light DOM for `shadow`; `'drop'` for `foreignNodes`, the built-in default).
  */
 const checkOptions = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
-  const own = options?.shadow;
+  const ownShadow = options?.shadow;
   /** An invalid app default: once per page (a component's own invalid option is said at each connect, below). */
-  if (own === undefined && shadow !== undefined && !validShadow(shadow))
+  if (ownShadow === undefined && shadow !== undefined && !validShadow(shadow))
     warnOnce('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && (() => PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
   const ownForeign = options?.foreignNodes;
   const foreign = seams.$F;
@@ -480,8 +480,8 @@ const checkOptions = (element: ComponentElement, options: InitOptions | undefine
     for (const key in options)
       if (key !== 'host' && key !== 'shadow' && key !== 'foreignNodes' && key !== 'persist' && !keys.has(key))
         console.warn(diagnostic('core', 'init()', 'unknown-option', __DEV__ && SHARED.unknownOption(key, ['foreignNodes', 'host', 'persist', 'shadow', ...keys.keys()].sort().join(', '))));
-    if (own !== undefined && !validShadow(own))
-      console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(own), platformRefuses(own))));
+    if (ownShadow !== undefined && !validShadow(ownShadow))
+      console.warn(diagnostic('core', `<${element.localName}>`, 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(ownShadow), platformRefuses(ownShadow))));
     if (ownForeign !== undefined && !validForeign(ownForeign))
       console.warn(diagnostic('core', `<${element.localName}>`, 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(ownForeign))));
   }
@@ -552,7 +552,7 @@ if (typeof customElements !== 'undefined') {
   const nativeDefine = customElements.define.bind(customElements);
   customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {
     const proto = Class.prototype as Moving & { connectedCallback?: () => unknown };
-    const own = proto.disconnectedCallback;
+    const disconnected = proto.disconnectedCallback;
     const connected = proto.connectedCallback;
     /**
      * **Only a COMPONENT is touched** — an element `init` ran on, known by `_$adopt$` (installed by `init`, sigiled, never
@@ -567,10 +567,10 @@ if (typeof customElements !== 'undefined') {
      * real removal also clears any stale mark, so a move that never reconnected cannot skip a later setup.
      */
     proto.disconnectedCallback = function (this: Moving) {
-      if ((this as Mine)[MINE] === undefined) return own?.call(this);
+      if ((this as Mine)[MINE] === undefined) return disconnected?.call(this);
       this._$m$ = this.isConnected;
       if (!this._$m$) {
-        own?.call(this);
+        disconnected?.call(this);
         /** Paused instead of torn down: asked for (`persist`), or its async setup is still pending. Read only once either exists. */
         const seconds = (anyPersist && this._$P$) || (anyAsync && this._$w$ ? PENDING_SECONDS : 0);
         if (seconds) pause(this, seconds);

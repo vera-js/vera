@@ -343,7 +343,7 @@ export const retireHook = (hook: HookRecord) => {
  */
 let ownedBy: WeakMap<HookRecord, Owned[]> | undefined;
 /** Claims `item` for `hook`'s CURRENT run (a module calls it during the run that uses the item). */
-export const own = (hook: HookRecord, item: Owned) => {
+export const ownForRun = (hook: HookRecord, item: Owned) => {
   item.$r = hook.v;
   if (item.$h !== hook) {
     item.$h = hook;

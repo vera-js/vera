@@ -82,9 +82,9 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    */
   const Class = class extends HTMLElement {};
   /** A spread copies an own `__proto__` as a plain key (it DEFINES); deleting it then leaves only the methods. */
-  const own = { ...methods };
-  delete own.__proto__;
-  Object.assign(Class.prototype, own, {
+  const installed = { ...methods };
+  delete installed.__proto__;
+  Object.assign(Class.prototype, installed, {
     constructor: Class,
     connectedCallback(this: ComponentElement) {
       /**

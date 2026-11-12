@@ -33,8 +33,8 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
      * with the prototype as `this`, which throws for one built on private fields. A GETTER-ONLY key
      * cannot be delivered and is refused — its residue cleared, so the class's getter answers again.
      */
-    const own = Object.getOwnPropertyDescriptor(this, key);
-    if (own?.get || own?.set) {
+    const ownDescriptor = Object.getOwnPropertyDescriptor(this, key);
+    if (ownDescriptor?.get || ownDescriptor?.set) {
       el[key] = value;
       return;
     }
@@ -42,7 +42,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
       const desc = Object.getOwnPropertyDescriptor(proto, key);
       if (desc === undefined) continue;
       if (desc.set || desc.get) {
-        if (own) delete el[key];
+        if (ownDescriptor) delete el[key];
         if (desc.set) el[key] = value;
         else if (__DEV__) refuse(this, key);
         return;

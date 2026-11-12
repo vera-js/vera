@@ -9,7 +9,7 @@ import { initWith, rehomeElement, retireElement } from '../modules/init.js';
 import { untracked, untrack } from '../modules/untrack.js';
 import { walkItems, rawItems } from './lists.js';
 import { createStore } from '../modules/createStore.js';
-import { createHook, register, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own, settle, serverTurn } from '../modules/createHook.js';
+import { createHook, register, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, ownForRun, settle, serverTurn } from '../modules/createHook.js';
 import { seams } from './seams.js';
 
 /**
@@ -28,7 +28,7 @@ seams.$qb = bare;
 seams.$zh = retireHook;
 seams.$ow = ownerOf;
 /** A module claims something for the current run of a hook; the run's end disposes what it did not claim. */
-seams.$own = own;
+seams.$own = ownForRun;
 /** A module whose own hooks own things settles them where their runs end (`$so(hook)`), or disposes all (`$so(hook, true)`). */
 seams.$so = settle;
 /** A server render's turn: `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created. */

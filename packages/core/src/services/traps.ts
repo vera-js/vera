@@ -218,11 +218,11 @@ const sameOntoLocked = (obj: object, prop: PropertyKey) => {
 /** Development: what the language refused the write or delete FOR, derived from the target. */
 const refusal = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
   const key = `\`${String(prop)}\``;
-  const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+  const ownDescriptor = Reflect.getOwnPropertyDescriptor(obj, prop);
   const state = Object.isFrozen(obj) ? 'frozen' : Object.isSealed(obj) ? 'sealed' : null;
-  const why = !own
+  const why = !ownDescriptor
     ? `the object is ${state ?? 'not extensible'}, so ${key} cannot be added`
-    : own.get && !own.set
+    : ownDescriptor.get && !ownDescriptor.set
       ? `${key} has a getter and no setter`
       : state
         ? `the object is ${state}, so ${key} cannot be ${verb}`
@@ -238,8 +238,8 @@ export const nested = (obj: object, prop: PropertyKey, value: object) => {
   /** A store in a slot answers itself: remembered in the WeakMap, never by defining through it (a trap). */
   if (proxy === undefined && MARK in value) proxies.set(value, (proxy = value));
   if (proxy === undefined) {
-    const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-    const locked = own !== undefined && !own.writable && !own.configurable;
+    const ownDescriptor = Reflect.getOwnPropertyDescriptor(obj, prop);
+    const locked = ownDescriptor !== undefined && !ownDescriptor.writable && !ownDescriptor.configurable;
     /**
      * **A LOCKED slot (non-writable, non-configurable) must be handed back exactly as it is**, so the object in it is not a
      * store and changes inside it render nothing. Production is unchanged; development says so once per object, naming the
@@ -336,8 +336,8 @@ const handler: ProxyHandler<object> = {
      * this its one caller, the minifier pastes `dataRecord` into the write trap as an immediately-invoked arrow.
      */
     const fast = prop !== '__proto__' && /*@__NOINLINE__*/ dataRecord(obj);
-    const own = fast ? undefined : Reflect.getOwnPropertyDescriptor(obj, prop);
-    const added = fast ? !Object.hasOwn(obj, prop) : own === undefined;
+    const ownDescriptor = fast ? undefined : Reflect.getOwnPropertyDescriptor(obj, prop);
+    const added = fast ? !Object.hasOwn(obj, prop) : ownDescriptor === undefined;
     /**
      * Assigning past the end of an array moves `length` as an internal consequence, never through
      * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write. A symbol key
@@ -355,7 +355,7 @@ const handler: ProxyHandler<object> = {
        * the object does not have anywhere on its chain, runs no setter, so it is written directly, at about half the
        * cost. An own or inherited accessor keeps the receiver.
        */
-      written = (fast || (own ? own.writable === true : !(prop in obj)))
+      written = (fast || (ownDescriptor ? ownDescriptor.writable === true : !(prop in obj)))
         ? Reflect.set(obj, prop, value)
         : Reflect.set(obj, prop, value, receiver);
     } finally {
@@ -421,9 +421,9 @@ const handler: ProxyHandler<object> = {
      * here (a getter that throws would have made `delete` throw). An accessor's previous value is not known: `undefined`.
      * Only an OWN key is deleted: a key the object merely inherits is untouched by `delete`, so nobody is woken.
      */
-    const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-    const had = own !== undefined;
-    const prevValue = own !== undefined && 'value' in own ? own.value : undefined;
+    const ownDescriptor = Reflect.getOwnPropertyDescriptor(obj, prop);
+    const had = ownDescriptor !== undefined;
+    const prevValue = ownDescriptor !== undefined && 'value' in ownDescriptor ? ownDescriptor.value : undefined;
     const deleted = Reflect.deleteProperty(obj, prop);
     if (!deleted && had) throw refusedWrite(obj, prop, 'deleted');
     if (deleted && had) {
