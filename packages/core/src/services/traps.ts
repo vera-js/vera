@@ -201,9 +201,9 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
  * silently. `createStore(Object.freeze(x))` is an ordinary thing to write. Every case is one of the language's own
  * invariants (frozen; sealed or non-extensible with a new key; a non-writable property; a getter with no setter): the
  * error is coded in production (`store-refused`) and says which one in development (`refusal`), derived from the target.
- * The check runs only after a write was refused, never on a write that succeeded.
+ * The check runs only after a write was refused, never on a write that succeeded. Production's builder takes nothing:
+ * the target, key and verb only feed development's explanation.
  */
-/** Production's builder takes nothing: the target, key and verb only feed development's explanation. */
 const refusedWrite: (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => TypeError = __DEV__
   ? (obj, prop, verb) => new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))))
   : () => new TypeError(misuse('createStore', 'store-refused', false));
