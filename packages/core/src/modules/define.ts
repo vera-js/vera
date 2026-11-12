@@ -1,9 +1,9 @@
 import { diagnostic, misuse } from '@verajs/shared-utils';
-import { inserts } from '@verajs/inserts';
 import { PROSE } from '../diagnostics.js';
 import { initWith } from './init.js';
 import { filledOf } from './adoptProps.js';
 import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup, WithAttributes } from '../types.js';
+import { seams } from '../services/seams.js';
 
 /**
  * **`define(tag, setup)` / `define({ tag, …options }, setup)` — a component without writing a class** (Brian
@@ -272,5 +272,5 @@ const checkDefine = (tag: unknown, setup: unknown) => {
     throw new TypeError(misuse('define', 'define-tag', __DEV__ && PROSE['define-tag'](typeof tag === 'string' ? `'${tag}'` : String(tag))));
   if (typeof setup !== 'function') throw new TypeError(misuse('define', 'define-setup', __DEV__ && PROSE['define-setup'](String(setup))));
   /** Silent while `@verajs/hot` is wired (it sets `$hot` on the registry): a redefine is then a swap, not a mistake. */
-  if (customElements.get(tag) !== undefined && !(inserts as unknown as { $hot?: true }).$hot) console.warn(diagnostic('core', `define('${tag}')`, 'define-twice', __DEV__ && PROSE['define-twice'](tag)));
+  if (customElements.get(tag) !== undefined && !seams.$hot) console.warn(diagnostic('core', `define('${tag}')`, 'define-twice', __DEV__ && PROSE['define-twice'](tag)));
 };

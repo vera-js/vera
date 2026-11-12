@@ -1,9 +1,9 @@
 /** Subscribes the running hook to what it reads, and wakes the hooks that read what a write changed. */
 import { claim, grow, placeAt, proxyCallbacks, readerAt, slotAt, tracking, unlinkFrom } from '../store/store.js';
 import { isWeakCollection } from '@verajs/shared-utils';
-import { inserts } from '@verajs/inserts';
 import type { StoreKit } from '@verajs/inserts';
 import type { Cell, Change } from '../types.js';
+import { seams } from './seams.js';
 
 /**
  * The channel an object's **shape** is published on, as distinct from any one key: a key added or
@@ -218,4 +218,4 @@ export const nextWake = () => ++wakes;
  * The same kit handed to a module OFF the store chain (`$k`), so the keyed module's `createSelector` keeps one cell per
  * selection key on the one notification path. `$`-named: it survives mangling.
  */
-(inserts as unknown as { $k: StoreKit }).$k = kit;
+seams.$k = kit;

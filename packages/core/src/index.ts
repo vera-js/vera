@@ -11,7 +11,7 @@ export { inserts };
  * calls every one. Development only: in production each bundle inlines its own registry, so a copy only ever re-decides
  * itself, and the production bundle keeps its single call.
  */
-const redecideAll: (() => void)[] = __DEV__ ? ((inserts as unknown as { $rs?: (() => void)[] }).$rs ??= []) : [];
+const redecideAll: (() => void)[] = __DEV__ ? (seams.$rs ??= []) : [];
 if (__DEV__) redecideAll.push(redecideStores);
 
 /**
@@ -35,7 +35,7 @@ export const wire: typeof register = (item) => {
    */
   if (
     __DEV__ &&
-    (inserts as unknown as { $b?: boolean }).$b === true &&
+    seams.$b === true &&
     (inserts.get('template')?.length ?? 0) + (inserts.get('element')?.length ?? 0) > decided
   )
     console.warn(diagnostic('core', 'wire', 'late-template-module', __DEV__ && SHARED.lateTemplateModule()));
@@ -58,54 +58,54 @@ import { walkItems, rawItems } from './services/lists.js';
 import { createStore as createStoreFn } from './modules/createStore.js';
 import { createHook as createHookFn } from './modules/createHook.js';
 import { register as registerHook, retire, RENDER_PRIORITY, MODE_QUEUED, bare, retireHook, ownerOf, own, settle, serverTurn } from './modules/createHook.js';
-import type { ComponentElement, HookCallback, HookRecord } from './types.js';
+import { seams } from './services/seams.js';
 /**
  * Core's tracking control, handed to the modules it is wired to OFF the insert chains (`connect` receives this map):
  * not an extension point — it is core's own tracking cell, and nothing wired later may replace it. `$`-named, so it
  * survives mangling.
  */
-(inserts as unknown as { $t: typeof untracked }).$t = untracked;
+seams.$t = untracked;
 /**
  * PROBE (P1, 2026-10-18): core's hook machinery handed to the renderer the same way, so a keyed list can give a row its
  * own QUEUED hook (an explicit owner, chained to the running host by `register`) and retire it. Nothing new: the existing
  * `register` / `retire`, exposed. `$`-named, so it survives mangling.
  */
-(inserts as unknown as { $q: (owner: ComponentElement, callback: HookCallback) => HookRecord }).$q = (owner, callback) =>
+seams.$q = (owner, callback) =>
   /** The record itself, not a `callable` wrapper: one closure fewer per list row (the keyed module calls its `$n`). */
   registerHook(owner, callback, RENDER_PRIORITY, MODE_QUEUED);
-(inserts as unknown as { $z: typeof retire }).$z = retire;
+seams.$z = retire;
 /** (2026-10-20) A keyed row's BARE hook — no owner hook list, retired directly — and the hook → owner read a shared row callback needs (the hook module explains). */
-(inserts as unknown as { $qb: typeof bare; $zh: typeof retireHook; $ow: typeof ownerOf }).$qb = bare;
-(inserts as unknown as { $zh: typeof retireHook }).$zh = retireHook;
-(inserts as unknown as { $ow: typeof ownerOf }).$ow = ownerOf;
+seams.$qb = bare;
+seams.$zh = retireHook;
+seams.$ow = ownerOf;
 /** Option (e): a module claims something for the current run of `hook`; the run's end disposes what it did not claim. */
-(inserts as unknown as { $own: typeof own }).$own = own;
+seams.$own = own;
 /** (e″): a module whose own hooks own things settles them where their runs end (`$so(hook)`), or disposes all (`$so(hook, true)`). */
-(inserts as unknown as { $so: typeof settle }).$so = settle;
+seams.$so = settle;
 /** Step 2 (a): a server render's turn — `$ss(1)` opens it, `$ss(-1)` closes it and unlinks what it created (the hook module). */
-(inserts as unknown as { $ss: typeof serverTurn }).$ss = serverTurn;
+seams.$ss = serverTurn;
 /**
  * Step 2 (b), for `@verajs/renderer/native-elements` (imports nothing — a module never imports core at runtime): core's
  * own setup (`$in`, `initWith`) and its removal's whole teardown (`$td`, `retireElement`), so a built-in host gets the
  * lifecycle a custom element's callbacks give it.
  */
-(inserts as unknown as { $in: typeof initWith }).$in = initWith;
-(inserts as unknown as { $td: typeof retireElement }).$td = retireElement;
+seams.$in = initWith;
+seams.$td = retireElement;
 /** R4: a built-in host moved into another document re-homes as a component does (native-elements' sentinel calls it). */
-(inserts as unknown as { $rh: typeof rehomeElement }).$rh = rehomeElement;
+seams.$rh = rehomeElement;
 /**
  * `multiWindow`: this copy's component mark (`MINE`, a Symbol private to each copy of core), so a release walking a dead
  * window retires only THIS core's components — two copies on a page never retire each other's (vera-5a).
  */
-(inserts as unknown as { $m: symbol }).$m = MINE;
+seams.$m = MINE;
 /**
  * A store array's raw walk under ONE subscription (`walkItems`), handed to the renderer the same way, so a keyed list can walk
  * a 1000-row store list without 2000 trapped, tracked reads (measured 2026-10-18: a store walk 280 µs vs a plain one 2;
  * `each` store swap 232 → 55 µs and remove 287 → 58 in Chrome once it walks raw). Without it a list walks the proxy (measured on the since-retired `each`).
  */
-(inserts as unknown as { $w: typeof walkItems }).$w = walkItems;
+seams.$w = walkItems;
 /** Its raw read without a subscription (`rawItems`): a keyed list compares the slots it already met, then walks only the rest. */
-(inserts as unknown as { $wr: typeof rawItems }).$wr = rawItems;
+seams.$wr = rawItems;
 /**
  * Core's store machinery, handed the same way to a module that keeps stores of its own (`@verajs/directives`): a
  * production directives bundle inlines its own copy of core, and without this its stores and the page's hooks lived in
@@ -114,6 +114,6 @@ import type { ComponentElement, HookCallback, HookRecord } from './types.js';
  * carries one: a module from another release declines it and keeps its own copy, rather than calling these with
  * signatures it does not know. Bump it whenever a signature here changes.
  */
-(inserts as unknown as { $s: unknown[] }).$s = [1, createStoreFn, createHookFn, untrackFn];
+seams.$s = [1, createStoreFn, createHookFn, untrackFn];
 export { allowRenderLoop, flush, setRenderScheduler, microtask, frameBudget } from './modules/scheduler.js';
 export { html, mathml, svg } from './store/store.js';

@@ -1,9 +1,8 @@
 /** A store array's `.map` inside a render, handed to the list module when one is wired. */
 import { tracking } from '../store/store.js';
-import { inserts } from '@verajs/inserts';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
-import type { HookRecord } from '../types.js';
+import { seams } from './seams.js';
 
 /**
  * **Development: a store array's `.map` producing TEMPLATES inside a render, with no list module wired.** Rows are then
@@ -14,7 +13,6 @@ import type { HookRecord } from '../types.js';
  * renderer.ts's and keyed.ts's `isTemplateResult` (three addresses).
  */
 let saidLists = false;
-type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: HookRecord, owner: unknown, method: (...args: unknown[]) => unknown[]) => unknown[];
 const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
     const out = method.apply(this, args);
@@ -32,11 +30,11 @@ const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) 
  * `thisArg`) it is the native method. Nothing about `.map`'s result changes: it is a real array either way.
  */
 export const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[], proxy: unknown) => {
-  const list = (inserts as unknown as { $M?: AutoMap }).$M;
+  const list = seams.$M;
   const hook = tracking.hook;
   if (list === undefined || hook === undefined || hook._y !== 50) {
     /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
-    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !saidLists && !(inserts as unknown as { $ss?: (d: number) => unknown }).$ss?.(0))
+    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !saidLists && !seams.$ss?.(0))
       return unwiredList(method, proxy);
     return method;
   }

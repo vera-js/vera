@@ -1,3 +1,6 @@
+import type { StoreKit } from '@verajs/inserts';
+import type { Untracked } from '@verajs/shared-utils';
+
 /**
  * A component element, carrying what `init` and the hooks attach to it.
  *
@@ -274,3 +277,71 @@ export type RenderScheduler = (run: () => void, element?: Element) => void;
 
 /** A reactive store over `T`. */
 export type Store<T extends object = object> = T;
+
+/** A module's automatic list map (`$M`, the keyed module's `lists`): a store array's `map(fn)` in a render handed to it. */
+export type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: HookRecord, owner: unknown, method: (...args: unknown[]) => unknown[]) => unknown[];
+
+/** Something a hook's run owns: `$r` the run that last claimed it, `$h` its owning hook, `$d()` its disposal. `$`-named: cross-bundle. */
+export type Owned = { $r: number; $h: HookRecord | undefined; $d(): void };
+
+/**
+ * **The seams: what core shares with modules in other bundles, through `$`-named fields on the registry** (G2,
+ * 2026-11-11). A module never imports core at runtime (a production bundle inlines its own copy), so it reaches core
+ * only through these, on the registry `wire` hands it. Declared once, here; sigiled, so no bundle's mangler renames
+ * them. Core reads and writes them through `seams` (services/seams.ts), the one cast of the registry to this type.
+ * Where each is SET, its why is written beside the assignment.
+ */
+export type CoreSeams = {
+  /** Set by the renderer once it has built a template; development's late-wire warning reads it (`wire`). */
+  $b?: boolean;
+  /** The app default for `foreignNodes` (set by a module, read at every connect: defined up front, so a read is a hit). */
+  $F?: ForeignNodesOption;
+  /** The app default for `shadow` (as `$F`). */
+  $S?: ShadowOption;
+  /** Set by the hot-reload module: a tag defined twice is a reload, not a mistake (`define`'s warning reads it). */
+  $hot?: true;
+  /** Set by native-elements: built-in hosts are supported (`init`'s development check reads it). */
+  $ne?: unknown;
+  /** The keyed module's automatic list map (`lists`). */
+  $M?: AutoMap;
+  /** Development: every copy of core's store re-decision, pushed at load and called on a store wire (D16). */
+  $rs?: (() => void)[];
+  /** Core's tracking control, `untracked`. */
+  $t: Untracked;
+  /** A QUEUED hook for an explicit owner (a keyed row's), the record itself. */
+  $q: (owner: ComponentElement, callback: HookCallback) => HookRecord;
+  /** Retire an owner's hooks. */
+  $z: (owner: ComponentElement) => void;
+  /** A keyed row's BARE hook: no owner list, retired directly. */
+  $qb: (owner: ComponentElement, callback: HookCallback) => HookRecord;
+  /** Retire one bare hook. */
+  $zh: (hook: HookRecord) => void;
+  /** A hook's owner. */
+  $ow: (hook: HookRecord) => ComponentElement;
+  /** A module claims something for the current run of a hook. */
+  $own: (hook: HookRecord, item: Owned) => void;
+  /** Settle what a hook's runs own (`all`: dispose everything). */
+  $so: (hook: HookRecord | undefined, all?: boolean) => void;
+  /** A server render's turn: `$ss(1)` opens, `$ss(-1)` closes and unlinks; `$ss(0)` asks whether one is open. */
+  $ss: (delta: number) => unknown;
+  /** Core's setup for a built-in host (`initWith`). */
+  $in: (element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => void;
+  /** A removal's whole teardown (`retireElement`). */
+  $td: (element: ComponentElement) => void;
+  /** A move into another document (`rehomeElement`). */
+  $rh: (element: ComponentElement) => void;
+  /** This copy's component mark (`MINE`). */
+  $m: symbol;
+  /** A store array's raw walk under one subscription (`walkItems`). */
+  $w: (list: unknown, visit: (raw: unknown, item: unknown) => void, from?: number, to?: number) => boolean;
+  /** Its raw read without a subscription (`rawItems`). */
+  $wr: (list: unknown) => unknown[] | undefined;
+  /** Core's store machinery for a module with stores of its own; position 0 is its protocol. */
+  $s: unknown[];
+  /** The store kit (`track`'s): what a store module is handed. */
+  $k: StoreKit;
+  /** Set by the renderer: release what its part holds of a removed component. */
+  $x?: (element: Node) => void;
+  /** Set by the renderer: clear a released root before a re-init. */
+  $y?: (element: Node) => void;
+};

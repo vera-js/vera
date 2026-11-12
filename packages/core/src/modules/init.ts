@@ -9,6 +9,7 @@ import { firstPasses } from './mount.js';
 import { drawInto } from '../hooks/drawInto.js';
 import { EFFECT_PRIORITY, LAYOUT_PRIORITY, reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
+import { seams } from '../services/seams.js';
 
 /**
  * Development: markup addressed to a module nobody wired (`data-vd-*` with no directives engine) is said once
@@ -52,9 +53,9 @@ const unclaimedMarkup = (element: ComponentElement) => {
 };
 
 /** The two shadow roots by name, built once — `init` attaches from these, so no options object is made per connect. */
-(inserts as unknown as { $S?: unknown }).$S = undefined;
+seams.$S = undefined;
 /** Defined up front like `$S`, so every connect's read of the `foreignNodes` default is a hit. */
-(inserts as unknown as { $F?: unknown }).$F = undefined;
+seams.$F = undefined;
 /**
  * **How long a removed component whose async setup is still PENDING stays paused** (2026-10-22): long enough for
  * "away and straight back" to keep the in-flight setup (one setup, one fetch, never doubled), short enough that a
@@ -162,7 +163,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * core hears, so it is never released when removed — unless `@verajs/renderer/native-elements` is wired (`$ne`). Said
    * once per page. Production carries none of it (2026-10-21).
    */
-  if (__DEV__ && !saidBuiltIn && element.localName.indexOf('-') < 0 && (inserts as unknown as { $ne?: unknown }).$ne === undefined &&
+  if (__DEV__ && !saidBuiltIn && element.localName.indexOf('-') < 0 && seams.$ne === undefined &&
     !(element.ownerDocument.defaultView?.customElements as { getName?: (c: unknown) => string | null } | undefined)?.getName?.(element.constructor)) {
     saidBuiltIn = true;
     console.warn(diagnostic('core', `<${element.localName}>`, 'built-in-host-unwired', __DEV__ && PROSE['built-in-host-unwired']()));
@@ -191,7 +192,7 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
     /** The old generation's list goes; the new one is made by its first hook (`register`), so a fresh element writes none. */
     element._$h$ = undefined;
     /** A released root is cleared NOW, before the `'init'` inserts below put anything in it (the renderer's `$y`). */
-    (inserts as unknown as { $y?: (element: Node) => void }).$y?.(element);
+    seams.$y?.(element);
   }
   element._$g$ = (generation ?? 0) + 1;
   /** The document of its last connect: a move into ANOTHER keeps it and re-homes it (`rehomeElement`, the wrapper below). */
@@ -203,14 +204,14 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * mode is refused by `attachShadow` itself, in both builds); anything else that is not a root is light DOM.
    */
   const shadow =
-    options !== undefined && options.shadow !== undefined ? options.shadow : (inserts as unknown as { $S?: InitOptions['shadow'] }).$S;
+    options !== undefined && options.shadow !== undefined ? options.shadow : seams.$S;
   /**
    * **Whether the template owns the root** — `foreignNodes` (nodes placed in a component's root by anything other than its
    * own template): the component's own, else the app default `renderer({ foreignNodes })` (`$F`, which sets component
    * roots only — never a container handed to `renderInto`), else `'drop'`. Any value but `'preserve'` owns.
    */
   const owns =
-    (options !== undefined && options.foreignNodes !== undefined ? options.foreignNodes : (inserts as unknown as { $F?: InitOptions['foreignNodes'] }).$F) !==
+    (options !== undefined && options.foreignNodes !== undefined ? options.foreignNodes : seams.$F) !==
     'preserve';
   if (__DEV__) checkOptions(element, options, shadow);
   /** `persist`: seconds paused after a removal — a finite number, 0 or more (0: torn down at once); else 0, and development names it. */
@@ -453,7 +454,7 @@ export const retireElement = (element: ComponentElement) => {
     element._$v$ = undefined;
   }
   /** The renderer drops what its part holds of the component's JS — absent on a server, a no-op. */
-  (inserts as unknown as { $x?: (element: Node) => void }).$x?.(element);
+  seams.$x?.(element);
   element._$x$ = true;
 };
 
@@ -494,7 +495,7 @@ const checkOptions = (element: ComponentElement, options: InitOptions | undefine
     console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
   }
   const ownForeign = options?.foreignNodes;
-  const foreign = (inserts as unknown as { $F?: unknown }).$F;
+  const foreign = seams.$F;
   if (ownForeign === undefined && foreign !== undefined && !saidForeignDefault && !validForeign(foreign)) {
     saidForeignDefault = true;
     console.warn(diagnostic('core', 'renderer({ foreignNodes })', 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(foreign))));

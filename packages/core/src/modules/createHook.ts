@@ -1,4 +1,4 @@
-import type { Cell, ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Change } from '../types.js';
+import type { Cell, ComponentElement, Hook, HookCallback, HookCleanup, HookRecord, Change, Owned } from '../types.js';
 import { currentInstance, tracking, unlinkFrom } from '../store/store.js';
 import { enqueue } from './scheduler.js';
 import { diagnostic, misuse, reportUncaught } from '@verajs/shared-utils';
@@ -335,8 +335,6 @@ export const retireHook = (hook: HookRecord) => {
   spend(hook);
 };
 
-/** Something a hook's run owns: `$r` the run that last claimed it, `$h` its owning hook, `$d()` its disposal. `$`-named: cross-bundle. */
-type Owned = { $r: number; $h: HookRecord | undefined; $d(): void };
 /**
  * **What each hook's runs own** (2026-10-20): a side table, made at the first `own()`, so the hook class keeps
  * its shape and a page with nothing owned never builds it. Things a run creates or claims — an automatic `.map` list
