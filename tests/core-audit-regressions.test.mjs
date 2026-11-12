@@ -243,25 +243,17 @@ test('proxying the same object twice returns the same proxy', () => {
 
 /**
  * The same invariant an extensible object can still hit: a property defined non-writable *and*
- * non-configurable must be returned verbatim by the `get` trap. A store honors it for a slot locked
- * THROUGH it; a slot locked before the object went into the store is not seen (looking for it on every
- * first read of a nested object cost 13-19% on three engines), so the engine refuses the read with a
- * TypeError: a documented limit since rebuild-wins piece 2 (Brian, 2026-11-11/12), development says
- * `readonly-slot-unseen`. Locked through the store, the raw object comes back.
+ * non-configurable must be returned verbatim by the `get` trap. Caught on the cache-miss path, so
+ * the hot path never pays for it — the exact per-read descriptor check measured at +38% on a
+ * two-hop read.
  */
-test('an explicitly readonly nested property: locked before the store, the read throws; through the store, it is returned verbatim', () => {
+test('an explicitly readonly nested property is returned verbatim', () => {
   const raw = {};
   const inner = { b: 1 };
   Object.defineProperty(raw, 'locked', { value: inner, writable: false, configurable: false, enumerable: true });
   const state = core.createStore(raw);
-  const error = console.error;
-  console.error = () => {};
-  try { assert.throws(() => state.locked, TypeError); } finally { console.error = error; }
-  const through = core.createStore({});
-  const kept = { b: 1 };
-  Object.defineProperty(through, 'locked', { value: kept, writable: false, configurable: false, enumerable: true });
-  assert.equal(through.locked, kept, 'the raw object, not a proxy: the engine requires it');
-  assert.equal(through.locked.b, 1);
+  assert.equal(state.locked, inner, 'the raw object, not a proxy — the engine requires it');
+  assert.equal(state.locked.b, 1);
 });
 
 /** A frozen owner still tracks its own keys; only substitution is forbidden. */

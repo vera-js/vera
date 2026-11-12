@@ -257,14 +257,6 @@
       "fix": "Do not lock the slot with defineProperty; to read an object as it is on purpose, freeze the parent object."
     },
     {
-      "code": "readonly-slot-unseen",
-      "params": [
-        "key"
-      ],
-      "message": "read an object from `{key}`, a property locked with defineProperty (non-writable, non-configurable) before its object went into a store: the store did not see the lock, so the engine refuses this read.",
-      "fix": "Lock the slot through the store (`Object.defineProperty(state.obj, key, …)`), freeze the parent object, or do not lock the slot."
-    },
-    {
       "code": "render-loop",
       "params": [
         "frames"
