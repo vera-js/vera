@@ -611,6 +611,30 @@ from another machine, or after that is undone, has a variable changed.
   methods as own fields costs +40 B per hook. Reads tie in every form. Consequence: core's two classes stay as the
   measured hot-path exception, with these numbers recorded at the classes. (node 24, d8 15.9, SpiderMonkey, JSC;
   2026-11-12.)
+- **JavaScriptCore's FTL inline budget (170 bytecode cost per callee) can turn a SMALLER function into a slower page.**
+  Removing one descriptor read from the store's object-valued read path (the function a `get` trap calls on a cache
+  miss) made it small enough for FTL to fold into the trap; the trap then got inlined into its callers fewer times (50
+  vs 68 in one run's FTL log, `--printEachDFGFTLInlineCall`), and a row that calls an inherited method 1000 times per
+  pass ran 56–63% slower, but only after 10 other rows had trained the trap in the same process (alone: a tie; in
+  shuffled orders: a tie or a win). `--maximumFunctionForCallInlineCandidateBytecodeCostForFTL=60` or `=400`,
+  `--useFTLJIT=false` and `--maximumInliningDepth=1` each removed it. Consequence: store rows are also measured IN
+  SEQUENCE, fixed and shuffled (the seqrace tool), since an isolated window cannot see this. (JSC from jsvu, macOS;
+  2026-11-12.)
+- **V8 13.6 (node 24) tenures a workload's objects when its short-lived allocations go away.** The same change removed
+  one short-lived descriptor per cache miss; on a row that creates a store over 10 fresh arrays per op, node then ran
+  14 scavenges instead of 22 and 2 mark-compacts taking 2136 ms instead of 4 taking 1437 (+76% at steady state), while
+  a server render that creates a store per request ran 28% faster with 42% less GC. Consequence: an allocation-touching
+  change is measured on node with `--trace-gc` splits on both a long-lived and a per-request workload. (node 24 / V8
+  13.6, macOS; 2026-11-12.)
+- **A native arm64 cycle difference can exist with identical instructions, misses and inlining.** computed-create read
+  +7 to +15% in V8 cycles (threadrace, native) across every build after a pure module move, while cachegrind (x86 V8
+  under Rosetta) counted the same instructions (1490 vs 1497), the same misses and fewer mispredicts, and V8's inlining
+  trace showed identical decisions; reordering the bundle fixed JSC (+1.3%) but not V8. Consequence: a small-op cycle
+  difference with equal counts is reported as machine-code placement, not as a logic regression. (d8 15.9 arm64, Apple
+  silicon; 2026-11-12.)
+- **SIP strips `DYLD_*` from the children of a protected binary, so `perl -e 'alarm N; exec …'` cannot launch a jsvu
+  JavaScriptCore**: it then loads the system's framework and aborts on a missing symbol. Spawn engine shells directly
+  (node's `execFileSync` with `timeout`). (macOS 26; 2026-11-12.)
 
 ## Competitors, as their own benchmark entries write them
 
