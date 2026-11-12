@@ -42,16 +42,16 @@ const noRenderer = (out: unknown[]) => {
 export const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[], proxy: unknown) => {
   const list = seams.$M;
   const hook = tracking.hook;
-  if (list === undefined || hook === undefined || hook._y !== 50) {
+  if (list === undefined || hook === undefined || hook._priority !== 50) {
     /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
     /** `hasWarned`: once it is out, a render's `.map` is the native method again (no wrapper per call). */
-    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !hasWarned('lists-unwired') && !seams.$ss?.(0))
+    if (__DEV__ && list === undefined && hook !== undefined && hook._priority === 50 && !hasWarned('lists-unwired') && !seams.$ss?.(0))
       return unwiredList(method, proxy);
     return method;
   }
   return function (this: unknown, fn: unknown, ...rest: unknown[]) {
     if (this !== proxy || rest.length) return method.apply(this, [fn, ...rest]);
-    const out = list(proxy, obj, fn, hook, hook._o, method);
+    const out = list(proxy, obj, fn, hook, hook._owner, method);
     if (__DEV__ && seams.$rn !== true && !hasWarned('lists-no-renderer') && !seams.$ss?.(0)) noRenderer(out);
     return out;
   };

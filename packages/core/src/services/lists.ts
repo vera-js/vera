@@ -39,7 +39,7 @@ export const walkItems = (list: unknown, visit: (raw: unknown, item: unknown) =>
        * keeps the read monomorphic, where `cached`, shared by every object in the app, goes megamorphic.
        */
       const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
-      if (slot !== undefined && slot.o === value) visit(value, slot.p ?? value);
+      if (slot !== undefined && slot._owner === value) visit(value, slot._store ?? value);
       else {
         const item = nested(raw, i, value);
         if (item !== value) promote(value, item);

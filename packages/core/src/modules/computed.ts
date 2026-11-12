@@ -139,7 +139,7 @@ const releaseAll = () => {
      * swept cell is one nobody reads, so releasing is right.
      */
     const cell = proxyCallbacks.get(c)?.get('value');
-    if (c._w && (cell === undefined || cell.n === cell.d)) {
+    if (c._w && (cell === undefined || cell._positions === cell._tombstones)) {
       c._w = false;
       c._e = -1;
       unlinkFrom(c._h!, 0);

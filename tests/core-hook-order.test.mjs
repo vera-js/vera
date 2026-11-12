@@ -101,10 +101,10 @@ test('a render hook is priority 50 by its priority, never by its creation count 
   const el = doc.createElement(tag);
   doc.body.append(el);
   await tick();
-  const render = el._$h$.find((hook) => hook._y === 50);
+  const render = el._$h$.find((hook) => hook._priority === 50);
   assert.ok(render && renders === 1, 'CONTROL: the render hook ran its first pass');
   /** What a page that has created two billion hooks gives the next one. */
-  render._k = 2e9;
+  render._sequence = 2e9;
   el._$adopt$('late', 1);
   assert.equal(renders, 2, 'a prop arriving late re-runs the render: it is still in the render band');
   el.remove();

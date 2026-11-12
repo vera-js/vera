@@ -47,7 +47,7 @@ export const FIXED = new WeakSet<object>();
 /** The store `value` already has: its own field first, else the WeakMap; `null` is "hand back verbatim", `undefined` "not decided". */
 export const cached = (value: object): object | null | undefined => {
   const slot = (value as Record<symbol, Slot | undefined>)[PROXY];
-  return slot !== undefined && slot.o === value ? slot.p : proxies.get(value);
+  return slot !== undefined && slot._owner === value ? slot._store : proxies.get(value);
 };
 /**
  * **Is a write to `obj` free of setters, so it needs no property descriptor?** A DATA RECORD (its prototype
@@ -60,8 +60,8 @@ export const cached = (value: object): object | null | undefined => {
  */
 export const dataRecord = (obj: object): boolean => {
   const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
-  if (slot === undefined || slot.o !== obj) return false;
-  let d = slot.d;
+  if (slot === undefined || slot._owner !== obj) return false;
+  let d = slot._record;
   if (d === undefined) {
     const proto = Object.getPrototypeOf(obj);
     d = 0;
@@ -74,14 +74,14 @@ export const dataRecord = (obj: object): boolean => {
           break;
         }
     }
-    slot.d = d;
+    slot._record = d;
   }
   return d === 1;
 };
 /** A record's classification is dropped where it may have stopped being one (it is asked again on the next write). */
 export const unclassify = (obj: object) => {
   const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
-  if (slot !== undefined && slot.o === obj) slot.d = undefined;
+  if (slot !== undefined && slot._owner === obj) slot._record = undefined;
 };
 export const remember = (value: object, proxy: object | null) => {
   proxies.set(value, proxy);
@@ -93,7 +93,7 @@ export const remember = (value: object, proxy: object | null) => {
  * refuses it and keeps the WeakMap.
  */
 export const promote = (value: object, proxy: object | null) => {
-  Reflect.defineProperty(value, PROXY, { value: { o: value, p: proxy, d: undefined } satisfies Slot, writable: true, configurable: true });
+  Reflect.defineProperty(value, PROXY, { value: { _owner: value, _store: proxy, _record: undefined } satisfies Slot, writable: true, configurable: true });
 };
 
 /** A new proxy over `data` — over a FROZEN one, marked `FIXED`. */

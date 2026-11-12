@@ -31,7 +31,7 @@ export const GLOBAL = '_global';
 const SWEEP_FLOOR = 64;
 /**
  * The wake counter: every notification (one write, or one whole-array operation across all its keys) takes a new
- * number, and a hook it reached carries it (`e`), so an operation wakes each hook ONCE without allocating a set of the
+ * number, and a hook it reached carries it (`_lastWake`), so an operation wakes each hook ONCE without allocating a set of the
  * hooks it reached.
  */
 let wakes = 0;
@@ -60,7 +60,7 @@ export const track = (obj: object, prop: unknown) => {
      * objects).
      */
     if (props.size >= SWEEP_FLOOR) sweepIfDue(props);
-    props.set(prop, (cell = { a: undefined, ja: 0, h: undefined, j: undefined, m: 0, n: 0, d: 0 }));
+    props.set(prop, (cell = { _first: undefined, _firstAt: 0, _readers: undefined, _readerAt: undefined, _moves: 0, _positions: 0, _tombstones: 0 }));
   }
   /**
    * **Lazy in-order link reuse.** A hook's FIRST run links each read directly, skipping only a consecutive repeat: a
@@ -72,34 +72,34 @@ export const track = (obj: object, prop: unknown) => {
    * The common paths stay inline, and `track` stays small enough for V8 to inline into the traps:
    * `tests/core-inlining-budget.test.mjs` prints its bytecode against the limit in both builds.
    */
-  const s = sub.s;
-  const i = sub.i;
-  const n = cell.n;
+  const s = sub._sources;
+  const i = sub._cursor;
+  const n = cell._positions;
   /** The key's LAST reader (position n − 1). */
   const last = n === 0 ? undefined : readerAt(cell, n - 1);
   if (i < 0) {
     if (last === sub) return;
   } else {
     if (i < s.length && s[i] === cell) {
-      sub.i = i + 1;
+      sub._cursor = i + 1;
       return;
     }
     if (last === sub) {
       const at = slotAt(cell, n - 1);
       if (at < i) return;
       claim(sub, cell, at, i);
-      sub.i = i + 1;
+      sub._cursor = i + 1;
       return;
     }
     unlinkFrom(sub, i);
-    sub.i = -2;
+    sub._cursor = -2;
   }
   const slot = s.length;
   s.push(cell);
-  sub.x.push(n);
+  sub._places.push(n);
   if (n === 0) placeAt(cell, 0, sub, slot);
   else grow(cell, sub, slot);
-  cell.n = n + 1;
+  cell._positions = n + 1;
 };
 
 
@@ -113,12 +113,12 @@ export const track = (obj: object, prop: unknown) => {
  * skipped, so none is missed and none runs twice. A hook that JOINS during the walk is reached too.
  */
 export const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
-  let m = cell.m;
-  for (let p = 0; p < cell.n; p++) {
+  let m = cell._moves;
+  for (let p = 0; p < cell._positions; p++) {
     const hook = readerAt(cell, p);
     /** A tombstone (a reader that left), or one this wake already reached. */
-    if (hook === undefined || hook.e === epoch) continue;
-    hook.e = epoch;
+    if (hook === undefined || hook._lastWake === epoch) continue;
+    hook._lastWake = epoch;
     hook.$n(signal);
     /**
      * **The stamp again, after the run.** A raw or sync hook runs INSIDE this call, and a write it makes to a key it
@@ -126,9 +126,9 @@ export const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
      * would run it a second time through a second link to the same key. Re-stamping here restores what this loop gave
      * it, and only a write's loop pays for it, not every hook run.
      */
-    hook.e = epoch;
-    if (cell.m !== m) {
-      m = cell.m;
+    hook._lastWake = epoch;
+    if (cell._moves !== m) {
+      m = cell._moves;
       p = -1;
     }
   }
@@ -142,7 +142,7 @@ export const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
 export const trigger = (obj: object, prop: unknown, value: unknown, prevValue: unknown) => {
   const epoch = ++wakes;
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
+  if (cell !== undefined && cell._positions !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
   /**
    * **The count moves on EVERY write, read or not**: an unwatched `computed` caches its untracked value against it, and
    * its sources are often keys nobody reads, so counting only writes that woke someone would leave that cache stale. It
@@ -160,13 +160,13 @@ export const trigger = (obj: object, prop: unknown, value: unknown, prevValue: u
  */
 export const triggerAt = (obj: object, prop: unknown, value: unknown, prevValue: unknown, epoch: number) => {
   const cell = proxyCallbacks.get(obj)?.get(prop);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
+  if (cell !== undefined && cell._positions !== 0) wake(cell, { prop: prop as string, value, prevValue } as Change<unknown>, epoch);
 };
 
 const sweepIfDue = (keys: Map<unknown, Cell>) => {
   const at = (due ??= new WeakMap()).get(keys) ?? SWEEP_FLOOR;
   if (keys.size < at) return;
-  for (const [key, cell] of keys) if (cell.n === cell.d) keys.delete(key);
+  for (const [key, cell] of keys) if (cell._positions === cell._tombstones) keys.delete(key);
   due.set(keys, 2 * keys.size + SWEEP_FLOOR);
 };
 /**

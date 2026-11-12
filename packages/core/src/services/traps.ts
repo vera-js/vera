@@ -411,7 +411,7 @@ const handler: ProxyHandler<object> = {
   preventExtensions(obj) {
     /** The cache field leaves first, for the WeakMap: a non-extensible target's keys could no longer hide it. */
     const slot = (obj as Record<symbol, Slot | undefined>)[PROXY];
-    if (slot !== undefined && slot.o === obj && Reflect.deleteProperty(obj, PROXY)) proxies.set(obj, slot.p);
+    if (slot !== undefined && slot._owner === obj && Reflect.deleteProperty(obj, PROXY)) proxies.set(obj, slot._store);
     return Reflect.preventExtensions(obj);
   },
   /** Deleting a key changes both the key's value (to `undefined`, what a read now returns) and the shape. */
@@ -448,7 +448,7 @@ export const ITEMS = Symbol();
 /** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
 const items = (obj: object) => {
   const cell = proxyCallbacks.get(obj)?.get(ITEMS);
-  if (cell !== undefined && cell.n !== 0) wake(cell, { prop: GLOBAL, value: obj } as Change<unknown>, nextWake());
+  if (cell !== undefined && cell._positions !== 0) wake(cell, { prop: GLOBAL, value: obj } as Change<unknown>, nextWake());
 };
 const arrayHandler: ProxyHandler<object> = {
   ...handler,

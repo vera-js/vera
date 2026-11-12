@@ -36,24 +36,24 @@ export const proxyCallbacks = new WeakMap<object, Map<unknown, Cell>>();
 /**
  * **Unlinks `hook` from its sources `s[from..]`, each in O(1) amortized** (ORDER VARIANT): each link becomes a TOMBSTONE in its
  * cell, so the remaining readers keep subscription order; a cell compacts in one stable pass once tombstones pass half
- * its slots, and only that bumps its `m` (a wake in progress restarts then). Used where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached
+ * its slots, and only that bumps its `_moves` (a wake in progress restarts then). Used where a re-run's reads DIVERGE from its last run's (`track`), for the reads a re-run no longer reached
  * (`$t`), and with `from = 0` for retirement: links are strong, so this is what releases them.
  */
 export const unlinkFrom = (hook: HookRecord, from: number) => {
-  const s = hook.s;
-  const x = hook.x;
+  const s = hook._sources;
+  const x = hook._places;
   while (s.length > from) {
     const cell = s.pop()!;
     const pos = x.pop()!;
     /** A tombstone, in place: no reader moves, so the order of the rest is kept. */
     clearAt(cell, pos);
-    if (++cell.d * 2 > cell.n) compactCell(cell);
+    if (++cell._tombstones * 2 > cell._positions) compactCell(cell);
   }
 };
 
 /** One stable pass: live readers move down in order, each told its new position; tombstones go. */
 const compactCell = (cell: Cell) => {
-  const n = cell.n;
+  const n = cell._positions;
   let w = 0;
   for (let p = 0; p < n; p++) {
     const hook = readerAt(cell, p);
@@ -61,19 +61,19 @@ const compactCell = (cell: Cell) => {
     const slot = slotAt(cell, p);
     if (w !== p) {
       placeAt(cell, w, hook, slot);
-      hook.x[slot] = w;
+      hook._places[slot] = w;
     }
     w++;
   }
-  if (w === 0) cell.a = undefined;
-  if (cell.h !== undefined) {
+  if (w === 0) cell._first = undefined;
+  if (cell._readers !== undefined) {
     const keep = w > 0 ? w - 1 : 0;
-    cell.h.length = keep;
-    cell.j!.length = keep;
+    cell._readers.length = keep;
+    cell._readerAt!.length = keep;
   }
-  cell.n = w;
-  cell.d = 0;
-  cell.m = (cell.m + 1) % 0x3fffffff;
+  cell._positions = w;
+  cell._tombstones = 0;
+  cell._moves = (cell._moves + 1) % 0x3fffffff;
   /** Its LAST reader left: a computed's value cell lets its computed stop listening at once (`whenEmptied`). */
   if (w === 0 && emptied !== undefined) emptied.get(cell)?.();
 };
@@ -89,60 +89,60 @@ let emptied: WeakMap<Cell, () => void> | undefined;
 export const whenEmptied = (cell: Cell, fn: () => void) => (emptied ??= new WeakMap()).set(cell, fn);
 
 /**
- * **The cell's positions, in ONE place** (readability, Brian 2026-10-19). Position 0 is the inline first reader (`a`,
- * its slot `ja`); position k ≥ 1 is `h[k − 1]` / `j[k − 1]` (the arrays exist only from a second reader). Every other
+ * **The cell's positions, in ONE place** (readability, Brian 2026-10-19). Position 0 is the inline first reader (`_first`,
+ * its slot `_firstAt`); position k ≥ 1 is `_readers[k − 1]` / `_readerAt[k − 1]` (the arrays exist only from a second reader). Every other
  * line of the engine sees an ordered list through these four. They are only ever handed a `Cell`, which has ONE shape
  * (every field assigned at creation): keep it that way, or these shared hot helpers go megamorphic (BROWSER-LEDGER).
  */
-export const readerAt = (cell: Cell, p: number) => (p === 0 ? cell.a : cell.h![p - 1]);
-export const slotAt = (cell: Cell, p: number) => (p === 0 ? cell.ja : cell.j![p - 1]!);
+export const readerAt = (cell: Cell, p: number) => (p === 0 ? cell._first : cell._readers![p - 1]);
+export const slotAt = (cell: Cell, p: number) => (p === 0 ? cell._firstAt : cell._readerAt![p - 1]!);
 /** A reader and its slot placed at position `p`. */
 export const placeAt = (cell: Cell, p: number, hook: HookRecord, slot: number) => {
   if (p === 0) {
-    cell.a = hook;
-    cell.ja = slot;
+    cell._first = hook;
+    cell._firstAt = slot;
   } else {
-    cell.h![p - 1] = hook;
-    cell.j![p - 1] = slot;
+    cell._readers![p - 1] = hook;
+    cell._readerAt![p - 1] = slot;
   }
 };
 /** Position `p`'s recorded slot rewritten (`claim`). */
 const reslotAt = (cell: Cell, p: number, slot: number) => {
-  if (p === 0) cell.ja = slot;
-  else cell.j![p - 1] = slot;
+  if (p === 0) cell._firstAt = slot;
+  else cell._readerAt![p - 1] = slot;
 };
 /** Position `p` emptied: a tombstone. */
 const clearAt = (cell: Cell, p: number) => {
-  if (p === 0) cell.a = undefined;
-  else cell.h![p - 1] = undefined;
+  if (p === 0) cell._first = undefined;
+  else cell._readers![p - 1] = undefined;
 };
 /** A second or later reader: the arrays, created on the first need (`track` links the first inline). */
 export const grow = (cell: Cell, hook: HookRecord, slot: number) => {
-  if (cell.h === undefined) {
-    cell.h = [hook];
-    cell.j = [slot];
+  if (cell._readers === undefined) {
+    cell._readers = [hook];
+    cell._readerAt = [slot];
   } else {
-    cell.h.push(hook);
-    cell.j!.push(slot);
+    cell._readers.push(hook);
+    cell._readerAt!.push(slot);
   }
 };
 
 /**
  * **A re-run CLAIMS a link it made last run, further along its sources** (2026-10-19): `track`
- * found that the key's last link is this hook's, beyond the cursor `i`, so the read is one it made last run in a
+ * found that the key's last link is this hook's, beyond the cursor `_cursor`, so the read is one it made last run in a
  * different place (a reorder: rows 1 and 998 swapped). The link is SWAPPED to the cursor, and both moved links' cells
  * are told their new places, so nothing is unlinked and relinked: a plain `.map` swap re-matched about 3 000 reads by
  * unlinking and relinking everything after the first swapped row (Firefox swap +9%, measured). Out of line,
  * so `track` stays inside the inlining budget. BOTH moved links' cells are rewritten (each cell records where its
- * reader's link sits in `s`): missing one would make a later unlink remove the wrong link, a silent lost subscription.
+ * reader's link sits in `_sources`): missing one would make a later unlink remove the wrong link, a silent lost subscription.
  *
  * **For a LIST hook (design B), a swap must never cross a row's segment**: there a link's position IS its row,
  * so moving one outside the open segment `[lo, h)` would hand it to another row (stale). B's `track` claims only when
- * `at < h` and relinks otherwise; an ordinary hook's segment is all of `s`.
+ * `at < h` and relinks otherwise; an ordinary hook's segment is all of `_sources`.
  */
 export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
-  const s = hook.s;
-  const x = hook.x;
+  const s = hook._sources;
+  const x = hook._places;
   const other = s[i]!;
   const otherAt = x[i]!;
   const mine = x[at]!;

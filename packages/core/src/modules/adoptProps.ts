@@ -63,7 +63,7 @@ function adopt(this: ComponentElement, key: string, value: unknown) {
     if (hooks !== undefined)
       for (let i = 0; i < hooks.length; i++) {
         const hook = hooks[i]!;
-        if (hook._y === RENDER_PRIORITY) hook.$n({}, true);
+        if (hook._priority === RENDER_PRIORITY) hook.$n({}, true);
       }
 }
 

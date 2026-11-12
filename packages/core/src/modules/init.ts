@@ -408,7 +408,7 @@ export const rehomeElement = (element: ComponentElement) => {
   if (hooks !== undefined)
     for (let i = 0; i < hooks.length; i++) {
       const hook = hooks[i]!;
-      if (hook._y === LAYOUT_PRIORITY || hook._y === EFFECT_PRIORITY) hook.$n();
+      if (hook._priority === LAYOUT_PRIORITY || hook._priority === EFFECT_PRIORITY) hook.$n();
     }
   adopted(element);
 };

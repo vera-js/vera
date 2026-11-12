@@ -88,81 +88,111 @@ export type HookCleanup = () => void;
  */
 export type HookCallback = <V>(change?: Change<V>, init?: boolean) => void | HookCleanup | PromiseLike<unknown>;
 
-/** An element's hooks in run order: sorted by `_k` (priority, then creation). */
+/** An element's hooks in run order: sorted by `_priority`, then `_sequence` (creation). */
 export type Hooks = HookRecord[];
 /**
  * **One key's CELL** (2026-10-19): the hooks that read the key, held STRONGLY, each with its link's index in
- * that hook's source list. The FIRST reader sits inline (`a`, its slot `ja`); the arrays `h` / `j` exist only from a
+ * that hook's source list. The FIRST reader sits inline (`_first`, its slot `_firstAt`); the arrays `_readers` / `_readerAt` exist only from a
  * second reader (position k ≥ 1 is `h[k − 1]` / `j[k − 1]`). Most keys have one reader, so a key costs one allocation:
  * cells as two arrays in an object were three, and a store row reading two fields allocated twice what it had (the
  * Chrome create10k profile, +16 ms per create). Objects and numbers never share an array — Firefox's cold code pays
  * ~25% when they do (BROWSER-LEDGER). Every field is assigned at creation: one shape.
  *
- * Readers keep SUBSCRIPTION ORDER. A leaving reader leaves a TOMBSTONE (`undefined`); `n` counts positions, tombstones
- * included, and `d` counts the tombstones. Once they pass half the positions the cell compacts in one stable pass
- * (amortized O(1) per leave). Only a compaction moves readers, so only it bumps `m` (which wraps): a wake in progress
- * that sees `m` change restarts. There is no `WeakRef` — a `deref()` costs 17–36 ns per wake (BROWSER-LEDGER) — so a
+ * Readers keep SUBSCRIPTION ORDER. A leaving reader leaves a TOMBSTONE (`undefined`); `_positions` counts positions, tombstones
+ * included, and `_tombstones` counts them. Once they pass half the positions the cell compacts in one stable pass
+ * (amortized O(1) per leave). Only a compaction moves readers, so only it bumps `_moves` (which wraps): a wake in progress
+ * that sees `_moves` change restarts. There is no `WeakRef` — a `deref()` costs 17–36 ns per wake (BROWSER-LEDGER) — so a
  * hook is unlinked exactly at its retirement.
  */
-export type Cell = { a: HookRecord | undefined; ja: number; h: (HookRecord | undefined)[] | undefined; j: number[] | undefined; m: number; n: number; d: number };
+export type Cell = {
+  /** The first reader, inline, and its slot in that reader's `_places`. */
+  _first: HookRecord | undefined;
+  _firstAt: number;
+  /** Readers from the second on, and their slots (both absent until a second reader). */
+  _readers: (HookRecord | undefined)[] | undefined;
+  _readerAt: number[] | undefined;
+  /** Bumped (wrapping) by each compaction: a wake in progress that sees it change restarts. */
+  _moves: number;
+  /** Positions in use, tombstones included, and how many of them are tombstones. */
+  _positions: number;
+  _tombstones: number;
+};
 /**
- * What core keeps ON a raw object about it (under a symbol private to each copy of core): `o` the owner (inheritance-safe),
- * `p` its store (or `null`: hand back verbatim), `d` whether it is a DATA RECORD (`1` yes, `0` no, `undefined` not yet asked).
+ * What core keeps ON a raw object about it (under a symbol private to each copy of core): `_owner` the owner (inheritance-safe),
+ * `_store` its store (or `null`: hand back verbatim), `_record` whether it is a DATA RECORD (`1` yes, `0` no, `undefined` not yet asked).
  */
-export type Slot = { o: object; p: object | null; d: 0 | 1 | undefined };
+export type Slot = {
+  /** The object the slot belongs to (a slot is inherited through a prototype, so it names its own object). */
+  _owner: object;
+  /** Its store, or `null`: hand the object back as it is. */
+  _store: object | null;
+  /** Whether it is a DATA RECORD: `1` yes, `0` no, `undefined` not asked yet. */
+  _record: 0 | 1 | undefined;
+};
 
 /**
  * **A hook — ONE object, every field declared** (2026-10-11). It replaced three closures, two
  * contexts and expandos on functions per hook. Core's `HookState` class is the only implementation; nothing outside
  * core reads these fields except through `$n`.
  *
- * Subscriptions, kept ON the hook so it can leave them (exact unsubscription): `s`/`x` below, the cells it
+ * Subscriptions, kept ON the hook so it can leave them (exact unsubscription): `_sources`/`_places` below, the cells it
  * reads and its place in each. Retiring unlinks it from every one, so a removed component leaves nothing in a store.
  * (This replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
  * strong, so retirement is what releases them.)
  *
- * **Run order is `_y` (priority), then `_k` (creation sequence: parent-first, then registration order) — two fields,
+ * **Run order is `_priority`, then `_sequence` (creation: parent-first, then registration order) — two fields,
  * never one packed number.** A packed `priority × 1e9 + sequence` (2026-10-08 → 10-11) misordered close fractional
  * priorities, collided past priority ≈ 9e6 (2^53), and — the sequence being global — read a priority-50 hook as 51 once
- * a page had created 1e9 hooks. The scheduler's fields: `_o` is the owner whose window a deferred flush waits on, `_in` says it is queued now, and
- * `_f`/`_r` are the flush its runs are counted in and the count.
+ * a page had created 1e9 hooks. The scheduler's fields: `_owner` is the owner whose window a deferred flush waits on, `_queued` says it is queued now, and
+ * `_flush`/`_flushRuns` are the flush its runs are counted in and the count.
  */
 export type HookRecord = {
   /** The owner: an element, or any object owning a value (a `computed`'s). */
-  _o: ComponentElement;
+  _owner: ComponentElement;
   /** The owner's generation when the hook was made; any other value retires it. */
-  _g: number | undefined;
+  _generation: number | undefined;
   /** Its priority (lower runs first) and its creation sequence — two fields, compared in that order. */
-  _y: number;
-  _k: number;
+  _priority: number;
+  _sequence: number;
   /** 0 raw (core-internal: runs inside every write), 1 queued (one run per flush), 2 sync (`effect`'s `timing: 'sync'`). */
-  _m: number;
-  /** The cleanup the last run returned, and the signal of the first write since the last run. */
-  _c: HookCleanup | undefined;
-  _q: Change<unknown> | undefined;
-  _in: boolean;
-  _f: number;
-  _r: number;
+  _mode: number;
+  /** The cleanup the last run returned. */
+  _cleanup: HookCleanup | undefined;
+  /** The signal of the first write since the last run. */
+  _change: Change<unknown> | undefined;
+  /** Whether it is queued for the current flush now. */
+  _queued: boolean;
+  /** The flush its runs are counted in, and how many it ran there (a self-feeding loop is held past the second). */
+  _flush: number;
+  _flushRuns: number;
   /**
-   * **Its sources, with in-order link reuse**: `s` is ONE flat array, `[cell, at, cell, at, …]`:
-   * each cell it reads and where it sits in that cell. `v` counts its runs (0: never run). `i` is the run's cursor INTO
-   * `s` (it steps by 2): `-1` on a FIRST run, which links each read directly (lazy reuse: a hook never re-run pays
-   * nothing for reuse); from the second run, a read matching `s[i]` just advances it, and the first read that DIFFERS
+   * **Its sources, with in-order link reuse**: `_sources` is ONE flat array, `[cell, at, cell, at, …]`:
+   * each cell it reads and where it sits in that cell. `v` counts its runs (0: never run). `_cursor` is the run's cursor INTO
+   * `_sources` (it steps by 2): `-1` on a FIRST run, which links each read directly (lazy reuse: a hook never re-run pays
+   * nothing for reuse); from the second run, a read matching `_sources[_cursor]` just advances it, and the first read that DIFFERS
    * unlinks the rest at once and links directly from there (`-2`), so every read is linked the moment it is made (a run
    * that reads a key and then writes it must hear its own write). After a run that never diverged, what it did not
-   * reach (`s[i..]`) leaves. A repeated read needs no stamp: it is skipped when the key's LAST link is this hook's and
-   * was made this run (`track`). `e` is the last
+   * reach (`_sources[_cursor..]`) leaves. A repeated read needs no stamp: it is skipped when the key's LAST link is this hook's and
+   * was made this run (`track`). `_lastWake` is the last
    * wake that reached it, so one write wakes it once.
    */
-  s: Cell[];
-  x: number[];
+  /** The cells it reads, in read order. */
+  _sources: Cell[];
+  /** Where it sits in each of those cells (the slot `_sources[k]` holds it at). */
+  _places: number[];
+  /**
+   * Its run count. **Read by another bundle**: the keyed module compares a list's committed run against its parent
+   * hook's `v`, so this name is part of the cross-bundle record (never mangled: no `_` prefix, never renamed alone).
+   */
   v: number;
-  i: number;
-  e: number;
+  /** The run's cursor into `_sources` (steps by 2; `-1` first run, `-2` diverged). */
+  _cursor: number;
+  /** The last wake that reached it. */
+  _lastWake: number;
   /** Development: the last run queued by a hold, its run of consecutive held frames, and the hook that queued it. */
-  _hf?: number;
-  _s?: number;
-  _b?: HookRecord;
+  _heldAt?: number;
+  _heldFrames?: number;
+  _heldBy?: HookRecord;
   /**
    * **The ONE place a hook is handed a change** — a write reaching it, a first pass, or a caller running the hook
    * core's raw hook (internal)/`effect` with a `priority` returned. The single tracked-run choke point native signals would plug into.

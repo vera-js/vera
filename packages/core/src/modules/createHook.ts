@@ -88,10 +88,10 @@ export const runCleanup = (cleanup: HookCleanup, owner?: ComponentElement | null
  * to run again) nor keep alive what it captured.
  */
 const spend = (hook: HookRecord) => {
-  const cleanup = hook._c;
+  const cleanup = hook._cleanup;
   if (cleanup !== undefined) {
-    hook._c = undefined;
-    runCleanup(cleanup, hook._o);
+    hook._cleanup = undefined;
+    runCleanup(cleanup, hook._owner);
   }
 };
 
@@ -110,7 +110,7 @@ export const MODE_QUEUED = QUEUED;
 export const MODE_SYNC = SYNC;
 export const MODE_RAW = RAW;
 
-/** Every hook's creation, in order: `_k`, which breaks ties within one priority. */
+/** Every hook's creation, in order: `_sequence`, which breaks ties within one priority. */
 let created = 0;
 
 /**
@@ -131,46 +131,46 @@ let created = 0;
  * A throw is isolated here (`reportHookError`): every run goes through `$t`, so no caller needs its own catch.
  */
 class HookState implements HookRecord {
-  declare _o: ComponentElement;
-  declare _g: number | undefined;
-  declare _y: number;
-  declare _k: number;
-  declare _m: number;
-  declare _c: HookCleanup | undefined;
-  declare _q: Change<unknown> | undefined;
-  declare _in: boolean;
-  declare _f: number;
-  declare _r: number;
-  declare s: Cell[];
-  declare x: number[];
+  declare _owner: ComponentElement;
+  declare _generation: number | undefined;
+  declare _priority: number;
+  declare _sequence: number;
+  declare _mode: number;
+  declare _cleanup: HookCleanup | undefined;
+  declare _change: Change<unknown> | undefined;
+  declare _queued: boolean;
+  declare _flush: number;
+  declare _flushRuns: number;
+  declare _sources: Cell[];
+  declare _places: number[];
   declare v: number;
-  declare i: number;
-  declare e: number;
+  declare _cursor: number;
+  declare _lastWake: number;
   /** The callback: the effect, or a render pass. */
   declare _cb: HookCallback;
   /** Development: an async callback is named once per hook, and how deep a SYNC hook's own writes re-entered it. */
   declare _wa?: boolean;
   declare _dp?: number;
-  declare _hf?: number;
-  declare _s?: number;
-  declare _b?: HookRecord;
+  declare _heldAt?: number;
+  declare _heldFrames?: number;
+  declare _heldBy?: HookRecord;
 
   constructor(owner: ComponentElement, callback: HookCallback, priority: number, mode: number) {
-    this._o = owner;
-    this._g = owner._$g$;
-    this._y = priority;
-    this._k = ++created;
-    this._m = mode;
-    this._c = undefined;
-    this._q = undefined;
-    this._in = false;
-    this._f = 0;
-    this._r = 0;
-    this.s = [];
-    this.x = [];
+    this._owner = owner;
+    this._generation = owner._$g$;
+    this._priority = priority;
+    this._sequence = ++created;
+    this._mode = mode;
+    this._cleanup = undefined;
+    this._change = undefined;
+    this._queued = false;
+    this._flush = 0;
+    this._flushRuns = 0;
+    this._sources = [];
+    this._places = [];
     this.v = 0;
-    this.i = 0;
-    this.e = 0;
+    this._cursor = 0;
+    this._lastWake = 0;
     this._cb = callback;
     /**
      * Created BY a server render's tree — inside a running hook or a setup, or owned by a node — during its turn: unlinked
@@ -191,16 +191,16 @@ class HookState implements HookRecord {
   }
   stop() {
     retireHook(this);
-    this._g = NaN;
+    this._generation = NaN;
   }
 
   $n(signal?: Change<unknown>, init?: boolean) {
-    const owner = this._o;
-    if (owner._$g$ !== this._g || (!init && owner.isConnected === false)) return;
-    if (init || this._m === RAW) return this.$t(signal, init);
+    const owner = this._owner;
+    if (owner._$g$ !== this._generation || (!init && owner.isConnected === false)) return;
+    if (init || this._mode === RAW) return this.$t(signal, init);
     /** A write: remembered, then queued — or, for a sync hook, run at once. */
-    this._q ??= signal;
-    if (this._m === QUEUED) {
+    this._change ??= signal;
+    if (this._mode === QUEUED) {
       try {
         enqueue(this);
       } catch (error) {
@@ -216,7 +216,7 @@ class HookState implements HookRecord {
     if (__DEV__) {
       const depth = this._dp ?? 0;
       if (depth >= 50) {
-        this._q = undefined;
+        this._change = undefined;
         console.error(diagnostic('core', "a 'sync' effect", 'sync-loop', __DEV__ && PROSE['sync-loop']()));
         return;
       }
@@ -230,21 +230,21 @@ class HookState implements HookRecord {
   }
 
   $q() {
-    const signal = this._q;
-    this._q = undefined;
-    const owner = this._o;
-    if (owner._$g$ === this._g && owner.isConnected !== false) this.$t(signal);
+    const signal = this._change;
+    this._change = undefined;
+    const owner = this._owner;
+    if (owner._$g$ === this._generation && owner.isConnected !== false) this.$t(signal);
   }
 
   /**
    * **The run, tracked**: what it reads subscribes it. A raw hook just runs; any other runs its previous cleanup first
    * and keeps a returned FUNCTION as the next — an `async` callback returns a promise, which was called as a cleanup on
    * the next run and on removal (`[vera] a hook threw:` twice, measured 2026-10-09); now an async effect just runs.
-   * The cleanup stays ON the hook (`_c`), where removal's walk finds it (`retire`); an owner that removed itself during
+   * The cleanup stays ON the hook (`_cleanup`), where removal's walk finds it (`retire`); an owner that removed itself during
    * this very run has already been walked, so its cleanup runs at once rather than waiting on a walk that is over.
    */
   $t(signal?: Change<unknown>, init?: boolean) {
-    const owner = this._o;
+    const owner = this._owner;
     const outer = tracking.hook;
     tracking.hook = this;
     /**
@@ -258,17 +258,17 @@ class HookState implements HookRecord {
      * reconcile as ONE run, so nothing read by any of them is lost and the nesting links nothing twice. (A key re-read in
      * one run after ANOTHER hook read it can still hold a second link — over-subscription, never an extra run, thanks to the
      * wake loop's re-stamp (`createProxy.ts`); a dedupe in `track` would cost every read.) (2026-10-22: the nested
-     * run used to restart the cursor and reconcile `s` to ITS reads alone, assuming it read at least what the outer run
+     * run used to restart the cursor and reconcile `_sources` to ITS reads alone, assuming it read at least what the outer run
      * had; a callback that guards against re-entry — `if (busy) return`, as `data-vd-list` does — reads NOTHING, which
      * unlinked every source and left the hook deaf. `tests/core-nested-run-links.test.mjs`.)
      */
     const nested = outer === this;
     const first = this.v === 0;
     this.v++;
-    if (!nested) this.i = first ? -1 : 0;
+    if (!nested) this._cursor = first ? -1 : 0;
     let ok = false;
     try {
-      if (this._m === RAW) {
+      if (this._mode === RAW) {
         this._cb(signal, init);
         ok = true;
         return;
@@ -276,11 +276,11 @@ class HookState implements HookRecord {
       spend(this);
       const out = this._cb(signal, init);
       const cleanup = typeof out === 'function' ? out : undefined;
-      this._c = cleanup;
+      this._cleanup = cleanup;
       if (__DEV__ && !this._wa && typeof (out as { then?: unknown } | undefined)?.then === 'function') {
         this._wa = true;
-        const priority = this._y;
-        const hook = priority === 60 ? "a 'layout' effect" : this._m === SYNC ? "a 'sync' effect" : 'an effect';
+        const priority = this._priority;
+        const hook = priority === 60 ? "a 'layout' effect" : this._mode === SYNC ? "a 'sync' effect" : 'an effect';
         console.warn(diagnostic('core', `${hook}${owner.localName ? ` on <${owner.localName}>` : ''}`, 'async-callback', __DEV__ && PROSE['async-callback']()));
       }
       ok = true;
@@ -291,7 +291,7 @@ class HookState implements HookRecord {
     } finally {
       tracking.hook = outer;
       /** A re-run that matched its last run's reads to the end of what it read: the sources it no longer reached leave. */
-      if (ok && !nested && this.i >= 0 && this.i < this.s.length) unlinkFrom(this, this.i);
+      if (ok && !nested && this._cursor >= 0 && this._cursor < this._sources.length) unlinkFrom(this, this._cursor);
     }
   }
 }
@@ -391,7 +391,7 @@ const disposeOwned = (hook: HookRecord) => {
     o[r]!.$d();
   }
 };
-export const ownerOf = (hook: HookRecord) => hook._o;
+export const ownerOf = (hook: HookRecord) => hook._owner;
 
 /**
  * Registers a hook on `owner` at `priority` and returns it. A hook created while a component is being set up, for an
@@ -411,7 +411,7 @@ export const register = (owner: ComponentElement, callback: HookCallback, priori
   const hooks = (owner._$h$ ??= []);
   let at = hooks.length;
   hooks.push(hook);
-  while (at > 0 && hooks[at - 1]!._y > hook._y) {
+  while (at > 0 && hooks[at - 1]!._priority > hook._priority) {
     hooks[at] = hooks[at - 1]!;
     at--;
   }

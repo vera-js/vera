@@ -209,7 +209,7 @@ test('free-standing computeds over a key NEVER written, each read by a component
  * one per run would leave the rest behind: 100 components re-rendered 10× each, removed, leave nothing.
  *
  * In the DEVELOPMENT build this row also holds the scheduler's diagnostics to the same bar: its `running` and each
- * pass's `_b` (the loop warning's "who wrote") were never cleared after a flush, so the last hooks run — and their
+ * pass's `_heldBy` (the loop warning's "who wrote") were never cleared after a flush, so the last hooks run — and their
  * components — stayed reachable after removal, in development only. This row found it (one hook left, dev only) and
  * goes red in development if the scheduler's `finally` stops clearing them.
  */

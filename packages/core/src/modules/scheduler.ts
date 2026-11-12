@@ -13,15 +13,15 @@ import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js'
  * pass is taken (`regroup`, below) — linear, where a sort was n log n.
  */
 let queue: HookRecord[] = [];
-/** Run order: priority (`_y`), then creation (`_k`) — two fields, never packed into one number (see `HookRecord`). */
-const runsBefore = (a: HookRecord, b: HookRecord) => a._y < b._y || (a._y === b._y && a._k < b._k);
+/** Run order: priority (`_priority`), then creation (`_sequence`) — two fields, never packed into one number (see `HookRecord`). */
+const runsBefore = (a: HookRecord, b: HookRecord) => a._priority < b._priority || (a._priority === b._priority && a._sequence < b._sequence);
 let next = 0;
 let unsorted = false;
 /** The array a regroup fills, swapped with `queue` — kept, so a regroup allocates nothing. */
 let spare: HookRecord[] = [];
 /** The distinct priorities a regroup found, ascending — in practice two or three. */
 const priorities: number[] = [];
-const created = (a: HookRecord, b: HookRecord) => a._k - b._k;
+const created = (a: HookRecord, b: HookRecord) => a._sequence - b._sequence;
 
 /**
  * **Puts the rest of the queue back in run order — in linear time, without a sort** (2026-10-16). A
@@ -37,7 +37,7 @@ const regroup = () => {
   const end = queue.length;
   priorities.length = 0;
   for (let i = next; i < end; i++) {
-    const y = queue[i]!._y;
+    const y = queue[i]!._priority;
     let at = priorities.length;
     while (at > 0 && priorities[at - 1]! > y) at--;
     if (priorities[at - 1] !== y) priorities.splice(at, 0, y);
@@ -50,9 +50,9 @@ const regroup = () => {
     let broken = false;
     for (let i = next; i < end; i++) {
       const pass = queue[i]!;
-      if (pass._y !== y) continue;
-      if (pass._k < previous) broken = true;
-      previous = pass._k;
+      if (pass._priority !== y) continue;
+      if (pass._sequence < previous) broken = true;
+      previous = pass._sequence;
       spare.push(pass);
     }
     if (broken) {
@@ -138,9 +138,9 @@ let running: HookRecord | undefined;
  */
 export const enqueue = (pass: HookRecord) => {
   /** Development: which pass's run queued this one — the hook a loop warning names is the one that WRITES. */
-  if (__DEV__) pass._b = flushing ? running : undefined;
-  if (!pass._in) {
-    pass._in = true;
+  if (__DEV__) pass._heldBy = flushing ? running : undefined;
+  if (!pass._queued) {
+    pass._queued = true;
     /** Only a pass arriving OUT of key order needs a sort — passes queued in creation order never pay one. */
     if (next < queue.length && runsBefore(pass, queue[queue.length - 1]!)) unsorted = true;
     queue.push(pass);
@@ -148,7 +148,7 @@ export const enqueue = (pass: HookRecord) => {
   if (scheduled || flushing) return;
   scheduled = true;
   try {
-    renderScheduler(drain, pass._o ?? undefined);
+    renderScheduler(drain, pass._owner ?? undefined);
   } catch (error) {
     scheduled = false;
     throw error;
@@ -166,19 +166,19 @@ export const enqueue = (pass: HookRecord) => {
  * times in one flush — an automatic list's parent, once per updated row, when the list cannot commit its rows itself —
  * and every re-queue past the second run used to ask for its own frame and timer (98 for a 100-row update); in a
  * browser each frame callback is followed by a microtask checkpoint, so each could drain the pass again. Only the FIRST
- * crossing (`_r === 3`) asks now; later re-queues in the same flush reach 4, 5, … and ask nothing. A new flush resets
- * `_r`, so a write in an unrelated flush still runs the pass there, and its frame still queues it, as before.
- * Not a field of its own: one more field per hook cost hook CREATION +2.4% on SpiderMonkey (measured, 12/12). Not `_in`
+ * crossing (`_flushRuns === 3`) asks now; later re-queues in the same flush reach 4, 5, … and ask nothing. A new flush resets
+ * `_flushRuns`, so a write in an unrelated flush still runs the pass there, and its frame still queues it, as before.
+ * Not a field of its own: one more field per hook cost hook CREATION +2.4% on SpiderMonkey (measured, 12/12). Not `_queued`
  * either: marking a held pass "queued" would make every write ignore it until its frame, and a hidden tab's frame is a
  * timer throttled to a second or a minute, and `flush()` would skip it.
  */
 const hold = (pass: HookRecord) => {
-  if (pass._r !== 3) return;
+  if (pass._flushRuns !== 3) return;
   if (__DEV__) loopWarning(pass);
   frameOrTimer(() => {
-    if (__DEV__) pass._hf = 1;
+    if (__DEV__) pass._heldAt = 1;
     enqueue(pass);
-  }, pass._o ?? undefined);
+  }, pass._owner ?? undefined);
 };
 
 /**
@@ -195,12 +195,12 @@ const drain = () => {
     while (next < queue.length) {
       if (unsorted) regroup();
       const pass = queue[next++];
-      pass._in = false;
-      if (pass._f !== flushId) {
-        pass._f = flushId;
-        pass._r = 0;
+      pass._queued = false;
+      if (pass._flush !== flushId) {
+        pass._flush = flushId;
+        pass._flushRuns = 0;
       }
-      if (++pass._r! > 2) hold(pass);
+      if (++pass._flushRuns! > 2) hold(pass);
       else {
         if (__DEV__) running = pass;
         pass.$q();
@@ -208,12 +208,12 @@ const drain = () => {
     }
   } finally {
     /**
-     * Development: `running` and each pass's `_b` are read only DURING a flush (the loop warning names the writer), and
+     * Development: `running` and each pass's `_heldBy` are read only DURING a flush (the loop warning names the writer), and
      * left set they kept the last hooks that ran — and through them their components — alive after removal, in
      * development only (found 2026-10-10 by tests/core-subscription-sweep's re-render row: one hook left, dev only).
      */
     if (__DEV__) {
-      for (let i = 0; i < queue.length; i++) queue[i]._b = undefined;
+      for (let i = 0; i < queue.length; i++) queue[i]._heldBy = undefined;
       running = undefined;
     }
     queue = [];
@@ -264,13 +264,13 @@ const LABELS: Record<number, string> = { 50: 'render', 60: "a 'layout' effect", 
 
 const loopWarning = (pass: HookRecord) => {
   /** Held again after a run its last hold queued: one more consecutive frame. Anything else starts a new count. */
-  pass._s = pass._hf ? pass._s! + 1 : 1;
-  pass._hf = 0;
-  const element = pass._o;
-  if (pass._s < LIMIT || !element || exempt.has(element)) return;
-  const writer = pass._b ?? pass;
+  pass._heldFrames = pass._heldAt ? pass._heldFrames! + 1 : 1;
+  pass._heldAt = 0;
+  const element = pass._owner;
+  if (pass._heldFrames < LIMIT || !element || exempt.has(element)) return;
+  const writer = pass._heldBy ?? pass;
   /** Once per element: each looping component is its own mistake. */
-  warnOnce('core', `${LABELS[writer._y] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && (() => PROSE['render-loop'](String(LIMIT))), element);
+  warnOnce('core', `${LABELS[writer._priority] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && (() => PROSE['render-loop'](String(LIMIT))), element);
 };
 
 /**
