@@ -228,6 +228,8 @@ const CLAIMS = new Map([
   ['packages/ssr/README.md#1e3a0a07fa', "not a promise: the instance marker's behavior, no message"], // **It only ever produces the component it was written for**: a copy of it on another tag is
   ['packages/ssr/README.md#777bd846a5', 'ssr-styles-vary'], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
   ['packages/core/README.md#06311ae242', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // (moved from the store README, 2026-10-22) An evaluation that throws is reported through the `'error'` insert rather than escaping, e
+  ['llms.txt#32ada3c499', 'pinned by tests/core-store-refused-same.test.mjs: a same value onto a locked key is no change; same-onto-locked in development'], // createStore's row: D14b
+  ['packages/core/README.md#2837d89c1e', 'pinned by tests/core-store-refused-same.test.mjs: no throw, reported once per key in development, a change still throws'], // the same-value-onto-locked paragraph
   ['llms.txt#718a14a1c7', 'pinned by tests/core-store-wired-late.test.mjs: a pre-read unclaimed value stays as it was; wired-late in development'], // createStore's row: wire store modules first
   ['packages/core/README.md#56dbd738da', 'pinned by tests/core-store-wired-late.test.mjs: wired-late said once in development, never in production'], // the wire-store-modules-first paragraph
   ['llms.txt#6b693ad9fb', 'pinned by tests/core-store-subclass-mutator.test.mjs: a subclass override\'s own field untracked, and the warning said once per class'], // createStore's row: a subclass's own mutator

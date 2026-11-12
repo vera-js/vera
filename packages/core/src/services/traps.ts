@@ -205,6 +205,20 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
 const refusedWrite: (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => TypeError = __DEV__
   ? (obj, prop, verb) => new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))))
   : () => new TypeError(misuse('createStore', 'store-refused', false));
+/**
+ * Development: the keys a same-value write met that the language would refuse to write (D14b, Brian's ruling
+ * 2026-11-11: a documented limit). Production treats that write as no change, as for any key; development reports it
+ * once per key per object. Module-level because "once" spans every write; weak, so nothing is kept alive.
+ */
+const saidSame = /* @__PURE__ */ new WeakMap<object, Set<PropertyKey>>();
+const sameOntoLocked = (obj: object, prop: PropertyKey) => {
+  if (Reflect.getOwnPropertyDescriptor(obj, prop)?.writable !== false && !Object.isFrozen(obj)) return;
+  let keys = saidSame.get(obj);
+  if (keys === undefined) saidSame.set(obj, (keys = new Set()));
+  if (keys.has(prop)) return;
+  keys.add(prop);
+  console.error(diagnostic('core', 'a store write', 'same-onto-locked', __DEV__ && PROSE['same-onto-locked'](String(prop))));
+};
 /** Development: what the language refused the write or delete FOR, derived from the target. */
 const refusal = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
   const key = `\`${String(prop)}\``;
@@ -316,8 +330,11 @@ const handler: ProxyHandler<object> = {
       (same(prevValue, value) ||
         (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value)) &&
       (prevValue !== undefined || Object.hasOwn(obj, prop) || LOOKUP_SETTER.call(obj, prop) !== undefined)
-    )
+    ) {
+      /** A same value onto a key the language would refuse stays no change (D14b, Brian's ruling); development says so. */
+      if (__DEV__) sameOntoLocked(obj, prop);
       return true;
+    }
     /**
      * A data record needs no descriptor: no setter can run, and "added" is just "not own" (`dataRecord`). NOT inlined: with
      * this its one caller, the minifier pastes `dataRecord` into the write trap as an immediately-invoked arrow.

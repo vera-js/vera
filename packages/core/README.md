@@ -373,6 +373,11 @@ it as itself (`state.x = state.x` where `x` comes from the prototype), is treate
 the language would create an own key there. Telling the two apart would cost every same-value write;
 write a different value, or use `Object.defineProperty`, to create the own key.
 
+Writing a value a key already has is no change, even when the key is frozen or read-only: the store doesn't throw for
+a write that would leave everything as it was (development reports it, by key). Any write that would CHANGE a read-only
+key throws in both builds. To check whether a key can be written, ask:
+`Object.getOwnPropertyDescriptor(state.obj, key)?.writable` or `Object.isFrozen(snapshot(state.obj))`.
+
 ### A frozen source object stays frozen
 
 A store is a proxy, and a proxy has to respect its target's rules. `createStore(Object.freeze(…))`
