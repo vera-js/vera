@@ -543,10 +543,10 @@ type Moving = ComponentElement & { _$m$?: boolean | ReturnType<typeof setTimeout
  *
  * **A move is not a removal.** Moving a connected component in ONE operation — `append`/`insertBefore`
  * from one place in the page to another: light-DOM slots placing a slotted component, a keyed reorder,
- * a drag-and-drop library — used to run its whole teardown and then its whole setup again: a component
- * that fetched in its setup fetched twice. Now neither its `disconnectedCallback` nor its
+ * a drag-and-drop library — would otherwise run its whole teardown and then its whole setup again (a
+ * component that fetched in its setup would fetch twice). So neither its `disconnectedCallback` nor its
  * `connectedCallback` runs and it keeps its state, as `moveBefore()` defines a move. A real removal
- * (to nowhere, or into a fragment) is torn down synchronously, exactly as before, and so is a move into
+ * (to nowhere, or into a fragment) is torn down synchronously, and so is a move into
  * ANOTHER document (a pop-out window) once it connects there: its listeners and frame clock belong to
  * the old window.
  *

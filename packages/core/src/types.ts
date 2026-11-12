@@ -130,14 +130,13 @@ export type Slot = {
 };
 
 /**
- * **A hook — ONE object, every field declared** (2026-10-11). It replaced three closures, two
- * contexts and expandos on functions per hook. Core's `HookState` class is the only implementation; nothing outside
- * core reads these fields except through `$n`.
+ * **A hook — ONE object, every field declared** (2026-10-11): no closure, context or expando per hook. Core's
+ * `HookState` class is the only implementation; outside core only the keyed module touches one (it reads `v` and calls
+ * `$n`).
  *
  * Subscriptions, kept ON the hook so it can leave them (exact unsubscription): `_sources`/`_places` below, the cells it
  * reads and its place in each. Retiring unlinks it from every one, so a removed component leaves nothing in a store.
- * (This replaced a `WeakRef` per hook and the first-two-Sets fields `a`/`b`/`d`; links are
- * strong, so retirement is what releases them.)
+ * The links are strong, so retirement is what releases them.
  *
  * **Run order is `_priority`, then `_sequence` (creation: parent-first, then registration order) — two fields,
  * never one packed number.** A packed `priority × 1e9 + sequence` (2026-10-08 → 10-11) misordered close fractional

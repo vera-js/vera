@@ -53,7 +53,7 @@ export const LAYOUT_PRIORITY = 60;
 export const EFFECT_PRIORITY = 75;
 
 /**
- * **Retires every hook `owner` carries, in run order**: each leaves exactly the Sets it joined, then its last cleanup runs
+ * **Retires every hook `owner` carries, in run order**: each leaves exactly the cells it joined, then its last cleanup runs
  * (`runCleanup`: one that throws is reported and the rest still run). Run on a component's real removal and on a
  * re-init (a new generation) — never on a move, which keeps the component and its subscriptions.
  *
@@ -123,13 +123,13 @@ export const MODE_SYNC = SYNC;
 export const MODE_IMMEDIATE = IMMEDIATE;
 
 /**
- * **A hook — ONE object**: what was three closures, two contexts, a `WeakRef` and expandos on a
- * function is this record (no longer a `WeakRef`, since cells hold hooks strongly). Every field is assigned in the constructor, in one order, so every hook
- * has one shape (the development-only fields are added in development only).
+ * **A hook — ONE object**: this record is all a hook carries, and the cells it reads hold it strongly. Every field is
+ * assigned in the constructor, in one order, so every hook has one shape (the development-only fields are added in
+ * development only).
  *
  * **A hook belongs to its owner's generation.** `init()` starts a new one every time an element reconnects, and a hook
- * from an older generation does nothing — otherwise the store kept running it (when it held hooks weakly, until a
- * collection happened; with strong cells, until retirement), and every reconnect doubled the element's renders and effects. Bumping `_$g$` is also how an
+ * from an older generation does nothing — otherwise the store would keep running it until its retirement, and every
+ * reconnect would double the element's renders and effects. Bumping `_$g$` is also how an
  * owner retires its hooks deliberately (`@verajs/directives` does, as teardown).
  *
  * **A change reaching an owner that is out of the tree runs nothing** — a write would otherwise walk every component no
