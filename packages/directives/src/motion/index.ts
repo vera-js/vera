@@ -284,7 +284,7 @@ const regionFor = (el: Element, reject: (code: string, args?: readonly string[])
  * Per-element reason dedup — the old rejections registry's Set-per-node
  * semantics, kept because a refusal returned from a per-frame `apply` (a
  * refused canvas, scrolling) would otherwise append to the engine's
- * registry once per changed value. Not `warnOnce` (D29, 2026-11-12): this one FORGETS an element at its teardown, so
+ * registry once per changed value. Not `warnOnce` (Brian's ruling, 2026-11-12): this one FORGETS an element at its teardown, so
  * an element that returns is told again, and it reports into the engine's registry, not the console.
  */
 const refusedOnElement = new WeakMap<Element, Set<string>>();

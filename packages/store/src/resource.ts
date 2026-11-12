@@ -40,7 +40,7 @@ export type ResourceOptions = {
 
 export const resource = <T>(source: (signal: AbortSignal) => T | PromiseLike<T>, options?: ResourceOptions): Resource<T> => {
   const cell = createStore<Writable<T>>({ loading: true, refreshing: false, value: undefined, error: undefined });
-  /** Kept for the handoff: R5b keys server data by it. */
+  /** Accepted, not read yet: reserved for keying server data in a server-to-client handoff that is not built. */
   void options?.key;
   /** A server turn starts no request nobody waits for (the turn's depth is truthy inside one). */
   if ((inserts as unknown as { $ss?: (delta: number) => unknown }).$ss?.(0)) return cell as Resource<T>;

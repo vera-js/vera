@@ -10,7 +10,7 @@
  * HTML must be parsed by something. Each `html` node's value goes through a `<template>` — inert
  * parsing, no scripts execute during it — and only those author-written fragments do; the prose,
  * structure, links and code around them never touch a parser. A consumer who cannot accept even
- * that much parses nothing by skipping `html` nodes... at the price of D1, which is why that is
+ * that much parses nothing by skipping `html` nodes... at the price of the raw HTML and components content carries by design, which is why that is
  * not the default.
  *
  * Where the two serializers must agree, they encode the SAME decisions: the tight-list rule

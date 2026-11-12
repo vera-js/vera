@@ -1,7 +1,7 @@
 /**
  * **`multiWindow` — components in the windows your page opens or embeds** (`@verajs/renderer/multi-window`; Brian
  * 2026-10-26). `wire([renderer, multiWindow])`. A component moved into a pop-out (`window.open`, an auxiliary browsing
- * context) or an iframe (a child navigable) is KEPT by core already (R4); this module releases the ones LEFT there when
+ * context) or an iframe (a child navigable) is KEPT by core already; this module releases the ones LEFT there when
  * that window goes away for good. Without it, a component left behind stays subscribed to this window's stores, alive and
  * running, for the life of the page.
  *
@@ -15,7 +15,7 @@
  *   (`$m`), so two copies of core on one page never retire each other's components — in PRODUCTION, where each copy has
  *   its own registry. In development two copies share one registry (core keeps `@verajs/inserts` external there), so `$m`
  *   is whichever copy loaded last: two cores in development is the known mis-resolution trap, not a supported setup, and
- *   the two-copies row runs in production only (vera-5a). A component moved back before the release is no longer there,
+ *   the two-copies row runs in production only. A component moved back before the release is no longer there,
  *   and survives.
  * - **A connector**, as `@verajs/hot` is: each core it is wired into gets its own watch and release, against its own
  *   teardown and mark. It imports nothing.

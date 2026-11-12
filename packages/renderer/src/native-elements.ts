@@ -52,7 +52,7 @@ const sentinelFor = (win: Window & typeof globalThis) => {
         connectedCallback() {
           /**
            * Back after a removal: set up fresh. A move (the host still connected at its disconnect) kept it — and a move
-           * into ANOTHER document re-homes it, as core does a component (R4).
+           * into ANOTHER document re-homes it, as core does a component.
            */
           const host = hostOf(this) as Host & { [PENDING]?: true; _$d$?: Document };
           if (host._$x$ === true || host[PENDING]) {
@@ -139,7 +139,7 @@ type Wire = (item: never) => void;
 export const nativeElements = (registry: Registry, w: Wire) => {
   /** Core's seams, typed loosely on the registry (as the keyed module's are): a connector is handed core's `Inserts`. */
   core = registry as unknown as Core;
-  /** Read only by core's development check, so written only in development (R3, 2026-10-22). */
+  /** Read only by core's development check, so written only in development (2026-10-22). */
   if (__DEV__) (registry as unknown as { $ne?: unknown }).$ne = true;
   /** FIRST of the `'init'` inserts (priority 0): a deferral stops every insert after it, so none runs on a detached host twice. */
   w({ on: 'init', fn: onInit, priority: 0 } as never);

@@ -42,7 +42,7 @@ const broken = new WeakSet<StoreInsert>();
  */
 let defaults: StoreInsert | undefined;
 /**
- * Development: the types of which a value was already handed back AS IT IS, nothing claiming them yet (D26, Brian's
+ * Development: the types of which a value was already handed back AS IT IS, nothing claiming them yet (Brian's
  * ruling 2026-11-11: a documented limit, said in development). Such a value keeps that answer: a module wired later
  * reaches only values not read yet, so the claim that finds its type here says so once. Module-level because "already
  * handed back" spans every store; tags only, never the values, so nothing is kept alive. Production drops it.
@@ -55,7 +55,7 @@ export const handedBackUnclaimed = (value: object) => {
   handedBack.add(TAG.call(value));
 };
 /**
- * **A store of a type nothing claims is USABLE, and not reactive** (D11, Brian's ruling 2026-11-11; the rebuild's form).
+ * **A store of a type nothing claims is USABLE, and not reactive** (Brian's ruling, 2026-11-11; the rebuild's form).
  * `createStore(new Map())` before `collections` is wired, or `createStore(new Date(0))`: its methods run on the real
  * object (a native method refuses a proxy as `this`), so `m.get('a')`, `m.size` and `for (… of m)` work and nothing
  * updates, until a module claims the type: then `redecide` replaces the traps in place and the same store is reactive.

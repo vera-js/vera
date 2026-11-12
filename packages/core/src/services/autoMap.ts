@@ -21,7 +21,7 @@ const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) 
     return out;
   };
 /**
- * **Development: automatic lists wired, but not the full renderer** (D28, 2026-11-12). `lists` commits its rows through
+ * **Development: automatic lists wired, but not the full renderer** (Brian's ruling, 2026-11-12). `lists` commits its rows through
  * the renderer's 'value' insert, which only the full renderer (`wire([renderer, lists])`) installs; beside a bare render
  * descriptor (`{ on: 'render', fn: renderInto }`) every row's change re-renders its parent instead, and a fan-in of them
  * was held a frame per row. The renderer marks core's registry when it connects (`$rn`). The same rule as `lists-unwired`

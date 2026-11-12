@@ -81,7 +81,7 @@ const compactCell = (cell: Cell) => {
 };
 
 /**
- * **What runs when a cell loses its last reader** (2026-10-22, C10): a `computed` registers its value cell here, and
+ * **What runs when a cell loses its last reader** (2026-10-22): a `computed` registers its value cell here, and
  * unlinks from its own sources the moment nothing reads it — so a computed whose readers left holds nothing, even over
  * a store that is never written again. A marker table rather than a field on every cell (one shape for all cells; the
  * field is the alternative a churn race prices). Made by the first computed: a page without one checks `undefined`
@@ -158,7 +158,7 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
 /**
  * One tag per template kind: the strings and values, marked with the kind for a renderer to consume.
  *
- * **Written out per kind, not made by a factory** (D30, 2026-11-13): the factory's `(type) => (strings, ...values) =>`
+ * **Written out per kind, not made by a factory** (Brian's ruling, 2026-11-13): the factory's `(type) => (strings, ...values) =>`
  * closure cost SpiderMonkey 2.4% and JavaScriptCore 7% more instructions per call than a plain arrow (V8 even), and
  * the written-out tags won Firefox's engine by ~1% on a 1000-row keyed re-render with no loss elsewhere, 24 B gz
  * smaller. The rest parameter stays although it is SpiderMonkey's ~460 instructions per call: every form without it

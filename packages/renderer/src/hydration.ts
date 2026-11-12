@@ -108,7 +108,7 @@ type Applies = { _$apply$: (element: Element, key: object, run: Untracked, adopt
 /**
  * A `'value'` handler: `true` claims the value (it commits into the emptied part; the server span goes). During hydration
  * a THIRD argument is passed — the part as the base adopted it — and a handler may return `ADOPTED` (2) to keep those
- * nodes, taking ownership of what was adopted. **The third argument is OPTIONAL and absent = build** (B4, 2026-10-22): an
+ * nodes, taking ownership of what was adopted. **The third argument is OPTIONAL and absent = build** (2026-10-22): an
  * older handler ignores it and claims as before; a newer handler under an older base, which passes two, builds.
  */
 type ValueHandler = (part: object, value: unknown, adopted?: object) => boolean | number | void;
@@ -132,7 +132,7 @@ let untracked: Untracked;
 /**
  * Said once per KIND of cause per hydration pass, in every build — keyed by the kind (`text`, `element`…), not the
  * detail: a page of 500 containers that each differ in their text says it once, naming the first. The record clears at
- * the next microtask, so a later pass that meets the kind again says it. Not `warnOnce` (D29, 2026-11-12): that memory
+ * the next microtask, so a later pass that meets the kind again says it. Not `warnOnce` (Brian's ruling, 2026-11-12): that memory
  * is once per page and never forgets, and this one is once per PASS.
  */
 const causesThisPass = new Set<string>();

@@ -4,7 +4,7 @@ import { redecideStores } from '../services/door.js';
 import { seams } from '../services/seams.js';
 
 /**
- * **Every copy of core sharing this registry re-decides its stores on a store wire** (D16). In development
+ * **Every copy of core sharing this registry re-decides its stores on a store wire** (2026-11-11). In development
  * `@verajs/inserts` stays external, so two copies on a page (a bundle that inlines core beside the page's own) share one
  * registry: a store module wired through either is in both chains, and each copy's decisions are its own. So each copy
  * pushes its re-decision onto the registry once, at load (`$rs`, sigiled: the copies are other bundles), and `wire`

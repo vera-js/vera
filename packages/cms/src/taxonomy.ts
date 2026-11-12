@@ -32,7 +32,7 @@ const taxonomyFieldsOf = (spec: CollectionSchema): [string, string][] =>
  * Reference integrity, the same standard by the same mechanism: a `reference` field holds the
  * UUID of an entry in its target collection, and a UUID nothing answers to is an error before
  * anything deploys. UUIDs rather than slugs on purpose — a reference must survive the rename that
- * D19's identity rule exists for; a slug reference would re-create the fragility the UUID removed.
+ * the UUID identity rule exists for; a slug reference would re-create the fragility the UUID removed.
  *
  * @param schema The site's schema — it says which fields are references and into what
  * @param manifests Every collection's manifest, keyed by collection name

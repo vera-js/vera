@@ -208,7 +208,7 @@ const refusedWrite: (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted'
   ? (obj, prop, verb) => new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))))
   : () => new TypeError(misuse('createStore', 'store-refused', false));
 /**
- * Development: a same-value write onto a key the language would refuse to write (D14b, Brian's ruling 2026-11-11: a
+ * Development: a same-value write onto a key the language would refuse to write (Brian's ruling, 2026-11-11: a
  * documented limit). Production treats that write as no change, as for any key; development reports it once per key per
  * object (the pair key: the object and its property).
  */
@@ -328,7 +328,7 @@ const handler: ProxyHandler<object> = {
         (value !== null && typeof value === 'object' && prevValue !== null && typeof prevValue === 'object' && cached(prevValue) === value)) &&
       (prevValue !== undefined || Object.hasOwn(obj, prop) || LOOKUP_SETTER.call(obj, prop) !== undefined)
     ) {
-      /** A same value onto a key the language would refuse stays no change (D14b, Brian's ruling); development says so. */
+      /** A same value onto a key the language would refuse stays no change (Brian's ruling, 2026-11-11); development says so. */
       if (__DEV__) sameOntoLocked(obj, prop);
       return true;
     }

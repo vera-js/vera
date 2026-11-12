@@ -2,7 +2,7 @@ import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './until-diagnostics.js';
 
 /**
- * **`until(promise, fallback)` — a promise at a child position** (R5, 2026-10-26; the promise module the 2026-10-22 plan
+ * **`until(promise, fallback)` — a promise at a child position** (2026-10-26; the promise module the 2026-10-22 plan
  * named). `html\`<p>${until(fetchUser(), html\`<em>loading…</em>\`)}</p>\`` shows the fallback, then what the promise
  * resolves to. Built only on the renderer's `_$child$` protocol: core and the renderer carry nothing for it.
  *

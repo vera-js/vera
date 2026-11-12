@@ -39,7 +39,7 @@ const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed
  *   where the host's template says.
  * - **The client only.** A server renders a component's own template; a portal registers nothing there, so hydration
  *   finds no range to adopt and the client draws it once.
- * - **A target FUNCTION follows** (R4, Brian 2026-10-25): `portal(() => host.ownerDocument.body, …)` is evaluated at setup
+ * - **A target FUNCTION follows** (Brian, 2026-10-25): `portal(() => host.ownerDocument.body, …)` is evaluated at setup
  *   and again whenever what it reads changes or its component moves into another window (a cross-window move re-runs effect
  *   priority), and a different answer MOVES the drawn range into the new target — never a redraw, so components inside
  *   keep their state. A popped-out panel's modal then opens in the pop-out. A plain element target never moves.
@@ -76,7 +76,7 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
    * window taking its document's nodes (jsdom) removes them, and a draw into detached markers would be invisible (and a
    * cleanup into them threw). The ONE check every path asks: the first draw, every draw, a target change, the removal.
    */
-  /** …and a range in a document whose WINDOW is gone is not intact either: core's release retired its components (vera-5a). */
+  /** …and a range in a document whose WINDOW is gone is not intact either: core's release retired its components. */
   const intact = () => part !== undefined && part.$s!.parentNode !== null && part.$s!.parentNode === part.$e!.parentNode && usable(part.$s!.parentNode as Target);
   /** A fresh range at the end of `into`, drawn with `value` — the first draw, and the redraw of a destroyed range. */
   const fresh = (handoff: unknown[], into: Target, value: unknown) => {
@@ -123,7 +123,7 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
   /**
    * **A function target follows** — only then: a third hook, at EFFECT priority (75) so a cross-window move re-runs it,
    * re-reads the target (tracked, so a store it reads moves it too) and, when the answer changed, moves the range — the
-   * markers and what lies between them — into it. Moving keeps every node, components included (R4).
+   * markers and what lies between them — into it. Moving keeps every node, components included.
    */
   if (typeof target === 'function')
     effect(() => {

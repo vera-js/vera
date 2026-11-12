@@ -367,9 +367,9 @@ class List {
   declare all: boolean;
   declare ident: boolean;
   declare dead: boolean;
-  /** Option (c): the array this list last mapped. */
+  /** The array this list last mapped (a list is found by its array first: see the matching below). */
   declare raw: unknown[] | undefined;
-  /** Option (e)'s owned contract (`$`-named, read by core): the parent run that last claimed it, its owning hook. */
+  /** The ownership contract core reads (`$`-named): the parent run that last claimed it, its owning hook. */
   declare $r: number;
   declare $h: unknown;
   constructor(parent: List['parent'], owner: List['owner']) {
@@ -427,7 +427,7 @@ type ListsState = {
   v: number;
   n: number;
   lists: (List | typeof PLAIN)[];
-  /** Option (c): this run's count of maps per array, and each array's slots by occurrence. */
+  /** This run's count of maps per array, and each array's slots by occurrence. */
   occ: Map<unknown, number>;
   byRaw: WeakMap<object, (List | typeof PLAIN | undefined)[]>;
 };
@@ -628,7 +628,7 @@ const automap = (
     return method.call(proxy, fn);
   }
   /**
-   * **Option (c): a list is found by (ARRAY, its occurrence in this run) first** (2026-10-20): a conditional `.map` before
+   * **A list is found by (ARRAY, its occurrence in this run) first** (2026-10-20): a conditional `.map` before
    * another no longer slides the later one onto its list — a hidden map shifts only other maps over the SAME array. A new
    * array (a refetch) falls back to the list at this call's place in order, but only one whose own array is not mapped in
    * this run, so it never takes another site's list. A PLAIN decision is found only by its exact array (a refetched plain
@@ -722,7 +722,7 @@ const eachValue = (part: object, value: unknown, adopted?: object) => {
     const list = (value as unknown as Record<symbol, List | undefined>)[AUTO];
     if (list === undefined || value === committing) return false;
     /**
-     * **Hydrating: the list ADOPTS the server's rows** (B4, 2026-10-22). The base adopted one instance per row FROM THESE
+     * **Hydrating: the list ADOPTS the server's rows** (2026-10-22). The base adopted one instance per row FROM THESE
      * ROWS' OWN results — same count, same templates, same keys, by construction — so the list only takes ownership
      * (`ADOPTED`, 2) and the base's queued commits patch any stale value in place, as for every adopted instance. It used
      * to claim, which rebuilt every row. Any other shape (no adopted items, a count that differs) builds, as before.

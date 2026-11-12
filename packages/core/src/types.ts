@@ -314,7 +314,7 @@ export type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: Hook
 export type Owned = { $r: number; $h: HookRecord | undefined; $d(): void };
 
 /**
- * **The seams: what core shares with modules in other bundles, through `$`-named fields on the registry** (G2,
+ * **The seams: what core shares with modules in other bundles, through `$`-named fields on the registry** (
  * 2026-11-11). A module never imports core at runtime (a production bundle inlines its own copy), so it reaches core
  * only through these, on the registry `wire` hands it. Declared once, here; sigiled, so no bundle's mangler renames
  * them. Core reads and writes them through `seams` (services/seams.ts), the one cast of the registry to this type.
@@ -335,10 +335,10 @@ export type CoreSeams = {
   $M?: AutoMap;
   /**
    * Development: set by the FULL renderer's connect (`connectTo`) — automatic lists commit their rows through it, and a
-   * bare render descriptor never connects. `mapped`'s `lists-no-renderer` warning reads it (D28, 2026-11-12).
+   * bare render descriptor never connects. `mapped`'s `lists-no-renderer` warning reads it (Brian's ruling, 2026-11-12).
    */
   $rn?: true;
-  /** Development: every copy of core's store re-decision, pushed at load and called on a store wire (D16). */
+  /** Development: every copy of core's store re-decision, pushed at load and called on a store wire. */
   $rs?: (() => void)[];
   /** Core's tracking control, `untracked`. */
   $t: Untracked;

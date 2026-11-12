@@ -17,7 +17,7 @@ import { seams } from '../services/seams.js';
  *   prototype chain).
  * - `anyAsync`: set the first time ANY setup is async; until then the define wrapper never reads `_$s$`, a field ordinary
  *   components lack.
- * Development's said-once warnings keep their memory in shared-utils (`warnOnce`, D29), not here.
+ * Development's said-once warnings keep their memory in shared-utils (`warnOnce`, Brian's ruling 2026-11-12), not here.
  */
 let anyPersist = false;
 let anyAsync = false;
@@ -583,7 +583,7 @@ if (typeof customElements !== 'undefined') {
       }
     };
     /**
-     * A move into ANOTHER document (a pop-out window, an iframe) is kept as well (R4), and re-homed: its effects re-run
+     * A move into ANOTHER document (a pop-out window, an iframe) is kept as well, and re-homed: its effects re-run
      * against the new window and its styles are re-applied. Inserting into another document adopts the node first.
      *
      * On a FIRST connect `_$adopt$` is still undefined here — the author's `connectedCallback`, below, is what runs `init`

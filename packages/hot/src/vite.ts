@@ -7,7 +7,7 @@
  * - **Which modules.** One that CALLS `define(` or `customElements.define(` (comments ignored; `redefine(`,
  *   `defineProperty(` and `x.define(` are not calls to it). A define reached another way — an alias, a helper in another
  *   module — is not seen, and that module simply reloads as Vite would: never a wrong swap.
- * - **Only when its exports are components** (vera-5a). `import.meta.hot.accept()` re-runs a module while its IMPORTERS
+ * - **Only when its exports are components**. `import.meta.hot.accept()` re-runs a module while its IMPORTERS
  *   keep the old module's exports, so a component module that also exported a store would leave two stores diverging
  *   silently. It is accepted only when it exports nothing, or only what `define` returns (`export const XCard =
  *   define(…)`, `export default define(…)`) or a class; any other export lets Vite propagate the update as it would.

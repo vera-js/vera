@@ -13,7 +13,7 @@ const COMPUTED_PRIORITY = 10;
 let releasing: Computed<unknown>[] | undefined;
 
 /**
- * **A memoized derived value, owned by whoever reads it** (C10, 2026-10-22 — into core from `@verajs/store`).
+ * **A memoized derived value, owned by whoever reads it** (2026-10-22 — into core from `@verajs/store`).
  *
  * ```js
  * const total = computed(() => cart.items.reduce((n, i) => n + i.price, 0));
@@ -41,7 +41,7 @@ let releasing: Computed<unknown>[] | undefined;
  * **A class, measured** (2026-11-12; CODE-PRINCIPLES §1's hot-path exception, Brian's ruling): `Object.create(proto)` plus
  * the same field writes retains 160 B per computed against 128 and creates 12–26% slower on SpiderMonkey and JSC; a
  * literal `{ __proto__, …fields }` keeps the memory but creates 58–409% slower on all four engines. Reads tied (threadrace,
- * 12 fresh processes per arm, two windows; BROWSER-LEDGER). The handle's shape itself is Brian's (B5, 2026-11-05).
+ * 12 fresh processes per arm, two windows; BROWSER-LEDGER). The handle's shape itself is Brian's (2026-11-05).
  */
 class Computed<T> {
   declare _f: () => T;

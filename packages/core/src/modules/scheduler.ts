@@ -168,7 +168,7 @@ export const enqueue = (pass: HookRecord) => {
  * (or the timer), where it is queued again, so a self-feeding pass runs twice per frame, runaway or intended, and never
  * freezes the tab. (Main ran it once per frame; Vue allows a hundred re-runs; React throws.)
  *
- * **One frame per pass per flush** (D27, 2026-11-12): a loop is not the only way here. A FAN-IN re-queues one pass many
+ * **One frame per pass per flush** (Brian's ruling, 2026-11-12): a loop is not the only way here. A FAN-IN re-queues one pass many
  * times in one flush — an automatic list's parent, once per updated row, when the list cannot commit its rows itself —
  * and every re-queue past the second run used to ask for its own frame and timer (98 for a 100-row update); in a
  * browser each frame callback is followed by a microtask checkpoint, so each could drain the pass again. Only the FIRST

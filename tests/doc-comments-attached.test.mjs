@@ -17,28 +17,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync } from 'node:fs';
-import ts from 'typescript';
+import { comments } from './source-comments.mjs';
 
 /** Each package's detached doc comments today (2026-11-12): lower a pin when its package clears some, never raise one. */
 const PINS = {
   core: 0, autoloader: 6, cms: 3, directives: 10, hooks: 1, inserts: 4, jsx: 11, motion: 42, renderer: 33, router: 11,
   'shared-utils': 6, ssr: 36, store: 3, styles: 1, ui: 3,
-};
-
-/** Every comment in `text`, from a full parse: each token's leading and trailing comment ranges, once each, in order. */
-const comments = (text) => {
-  const file = ts.createSourceFile('x.ts', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const seen = new Map();
-  const add = (ranges) => {
-    for (const r of ranges ?? []) if (!seen.has(r.pos)) seen.set(r.pos, { pos: r.pos, end: r.end, text: text.slice(r.pos, r.end) });
-  };
-  const visit = (node) => {
-    add(ts.getLeadingCommentRanges(text, node.pos));
-    add(ts.getTrailingCommentRanges(text, node.end));
-    for (const child of node.getChildren(file)) visit(child);
-  };
-  visit(file);
-  return [...seen.values()].sort((a, b) => a.pos - b.pos);
 };
 
 /** The line of every detached doc comment in `text`. */

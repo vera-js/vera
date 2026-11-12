@@ -7,7 +7,7 @@
 export const DOCS = 'https://verajs.dev/e/';
 
 /**
- * **What this copy of the framework has already said** (D29, 2026-11-12): the ONE memory behind `warnOnce`, `errorOnce`
+ * **What this copy of the framework has already said** (Brian's ruling, 2026-11-12): the ONE memory behind `warnOnce`, `errorOnce`
  * and `hasWarned`, for DEVELOPMENT-ONLY warnings. It replaced the hand-written once-flags every package kept
  * (`saidLists`, `warnedDrop`, per-element WeakSets, per-key Sets: two naming styles, Brian: no names). **A warning that
  * ships to production keeps its memory at its site** (bytes, measured 2026-11-12: the shared memory costs +80–145 B gz

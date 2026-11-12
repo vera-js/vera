@@ -1373,7 +1373,7 @@ class ChildPart {
         into(parent, ref).insertBefore(instance.$R, ref);
         if (__DEV__) checkForeign(parent, [instance.$R]);
         instance.$k = value.key;
-        /** PROBE (marked): only a result the app marked as reusable records its identity. */
+        /** Only a result marked `_$same$` (the keyed module marks its rows') records its identity. */
         if ((value as { _$same$?: unknown })._$same$ === 1) instance.$j = value;
         return instance;
       }
@@ -1387,7 +1387,7 @@ class ChildPart {
   /** Commits `value` into an item; returns the item now standing there (an instance whose shape changed becomes a part). */
   $u(item: Item, value: unknown): Item {
     /**
-     * PROBE (marked): the very result committed last time, and marked reusable: nothing to do. Asked FIRST: it is the
+     * The very result committed last time, and marked `_$same$`: nothing to do. Asked FIRST: it is the
      * common case of a keyed list's unchanged rows, and a part never records one (`$j` stays undefined).
      */
     if (value === (item as { $j?: unknown }).$j && value !== undefined) return item;
@@ -1652,7 +1652,7 @@ const commitAs = (root: Node | null, part: ChildPart, value: unknown, home: Node
   if (home !== null) {
     const owner = home.ownerDocument ?? (home as Document);
     /**
-     * **Content builds in the realm of the element it renders into** (R4, 2026-10-22). A component of THIS realm moved
+     * **Content builds in the realm of the element it renders into** (2026-10-22). A component of THIS realm moved
      * into a pop-out or an iframe keeps building here: made through that window's document, its children would be looked
      * up in THAT window's registry — Chromium upgrades them anyway, Firefox and WebKit leave them inert; cloned through
      * this renderer's own document they upgrade at the clone on all three and keep their class once inserted there
@@ -1904,7 +1904,7 @@ if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer
 /** The renderer's connect: core's registry, its untracked primitive, and the hydration hand-off. */
 const connectTo = (given: { get(name: never): unknown }) => {
     /**
-     * **One renderer serves one core** (R3 list, 2026-10-21). Two apps sharing one renderer bundle (two cores, the
+     * **One renderer serves one core** (2026-10-21). Two apps sharing one renderer bundle (two cores, the
      * micro-frontend shape) leave it following the LAST core's seams — `untracked` among them — so the first app's
      * tracking silently breaks. It stays last-wins, and says so once in EVERY build — production as a short line with
      * the code's docs link (the hazard exists ONLY in production: development's core copies share one registry). The same registry wired again
@@ -1916,7 +1916,7 @@ const connectTo = (given: { get(name: never): unknown }) => {
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
     /**
-     * Development: "the full renderer is connected" (D28, 2026-11-12). Automatic lists (`lists`) commit their rows through
+     * Development: "the full renderer is connected" (Brian's ruling, 2026-11-12). Automatic lists (`lists`) commit their rows through
      * this renderer's 'value' insert; wired beside only a bare render descriptor (`{ on: 'render', fn: renderInto }`),
      * which never connects, each row's change re-renders its parent instead, and core's `mapped` says so once.
      */

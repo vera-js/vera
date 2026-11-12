@@ -208,7 +208,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
 /**
  * **The module.** `wire([renderer, styles])`. Priority 50 is the default-implementation convention. Two parts: the
  * `'init'` insert adopts the styles at setup, and the `'adopted'` insert re-applies them when a component moves into
- * another document (R4) — a move empties a shadow root's `adoptedStyleSheets`, and the way back does not restore them
+ * another document — a move empties a shadow root's `adoptedStyleSheets`, and the way back does not restore them
  * (BROWSER-LEDGER 2026-10-22). (2026-10-26: `'adopted'` replaced styles' one-off `$rs` hook once a second module,
  * `multiWindow`, needed to hear a move.)
  */
