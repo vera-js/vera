@@ -23,6 +23,11 @@ is run by no test, outside its short list of known, reasoned exceptions. It runs
 than in every gate run; it joins the gate only if a regression slips through between checkpoints.
 `node scripts/coverage-floor.mjs --self-check` proves the analyzer finds a planted dead branch.
 
+**And the links:** `node scripts/check-links.mjs` fails if a relative link in a README, `docs/` or `llms.txt` points at a
+file this branch does not have (a file can exist on one line of history and not on another, and a broken relative link
+renders as nothing). `node scripts/check-links.mjs --self-check` proves it finds a planted broken link and passes good
+ones.
+
 ```sh
 npx changeset version            # bump versions, write CHANGELOGs, consume changesets
 git diff                         # review — this is the release gate
