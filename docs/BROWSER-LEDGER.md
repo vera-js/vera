@@ -595,6 +595,13 @@ from another machine, or after that is undone, has a variable changed.
   allocation gets a long node run with
   `--trace-gc` as well as the short counted ones, and the split (scavenge vs mark-compact time) is reported, not only the
   total. (Node 24 / V8 13.6, macOS; 2026-11-12.)
+- **An instruction slope over a few thousand ops measures tier-up, not steady cost, on all three engines.** The same
+  store-write scenario counted under cachegrind (d8 15.9, SpiderMonkey, JSC) gives, for one unchanged arm, 8037 per op at
+  N 1000/3000 and 4757 at 100k/300k on SpiderMonkey, 7399 and 2134 on JSC; on V8 a variant read +4.8% at the short pair
+  and -31.7% at the long one, because it reached its optimized tier later. A short window also allocates too little to
+  trigger a scavenge, so an allocation's cost does not show at all. Consequence: a slope counts only when two N pairs
+  (10k/30k and 100k/300k) agree within 1%, and an allocation change is counted at an N whose window holds a collection.
+  (2026-11-12, the W1 variant of the store's write path.)
 
 ## Competitors, as their own benchmark entries write them
 
