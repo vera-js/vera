@@ -5,7 +5,7 @@ import type { InitInsert } from '@verajs/inserts';
 import { currentInstance, MINE, tracking } from '../store/store.js';
 import type { Mine } from '../store/store.js';
 import { adoptProps } from './adoptProps.js';
-import { firstPasses } from './mount.js';
+import { firstPasses } from './firstPasses.js';
 import { drawInto } from '../hooks/drawInto.js';
 import { EFFECT_PRIORITY, LAYOUT_PRIORITY, reportHookError, retire, runCleanup } from './createHook.js';
 import type { ComponentElement, InitOptions, Setup } from '../types.js';
