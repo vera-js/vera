@@ -9,9 +9,9 @@ import { dirname, relative, resolve } from 'node:path';
  * and top-level names by default, but NOT property names — so internal class fields survive into
  * the bundle unless a package opts in. A package that does prefixes its internals with `_` and
  * passes /^_[a-z]/; names that must survive (interop wire formats like `_$litType$`, DOM contracts
- * like `handleEvent`, cross-package contracts like core's `_root`) simply do not match the pattern.
- * Deliberately opt-in per package: core's `_hooks`/`_gen`/`_root`/`_cleanups` are cross-boundary
- * contracts and must never be mangled.
+ * like `handleEvent`, cross-package contracts like core's `_$r$`) simply do not match the pattern.
+ * Deliberately opt-in per package: the fields core keeps on an element (`_$h$` hooks, `_$g$` generation, `_$r$` root,
+ * `_$c$` cleanups) are cross-boundary contracts, sigiled so no mangler ever renames them.
  */
 /**
  * @param options.input Entry file (default `src/index.ts`) — secondary entries like the
@@ -25,11 +25,11 @@ import { dirname, relative, resolve } from 'node:path';
  * offset with it (a string prepended afterwards would put every mapped position one line off).
  *
  * Production normally inlines everything so each `.min.js` stands alone, which is right for a
- * module that shares no runtime state with core — `@verajs/styles` and `@verajs/spread` import
+ * module that shares no runtime state with core — `@verajs/styles` and `@verajs/renderer/spread` import
  * nothing and are wired by the app. It is wrong for a module built *on* core's API: inlining would
  * give a CDN page a second copy of core, and with it a second insert registry and a second store
- * identity. `@verajs/computed` calls `createStore` and core's raw hook (internal), so core stays external and
- * resolves through the import map to the one everything else is using.
+ * identity. `@verajs/store` calls `createStore` and core's hooks, so core stays external and resolves through the
+ * import map to the one everything else is using.
  */
 export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, options = {}) => {
   const mode = process.env.MODE;
