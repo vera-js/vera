@@ -142,7 +142,8 @@ code, so they are not re-litigated.
 - **An async timing loop is ONE job, and a short window's median measures the GC schedule, not the
   code.** Two traps, both of which produced a wrong conclusion here (2026-09-28). (1) `for (…) await
   render()` never yields a macrotask, and the platform keeps every `WeakRef` target alive until the job
-  ends — core's hook subscriptions are `WeakRef`s — so every render stays reachable for the whole run
+  ends — core's hook subscriptions were `WeakRef`s until 2026-10-18 (they are strong links now; any `WeakRef` the
+  code under test creates still behaves this way) — so every render stayed reachable for the whole run
   (109 MB, released by one `setImmediate`): yield a macrotask every ~100 iterations, outside the timed
   region, as a server's requests do (`bench/ssr.mjs` does). (2) A fixed workload collects at FIXED
   rounds per version, so a median over a few rounds reports where the collections happened to fall: an
@@ -293,7 +294,8 @@ code, so they are not re-litigated.
   the root under a `Symbol` private to each module copy (two copies on a page must never see each other's entries —
   never a string name) removed it, and core's `mine` WeakSet the same way gave −5–6%. **It is not a rule to replace
   weak collections:** slots' seven node-keyed maps measured a TIE as fields, and dropping the per-hook `WeakRef` bought
-  −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe (kept, Brian). A field that points back at its
+  −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe (kept then, Brian; on 2026-10-18 core moved
+  to strong links with exact unlinking, `store.ts`). A field that points back at its
   node's DOM (root → part → root) is a DOM↔JS cycle Firefox's cycle collector must break — null the back-pointer at
   release. Race the field against the collection, both engines, fresh browser, before moving one. (Measured headless,
   on all engines; to be re-confirmed headed.)
