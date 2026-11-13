@@ -24,6 +24,21 @@ const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) 
     return out;
   };
 /**
+ * **Development: automatic lists wired, but not the full renderer** (D28, 2026-11-12). `lists` commits its rows through
+ * the renderer's 'value' insert, which only the full renderer (`wire([renderer, lists])`) installs; beside a bare render
+ * descriptor (`{ on: 'render', fn: renderInto }`) every row's change re-renders its parent instead, and a fan-in of them
+ * was held a frame per row. The renderer marks core's registry when it connects (`$rn`). The same rule as `lists-unwired`
+ * above: once per page, only when the rows are templates (what a List is), and never inside a server turn, where rows
+ * render plainly whatever is wired and shared setup may wire `lists` alone.
+ */
+let saidRenderer = false;
+const noRenderer = (out: unknown[]) => {
+  const first = out[0] as { strings?: unknown } | null | undefined;
+  if (first === null || typeof first !== 'object' || first.strings === undefined) return;
+  saidRenderer = true;
+  console.warn(diagnostic('core', 'an automatic .map list', 'lists-no-renderer', __DEV__ && PROSE['lists-no-renderer']()));
+};
+/**
  * **Automatic `.map`**: inside a RENDER hook (priority 50: a component's render, or a keyed row's), with a list module
  * wired (`$M`, the keyed module's `lists`), a store array's `map(fn)` is handed to that module, which makes it a keyed
  * list whose rows track themselves. Anywhere else (an effect, a computed, plain code, no module, a borrowed `map`, a
@@ -40,6 +55,8 @@ export const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[]
   }
   return function (this: unknown, fn: unknown, ...rest: unknown[]) {
     if (this !== proxy || rest.length) return method.apply(this, [fn, ...rest]);
-    return list(proxy, obj, fn, hook, hook._o, method);
+    const out = list(proxy, obj, fn, hook, hook._o, method);
+    if (__DEV__ && !saidRenderer && seams.$rn !== true && !seams.$ss?.(0)) noRenderer(out);
+    return out;
   };
 };

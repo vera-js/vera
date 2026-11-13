@@ -65,6 +65,8 @@ test('the server rows are ADOPTED (identity kept, no warning), and a reverse mov
   const li = [...host.querySelectorAll('li')];
   assert.ok(li.length === 3 && li.every((n, i) => n === before.li[i]), 'the server <li>s were adopted, not rebuilt');
   assert.deepEqual(warned, [], 'no hydration fallback, no warning');
+  /** D28: hydrating with `wire([renderer, hydration, lists])`, the full renderer is connected, so lists-no-renderer is silent. */
+  assert.ok(!warned.some((line) => line.includes('lists-no-renderer')), 'no lists-no-renderer under the full renderer');
   const byText = new Map(li.map((n) => [n.textContent, n]));
   s.rows.reverse();
   await settle();

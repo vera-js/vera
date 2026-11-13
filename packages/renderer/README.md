@@ -304,10 +304,14 @@ the same reason.
 at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
 it is safe alongside any of them, `/hydrate` included.
 
+<!-- D28, 2026-11-12: the full-renderer requirement below lives HERE while lists is unreleased; llms.txt documents no
+automatic lists yet, and its lists section must carry the same sentence when lists is released. -->
 **Experimental: automatic `.map`, `lists` and `createSelector`.** With `lists` wired —
 `wire([renderer, lists])` — a plain `state.rows.map((row) => html`…`)` over a store array inside a render is a keyed
 list whose rows track themselves: a field write re-renders that one row, and pushes, removals and swaps touch only what
-moved. Rows are keyed by an item's own `id`, else by the item itself. `createSelector(() => state.selected)` returns
+moved. Rows are keyed by an item's own `id`, else by the item itself. `lists` needs the FULL renderer: wired beside a
+bare `{ on: 'render', fn: renderInto }` its rows cannot commit themselves, so every row's change re-renders the parent,
+and development says so once (`lists-no-renderer`). `createSelector(() => state.selected)` returns
 `isSelected(key)`, which re-renders only the old and the new key's rows on a change. Without `lists` wired, development says so once
 (`lists-unwired`) when such a `.map` returns templates, since rows are then matched by position; to match by position on
 purpose, map a plain copy, `[...state.rows].map(…)`. The copy still TRACKS — spreading reads every index, so the render

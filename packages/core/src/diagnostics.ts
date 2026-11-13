@@ -56,6 +56,10 @@ export const PROSE: Record<string, Prose> = {
     'returned templates, but no list module is wired, so its rows are matched by position: reorder the array and a row\'s DOM state (a focused input, a typed value) and its component state show against another item.',
     'Wire the automatic lists once at your entry — wire([renderer, lists]) with lists from @verajs/renderer/keyed — or key each row with keyed(key, row). To match by position on purpose (rows with no state), map a plain copy: [...state.rows].map(…).',
   ],
+  'lists-no-renderer': () => [
+    'is an automatic list, but the full renderer is not wired, so the list cannot commit its own rows: every row\'s change re-renders the whole parent instead.',
+    'Wire them together once at your entry — wire([renderer, lists]) — rather than lists beside a bare { on: \'render\', fn: renderInto }.',
+  ],
   'deep-not-boolean': (received) => [
     `was given deep: ${received}, which is not true or false, so it used its default.`,
     'Pass a boolean: signal(value, { deep: true }).',

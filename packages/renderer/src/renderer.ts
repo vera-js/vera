@@ -1919,6 +1919,12 @@ const connectTo = (given: { get(name: never): unknown }) => {
     }
     registry = given as { get(name: string): unknown[] | undefined };
     untracked = (given as { $t?: Untracked }).$t ?? call;
+    /**
+     * Development: "the full renderer is connected" (D28, 2026-11-12). Automatic lists (`lists`) commit their rows through
+     * this renderer's 'value' insert; wired beside only a bare render descriptor (`{ on: 'render', fn: renderInto }`),
+     * which never connects, each row's change re-renders its parent instead, and core's `mapped` says so once.
+     */
+    if (__DEV__) (given as { $rn?: true }).$rn = true;
     /** Defined up front, so every render's `_$done$` read is a HIT on a page without slots — not a miss down the Map's chain. */
     (given as { _$done$?: unknown })._$done$ ??= undefined;
     /** The release core's teardown calls with a removed component (see `releaseRoot`). */

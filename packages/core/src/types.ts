@@ -304,6 +304,11 @@ export type CoreSeams = {
   $ne?: unknown;
   /** The keyed module's automatic list map (`lists`). */
   $M?: AutoMap;
+  /**
+   * Development: set by the FULL renderer's connect (`connectTo`) — automatic lists commit their rows through it, and a
+   * bare render descriptor never connects. `mapped`'s `lists-no-renderer` warning reads it (D28, 2026-11-12).
+   */
+  $rn?: true;
   /** Development: every copy of core's store re-decision, pushed at load and called on a store wire (D16). */
   $rs?: (() => void)[];
   /** Core's tracking control, `untracked`. */

@@ -193,6 +193,12 @@
       "fix": "init() starts a fresh generation of hooks — which is what makes it safe when a component reconnects — so anything registered before a second call is dropped. Call init() once, then register hooks, then render() or mount()."
     },
     {
+      "code": "lists-no-renderer",
+      "params": [],
+      "message": "is an automatic list, but the full renderer is not wired, so the list cannot commit its own rows: every row's change re-renders the whole parent instead.",
+      "fix": "Wire them together once at your entry — wire([renderer, lists]) — rather than lists beside a bare { on: 'render', fn: renderInto }."
+    },
+    {
       "code": "lists-unwired",
       "params": [],
       "message": "returned templates, but no list module is wired, so its rows are matched by position: reorder the array and a row's DOM state (a focused input, a typed value) and its component state show against another item.",
