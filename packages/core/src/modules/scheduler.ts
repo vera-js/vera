@@ -158,12 +158,22 @@ export const enqueue = (pass: HookRecord) => {
 /**
  * **At most TWO runs of a hook per flush; a third waits for the next frame.** A hook scheduled again by its own run
  * gets one more pass in the same flush — a measure-then-set lands before paint, and converges, because its second
- * measurement writes the same value, which the store ignores — and a third is a loop: held for the element window's
- * next frame (or the timer), where it is queued again, so a self-feeding pass runs twice per frame, runaway or
- * intended, and never freezes the tab. (Main ran it once per frame; Vue allows a hundred re-runs; React throws.) Each
- * held pass asks for its own frame: only a loop is ever held, so batching them is not worth its bytes.
+ * measurement writes the same value, which the store ignores — and a third is held for the element window's next frame
+ * (or the timer), where it is queued again, so a self-feeding pass runs twice per frame, runaway or intended, and never
+ * freezes the tab. (Main ran it once per frame; Vue allows a hundred re-runs; React throws.)
+ *
+ * **One frame per pass per flush** (D27, 2026-11-12): a loop is not the only way here. A FAN-IN re-queues one pass many
+ * times in one flush — an automatic list's parent, once per updated row, when the list cannot commit its rows itself —
+ * and every re-queue past the second run used to ask for its own frame and timer (98 for a 100-row update); in a
+ * browser each frame callback is followed by a microtask checkpoint, so each could drain the pass again. Only the FIRST
+ * crossing (`_r === 3`) asks now; later re-queues in the same flush reach 4, 5, … and ask nothing. A new flush resets
+ * `_r`, so a write in an unrelated flush still runs the pass there, and its frame still queues it, as before.
+ * Not a field of its own: one more field per hook cost hook CREATION +2.4% on SpiderMonkey (measured, 12/12). Not `_in`
+ * either: marking a held pass "queued" would make every write ignore it until its frame, and a hidden tab's frame is a
+ * timer throttled to a second or a minute, and `flush()` would skip it.
  */
 const hold = (pass: HookRecord) => {
+  if (pass._r !== 3) return;
   if (__DEV__) loopWarning(pass);
   frameOrTimer(() => {
     if (__DEV__) pass._hf = 1;
