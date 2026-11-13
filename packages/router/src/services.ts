@@ -4,8 +4,8 @@ import type { Inserts } from '@verajs/inserts';
 
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
-import { saidString } from './events.js';
-import { diagnostic, misuse, SHARED, stripTrailingSlash } from '@verajs/shared-utils';
+import { warnStringVerdict } from './events.js';
+import { diagnostic, hasWarned, misuse, SHARED, stripTrailingSlash, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import type { Renderer } from '@verajs/shared-types';
 
@@ -25,8 +25,6 @@ import type { Renderer } from '@verajs/shared-types';
 let registry: Inserts | null = null;
 let direct: Renderer[] = [];
 
-/** One warning per page for an unwired router — see `routeChange`. */
-let warnedAboutRenderer = false;
 
 /**
  * The outlets this router has rendered into, so a stale level can be emptied without touching an
@@ -477,8 +475,6 @@ export const attachWindowListeners = () => {
  * @param origin The router element that initiated it, when one did (link clicks)
  * @return true if the page routed (or the change was hash-only)
  */
-/** Relative navigations already warned about swallowing a param — one word per spelling. */
-const warnedSwallow = new Set<string>();
 
 export const navigate = async (
   target: RouteTarget,
@@ -604,9 +600,9 @@ export const navigate = async (
      * exists so the surprise costs one console read instead of a debugging session, and it names
      * both correct spellings. Development only, once per input.
      */
-    /** `warnedSwallow`: one entry per distinct relative input — development only, bounded by what the app's code
-     *  passes; no cap (2026-10-09: decided, not overlooked). */
-    if (__DEV__ && typeof target === 'string' && !/^[/?#]/.test(target) && !warnedSwallow.has(target)) {
+    /** Once per distinct relative input (development only, bounded by what the app's code passes; no cap, 2026-10-09:
+     *  decided, not overlooked). `hasWarned` first: the comparison below is skipped for an input already said. */
+    if (__DEV__ && typeof target === 'string' && !/^[/?#]/.test(target) && !hasWarned('router-relative-param', target)) {
       const prior = state.currentPath.split(/[?#]/)[0];
       const cut = prior.lastIndexOf('/') + 1;
       const last = prior.slice(cut);
@@ -618,8 +614,7 @@ export const navigate = async (
         !bare.slice(cut).includes('/') &&
         Object.values(state.params).some((value) => value === last)
       ) {
-        warnedSwallow.add(target);
-        console.warn(diagnostic('router', 'navigate()', 'router-relative-param', __DEV__ && PROSE['router-relative-param'](target, prior, bare, last)));
+        warnOnce('router', 'navigate()', 'router-relative-param', __DEV__ && (() => PROSE['router-relative-param'](target, prior, bare, last)), target);
       }
     }
   }
@@ -914,7 +909,7 @@ const guardPass = async (
      * load-bearing because the README makes awaiting the supported way to handle an outcome —
      * "`navigate()` rejects, so a caller that awaits it can handle the failure itself".
      */
-    if (__DEV__ && typeof verdict === 'string') saidString('`beforeEnter`', link.path ?? currentRoute?.path, verdict, true);
+    if (__DEV__ && typeof verdict === 'string') warnStringVerdict('`beforeEnter`', link.path ?? currentRoute?.path, verdict, true);
     if (verdict === false) return null;
     if (id !== navigationId) return null;
   }
@@ -1021,10 +1016,8 @@ const routeChange = async (
      *
      * `__DEV__`-only, so a production bundle carries neither the check nor the text.
      */
-    if (__DEV__ && chain.length === 0 && !warnedAboutRenderer) {
-      warnedAboutRenderer = true;
-      console.warn(diagnostic('router', 'navigate()', 'router-no-renderer', __DEV__ && PROSE['router-no-renderer']()));
-    }
+    /** Once per page. */
+    if (__DEV__ && chain.length === 0) warnOnce('router', 'navigate()', 'router-no-renderer', __DEV__ && (() => PROSE['router-no-renderer']()));
     chain.forEach((callback) => {
       callback?.(template, levelView);
     });

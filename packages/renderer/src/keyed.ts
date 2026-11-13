@@ -1,4 +1,4 @@
-import { diagnostic, misuse } from '@verajs/shared-utils';
+import { misuse, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './keyed-diagnostics.js';
 /**
  * @verajs/renderer/keyed — key-based list reconciliation, loaded by the values that need it.
@@ -11,8 +11,6 @@ import { PROSE } from './keyed-diagnostics.js';
  */
 import type { Item, KeyedResult, ListStrategy } from './renderer.js';
 
-/** Development: the duplicate keys already said, per list part. */
-let saidKeys: WeakMap<object, Set<unknown>> | undefined;
 const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const count = values.length;
   /** A `null` item is unkeyed, as the renderer's `$c` already treats it — never a throw on the second render. */
@@ -50,12 +48,7 @@ const reconcile: ListStrategy = (part, values, items, parent, end) => {
       const k = key(i);
       if (seen.has(k)) {
         /** Once per (list, key): the same duplicate on every reconcile is noise; a NEW duplicate key is news. */
-        const said = (saidKeys ??= new WeakMap()).get(part) ?? new Set();
-        saidKeys.set(part, said);
-        if (!said.has(k)) {
-          said.add(k);
-          console.warn(diagnostic('keyed', 'a keyed list', 'keyed-duplicate-key', __DEV__ && PROSE['keyed-duplicate-key'](String(k))));
-        }
+        warnOnce('keyed', 'a keyed list', 'keyed-duplicate-key', __DEV__ && (() => PROSE['keyed-duplicate-key'](String(k))), [part, k]);
         break;
       }
       seen.add(k);
@@ -441,8 +434,6 @@ type ListsState = {
 const listsOf = new WeakMap<object, ListsState>();
 /** Core's `untracked` (`$t`): the deciding run of a call site's first item subscribes nothing. */
 let untracked: (<R>(fn: () => R) => R) | undefined;
-/** Development: a duplicate id already said, per list. */
-let saidDup: WeakSet<object> | undefined;
 /** A list the parent no longer reaches: its rows and its own hook retire. */
 const orphan = (list: List) => {
   /**
@@ -557,10 +548,8 @@ function listRun(this: List): void {
     if (rec !== undefined && rec.seen === t) {
       if (!this.ident) {
         /** A repeated id: identity keys from now on, and this run again from the start. */
-        if (__DEV__ && !(saidDup ??= new WeakSet()).has(this)) {
-          saidDup.add(this);
-          console.warn(diagnostic('keyed', 'an automatic .map list', 'keyed-duplicate-key', __DEV__ && PROSE['keyed-duplicate-key'](String(k))));
-        }
+        /** Once per list. */
+        if (__DEV__) warnOnce('keyed', 'an automatic .map list', 'keyed-duplicate-key', __DEV__ && (() => PROSE['keyed-duplicate-key'](String(k))), this);
         this.ident = true;
         restart = true;
         return;

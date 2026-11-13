@@ -11,8 +11,8 @@
       "gzip": 5818
     },
     "router": {
-      "raw": 10901,
-      "gzip": 4531
+      "raw": 10883,
+      "gzip": 4522
     },
     "autoloader": {
       "raw": 3947,
@@ -40,7 +40,7 @@
     },
     "standalone": {
       "raw": 4470,
-      "gzip": 2099
+      "gzip": 2093
     },
     "collections": {
       "raw": 1289,
@@ -79,8 +79,8 @@
       "gzip": 800
     },
     "portal": {
-      "raw": 1281,
-      "gzip": 707
+      "raw": 1275,
+      "gzip": 705
     },
     "hydration": {
       "raw": 8243,
@@ -96,11 +96,11 @@
     },
     "directives": {
       "raw": 16190,
-      "gzip": 6328
+      "gzip": 6325
     },
     "directives-standalone": {
       "raw": 33160,
-      "gzip": 12320
+      "gzip": 12319
     },
     "directives-expressions": {
       "raw": 5618,
@@ -119,8 +119,8 @@
       "gzip": 3165
     },
     "directives-remote": {
-      "raw": 9534,
-      "gzip": 3872
+      "raw": 9520,
+      "gzip": 3865
     },
     "directives-motion": {
       "raw": 80946,

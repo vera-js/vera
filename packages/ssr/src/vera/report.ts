@@ -28,14 +28,26 @@ export const ssrWarning = (subject: string, code: string, prose: Said): string =
 export const quoted = (text: string, max = 80): string => JSON.stringify(text.length > max ? `${text.slice(0, max)}…` : text);
 
 /**
- * **Once per process per key.** A server renders per request, so a warning that fires per render floods the log at
- * request rate; every ssr warning names its key (a component tag, with an attribute or an event type where that
- * distinguishes two facts). Bounded by the number of component classes and their names — the code, not the traffic.
+ * **Once per process per (code, key).** A server renders per request, so a warning that fires per render floods the log
+ * at request rate; every ssr warning names its key (a component tag, with an attribute or an event type where that
+ * distinguishes two facts), or an object (a container). Bounded by the number of component classes and their names:
+ * the code, not the traffic. The TWIN of @verajs/shared-utils' once-memory (`hasWarned`, then `warnOnce`; ssr cannot import the private package),
+ * the same memory shape: `code` or `code key` in a Set, an object key in a WeakMap; tests/ssr-coded-diagnostics holds
+ * the two answering alike.
  */
-const said = new Set<string>();
-export const once = (key: string): boolean => {
-  if (said.has(key)) return false;
-  said.add(key);
+const printed = new Set<string>();
+const printedOn = new WeakMap<object, Set<string>>();
+export const once = (code: string, key?: string | object): boolean => {
+  if (key === undefined || typeof key === 'string') {
+    const entry = key === undefined ? code : `${code} ${key}`;
+    if (printed.has(entry)) return false;
+    printed.add(entry);
+    return true;
+  }
+  const codes = printedOn.get(key);
+  if (codes?.has(code)) return false;
+  if (codes) codes.add(code);
+  else printedOn.set(key, new Set([code]));
   return true;
 };
 

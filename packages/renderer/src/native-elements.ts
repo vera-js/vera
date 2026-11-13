@@ -18,7 +18,7 @@
  * arrives through its connector), and an app that does not wire it pays nothing. Never on a server (ssr marks the
  * registry, `$srv`). Unsupported, said in development: a tag that cannot hold a shadow root, and a host with one already.
  */
-import { diagnostic } from '@verajs/shared-utils';
+import { diagnostic, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './native-elements-diagnostics.js';
 
 type Host = HTMLElement & { _$x$?: boolean };
@@ -31,8 +31,6 @@ const PENDING = Symbol();
 /** Each realm's sentinel name, per copy: `vera-s-` + the first number free in that realm's registry (deterministic). */
 const names = new WeakMap<CustomElementRegistry, string>();
 let core: Core | undefined;
-/** Development: each unsupported tag said once. */
-let said: Set<string> | undefined;
 
 const hostOf = (sentinel: Element) => (sentinel.getRootNode() as ShadowRoot).host as Host & { [SETUP]?: [unknown, unknown] };
 
@@ -74,15 +72,12 @@ const sentinelFor = (win: Window & typeof globalThis) => {
   return name;
 };
 
-/** Development: each host said once. */
-let saidSlot: WeakSet<Element> | undefined;
 const slotAttributeCheck = (host: Element) => {
   const children = host.children;
   for (let i = 0; i < children.length; i++)
-    if (children[i]!.hasAttribute('slot') && !(saidSlot ??= new WeakSet()).has(host)) {
-      saidSlot.add(host);
-      console.warn(diagnostic('native-elements', `<${host.localName}>`, 'native-host-slot-attribute', __DEV__ && PROSE['native-host-slot-attribute'](children[i]!.localName)));
-    }
+    /** Once per host. */
+    if (children[i]!.hasAttribute('slot'))
+      warnOnce('native-elements', `<${host.localName}>`, 'native-host-slot-attribute', __DEV__ && (() => PROSE['native-host-slot-attribute'](children[i]!.localName)), host);
 };
 
 const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unknown, setup: unknown): false | undefined => {
@@ -103,10 +98,9 @@ const onInit = (element: Host & { [SETUP]?: [unknown, unknown] }, options: unkno
     try {
       root = element.attachShadow({ mode: 'closed' });
     } catch {
-      if (__DEV__ && !(said ??= new Set()).has(element.localName)) {
-        said.add(element.localName);
-        console.warn(diagnostic('native-elements', `<${element.localName}>`, 'native-host-unsupported', __DEV__ && PROSE['native-host-unsupported'](element.localName)));
-      }
+      /** Once per tag. */
+      if (__DEV__)
+        warnOnce('native-elements', `<${element.localName}>`, 'native-host-unsupported', __DEV__ && (() => PROSE['native-host-unsupported'](element.localName)), element.localName);
       return undefined;
     }
     const doc = element.ownerDocument;

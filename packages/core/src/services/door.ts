@@ -1,7 +1,7 @@
 /** Decides which handler each type of value gets in a store: this copy of core's own, then each wired module's. */
 import { inserts } from '@verajs/inserts';
 import type { StoreInsert } from '@verajs/inserts';
-import { diagnostic, misuse } from '@verajs/shared-utils';
+import { diagnostic, errorOnce, hasWarned, misuse } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { MARK } from './identity.js';
 import { kit } from './track.js';
@@ -32,13 +32,6 @@ export const claimed = new WeakSet<object>();
  * `wire` throw. Replacing it (wiring a new function at its priority) is what brings it back.
  */
 const broken = new WeakSet<StoreInsert>();
-/**
- * **A collection in a store with nothing to make it reactive is said once, in development**.
- * A `Map`/`Set` no `'store'` module claims is handed back RAW — it works and never updates the
- * page, the worst failure mode there is: silent. Checked when its TYPE is first decided (once per page, so once), a
- * microtask later — a module wired after a store was first read (supported: `wire` re-decides) is not a false alarm.
- */
-let saidNoCollections = false;
 /**
  * **This copy of core's own handlers: the first link of every decision, held HERE, never in the shared chain.** The shared
  * `'store'` chain is page-wide: in development two copies of core on one page share one registry, and a default
@@ -146,11 +139,16 @@ export const handlerFor = (value: object) => {
   if (owned === undefined) {
     types.set(tag, (owned = {}));
     settle([tag]);
-    if (__DEV__ && COLLECTION.test(tag) && !saidNoCollections)
+    /**
+     * **A collection in a store with nothing to make it reactive is said once, in development.** A `Map`/`Set` no
+     * `'store'` module claims is handed back RAW: it works and never updates the page, the worst failure mode there is,
+     * silent. Checked when its TYPE is first decided, a microtask later, so a module wired after a store was first read
+     * (supported: `wire` re-decides) is not a false alarm. `hasWarned` skips the microtask once it is out.
+     */
+    if (__DEV__ && COLLECTION.test(tag) && !hasWarned('no-collections'))
       queueMicrotask(() => {
-        if (saidNoCollections || claimed.has(types.get(tag)!)) return;
-        saidNoCollections = true;
-        console.error(diagnostic('core', `a ${tag.slice(8, -1)} in a store`, 'no-collections', __DEV__ && PROSE['no-collections']()));
+        if (claimed.has(types.get(tag)!)) return;
+        errorOnce('core', `a ${tag.slice(8, -1)} in a store`, 'no-collections', __DEV__ && (() => PROSE['no-collections']()));
       });
   }
   return owned;

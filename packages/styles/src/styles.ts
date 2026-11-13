@@ -1,5 +1,5 @@
 import type { CSSResultGroup, StyledElement } from './types.js';
-import { diagnostic, misuse } from '@verajs/shared-utils';
+import { diagnostic, misuse, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
 /**
@@ -37,8 +37,6 @@ export const css = (strings: TemplateStringsArray, ...values: (string | number)[
  */
 const withoutText = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, '');
 
-/** Development: a light-DOM component's styles went global for want of `@scope` — said once per page. */
-let warnedAboutScope = false;
 
 /** Development: `element` is a component element (realm-safe — a popped-out window's fails `instanceof`). */
 const notAnElement = (element: unknown) => (element as Partial<Node> | null)?.nodeType !== 1;
@@ -190,10 +188,8 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   const raw = list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n');
   const cssText = forLightDom(raw);
   const supported = !!view && typeof view.CSSScopeRule === 'function';
-  if (__DEV__ && !supported && !warnedAboutScope) {
-    warnedAboutScope = true;
-    console.warn(diagnostic('styles', `<${element.localName}>`, 'no-scope', __DEV__ && PROSE['no-scope'](element.localName)));
-  }
+  /** Development: a light-DOM component's styles went global for want of `@scope`, once per page. */
+  if (__DEV__ && !supported) warnOnce('styles', `<${element.localName}>`, 'no-scope', __DEV__ && (() => PROSE['no-scope'](element.localName)));
   /** Development: `::slotted()` only ever matches inside a shadow root — in light DOM an ordinary selector reaches it. */
   if (__DEV__ && /::slotted\s*\(/.test(withoutText(raw)))
     console.warn(diagnostic('styles', `<${element.localName}>`, 'slotted-light', __DEV__ && PROSE['slotted-light']()));

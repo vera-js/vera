@@ -15,9 +15,9 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { renderToString } from '@verajs/ssr';
 import { PROSE, TWINS } from '../packages/ssr/dist/vera/diagnostics.js';
-import { ssrMisuse, ssrWarning, quoted, own, isOwn } from '../packages/ssr/dist/vera/report.js';
+import { ssrMisuse, ssrWarning, quoted, own, isOwn, once } from '../packages/ssr/dist/vera/report.js';
 /** shared-utils' DEVELOPMENT build — the one where misuse()/diagnostic() carry prose (`__DEV__` true). */
-import { SHARED, misuse, diagnostic, quoted as sharedQuoted, own as sharedOwn, isOwn as sharedIsOwn } from '../packages/shared-utils/dist/development/vera-shared-utils.js';
+import { SHARED, misuse, diagnostic, quoted as sharedQuoted, own as sharedOwn, isOwn as sharedIsOwn, hasWarned, warnOnce } from '../packages/shared-utils/dist/development/vera-shared-utils.js';
 
 const MODULE = new URL('./fixtures/ssr/coded-ssr.js', import.meta.url);
 
@@ -126,4 +126,26 @@ test('every code ssr raises has its entry, and every entry is raised', async () 
   }
   assert.ok(raised.size >= 15, `CONTROL: ${raised.size} raised`);
   assert.deepEqual([...raised].sort(), Object.keys(PROSE).sort());
+});
+
+/**
+ * **ssr's `once` is the twin of shared-utils' once-memory** (D29, 2026-11-12): the same memory shape, so one
+ * scripted sequence of (code, key) gets the same answers from both. Codes unique to this row, so no other row's
+ * memory is in it.
+ */
+test("ssr's once(code, key?) answers as shared-utils' hasWarned-then-warnOnce does", () => {
+  const element = {}, other = {};
+  const script = [['twin-a'], ['twin-a'], ['twin-a', 'x'], ['twin-a', 'x'], ['twin-a', 'y'], ['twin-b', 'x'], ['twin-a', element], ['twin-a', element], ['twin-b', element], ['twin-a', other], ['twin-a']];
+  const ssr = script.map(([code, key]) => once(code, key));
+  /** shared-utils' first time: not yet warned, then warned (its line silenced here). */
+  const { warn } = console;
+  console.warn = () => {};
+  let shared;
+  try {
+    shared = script.map(([code, key]) => { const first = !hasWarned(code, key); warnOnce('twin', 'test', code, false, key); return first; });
+  } finally {
+    console.warn = warn;
+  }
+  assert.deepEqual(ssr, [true, false, true, false, true, true, true, false, true, true, false], 'CONTROL: the expected answers');
+  assert.deepEqual(ssr, shared);
 });

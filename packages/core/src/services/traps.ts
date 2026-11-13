@@ -1,6 +1,6 @@
 /** Core's own traps: what a read, a write and a whole-array method do to a record or an array in a store. */
 import { proxyCallbacks } from '../store/store.js';
-import { diagnostic, misuse } from '@verajs/shared-utils';
+import { diagnostic, errorOnce, misuse } from '@verajs/shared-utils';
 import type { StoreInsert } from '@verajs/inserts';
 import type { Change, Slot } from '../types.js';
 import { PROSE } from '../diagnostics.js';
@@ -39,10 +39,11 @@ const LOOKUP_SETTER = (Object.prototype as unknown as { __lookupSetter__(this: o
  */
 const MUTATORS = new Set(['splice', 'push', 'pop', 'shift', 'unshift', 'sort', 'reverse', 'fill', 'copyWithin']);
 /**
- * Development: the Array subclasses already told about (`subclass-mutator`, once per class, Brian's ruling 2026-11-11).
- * Module-level because "once" spans every store; read only under `__DEV__`, so production drops it with the check.
+ * Development: the Array subclasses already SCANNED for an owned mutator: a cache of work done, not a warning flag (the
+ * warning is `errorOnce`'s, once per class). A class that owns none is never scanned again on the reads that follow.
+ * Module-level because it spans every store; read only under `__DEV__`, so production drops it with the check.
  */
-const saidSubclass = /* @__PURE__ */ new WeakSet<object>();
+const inspected = /* @__PURE__ */ new WeakSet<object>();
 /**
  * **Development: an Array subclass that OWNS a mutator, met by a store** (Brian's ruling, 2026-11-11: a documented limit,
  * said once per class). Its override runs with the raw array as `this`, so a field it writes is not tracked (the items
@@ -54,13 +55,13 @@ const saidSubclass = /* @__PURE__ */ new WeakSet<object>();
 const subclassMutator = (data: object) => {
   if (!Array.isArray(data)) return;
   const first = Object.getPrototypeOf(data) as object | null;
-  if (first === Array.prototype || first === null || saidSubclass.has(first)) return;
-  saidSubclass.add(first);
+  if (first === Array.prototype || first === null || inspected.has(first)) return;
+  inspected.add(first);
   for (let proto: object | null = first; proto !== null && proto !== Array.prototype; proto = Object.getPrototypeOf(proto))
     for (const name of MUTATORS)
       if (Object.hasOwn(proto, name)) {
         const cls = (first as { constructor?: { name?: string } }).constructor?.name || 'an Array subclass';
-        console.error(diagnostic('core', `${cls} in a store`, 'subclass-mutator', __DEV__ && PROSE['subclass-mutator'](cls, name)));
+        errorOnce('core', `${cls} in a store`, 'subclass-mutator', __DEV__ && (() => PROSE['subclass-mutator'](cls, name)), first);
         return;
       }
 };
@@ -206,18 +207,13 @@ const refusedWrite: (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted'
   ? (obj, prop, verb) => new TypeError(misuse('createStore', 'store-refused', __DEV__ && PROSE['store-refused'](verb === 'deleted' ? 'delete' : 'write', refusal(obj, prop, verb))))
   : () => new TypeError(misuse('createStore', 'store-refused', false));
 /**
- * Development: the keys a same-value write met that the language would refuse to write (D14b, Brian's ruling
- * 2026-11-11: a documented limit). Production treats that write as no change, as for any key; development reports it
- * once per key per object. Module-level because "once" spans every write; weak, so nothing is kept alive.
+ * Development: a same-value write onto a key the language would refuse to write (D14b, Brian's ruling 2026-11-11: a
+ * documented limit). Production treats that write as no change, as for any key; development reports it once per key per
+ * object (the pair key: the object and its property).
  */
-const saidSame = /* @__PURE__ */ new WeakMap<object, Set<PropertyKey>>();
 const sameOntoLocked = (obj: object, prop: PropertyKey) => {
   if (Reflect.getOwnPropertyDescriptor(obj, prop)?.writable !== false && !Object.isFrozen(obj)) return;
-  let keys = saidSame.get(obj);
-  if (keys === undefined) saidSame.set(obj, (keys = new Set()));
-  if (keys.has(prop)) return;
-  keys.add(prop);
-  console.error(diagnostic('core', 'a store write', 'same-onto-locked', __DEV__ && PROSE['same-onto-locked'](String(prop))));
+  errorOnce('core', 'a store write', 'same-onto-locked', __DEV__ && (() => PROSE['same-onto-locked'](String(prop))), [obj, prop]);
 };
 /** Development: what the language refused the write or delete FOR, derived from the target. */
 const refusal = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {

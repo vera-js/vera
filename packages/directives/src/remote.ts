@@ -33,7 +33,7 @@
  * the first, so a fast-typing search box cannot have an early response land after a late one and
  * write stale state — the bug every hand-rolled version of this has.
  */
-import { diagnostic, SHARED } from '@verajs/shared-utils';
+import { diagnostic, hasWarned, SHARED, warnOnce } from '@verajs/shared-utils';
 import { dual } from './dual.js';
 import { PROSE } from './remote-diagnostics.js';
 import { claimCommit, commitFlip } from './flip.js';
@@ -90,8 +90,6 @@ const resolveUrl = (raw: unknown): { href: string; sameOrigin: boolean } | null 
 /** GET responses held for `cache:` replay — keyed by resolved URL, shared across elements. */
 const responseCache = new Map<string, { at: number; type: string; body: string }>();
 
-/** Elements already warned about URL-bound feed depth — the pun guard fires once per element. */
-const warnedFeedDepth = new WeakSet<Element>();
 
 /** The element a swap writes into: a selector, or the element itself. */
 const swapTarget = (el: Element, into: unknown): Element | null => {
@@ -287,15 +285,13 @@ const fetchDirective: Directive = {
                * with holes — pages 2..N-1 were DOM, not URL. Advisory, not a refusal: the
                * request is fine, the sharing story is what breaks.
                */
-              if (__DEV__ && place !== 'replace' && !warnedFeedDepth.has(element)) {
+              /** Once per element; `hasWarned` first, so the URL is not parsed again for an element already told. */
+              if (__DEV__ && place !== 'replace' && !hasWarned('fetch-feed-depth', element)) {
                 const bound = element.closest('[data-vd-query]')?.getAttribute('data-vd-query');
                 const requested = new URL(target.href).searchParams;
                 const pun = (bound ?? '').split(/[\s,]+/).filter(Boolean)
                   .find((key) => requested.has(key) || requested.has(`${key}[]`));
-                if (pun) {
-                  warnedFeedDepth.add(element);
-                  console.warn(diagnostic('directives', 'data-vd-fetch', 'fetch-feed-depth', PROSE['fetch-feed-depth']!(pun)));
-                }
+                if (pun) warnOnce('directives', 'data-vd-fetch', 'fetch-feed-depth', __DEV__ && (() => PROSE['fetch-feed-depth']!(pun)), element);
               }
               const markup = body;
               const current = claimCommit(into);

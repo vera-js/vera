@@ -91,7 +91,7 @@ const NAME_CHAR_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
  */
 const refusedScriptUrl = (name: string): void => {
   const tag = currentRenderingTag();
-  if (once(`script-url:${tag}:${name}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'script-url', TWINS.scriptUrl(name)));
+  if (once('script-url', `${tag} ${name}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'script-url', TWINS.scriptUrl(name)));
 };
 const nameHole = (before: string, after: string): never => {
   const prefix = (/[^\s"'>=/]*$/.exec(before) ?? [''])[0];
@@ -234,7 +234,7 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
       carrier = Object.getPrototypeOf(carrier);
     }
     if (refusable) {
-      if (once(`getter-only-prop:${tag}:${name}`)) console.warn(ssrWarning(`<${tag}>`, 'getter-only-prop', TWINS.getterOnlyProp(name)));
+      if (once('getter-only-prop', `${tag} ${name}`)) console.warn(ssrWarning(`<${tag}>`, 'getter-only-prop', TWINS.getterOnlyProp(name)));
       return;
     }
     throw own(new TypeError(ssrMisuse('ssr-setter-threw', PROSE['ssr-setter-threw']!(tag, name, quoted(thrownMessage(error)))), { cause: error }));
@@ -290,7 +290,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   if (!isLiteral(strings)) {
     /** Once per process per component (Brian, 2026-10-09); the forgery itself still renders as the object it is. */
     const tag = currentRenderingTag();
-    if (once(`forged-template:${tag}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'forged-template', TWINS.forgedTemplate()));
+    if (once('forged-template', tag)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'forged-template', TWINS.forgedTemplate()));
     return null;
   }
   const parts: string[] = [];

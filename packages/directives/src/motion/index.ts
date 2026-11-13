@@ -284,9 +284,10 @@ const regionFor = (el: Element, reject: (code: string, args?: readonly string[])
  * Per-element reason dedup — the old rejections registry's Set-per-node
  * semantics, kept because a refusal returned from a per-frame `apply` (a
  * refused canvas, scrolling) would otherwise append to the engine's
- * registry once per changed value.
+ * registry once per changed value. Not `warnOnce` (D29, 2026-11-12): this one FORGETS an element at its teardown, so
+ * an element that returns is told again, and it reports into the engine's registry, not the console.
  */
-const said = new WeakMap<Element, Set<string>>();
+const refusedOnElement = new WeakMap<Element, Set<string>>();
 /**
  * **Codes, like every other pack.** This funneled every motion refusal through one
  * `motion-refused` code carrying a composed sentence, which meant its words shipped to production
@@ -297,8 +298,8 @@ const said = new WeakMap<Element, Set<string>>();
  * property rather than once per element — the same grain the composed sentence gave for free.
  */
 const dedupedReject = (el: Element, ctx: Ctx) => (code: string, args: readonly string[] = []): void => {
-  let seen = said.get(el);
-  if (!seen) said.set(el, (seen = new Set()));
+  let seen = refusedOnElement.get(el);
+  if (!seen) refusedOnElement.set(el, (seen = new Set()));
   const key = args.length ? `${code}\u0000${args.join('\u0000')}` : code;
   if (seen.has(key)) return;
   seen.add(key);
@@ -427,7 +428,7 @@ const motionDirective: Directive = {
     return () => {
       if (element.runOnceRan) latched.set(el, element.timelinePosition);
       whenElements.delete(el);
-      said.delete(el);
+      refusedOnElement.delete(el);
       for (const off of propertyTeardowns) off();
       region.remove(el);
       const host = staggerHost(el);

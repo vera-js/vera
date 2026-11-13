@@ -14,7 +14,7 @@
  * fallback. What the page's template later does inside a unit is seen by a `MutationObserver` and re-distributed —
  * synchronously after every component render (core's `'render'` insert), and at the latest by the next microtask.
  */
-import { diagnostic, isCustomElementName, SHARED } from '@verajs/shared-utils';
+import { diagnostic, isCustomElementName, SHARED, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './slots-diagnostics.js';
 import { elements } from './elements.js';
 import { PROTOCOL } from './kinds.js';
@@ -1332,7 +1332,6 @@ const slotBehavior = {
  * with light content, that content cannot be told from the server's render without `hydrateSlots`, so the host stands
  * as served and the coded error names what to wire. Development warns once per page.
  */
-let warnedUnadopted = false;
 /**
  * **The render-end hook, installed at the first thing that needs it** (2026-10-18): until then the renderer's
  * `_$done$` read finds `undefined` and every render ends without calling slots — a page that wired slots but has nothing
@@ -1368,10 +1367,8 @@ const unadopted = (container: Node) => {
     node = next;
   }
   (container as Element).removeAttribute(LIGHT_ATTR);
-  if (__DEV__ && !warnedUnadopted) {
-    warnedUnadopted = true;
-    console.warn(diagnostic('slots', 'the page', 'hydration-unwired', __DEV__ && PROSE['hydration-unwired']('its components re-render on the client instead of adopting the server markup')));
-  }
+  if (__DEV__)
+    warnOnce('slots', 'the page', 'hydration-unwired', __DEV__ && (() => PROSE['hydration-unwired']('its components re-render on the client instead of adopting the server markup')));
 };
 
 /** A light host's children in light order, as its record holds them — what a template placing content into it adopts. */

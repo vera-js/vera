@@ -18,9 +18,10 @@ const at = (name, file) => new URL(`../packages/${name}/${file}`, import.meta.ur
  * A converted call: `diagnostic(…, 'code', __DEV__ && PROSE['code']…` — or `SHARED.codeName(…` for a code more than one
  * package prints (shared-utils' table, one export per code, the name IS the code). Captures the printed code and the
  * explaining one, from either table. `coded(…)` is the jsx compiler's, whose message leads with a source position
- * rather than an area — the same `__DEV__ &&` form.
+ * rather than an area — the same `__DEV__ &&` form. `warnOnce` / `errorOnce` (D29, 2026-11-12) take `diagnostic()`'s
+ * arguments, with the detail lazy: `__DEV__ && (() => PROSE['code'](…))`.
  */
-const CALL = /(?:\b(?:diagnostic|misuse|misuseAbout|coded))\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
+const CALL = /(?:\b(?:diagnostic|misuse|misuseAbout|coded|warnOnce|errorOnce))\([^;]*?'([a-z][a-z0-9-]*)',\s*__DEV__ && (?:\(\(\) => )?(?:PROSE\['([a-z][a-z0-9-]*)'\]|SHARED\.([a-zA-Z0-9]+))/g;
 
 /** A package's tables merged, as `sync-diagnostics` publishes them — a code in two of them is a failure here too. */
 const merged = async ({ name, tables }) => {

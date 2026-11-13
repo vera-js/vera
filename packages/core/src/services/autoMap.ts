@@ -1,6 +1,6 @@
 /** A store array's `.map` inside a render, handed to the list module when one is wired. */
 import { tracking } from '../store/store.js';
-import { diagnostic } from '@verajs/shared-utils';
+import { hasWarned, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { seams } from './seams.js';
 
@@ -12,15 +12,12 @@ import { seams } from './seams.js';
  * t.name).join(', ')` stays silent). The template test is the renderer's own, `strings !== undefined`; keep it equal to
  * renderer.ts's and keyed.ts's `isTemplateResult` (three addresses).
  */
-let saidLists = false;
 const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
     const out = method.apply(this, args);
     const first = out[0] as { strings?: unknown } | null | undefined;
-    if (!saidLists && this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined) {
-      saidLists = true;
-      console.warn(diagnostic('core', 'a store array\'s .map in a render', 'lists-unwired', __DEV__ && PROSE['lists-unwired']()));
-    }
+    if (this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined)
+      warnOnce('core', 'a store array\'s .map in a render', 'lists-unwired', __DEV__ && (() => PROSE['lists-unwired']()));
     return out;
   };
 /**
@@ -31,12 +28,10 @@ const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) 
  * above: once per page, only when the rows are templates (what a List is), and never inside a server turn, where rows
  * render plainly whatever is wired and shared setup may wire `lists` alone.
  */
-let saidRenderer = false;
 const noRenderer = (out: unknown[]) => {
   const first = out[0] as { strings?: unknown } | null | undefined;
   if (first === null || typeof first !== 'object' || first.strings === undefined) return;
-  saidRenderer = true;
-  console.warn(diagnostic('core', 'an automatic .map list', 'lists-no-renderer', __DEV__ && PROSE['lists-no-renderer']()));
+  warnOnce('core', 'an automatic .map list', 'lists-no-renderer', __DEV__ && (() => PROSE['lists-no-renderer']()));
 };
 /**
  * **Automatic `.map`**: inside a RENDER hook (priority 50: a component's render, or a keyed row's), with a list module
@@ -49,14 +44,15 @@ export const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[]
   const hook = tracking.hook;
   if (list === undefined || hook === undefined || hook._y !== 50) {
     /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
-    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !saidLists && !seams.$ss?.(0))
+    /** `hasWarned`: once it is out, a render's `.map` is the native method again (no wrapper per call). */
+    if (__DEV__ && list === undefined && hook !== undefined && hook._y === 50 && !hasWarned('lists-unwired') && !seams.$ss?.(0))
       return unwiredList(method, proxy);
     return method;
   }
   return function (this: unknown, fn: unknown, ...rest: unknown[]) {
     if (this !== proxy || rest.length) return method.apply(this, [fn, ...rest]);
     const out = list(proxy, obj, fn, hook, hook._o, method);
-    if (__DEV__ && !saidRenderer && seams.$rn !== true && !seams.$ss?.(0)) noRenderer(out);
+    if (__DEV__ && seams.$rn !== true && !hasWarned('lists-no-renderer') && !seams.$ss?.(0)) noRenderer(out);
     return out;
   };
 };

@@ -1,3 +1,4 @@
+import { hasWarned } from '@verajs/shared-utils';
 /**
  * `__DEV__` only: the one home for *"is this value something an attribute can carry?"*
  *
@@ -57,7 +58,7 @@ export const attributeValueKind = (tag: string, name: string, value: unknown): s
    * `<my-chart formatter={fn}>` is a coherent intention that this sink simply cannot express. The
    * message names the binding that can, rather than blaming the author.
    */
-  const said = type === 'function'
+  const kind = type === 'function'
     ? `a function, which becomes its own SOURCE TEXT`
     : type === 'symbol'
       ? `a symbol, which every DOM conversion refuses`
@@ -68,7 +69,7 @@ export const attributeValueKind = (tag: string, name: string, value: unknown): s
           : `an ${type}, which cannot survive as text`;
 
   /** The KIND only: the sentence is the shared `attribute-value` entry, printed by each call site with its area. */
-  return said;
+  return kind;
 };
 
 /**
@@ -81,16 +82,13 @@ export const attributeValueKind = (tag: string, name: string, value: unknown): s
  * knows (`'on' + name in element`) is never questioned; one that EXTENDS a real event (`changed`,
  * `loaded`, `closed`) is a custom event by its shape and is left alone; and only a name within two
  * edits of an event this element really has — transpositions counting as one — is named. Each
- * `(tag, name)` pair is said once. The message comes back without the `[vera]` prefix; the call site
- * adds it as a literal, where `tests/diagnostics-convention.test.mjs` can read it.
+ * `(tag, name)` pair is said once: the caller's `warnOnce(…, 'event-name-typo', …, key)`, keyed by `eventKey`, and
+ * the scan below is skipped for a pair already said (`hasWarned`).
  */
-/** Marked pure: a bare module-level `new Set()` is kept by the bundler even when nothing reads it, and
- *  was the only trace this dev-only check left in production (8 B raw, measured). */
-const saidEvents = /* @__PURE__ */ new Set<string>();
+export const eventKey = (element: Element, name: string): string => element.localName + ' ' + name;
 export const eventNameGuess = (element: Element, name: string): string | null => {
   if ('on' + name in element) return null;
-  const said = element.localName + ' ' + name;
-  if (saidEvents.has(said)) return null;
+  if (hasWarned('event-name-typo', eventKey(element, name))) return null;
   let best: string | null = null;
   let bestDistance = 3;
   for (const key in element) {
@@ -104,7 +102,6 @@ export const eventNameGuess = (element: Element, name: string): string | null =>
     }
   }
   if (best === null) return null;
-  saidEvents.add(said);
   /** The GUESS only: the sentence is the renderer table's `event-name-typo`. */
   return best;
 };

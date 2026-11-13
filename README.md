@@ -10,14 +10,14 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | --- | ---: | ---: |
 | `@verajs/core` | 20.85 KB | **8.05 KB** |
 | `@verajs/renderer` | 13.73 KB | 5.68 KB |
-| `@verajs/router` | 10.65 KB | 4.42 KB |
+| `@verajs/router` | 10.63 KB | 4.42 KB |
 | `@verajs/autoloader` | 3.85 KB | 1.58 KB |
 | `@verajs/styles` | 1.88 KB | 987 B |
 | `@verajs/renderer/spread` | 3.22 KB | 1.61 KB |
 | `@verajs/renderer/tag` | 4.82 KB | 2.36 KB |
 | `@verajs/store` | 1.80 KB | 925 B |
 | `@verajs/jsx` | 15.42 KB | 5.89 KB |
-| `@verajs/jsx/standalone` | 4.37 KB | 2.05 KB |
+| `@verajs/jsx/standalone` | 4.37 KB | 2.04 KB |
 | `@verajs/store/collections` | 1.26 KB | 672 B |
 | `@verajs/store/resource` | 634 B | 396 B |
 | `@verajs/renderer/keyed` | 6.52 KB | 2.69 KB |
@@ -27,7 +27,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/slots` | 17.48 KB | 6.24 KB |
 | `@verajs/renderer/namespaces` | 1.09 KB | 667 B |
 | `@verajs/renderer/elements` | 1.51 KB | 800 B |
-| `@verajs/renderer/portal` | 1.25 KB | 707 B |
+| `@verajs/renderer/portal` | 1.25 KB | 705 B |
 | `@verajs/renderer/hydration` | 8.05 KB | 3.39 KB |
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.63 KB |
 | `@verajs/inserts` | 496 B | 363 B |
@@ -37,7 +37,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
 | `@verajs/directives/directives-sensors` | 7.77 KB | 3.09 KB |
-| `@verajs/directives/directives-remote` | 9.31 KB | 3.78 KB |
+| `@verajs/directives/directives-remote` | 9.30 KB | 3.77 KB |
 | `@verajs/directives/directives-motion` | 79.05 KB | 25.93 KB |
 | `@verajs/motion` | 37.20 KB | 12.31 KB |
 | `@verajs/motion/motion-ssr` | 37.66 KB | 12.20 KB |

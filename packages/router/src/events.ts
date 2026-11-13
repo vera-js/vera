@@ -9,7 +9,7 @@ import { PROSE } from './diagnostics.js';
  * `beforeEnter` and the `before-leave`/`before-route` handlers — because the README promises it of "a guard", and only
  * `beforeEnter` said it until 2026-10-09. `redirect` is offered only where a route can carry one.
  */
-export const saidString = (guard: string, path: RouteSnapshot['path'] | undefined, verdict: string, redirectable: boolean) =>
+export const warnStringVerdict = (guard: string, path: RouteSnapshot['path'] | undefined, verdict: string, redirectable: boolean) =>
   console.warn(
     diagnostic('router', `${guard} on "${path}"`, 'router-string-guard', __DEV__ && PROSE['router-string-guard'](
           verdict,
@@ -51,7 +51,7 @@ export const emit = async (
       const verdict = await handler(to, from);
       if (verdict === false) interrupted = true;
       else if (__DEV__ && typeof verdict === 'string' && event !== 'after-route')
-        saidString(`a \`${event}\` handler`, to.path, verdict, false);
+        warnStringVerdict(`a \`${event}\` handler`, to.path, verdict, false);
     } catch (error) {
       interrupted = true;
       /** Production prints the bare code (Brian's byte rule: the code-and-link shape cost +37 B on vera-router.min.js, the bare

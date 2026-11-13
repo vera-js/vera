@@ -1,4 +1,4 @@
-import { diagnostic, misuse } from '@verajs/shared-utils';
+import { misuse, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import type { ComponentElement, HookRecord, RenderScheduler } from '../types.js';
 
@@ -228,13 +228,9 @@ const drain = () => {
  * 2026-10-09): everything queued still runs before that flush ends — to read what a render made, read it in
  * a `'layout'` effect, which runs right after the render. In production this IS `drain`: zero bytes for the warning.
  */
-let saidNested = false;
 export const flush = __DEV__
   ? () => {
-      if (flushing && !saidNested) {
-        saidNested = true;
-        console.warn(diagnostic('core', 'flush()', 'nested-flush', __DEV__ && PROSE['nested-flush']()));
-      }
+      if (flushing) warnOnce('core', 'flush()', 'nested-flush', __DEV__ && (() => PROSE['nested-flush']()));
       drain();
     }
   : drain;
@@ -260,9 +256,8 @@ export const setRenderScheduler = (scheduler: RenderScheduler) => {
 
 /** Consecutive frames a pass was held, before a development warning: React's `NESTED_PASSIVE_UPDATE_LIMIT`. */
 const LIMIT = 50;
-/** `@__PURE__`: read only in development, so production drops the allocations with the branch. */
+/** `@__PURE__`: read only in development, so production drops the allocation with the branch. */
 const exempt = /* @__PURE__ */ new WeakSet<Element>();
-const warned = /* @__PURE__ */ new WeakSet<Element>();
 
 /** Which hook a priority is — the warning names the one that loops. */
 const LABELS: Record<number, string> = { 50: 'render', 60: "a 'layout' effect", 75: 'an effect' };
@@ -272,12 +267,10 @@ const loopWarning = (pass: HookRecord) => {
   pass._s = pass._hf ? pass._s! + 1 : 1;
   pass._hf = 0;
   const element = pass._o;
-  if (pass._s < LIMIT || !element || exempt.has(element) || warned.has(element)) return;
-  warned.add(element);
+  if (pass._s < LIMIT || !element || exempt.has(element)) return;
   const writer = pass._b ?? pass;
-  console.warn(
-    diagnostic('core', `${LABELS[writer._y] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && PROSE['render-loop'](String(LIMIT)))
-  );
+  /** Once per element: each looping component is its own mistake. */
+  warnOnce('core', `${LABELS[writer._y] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && (() => PROSE['render-loop'](String(LIMIT))), element);
 };
 
 /**

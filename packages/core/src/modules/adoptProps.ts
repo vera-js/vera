@@ -1,22 +1,16 @@
-import { diagnostic, SHARED } from '@verajs/shared-utils';
+import { SHARED, warnOnce } from '@verajs/shared-utils';
 import { RENDER_PRIORITY } from './createHook.js';
 import { createOwned } from '../services/createProxy.js';
 import { createStore } from './createStore.js';
 import type { ComponentElement } from '../types.js';
 
 /**
- * Development: a bound property met a GETTER-ONLY class member — refused, and said once per element and name (without
- * it, the binding vanished silently). The renderer's eager path hands the value
- * here (`_$adopt$`), so this is the one place both arrival orders end.
+ * A bound property met a GETTER-ONLY class member: refused, and said once per element and name (without it, the binding
+ * vanished silently). The renderer's eager path hands the value here (`_$adopt$`), so this is the one place both
+ * arrival orders end.
  */
-const refused = /* @__PURE__ */ new WeakMap<Element, Set<string>>();
-const refuse = (element: Element, key: string) => {
-  const names = refused.get(element) ?? new Set<string>();
-  refused.set(element, names);
-  if (names.has(key)) return;
-  names.add(key);
-  console.warn(diagnostic('core', `<${element.localName}>`, 'getter-only-prop', __DEV__ && SHARED.getterOnlyProp(key)));
-};
+const refuse = (element: Element, key: string) =>
+  warnOnce('core', `<${element.localName}>`, 'getter-only-prop', __DEV__ && (() => SHARED.getterOnlyProp(key)), [element, key]);
 
 /**
  * **The ONE receiver every component shares** (2026-10-11): called as a METHOD — `element._$adopt$(key, value)`,

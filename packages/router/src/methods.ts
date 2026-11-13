@@ -1,10 +1,8 @@
 import type { Route, RouteOptions } from './types.js';
-import { diagnostic } from '@verajs/shared-utils';
+import { diagnostic, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { routerSettings } from './state.js';
 
-/** Hrefs already reported by the base diagnostic below — one word each, not one per click. */
-const warnedOutside = new Set<string>();
 import { currentBase, navigate, stripBase } from './services.js';
 import { elements, elementsData, getOrCreate, handlers, names, routers } from './state.js';
 
@@ -78,10 +76,9 @@ const addLinkListener = (element: HTMLElement) => {
       const base = currentBase();
       /** One entry per distinct href the app rendered — development only, and bounded by the hrefs the page itself
        *  holds; no cap (2026-10-09: decided, not overlooked). */
-      if (base !== '' && !url.pathname.startsWith(base) && !warnedOutside.has(href)) {
-        warnedOutside.add(href);
-        console.warn(diagnostic('router', '<a route>', 'router-href-base', __DEV__ && PROSE['router-href-base'](href, base, url.pathname)));
-      }
+      /** Once per href, not once per click. */
+      if (base !== '' && !url.pathname.startsWith(base))
+        warnOnce('router', '<a route>', 'router-href-base', __DEV__ && (() => PROSE['router-href-base'](href, base, url.pathname)), href);
     }
     const path = stripBase(url.pathname) + url.search + url.hash;
     /**

@@ -370,8 +370,6 @@ const textOf = (container: ContainerShim): string => {
   return out;
 };
 
-/** Checked once per container (the fast path); said once per process per component — a server renders per request. */
-const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
 
 /**
  * The retained nodes among the entries.
@@ -479,11 +477,8 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
    * still a string after `parseChunks` is a chunk the parser declined, so there is no legitimate
    * content this can fire on.
    */
-  if (
-    !warnedAboutMarkup.has(container) &&
-    container._entries.some((entry) => typeof entry === 'string' && entry.trim())
-  ) {
-    warnedAboutMarkup.add(container);
+  /** Checked once per container (the fast path, an object key); said once per process per component (the tag key). */
+  if (container._entries.some((entry) => typeof entry === 'string' && entry.trim()) && once('ssr-markup-declined', container)) {
     /**
      * **The message has to describe the parser that exists.** It used to say "markup assigned as a
      * string is not parsed on the server", which was true before `parse.js` and is now false for
@@ -497,7 +492,7 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
      * well-formed is usually the fix.
      */
     const tag = currentRenderingTag();
-    if (once(`ssr-markup-declined:${tag}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'ssr-markup-declined', PROSE['ssr-markup-declined']!()));
+    if (once('ssr-markup-declined', tag)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'ssr-markup-declined', PROSE['ssr-markup-declined']!()));
   }
   return nodes;
 };

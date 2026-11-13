@@ -7,6 +7,53 @@
 export const DOCS = 'https://verajs.dev/e/';
 
 /**
+ * **What this copy of the framework has already said** (D29, 2026-11-12): the ONE memory behind `warnOnce`, `errorOnce`
+ * and `hasWarned`, for DEVELOPMENT-ONLY warnings. It replaced the hand-written once-flags every package kept
+ * (`saidLists`, `warnedDrop`, per-element WeakSets, per-key Sets: two naming styles, Brian: no names). **A warning that
+ * ships to production keeps its memory at its site** (bytes, measured 2026-11-12: the shared memory costs +80–145 B gz
+ * per bundle); development-only warnings use warnOnce. Module state by necessity, since "once" spans every call on the
+ * page. One per BUNDLE COPY, exactly the scope each flag had, because this package is inlined into every bundle.
+ * A code, or `code key` for a string key, in a Set. An object key (an element, a setup function) in a WeakMap, so its
+ * entry goes with the object. Marked pure, so a bundle that never prints once drops both.
+ */
+const printed = /* @__PURE__ */ new Set<string>();
+const printedOn = /* @__PURE__ */ new WeakMap<object, Map<string, Set<unknown>>>();
+/**
+ * A once's KEY: none (once per page), a string (once per that string), an object (once per that object: an element, a
+ * class, a setup function), or the PAIR `[object, value]`, a value key on that object (a store write: the object and its
+ * property; a keyed list: the list and the duplicate key, compared as the list compares them, by value, so `1` and `'1'`
+ * stay apart). A pair is the only array a key may be.
+ */
+type OnceKey = string | object | readonly [object, unknown];
+/** Where an object key's (code, value) lives: the value set for that code on that object, made on demand. */
+const valuesOn = (on: object, code: string, make: boolean): Set<unknown> | undefined => {
+  let codes = printedOn.get(on);
+  if (codes === undefined) {
+    if (!make) return undefined;
+    printedOn.set(on, (codes = new Map()));
+  }
+  let values = codes.get(code);
+  if (values === undefined && make) codes.set(code, (values = new Set()));
+  return values;
+};
+/** The object and value of an object or pair key. */
+const split = (key: object): readonly [object, unknown] => (Array.isArray(key) ? (key as unknown as readonly [object, unknown]) : [key, undefined]);
+/** Whether (code, key) is new, recording it if so. */
+const firstTime = (code: string, key?: OnceKey): boolean => {
+  if (key === undefined || typeof key === 'string') {
+    const entry = key === undefined ? code : `${code} ${key}`;
+    if (printed.has(entry)) return false;
+    printed.add(entry);
+    return true;
+  }
+  const [on, sub] = split(key);
+  const values = valuesOn(on, code, true)!;
+  if (values.has(sub)) return false;
+  values.add(sub);
+  return true;
+};
+
+/**
  * **One shape for every diagnostic the framework prints** — the short line production keeps, the whole sentence
  * development adds — so a package converting its messages writes a table and a call, never its own format.
  *
@@ -84,3 +131,38 @@ export const own = <E extends Error>(error: E): E => {
   return error;
 };
 export const isOwn = (error: unknown): boolean => typeof error === 'object' && error !== null && ours.has(error);
+
+/**
+ * **Whether this copy has already said `code` (for `key`)**: for a GUARD only, where deciding to warn costs work worth
+ * skipping once the warning is out (development's whole-tree walk for unwired directive attributes, an event-name
+ * guess over every property of an element). A site that only prints calls `warnOnce`. Asks, never records.
+ */
+export const hasWarned = (code: string, key?: OnceKey): boolean => {
+  if (key === undefined || typeof key === 'string') return printed.has(key === undefined ? code : `${code} ${key}`);
+  const [on, sub] = split(key);
+  return valuesOn(on, code, false)?.has(sub) === true;
+};
+
+type Detail = false | readonly [string, string?] | (() => readonly [string, string?] | undefined);
+/**
+ * The printer behind both, on one level. `andDetail` is `diagnostic()`'s prose, or a function returning it where building
+ * the sentence costs something: it is called only the first time. `...andMore` rides beside the line behind '%s' (an
+ * element, a thrown error), never inside it, so text from outside cannot forge a line. The console method is read at the
+ * call, so a test that replaces `console.warn` sees it.
+ */
+const sayOnce =
+  (level: 'warn' | 'error') =>
+  (inArea: string, bySubject: string, withCode: string, andDetail?: Detail, forKey?: OnceKey, ...andMore: unknown[]): void => {
+    if (!firstTime(withCode, forKey)) return;
+    const line = diagnostic(inArea, bySubject, withCode, typeof andDetail === 'function' ? andDetail() : andDetail);
+    if (andMore.length) console[level]('%s', line, ...andMore);
+    else console[level](line);
+  };
+/**
+ * **A diagnostic said once per page** (per key, where one is given: a string, or an object such as the element it is
+ * about): `diagnostic()`'s arguments, then the key, then what rides beside the line. Coded in production exactly as
+ * `diagnostic()` is, because it IS `diagnostic()`. `errorOnce` is its twin on `console.error`, for a refusal a page should
+ * not miss.
+ */
+export const warnOnce = /* @__PURE__ */ sayOnce('warn');
+export const errorOnce = /* @__PURE__ */ sayOnce('error');

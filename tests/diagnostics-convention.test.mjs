@@ -46,8 +46,8 @@ const PREFIX_OF = () => '[vera]';
  */
 const CONSOLE_CALL = /console\.(warn|error)\(\s*(?:`([^`]*)|'([^']*)|"([^"]*))/g;
 
-/** Every call, whether or not the pattern above can read its first argument. */
-const ANY_CONSOLE_CALL = /console\.(warn|error)\(/g;
+/** Every call, whether or not the pattern above can read its first argument: a dynamic `console[level](` too (D29). */
+const ANY_CONSOLE_CALL = /console(?:\.(?:warn|error)|\[[^\]]+\])\(/g;
 
 /**
  * **A call printing what the shared formatter built is prefixed by construction** — `diagnostic` (shared-utils) writes
@@ -85,6 +85,8 @@ const NOT_A_LITERAL = new Map([
   /** One renderer wired into two cores: diagnostic()'s line in development, the bare code in production (28 B, 2026-10-22). */
   ['renderer/src/renderer.ts', [1, "renderer-two-cores: diagnostic()'s line or '[vera] renderer-two-cores' — both branches prefixed"]],
   ['renderer/src/portal.ts', [1, "portal-no-renderer: diagnostic()'s line or '[vera] portal-no-renderer' — both branches prefixed"]],
+  /** D29's once-printer: `console[level]` prints the line `diagnostic()` built, with or without what rides beside it. */
+  ['shared-utils/src/diagnostic.ts', [2, "warnOnce/errorOnce print diagnostic()'s line through console[level]"]],
 ]);
 
 /**
@@ -287,4 +289,145 @@ test('no diagnostic uses a console method outside warn and error', () => {
     `a diagnostic here would be unfilterable and unchecked — the prefix rule reads only warn and ` +
       `error, and production drops only log:\n  ${found.join('\n  ')}`
   );
+});
+
+/* ── D29 (2026-11-12): no hand-written once-flags ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * **What a page has already been told lives in ONE place**, shared-utils' memory behind `warnOnce` / `errorOnce` /
+ * `hasWarned` (ssr's twin, `once`, in ssr's report.ts). Brian, 2026-11-12: no names. Of 42 hand-written flags in two
+ * naming styles (`saidLists`, `warnedDrop`, per-element WeakSets, per-key Sets), the 37 development-only ones were
+ * converted; the 5 that SHIP TO PRODUCTION keep a memory at their site, named for what it holds (`printed…`), because the
+ * shared memory costs +80–145 B gz per bundle there (measured 2026-11-12). They are allow-listed below, so a sixth
+ * production memory fails until it is reviewed. Read with
+ * the TypeScript parser, never a regex: module level means the file's own statements, and a regex literal or a template
+ * cannot make it lose its place (the trap a hand scanner fell into, 2026-11-12).
+ */
+import ts from 'typescript';
+/** A binding that looks like a once-memory: `false`, or a new Set / WeakSet / Map / WeakMap. */
+const onceShaped = (init) =>
+  init !== undefined &&
+  (init.kind === ts.SyntaxKind.FalseKeyword ||
+    (ts.isNewExpression(init) && ts.isIdentifier(init.expression) && /^(Weak)?(Set|Map)$/.test(init.expression.text)));
+/** Kept on purpose, each with its reason (the site's comment says the same). */
+const ONCE_ALLOWED = new Map([
+  /** The 5 production once-sites (Brian's ruling, D29): a production warning keeps its memory at its site. */
+  ['core/src/hooks/drawInto.ts printedNoRenderer', 'no-renderer ships to production: the shared memory costs bytes there'],
+  ['renderer/src/portal.ts printedPortal', 'portal-no-renderer ships to production'],
+  ['motion/src/group.ts printedModuleThrew', "motion-module-threw ships to production, through motion's reporter seam"],
+  ['directives/src/engine.ts printedCodes', "directives' refusals ship to production, once per code"],
+  ['jsx/src/standalone.ts printedHelpers', 'jsx-helper-missing ships to production, once per helper URL'],
+  /** Behavior state, not a memory of what was said. */
+  ['renderer/src/hydration.ts causesThisPass', 'once per hydration PASS: cleared at the next microtask, which warnOnce never does'],
+  ['hot/src/index.ts requested', 'gates the ONE reload a page requests, not only its warning: behavior state, not a memory of what was said'],
+]);
+/** Every module-level once-shaped binding read in a function that prints, and every binding named said…/warned…. */
+const onceFlags = (where, text) => {
+  const file = ts.createSourceFile(where, text, ts.ScriptTarget.Latest, true, where.endsWith('.js') ? ts.ScriptKind.JS : ts.ScriptKind.TS);
+  const found = [];
+  const shaped = new Set();
+  for (const statement of file.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) continue;
+      const name = declaration.name.text;
+      if (/^(said|warned)([A-Z_]|$)/.test(name)) found.push(`${where} ${name}: a once-flag by its NAME`);
+      else if (onceShaped(declaration.initializer)) shaped.add(name);
+    }
+  }
+  /**
+   * THE idiom, "ask, mark, then print": a once-shaped binding read in a CONDITION of a function (`if (x)`, `!x.has(k) &&`),
+   * and, in one block of it, a statement that MARKS it (`x = true`, `x.add(…)`) followed by one that writes the console.
+   * A cache or a table is read and filled beside a console call all the time (`.set`, `.get`); asking, marking and
+   * printing in that order is what makes a once-flag.
+   */
+  const conditioned = new WeakMap();
+  const askedIn = (fn) => {
+    if (conditioned.has(fn)) return conditioned.get(fn);
+    const names = new Set();
+    const take = (n) => { if (ts.isIdentifier(n) && shaped.has(n.text)) names.add(n.text); ts.forEachChild(n, take); };
+    const scan = (n) => {
+      if (n !== fn && ts.isFunctionLike(n)) return;
+      if (ts.isIfStatement(n)) take(n.expression);
+      if (ts.isConditionalExpression(n)) take(n.condition);
+      if (ts.isBinaryExpression(n) && (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken || n.operatorToken.kind === ts.SyntaxKind.BarBarToken)) take(n.left);
+      ts.forEachChild(n, scan);
+    };
+    scan(fn);
+    conditioned.set(fn, names);
+    return names;
+  };
+  const marks = (statement) => {
+    const marked = new Set();
+    const scan = (n) => {
+      if (ts.isFunctionLike(n)) return;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left) && shaped.has(n.left.text)) marked.add(n.left.text);
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression) &&
+        shaped.has(n.expression.expression.text) && n.expression.name.text === 'add') marked.add(n.expression.expression.text);
+      ts.forEachChild(n, scan);
+    };
+    scan(statement);
+    return marked;
+  };
+  const prints = (statement) => {
+    let found = false;
+    const scan = (n) => {
+      if (found || ts.isFunctionLike(n)) return;
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression) &&
+        n.expression.expression.text === 'console' && /^(warn|error)$/.test(n.expression.name.text)) found = true;
+      /** Motion's reporter seam prints a problem too (verify and ssr replace it), so a once before it is a once. */
+      else if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && /^(pageProblem|elementProblem)$/.test(n.expression.text)) found = true;
+      else ts.forEachChild(n, scan);
+    };
+    scan(statement);
+    return found;
+  };
+  const visit = (node, fn) => {
+    const within = ts.isFunctionLike(node) ? node : fn;
+    if (ts.isBlock(node) || ts.isSourceFile(node) || ts.isCaseClause(node) || ts.isDefaultClause(node)) {
+      const marked = new Set();
+      for (const statement of node.statements) {
+        if (prints(statement)) for (const name of marked) if (within && askedIn(within).has(name)) found.push(`${where} ${name}: asked, marked, then the console written (a hand-written once)`);
+        for (const name of marks(statement)) marked.add(name);
+      }
+    }
+    ts.forEachChild(node, (child) => visit(child, within));
+  };
+  visit(file, undefined);
+  return [...new Set(found)];
+};
+
+test('D29: no package keeps a hand-written once-flag (by name, or by shape beside a console call)', () => {
+  const found = [];
+  const allowed = new Set();
+  for (const file of sources) {
+    const text = readRaw(file);
+    if (text === null) continue;
+    const where = relative(root, file);
+    for (const line of onceFlags(where, text)) {
+      const key = line.split(':')[0];
+      if (ONCE_ALLOWED.has(key)) allowed.add(key);
+      else found.push(line);
+    }
+  }
+  assert.deepEqual(found, [], `hand-written once-flags (use warnOnce / errorOnce / hasWarned from @verajs/shared-utils):\n  ${found.join('\n  ')}`);
+  assert.deepEqual([...allowed].sort(), [...ONCE_ALLOWED.keys()].sort(), 'every allowed entry still has its subject (else delete it)');
+});
+
+test('D29 CONTROL: planted flags after a regex literal and after a template are found; a template\'s TEXT is not a flag', () => {
+  const planted = [
+    "const re = /`[^`'\"]*/g;",
+    'let warnedPlantedAfterRegex = false;',
+    'const t = `${"`"}${re}`;',
+    'const shownOnce = new Set();',
+    'export const tell = (k) => { if (shownOnce.has(k)) return; shownOnce.add(k); console.warn(`[vera] x: ${k}`); };',
+    'const cache = new Map();',
+    'export const read = (k) => { if (!cache.has(k)) console.warn(`[vera] y`); return cache.get(k); };',
+    'const text = `let saidOnlyText = false;`;',
+  ].join('\n');
+  const found = onceFlags('planted.ts', planted);
+  assert.ok(found.some((l) => l.includes('warnedPlantedAfterRegex') && l.includes('NAME')), `the named flag after a regex: ${found}`);
+  assert.ok(found.some((l) => l.includes('shownOnce') && l.includes('asked, marked')), `the renamed flag after a template, by its shape: ${found}`);
+  assert.ok(!found.some((l) => l.includes('saidOnlyText')), 'text inside a template is not a declaration');
+  assert.ok(!found.some((l) => l.includes('cache')), 'a cache read beside a console call is not a once-flag');
 });

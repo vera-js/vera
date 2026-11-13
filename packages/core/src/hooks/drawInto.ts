@@ -7,12 +7,9 @@ import type { Renderer } from '@verajs/shared-types';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 
-/**
- * **No renderer wired: said once per page, in EVERY build**. Core ships no
- * renderer, so a blank page is the expected first mistake — and a page pasting `vera.min.js` from a CDN never runs a
- * development build, so a development-only warning left it in complete silence. Only the explanation folds away.
- */
-let saidNoRenderer = false;
+/** Whether `no-renderer` has been printed: once per page, in every build (a warning that ships to production keeps its memory at its site: the shared memory costs +80–145 B gz per bundle, measured 2026-11-12). */
+let printedNoRenderer = false;
+
 
 /**
  * The render hook. `owns` is the component's resolved `foreignNodes` — true for `'drop'`: the template owns its root —
@@ -36,8 +33,13 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
       target ??= element._$r$ ?? element.shadowRoot ?? element;
       const renderers = inserts.get('render');
       if (!renderers?.length) {
-        if (!saidNoRenderer) {
-          saidNoRenderer = true;
+        /**
+         * **No renderer wired: said once per page, in EVERY build.** Core ships no renderer, so a blank page is the
+         * expected first mistake, and a page pasting `vera.min.js` from a CDN never runs a development build, so a
+         * development-only warning left it in complete silence. Only the explanation folds away.
+         */
+        if (!printedNoRenderer) {
+          printedNoRenderer = true;
           console.warn(diagnostic('core', `<${element.localName}>`, 'no-renderer', __DEV__ && PROSE['no-renderer']()));
         }
         return;

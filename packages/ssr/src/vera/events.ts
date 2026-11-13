@@ -126,7 +126,7 @@ const runListeners = (
     } catch (error) {
       /** A listener that throws must not take the dispatch down, exactly as in a browser. */
       const tag = currentRenderingTag();
-      if (once(`ssr-listener-threw:${tag}:${event.type}`))
+      if (once('ssr-listener-threw', `${tag} ${event.type}`))
         console.error('%s', ssrWarning((tag ? `<${tag}>` : 'the page'), 'ssr-listener-threw', PROSE['ssr-listener-threw']!(event.type)), error);
     }
     if (immediatelyStopped()) return;

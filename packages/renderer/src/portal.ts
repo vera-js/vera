@@ -4,6 +4,9 @@ import { HANDOFF_CHILD_PART, HANDOFF_COMMIT_AS, HANDOFF_PROTOCOL, PROTOCOL } fro
 import { PROSE } from './portal-diagnostics.js';
 import type { ChildPart } from './renderer.js';
 
+/** Whether `portal-no-renderer` has been printed: once per page, in every build (a warning that ships to production keeps its memory at its site: the shared memory costs +80–145 B gz per bundle, measured 2026-11-12). */
+let printedPortal = false;
+
 /** What this entry reads off core's registry: the renderer's hand-off and core's settle. `$`-named — never mangled. */
 type Registry = {
   $H?: unknown[];
@@ -18,8 +21,6 @@ type CommitAs = (root: Node, part: ChildPart, value: unknown) => void;
  * `portal-no-renderer` (measured 2026-10-22); a portal has nothing to draw there, and hydration nothing to adopt.
  */
 const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
-/** Said once per page: a portal with no renderer of this release wired draws nothing (core's own `no-renderer` covers a component's render, not this). */
-let warned = false;
 
 /**
  * **`portal(target, template)` — draws into ANOTHER element, from a component's setup** (2026-10-22, the API
@@ -88,8 +89,12 @@ export const portal = (target: Target | (() => Target | null | undefined), templ
     (change) => {
       const handoff = registry.$H;
       if (handoff === undefined || handoff[HANDOFF_PROTOCOL] !== PROTOCOL) {
-        if (!warned) {
-          warned = true;
+        /**
+         * Once per page, in every build: a portal with no renderer of this release wired draws nothing (core's own
+         * `no-renderer` covers a component's render, not this).
+         */
+        if (!printedPortal) {
+          printedPortal = true;
           console.warn(__DEV__ ? diagnostic('renderer', 'portal', 'portal-no-renderer', __DEV__ && PROSE['portal-no-renderer']()) : '[vera] portal-no-renderer');
         }
         return;

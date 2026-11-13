@@ -48,3 +48,23 @@ test('a same-order update and a pure removal never warn', { skip: isProduction &
   }
   assert.deepEqual(said, []);
 });
+
+/**
+ * **The memory compares duplicate keys as the list does, by VALUE** (D29, 2026-11-12): once per (list, key), and `1`
+ * and `'1'` are two keys to keyed (its Map), so a list that repeats `1` and later repeats `'1'` is told both times. A
+ * memory keyed by `String(k)` merged them, and the second went unsaid.
+ */
+test("1 and '1' are different keys: each duplicate is said", { skip: isProduction && 'a development check' }, () => {
+  const host = document.createElement('div');
+  const said = [];
+  const { warn } = console;
+  console.warn = (message) => said.push(String(message));
+  try {
+    draw([1, 'x'], host);
+    draw([1, 'y', 1], host);
+    draw(['1', 'z', '1'], host);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(said.filter((line) => line.includes('(keyed-duplicate-key)')).length, 2, said.join('\n'));
+});

@@ -60,9 +60,10 @@ const files = (dir, into = []) => {
 /**
  * `[callee, index of the code argument]` — the engine's own form puts it third, `Ctx`'s first. And the shared API every
  * migrated package raises through: `diagnostic(area, subject, 'code', …)`, `misuse(name, 'code', …)` and `misuseAbout(name, subject, 'code', …)` — without
- * them the first directives message on that API (`core-protocol`, 2026-10-09) read as orphaned prose.
+ * them the first directives message on that API (`core-protocol`, 2026-10-09) read as orphaned prose. And `warnOnce` /
+ * `errorOnce` (D29, 2026-11-12), `diagnostic()`'s arguments with the code third.
  */
-const FORMS = [['ctx.reject(', 0], ['context.reject(', 0], ['seams.reject(', 2], ['reject(', 2], ['diagnostic(', 2], ['misuse(', 1], ['misuseAbout(', 2]];
+const FORMS = [['ctx.reject(', 0], ['context.reject(', 0], ['seams.reject(', 2], ['reject(', 2], ['diagnostic(', 2], ['misuse(', 1], ['misuseAbout(', 2], ['warnOnce(', 2], ['errorOnce(', 2]];
 
 const raised = new Map();
 /** Three roots since the package cut: the engine, the motion engine (@verajs/motion — its codes
@@ -76,7 +77,7 @@ for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).
     let at = 0;
     while ((at = text.indexOf(callee, at)) !== -1) {
       /** `ctx.reject(` also contains `reject(`; only the bare form needs the boundary check. */
-      if ((callee === 'reject(' || callee === 'diagnostic(' || callee === 'misuse(' || callee === 'misuseAbout(') && /[a-zA-Z.]/.test(text[at - 1] ?? ' ')) { at += callee.length; continue; }
+      if ((callee === 'reject(' || callee === 'diagnostic(' || callee === 'misuse(' || callee === 'misuseAbout(' || callee === 'warnOnce(' || callee === 'errorOnce(') && /[a-zA-Z.]/.test(text[at - 1] ?? ' ')) { at += callee.length; continue; }
       const end = closingParen(text, at + callee.length);
       const args = topLevelArgs(text.slice(at + callee.length, end));
       const key = `${at}`;

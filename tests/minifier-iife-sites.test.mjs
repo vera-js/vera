@@ -56,7 +56,9 @@ const PINS = {
   'packages/renderer/dist/vera-renderer-until.min.js': 0,
   'packages/renderer/dist/vera-renderer.min.js': 4,
   'packages/router/dist/vera-router.min.js': 12,
-  'packages/shared-utils/dist/vera-shared-utils.min.js': 3,
+  /** 3 → 4 (D29, 2026-11-12): warnOnce/errorOnce are built by one factory, inlined here. A private bundle (inlined into
+   *  every package, never shipped), and in every shipped bundle the factory reaches development code only. */
+  'packages/shared-utils/dist/vera-shared-utils.min.js': 4,
   'packages/store/dist/vera-store-collections.min.js': 1,
   'packages/store/dist/vera-store-resource.min.js': 0,
   'packages/store/dist/vera-store.min.js': 1,

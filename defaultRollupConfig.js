@@ -20,6 +20,7 @@ import { dirname, relative, resolve } from 'node:path';
  * @param options.words Keep `__DEV__` TRUE in every mode — production's pipeline (minified, standalone) with the
  * development words: for an entry whose reader is the person who fixes the error, never a visitor (@verajs/cms's
  * `publish`, `node` and cli, 2026-10-09). The diagnostics stay `__DEV__ && PROSE[…]` in source; the build decides.
+ * @param options.mangle `false` for an oracle build only: names left as written (never in a shipped build)
  * @param options.preamble A line terser writes FIRST in the production bundle — through terser, so the source map is
  * offset with it (a string prepended afterwards would put every mapped position one line off).
  *
@@ -186,7 +187,12 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
            * can rename. Leaving quoted names alone keeps the two spellings agreeing;
            * an underscore-prefixed contract name is never quoted, so core loses nothing.
            */
-          mangle: manglePropsRegex ? { properties: { regex: manglePropsRegex, keep_quoted: true } } : {},
+          /**
+           * `options.mangle: false` is for an ORACLE build only (D29, 2026-11-12): the real production pipeline with names
+           * left as written, so a tool can ask whether a module-level binding survives production by its name. A
+           * parameter, never the environment, and its caller writes outside dist; every shipped build leaves it unset.
+           */
+          mangle: options.mangle === false ? false : manglePropsRegex ? { properties: { regex: manglePropsRegex, keep_quoted: true } } : {},
           compress: {
             /**
              * Only `log`. `console.error`/`warn` are how the library reports real failures to a

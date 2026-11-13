@@ -1,4 +1,4 @@
-import { diagnostic, misuse, SHARED } from '@verajs/shared-utils';
+import { diagnostic, errorOnce, hasWarned, misuse, SHARED, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from '../diagnostics.js';
 import { inserts } from '@verajs/inserts';
 import type { InitInsert } from '@verajs/inserts';
@@ -17,13 +17,11 @@ import { seams } from '../services/seams.js';
  * `Symbol.for` because the two packages share no runtime; the `Symbol.for` sits INSIDE the function so production —
  * where every caller folds away — drops it whole (a top-level one survives: a call with effects terser cannot prove).
  */
-let saidUnwiredDirectives = false;
-/** Development: `static styles` with nothing adopting them — said once per page. */
-let saidUnadoptedStyles = false;
 const claimed = (prefix: string): boolean =>
   ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)?.has(prefix) === true;
 const unclaimedMarkup = (element: ComponentElement) => {
-  if (saidUnwiredDirectives || claimed('data-vd-')) return;
+  /** `hasWarned` first: this walks the whole tree on every component's first pass, so once said it stops walking. */
+  if (hasWarned('unwired-directives') || claimed('data-vd-')) return;
   const root = (element.shadowRoot ?? element._$r$ ?? element) as ParentNode;
   /**
    * A plain walk, not `querySelectorAll`: a selector engine may keep the last root it searched (jsdom's does), and
@@ -36,8 +34,7 @@ const unclaimedMarkup = (element: ComponentElement) => {
     const attrs = el.attributes;
     for (let i = 0; i < attrs.length; i++)
       if (attrs[i]!.name.startsWith('data-vd-')) {
-        saidUnwiredDirectives = true;
-        console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-directives', __DEV__ && PROSE['unwired-directives'](attrs[i]!.name)));
+        warnOnce('core', `<${element.localName}>`, 'unwired-directives', __DEV__ && (() => PROSE['unwired-directives'](attrs[i]!.name)));
         return;
       }
     /** Depth first: down to the first child, else across, else back up to the nearest ancestor with a next sibling. */
@@ -66,24 +63,11 @@ const PENDING_SECONDS = 5;
 let anyPersist = false;
 const OPEN: ShadowRootInit = { mode: 'open' };
 const CLOSED: ShadowRootInit = { mode: 'closed' };
-/**
- * Development: what was said once per component class — a static setup return, a near-miss `setup` spelling.
- * `@__PURE__`: read only under `__DEV__`, so production drops the allocation with the reads.
- */
-const saidStatic = /* @__PURE__ */ new WeakSet<object>();
-const saidNearMiss = /* @__PURE__ */ new WeakSet<object>();
-const saidOptions = /* @__PURE__ */ new WeakSet<object>();
-/** Development: the built-in-host warning, said once per page. */
-let saidBuiltIn = false;
-/** Development: an invalid app default is said once per page (a component's own invalid option, at each connect). */
-let saidShadowDefault = false;
 /** What `shadow` may be: `false`, `'open'`, `'closed'`, or a `ShadowRootInit` naming one of the two modes. */
 const validShadow = (value: unknown) =>
   value === false || value === 'open' || value === 'closed' || (value as ShadowRootInit | null)?.mode === 'open' || (value as ShadowRootInit | null)?.mode === 'closed';
 /** What `foreignNodes` may be. */
 const validForeign = (value: unknown) => value === 'preserve' || value === 'drop';
-/** Development: an invalid `foreignNodes` app default is said once per page, like `shadow`'s. */
-let saidForeignDefault = false;
 /** Development: how a `shadow` value is shown in shadow-option, and whether it is the platform's to refuse (it names a mode). */
 const shown = (value: unknown) => {
   const mode = (value as ShadowRootInit | null)?.mode;
@@ -153,21 +137,18 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * object (a setup-less init, no root); development says so, once per class — logged, not thrown, so the builds never
    * behave differently.
    */
-  if (__DEV__ && given != null && typeof given !== 'function' && !saidOptions.has(element.constructor)) {
-    saidOptions.add(element.constructor);
-    console.error(diagnostic('core', `<${element.localName}>`, 'init-options', __DEV__ && PROSE['init-options']()));
-  }
+  /** Once per component class. */
+  if (__DEV__ && given != null && typeof given !== 'function')
+    errorOnce('core', `<${element.localName}>`, 'init-options', __DEV__ && (() => PROSE['init-options']()), element.constructor);
   (element as Mine)[MINE] = true;
   /**
    * Development: a BUILT-IN element (no hyphen in its name, and not a customized built-in: `getName`) has no lifecycle
    * core hears, so it is never released when removed — unless `@verajs/renderer/native-elements` is wired (`$ne`). Said
    * once per page. Production carries none of it (2026-10-21).
    */
-  if (__DEV__ && !saidBuiltIn && element.localName.indexOf('-') < 0 && seams.$ne === undefined &&
-    !(element.ownerDocument.defaultView?.customElements as { getName?: (c: unknown) => string | null } | undefined)?.getName?.(element.constructor)) {
-    saidBuiltIn = true;
-    console.warn(diagnostic('core', `<${element.localName}>`, 'built-in-host-unwired', __DEV__ && PROSE['built-in-host-unwired']()));
-  }
+  if (__DEV__ && element.localName.indexOf('-') < 0 && seams.$ne === undefined &&
+    !(element.ownerDocument.defaultView?.customElements as { getName?: (c: unknown) => string | null } | undefined)?.getName?.(element.constructor))
+    warnOnce('core', `<${element.localName}>`, 'built-in-host-unwired', __DEV__ && (() => PROSE['built-in-host-unwired']()));
   const setup = typeof given === 'function' ? given : typeof (element as { setup?: unknown }).setup === 'function' ? callMethod : undefined;
   /**
    * Development: `init` on a host from inside ITS OWN setup starts a new generation and discards the hooks that setup
@@ -458,7 +439,6 @@ export const retireElement = (element: ComponentElement) => {
   element._$x$ = true;
 };
 
-let saidClaimedTwice = false;
 /**
  * Development: the option keys the wired `'init'` hooks claim (`$keys` on the hook function — never on its descriptor,
  * which `chain()` does not reach), each with the module that claims it. Two modules claiming one key, or a module
@@ -475,10 +455,8 @@ const claims = (): Map<string, string> => {
     const { $keys, $module } = hook as { $keys?: string[]; $module?: string };
     for (const key of $keys ?? []) {
       const other = key === 'host' || key === 'shadow' || key === 'foreignNodes' ? 'core' : optionKeys.get(key);
-      if (other !== undefined && !saidClaimedTwice) {
-        saidClaimedTwice = true;
-        console.warn(diagnostic('core', 'init()', 'option-claimed-twice', __DEV__ && PROSE['option-claimed-twice'](key, other, $module ?? 'a module')));
-      }
+      if (other !== undefined)
+        warnOnce('core', 'init()', 'option-claimed-twice', __DEV__ && (() => PROSE['option-claimed-twice'](key, other, $module ?? 'a module')));
       optionKeys.set(key, $module ?? 'a module');
     }
   }
@@ -490,16 +468,13 @@ const claims = (): Map<string, string> => {
  */
 const checkOptions = (element: ComponentElement, options: InitOptions | undefined, shadow: InitOptions['shadow']) => {
   const own = options?.shadow;
-  if (own === undefined && shadow !== undefined && !saidShadowDefault && !validShadow(shadow)) {
-    saidShadowDefault = true;
-    console.warn(diagnostic('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
-  }
+  /** An invalid app default: once per page (a component's own invalid option is said at each connect, below). */
+  if (own === undefined && shadow !== undefined && !validShadow(shadow))
+    warnOnce('core', 'renderer({ shadow })', 'shadow-option', __DEV__ && (() => PROSE['shadow-option'](shown(shadow), platformRefuses(shadow))));
   const ownForeign = options?.foreignNodes;
   const foreign = seams.$F;
-  if (ownForeign === undefined && foreign !== undefined && !saidForeignDefault && !validForeign(foreign)) {
-    saidForeignDefault = true;
-    console.warn(diagnostic('core', 'renderer({ foreignNodes })', 'foreign-nodes-option', __DEV__ && PROSE['foreign-nodes-option'](shown(foreign))));
-  }
+  if (ownForeign === undefined && foreign !== undefined && !validForeign(foreign))
+    warnOnce('core', 'renderer({ foreignNodes })', 'foreign-nodes-option', __DEV__ && (() => PROSE['foreign-nodes-option'](shown(foreign))));
   if (options) {
     const keys = claims();
     for (const key in options)
@@ -518,21 +493,16 @@ const checkOptions = (element: ComponentElement, options: InitOptions | undefine
  */
 const unwiredStyles = (element: ComponentElement) => {
   if (
-    !saidUnadoptedStyles &&
     (element.constructor as { styles?: unknown }).styles !== undefined &&
     !inserts.get('init')?.some((fn) => (fn as { $module?: string }).$module === 'styles')
-  ) {
-    saidUnadoptedStyles = true;
-    console.warn(diagnostic('core', `<${element.localName}>`, 'unwired-styles', __DEV__ && PROSE['unwired-styles']()));
-  }
+  )
+    warnOnce('core', `<${element.localName}>`, 'unwired-styles', __DEV__ && (() => PROSE['unwired-styles']()));
 };
 
 /** Development: a setup returned a value, not a render function — drawn once, statically; said once per class. */
 const staticReturn = (element: ComponentElement, out: unknown) => {
-  if (saidStatic.has(element.constructor)) return;
-  saidStatic.add(element.constructor);
   const kind = Array.isArray(out) ? 'an array' : typeof out === 'object' ? 'a template or object' : `a ${typeof out}`;
-  console.error(diagnostic('core', `<${element.localName}>`, 'setup-returned-value', __DEV__ && PROSE['setup-returned-value'](kind)));
+  errorOnce('core', `<${element.localName}>`, 'setup-returned-value', __DEV__ && (() => PROSE['setup-returned-value'](kind)), element.constructor);
 };
 
 /**
@@ -543,14 +513,14 @@ const staticReturn = (element: ComponentElement, out: unknown) => {
  */
 const nearMiss = (element: ComponentElement) => {
   const Class = element.constructor;
-  if (saidNearMiss.has(Class)) return;
+  /** `hasWarned` first: once a class is told, its prototypes are not walked again. */
+  if (hasWarned('setup-near-miss', Class)) return;
   /** The element's OWN window's platform prototype — never the bare global (Brian's rule; a pop-out has its own). */
   const platform = (element.ownerDocument.defaultView as (Window & typeof globalThis) | null)?.HTMLElement?.prototype;
   for (let proto = Object.getPrototypeOf(element); proto && proto !== platform && proto !== Object.prototype; proto = Object.getPrototypeOf(proto))
     for (const key of Object.getOwnPropertyNames(proto))
       if (key !== 'setup' && key.replace(/_/g, '').toLowerCase() === 'setup') {
-        saidNearMiss.add(Class);
-        console.warn(diagnostic('core', `<${element.localName}>`, 'setup-near-miss', __DEV__ && PROSE['setup-near-miss'](key)));
+        warnOnce('core', `<${element.localName}>`, 'setup-near-miss', __DEV__ && (() => PROSE['setup-near-miss'](key)), Class);
         return;
       }
 };

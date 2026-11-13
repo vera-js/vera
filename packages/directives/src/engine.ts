@@ -29,6 +29,9 @@ import { diagnostic, misuse } from '@verajs/shared-utils';
 import { DEFAULT_PAYLOADS, TYPE } from './payload-defaults.js';
 import type { Payload } from './payload-defaults.js';
 
+/** What has been printed: once per code in production, per code × directive in development (a warning that ships to production keeps its memory at its site: the shared memory costs +80–145 B gz per bundle, measured 2026-11-12). */
+const printedCodes = new Set<string>();
+
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
 /**
@@ -326,7 +329,6 @@ export const describePayloads = () => [
 
 const allRejections: Rejection[] = [];
 const byElement = new WeakMap<Element, Rejection[]>();
-const warned = new Set<string>();
 
 /**
  * Record a refusal.
@@ -380,11 +382,11 @@ export const reject = (
      * Production stays once per code: its line carries no arguments, so a repeat would say nothing new.
      */
     const key = element ? `${code}:${directive}` : `${code}:${directive}:${String(messageOrArgs)}`;
-    if (!warned.has(key)) {
-      warned.add(key);
+    if (!printedCodes.has(key)) {
+      printedCodes.add(key);
       console.warn('%s', diagnostic('directives', directive, code, [message, fix]), ...tail);
     }
-  } else if (!warned.has(code)) {
+  } else {
     /**
      * **Production says something too — the code and where it is explained.**
      *
@@ -400,8 +402,10 @@ export const reject = (
      * making the same mistake is one line either way, and in production the extra grain buys a
      * reader nothing they can act on differently.
      */
-    warned.add(code);
-    console.warn('%s', diagnostic('directives', directive, code), ...tail);
+    if (!printedCodes.has(code)) {
+      printedCodes.add(code);
+      console.warn('%s', diagnostic('directives', directive, code), ...tail);
+    }
   }
 };
 

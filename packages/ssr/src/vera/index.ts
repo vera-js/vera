@@ -502,7 +502,7 @@ const renderModule = async (
     if (isAsync && endBudget()) {
       const list = (names: Iterable<string>) => [...names].map((name) => `<${name}>`).join(', ');
       const waits = pendingDefinitionNames();
-      if (once(`ssr-timeout:${tag}`))
+      if (once('ssr-timeout', tag))
         console.warn(ssrWarning(`<${tag}>`, 'ssr-timeout', PROSE['ssr-timeout']!(String(timeout ?? DEFAULT_TIMEOUT), list(timedOut), list(waits))));
     }
     staticRender = false;

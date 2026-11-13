@@ -38,6 +38,9 @@ import { insert, pageProblem } from './schema.js';
 import { forgetStagger } from './parse.js';
 import type { DroppedElement, InsertMap, Range, Region, RegionParseContext, RuntimeElement, RuntimeSettings } from './types.js';
 
+/** Whether `motion-module-threw` has been reported: once per page, in every build, through motion's reporter seam (a warning that ships to production keeps its memory at its site: the shared memory costs +80–145 B gz per bundle, measured 2026-11-12). */
+let printedModuleThrew = false;
+
 
 /**
  * One scroll context's configuration, **fully resolved**: the embedder validates and defaults
@@ -74,15 +77,14 @@ export type RegionOptions = {
  * throws in `release` throws once per element, and five hundred identical
  * lines is not five hundred times the information.
  */
-let warnedInsert = false;
 export const runInserts = (point: keyof InsertMap, ...args: readonly unknown[]): void => {
   for (const fn of insert(point)) {
     try {
       (fn as (...rest: readonly unknown[]) => void)(...args);
     } catch (error) {
-      if (!warnedInsert) {
-        warnedInsert = true;
-        /** One line, the module's error beside it. */
+      /** One line, the module's error beside it, through motion's reporter seam (verify and ssr replace it). */
+      if (!printedModuleThrew) {
+        printedModuleThrew = true;
         pageProblem('motion-module-threw', [point], error);
       }
     }

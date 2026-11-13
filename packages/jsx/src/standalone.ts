@@ -47,6 +47,9 @@ import type { ImportSite } from './types.js';
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './standalone-diagnostics.js';
 
+/** The helper URLs already named missing: once per URL, in every build (a warning that ships to production keeps its memory at its site: the shared memory costs +80–145 B gz per bundle, measured 2026-11-12). */
+const printedHelpers = new Set<string>();
+
 /**
  * The compiler's two functions, from `vera-jsx(.min).js` — loaded only when something must compile. Their types are
  * the module's own (type-only, erased): a restated signature here had stopped at two parameters when a third arrived.
@@ -163,13 +166,12 @@ const helpers = new Set<string>();
 /**
  * **The browser loads the renderer's helpers itself**, so a missing one fails as an opaque `blob:`
  * import error that names nothing — on the first load or behind any `import()`. Only on a failure,
- * each helper handed out is asked for, and a missing one is named once.
+ * each helper handed out is asked for, and a missing one is named once (a helper already named is not fetched again).
  */
-const named = new Set<string>();
 const nameMissingHelpers = async (): Promise<void> => {
   for (const url of helpers) {
-    if (named.has(url) || (await fetch(url, { method: 'HEAD' }).then((response) => response.ok, () => false))) continue;
-    named.add(url);
+    if (printedHelpers.has(url) || (await fetch(url, { method: 'HEAD' }).then((response) => response.ok, () => false))) continue;
+    printedHelpers.add(url);
     console.error(diagnostic('jsx', url, 'jsx-helper-missing', __DEV__ && PROSE['jsx-helper-missing']()));
   }
 };

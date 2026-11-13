@@ -129,16 +129,17 @@ let untracked: Untracked;
 
 /* ── the warning: the only signal a fallback gives, once per cause ───────────────────────────────── */
 
-const warned = new Set<string>();
 /**
  * Said once per KIND of cause per hydration pass, in every build — keyed by the kind (`text`, `element`…), not the
  * detail: a page of 500 containers that each differ in their text says it once, naming the first. The record clears at
- * the next microtask, so a later pass that meets the kind again says it.
+ * the next microtask, so a later pass that meets the kind again says it. Not `warnOnce` (D29, 2026-11-12): that memory
+ * is once per page and never forgets, and this one is once per PASS.
  */
+const causesThisPass = new Set<string>();
 const warn = (cause: string, message: string, container?: Node) => {
-  if (warned.has(cause)) return;
-  if (warned.size === 0) queueMicrotask(() => warned.clear());
-  warned.add(cause);
+  if (causesThisPass.has(cause)) return;
+  if (causesThisPass.size === 0) queueMicrotask(() => causesThisPass.clear());
+  causesThisPass.add(cause);
   /** The container itself rides along: a live element in devtools — hover to highlight it, click to reveal it. */
   if (container === undefined) console.warn(message);
   else console.warn('%s', message, container);

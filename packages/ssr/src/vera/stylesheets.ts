@@ -5,7 +5,7 @@
  * sheet belongs to, per request) is SSR orchestration, rebuilt from this floor.
  */
 import { PROSE } from './diagnostics.js';
-import { own, ssrMisuse, ssrWarning } from './report.js';
+import { once, own, ssrMisuse, ssrWarning } from './report.js';
 
 /**
  * Light-DOM `@scope` styles hoisted during renders, **keyed by the component that hoisted them**, so a
@@ -109,8 +109,6 @@ export class StyleSheetShim {
   disabled = false;
 }
 
-/** Warned once per tag. */
-const warnedAboutDrift = new Set<string>();
 
 /**
  * Records a hoisted sheet against the component mid-render. A tag already established by an earlier
@@ -121,10 +119,8 @@ const warnedAboutDrift = new Set<string>();
 export const hoist = (cssText: string): void => {
   const sheets = hoistedStyles.get(renderingTag);
   if (sheets && !hoistedThisRender.has(renderingTag)) {
-    if (!sheets.includes(cssText) && !warnedAboutDrift.has(renderingTag)) {
-      warnedAboutDrift.add(renderingTag);
-      console.warn(ssrWarning(`<${renderingTag}>`, 'ssr-styles-vary', PROSE['ssr-styles-vary']!()));
-    }
+    /** Once per tag. */
+    if (!sheets.includes(cssText) && once('ssr-styles-vary', renderingTag)) console.warn(ssrWarning(`<${renderingTag}>`, 'ssr-styles-vary', PROSE['ssr-styles-vary']!()));
     return;
   }
   hoistedThisRender.add(renderingTag);

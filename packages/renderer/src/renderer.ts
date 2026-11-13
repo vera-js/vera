@@ -34,10 +34,12 @@ import {
   SCRIPT_URL_ITEM,
   URL_SINK,
   diagnostic,
+  hasWarned,
   misuse,
   SHARED,
+  warnOnce,
 } from '@verajs/shared-utils';
-import { attributeValueKind, eventNameGuess } from './dev-values.js';
+import { attributeValueKind, eventKey, eventNameGuess } from './dev-values.js';
 import { PROSE } from './renderer-diagnostics.js';
 import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
@@ -187,19 +189,15 @@ const tagShape = (strings: TemplateStringsArray, type: number): [string, string]
  * **A `<slot>` rendered into LIGHT DOM that nothing will distribute** — slots not wired, or wired after this template
  * was built. Said once per host tag and case; a shadow root is never warned about, the platform slots there.
  */
-const warnedSlotless = /* @__PURE__ */ new Set<string>();
 const saySlotless = () => {
   const host = renderRoot;
   if (host === null || host.nodeType !== 1) return;
   const tag = (host as Element).localName;
   /** Slots wired = its protocol entry (`_$capture$`, set at wire); `_$done$` is installed only at slots' first need. */
   const late = (registry as { _$capture$?: unknown } | null)?._$capture$ !== undefined;
-  if (warnedSlotless.has(tag + late)) return;
-  warnedSlotless.add(tag + late);
-  /** Late: the same fact core says at wire time (`late-template-module`), seen here at the host it bit. */
-  if (late) console.warn(diagnostic('renderer', `<${tag}>`, 'late-template-module', __DEV__ && SHARED.lateTemplateModule()));
-  else
-    console.warn(diagnostic('renderer', `<${tag}>`, 'slots-unwired', __DEV__ && PROSE['slots-unwired']()));
+  /** Late: the same fact core says at wire time (`late-template-module`), seen here at the host it bit. Once per tag. */
+  if (late) warnOnce('renderer', `<${tag}>`, 'late-template-module', __DEV__ && (() => SHARED.lateTemplateModule()), tag);
+  else warnOnce('renderer', `<${tag}>`, 'slots-unwired', __DEV__ && (() => PROSE['slots-unwired']()), tag);
 };
 export const sayShape = (template: Template) => {
   const shape = template._shape;
@@ -808,7 +806,6 @@ const foreignHost = (parent: Node): string | null => {
   }
   return name;
 };
-const warnedForeign = /* @__PURE__ */ new Set<string>();
 /** The nodes an insert is about to place — a fragment empties as it is inserted, so they are read first. */
 const landing = (node: Node): Node[] => (node.nodeType === 11 ? [...node.childNodes] : [node]);
 const checkForeign = (parent: Node, nodes: Node[]) => {
@@ -833,8 +830,8 @@ const checkForeign = (parent: Node, nodes: Node[]) => {
           '<g> or <svg>, not a text, clipping, gradient or filter element';
     /** Keyed by host namespace AND content namespace: `<a>` is a real element in all three. */
     const seen = `${hostNamespace}${host}>${element.namespaceURI}${tag}`;
-    if (warnedForeign.has(seen)) continue;
-    warnedForeign.add(seen);
+    /** `hasWarned` first: the advice below is built only for a case not yet said. */
+    if (hasWarned('wrong-namespace', seen)) continue;
     const advice =
       built === 'HTML'
         ? `If it is meant to be an SVG or MathML element, the template holding it needs the svg\`…\` or mathml\`…\` tag ` +
@@ -844,7 +841,7 @@ const checkForeign = (parent: Node, nodes: Node[]) => {
           `element only upgrades in the HTML namespace.`
         : `The template's tag is already right — these two namespaces cannot nest directly. Put the ` +
           `${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}.`;
-    console.warn(diagnostic('renderer', `<${tag}>`, 'wrong-namespace', __DEV__ && PROSE['wrong-namespace'](tag, built, host, advice)));
+    warnOnce('renderer', `<${tag}>`, 'wrong-namespace', __DEV__ && (() => PROSE['wrong-namespace'](tag, built, host, advice)), seen);
   }
 };
 
@@ -998,7 +995,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
       if (listener._handler === null) {
         const best = eventNameGuess(element, name);
         if (best !== null)
-          console.warn(diagnostic('renderer', `<${element.localName}>`, 'event-name-typo', __DEV__ && PROSE['event-name-typo'](name, element.localName, best)));
+          warnOnce('renderer', `<${element.localName}>`, 'event-name-typo', __DEV__ && (() => PROSE['event-name-typo'](name, element.localName, best)), eventKey(element, name));
       }
     }
     /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */
@@ -1213,7 +1210,7 @@ class ChildPart {
     const end = this.$e;
     /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
     if (owner !== null) {
-      if (__DEV__ && ownedRoots!.has(owner)) saidDrop(owner);
+      if (__DEV__ && ownedRoots!.has(owner)) checkDropped(owner);
       owner.textContent = '';
     }
     else if (start!.previousSibling === null && end!.nextSibling === null) {
@@ -1738,7 +1735,6 @@ const strays = __DEV__ ? new WeakSet<Node>() : null;
 const ownedRoots = __DEV__ ? new WeakSet<Node>() : null;
 const rendering = __DEV__ ? new Set<Node>() : null;
 let strayWatch: MutationObserver | null | undefined;
-let warnedDrop = false;
 const sortStrays = (records: MutationRecord[]) => {
   for (const record of records) {
     const own = rendering!.has(record.target);
@@ -1758,14 +1754,14 @@ const watchOwned = (container: Node) => {
   }
   strayWatch?.observe(container, { childList: true });
 };
-const saidDrop = (owner: Node) => {
+/** Development: whether a clear is dropping a node the template did not make, said once per page. */
+const checkDropped = (owner: Node) => {
   sweepStrays();
-  if (warnedDrop) return;
+  if (hasWarned('foreign-dropped')) return;
   for (let node = owner.firstChild; node !== null; node = node.nextSibling)
     if (strays!.has(node)) {
-      warnedDrop = true;
       const host = (owner as ShadowRoot).host;
-      console.warn(diagnostic('renderer', host ? `<${host.localName}>` : 'renderInto', 'foreign-dropped', __DEV__ && PROSE['foreign-dropped'](describe(node))));
+      warnOnce('renderer', host ? `<${host.localName}>` : 'renderInto', 'foreign-dropped', __DEV__ && (() => PROSE['foreign-dropped'](describe(node))));
       return;
     }
 };
@@ -1963,8 +1959,6 @@ const connectTo = (given: { get(name: never): unknown }) => {
  * server always imports ssr first, because this module reads `document` as it loads and only ssr's DOM provides one.
  */
 const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
-/** Development: the decline is said once per process. */
-let declined = false;
 
 type Registry = { get(name: never): unknown; $S?: unknown; $F?: unknown };
 /**
@@ -2000,10 +1994,8 @@ export const renderer = Object.assign(
   (given?: { shadow?: unknown } | Registry) => {
     if ((given as Registry | undefined)?.get) {
       connectTo(given as Registry);
-      if (__DEV__ && !declined) {
-        declined = true;
-        console.warn(diagnostic('renderer', 'wire([renderer])', 'renderer-on-server', __DEV__ && PROSE['renderer-on-server']()));
-      }
+      /** Development: the decline is said once per process. */
+      if (__DEV__) warnOnce('renderer', 'wire([renderer])', 'renderer-on-server', __DEV__ && (() => PROSE['renderer-on-server']()));
       return;
     }
     if (__DEV__ && given != null && typeof given !== 'object') {
