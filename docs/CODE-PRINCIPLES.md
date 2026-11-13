@@ -48,7 +48,9 @@ indistinguishable in style from the code around it.
   is, and subclassing `Error`, which is the platform's own idiom — and **per-node hot-path
   machinery** where prototype sharing is a *measured* win — today that means `@verajs/renderer`'s
   internal parts (`spread.ts` records the measurement: as an object literal, `handleEvent` was a
-  fresh closure per bound key). Neither exception may leak a class into a public API surface.
+  fresh closure per bound key) and `@verajs/core`'s `HookState` and `Computed` (Brian's ruling,
+  2026-11-13; each records its measurement at its declaration). Neither exception may leak a class
+  into a public API surface.
 - **American English, everywhere.** Code, comments, docs, commit messages, changesets, diagnostics
   and test names spell the US way: `behavior`, `color`, `normalize`, `serialize`, `initialize`,
   `recognize`, `neighbor`, `canceled`, `labeled`, `modeled`, `center`, `gray`, `judgment`,
