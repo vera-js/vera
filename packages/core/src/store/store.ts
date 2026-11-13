@@ -157,24 +157,38 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
 /**
  * One tag per template kind: the strings and values, marked with the kind for a renderer to consume.
  *
+ * **Written out per kind, not made by a factory** (D30, 2026-11-13): the factory's `(type) => (strings, ...values) =>`
+ * closure cost SpiderMonkey 2.4% and JavaScriptCore 7% more instructions per call than a plain arrow (V8 even), and
+ * the written-out tags won Firefox's engine by ~1% on a 1000-row keyed re-render with no loss elsewhere, 24 B gz
+ * smaller. The rest parameter stays although it is SpiderMonkey's ~460 instructions per call: every form without it
+ * tried so far lost V8 or JavaScriptCore somewhere (an `arguments` copy V8 by 11%; a fixed-arity fast path, on
+ * templates with five or more values, V8 by 59% and JavaScriptCore by 37%).
+ *
  * **Called with a string instead of tagged, development names it**:
  * `html('<p>x</p>')` puts a string where the strings array goes, passes every shape check, and fails much later inside
  * the renderer with "Invalid value used as weak map key", naming nothing. `Array.isArray`, not `raw`: a hand-built
  * `html([markup])` works and is allowed. The name comes from the kind, so production carries no string.
  */
-const tag =
-  <T extends ResultType>(type: T) =>
-  (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
-    if (__DEV__ && !Array.isArray(strings)) {
-      const name = ['html', 'svg', 'mathml'][type - 1];
-      throw new TypeError(misuse(name, 'tag-called', __DEV__ && SHARED.tagCalled(name, typeof strings === 'string' ? JSON.stringify(strings) : String(strings), '<p>hi</p>')));
-    }
-    return { ['_$litType$']: type, strings, values };
-  };
+/** Development's check that a tag was called as a tag; production folds every call to it away. */
+const tagCalled = (type: ResultType, strings: unknown): void => {
+  if (!Array.isArray(strings)) {
+    const name = ['html', 'svg', 'mathml'][type - 1];
+    throw new TypeError(misuse(name, 'tag-called', __DEV__ && SHARED.tagCalled(name, typeof strings === 'string' ? JSON.stringify(strings) : String(strings), '<p>hi</p>')));
+  }
+};
 
 /** The `html` tagged template. */
-export const html = tag(1);
+export const html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<1> => {
+  if (__DEV__) tagCalled(1, strings);
+  return { ['_$litType$']: 1, strings, values };
+};
 /** The `svg` tagged template — markup parsed as SVG, for a fragment that is not inside an `<svg>` element. */
-export const svg = /* @__PURE__ */ tag(2);
+export const svg = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<2> => {
+  if (__DEV__) tagCalled(2, strings);
+  return { ['_$litType$']: 2, strings, values };
+};
 /** The `mathml` tagged template — markup parsed as MathML, for a fragment that is not inside a `<math>` element. */
-export const mathml = /* @__PURE__ */ tag(3);
+export const mathml = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<3> => {
+  if (__DEV__) tagCalled(3, strings);
+  return { ['_$litType$']: 3, strings, values };
+};
