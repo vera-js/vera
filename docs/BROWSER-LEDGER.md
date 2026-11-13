@@ -217,6 +217,21 @@ from another machine, or after that is undone, has a variable changed.
   Consequence: the browser suite runs alone; a red on that row under load is re-run alone before it is called a
   regression. (Playwright Firefox headed, macOS; 2026-11-08)
 
+- **V8's allocation-site pretenuring can turn a create into nepotism: young rows promoted wholesale at every scavenge.**
+  1000 records a round, each pointing at a freshly built element subtree that a long-lived parent holds, the records
+  then dropped and the parent emptied: with a closure over the record carried on it (`rec.fn = () => rec.id`, never
+  called), the scavenger promoted 15.5 MB per scavenge (7.3 ms each); without it, 0.10 MB (1.9 ms). No framework: plain
+  JavaScript classes for the elements (the stub DOM). `--trace-pretenuring-statistics` shows V8 TENURING the record
+  literal's allocation site (survival ratio 1.0) in exactly the arms that promote, and never in the others: the records
+  are then allocated in old space, the element written into them later is an old-to-new pointer, and once a record
+  dies it stays in old space until a mark-compact, keeping that young subtree alive through every scavenge. The same
+  data held by a class instance, or by a function bound per row (no closure context), never tenures and stays clean. A
+  smaller reproduction (plain-object nodes in a linked list) does not reproduce it, so the trigger is not yet minimal.
+  Consequence: a GC reading from a benchmark whose rows carry per-row closures can be this, not the framework (the
+  split-render ablation's "26.9 MB per scavenge" was its per-row ref literal; Vera's split render is 0.11 MB with a
+  class ref), and a per-row closure over row data in an app's hot create path is worth measuring. (node 24 / V8 13.6
+  and node 26 / V8 14.6, macOS; 2026-11-12; .probe/lead3 in vera-base.)
+
 ## Custom elements
 
 - **A custom element inside a CLOSED shadow root of a plain element hears that element's whole lifecycle.** A
