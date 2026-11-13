@@ -547,8 +547,7 @@ function listRun(this: List): void {
     }
     if (rec !== undefined && rec.seen === t) {
       if (!this.ident) {
-        /** A repeated id: identity keys from now on, and this run again from the start. */
-        /** Once per list. */
+        /** A repeated id: identity keys from now on, and this run again from the start. Said once per list. */
         if (__DEV__) warnOnce('keyed', 'an automatic .map list', 'keyed-duplicate-key', __DEV__ && (() => PROSE['keyed-duplicate-key'](String(k))), this);
         this.ident = true;
         restart = true;

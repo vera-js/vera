@@ -1016,7 +1016,6 @@ const routeChange = async (
      *
      * `__DEV__`-only, so a production bundle carries neither the check nor the text.
      */
-    /** Once per page. */
     if (__DEV__ && chain.length === 0) warnOnce('router', 'navigate()', 'router-no-renderer', __DEV__ && (() => PROSE['router-no-renderer']()));
     chain.forEach((callback) => {
       callback?.(template, levelView);

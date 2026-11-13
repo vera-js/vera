@@ -169,8 +169,9 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
  * `html('<p>x</p>')` puts a string where the strings array goes, passes every shape check, and fails much later inside
  * the renderer with "Invalid value used as weak map key", naming nothing. `Array.isArray`, not `raw`: a hand-built
  * `html([markup])` works and is allowed. The name comes from the kind, so production carries no string.
+ *
+ * `tagCalled` is that check, in development only: production folds every call to it away.
  */
-/** Development's check that a tag was called as a tag; production folds every call to it away. */
 const tagCalled = (type: ResultType, strings: unknown): void => {
   if (!Array.isArray(strings)) {
     const name = ['html', 'svg', 'mathml'][type - 1];

@@ -1325,14 +1325,6 @@ const slotBehavior = {
 };
 
 /**
- * **A served light host whose first render nothing adopts** — the renderer asks (`_$unadopted$`) before that render
- * would APPEND beside the server's markup: two copies, the server's dead. The server states every host it renders while
- * slots is wired (`data-vm-light`): stated EMPTY (`N:`), the host holds nothing of the page's, so the server's render
- * is cleared (its SSR stylesheets kept) and the client renders fresh — working, without the server's head start; stated
- * with light content, that content cannot be told from the server's render without `hydrateSlots`, so the host stands
- * as served and the coded error names what to wire. Development warns once per page.
- */
-/**
  * **The render-end hook, installed at the first thing that needs it** (2026-10-18): until then the renderer's
  * `_$done$` read finds `undefined` and every render ends without calling slots — a page that wired slots but has nothing
  * slotted yet pays nothing per render. Armed by the first light (`lightFor`), the first host a template feeds (FED), the
@@ -1344,6 +1336,14 @@ let doneOn: { _$done$?: unknown } | undefined;
 const arm = () => {
   if (doneOn !== undefined && doneOn._$done$ !== done) doneOn._$done$ = done;
 };
+/**
+ * **A served light host whose first render nothing adopts** — the renderer asks (`_$unadopted$`) before that render
+ * would APPEND beside the server's markup: two copies, the server's dead. The server states every host it renders while
+ * slots is wired (`data-vm-light`): stated EMPTY (`N:`), the host holds nothing of the page's, so the server's render
+ * is cleared (its SSR stylesheets kept) and the client renders fresh — working, without the server's head start; stated
+ * with light content, that content cannot be told from the server's render without `hydrateSlots`, so the host stands
+ * as served and the coded error names what to wire. Development warns once per page.
+ */
 const unadopted = (container: Node) => {
   if (container.nodeType === 1 && isCustomElementName((container as Element).localName)) arm();
   /** Asked only for a container with something in it (the renderer skips an empty one: no server markup to append beside). */

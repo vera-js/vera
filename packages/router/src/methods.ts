@@ -74,9 +74,8 @@ const addLinkListener = (element: HTMLElement) => {
      */
     if (__DEV__) {
       const base = currentBase();
-      /** One entry per distinct href the app rendered — development only, and bounded by the hrefs the page itself
-       *  holds; no cap (2026-10-09: decided, not overlooked). */
-      /** Once per href, not once per click. */
+      /** Once per href, not once per click: one remembered entry per distinct href the app rendered — development
+       *  only, and bounded by the hrefs the page itself holds; no cap (2026-10-09: decided, not overlooked). */
       if (base !== '' && !url.pathname.startsWith(base))
         warnOnce('router', '<a route>', 'router-href-base', __DEV__ && (() => PROSE['router-href-base'](href, base, url.pathname)), href);
     }

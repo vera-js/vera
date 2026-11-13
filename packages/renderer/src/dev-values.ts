@@ -1,4 +1,3 @@
-import { hasWarned } from '@verajs/shared-utils';
 /**
  * `__DEV__` only: the one home for *"is this value something an attribute can carry?"*
  *
@@ -20,6 +19,8 @@ import { hasWarned } from '@verajs/shared-utils';
  * Credit where it is due: the four breaks were found by the omni engine's session, which drove the
  * shapes rather than arguing about them, and the closed-vocabulary form is theirs.
  */
+
+import { hasWarned } from '@verajs/shared-utils';
 
 /**
  * Blessed non-primitives — types whose `toString` IS the value the author means.

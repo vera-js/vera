@@ -475,9 +475,9 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
    * that parses becomes nodes, `append('text')` becomes a **text node**, and even
    * `append('<p>x</b>')` becomes a text node — a string argument is text, not markup. The only entry
    * still a string after `parseChunks` is a chunk the parser declined, so there is no legitimate
-   * content this can fire on.
+   * content this can fire on. Checked once per container (the fast path, an object key); said once per process per
+   * component (the tag key).
    */
-  /** Checked once per container (the fast path, an object key); said once per process per component (the tag key). */
   if (container._entries.some((entry) => typeof entry === 'string' && entry.trim()) && once('ssr-markup-declined', container)) {
     /**
      * **The message has to describe the parser that exists.** It used to say "markup assigned as a

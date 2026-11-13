@@ -146,7 +146,6 @@ export const initWith = (element: ComponentElement, options: InitOptions | undef
    * object (a setup-less init, no root); development says so, once per class — logged, not thrown, so the builds never
    * behave differently.
    */
-  /** Once per component class. */
   if (__DEV__ && given != null && typeof given !== 'function')
     errorOnce('core', `<${element.localName}>`, 'init-options', __DEV__ && (() => PROSE['init-options']()), element.constructor);
   (element as Mine)[MINE] = true;

@@ -43,8 +43,10 @@ export const mapped = (obj: unknown[], method: (...args: unknown[]) => unknown[]
   const list = seams.$M;
   const hook = tracking.hook;
   if (list === undefined || hook === undefined || hook._priority !== 50) {
-    /** Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it. */
-    /** `hasWarned`: once it is out, a render's `.map` is the native method again (no wrapper per call). */
+    /**
+     * Not inside a server turn: a server renders the rows plainly whatever is wired, so it could not act on it.
+     * `hasWarned`: once it is out, a render's `.map` is the native method again (no wrapper per call).
+     */
     if (__DEV__ && list === undefined && hook !== undefined && hook._priority === 50 && !hasWarned('lists-unwired') && !seams.$ss?.(0))
       return unwiredList(method, proxy);
     return method;

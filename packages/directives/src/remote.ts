@@ -283,9 +283,9 @@ const fetchDirective: Directive = {
                * feed). An ACCUMULATING request whose own URL carries a `data-vd-query`-bound
                * key is the second wearing the first's clothes, and a shared link then opens
                * with holes — pages 2..N-1 were DOM, not URL. Advisory, not a refusal: the
-               * request is fine, the sharing story is what breaks.
+               * request is fine, the sharing story is what breaks. Once per element; `hasWarned` first, so the URL is
+               * not parsed again for an element already told.
                */
-              /** Once per element; `hasWarned` first, so the URL is not parsed again for an element already told. */
               if (__DEV__ && place !== 'replace' && !hasWarned('fetch-feed-depth', element)) {
                 const bound = element.closest('[data-vd-query]')?.getAttribute('data-vd-query');
                 const requested = new URL(target.href).searchParams;
