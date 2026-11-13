@@ -225,8 +225,13 @@ from another machine, or after that is undone, has a variable changed.
   literal's allocation site (survival ratio 1.0) in exactly the arms that promote, and never in the others: the records
   are then allocated in old space, the element written into them later is an old-to-new pointer, and once a record
   dies it stays in old space until a mark-compact, keeping that young subtree alive through every scavenge. The same
-  data held by a class instance, or by a function bound per row (no closure context), never tenures and stays clean. A
-  smaller reproduction (plain-object nodes in a linked list) does not reproduce it, so the trigger is not yet minimal.
+  data held by a class instance, or by a function bound per row (no closure context), never tenures and stays clean.
+  **Trigger and amplifier, separated:** the TRIGGER is a closure that captures the record (with the closure and no
+  element pointer, V8 still tenured the site, 2 decisions, 2.35 MB per scavenge); the AMPLIFIER is a young element
+  written into the record after it is allocated (with it, 6 decisions, 14–15.5 MB), since each dead old record then holds
+  a whole subtree. Solid's row record (`{ id, text, setText }`, closures inside it but captured by none) is never
+  tenured (0 decisions in the same harness; its 1.55 MB per scavenge is rows still live when a scavenge lands mid-create).
+  A smaller reproduction (plain-object nodes in a linked list) does not reproduce it, so the trigger is not yet minimal.
   Consequence: a GC reading from a benchmark whose rows carry per-row closures can be this, not the framework (the
   split-render ablation's "26.9 MB per scavenge" was its per-row ref literal; Vera's split render is 0.11 MB with a
   class ref), and a per-row closure over row data in an app's hot create path is worth measuring. (node 24 / V8 13.6
