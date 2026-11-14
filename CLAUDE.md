@@ -3,11 +3,28 @@
 Operational conventions and project parameters. Records decisions that are **not** derivable from the
 code, so they are not re-litigated.
 
-- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (eleven principles, equally weighted).
-  Its §1 **Types** subsection is binding for every type written: one `types.ts` per package at
-  the import-graph root, single-file types local and unexported, `import type` for all
-  type-only flow. Read it before writing code, every session.
+- **The bar for EVERYTHING:** `docs/CODE-PRINCIPLES.md` (eleven principles, equally weighted).
+  **Every decision, every bit of code written or run, every audit and every test adheres to it**: source,
+  tooling, probes, benches, gates and the tests themselves, not only shipped code (Brian, 2026-10-27).
+  **When something does not, it is raised with Brian, never silently kept:** either `CODE-PRINCIPLES.md` is
+  updated (the rule was wrong or incomplete), or the violation is agreed as acceptable for a stated reason,
+  recorded where the code is. Its §1 **Types** subsection is binding for every type written: one `types.ts`
+  per package at the import-graph root, single-file types local and unexported, `extends` (never `&`) for
+  composition, JSDoc on every export, `import type` for all type-only flow. Re-read it at the start of every
+  session, including after a context compaction, and check each piece of work against all eleven before
+  calling it done. **The principles themselves are open to discussion, never to silent edits:** a principle
+  that looks wrong or outdated, or a lesson that deserves a new one, is raised with Brian, with the evidence
+  and a proposed wording, and `CODE-PRINCIPLES.md` changes only once he agrees.
+- **Functional by default, everywhere** (Brian, 2026-10-28; CODE-PRINCIPLES §1): plain functions over plain data, no
+  classes outside §1's two measured exceptions, no `this`-based APIs, no mutation of a caller's inputs, pure wherever
+  the work allows. Side effects live only at named boundaries (the store's traps, the scheduler, the tracking state, DOM
+  writes), and every piece of module-level mutable state is declared at the top of its module with why it must be
+  shared. Adding one is raised with Brian.
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
+- **Browser and engine behaviors: `docs/BROWSER-LEDGER.md`.** Every platform behavior, caveat or engine quirk that a
+  design or a measurement choice rests on goes there THE MOMENT it is found, with the engines it was seen on, the date,
+  the evidence (a test, a commit, a measurement) and the consequence. It only grows: an entry found wrong is marked so
+  and kept. Read it before changing a choice it explains, and before calling an engine difference new.
 - **AI-facing API spec:** `llms.txt` at the root (convention puts it there, like `robots.txt`).
   Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source
   of truth. Update it in the same pass as any API change. It carries the complete **buildless JSX
@@ -18,24 +35,23 @@ code, so they are not re-litigated.
   conditionally — template identity holds, so values update in place instead of the subtree being
   torn down and rebuilt. (This was also a correctness issue before 0.1.2; see
   `tests/renderer-sibling-parts.test.mjs`.)
-- **Testing a component without a browser:** compile with `transformJsx`, run under jsdom with
-  `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
-  `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
+- **Testing a component without a browser:** compile with `transformJsx`, run under jsdom, and await a
+  microtask or call core's `flush()` — the scheduler flushes every queued render and effect as ONE
+  microtask. **Seed `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
-- **A probe needs `pretendToBeVisual: true`, or the scheduler runs synchronously.** The default
-  scheduler uses the ELEMENT's window's `requestAnimationFrame` (since 2026-09-27, so a component in a
-  popped-out window runs on that window's frames), and jsdom only has one with `pretendToBeVisual`.
-  Without it `animationFrame` falls back to `run()`, so every write flushes immediately and
-  **coalescing cannot happen** — a probe missing it reports `useEffect` running 100 times for 100
-  writes and looks like a broken batch (measured: 1 run with it, 100 without, whether or not
-  `globalThis` has the function; `.probe/raf-realm/`). Copy `requestAnimationFrame` onto `globalThis`
-  too — it is still the fallback for a pass with no element. **A harness that REPLACES the global
-  for fast frames is bypassed** whenever the element's window has its own: replace
-  `dom.window.requestAnimationFrame` as well (`ssr-collections-roundtrip` waited 10 ms on a 16 ms
-  clock after this changed). The full list a probe needs is
-  `window document HTMLElement customElements CSSStyleSheet Node Element DocumentFragment
-  requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent` for anything
-  dispatching, and `location`/`history` for the router.
+- **A probe drives the scheduler with `flush()` or an `await`, not frames.** Core flushes every queued render,
+  layout effect and effect as one microtask — the default scheduler, `microtask`, since 2026-10-09 — so writes in one
+  task coalesce into one flush in any jsdom, with or without `pretendToBeVisual` (measured 2026-10-08: 100 writes →
+  0 runs synchronously and 1 after a microtask, both ways, `.probe/coalesce/` — the old "1 with it, 100 without" was
+  the frame scheduler's), and after any `await` the DOM is current. Frames matter only on the held path — a hook's
+  THIRD run in one flush (a self-feeding loop) waits for the ELEMENT's window's next frame or a 100 ms timer,
+  whichever comes first — and under the opt-in `frameBudget`. Without `pretendToBeVisual` that path takes the 100 ms
+  timer, so a probe exercising a loop or `frameBudget` gives jsdom frames, or calls `flush()` and waits out the timer
+  deliberately. **Never drive `frameBudget` with real time** — `performance.now()` is coarse on Firefox and WebKit;
+  a test crossing the budget by elapsed milliseconds is flaky on CI. The
+  full list a probe needs is `window document HTMLElement customElements CSSStyleSheet Node Element
+  DocumentFragment requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent`
+  for anything dispatching, and `location`/`history` for the router.
 - **jsdom is stricter than a browser about `setAttribute`, and that difference has already produced
   one false finding.** jsdom implements the XML Name production and throws on `a(b)`, `a|b`, `a?b`
   and about fifty other shapes; **every real engine accepts them**, rejecting exactly `a b`, `a>b`,
@@ -75,7 +91,21 @@ code, so they are not re-litigated.
   a bounded framework hold. Only the no-framework control settles it: the same harness with plain
   `innerHTML` and no vera at all reports the same lone survivor.
   **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
-  `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`.
+  `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`. **The exception, by design**
+  (Brian, 2026-10-10; generalized 2026-10-11): **isolated measuring child processes that use gc as the instrument, with
+  retained and dropped controls, are allowed in tests; forced gc inside a suite's own process is not.** gc is the
+  instrument there, never a crutch inside the logic under test, and it is for what nothing observable can pin:
+  `tests/core-subscription-sweep.test.mjs` holds the store's exact unsubscription (a removed component leaves nothing
+  in a store; it replaced a sweep that cost Firefox 3–13% on creation), and `tests/renderer-release-gc.test.mjs` holds
+  the renderer's release of a removed component's applier state. A row without both controls, or one that runs gc in
+  the suite's own process, belongs in `.probe/`.
+- **jsdom cannot measure retention of anything a `MutationObserver` watches.** jsdom's observer keeps every observed
+  node in a strong list until `disconnect()`; browsers hold them weakly. Slots' two shared observers never disconnect,
+  so under jsdom every light host ever observed stays reachable — a gc probe reports a leak the browser does not have,
+  and would equally report a real fix as still leaking. Measured 2026-10-07 on the slots work-set fix: jsdom 30/30
+  removed hosts alive before AND after; Chrome with CDP `HeapProfiler.collectGarbage` 30/30 → 1/30, the same as its
+  no-slots control. Measure retention in a real engine with CDP gc and both controls (`.probe/race-f/leak.mjs` in the
+  hydra worktree is the template); keep jsdom gc probes for code that observes nothing.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
@@ -102,10 +132,18 @@ code, so they are not re-litigated.
   ≈ 44% (2026-10-02; paired deltas held). The race harnesses wait on exactly that check. **And leave it time to cool** (Brian, 2026-09-27): a few
   minutes after the last build, gate or race before any timing run, and between consecutive races —
   it is a fanless laptop, and correctness suites are the only thing that can run back to back.
+- **Timing deferred work, "see the DOM, then wait for the next paint" charges deferral a frame it never cost.** A
+  flush deferred to a frame writes the DOM INSIDE that frame's callbacks, and that frame paints it; a probe that
+  notices the DOM and only then requests a frame waits for the NEXT one. Measured 2026-10-08: it made the scheduler's
+  4 ms budget look a frame slower than plain microtasks on cheap floods (33 vs 18 ms) when, measured fairly, the two
+  tie. Fair: start a frame chain BEFORE the work, and from each frame's callback queue a task (which runs after that
+  frame's rendering) that asks whether the DOM was final when it painted. For a real interaction, the browser's own
+  Event Timing (`PerformanceObserver({ type: 'event' })`, the INP measure) is the ground truth.
 - **An async timing loop is ONE job, and a short window's median measures the GC schedule, not the
   code.** Two traps, both of which produced a wrong conclusion here (2026-09-28). (1) `for (…) await
   render()` never yields a macrotask, and the platform keeps every `WeakRef` target alive until the job
-  ends — core's hook subscriptions are `WeakRef`s — so every render stays reachable for the whole run
+  ends — core's hook subscriptions were `WeakRef`s until 2026-10-18 (they are strong links now; any `WeakRef` the
+  code under test creates still behaves this way) — so every render stayed reachable for the whole run
   (109 MB, released by one `setImmediate`): yield a macrotask every ~100 iterations, outside the timed
   region, as a server's requests do (`bench/ssr.mjs` does). (2) A fixed workload collects at FIXED
   rounds per version, so a median over a few rounds reports where the collections happened to fall: an
@@ -124,6 +162,12 @@ code, so they are not re-litigated.
   to one store registry and subscriptions live in the other, so reactivity looks completely dead and
   every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard
   never fires" findings on separate occasions.
+  **A probe BUNDLED with esbuild splits core the same way (Brian approved, 2026-10-21):** esbuild applies the tree's
+  `tsconfig.json` `paths` (`@verajs/*` → package SOURCE) to every file inside the tree, so a package's built `dist`
+  importing `@verajs/core` gets core's source while an entry outside the tree gets core's `dist` — two cores in one
+  bundle. Measured on the step 2 retention probe: computeds and `renderInto` lists looked inert on both engines, and two
+  leaking rows read clean. Pass the bundle an empty `tsconfig`, and have the build script fail if any `core/src` module
+  is in the bundle — a guard shown firing on a deliberately mis-bundled entry, not only trusted.
 - **Two template literals are two templates, even with identical text.** Template identity is the
   `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
   probe produces a rebuild, not an update, and every conclusion drawn about update behavior is
@@ -140,6 +184,14 @@ code, so they are not re-litigated.
   idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
   no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
   perfectly by an entry that never ran at all.
+- **A metric with two modes or a heavy tail gets a frequency bar, a median bar and a control bar — never a range bar**
+  (Brian approved, 2026-10-24). GC time, cycle-collector time, hydration's alternating modes: pre-register (1) how often
+  the HIGH mode occurs, with its threshold, (2) the median, and (3) the POSITIVE CONTROL's expected reading, the run
+  VOID when the control misses it (e.g. "the self-referencing control reads ≥ 500 ms of CC"). A bar like "not higher
+  than the base's own range" gets weaker the noisier the base is — exactly backwards. Measured 2026-10-24: a Firefox CC
+  check passed a change by its range bar (the base reached 2302 ms once) while the change made a large collection land
+  in 8 of 13 runs against 3 of 13 (median 1366 vs 119 ms) — and the same instrument first read 0 ms on its own
+  positive control, until the idle tail (10 s) and the profiler features (`js,stackwalk,memory`) were right.
 - **A browser-test failure can arrive as a TIMEOUT, and a mutation can test the wrong tree.** Two traps,
   both measured 2026-10-01. (1) chai builds a failure message by inspecting the values, and inspecting a
   CROSS-REALM DOM object (an iframe's `ShadowRoot`) never finishes — so a failing `expect(node).to.equal(null)`
@@ -148,7 +200,19 @@ code, so they are not re-litigated.
   comes from another document. (2) A worktree whose `node_modules` is symlinked to the main tree resolves
   `@verajs/*` to the MAIN tree's packages, so a mutation made in the worktree "passes" while the test runs the
   untouched code. Check `readlink -f node_modules/@verajs/<pkg>` before trusting a worktree mutation — the
-  mutation must turn something red, or it measured nothing.
+  mutation must turn something red, or it measured nothing. **The same trap splits a core change's FULL suites
+  (Brian approved, 2026-10-19):** in such a worktree `tests/dist.mjs` loads the worktree's core while packages that keep
+  core external (store, computed, collections, directives) load the other tree's — two cores, and a core change's suites
+  went 18 dev / 83 prod red for that reason alone (2026-10-18). Give the worktree its own `node_modules` with `@verajs/*`
+  linked to its own `packages/*` (`readlink -f node_modules/@verajs/core` must point into it), or run the suites in the
+  real tree.
+  **And an INSTALL in such a tree damages the OTHERS (Brian approved, 2026-10-22):** the local worktrees share
+  `node_modules` through symlinks into one another, and `npm install` / `npm ci` in one follows those links — an install
+  that aborted (ENOTDIR) removed files in vera-slotpos's `node_modules`, which vera-hydra and vera-idskip link into, and
+  nothing reported it there (found hours later, when a tool failed). Before any install in a worktree, check
+  `find node_modules -maxdepth 2 -type l` for links into other trees; install only in the tree that OWNS the targets, or
+  give the tree its own real `node_modules` first. After an aborted install, check the OTHER trees' critical
+  dependencies (playwright, trace-mapping) by importing them inside each tree.
 - **In a hot function, an arrow that captures a parameter taxes EVERY call, a sparse array taxes every read, and so
   does an EXPORTED module variable.**
   Measured 2026-10-01 on the SSR serializer, which lost 4.7% in a day to both: `value.map((e) => serializeValue(e,
@@ -162,6 +226,82 @@ code, so they are not re-litigated.
   tier-up is part of the cost, not noise: it is what a server's first requests pay. Keep what a hot loop reads module-local and export a separate alias (`export const
   RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
   every hot-path change gets a cold-process or race measurement before it lands.
+- **Before a NEW hot function is raced, it gets a read-through against the hot-path rules above and below** (Brian,
+  2026-10-31): an arrow or function capturing its own variables (even on a cold branch), sparse arrays, exported live
+  bindings, a one-caller helper the minifier will paste in as an IIFE, the inlining budget in BOTH bundles, a try/catch
+  doing work on the hot path. Automated where it can be: `tests/hot-path-closures.test.mjs` refuses captured closures in
+  the named hot functions (add a new hot function to its list), and the IIFE counter pins what the minifier substitutes.
+  Found the hard way: `computed`'s getter built two closures on its rarely-taken watch branch, and every cached read paid
+  for them (Firefox 31%, WebKit 33%), found only after a three-engine race and a bisect.
+- **A hot function near V8's inlining budget pays for ANY growth — even code that never runs.** V8 inlines a function
+  into its caller only while its bytecode is at most `--max-inlined-bytecode-size` (460). `serializeValue`, inlined into
+  `serializeTemplate`'s per-binding loop, sat at 455; the DOM-node case took it to 467 and cost 3.6% steady on renders
+  that never reached the case (2026-10-09). A bisect turning the change's parts off settled it: the import, the alias and
+  a same-size comment were free, and a never-taken `if (value === DEAD) return ''` alone cost 4.0% — V8's trace said
+  "Cannot consider serializeValue for inlining (reason: 5)", too big. Measure with `--print-bytecode
+  --print-bytecode-filter=<name>` (or `--trace-turbo-inlining`), and when a change crosses, move rarely-run code — an
+  error's construction is the usual candidate — out of line. `tests/ssr-inlining-budget.test.mjs` guards
+  `serializeValue` and prints its headroom every run. A size cliff shows in no code read and no correctness test; and
+  Firefox and Safari inline on different rules, so in the browser the three-engine race is the only oracle.
+  **The same cliff bites the instrument:** ablation switches (`if (process.env.X)` branches) inside a hot function grow
+  it past the budget, so every ablation measures a de-inlined function and none can show its effect. Measured
+  2026-10-18 on the store's subscription `read`: four ablations "did nothing" until `--trace-turbo-inlining` showed the
+  switches had made `read` uninlinable. Build a clean variant per hypothesis, and confirm with the trace that its hot
+  function inlines like the baseline's before trusting the number.
+- **Removing a function's other callers changes what the minifier does to it** (Brian approved, 2026-10-23). Terser
+  substitutes a function with ONE call site into that caller — in a hot path as an immediately-invoked arrow, a fresh
+  closure on every call. A refactor that deleted core's last exports of two small helpers did exactly that to `init`'s
+  render path, and Firefox paid ~1–2% on component creation and churn while no source diff touched the hot code
+  (BROWSER-LEDGER, "the minifier inlines a function with ONE caller"). So a refactor that leaves a hot helper with one
+  caller is raced, and the inlined-IIFE sites of the production bundle are counted before and after; a hot call that
+  must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (the guard row that pins each bundle's site count
+  comes with the rebuild's core). **Two traps writing that annotation** (Brian approved, 2026-11-14): the TypeScript step
+  drops a comment between `!` and a call, so put it on an operand (`x && /*@__NOINLINE__*/ f()`, `false === …`), never
+  after `!`; and never quote the annotation's literal text inside a why-comment, because terser keeps any comment holding
+  it, and the shipped min grows (+126 raw, measured on c1). Check both with a `cmp` against the raced bundle.
+- **The bytes that LAND must be byte-identical to the bytes that were RACED, or the landing is re-raced** (Brian
+  approved, 2026-10-27). A probe or test export in a raced bundle is a caller like any other, so it changes what the
+  minifier does (the rule above). Measured: a hook-record race was built with a probe export that gave the record's
+  factory a second caller; the landing removed the export, Terser substituted the factory into `register` as an arrow
+  invoked on every hook created, and creation was ~1.5% slower than raced, with no race having seen it. So build every
+  timed arm with exactly the landing's exports (probe-only exports go in a separate build used only for shape or
+  inlining checks), and `cmp` the landed production bundle against the RACED arm, never against a fresh reproduction of
+  the landing.
+- **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
+  remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
+  it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
+  Chrome: the one new deopt R1 introduced sat on `untracked`; folding untracking into `initWith` moved the same deopt to
+  `initWith`, and the first-render cost it seemed to explain did not move (64.6 → 64.1 ms, pre-R1 60.6). Before treating
+  a deopt as the cause, change it and race it: a deopt that moves while the timing stays put is a symptom of the
+  allocation pattern, not the cost. The tools: V8's `--log-code --log-deopt --logfile=…` passed through Chrome's
+  `--js-flags` (renderer stdout is closed on macOS, so `--trace-opt` prints nothing), mapped through the dist source maps.
+- **Time Firefox with a FRESH BROWSER PER PAGE — never many pages in one instance.** Same-site pages in one Firefox
+  share a content process, so a page's leftover garbage is collected inside the NEXT page's timed window, and a cyclic
+  rotation pins each variant behind the same neighbor: results then follow the variant list, not the code. Measured
+  2026-10-17: one probe read +3.6%, +3.2%, then −4.5% when a fifth variant changed its neighbors, and a committed
+  "Firefox −10%" was in fact +8% (fresh browser per page, both ways). Chrome gives each page its own context, but
+  verify rather than assume. Report ELAPSED time with the frame gaps too: a change can move a collection out of the
+  timed window without removing it. (Measured headless — Playwright Firefox through `firefox.launch()`'s default;
+  the direction is expected to hold, to be re-confirmed headed.) The same trap holds INSIDE one page: frameworks run
+  one after another on a shared page left their garbage in the next one's window, and a byte-identical A/A copy split
+  5/5 (2026-10-18), so a cross-framework race runs each implementation in its own fresh browser.
+- **Time in headed browsers; headless is for profiling and jitless iteration only** (Brian, 2026-10-18). Playwright's
+  `firefox.launch()` and `webkit.launch()` are HEADLESS by default, and a headless browser's frames are not tied to a
+  real compositor, so a paint or layout row there may measure no paint at all. Found 2026-10-18: `bench/dom/run.mjs`
+  (the public table's command) ran bundled Chromium headless, and the harness behind every slots race ran all three
+  engines headless. Read a harness's launch line before reading its numbers, print the mode and version in its header,
+  and label the engines for what they are — installed Chrome, Playwright Firefox, Playwright WebKit (not Safari).
+- **A WeakMap / WeakSet keyed by DOM nodes on a PER-COMPONENT hot path can cost both engines' collectors per entry —
+  measure it, and the per-copy `Symbol` field is the candidate to race.** Measured 2026-10-17: the renderer's root-part
+  WeakMap cost ~10% of shadow-component creation and churn in Firefox (GC sweep + mark) and ~9% in Chrome; a field on
+  the root under a `Symbol` private to each module copy (two copies on a page must never see each other's entries —
+  never a string name) removed it, and core's `mine` WeakSet the same way gave −5–6%. **It is not a rule to replace
+  weak collections:** slots' seven node-keyed maps measured a TIE as fields, and dropping the per-hook `WeakRef` bought
+  −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe (kept then, Brian; on 2026-10-18 core moved
+  to strong links with exact unlinking, `store.ts`). A field that points back at its
+  node's DOM (root → part → root) is a DOM↔JS cycle Firefox's cycle collector must break — null the back-pointer at
+  release. Race the field against the collection, both engines, fresh browser, before moving one. (Measured headless,
+  on all engines; to be re-confirmed headed.)
 - **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
   create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
   class defines is work the engine does for every instance; never add one speculatively.
@@ -200,6 +340,11 @@ code, so they are not re-litigated.
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
   built `dist`; ssr is the one that does.
+  **A mutation run is the same trap from the other side** (Brian approved, 2026-10-28): a runner that builds each mutant
+  with rollup directly leaves `dist` holding the LAST mutant after it restores the source, and wireit, whose cache never
+  saw those builds, then skips the rebuild — so every later suite or gate run tests mutated code while reporting green.
+  The runner hashes both bundles (development and production) before the first mutation, rebuilds from the restored
+  source at the end, and fails unless both hashes match.
 - **A green `npm run build` and a green `npm test` do NOT mean the TypeScript parses.** The bundler
   strips types without fully parsing them, so a `.ts` file TypeScript cannot read still builds and
   still passes every suite — measured 2026-09-23, when a stray `*/` inside a doc comment left
@@ -252,6 +397,10 @@ rest of this file.
   multi-step change, a restructure, a file move, or a new dependency and narrate it afterwards.
 - **Get approval before acting.** Approval for one step is not approval for the next. Approval to
   investigate is not approval to change.
+  **Tests never need Brian's go** (Brian, 2026-11-04, a standing rule): a test, probe, profile or race runs when the work
+  needs it, without asking. The plan and its pre-registered reading still go to the auditor, Brian is told when windows
+  will open on his screen, and the machine-safety rules above still hold. What lands (code, fixes, trades, decisions)
+  still waits for his approval.
 - **Recommend, and argue for it.** Brian explicitly wants to be persuaded and nudged toward the right
   choice — not handed a neutral menu. When asked "what do you recommend?", answer with a specific
   recommendation and the reasoning, including the strongest counter-argument. A passive list of
@@ -269,6 +418,15 @@ rest of this file.
   qualified when the registry is not core's (`wireDirectives`), and that parallel is deliberate:
   the same idea carries the same verb. Recipes and prose write the array form, `wire([renderer])`,
   even for one module — `wire` accepts a bare descriptor too, but the docs teach one shape.
+- **The naming convention for everything else, decided 2026-10-22 (Brian) — it extends the verb grammar above.**
+  (1) **Verbs are actions** on the app or page — they do something now and return nothing you keep: `init`, `define`,
+  `wire`, `flush`, `untrack`, `renderInto`. (2) **`create*`** makes a standalone instance whose natural variable name IS
+  the noun (`createStore`, `createSelector` — `const store = store(…)` would collide). (3) **The name of what you get**
+  for everything created in a setup, **owned by where it is created** (a setup: the component; a render: that render;
+  module scope: you): `signal`, `computed`, `effect`, `resource`, `portal` — in the field's established term where one
+  exists (`computed`, as TC39's `Signal.Computed`). (4) **No `use*` prefix, anywhere**: in React it signals call-order
+  rules, and a Vera setup runs once and has none. Headless behaviors are nouns too when they return (`lightDismiss`,
+  `listbox` — the `@verajs/hooks` renames, done when `ui` returns to scope).
 - **What a wireable module LOOKS like follows from whether it has options** (surveyed 2026-09-07;
   the rule was already in force unwritten, and a new module should not have to re-derive it):
   **no options → a bare descriptor** (`renderer`, `styles`, `collections`, `slots` — plain objects;
@@ -388,6 +546,17 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   through your own copy works in development and silently does nothing in production — it does not
   throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
   way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
+  **The rule holds for TEST code too, and it was broken there** (2026-10-08): the shared hydration harness
+  (`tests/hydration.mjs`) took `wire` from `@verajs/inserts`, so in production the renderer was connected to two
+  registries, slots wired through core was never asked, and production rows passed or failed for the wrong reason —
+  one suite (`hydration-walk`) only passed BECAUSE of the split. Found by luck, checking a migration in production.
+  `tests/one-registry.test.mjs` now fails the gate when a suite takes the standalone registry, unless it is on its
+  allow-list with a reason (only the suites that test the inserts module itself).
+- **A class extending a class from another bundle must not trust the production mangler** (Brian approved,
+  2026-10-20). Each production bundle mangles `_`-prefixed names on its own, to one- or two-character names, so a
+  subclass in one bundle of a class from another may write only `$`-named fields of its base, and its OWN fields need
+  names the mangler never generates. A keyed row extending core's hook wrote `k` and `t`, which overwrote the hook's
+  mangled flush stamp and creation sequence; the development build, which mangles nothing, passed.
 - **A property on an insert DESCRIPTOR is not reachable through `chain()`** — the registry keeps the
   descriptor's `fn`, so a protocol member set on the descriptor object is invisible to whoever reads
   the insert. Put it on the function. Measured 2026-10-02: slots' server hook sat on the descriptor and
