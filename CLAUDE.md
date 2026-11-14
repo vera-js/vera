@@ -255,7 +255,10 @@ code, so they are not re-litigated.
   (BROWSER-LEDGER, "the minifier inlines a function with ONE caller"). So a refactor that leaves a hot helper with one
   caller is raced, and the inlined-IIFE sites of the production bundle are counted before and after; a hot call that
   must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (the guard row that pins each bundle's site count
-  comes with the rebuild's core).
+  comes with the rebuild's core). **Two traps writing that annotation** (Brian approved, 2026-11-14): the TypeScript step
+  drops a comment between `!` and a call, so put it on an operand (`x && /*@__NOINLINE__*/ f()`, `false === …`), never
+  after `!`; and never quote the annotation's literal text inside a why-comment, because terser keeps any comment holding
+  it, and the shipped min grows (+126 raw, measured on c1). Check both with a `cmp` against the raced bundle.
 - **The bytes that LAND must be byte-identical to the bytes that were RACED, or the landing is re-raced** (Brian
   approved, 2026-10-27). A probe or test export in a raced bundle is a caller like any other, so it changes what the
   minifier does (the rule above). Measured: a hook-record race was built with a probe export that gave the record's
