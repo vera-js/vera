@@ -142,7 +142,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/namespaces` | 667 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/elements` | 800 B | behavior attached to claimed elements in templates, mounted and unmounted with their instances |
 | `@verajs/renderer/portal` | 705 B | drawing into another element from a component, in a range of its own |
-| `@verajs/renderer/hydration` | 3 463 B | adopting server-rendered markup — wired BESIDE the renderer (`wire([renderer, hydration])`) |
+| `@verajs/renderer/hydration` | 3 476 B | adopting server-rendered markup — wired BESIDE the renderer (`wire([renderer, hydration])`) |
 | `@verajs/renderer/hydrate-slots` | 1 673 B | hydrating light-DOM slots — the server's light-slot format, read only where both are used (`wire([renderer, hydration, slots, hydrateSlots])`) |
 | `@verajs/inserts` | 363 B | the extension point |
 | `@verajs/directives/core` | 6 325 B | the engine — registry, activation, context, delegation (core external) |

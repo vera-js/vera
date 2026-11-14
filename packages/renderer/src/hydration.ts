@@ -355,7 +355,8 @@ const adoptCopy = (canonical: Element, copy: Element, into: Adoption, owned: num
  * the renderer's own first commit does the rest, text or template alike.
  */
 const freshCommit = (into: Adoption, i: number, node: Node) => {
-  bind(into, i, node, into.template.$K[i] === SOLE ? H[HANDOFF_UNSET] : '');
+  into.bindings[i * 2] = node;
+  into.bindings[i * 2 + 1] = into.template.$K[i] === SOLE ? H[HANDOFF_UNSET] : '';
   later(COMMIT, into.template, into.bindings, i, into.template.$K[i], into.values);
 };
 
@@ -488,22 +489,6 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
 /** A value is TEXT at a child position when the base would write it as text. */
 const isText = (value: unknown) => value != null && typeof value !== 'object';
 
-/** Binding `i`'s pair, as the base keeps it: what holds the binding, and the value it was last committed with. */
-const bind = (into: Adoption, i: number, held: unknown, last: unknown) => {
-  into.bindings[i * 2] = held;
-  into.bindings[i * 2 + 1] = last;
-};
-
-/** A part between two new markers at the cursor, adopting `value` between them; its end marker goes after what it took. */
-const markedPart = (value: unknown, cursor: Cursor): ChildPart => {
-  const doc = cursor.parent.ownerDocument!;
-  const part = new H[HANDOFF_CHILD_PART](doc.createComment(''), doc.createComment(''));
-  insertHere(cursor, part.$s!);
-  adoptValue(part, value, cursor);
-  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
-  return part;
-};
-
 
 /** A CHILD binding: text split to the value, or a part between two markers put in around what it adopts. */
 const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
@@ -513,19 +498,33 @@ const adoptChild = (into: Adoption, i: number, cursor: Cursor) => {
     return freshCommit(into, i, placeholder);
   }
   const value = into.values[i];
-  if (isText(value)) return bind(into, i, claimText(cursor, textOf(value)), value);
-  bind(into, i, markedPart(value, cursor), H[HANDOFF_UPGRADED]);
+  if (isText(value)) {
+    into.bindings[i * 2] = claimText(cursor, textOf(value));
+    into.bindings[i * 2 + 1] = value;
+    return;
+  }
+  const part = new H[HANDOFF_CHILD_PART](cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
+  insertHere(cursor, part.$s!);
+  adoptValue(part, value, cursor);
+  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
+  into.bindings[i * 2] = part;
+  into.bindings[i * 2 + 1] = H[HANDOFF_UPGRADED];
 };
 
 /** A SOLE binding: its element's one text node, or a part that owns the element (no markers). */
 const adoptSole = (into: Adoption, i: number, live: Element, inner: Cursor) => {
   const value = into.values[i];
   if (fresh) return freshCommit(into, i, live);
-  if (isText(value)) return bind(into, i, claimText(inner, textOf(value)), value);
+  if (isText(value)) {
+    into.bindings[i * 2] = claimText(inner, textOf(value));
+    into.bindings[i * 2 + 1] = value;
+    return;
+  }
   const part = new H[HANDOFF_CHILD_PART](null, null);
   part.$w = live;
   adoptValue(part, value, inner);
-  bind(into, i, part, H[HANDOFF_UPGRADED]);
+  into.bindings[i * 2] = part;
+  into.bindings[i * 2 + 1] = H[HANDOFF_UPGRADED];
 };
 
 /** Adopts a template's instance at the cursor. */
@@ -649,7 +648,10 @@ const adoptItem = (value: unknown, cursor: Cursor): Item => {
     instance.$k = (value as KeyedResult).key;
     return instance;
   }
-  const part = markedPart(value, cursor);
+  const part = new H[HANDOFF_CHILD_PART](cursor.parent.ownerDocument!.createComment(''), cursor.parent.ownerDocument!.createComment(''));
+  insertHere(cursor, part.$s!);
+  adoptValue(part, value, cursor);
+  if (part.$e!.parentNode === null) insertHere(cursor, part.$e!);
   part.$k = (value as TemplateResult | null)?.key;
   return part;
 };
