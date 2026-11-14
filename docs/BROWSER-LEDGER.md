@@ -53,7 +53,7 @@ from another machine, or after that is undone, has a variable changed.
   default; a headless browser's frames are not tied to a display, so a paint or layout row there may measure no paint.
   Consequence: timing runs headed; headless is for profiling and jitless iteration. For create1k, Firefox and WebKit
   script / forced-layout / to-paint times agreed within ~1 ms headed vs headless, but that is one workload, not a
-  licence. (Headed vs headless, 2026-10-18)
+  license. (Headed vs headless, 2026-10-18)
 - **Headed Chrome counts whole frames on heavy work timed to paint**: create 10 000 rows read ~220 or ~445 ms by
   session, clearing them 35 or 70, for every framework alike. **WebKit paints at frame cadence**: create 1 000 rows to
   paint reads ~41 ms for every implementation. Consequence: heavy rows are timed as script + DOM + forced layout with
