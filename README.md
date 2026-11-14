@@ -24,7 +24,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/native-elements` | 1.05 KB | 626 B |
 | `@verajs/renderer/multi-window` | 670 B | 425 B |
 | `@verajs/renderer/until` | 462 B | 318 B |
-| `@verajs/renderer/slots` | 17.48 KB | 6.24 KB |
+| `@verajs/renderer/slots` | 17.34 KB | 6.22 KB |
 | `@verajs/renderer/namespaces` | 1.09 KB | 667 B |
 | `@verajs/renderer/elements` | 1.51 KB | 800 B |
 | `@verajs/renderer/portal` | 1.25 KB | 705 B |
@@ -127,7 +127,7 @@ That includes reaching *inside* slotted content, which shadow DOM cannot express
 ordering of late insertions, `assignedNodes()`-equivalent reads, SSR and hydration are each verified
 against a real shadow root given the identical input — the suite renders one component both ways and
 asserts they agree, rather than asserting a table of expected strings. It is
-<!--size:module.renderer-slots.kb-->6.24 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
+<!--size:module.renderer-slots.kb-->6.22 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
 opt-in: an app that never wires it pays nothing, and the renderer treats a `<slot>` it cannot
 distribute as inert markup with a development warning.
 

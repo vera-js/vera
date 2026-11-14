@@ -138,7 +138,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/native-elements` | 626 B | `nativeElements` — `init` on a built-in host (a div, a section…) with a custom element's lifecycle, and the components of a window that goes away retired |
 | `@verajs/renderer/multi-window` | 425 B | `multiWindow` — components left in a pop-out or an iframe are released when that window closes |
 | `@verajs/renderer/until` | 318 B | `until(promise, fallback)` — a promise at a child position: the fallback, then its value |
-| `@verajs/renderer/slots` | 6 385 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/slots` | 6 367 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/namespaces` | 667 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/elements` | 800 B | behavior attached to claimed elements in templates, mounted and unmounted with their instances |
 | `@verajs/renderer/portal` | 705 B | drawing into another element from a component, in a range of its own |

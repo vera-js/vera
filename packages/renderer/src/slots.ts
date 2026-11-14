@@ -225,6 +225,13 @@ const unregion = (rec: Rec) => {
   rec.re!.remove();
   rec.rs = rec.re = null;
 };
+/** What a slot shows goes back to holding, and the slot back in its place: every way a slot leaves runs this. */
+const unplace = (rec: Rec) => {
+  for (const node of lightOf(rec.light)) if (PLACED.get(node) === rec) toHolding(rec.light, node);
+  unregion(rec);
+};
+/** The slot leaves its host's list of slots. */
+const unlist = (rec: Rec) => rec.light.recs.splice(rec.light.recs.indexOf(rec), 1);
 
 /** `slotchange`, as the platform fires it: once per slot per change, after the change, on the slot element. */
 const changed = (rec: Rec) => {
@@ -506,11 +513,9 @@ const insideHost = (node: Node, host: Element) => {
   return false;
 };
 const handRemoved = (rec: Rec) => {
-  const light = rec.light;
-  light.recs.splice(light.recs.indexOf(rec), 1);
-  for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
-  unregion(rec);
-  mark(light);
+  unlist(rec);
+  unplace(rec);
+  mark(rec.light);
 };
 /**
  * A FILLED slot is not in the page (its region stands in its place), so its own `remove()` / `replaceWith()` cannot reach
@@ -519,18 +524,12 @@ const handRemoved = (rec: Rec) => {
  */
 function removeSlot(this: Kept) {
   const rec = this.$rec;
-  if (rec !== undefined && rec.rs !== null) {
-    for (const node of lightOf(rec.light)) if (PLACED.get(node) === rec) toHolding(rec.light, node);
-    unregion(rec);
-  }
+  if (rec !== undefined && rec.rs !== null) unplace(rec);
   (this.ownerDocument.defaultView as typeof globalThis).Element.prototype.remove.call(this);
 }
 function replaceSlot(this: Kept, ...nodes: (Node | string)[]) {
   const rec = this.$rec;
-  if (rec !== undefined && rec.rs !== null) {
-    for (const node of lightOf(rec.light)) if (PLACED.get(node) === rec) toHolding(rec.light, node);
-    unregion(rec);
-  }
+  if (rec !== undefined && rec.rs !== null) unplace(rec);
   (this.ownerDocument.defaultView as typeof globalThis).Element.prototype.replaceWith.apply(this, nodes);
 }
 /**
@@ -1315,12 +1314,10 @@ const slotBehavior = {
   /** Torn down: its content goes back to holding first, and the element back in its place, before the renderer removes it. */
   unmount: (rec: Rec) => {
     flush(rec.light);
-    const light = rec.light;
-    light.recs.splice(light.recs.indexOf(rec), 1);
-    for (const node of lightOf(light)) if (PLACED.get(node) === rec) toHolding(light, node);
-    unregion(rec);
-    distribute(light);
-    drop(light);
+    unlist(rec);
+    unplace(rec);
+    distribute(rec.light);
+    drop(rec.light);
   },
 };
 
