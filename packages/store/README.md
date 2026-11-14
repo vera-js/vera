@@ -102,8 +102,8 @@ One cell — `loading`, `value`, `error`, `refreshing` — that a render reads l
 - **Load, then fetch:** make the source itself async — `resource(async (signal) => { const cfg = await loadConfig();
   return fetchUser(cfg, { signal }); })` — so the resource is created in the setup's synchronous part.
 - **On a server it does not fetch**: the page renders the loading state and the browser fetches. A handoff — the
-  server waiting for the data and the page carrying it to hydration, with no second request — is planned; `key` names a
-  resource for it and does nothing yet.
+  server waiting for the data and the page carrying it to hydration, with no second request — is planned. `key` is
+  **reserved** for it: it names a resource for that handoff and does nothing yet.
 
 ## For AI assistants — and anyone who wants the whole API on one page
 

@@ -82,6 +82,7 @@ const CLAIMS = new Map([
   ['packages/autoloader/README.md#040a91dcf5', 'pinned by tests/directive-import-one-report.test.mjs: one failed import is exactly one line, the URL-named Error beside it, and a direct caller gets that rejection with nothing printed'], // **A failed import is reported once, by the engine** — one line naming the directive and the URL
   ['llms.txt#fbe3ae57cf', 'priority-not-finite'], // `effect(fn, { priority })` … a non-finite one registers nothing — development says why
   ['llms.txt#9ffa401764', 'priority-not-finite'], // `effect` (for modules) `(fn, { owner, priority }) => Effect` … `undefined` if refused — a priority that is not a finite number
+  ['packages/store/README.md#1232752db6', 'not a promise: a reserved option read by nothing; it states that no behavior exists yet'], // `key` is **reserved** for it: it names a resource for that handoff and does nothing yet.
   ['packages/inserts/README.md#d14e7dacd0', 'not a promise: error routing of a throwing effect, not a message'], // **Nothing catches it, and that is deliberate — but it is not the same as a hook.** An `effect` that throws
   ['llms.txt#31ffcc8893', 'portal-no-renderer'], // Without a renderer of the same release wired, it draws nothing and says so once
   ['packages/core/README.md#f5f35dd95f', 'pinned by tests/core-hook-order.test.mjs: a non-finite priority registers nothing from effect and wire in both builds; development\'s line ends on its code'], // … a non-finite priority registers nothing, in both builds, and development says why, as for `wire`

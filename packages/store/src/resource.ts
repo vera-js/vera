@@ -21,7 +21,8 @@ import { createStore, effect, inserts, untrack } from '@verajs/core';
  *   first request starts as the component sets up (its first pass), not a frame later. Removal aborts the request in
  *   flight and drops a late result.
  * - **On a server it does not fetch** (`$ss(0)`, the server turn): it renders `loading`, and the client fetches. The
- *   server handoff — waiting, the data in the page, hydration seeded from it — comes later and will use `key`.
+ *   server handoff — waiting, the data in the page, hydration seeded from it — comes later and will use `key`, reserved
+ *   for it today.
  * - **Not a thenable**, on purpose: an async setup that returned or awaited it would otherwise be joined as the setup,
  *   and a server would wait for it.
  * - Its hook runs at priority 76, after effects: a cross-window move re-runs effects and skips 76, so it never refetches.
@@ -34,7 +35,11 @@ type Writable<T> = { loading: boolean; refreshing: boolean; value: T | undefined
 
 export type Resource<T> = State<T>;
 export type ResourceOptions = {
-  /** Names this resource for the server handoff (to come), where a conditional resource could shift the order. */
+  /**
+   * **Reserved**: accepted and not read yet, so passing it changes nothing today. It will name this resource for the
+   * server-to-client data handoff (planned with the rebuilt SSR pipeline), where a conditional resource could shift the
+   * order the server and the client meet resources in.
+   */
   key?: string;
 };
 
