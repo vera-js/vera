@@ -131,8 +131,8 @@ export type Slot = {
 
 /**
  * **A hook — ONE object, every field declared** (2026-10-11): no closure, context or expando per hook. Core's
- * `HookState` class is the only implementation; outside core only the keyed module touches one (it reads `v` and calls
- * `$n`).
+ * `HookState` class is the only implementation; outside core only the keyed module touches one (it reads `$runs` and
+ * calls `$n`: `CrossBundleHook`).
  *
  * Subscriptions, kept ON the hook so it can leave them (exact unsubscription): `_sources`/`_places` below, the cells it
  * reads and its place in each. Retiring unlinks it from every one, so a removed component leaves nothing in a store.
@@ -165,7 +165,7 @@ export type HookRecord = {
   _flushRuns: number;
   /**
    * **Its sources, with in-order link reuse**: `_sources` is ONE flat array, `[cell, at, cell, at, …]`:
-   * each cell it reads and where it sits in that cell. `v` counts its runs (0: never run). `_cursor` is the run's cursor INTO
+   * each cell it reads and where it sits in that cell. `$runs` counts its runs (0: never run). `_cursor` is the run's cursor INTO
    * `_sources` (it steps by 2): `-1` on a FIRST run, which links each read directly (lazy reuse: a hook never re-run pays
    * nothing for reuse); from the second run, a read matching `_sources[_cursor]` just advances it, and the first read that DIFFERS
    * unlinks the rest at once and links directly from there (`-2`), so every read is linked the moment it is made (a run
@@ -177,11 +177,8 @@ export type HookRecord = {
   _sources: Cell[];
   /** Where it sits in each of those cells (the slot `_sources[k]` holds it at). */
   _places: number[];
-  /**
-   * Its run count. **Read by another bundle**: the keyed module compares a list's committed run against its parent
-   * hook's `v`, so this name is part of the cross-bundle record (never mangled: no `_` prefix, never renamed alone).
-   */
-  v: number;
+  /** Its run count, read by another bundle: see `CrossBundleHook`. */
+  $runs: number;
   /** The run's cursor into `_sources` (steps by 2; `-1` first run, `-2` diverged). */
   _cursor: number;
   /** The last wake that reached it. */
@@ -312,6 +309,23 @@ export type AutoMap = (proxy: unknown, raw: unknown[], fn: unknown, parent: Hook
 
 /** Something a hook's run owns: `$r` the run that last claimed it, `$h` its owning hook, `$d()` its disposal. `$`-named: cross-bundle. */
 export type Owned = { $r: number; $h: HookRecord | undefined; $d(): void };
+
+/**
+ * **What another bundle reads off a hook RECORD itself** (Brian's ruling, 2026-11-13), declared like `CoreSeams`: a seam
+ * hands a module core's functions, but the renderer's keyed module also holds a parent hook (a list's `parent`) and
+ * reads it directly. `$`-named, so no bundle's mangler renames them; a field here is renamed in every reader at once or
+ * not at all, and `tests/cross-bundle-hook.test.mjs` holds both production bundles to it.
+ *
+ * Readers: `@verajs/renderer`'s keyed module (`List.parent`: it compares `$runs` with the run its lists were last
+ * mapped and committed in, and calls `$n`). The hook's OWNER crosses too, through the sigiled `_$g$`, `_$x$` and `_$h$`
+ * declared on `ComponentElement` (a keyed row is an owner).
+ */
+export type CrossBundleHook = {
+  /** Its run count: incremented at the start of every run. */
+  $runs: number;
+  /** Its notify entry: a change, or the first run (`init`), reaches the hook through it. */
+  $n(signal?: unknown, init?: boolean): void;
+};
 
 /**
  * **The seams: what core shares with modules in other bundles, through `$`-named fields on the registry** (

@@ -158,7 +158,7 @@ class HookState implements HookRecord {
   declare _flushRuns: number;
   declare _sources: Cell[];
   declare _places: number[];
-  declare v: number;
+  declare $runs: number;
   declare _cursor: number;
   declare _lastWake: number;
   /** The callback: the effect, or a render pass. */
@@ -183,7 +183,7 @@ class HookState implements HookRecord {
     this._flushRuns = 0;
     this._sources = [];
     this._places = [];
-    this.v = 0;
+    this.$runs = 0;
     this._cursor = 0;
     this._lastWake = 0;
     this._cb = callback;
@@ -278,8 +278,8 @@ class HookState implements HookRecord {
      * unlinked every source and left the hook deaf. `tests/core-nested-run-links.test.mjs`.)
      */
     const nested = outer === this;
-    const first = this.v === 0;
-    this.v++;
+    const first = this.$runs === 0;
+    this.$runs++;
     if (!nested) this._cursor = first ? -1 : 0;
     let ok = false;
     try {
@@ -356,7 +356,7 @@ export const retireHook = (hook: HookRecord) => {
  * Claims `item` for `hook`'s CURRENT run (a module calls it during the run that uses the item).
  */
 export const ownForRun = (hook: HookRecord, item: Owned) => {
-  item.$r = hook.v;
+  item.$r = hook.$runs;
   if (item.$h !== hook) {
     item.$h = hook;
     const table = (ownedBy ??= new WeakMap());
@@ -370,7 +370,7 @@ const settleOwned = (hook: HookRecord, o: Owned[]) => {
   let w = 0;
   for (let r = 0; r < o.length; r++) {
     const item = o[r]!;
-    if (item.$r === hook.v) o[w++] = item;
+    if (item.$r === hook.$runs) o[w++] = item;
     else {
       item.$h = undefined;
       item.$d();

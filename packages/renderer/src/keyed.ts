@@ -10,6 +10,7 @@ import { PROSE } from './keyed-diagnostics.js';
  * is what lets it sit beside any renderer entry, hydrate included.
  */
 import type { Item, KeyedResult, ListStrategy } from './renderer.js';
+import type { CrossBundleHook } from '@verajs/core';
 
 const reconcile: ListStrategy = (part, values, items, parent, end) => {
   const count = values.length;
@@ -287,7 +288,7 @@ class Row {
 function rowRun(this: Row, _signal?: unknown, init?: boolean) {
   const list = this.list;
   /** An automatic list the parent's latest run no longer reached: its rows go with it. */
-  if (!init && list !== undefined && list.mapped !== list.parent.v) return orphan(list);
+  if (!init && list !== undefined && list.mapped !== list.parent.$runs) return orphan(list);
   const r = stamp(this);
   this.result = r;
   /** The row's render returned: a nested list it hid this time goes now (core's ownership, settled here — (e″)). */
@@ -302,7 +303,7 @@ function rowRun(this: Row, _signal?: unknown, init?: boolean) {
    * An automatic list's row commits in place only while the page shows what the parent's LATEST run mapped (`committed`);
    * otherwise the map's result was used as a value (summed, joined, chained), so the parent re-renders with it.
    */
-  if (list !== undefined && list.committed !== list.parent.v) return list.parent.$n();
+  if (list !== undefined && list.committed !== list.parent.$runs) return list.parent.$n();
   if (this.inst !== undefined) {
     const part = this.part!;
     const out = part.$u(this.inst, r);
@@ -354,7 +355,8 @@ class List {
   declare _$h$: unknown[] | undefined;
   declare localName: string;
   declare h: RowHook;
-  declare parent: { v: number; $n(signal?: unknown, init?: boolean): void };
+  /** Its parent hook, read across the bundle boundary (`CrossBundleHook`). */
+  declare parent: CrossBundleHook;
   declare owner: Node & { readonly isConnected: boolean };
   declare fn: (item: unknown) => unknown;
   declare items: ArrayLike<unknown>;
@@ -474,7 +476,7 @@ const commitList = (list: List, part: EachPart) => {
    * a row write wakes the parent instead, which re-renders and commits again.
    */
   list.part = part;
-  list.committed = list.parent.v;
+  list.committed = list.parent.$runs;
   const its = part.$i;
   const recs = list.recs;
   if (its !== undefined)
@@ -493,7 +495,7 @@ const same = (rec: Row, value: unknown) =>
 function listRun(this: List): void {
   const all = this.all;
   this.all = false;
-  if (!all && this.mapped !== this.parent.v) return orphan(this);
+  if (!all && this.mapped !== this.parent.$runs) return orphan(this);
   const t = ++tick;
   const fn = this.fn;
   const cache = this.cache;
@@ -582,7 +584,7 @@ function listRun(this: List): void {
     this.all = true;
     listRun.call(this);
     if (all) return;
-    if (this.committed === this.parent.v && this.part !== undefined) commitList(this, this.part);
+    if (this.committed === this.parent.$runs && this.part !== undefined) commitList(this, this.part);
     else this.parent.$n();
     return;
   }
@@ -599,7 +601,7 @@ function listRun(this: List): void {
   this.values = values;
   if (all) return;
   /** The shape changed alone: commit where the page shows the parent's latest result, or re-render the parent. */
-  if (this.committed === this.parent.v && this.part !== undefined) commitList(this, this.part);
+  if (this.committed === this.parent.$runs && this.part !== undefined) commitList(this, this.part);
   else this.parent.$n();
 }
 /** Core's `$M`: `state.todos.map(fn)` inside a render. `raw` is the array behind `proxy`; `method` the native `map`. */
@@ -612,9 +614,9 @@ const automap = (
   method: (this: unknown, fn: unknown) => unknown[],
 ) => {
   let state = listsOf.get(parent);
-  if (state === undefined) listsOf.set(parent, (state = { v: parent.v, n: 0, lists: [], occ: new Map(), byRaw: new WeakMap() }));
-  else if (state.v !== parent.v) {
-    state.v = parent.v;
+  if (state === undefined) listsOf.set(parent, (state = { v: parent.$runs, n: 0, lists: [], occ: new Map(), byRaw: new WeakMap() }));
+  else if (state.v !== parent.$runs) {
+    state.v = parent.$runs;
     state.n = 0;
     state.occ.clear();
   }
@@ -639,7 +641,7 @@ const automap = (
   const slots = state.byRaw.get(raw);
   let list: List | typeof PLAIN | undefined = slots?.[k];
   /** Dead, or already claimed by another call this run (a list serves ONE call per run): not this call's. */
-  if (list !== undefined && list !== PLAIN && (list.dead || list.mapped === parent.v)) list = undefined;
+  if (list !== undefined && list !== PLAIN && (list.dead || list.mapped === parent.$runs)) list = undefined;
   /**
    * The order fallback is for a REFETCH only — a brand-new array, with no history of its own. An array that has history is
    * a RETURNING one (a list shown again): falling back would hand it another array's list, and that array's own call would
@@ -647,7 +649,7 @@ const automap = (
    */
   if (list === undefined && slots === undefined) {
     const at = state.lists[state.n];
-    if (at !== undefined && at !== PLAIN && !at.dead && at.mapped !== parent.v && !state.occ.has(at.raw)) list = at;
+    if (at !== undefined && at !== PLAIN && !at.dead && at.mapped !== parent.$runs && !state.occ.has(at.raw)) list = at;
   }
   const st = state;
   const put = (v: List | typeof PLAIN) => {
@@ -710,7 +712,7 @@ const automap = (
   own!(parent, list);
   list.fn = fn;
   list.items = proxy;
-  list.mapped = parent.v;
+  list.mapped = parent.$runs;
   list.all = true;
   list.h.$n(undefined, true);
   return list.values;
@@ -730,7 +732,7 @@ const eachValue = (part: object, value: unknown, adopted?: object) => {
     const items = (adopted as EachPart | undefined)?.$i;
     if (items !== undefined && items.length === list.recs.length) {
       list.part = part as EachPart;
-      list.committed = list.parent.v;
+      list.committed = list.parent.$runs;
       for (let i = 0; i < items.length; i++) {
         list.recs[i].inst = items[i];
         list.recs[i].part = part as EachPart;

@@ -8,7 +8,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 20.85 KB | **8.04 KB** |
+| `@verajs/core` | 20.87 KB | **8.04 KB** |
 | `@verajs/renderer` | 13.73 KB | 5.68 KB |
 | `@verajs/router` | 10.63 KB | 4.42 KB |
 | `@verajs/autoloader` | 3.85 KB | 1.58 KB |
@@ -20,7 +20,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/jsx/standalone` | 4.37 KB | 2.04 KB |
 | `@verajs/store/collections` | 1.26 KB | 672 B |
 | `@verajs/store/resource` | 634 B | 396 B |
-| `@verajs/renderer/keyed` | 6.52 KB | 2.69 KB |
+| `@verajs/renderer/keyed` | 6.58 KB | 2.69 KB |
 | `@verajs/renderer/native-elements` | 1.05 KB | 626 B |
 | `@verajs/renderer/multi-window` | 670 B | 425 B |
 | `@verajs/renderer/until` | 462 B | 318 B |
@@ -32,7 +32,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.63 KB |
 | `@verajs/inserts` | 496 B | 363 B |
 | `@verajs/directives` | 15.81 KB | 6.18 KB |
-| `@verajs/directives/directives-standalone` | 32.36 KB | 12.04 KB |
+| `@verajs/directives/directives-standalone` | 32.38 KB | 12.05 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
