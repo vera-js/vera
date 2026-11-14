@@ -70,8 +70,8 @@ export interface ComponentElement extends HTMLElement {
 
 /** What core's immediate hook (internal) registers: the callback, its priority, and optionally its owner. */
 export type Hook = {
-  /** Run on the first pass and again whenever a store it read changes. */
-  callback: HookCallback | null;
+  /** Run on the first pass and again whenever a store it read changes; anything not a function is refused at the call. */
+  callback: HookCallback;
   /** The owner, instead of the element being set up — an element, or any object owning a value. */
   element?: ComponentElement;
   /** Lower runs earlier; `0` is legal and the earliest. */

@@ -80,6 +80,10 @@ export const PROSE: Record<string, Prose> = {
     `the priority must be a finite number, and ${received} is not — the hook was not registered (in production too, silently).`,
     'Lower runs first: 25 runs before the render, 50 is the render, 60 a layout effect, 75 an effect. A priority read from config with `parseInt` is NaN when the value is missing.',
   ],
+  'callback-not-function': (received) => [
+    `expected a function and received ${received}: the hook's callback runs on every change it follows.`,
+    'Pass the function itself (`effect(() => …)`), not its result (`effect(fn())`), and check a callback read from options is defined.',
+  ],
   'scheduler-not-function': (received) => [
     `expected a function and received ${received}.`,
     'It receives the flush and decides when to run it — `microtask` (the default) and `frameBudget` are exported for that.',

@@ -25,6 +25,9 @@ let ownedBy: WeakMap<HookRecord, Owned[]> | undefined;
  * longer depends on what else connected: it fails here, the same way every time.
  */
 export const noOwner = (subject: string) => misuse(subject, 'no-owner', __DEV__ && PROSE['no-owner']());
+/** A hook's callback that is not a function: refused at the call, in both builds. */
+export const notFunction = (subject: string, callback: unknown) =>
+  misuse(subject, 'callback-not-function', __DEV__ && PROSE['callback-not-function'](String(callback)));
 
 
 /**
@@ -466,6 +469,7 @@ export const createHook = ({ callback, priority, element }: Hook): HookCallback 
   // NOT inlined: in a bundle without `effect` (the directives bundles) this is `finite`'s one caller, and the minifier
   // would paste it here as an arrow invoked on every hook created. The annotation sits on an operand of `===`, because the
   // TypeScript step drops a comment between `!` and a call: written after the `!`, it never reaches the minifier.
-  if (!callback || /*@__NOINLINE__*/ finite(priority, 'createHook') === false) return;
+  if (typeof callback !== 'function') throw new TypeError(notFunction('a hook', callback));
+  if (/*@__NOINLINE__*/ finite(priority, 'createHook') === false) return;
   return callable(register(owner, callback, priority as number, IMMEDIATE)) as HookCallback;
 };

@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->8.02 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->8.05 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -553,7 +553,8 @@ whose several listeners each write state renders once per listener (the browser 
 measured, the click still paints a frame sooner than frame scheduling did, but the work is repeated, so a hot event is
 best handled by one listener making one write.
 
-`effect(fn, { timing, priority, owner })` — every option optional. A `priority` is any finite number (a non-finite one
+`effect(fn, { timing, priority, owner })` — every option optional. An `fn` that is not a function throws at the call
+(`callback-not-function`), in both builds. A `priority` is any finite number (a non-finite one
 registers nothing, in both builds, and development says why, as for `wire`). Its owner is the component being set up;
 pass `owner` for an effect made elsewhere — a module's own value, retired by whoever owns it — and that effect runs
 when you call its `run()`. A returned function is its cleanup — run before the next run, **and on element removal**. No

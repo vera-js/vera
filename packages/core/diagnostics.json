@@ -22,6 +22,14 @@
       "fix": "Use a custom element and call init(this) in its connectedCallback — or, to keep the built-in element, wire its lifecycle: wire([renderer, nativeElements]) from '@verajs/renderer/native-elements'."
     },
     {
+      "code": "callback-not-function",
+      "params": [
+        "received"
+      ],
+      "message": "expected a function and received {received}: the hook's callback runs on every change it follows.",
+      "fix": "Pass the function itself (`effect(() => …)`), not its result (`effect(fn())`), and check a callback read from options is defined."
+    },
+    {
       "code": "cleanup-threw",
       "params": [],
       "message": "threw (the function a hook returned, not the hook itself); its error is printed beside this line, and the rest of the teardown ran.",

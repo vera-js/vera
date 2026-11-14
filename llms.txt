@@ -237,7 +237,8 @@ card.heading = 'Groceries';   // after connect: repaints
 ### Effects
 
 `effect(fn, options?)` — ONE primitive (it replaced `useEffect`, `useLayoutEffect`, `useSyncEffect`, `useHook` and
-`createHook` on 2026-10-22). Options: `timing`, `priority`, `owner`.
+`createHook` on 2026-10-22). Options: `timing`, `priority`, `owner`. An `fn` that is not a function throws at the call
+(`callback-not-function`), in both builds.
 
 | Call | When it runs | Batching |
 | --- | --- | --- |

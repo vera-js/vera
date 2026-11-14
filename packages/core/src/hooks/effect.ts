@@ -1,4 +1,4 @@
-import { EFFECT_PRIORITY, LAYOUT_PRIORITY, MODE_QUEUED, MODE_SYNC, finite, noOwner, register } from '../modules/createHook.js';
+import { EFFECT_PRIORITY, LAYOUT_PRIORITY, MODE_QUEUED, MODE_SYNC, finite, noOwner, notFunction, register } from '../modules/createHook.js';
 import { currentInstance } from '../store/store.js';
 import type { ComponentElement, Effect, EffectOptions, HookCallback } from '../types.js';
 
@@ -32,6 +32,7 @@ export const effect = (fn: HookCallback, options?: EffectOptions): Effect | unde
   const priority = options?.priority ?? (timing === 'layout' ? LAYOUT_PRIORITY : EFFECT_PRIORITY);
   const owner = (options?.owner as ComponentElement | undefined) ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('an effect'));
+  if (typeof fn !== 'function') throw new TypeError(notFunction('an effect', fn));
   if (!finite(priority, 'effect')) return;
   return register(owner, fn, priority, timing === 'sync' ? MODE_SYNC : MODE_QUEUED) as unknown as Effect;
 };
