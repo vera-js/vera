@@ -83,8 +83,8 @@
       "gzip": 705
     },
     "hydration": {
-      "raw": 8243,
-      "gzip": 3476
+      "raw": 8021,
+      "gzip": 3463
     },
     "hydrate-slots": {
       "raw": 3616,

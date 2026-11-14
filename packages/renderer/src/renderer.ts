@@ -1312,7 +1312,10 @@ class ChildPart {
     const handlers = registry?.get('value') as ValueHandler[] | undefined;
     if (handlers !== undefined) for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
     if (Array.isArray(value)) return this._commitList(value);
-    /** Any other iterable is a list — but a node is placed, not iterated (a `<select>`, a `<form>`). */
+    /**
+     * Any other iterable is a list — but a node is placed, not iterated (a `<select>`, a `<form>`). Hydration's
+     * `adoptObject` decides the same with its own lines: `tests/renderer-list-twins.test.mjs` keeps the two equal.
+     */
     if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined)
       return this._commitList([...(value as Iterable<unknown>)]);
     /**
