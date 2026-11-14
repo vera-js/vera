@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 21273,
-      "gzip": 8221
+      "raw": 21295,
+      "gzip": 8217
     },
     "renderer": {
       "raw": 14058,
@@ -292,7 +292,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
       "raw": 32671,
-      "gzip": 13091
+      "gzip": 13093
     }
   ],
   "variants": [

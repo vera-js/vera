@@ -220,6 +220,16 @@ const checkAttributes = (tag: string, attributes: unknown, props: Record<string,
 };
 
 /**
+ * Development: an own `__proto__` key of `props` or `methods` (`JSON.parse` makes one; an object literal never does),
+ * which both builds skip, said by code. True when `name` is that key, so the caller moves on to the next.
+ */
+const protoKey = (subject: string, name: string, kind: 'prop' | 'method') => {
+  if (name !== '__proto__') return false;
+  console.error(diagnostic('core', subject, 'define-proto-key', __DEV__ && PROSE['define-proto-key'](kind)));
+  return true;
+};
+
+/**
  * Development: the declared props, said by code — installed identically in both builds. A name a method also has (the
  * prop wins), a platform member's name, an object default that cannot be copied per element (a `Set`, a `Map`, a class
  * instance: SHARED by every instance — set it in the setup, or pass it in).
@@ -231,10 +241,7 @@ const checkProps = (tag: string, props: unknown, methods: object | undefined) =>
   }
   for (const name of Object.keys(props)) {
     const subject = `define('${tag}') props.${name}`;
-    if (name === '__proto__') {
-      console.error(diagnostic('core', subject, 'define-proto-key', __DEV__ && PROSE['define-proto-key']('prop')));
-      continue;
-    }
+    if (protoKey(subject, name, 'prop')) continue;
     const value = (props as Record<string, unknown>)[name];
     if (methods && Object.hasOwn(methods, name)) console.warn(diagnostic('core', subject, 'define-prop-method', __DEV__ && PROSE['define-prop-method'](name)));
     else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
@@ -250,10 +257,7 @@ const checkProps = (tag: string, props: unknown, methods: object | undefined) =>
 const checkMethods = (tag: string, methods: object, attributes: readonly string[] | undefined) => {
   for (const name of Object.keys(methods)) {
     const subject = `define('${tag}') methods.${name}`;
-    if (name === '__proto__') {
-      console.error(diagnostic('core', subject, 'define-proto-key', __DEV__ && PROSE['define-proto-key']('method')));
-      continue;
-    }
+    if (protoKey(subject, name, 'method')) continue;
     const value = Object.getOwnPropertyDescriptor(methods, name)?.value as unknown;
     /** The two names core re-asserts. A comparison, not a module-level `Set`: a top-level `new Set` SURVIVES production
      *  (terser cannot prove the call free of effects — it cost +33 B gz here, 2026-10-21). */

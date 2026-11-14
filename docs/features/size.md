@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->14 039 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->12 500 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->14 035 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->12 500 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -45,10 +45,10 @@ the thing reconciliation exists for:
 
 | | gzipped |
 | --- | ---: |
-| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->13 091 B<!--/size:list.bytes-->** |
+| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->13 093 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-Lit minus VeraJS: <!--size:list.vs-lit.bytes-->-6 265 B<!--/size:list.vs-lit.bytes--> (negative means VeraJS is the larger). Both numbers are real and both are
+Lit minus VeraJS: <!--size:list.vs-lit.bytes-->-6 267 B<!--/size:list.vs-lit.bytes--> (negative means VeraJS is the larger). Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -78,7 +78,7 @@ already produces from the same package when the code does not reach for a store.
 
 **There is no smaller honest number than <!--size:app.kb-->12.2 KB<!--/size:app.kb-->.** Core ships no
 renderer — a component with none registered warns and paints nothing — so "core alone" is not a tier
-anyone can ship. Quoting core's standalone <!--size:core.gzip-->8.03 KB<!--/size:core.gzip--> as an
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->8.02 KB<!--/size:core.gzip--> as an
 app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
@@ -122,7 +122,7 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 8 221 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/core` | 8 217 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 5 818 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 522 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 618 B | lazy component discovery |

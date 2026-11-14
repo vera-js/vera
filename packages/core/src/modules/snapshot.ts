@@ -20,12 +20,15 @@ const copyOut = (value: unknown, seen: Map<object, unknown>): unknown => {
   if (done !== undefined) return done;
   /** A Map or Set: a new one, its entries copied out the same way (a store held in one would otherwise stop the clone). */
   if (raw instanceof Map || raw instanceof Set) {
-    const copy = raw instanceof Map ? new Map() : new Set();
-    seen.set(raw, copy);
-    for (const [k, v] of (raw as Map<unknown, unknown>).entries()) {
-      if (copy instanceof Map) copy.set(copyOut(k, seen), copyOut(v, seen));
-      else copy.add(copyOut(k, seen));
+    if (raw instanceof Map) {
+      const copy = new Map();
+      seen.set(raw, copy);
+      for (const [k, v] of raw) copy.set(copyOut(k, seen), copyOut(v, seen));
+      return copy;
     }
+    const copy = new Set();
+    seen.set(raw, copy);
+    for (const v of raw) copy.add(copyOut(v, seen));
     return copy;
   }
   const proto = Object.getPrototypeOf(raw);
