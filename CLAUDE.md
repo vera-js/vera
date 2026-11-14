@@ -42,7 +42,7 @@ code, so they are not re-litigated.
 - **A probe drives the scheduler with `flush()` or an `await`, not frames.** Core flushes every queued render,
   layout effect and effect as one microtask — the default scheduler, `microtask`, since 2026-10-09 — so writes in one
   task coalesce into one flush in any jsdom, with or without `pretendToBeVisual` (measured 2026-10-08: 100 writes →
-  0 runs synchronously and 1 after a microtask, both ways, `.probe/coalesce/` — the old "1 with it, 100 without" was
+  0 runs synchronously and 1 after a microtask, both ways — the old "1 with it, 100 without" was
   the frame scheduler's), and after any `await` the DOM is current. Frames matter only on the held path — a hook's
   THIRD run in one flush (a self-feeding loop) waits for the ELEMENT's window's next frame or a 100 ms timer,
   whichever comes first — and under the opt-in `frameBudget`. Without `pretendToBeVisual` that path takes the 100 ms
@@ -104,8 +104,8 @@ code, so they are not re-litigated.
   so under jsdom every light host ever observed stays reachable — a gc probe reports a leak the browser does not have,
   and would equally report a real fix as still leaking. Measured 2026-10-07 on the slots work-set fix: jsdom 30/30
   removed hosts alive before AND after; Chrome with CDP `HeapProfiler.collectGarbage` 30/30 → 1/30, the same as its
-  no-slots control. Measure retention in a real engine with CDP gc and both controls (`.probe/race-f/leak.mjs` in the
-  hydra worktree is the template); keep jsdom gc probes for code that observes nothing.
+  no-slots control. Measure retention in a real engine with CDP gc and both controls (a CDP gc probe with both
+  controls is the template); keep jsdom gc probes for code that observes nothing.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
@@ -208,7 +208,7 @@ code, so they are not re-litigated.
   real tree.
   **And an INSTALL in such a tree damages the OTHERS (Brian approved, 2026-10-22):** the local worktrees share
   `node_modules` through symlinks into one another, and `npm install` / `npm ci` in one follows those links — an install
-  that aborted (ENOTDIR) removed files in vera-slotpos's `node_modules`, which vera-hydra and vera-idskip link into, and
+  that aborted (ENOTDIR) removed files in another worktree's `node_modules`, which two more worktrees link into, and
   nothing reported it there (found hours later, when a tool failed). Before any install in a worktree, check
   `find node_modules -maxdepth 2 -type l` for links into other trees; install only in the tree that OWNS the targets, or
   give the tree its own real `node_modules` first. After an aborted install, check the OTHER trees' critical
@@ -254,11 +254,11 @@ code, so they are not re-litigated.
   render path, and Firefox paid ~1–2% on component creation and churn while no source diff touched the hot code
   (BROWSER-LEDGER, "the minifier inlines a function with ONE caller"). So a refactor that leaves a hot helper with one
   caller is raced, and the inlined-IIFE sites of the production bundle are counted before and after; a hot call that
-  must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (the guard row that pins each bundle's site count
-  comes with the rebuild's core). **Two traps writing that annotation** (Brian approved, 2026-11-14): the TypeScript step
+  must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (`tests/minifier-iife-sites.test.mjs` pins each bundle's
+  site count). **Two traps writing that annotation** (Brian approved, 2026-11-14): the TypeScript step
   drops a comment between `!` and a call, so put it on an operand (`x && /*@__NOINLINE__*/ f()`, `false === …`), never
   after `!`; and never quote the annotation's literal text inside a why-comment, because terser keeps any comment holding
-  it, and the shipped min grows (+126 raw, measured on c1). Check both with a `cmp` against the raced bundle.
+  it, and the shipped min grows (+126 B raw, measured). Check both with a `cmp` against the raced bundle.
 - **The bytes that LAND must be byte-identical to the bytes that were RACED, or the landing is re-raced** (Brian
   approved, 2026-10-27). A probe or test export in a raced bundle is a caller like any other, so it changes what the
   minifier does (the rule above). Measured: a hook-record race was built with a probe export that gave the record's
@@ -270,8 +270,8 @@ code, so they are not re-litigated.
 - **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
   remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
   it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
-  Chrome: the one new deopt R1 introduced sat on `untracked`; folding untracking into `initWith` moved the same deopt to
-  `initWith`, and the first-render cost it seemed to explain did not move (64.6 → 64.1 ms, pre-R1 60.6). Before treating
+  Chrome: the one new deopt a 2026-10 refactor introduced sat on `untracked`; folding untracking into `initWith` moved the same deopt to
+  `initWith`, and the first-render cost it seemed to explain did not move (64.6 → 64.1 ms, before the refactor 60.6). Before treating
   a deopt as the cause, change it and race it: a deopt that moves while the timing stays put is a symptom of the
   allocation pattern, not the cost. The tools: V8's `--log-code --log-deopt --logfile=…` passed through Chrome's
   `--js-flags` (renderer stdout is closed on macOS, so `--trace-opt` prints nothing), mapped through the dist source maps.
@@ -398,7 +398,7 @@ rest of this file.
 - **Get approval before acting.** Approval for one step is not approval for the next. Approval to
   investigate is not approval to change.
   **Tests never need Brian's go** (Brian, 2026-11-04, a standing rule): a test, probe, profile or race runs when the work
-  needs it, without asking. The plan and its pre-registered reading still go to the auditor, Brian is told when windows
+  needs it, without asking. The plan and its pre-registered reading still go to a second reviewer, Brian is told when windows
   will open on his screen, and the machine-safety rules above still hold. What lands (code, fixes, trades, decisions)
   still waits for his approval.
 - **Recommend, and argue for it.** Brian explicitly wants to be persuaded and nudged toward the right
@@ -477,7 +477,7 @@ The shape of the product:
   `router`, `ssr`, `styles` — or write their own. (`map-support` was retired into core and then
   moved back out as `collections` in 0.2.0, on a **type-keyed** `'collection'` insert point rather
   than the `'proxy-handler'` chain that made the first attempt costly — 292 B recovered for every
-  app without a `Map` in a store, 24 B added for those with one. Generalized in the lean-core rebuild
+  app without a `Map` in a store, 24 B added for those with one. Generalized when core was slimmed
   (2026-09-27): one `'store'` insert, deciding per TYPE of value and re-decided in place on `wire`, replaced all
   three of `'proxy-handler'`, `'set-handler'` and `'collection'`. `styles` went the same way in
   0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
