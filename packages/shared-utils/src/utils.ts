@@ -1,4 +1,4 @@
-import type { Untracked } from './types.js';
+import type { HandlerHolder, Untracked } from './types.js';
 import { diagnostic } from './diagnostic.js';
 import * as SHARED from './diagnostics.js';
 
@@ -75,6 +75,22 @@ export const hostOf = (root: Node | null | undefined): Element | undefined =>
 
 /** `fn(a, b, c)`, tracked as the caller is — the stand-in for core's `untracked` when no core was wired. */
 export const call: Untracked = (fn, a, b, c) => fn(a!, b!, c!);
+
+/**
+ * **Runs a bound handler, and its callers run it UNTRACKED**: the renderer's template `@event` and spread's event key,
+ * each through `untracked(dispatch, holder, event)` (2026-10-09). An effect that fires an event synchronously
+ * (`el.click()`, `focus()`, `dispatchEvent`) runs the handler INSIDE itself, and the handler's reads subscribed the
+ * effect: a handler doing `state.n++` made the effect re-run on every click, a self-feeding loop held to one round per
+ * frame, forever (measured). A handler's reads are event-time decisions, never a hook's inputs. The directives engine's
+ * delegated `listen` makes the same choice its own way. A function is called with the element as `this`; an object
+ * through its `handleEvent`. One function for both callers (Brian's size-audit ruling, 2026-11-13): it was two
+ * identical copies, so a fix had two addresses; each bundle still inlines its own.
+ */
+export const dispatch = (holder: HandlerHolder, event: Event) => {
+  const handler = holder._handler as EventListener | EventListenerObject | null;
+  if (typeof handler === 'function') handler.call(holder._element as never, event);
+  else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
+};
 
 /**
  * **Whether a property binding is a `<select>`'s SELECTION** — `value` or `selectedIndex` — which the renderer and

@@ -18,7 +18,7 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, CONTENT_PROPERTY, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, diagnostic, SHARED } from '@verajs/shared-utils';
+import { adoptProperty, call, CONTENT_PROPERTY, dispatch, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, diagnostic, SHARED } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
 import { attributeValueKind } from './dev-values.js';
 import { PROSE } from './spread-diagnostics.js';
@@ -151,22 +151,11 @@ class Binding {
       this._initial = custom ? untracked(read, element, name as string) : (element as unknown as Record<string, unknown>)[name as string];
     if (kind === PROPERTY && custom) this._state = 0;
   }
-  /** Runs the handler UNTRACKED — see `dispatch`. */
+  /** Runs the handler UNTRACKED (shared-utils' `dispatch`): `_read` holds core's `untracked` for an event key too. */
   handleEvent(event: Event) {
     (this._read ?? call)(dispatch, this, event);
   }
 }
-
-/**
- * **A bound handler never subscribes the hook that happens to be running** — deliberate duplicate of the renderer's
- * `dispatch` (renderer.ts), which explains why; the directives engine's `listen` makes the same choice. `_read` holds
- * core's `untracked` for an event key too (see the constructor).
- */
-const dispatch = (binding: Binding, event: Event) => {
-  const handler = binding._handler as EventListener | EventListenerObject | null;
-  if (typeof handler === 'function') handler.call(binding._element as never, event);
-  else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
-};
 
 const write = (binding: Binding, given: unknown, adopting?: boolean) => {
   const kind = binding._kind;

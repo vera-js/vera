@@ -69,6 +69,14 @@ export type ParsedObject = { [key: string]: Parsed };
  * the framework runs SOMEONE ELSE'S code through during a render (a ref; a component's getter read on the parent's
  * behalf), so that code's reads cannot subscribe the render.
  */
+/** What a bound event handler is kept on: the renderer's template `@event` slot, and spread's event binding. */
+export type HandlerHolder = {
+  /** The handler bound: a function, an object with `handleEvent`, or nothing. */
+  _handler: unknown;
+  /** The element it was bound on: a function handler's `this`. */
+  _element: unknown;
+};
+
 /**
  * An element written by NAME — a bound property. Typed as both so one variable serves the DOM calls and the indexed
  * write: a cast alias (`const el = element as …`) survives minification as a second variable in every bundle inlining it.

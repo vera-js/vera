@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->14 035 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->12 500 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->14 042 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->12 500 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -45,10 +45,10 @@ the thing reconciliation exists for:
 
 | | gzipped |
 | --- | ---: |
-| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->13 093 B<!--/size:list.bytes-->** |
+| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->13 089 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-Lit minus VeraJS: <!--size:list.vs-lit.bytes-->-6 267 B<!--/size:list.vs-lit.bytes--> (negative means VeraJS is the larger). Both numbers are real and both are
+Lit minus VeraJS: <!--size:list.vs-lit.bytes-->-6 263 B<!--/size:list.vs-lit.bytes--> (negative means VeraJS is the larger). Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -65,8 +65,8 @@ drops it for a component that never creates a store — a marketing page, a serv
 anything progressively enhanced rather than driven by state. Measured the same way, tree-shaken:
 
 **<!--size:app.static.kb-->12.2 KB<!--/size:app.static.kb--> gzipped
-(<!--size:app.static.bytes-->12 502 B<!--/size:app.static.bytes-->) —
-Lit minus VeraJS: <!--size:app.static.underlit-->-6 631 B<!--/size:app.static.underlit--> (negative means VeraJS is the larger).**
+(<!--size:app.static.bytes-->12 505 B<!--/size:app.static.bytes-->) —
+Lit minus VeraJS: <!--size:app.static.underlit-->-6 634 B<!--/size:app.static.underlit--> (negative means VeraJS is the larger).**
 
 Two things this is not. It is **not the same app** as the rows in the table above — it renders once
 and updates nothing, where every one of those renders reactive state, so it is a page against their
@@ -123,12 +123,12 @@ describing the bytes honestly.)*
 | Module | gzip | |
 | --- | ---: | --- |
 | `@verajs/core` | 8 217 B | state (incl. Map and Set), hooks, lifecycle, render |
-| `@verajs/renderer` | 5 818 B | keyed template renderer, refs, `hold` |
+| `@verajs/renderer` | 5 825 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 522 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 618 B | lazy component discovery |
 | `@verajs/styles` | 987 B | `static styles` adoption, shadow and light DOM |
-| `@verajs/renderer/spread` | 1 647 B | `${spread(props)}` — runtime-named bindings |
-| `@verajs/renderer/tag` | 2 416 B | `<${tag}>` — runtime tag names, in templates and JSX |
+| `@verajs/renderer/spread` | 1 642 B | `${spread(props)}` — runtime-named bindings |
+| `@verajs/renderer/tag` | 2 414 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/store` | 925 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 6 031 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
 | `@verajs/jsx/standalone` | 2 093 B | JSX in the browser with no build — the CodePen path |
