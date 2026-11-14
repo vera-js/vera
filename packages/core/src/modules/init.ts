@@ -135,7 +135,7 @@ const runInits = (initInserts: unknown[], element: ComponentElement, options: In
  * hook lists, its document, its props and the `'init'` inserts; its setup, untracked; its render installed and every
  * first pass run. Everything else is paid only by the components that need it: a re-init's cleanup (a previous
  * generation exists), a root (a `shadow` asks for one), an async branch (a promise came back), the cleanup Set (an
- * effect returned a cleanup — see `coalesce`).
+ * effect returned a cleanup — see `HookState`'s run).
  */
 
 export const initWith = (element: ComponentElement, options: InitOptions | undefined, given: Setup | undefined) => {

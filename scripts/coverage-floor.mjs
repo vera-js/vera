@@ -23,7 +23,7 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const BUNDLE = join(root, 'packages/core/dist/vera.min.js');
 /** Dead spans that are reported, not tested (source location: why). */
-const KNOWN = new Map([['src/hooks/coalesce.ts:23', "its one caller passes its element and a constant priority, so the no-owner throw cannot run"]]);
+const KNOWN = new Map();
 const COVERAGE_ONLY_FAILURES = ['core-inlining-budget.test.mjs', 'ssr-inlining-budget.test.mjs'];
 
 /** The live bytes of `text` from V8 coverage `scripts` (all of them for this bundle): a Uint8Array, 1 = some process ran it. */

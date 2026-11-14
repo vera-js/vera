@@ -113,7 +113,7 @@ const threw = (error: unknown, owner: ComponentElement) =>
 /**
  * How a hook runs: inside every write it hears (core's immediate hook, internal), once per flush, or at once per write (a `'sync'` effect).
  * Module-local, because `$n` reads them on every write — an exported binding is a live one, which V8 reaches less
- * directly (CLAUDE.md); `coalesce` takes the aliases.
+ * directly (CLAUDE.md); callers outside this module take the exported aliases (`MODE_SYNC`, `MODE_QUEUED`).
  */
 const IMMEDIATE = 0;
 const QUEUED = 1;
@@ -463,6 +463,9 @@ export const callable = (hook: HookRecord) => (signal?: Change<unknown>, init?: 
 export const createHook = ({ callback, priority, element }: Hook): HookCallback | undefined => {
   const owner = element ?? currentInstance.element;
   if (!owner) throw new Error(noOwner('a hook'));
-  if (!callback || !finite(priority, 'createHook')) return;
+  // NOT inlined: in a bundle without `effect` (the directives bundles) this is `finite`'s one caller, and the minifier
+  // would paste it here as an arrow invoked on every hook created. The annotation sits on an operand of `===`, because the
+  // TypeScript step drops a comment between `!` and a call: written after the `!`, it never reaches the minifier.
+  if (!callback || /*@__NOINLINE__*/ finite(priority, 'createHook') === false) return;
   return callable(register(owner, callback, priority as number, IMMEDIATE)) as HookCallback;
 };

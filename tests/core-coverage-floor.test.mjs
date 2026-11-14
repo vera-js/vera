@@ -1,8 +1,7 @@
 /**
  * **Every branch of core's production bundle is run by some test** (2026-11-11, the coverage floor). A coverage pass of
  * the production suite left ten short branches unrun; each row here runs one and asserts what it is for, so the
- * floor holds behavior, not bytes. (The no-owner throw in `coalesce` is unreachable: its one caller passes its element
- * and a constant priority; it is reported, not tested.)
+ * floor holds behavior, not bytes.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

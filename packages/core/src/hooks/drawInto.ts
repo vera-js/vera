@@ -1,7 +1,6 @@
 import type { ComponentElement, RenderTemplate } from '../types.js';
-import { RENDER_PRIORITY, settle } from '../modules/createHook.js';
+import { MODE_QUEUED, RENDER_PRIORITY, register, settle } from '../modules/createHook.js';
 import { currentInstance, tracking } from '../store/store.js';
-import { coalesce } from './coalesce.js';
 import { inserts } from '@verajs/inserts';
 import type { Renderer } from '@verajs/shared-types';
 import { diagnostic } from '@verajs/shared-utils';
@@ -24,8 +23,18 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
    * paid once, not on every render.
    */
   let target: ShadowRoot | HTMLElement | undefined;
-  /** NOT inlined (2026-10-23): its one caller here would be pasted as an IIFE — see `commit` in `init.ts`. */
-  /*@__NOINLINE__*/ coalesce(
+  /**
+   * The render pass: one queued hook at render priority, registered here directly (a general hook factory once sat in
+   * between, with an owner fallback, a priority check and a sync mode this call never used).
+   */
+  register(
+    /**
+     * **The owner is the component being set up; `element` only when NONE is** (E5, 2026-10-22). During a setup the hook
+     * stays the current component's even when it draws elsewhere (making the target the owner left it on an element
+     * nothing commits — reverted 2026-09-28, the row in core-api). After an `await` in an async setup no component is
+     * current, and the element given is then the owner, as `effect(fn, { owner })` takes it.
+     */
+    currentInstance.element ?? element,
     (signal) => {
       /** This render's own hook, taken BEFORE the renderers run: settling it must not depend on every nested run restoring `tracking`. */
       const self = tracking.hook;
@@ -54,13 +63,6 @@ export const drawInto = (template: unknown, element: ComponentElement, owns?: bo
       settle(self);
     },
     RENDER_PRIORITY,
-    false,
-    /**
-     * **The owner is the component being set up; `element` only when NONE is** (E5, 2026-10-22). During a setup the hook
-     * stays the current component's even when it draws elsewhere (making the target the owner left it on an element
-     * nothing commits — reverted 2026-09-28, the row in core-api). After an `await` in an async setup no component is
-     * current, and the element given is then the owner, as `effect(fn, { owner })` takes it.
-     */
-    currentInstance.element ?? element
+    MODE_QUEUED
   );
 };
