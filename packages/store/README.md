@@ -18,7 +18,7 @@ so loading them all still leaves one core, one insert registry and one store ide
 `computed` lived here until 2026-10-22; it is core's now (`import { computed } from '@verajs/core'`).
 
 ```sh
-npm i @verajs/store
+npm i @verajs/core @verajs/store
 ```
 
 ## `collections` — reactive `Map` and `Set`

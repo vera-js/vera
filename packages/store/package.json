@@ -111,7 +111,7 @@
     }
   },
   "filename": "vera-store",
-  "dependencies": {
+  "peerDependencies": {
     "@verajs/core": "^0.3.1"
   },
   "keywords": [
