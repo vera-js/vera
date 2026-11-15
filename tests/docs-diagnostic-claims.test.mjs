@@ -237,7 +237,7 @@ const CLAIMS = new Map([
   ['packages/core/README.md#a550049eea', 'pinned by tests/core-store-subclass-mutator.test.mjs: subclass-mutator said once per class, in development only, for a list held in a store'], // the subclass-mutator paragraph
   ['llms.txt#abff1f3801', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // computed's API row: a throw is reported and the last good value kept
   ['packages/renderer/README.md#fd75b53ed5', 'renderer-two-cores'],
-  ['packages/renderer/README.md#2ee7b2f4c3', 'lists-unwired'],
+  ['packages/renderer/README.md#429e90ba53', 'lists-unwired'],
   ['packages/renderer/README.md#20569868f4', 'lists-no-renderer'], // `lists` needs the FULL renderer: wired beside a bare `{ on: 'render', fn: renderInto }` … development says so once (D28).
   ['packages/core/README.md#5b4674d9a1', 'setup-outlived-removal'], // removed while its async setup is pending: up to 5 s, then torn down — development says so
   ['packages/core/README.md#8b63863740', 'persist-not-seconds'], // persist takes seconds; anything else is 0 — development says so // an unwired store-array .map of templates: development says so once // one renderer wired into two cores: the production warning by code

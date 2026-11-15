@@ -11,12 +11,17 @@ import { seams } from './seams.js';
  * decision automatic lists make, so it fires exactly when wiring `lists` would change the behavior (a `.map(t =>
  * t.name).join(', ')` stays silent). The template test is the renderer's own, `strings !== undefined`; keep it equal to
  * renderer.ts's and keyed.ts's `isTemplateResult` (three addresses).
+ *
+ * **Never for a KEYED list** (2026-11-15): `keyed()` returns the same template stamped with `$r` (its reconciler,
+ * `$`-named so it survives each bundle's mangler), and keyed rows are matched by key already, which is all this warning
+ * asks for. The JSX `key={id}` idiom compiles to exactly that, and was told to use the `keyed()` it already used.
+ * `keyed` in renderer/keyed.ts is the stamp's other address.
  */
 const unwiredList = (method: (...args: unknown[]) => unknown[], proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
     const out = method.apply(this, args);
-    const first = out[0] as { strings?: unknown } | null | undefined;
-    if (this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined)
+    const first = out[0] as { strings?: unknown; $r?: unknown } | null | undefined;
+    if (this === proxy && first !== null && typeof first === 'object' && first.strings !== undefined && first.$r === undefined)
       warnOnce('core', 'a store array\'s .map in a render', 'lists-unwired', __DEV__ && (() => PROSE['lists-unwired']()));
     return out;
   };

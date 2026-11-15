@@ -9,6 +9,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -71,6 +73,32 @@ test('a store array mapped to TEMPLATES in a render warns once — across two ma
   assert.match(warnings[0], /^\[vera\]/);
   assert.match(warnings[0], /wire\(\[renderer, lists\]\)/, 'it names the fix');
   el.remove();
+});
+
+/**
+ * **A KEYED list stays silent** (2026-11-15): `keyed()` rows are matched by key already, which is all the warning asks
+ * for, and the JSX `key={id}` idiom compiles to exactly that. Before this, a keyed store-array `.map` warned and advised
+ * the `keyed()` it already used. Each case in a FRESH process (`fixtures/lists-unwired-case.mjs`): the warning is once
+ * per page, so in this page a case that warned first would hide the next. The unkeyed case is the control: 1 in
+ * development. Production carries no check: 0 for all three.
+ */
+const caseFile = fileURLToPath(new URL('./fixtures/lists-unwired-case.mjs', import.meta.url));
+const condition = process.execArgv.join(' ').match(/--conditions[= ](\S+)/);
+const child = (name) => {
+  const r = spawnSync(process.execPath, [...(condition ? ['--conditions', condition[1]] : []), caseFile], {
+    env: { ...process.env, LU_CASE: name }, cwd: new URL('..', import.meta.url), timeout: 60000, killSignal: 'SIGKILL', encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, `${name}: ${r.stderr.slice(-1500)}`);
+  return JSON.parse(r.stdout.trim().split('\n').pop());
+};
+
+test('fresh processes: a KEYED store-array .map and the JSX key={id} form say nothing; the unkeyed control warns once', () => {
+  const plain = child('unkeyed'), byKey = child('keyed'), jsx = child('jsx');
+  assert.deepEqual([plain.rows, byKey.rows, jsx.rows], [3, 3, 3], 'CONTROL: every case rendered its rows, the pushed one too');
+  assert.equal(jsx.compiledKeyed, true, 'CONTROL: `key={r.id}` compiled to keyed()');
+  assert.deepEqual([plain.other, byKey.other, jsx.other], [[], [], []], 'no other warning');
+  assert.deepEqual([plain.warned, byKey.warned, jsx.warned], isProduction ? [0, 0, 0] : [1, 0, 0],
+    isProduction ? 'production says nothing' : 'the unkeyed control warns once; a keyed list, by hand or by JSX, never');
 });
 
 test('production: the same page renders, and says nothing', { skip: !isProduction && 'production only' }, async () => {
