@@ -665,6 +665,16 @@ from another machine, or after that is undone, has a variable changed.
 - **SIP strips `DYLD_*` from the children of a protected binary, so `perl -e 'alarm N; exec …'` cannot launch a jsvu
   JavaScriptCore**: it then loads the system's framework and aborts on a missing symbol. Spawn engine shells directly
   (node's `execFileSync` with `timeout`). (macOS 26; 2026-11-12.)
+- **React 19.2.8's "swap 2 rows" in the DOM benchmark stalls in headed Playwright WebKit 26.5, and the cause is unknown.**
+  With the page query `?batch&layout&minms=30`, the React page completes create1k, create10k, append1k, update10 and
+  select, then never reports swap done: it stays responsive (it answers a state read at once), visible and focused, and
+  the race driver's 180 s wait for results times out. Reproduced 2 of 2 in one-page runs (a fresh headed WebKit each,
+  the same bundle, query and calibrated counts, ops up to swap), the same op and state both times; a Preact page under
+  the same conditions completes swap (0.338 ms); the two full races that reached React's WebKit page stalled at the same
+  op. Chrome 157 and Firefox 153 complete React's swap in all 6 sessions each. **Cause unknown**: the harness, React and
+  WebKit are all suspects, and none is established. Consequence: React's WebKit rows in the 2026-11-14 release race are
+  reported "not measured", and the WebKit race runs without React. (WebKit 26.5 headed via Playwright, macOS; React
+  19.2.8; 2026-11-14.)
 
 ## Competitors, as their own benchmark entries write them
 
