@@ -675,6 +675,11 @@ from another machine, or after that is undone, has a variable changed.
   WebKit are all suspects, and none is established. Consequence: React's WebKit rows in the 2026-11-14 release race are
   reported "not measured", and the WebKit race runs without React. (WebKit 26.5 headed via Playwright, macOS; React
   19.2.8; 2026-11-14.)
+  **Corrected the same evening: not a stall.** With swap's per-sample count at 25 (Chrome's) instead of the WebKit
+  calibration's ~155, React's page completes, at ~243 ms per swap (Preact under the same conditions: 0.34 ms); at ~155 in
+  the same sitting it again outlives the driver's 180 s wait. The page answers a state read because the batched loop
+  awaits each run. The number is from one page of 25 runs; whether it reflects React's own swap cost in WebKit or an
+  interaction with the benchmark's await-each-run loop is not established.
 
 ## Competitors, as their own benchmark entries write them
 
