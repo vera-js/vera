@@ -131,7 +131,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/tag` | 2 414 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/store` | 925 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 6 031 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
-| `@verajs/jsx/standalone` | 2 093 B | JSX in the browser with no build — the CodePen path |
+| `@verajs/jsx/standalone` | 2 094 B | JSX in the browser with no build — the CodePen path |
 | `@verajs/store/collections` | 672 B | reactive `Map` and `Set` in a store |
 | `@verajs/store/resource` | 396 B | async data as a reactive cell |
 | `@verajs/renderer/keyed` | 2 757 B | `keyed()` — keyed list reconciliation |
