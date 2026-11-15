@@ -39,23 +39,36 @@ test('the plugin: development only, appends the accept to a swappable module and
   assert.equal(p.transform(`define('x-c', () => () => 1);`, '/app/card.css'), null, 'not a script');
 });
 
-test('END TO END: a real Vite dev server, a real edit — swapped in place, a store from another module the SAME instance, setup once more', { timeout: 120000 }, async () => {
+test('END TO END: a real Vite dev server, a real edit — swapped in place, a store from another module the SAME instance, setup once more', { timeout: 120000 }, async (t) => {
   const { createServer } = await import('vite');
-  const { chromium } = await import('playwright');
-  /** `.probe/` is gitignored, so a fresh checkout has none: made here, or `mkdtemp` fails before the test begins. */
-  mkdirSync(join(root, '.probe'), { recursive: true });
-  const dir = mkdtempSync(join(root, '.probe', 'hot-vite-'));
-  const card = join(dir, 'card.js');
-  const write = (label) => writeFileSync(card, `import { define, html } from '@verajs/core';\nimport { shared } from './shared.js';\nwindow.__setups = (window.__setups ?? 0) + 1;\ndefine('x-vcard', () => () => html\`<b>${label} \${shared.n}</b>\`);\n`);
-  writeFileSync(join(dir, 'shared.js'), `import { createStore } from '@verajs/core';\nexport const shared = createStore({ n: 1 });\nwindow.__shared = shared;\n`);
-  writeFileSync(join(dir, 'main.js'), `import { wire } from '@verajs/core';\nimport { renderer } from '@verajs/renderer';\nimport { hot } from '@verajs/hot';\nwire([renderer, hot]);\nawait import('./card.js');\ndocument.body.append(document.createElement('x-vcard'));\nwindow.__ready = true;\n`);
-  writeFileSync(join(dir, 'index.html'), `<!doctype html><body><script type="module" src="/main.js"></script></body>`);
-  write('one');
-  const server = await createServer({ root: dir, configFile: false, logLevel: 'silent', plugins: [hotVite()], server: { port: 0 }, resolve: { conditions: ['development'] } });
-  await server.listen();
-  const url = server.resolvedUrls.local[0];
-  const browser = await chromium.launch({ headless: true });
+  /** The browser FIRST, skipped with its reason when it cannot launch (as kitchen-server does), and nothing acquired
+   *  outside the try below. CI runs `npm test` before `npx playwright install`; the launch used to come after the dev
+   *  server was listening and outside the try, so its throw skipped the `finally`, the server and its file watcher
+   *  stayed open, this file's process never exited, and the CI job hung (2026-11-15). */
+  let browser;
   try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({ headless: true });
+  } catch (error) {
+    const reason = `chromium could not launch (${String(error.message).split('\n')[0]})`;
+    console.log(`hot vite: ${reason} — skipped`);
+    t.skip(reason);
+    return;
+  }
+  let server, dir;
+  try {
+    /** `.probe/` is gitignored, so a fresh checkout has none: made here, or `mkdtemp` fails before the test begins. */
+    mkdirSync(join(root, '.probe'), { recursive: true });
+    dir = mkdtempSync(join(root, '.probe', 'hot-vite-'));
+    const card = join(dir, 'card.js');
+    const write = (label) => writeFileSync(card, `import { define, html } from '@verajs/core';\nimport { shared } from './shared.js';\nwindow.__setups = (window.__setups ?? 0) + 1;\ndefine('x-vcard', () => () => html\`<b>${label} \${shared.n}</b>\`);\n`);
+    writeFileSync(join(dir, 'shared.js'), `import { createStore } from '@verajs/core';\nexport const shared = createStore({ n: 1 });\nwindow.__shared = shared;\n`);
+    writeFileSync(join(dir, 'main.js'), `import { wire } from '@verajs/core';\nimport { renderer } from '@verajs/renderer';\nimport { hot } from '@verajs/hot';\nwire([renderer, hot]);\nawait import('./card.js');\ndocument.body.append(document.createElement('x-vcard'));\nwindow.__ready = true;\n`);
+    writeFileSync(join(dir, 'index.html'), `<!doctype html><body><script type="module" src="/main.js"></script></body>`);
+    write('one');
+    server = await createServer({ root: dir, configFile: false, logLevel: 'silent', plugins: [hotVite()], server: { port: 0 }, resolve: { conditions: ['development'] } });
+    await server.listen();
+    const url = server.resolvedUrls.local[0];
     const page = await browser.newPage();
     await page.goto(url);
     await page.waitForFunction(() => window.__ready === true && document.querySelector('x-vcard')?.textContent === 'one 1', null, { timeout: 30000 });
@@ -67,7 +80,7 @@ test('END TO END: a real Vite dev server, a real edit — swapped in place, a st
     assert.deepEqual(r, { same: true, store: true, setups: 2, reloaded: 1 }, 'the element kept, the other module\'s store the same instance and value, the card module run once more, no page reload');
   } finally {
     await browser.close();
-    await server.close();
-    rmSync(dir, { recursive: true, force: true });
+    await server?.close();
+    if (dir) rmSync(dir, { recursive: true, force: true });
   }
 });
