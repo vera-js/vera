@@ -1,5 +1,454 @@
 # @verajs/ssr
 
+## 0.3.0
+
+### Minor Changes
+
+- 446c81f: Light-DOM slots: the server states the light tree, and hydration reads it instead of inferring it
+  
+  **Breaking for server-rendered HTML cached from an earlier version.** `@verajs/ssr` now distributes
+  light-DOM slots itself, while `@verajs/renderer/slots` is wired. Each filled slot's content sits
+  between the same two comments the client keeps around a filled slot (`<!--[-->` … `<!--]-->`), and
+  every light host carries `data-vm-light`: a format number, then which of those ranges each light
+  child went into, in light order. A hydrating page reads them through a new opt-in module,
+  `@verajs/renderer/hydrate-slots` — `wire([renderer, hydration, slots, hydrateSlots])` — which only an
+  app that hydrates light slots loads. Without it, a server-rendered slots host is left exactly as
+  served and a coded error (`hydration-slots`) names what to wire. Render and hydrate with matching
+  releases: a page in another format renders fresh, its content kept, and the warning says so; a
+  component host without `data-vm-light` is treated as made on the client. Serve the server's HTML
+  unmodified, comments included — stripped markers mean the host renders fresh.
+  
+  What it fixes, measured by a new suite that hydrates real server output and compares it step by
+  step, with element identity, against the same component rendered on the client
+  (`tests/hydrate-slots-conformance.test.mjs`, eight scenarios, each asserted to have adopted rather
+  than fallen back):
+  
+  - **A light component nested in another's template now hydrates.** The outer template adopts what
+    it placed in the inner one from the inner host's stated light list. Before, it could not find that
+    content in the inner host's server markup, fell back, and the inner component showed its fallback.
+  - **A fallback keeps every light child.** The host owns its light list from the moment hydration
+    begins, so a mismatch returns the whole list to its slots, unnamed nodes and bare text included.
+    Before, a mismatch before the first slot could lose what the marks did not cover.
+  - **A light component created on the client keeps its children under a hydrating renderer.**
+    Measured before the fix: with hydration wired app-wide, a light component that a
+    client template or the user created with children lost all of them on its first render (the
+    render tried to adopt them as server output, failed and discarded them). A component host without
+    `data-vm-light` now gets a client first render, and a fallback warning no longer fires for it.
+
+### Patch Changes
+
+- 75e04ce: A bound `javascript:` URL in an SVG animation's `to`, `from`, `by` or `values` is refused
+  
+  `<animate attributeName="href" to=${url}>` (or `<set>`, or `values=`) writes its value onto the link it
+  animates, and every major engine runs a `javascript:` URL set that way when the link is clicked. A bound
+  `href` was already refused; a bound animation value, a spread `{ to }`, and a `values` list carrying the
+  payload in a later item were written. They are now refused on every element, whatever `attributeName`
+  says, by the client renderer, `spread` and the server alike — `values` is checked item by item. A
+  custom element's `.to` property gets the same string check as its `.href`.
+- b362460: An expression inside an attribute name is refused, with the spread that does what it meant
+  
+  `<p data-${key}="1">`, `<b ${name}="x">` and `<p ${key}-x>` cannot be rendered — the parser reads a name before
+  any value exists. The client renderer used to write a broken `data-="1"` with no warning, and the server threw
+  for some of these shapes while serving garbage for others (`<p data->`, and `<p ${k}-x>` fused into the tag
+  name as `<p-x>`). The server now refuses every shape, and the client refuses them in development; both errors
+  show the rewrite: `${spread({ [`data-${key}`]: '1' })}`. A value inside an HTML comment is dropped by the server,
+  as the client drops it, instead of being treated as part of a tag.
+- 820981b: A comment ends where the HTML tokenizer ends it
+  
+  The tokenizer closes a comment at `-->`, at `--!>`, and abruptly at `<!-->` and `<!--->`. Every scanner here knew
+  only `-->`, so `<p><!-->${value}</p>` dropped the value silently on the client and the server while a browser
+  renders it, and the server's DOM and its nested-component scan read the same markup differently from the browser.
+  All of them now follow the tokenizer's rule. The server also renders a template-shaped forgery as the constant text
+  `[object Object]`, never through the forgery's own `toString`, so a JSON `"toString"` key cannot make it throw.
+- b71541b: One queue, one flush: renders and effects run as a microtask
+  
+  **Breaking for timing.** Every queued render, layout effect and effect now runs in ONE flush — a microtask, as in Lit
+  and Vue — instead of on the element's next animation frame. After any `await`, everything Vera has queued is done — the DOM
+  and its effects are current, on every device; `flush()` drains at once without an `await`. A write reaches the DOM in about 1–5 ms instead of 19–24.
+  
+  - **Order:** renders, then layout effects, then effects — and parents before children, so a child re-rendered by its
+    parent's new props renders once.
+  - **`useLayoutEffect` now means what it means in React:** it runs right after the render, so it measures the DOM that
+    render made, and a write it makes re-renders in the same flush, before paint. It used to run BEFORE the render and
+    see the previous render's DOM — a measurement ported from React measured stale layout. A layout effect now also runs
+    after `@verajs/directives` has applied an element's directives. A hook of your own made with `createHook` at a
+    priority between 25 and 60 that relied on running after layout effects on the first pass now runs before them.
+  - **`frameBudget`** (new, opt-in): for apps that receive bursts of data as many tasks in one frame — past about 4 ms
+    of flush work in a frame, the next flush waits for the element window's frame (or a short timer where there are no
+    frames), so a burst renders about once per frame (measured 2–4× faster to the final DOM). The trade: after `await`
+    the DOM may still be on its way — `flush()` first. User input gains nothing; browsers already merge it.
+  - **Loops:** a hook may run twice in one flush — so an effect that measures what was just rendered and stores it lands
+    before paint — and a third run waits for the next frame. A self-feeding effect never freezes the page; development
+    warns after 50 consecutive frames, naming the hook that writes. `allowRenderLoop(element)` silences it.
+  - **`flush()`** runs everything queued, synchronously — replacing the swap-the-scheduler `flushSync` recipe. Inside a
+    running flush (a hook, a render, an event one of them fired) it does nothing — the DOM updates when that flush ends —
+    and development says so once (React's `flushSync` makes the same choice).
+  - **`setRenderScheduler(fn)`** now decides when a FLUSH runs; `microtask` is the same timing without the budget.
+  - **Effects run before paint**, after their flush's renders: a slow `useEffect` delays its own update's paint.
+  - A window with no animation frames updates after a microtask, like every other, rather than synchronously.
+  - **`useHook(callback, priority, element?)`** is new: a hook of your own, scheduled as the built-in ones are, at a
+    priority you choose — `25` runs before the render and reads the DOM the last render left. `createHook` stays the
+    raw primitive, which runs inside every write it hears, unbatched.
+  
+  `@verajs/ssr`: each round of the server's drains runs core's flush first, so both `renderToString` and
+  `renderToStringAsync` serialize the same settled markup — a `useLayoutEffect`'s state now reaches the markup through
+  both (it reached only the asynchronous one).
+- cd025f8: `.innerHTML` and `.textContent` render on the server, and hydrate
+  
+  The trusted-markup binding, `<div .innerHTML=${markup}>`, used to serve an empty element that the client filled in,
+  and hydration then discarded the container for any non-empty value. The server now writes the content into the
+  page, made to behave as an `innerHTML` assignment does: a `<script>` in it is served inert and a
+  `<template shadowrootmode>` cannot attach a shadow root. Whatever the markup leaves open is closed before the
+  element ends, a raw-text, text-only or foreign host and any `.textContent` get escaped text, and each property's
+  null/undefined conversion follows its IDL. Hydration adopts such an element instead of rebuilding its container
+  (+44 B gzip on the hydrate entry; the base renderer is unchanged).
+- 610a231: Two text light children placed side by side in one slot no longer merge in the browser
+  
+  When a light component's text children ended up next to each other in one slot (`<b slot="h">H1</b>t1<b slot="h">H2</b>t2`
+  puts `t1` and `t2` together in the default slot), the browser parsed them as one text node while the light-tree
+  statement counted two, and hydration fell back to a client render. The server now writes an empty comment between
+  them. No client change is needed; the comment is never light content.
+- b31eac7: Every bound attribute value is served double-quoted, whatever quoting the template used
+  
+  A value that shared its attribute with statics or other holes — `title=pre${x}`, `title=${a}${b}`,
+  `title = ${x}` — was written into the markup unquoted, so a value containing a space ended the attribute:
+  plain text split into stray attributes, and a value carrying ` onmouseover=…` became a live event handler
+  in the served page. The client was never affected; it sets attributes through the DOM.
+  
+  The server now writes each bound attribute once, the way the client's `setAttribute` stores it: the whole
+  value joined, escaped and double-quoted. A binding that is the whole value omits the attribute for `null`
+  and `undefined` in every quoting — a quoted one used to serve `title=""` where the client removes it — and
+  a `javascript:` URL or a bound `srcdoc` is refused in every position, not only inside quotes. Space around
+  `=` no longer stops a sigil binding (`?hidden = ${x}`, `onClick = ${fn}`) being read as one.
+- eeb2e25: A binding is classified by the server's tag scan, so a sigil inside a comment or a text-only element is no binding
+  
+  The server decided whether a hole was a sigil binding (`.prop`, `?bool`, `@event`, `&ref`, `!live`), an `onClick`
+  binding, or a tag-name hole by testing the static's tail with patterns that knew nothing of comments or raw text. So
+  `<!-- <div .innerHTML=${v}> -->` wrote `v` as markup inside the comment, and a `-->` in it ended the comment early;
+  `<textarea><b .innerHTML=${v}>` and `<title>` broke out the same way; `.value` in a comment wrote an attribute; and a
+  `?a=`, `.a=` or `onClick=` inside a quoted attribute value, or after a `<` that is only text, was treated as a
+  binding. The client drops all of these. The server now reads every one of those answers off the same scan that reads
+  the tags, as the tokenizer reads them. A form property on an upper-case tag (`<INPUT .value=…>`) is mirrored as it is
+  on `<input>`, a hole inside a tag name is refused whatever the tag name contains, and an attribute named
+  `data-onClick` is an attribute, as it is on the client. Compiling a template and folding spreads got faster (see
+  the SSR performance entry).
+- 432f2a0: A tag that ends foreign content (`<svg><p>`) is read as the browser reads it, and an SVG `<template>`'s content is live
+  
+  Inside `<svg>`/`<math>` the browser leaves foreign content at a "breakout" tag — `<p>`, `<b>`, `<div>`, `<table>` and
+  the rest of the standard's list, and `</p>`/`</br>` — and reads what follows as HTML. The server kept treating it as
+  foreign content, so a `<style>` after one was served escaped (`.a > .b` as `.a &#62; .b`) and a component after one
+  was not rendered. It now pops to the element the parser lands in, only where that is certain: never through
+  `<noscript>`, never at an integration point (those tags are HTML there already), and never out of a position a parent
+  template gave, which this template cannot see. `<font>` breaks out in a browser only with a `color`, `face` or `size`
+  attribute, and never does here, which only ever escapes more.
+  
+  `<template>` content is inert only for an HTML `<template>`: inside `<svg>`/`<math>` it is a foreign element whose
+  content is live markup, so a binding there was dropped where the client renders it. And an end tag inside
+  `<template>` content no longer closes anything outside it, as the parser ignores it there.
+- 0938ac2: A numeric character reference past U+10FFFF no longer crashes a render, and every reference decodes as a browser decodes it
+  
+  Three places on the server decode character references: the `javascript:` check, the parser that gives trusted
+  `.innerHTML` markup a node view, and the `<select .value>` match against each `<option>`'s text. Only the first
+  followed the parser's rules. The other two passed the number straight to `String.fromCodePoint`, which throws past
+  U+10FFFF, so `&#1114112;` in trusted markup or in an option's text took the whole render down; and `&#0;` gave NUL
+  where a browser gives U+FFFD. All three now share one decoder, which also reads `&#128;`–`&#159;` through
+  Windows-1252, as every parser does (`&#128;` is `€`), so an option written that way is the one selected.
+- 89df710: A nested component renders exactly where the browser creates one it upgrades — and an author's tag is never rewritten
+  
+  The server finds registered component tags in rendered markup with a scan of its own, and that scan approximated
+  the HTML tokenizer differently from the one templates use. It rendered a component inside `<svg>` and `<math>`,
+  where the browser never upgrades a foreign element; inside a `<textarea>` or `<script>` after a look-alike end tag
+  (`</textareax>`, `</scripts>`), where the markup became the textarea's value or the script's source; and it missed a
+  live component after a stray quote (`<b x"><my-comp>`). It stopped a tag name at a `.`, so `<my-comp.x>` rendered
+  `my-comp` and the tag was rewritten as `<my-comp .x="">`. The component scan now reads the same tag scanner as
+  templates, so comments, raw text, `<template>` content, quoted values and foreign content are its answers too, and
+  a component inside `<svg><foreignObject>` or `<math><mtext>` is rendered. Pages render faster for it (see the SSR
+  performance entry).
+- dd90e74: Every sheet adopted onto `document.adoptedStyleSheets` on the server is served, and the list reads back
+  
+  On the server, `document.adoptedStyleSheets` read as an empty array and its setter served only the last sheet it
+  was given, so `document.adoptedStyleSheets = [a, b]` served `b` and dropped `a`, and code that adopted a sheet could
+  not see it afterwards. It is now a live list as in a browser: an assignment or a `push` serves each newly adopted
+  sheet's CSS, a read answers what was adopted during this render (each render starts empty, as a new page does), and
+  a sheet adopted empty and filled afterwards is served with its new text. On the document and on a shadow root alike
+  it takes what a browser takes, any iterable of sheets (an array, a `Set`, a generator), where it took only an array;
+  an array-like, a lone sheet, a string, or an entry that is not a `CSSStyleSheet` throws a `TypeError` before anything
+  changes. `@verajs/styles`, which adopts one sheet at a time, is unaffected.
+- f543301: Security: a value inside `<svg><style>` (and every other place the browser does not read raw text) is escaped
+  
+  The server writes a `<style>` or `<script>` value raw, neutralizing only that element's end tag, which is right only
+  where the browser reads the element as raw text. In 0.2.1 it decided that by the tag's name alone, so
+  `html`<svg><style>${text}</style></svg>`` served `text` unescaped inside an SVG `<style>` — whose content is markup —
+  and a value carrying `<img src=x onerror=…>` became a live element. The same held inside `<math>`, in an
+  `svg`/`mathml` template, in any template rendered into a foreign position, inside `<noscript>` (markup with
+  scripting off) and inside `<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>`, where `</xmp>` in a value closed the
+  text the server thought it was in. Raw text is now recognized only in HTML; everywhere else every value is escaped.
+  A `<noscript>` link is URL-checked like any other.
+  
+  The cost is the safe direction of the same misreading: a `<style>` the server cannot place in HTML (inside
+  `<foreignObject>`, or after a tag that breaks out of SVG) is served escaped, so a `>` in it reads as `&#62;` until
+  hydration. The SSR README lists it under what cannot round-trip.
+- 3c5924b: `requestAnimationFrame` on the server hands out real ids, so a cancel cancels only what it names
+  
+  The server's `requestAnimationFrame` returned a callback's position in its queue, and the queue starts over every
+  time it drains. So a component that canceled its own frame after it had run deleted whichever callback now sat at
+  that position, often another component's; a callback canceling another of the same frame did not stop it; and ids
+  repeated. The ids are now the platform's (unique, never reused, a cancel of a finished or unknown id does nothing),
+  each frame runs the callbacks that were waiting when it began, and `cancelIdleCallback` and `cancelAnimationFrame`
+  each cancel only their own kind, as in a browser.
+- f08a9c8: A `<style>` inside `<svg><foreignObject>`, `<math><mi>` and the other HTML integration points is raw text, as the browser reads it
+  
+  Inside `<svg>`/`<math>` the server escapes every value, because a `<style>` there is a foreign element whose content
+  is markup. But the browser reads the content of an HTML integration point as HTML: SVG `<foreignObject>`, `<desc>`
+  and `<title>`, MathML `<mi>`, `<mo>`, `<mn>`, `<ms>` and `<mtext>`, and an `<annotation-xml>` with an HTML
+  `encoding`. So a stylesheet there was served escaped (`.a > .b` as `.a &#62; .b`) until hydration replaced it. The
+  server now tracks them, each only in its own namespace (`<math><foreignObject>` and `<math><svg>`'s children stay
+  MathML), only when not self-closed, and with `<mglyph>`/`<malignmark>` inside a MathML text point read as MathML
+  again. A template that leaves one open closes it at its end. Two seams were fixed with it: a binding dropped inside
+  a comment can no longer join the text on either side into a different token (`<!${x}--!>` served as `<!--!>`, a
+  comment that swallowed the page after it), and an unquoted attribute value runs to the tokenizer's whitespace, so a
+  `\v` in its static tail no longer cuts it short and loses the element.
+- ac869c1: Content that starts with a line feed survives in `<pre>`, `<listing>` and `<textarea>`, and values a component reads from parsed markup are the browser's
+  
+  The HTML parser drops one line feed right after a `<pre>`, `<listing>` or `<textarea>` start tag, so a server
+  render of `` html`<pre>${'\nabc'}</pre>` `` arrived as `abc` while the client held `\nabc`. That happened on
+  every route: a bound value, an empty first value, a list, a nested template, `.textContent`/`.value`/`.innerHTML`
+  and the server DOM's own serialization. The server now writes one extra line feed in front of such content, for
+  the parser to take. A browser's `innerHTML` does not, so the server DOM's `innerHTML`/`outerHTML` read one more
+  line feed there than a browser's: deliberately, because a browser's serialization of that content does not
+  parse back to it.
+  
+  Values read from parsed markup now match a browser: line breaks normalized (CRLF and CR read as LF),
+  `<textarea>` and `<title>` content decoded, the leading line feed above taken, and a numeric reference decoded
+  without its `;`. The markup itself is still served byte for byte.
+  
+  A spread's textarea `.value` after an earlier `.textContent` binding in the same template now replaces the
+  textarea's content; it used to keep the author's.
+- 308b766: On the server DOM, inserting a fragment works through every method, and `toggleAttribute` reports the old value
+  
+  `appendChild` moved a document fragment's children in and left it empty, as browsers do, but `insertBefore`,
+  `replaceChild`, and therefore `before()` and `replaceWith()`, inserted a fragment as its markup text: its children never
+  arrived where they belong and the fragment still held them. Every insertion now goes through one path. Markup that
+  arrives after an element has been queried is now seen by the next query. `toggleAttribute` told
+  `attributeChangedCallback` the old value only after removing it, so a removal reported `null`; it now reports the
+  value the attribute had.
+- 5cecda6: The server DOM refuses what the platform refuses at the Node interface, and a text node is a `Node`
+  
+  A behavior change, made to match every browser (a fix under 0.x, so a patch). Server code that relied on the server
+  being more permissive now throws there, as it would have on the client:
+  
+  - **A Node-typed argument that is not a node is a `TypeError`**: `appendChild({})`, `insertBefore({}, null)` and
+    `replaceChild({}, child)` were accepted; `contains({})`, `isSameNode({})`, `isEqualNode({})` and
+    `compareDocumentPosition({})` answered instead of refusing; `removeChild(null)`, `removeChild({})` and a non-node
+    reference to `insertBefore`/`replaceChild` threw a `NotFoundError` instead of a `TypeError`. `contains()` and
+    `insertBefore(node)` with an argument missing are refused, as WebIDL counts arguments first.
+  - **`Illegal constructor`** for `new HTMLElement()`, `new HTMLElement('div')`, `new Node()`, `new CharacterData()`, a
+    class never passed to `customElements.define`, and an undefined subclass of a defined one. A defined class,
+    `new Text()`, `new Comment()`, `new Image()` and `new Audio()` construct as before.
+  - **A text node is a `Node`** — `Node` was the container class, so text and comments answered `instanceof Node` with
+    `false` — and `CharacterData`, `Text` and `Comment` are exposed. `Node`'s constants are on every node
+    (`text.TEXT_NODE` was `undefined`).
+  - **`append`, `prepend`, `before`, `after`, `replaceWith` and `replaceChildren` convert a non-node to text**, as the
+    `(Node or DOMString)` union does: `append({})` inserts `[object Object]`, where it inserted an empty element, and
+    `after(7)`, `replaceWith({})` and `replaceChildren({}, null)` threw.
+  - **`String(node)` names its interface** for text (`[object Text]`), comments, fragments and shadow roots, where every
+    node said `[object EventTarget]`.
+  
+  Measured against jsdom and confirmed on Chromium, Firefox and WebKit.
+- 107bf4b: A DOM node at a child position no longer prints `[object …]` on the server and no longer costs adoption
+  
+  A node handed to a template (`html\`<figure>${chart}</figure>\``) is inserted by the client as itself, and the server
+  cannot have rendered it. The server serialized it as `String(value)` instead — `[object EventTarget]` on the static
+  page — and the client then refused that text as markup the template does not describe, discarding the whole
+  container's server markup and re-rendering it (the `hydration-fallback` warning). The server now writes nothing for a
+  node, an element, a text node or a fragment alike, and hydration adopts everything around it.
+- f59a0f2: Text a component writes into a `<textarea>`, `<title>`, `<style>` or `<script>` can no longer close the element
+  
+  The server DOM stored what `textContent` and `value` wrote into a raw-text element (`<textarea>`, `<title>`,
+  `<style>`, `<script>`, `<iframe>`, `<noscript>`) as markup, unescaped. A value carrying the element's own end tag
+  closed it, and whatever followed was served as live markup: `textarea.value = '</textarea><img src=x
+  onerror=…>'` put a real `<img>` with a handler on the page. The client was never affected.
+  
+  A text node is now written by its parent's rule, as a browser serializes it: escaped inside `<textarea>` and
+  `<title>` (a browser decodes references there, so the value arrives exactly), raw inside `<style>` and
+  `<script>` with only the end tag neutralized (`<\/style`). `textContent` and `value` store exactly what was
+  written, and `innerHTML` on one of these elements is one text node, as the browser parses it.
+- 0986593: A server render's components are released when it ends
+  
+  Each `renderToString` / `renderToStringAsync` is a turn: the hooks its tree created leave every store when it ends, so
+  a module-scope store read by server-rendered components no longer keeps every rendered component alive for the life of
+  the process, and a later write no longer re-runs renders that already served their request.
+- be4034d: `renderToStringAsync` never waits for ever on a component's promise: a `timeout` option, 2000 ms by default
+  
+  An asynchronous render awaited an `async connectedCallback`, and every promise a frame callback returned, with no
+  limit. One that never settled, such as a wait on a child component the server never defines or a forgotten
+  `new Promise(() => {})`, held the request open for ever. Renders take turns, so it held every request after it as
+  well, and the server stopped answering. Each wait now races the render's budget, the new `timeout` option
+  (milliseconds, 2000 by default, counted from the start of the render's turn). When the budget runs out, the render
+  serves what it has rendered and warns, in every build, naming each component whose wait was cut, because the page
+  served is not the one its code describes. A wait shorter than the budget is waited for, exactly as before. `timeout: 0` waits for
+  nothing; there is deliberately no setting for an unlimited wait. Synchronous `renderToString`
+  awaits nothing and is unaffected.
+- a502462: Server rendering is faster: one tag scanner, read with indexed fast paths, in place of three character-by-character copies
+  
+  Measured against the server renderer as it stood just before this tokenizer work, in fresh Node processes, ten
+  rounds each in a shuffled order, beside a byte-identical copy as an A/A control (its spread stayed at or under 1.1%;
+  every row won all ten rounds), on a quiet machine. "Cold" is the total of the first 100 calls in a new process, which
+  is what a server's first requests pay; "steady" is the time per call after a long warm-up.
+  
+  | Workload | Cold | Steady |
+  | --- | --- | --- |
+  | A 50 KB trusted `.innerHTML` value | −63% | −82% |
+  | Compiling 200 distinct templates | −28% | −50% |
+  | A page of 100 nested components | −15% | −24% |
+  | A long article with one component | −13% | −22% |
+  
+  Reproduce it from the repository with `npm run build && node bench/ssr-scan.mjs --compare 46060d3`; it waits for the
+  machine to be quiet before it times anything, and flags any row its A/A control says was disturbed.
+- 4892efc: A selector's `>` and descendant combinators stop at a shadow root, as the browser's do
+  
+  The server DOM's `querySelector`, `querySelectorAll` and `matches` walked a combinator onto the shadow root or
+  document fragment above an element and tested it as an element. So `root.querySelectorAll('* > i')` found a shadow
+  root's own top-level children (the root passed `*`), `element.matches('* > i')` said yes for one, and `.a b` or
+  `.a > p` queried from a shadow root threw a `TypeError`. A browser walks element parents only, and finds nothing
+  there. Now so does the server, and so `:scope` queried from a shadow root or a fragment matches no element, as
+  Chromium, Firefox and WebKit all answer (it found the root's children). `closest()` was already right.
+- 0aa29cc: The server DOM's tree walker, `define`, `getElementsByName` and `document.head.appendChild` answer as a browser does
+  
+  `document.createTreeWalker` now follows the DOM standard's own algorithms. It used to step above its root in
+  `parentNode`, stop `nextSibling` at the first filtered sibling instead of searching on, and never skip a subtree its
+  filter rejected. `customElements.define` now refuses a value that is not a constructor and a class already defined
+  under another name, as every browser does. `getElementsByName` compares the `name` attribute exactly, so a name with a
+  backslash is found. And `document.head.appendChild` hoists only a `<style>` into the render's styles: it hoisted any
+  node's markup, so an appended `<script>` shipped its source inside the stylesheet.
+- 75e04ce: Sigil bindings whose name does not start with a letter are read as the client reads them
+  
+  The server recognized `.prop`, `?bool`, `@event` and `!live` only when the name after the sigil began with
+  a letter. `<p ._private=${v}>`, `.$x`, `?_flag` and `!_live` were served as attributes with the sigil in
+  them, `@_tap=${handler}` printed the handler's source into the page, and `.__proto__` — refused on the
+  client — was served as an attribute. A sigil character inside a name (`data-x.y`) was also misread as a
+  sigil. The server now takes the client's rule: the sigil is the first character of the attribute name, and
+  the name after it is any attribute-name character.
+- 222154b: Security: a stray `</svg>` inside `<math>` (or `</math>` inside `<svg>`, `</noscript>` inside either) no longer makes the server read what follows as HTML
+  
+  The server escapes every value inside `<svg>`/`<math>`, where a `<style>` is a foreign element whose content is
+  markup. An end tag that closed nothing the template had opened still lowered its foreign depth, as if it closed an
+  element a parent opened. So `html`<math></svg><style>${text}</style></math>`` served `text` unescaped as raw text,
+  although the browser ignores that `</svg>` and parses the `<style>` as MathML, and a value carrying
+  `<img src=x onerror=…>` became a live element. The same happened to a child template whose stray end tag sat inside
+  its parent's `<math>`. Such an end tag now changes nothing; at worst a value is escaped where it did not need to be.
+  This was never in a published version.
+- 56e3f39: A setter that throws `null` or `undefined`, and `options: null`, are reported by name
+  
+  JavaScript can throw any value. When a component's setter threw `null` or `undefined`, either for a value from `props`
+  or for a bound `.prop`, the server's error message read `.message` off it and crashed with "Cannot read properties of
+  null", naming nothing the caller did. It now names the component and the property, with the thrown value as the
+  error's `cause`. And `renderToString(url, null)` (or any non-object `options`), possible from JavaScript, throws a
+  `TypeError` saying `options` must be an object, instead of an unnamed destructuring error.
+- e108877: Security: the server reads a tag where the browser's tokenizer does, so `<script.x>${text}` no longer serves `text` raw
+  
+  The server decides how to write a value (escaped text, an attribute, or raw `<style>`/`<script>` content) by
+  scanning the template's markup, and that scan approximated the HTML tokenizer. In 0.2.1 it ended a tag name at the
+  first character outside `[a-zA-Z0-9-]`, so `html`<script.x>${text}</script.x>`` and `<style:x>` read as a
+  `<script>`/`<style>` and served `text` unescaped inside what the browser parses as an unknown element. A value
+  carrying `<img src=x onerror=…>` became a live element. A static unquoted value ending in `/` (`<svg a=x/>`) read as
+  a self-closing tag, so a `<style>` value after it was served raw inside what the browser parses as SVG. The scan
+  now follows the tokenizer's own states: a tag name runs to whitespace, `/` or `>`; a `<` before anything but a
+  letter is text; `<!x>`, `<?x>` and `</ x>` are comments; an `=` or a quote inside a name is part of the name;
+  only the tokenizer's whitespace separates; `<style/>` opens raw text as `<style>` does; and `</scripts` ends nothing.
+  
+  `.innerHTML`'s inertness scan, which made a trusted value's `<script>`s and `<template shadowrootmode>`s inert, ran
+  a separate scanner, and it served both live in `<b x"><script>` (it read the quote as opening a value) and in
+  `<svg><style><script>` (it skipped the SVG `<style>`'s content as raw text). It now uses the same scan, so the two
+  cannot disagree. An unfinished tag at the end of such a value is dropped, as an `innerHTML` assignment drops it,
+  instead of swallowing the page after it. Both scans got faster (see the SSR performance entry).
+- 46060d3: `@verajs/ssr` is TypeScript, with precise published types
+  
+  The package is now written in TypeScript and compiled by `tsc` to `dist/`, under the same strict checks as every
+  other Vera package. Its runtime is unchanged: every compiled file, minified, is byte-identical to the JavaScript it
+  replaces. What ships is `dist/` (JavaScript, declarations and source maps) where it used to be `src/`. Imports of
+  `@verajs/ssr` are unaffected.
+  
+  The published types are more precise. Three of them are narrower, each matching what the runtime already accepted:
+  
+  - `renderToStringAsync`'s options are the same `SsrRenderOptions` as `renderToString`'s, not `object`.
+  - `registry` is `Map<string, CustomElementConstructor>` (tag names to classes), not `Map<any, any>`.
+  - `serializeTemplate` takes a template (`SsrTemplate`) and returns `string`, not `any`.
+  
+  `SsrRenderOptions` and `SsrRenderResult` are exported for TypeScript users.
+- c62bd8d: `customElements.whenDefined` on the server resolves with the class, when the class is defined
+  
+  On the server, `customElements.whenDefined(name)` resolved at once with `undefined` for any name. Code awaiting a
+  definition ran before the class existed and received nothing; the wait for a component that is only ever defined in
+  the browser settled on the server and never in the browser; and a name `define` refuses resolved anyway. It now
+  behaves as in a browser: it resolves with the constructor, immediately for a defined name and at its `define` for a
+  later one, returns one promise per name until then, and rejects with a `SyntaxError` for an invalid name.
+  
+  A wait for a tag the server never defines (one that is lazily loaded, client-only, or simply not registered on the
+  server) therefore no longer resolves on the server either: `renderToStringAsync` ends it at its `timeout` and the
+  warning names the tag and the component waiting on it, with the fix: return before the wait on the server
+  (`if (globalThis.__veraSsrShimmed) return;`), which serves the component's state from before the wait, exactly what the
+  browser shows first, at once and without a warning.
+- 65cd3f8: A value in tag position is refused, and the server reads raw-text elements as the client does
+  
+  `<${x}>`, `</${x}>` and `<my-${x}>` without `@verajs/renderer/tag` cannot make an element — the parser reads a tag
+  name before any value exists. The client rendered `&lt;&gt;` and the server served `<>`; now the server refuses the
+  template in every build and the client in development, both naming the tag entry, where a runtime tag name is a tag
+  value. Only markup counts: a `<` inside a comment, a raw-text element or a quoted attribute value never makes a tag
+  position.
+  
+  The server's scanner now treats `<textarea>`, `<title>` and `<iframe>` content as text, as the client always has
+  (escaping unchanged), so `<textarea><b title=${v}>` serializes the value as text instead of quoting it as an
+  attribute.
+- 48f27d8: Security: a nested template cannot change how its parent's markup parses
+  
+  The client parses every template on its own and closes whatever it left open at its end; the server concatenated
+  them. So a child template that left an `<svg>`, a comment, a `<style>` or a `<textarea>` open, or that ended inside
+  a tag, changed how the browser read the parent's following markup, and a raw-text value there could become
+  elements. The server now closes, at each template's end, everything that changes how the rest of the page parses,
+  which is what the client already did. It refuses a template that ends inside a tag (the client refuses it too, in
+  development) and a template rendered inside a text-only element such as `<textarea>`. `<noscript/>` and
+  `<template/>` now open their element on the server, as the HTML parser reads them.
+- 1562340: Security: data shaped like a template renders as text, never as markup
+  
+  A value was treated as a template whenever it had a `strings` property, so a template-shaped object from
+  `JSON.parse` (an API field an attacker can turn into an object) was rendered as markup by the client renderer and by
+  the server. A template now has to come from a tagged template literal, whose strings array owns `raw`, which JSON
+  cannot produce. Anything else renders as the text any object does, `[object Object]`, on both sides, with a
+  development warning on the client. It never throws. A hand-built `html([markup])` is data by the same rule; trusted
+  markup is a property binding, `.innerHTML=${markup}`. A spread or self-applying value must now carry a function, not
+  merely the key. The check runs where a template is first built, so a cached template pays nothing: +50 B gzip on
+  the base renderer.
+- Updated dependencies [da55d31]
+- Updated dependencies [b1e8b6a]
+- Updated dependencies [f896112]
+- Updated dependencies [14c7a84]
+- Updated dependencies [b8f7d30]
+- Updated dependencies [0986593]
+- Updated dependencies [afbae92]
+- Updated dependencies [dc329ac]
+- Updated dependencies [8854735]
+- Updated dependencies [aab427a]
+- Updated dependencies [c300bb3]
+- Updated dependencies [0c4ffac]
+- Updated dependencies [da55d31]
+- Updated dependencies [2912a97]
+- Updated dependencies [78fa178]
+- Updated dependencies [d4dc769]
+- Updated dependencies [d220d2c]
+- Updated dependencies [8317803]
+- Updated dependencies [b39a5ae]
+- Updated dependencies [bb4bc7a]
+- Updated dependencies [d220d2c]
+- Updated dependencies [0986593]
+- Updated dependencies [b71541b]
+- Updated dependencies [2cea5ce]
+- Updated dependencies [0986593]
+- Updated dependencies [46865a3]
+- Updated dependencies [0fff22d]
+  - @verajs/core@0.4.0
+  - @verajs/styles@0.1.3
+
 ## 0.2.1
 
 ### Patch Changes

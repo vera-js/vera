@@ -1,5 +1,182 @@
 # @verajs/inserts
 
+## 0.2.2
+
+### Patch Changes
+
+- 194266a: SVG and MathML in JSX are parsed where they land — and buildless JSX loads whole apps
+  
+  ```jsx
+  const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
+  <Frame><path d="M0 0h24" /><circle cx="12" cy="12" r="4" /></Frame>
+  ```
+  
+  built its shapes as HTML. `<path>` parsed as HTML is an `HTMLUnknownElement` — right tag name, no
+  geometry, nothing drawn — so an entire header of icons vanished for the app that reported it. The
+  call site cannot know what `Frame` renders, and JSX has no `` svg`…` `` to reach for, so no spelling
+  worked.
+  
+  **`@verajs/renderer/namespaces`: a template is parsed in the namespace of the position it lands
+  in.** Wire it — `wire([renderer, namespaces])` — and an `html` template placed inside an `<svg>` is
+  SVG, inside a `<math>` is MathML, and inside a `<foreignObject>` or a `<div>` is HTML, exactly as the
+  same markup written inline there would be. Which position means which namespace is asked of the
+  browser's own parser, once per parent name (and, under a MathML parent, per child tag — `<svg>` in
+  `<annotation-xml>`, `<mglyph>` in `<mi>`), rather than read from a list — so the integration points,
+  the breakout names and `<annotation-xml encoding>` behave as the parser has them. A hand-written
+  `` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 742 B gzipped, and
+  the renderer without it pays nothing on its render paths beyond a flag check.
+  
+  **`@verajs/jsx` 0.4.0 — breaking.**
+  
+  - **Every template is `html`, and every compiled module wires `@verajs/renderer/namespaces`**
+    (`import { namespaces } …; import { wire } …; wire([namespaces]);`, prepended). Wiring from every
+    module means no JSX template can be built before the resolver exists, whichever chunk loads first;
+    wiring the same descriptor again is idempotent. `namespaces: false` opts out, and `inject: false`
+    leaves the wiring to the caller along with every other import.
+  - **Requires `@verajs/renderer` 0.3.0 or later**, the first with the `./namespaces` entry.
+  - **The `svg` and `mathml` options are removed** — the compiler no longer decides a namespace, so
+    there is nothing for them to name.
+  - **`@verajs/jsx/standalone` is a module loader.** `<script type="text/vera-jsx">` blocks, inline or
+    `src`, run as real ES modules, and a file they import — `.jsx` or `.js`, relatively — is loaded
+    the same way, so a self-hosted buildless app is ordinary files beside its page and a three-entry
+    import map (`@verajs/core`, `@verajs/renderer`, `@verajs/jsx`). `import()` in any form — a template
+    literal, a computed path, a full same-site URL, with options — `import.meta.url`,
+    `import.meta.resolve`, a JSON or CSS module and a file behind a redirect all resolve as written, and
+    a package name in them resolves through the map exactly as from the file itself. Any `@verajs/renderer/<entry>` —
+    the helpers compiled JSX imports, and `slots` or `tag` if the app imports them — is found beside
+    wherever the map puts `@verajs/renderer`, so copy the renderer's whole `dist` folder. The
+    compiler is loaded only when something must compile, and each file's compiled output — an inline
+    block's too — is kept in `localStorage` and reused only for the exact text it came from (a
+    fingerprint of the file, not a server header), so a repeat visit compiles nothing on any static
+    server; a plain `.js` file keeps only where its imports are, never its text. A circular import is reported
+    with its chain, a missing file names the file that imported it, and a renderer helper missing
+    from beside the renderer is named. The entry is 2 236 B gzipped, down from 5 933 in 0.3.2, plus
+    the 5 737 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
+  
+  **Fixed in the compiler along the way** — each of these produced a module that died or silently
+  lost its JSX:
+  
+  - an injected import is renamed around a name the module already binds — a destructured binding, a
+    second declarator, a parameter, a TypeScript annotation — instead of colliding with it;
+  - `import html from './x'` from another module is a binding, not the tag;
+  - string, template-literal and regular-expression contents are never read as code, including a
+    nested template literal and a regex at statement position;
+  - a TypeScript postfix `!` ends an expression, a keyword before `!` is a prefix, and a TSX type
+    parameter list (`<T extends object = {}>`) is never markup;
+  - `hidden=""` and a literal `checked` mean true, an empty attribute expression is an error with a
+    position, and an injected import goes under a hashbang rather than above it;
+  - `<annotation-xml>` is not a custom element though its name has a dash, so its `encoding` stays an
+    attribute the parser can read.
+  
+  **`@verajs/renderer`: development names a namespace mismatch.** An element built in one namespace and
+  placed where the parser would have used another — a hand-written `` html`<path/>` `` handed into an
+  `<svg>` with the resolver not wired, or a `` mathml`…` `` in an `<svg>` — is named once, with the
+  remedy that fits it. Nothing of it survives minification.
+  
+  **`@verajs/inserts`: a `'template'` insert point**, called once when each template is built, which is
+  how `@verajs/renderer/namespaces` plugs in.
+- 8854735: Hooks run in exact priority order, and a non-finite priority is refused the same way in both builds — development says why
+  
+  **Fixes:** hooks were ordered by one number, `priority × 1e9 + a page-wide creation count`. Close fractional priorities
+  could run in the wrong order (`50.000001` after `50.000002` once enough hooks were created between them), priorities
+  above about 9 million collided, and on a page that had created a billion hooks a priority-50 hook was read as 51 — it
+  ran after priority-51 hooks and a property arriving late no longer re-rendered it. Priority and creation order are now
+  compared separately: any finite priority runs in exact order, then creation order within it.
+  
+  **A priority that is not a finite number** (`NaN` — what `parseInt` of a missing config value gives — `Infinity`,
+  `-Infinity`): `useHook` and `createHook` register nothing and return `undefined`, in both builds, as before; development
+  now also prints `[vera] … (priority-not-finite)` naming the call, where it used to say nothing. `wire` follows the same
+  rule: it used to throw in development only and, in production, wire the entry and misbehave; it now refuses in both
+  builds — nothing is wired — and development prints `(wire-priority)`. **In production the refusal is SILENT** (no
+  message is shipped): an effect with a bad priority simply never runs, so check development's console.
+- c300bb3: A module can own a key on a component's options: core hands `init({ host, … })`'s object to every `'init'` hook, and `wire` hands a connector itself
+  
+  **Feature (for module authors):** an `'init'` hook now receives the component's options object beside the element, or
+  `undefined`. A module reads only its own key (slots reads `observeSlots`), and core never reads, copies or validates one.
+  For the key's type, a module adds it to the global `VeraInitOptions` interface that `InitOptions` extends
+  (`declare global { interface VeraInitOptions { myKey?: boolean } }`), so the key exists only where that module is
+  imported. For development's unknown-option check, it sets `$keys` on its hook function. Two modules claiming one key are
+  reported once (`option-claimed-twice`). An unknown key is ignored in both builds, as before, and development names it.
+  
+  **Feature:** a connector, a function `wire` calls with the registry, is now also handed `wire` itself, so a module made
+  of several insert points can take options and still be wired bare, as `slots` does. Existing connectors ignore the second
+  argument. Production core grows by 1 B.
+- d220d2c: A throwing `&ref` reaches the `'error'` insert, and an error nothing handles reaches `window.onerror`
+  
+  **`@verajs/renderer`:** an element ref that threw was caught and printed with `console.error`, but
+  never reached the `'error'` insert a throwing effect reaches, so an error boundary could not see it.
+  It now goes through the same chain, handed the component being rendered (a shadow root resolves to
+  its host), exactly as core hands a hook's error. The render still continues past it.
+  
+  **`@verajs/core` and `@verajs/renderer`:** with no `'error'` handler wired, a hook or ref error went to
+  `console.error` alone — so `window.onerror`, error trackers and test runners that listen for page
+  errors stayed silent while a component had stopped updating. It now goes to `reportError`, which
+  fires the window's `error` event without unwinding, so one failure still never stops its siblings.
+  Development prints the `[vera]` sentence beside it; off-browser, where there is no `reportError`, the
+  console is used as before.
+  
+  **`@verajs/inserts`:** the `'error'` insert's documentation says what now reaches it.
+- f96bfc4: `@verajs/renderer/elements`: attach behavior to elements in templates
+  
+  A new wired module. A claimant is an ordinary `'element'` insert, asked about each element of a
+  template once — its tag and static attributes — and answering with a shared `{ mount?, unmount? }` or
+  `undefined`. Every instance of the template runs `mount(element, { root, adopted })` once the render
+  that created it has finished, with the tree in place, and `unmount(kept, element)` at teardown with
+  what `mount` returned. `hold()` is not teardown; several claimants may claim one element. An app that
+  wires no claimant pays nothing.
+  
+  ```js
+  const autofocus = { mount: (element) => element.focus() };
+  wire([renderer, elements, { on: 'element', fn: (el) => (el.hasAttribute('autofocus') ? autofocus : undefined), priority: 50 }]);
+  ```
+  
+  That example is a real platform gap: on Chromium, Firefox and WebKit only the first `autofocus`
+  rendered after page load takes focus, so every later form an app shows ignores it.
+  
+  **`@verajs/renderer`:** an instance hook's `$m` now runs once the render that created the instance has
+  finished, rather than straight after its first update, when the instance was still in a detached
+  fragment. An instance torn down before its render ends never gets `$m`.
+  
+  **`@verajs/inserts`:** declares the `'element'` insert point.
+- 2cea5ce: Light-DOM slots live in `@verajs/renderer/slots` — an app without them no longer ships their code
+  
+  **`@verajs/renderer` — breaking for custom slot strategies, which are retired.** Finding a template's `<slot>`s,
+  mounting them after the first update, parking them at teardown and marking the render's own output
+  in a light host all moved out of the renderer into `@verajs/renderer/slots`. The renderer keeps
+  generic points they plug into: an **instance hook** a `'template'` hook may set on a template
+  (`{ $c, $m, $q }` — called for every instance before its first update, once its render has finished, and at teardown,
+  with nothing on the hot path for templates that have none). Slotted creation measures level with the renderer before this change on Chromium, Firefox
+  and WebKit.
+  
+  **What it weighs, against 0.2.2, gzipped.** The renderer is 4 893 B (0.2.2: 4 679), now carrying the
+  `'template'` hook `@verajs/renderer/namespaces` plugs into and the fixes below; an app that does not
+  use slots is 7 403 B (7 141). The slots module is 3 874 B (3 424), and a slotted light component
+  bundled with both is **10 831 B, up from 10 028 — about 800 B more** for the apps that use slots: the
+  contract now crosses a bundle boundary, and those apps carry it.
+  
+  - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
+    later, whose `wire` accepts the nested array `slots` now is. An older core wires nothing from it,
+    silently.
+  - `slots` is now an array; code that read `slots.fn` or `slots.on` no longer finds them.
+  - Development warns when the slots module and the renderer come from different versions of the
+    package: they are one contract across a bundle boundary. An older slots module beside this
+    renderer is treated as unwired in both builds — its fallback shows and nothing is lost.
+  - `slotDiscovery` claims each `<slot>` through `@verajs/renderer/elements` (an `'element'` claimant)
+    and carries `elements` with it; an app wiring `elements` for its own claims as well gets one
+    module, not two. A `'template'` hook that sets an instance hook before `elements` is replaced, and
+    development says so.
+  
+  **Fixed — also in 0.2.2: with slots wired, a light component's own top-level `${…}` lost its
+  content on update.** `${busy ? spinner() : list()}` as a component's whole template rendered the
+  spinner and then an empty host; a top-level list grew to one row of three. It hit components with
+  no `<slot>` at all, because every light host is captured once slots is wired. A nested render during
+  a slotted template's first update — a ref that renders a tooltip — no longer loses the slot's content
+  either.
+  
+  **`@verajs/inserts` and `@verajs/core`: `wire` takes nested arrays**, so a module made of several
+  descriptors and connectors is itself an array and sits in an app's list like any other module. The
+  `Wireable` type names what `wire` accepts.
+
 ## 0.2.1
 
 ### Patch Changes

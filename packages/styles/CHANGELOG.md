@@ -1,5 +1,24 @@
 # @verajs/styles
 
+## 0.1.3
+
+### Patch Changes
+
+- 14c7a84: A component moved into another window — a `window.open` pop-out or an iframe — and back is kept
+  
+  Moving a component into another window's document with plain DOM no longer tears it down and sets it up again: its
+  state survives the trip both ways. Its `useEffect` and `useLayoutEffect` run their cleanups and run again against the
+  new window, and `@verajs/styles` applies its styles again (a move empties a shadow root's adopted stylesheets). Content
+  rendered while it is out is built in its own window's realm, so child components created there work in every engine
+  (Firefox and Safari left them inert). A built-in host set up through `@verajs/renderer/native-elements` behaves the
+  same. Read the window inside an effect rather than in setup; remove and re-append a component to reset it.
+- 0fff22d: The `styles` option: `define({ tag, styles: css`…` }, setup)` and `init({ host, styles })`
+  
+  A component with no class of its own takes its styles as an option — the same values as `static styles`, adopted the
+  same way (a shadow root's sheets, or light DOM hoisted once per document, scoped to the tag). The option wins when both
+  are given, and `styles: null` means none. A `define` tag's option is remembered once per tag, so a component's creation
+  pays nothing for it. Core changes nothing for this.
+
 ## 0.1.2
 
 ### Patch Changes

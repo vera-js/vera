@@ -1,5 +1,26 @@
 # @verajs/autoloader
 
+## 0.2.1
+
+### Patch Changes
+
+- 283b3c6: A failed lazy-directive import is reported once, with the URL and the error together
+  
+  One failed `directiveLoader` import printed two lines: the loader's (the URL and the error) and the directives
+  engine's `loader-failed` (the directive and its elements), each with half the facts. Now the engine prints one line
+  naming the directive and the URL, with the error beside it, and the loader prints nothing.
+  
+  **What a direct caller receives changed:** the load function now rejects with `new Error(url, { cause })` — the
+  message is the URL it tried, and the import's own error is `error.cause` — instead of the import's error itself.
+- 00cb52e: A `resolve` option that throws a value which is not an Error is reported, instead of crashing the report
+  
+  The autoloader's and directive loader's `resolve` option, and a motion tick or vocabulary function, are the author's
+  code, and JavaScript lets code throw anything. The error report read `.message` or called `String()` on what was
+  thrown, so `null`, an object with no prototype, or an object whose own methods throw crashed the report itself,
+  replacing the real failure with an unrelated error from inside the framework. The value is now described by a
+  formatter that never throws (an unreadable value reads as "[unprintable value thrown]"), and the autoloader's
+  refused-URL errors keep the `href` they carry.
+
 ## 0.2.0
 
 ### Minor Changes

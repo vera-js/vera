@@ -1,5 +1,84 @@
 # @verajs/store
 
+## 0.2.0
+
+### Minor Changes
+
+- f896112: `computed` is core's, and `ref` / `shallowRef` became `signal` — shallow by default
+  
+  **Breaking.** Four changes to state, in one release:
+  
+  - **`computed` moved into core** (`import { computed } from '@verajs/core'`); `@verajs/store/computed` is removed. It is
+    now **lazy and linked only while something reads it**: read by a render, an effect or another computed, it stays
+    current inside the write that changes its source; read by nothing, it holds no subscription and evaluates when read
+    (cached until the next store write); when its last reader goes, it lets go of its sources. A computed made anywhere —
+    a setup, a render, an effect, module scope — never keeps anything alive past its last reader. It used to evaluate at
+    creation and on every dependency write, read or not.
+  - **`ref` was deep; `signal` is shallow by default — use `signal(v, { deep: true })` for the old behavior.** `ref(v)`
+    and `shallowRef(v)` are removed: `shallowRef(v)` is `signal(v)`, and `ref(v)` holding an object is
+    `signal(v, { deep: true })` (a primitive, or a value only ever replaced, needs no option). Replacing `.value` always
+    notifies; with the default, mutating inside it does not — the semantics of every signals library and TC39's
+    `Signal.State`. An element ref is `signal()`, as `ref()` was.
+  - **A signal is a small object, not a Proxy: its `value` lives on a prototype every signal shares.** Reading `.value`
+    subscribes and a write that is not `Object.is` the held value notifies (see the equality rule below). `JSON.stringify(signal)` writes the value it holds (`toJSON`);
+    `Object.keys(signal)` is `[]` and a spread or `structuredClone` copies no `value`; `'value' in signal` is `true`. Only
+    reading `.value` subscribes: `in`, `Object.keys` and `for…in` on a signal subscribe to nothing. Its tag is
+    `[object Signal]`, so a store never wraps one written into it.
+  
+  **One equality rule for stores, signals and computeds: `Object.is`.** A write, a definition or a recomputation is a
+  change when the new value is not `Object.is` the old one: `-0` written over `0` is stored and notified (it was dropped as
+  no change), and `NaN` over `NaN` is no change (a signal, an array's walkers and a computed were notified). Every other
+  value compares as `===`, at the same cost.
+  
+  `deep` takes effect only as `true`, in both builds; any other value is the default, and development names it
+  (`deep-not-boolean`).
+  
+  **TypeScript:** `Signal` is now the type `signal()` returns (`{ value: T }`); the change payload a hook is handed —
+  what `Signal<V>` used to name — is `Change<V>`. Code importing the old `Signal` type for a hook's argument switches to
+  `Change`.
+
+### Patch Changes
+
+- 07dbacd: `@verajs/core` is a peer dependency of the store
+  
+  The store used to install its own copy of core when the app's core did not match its range, and two cores on one page
+  leave the store's reactivity silently dead: writes reach one copy and subscriptions live in the other. Core is now a
+  peer dependency, so npm reports a mismatched core at install instead of installing a second copy.
+- 09e2d9c: `resource()` — async data as a reactive cell, at `@verajs/store/resource` (also exported from the package root)
+  
+  `resource((signal) => fetchUser(state.id, { signal }))`, created in a component's setup, is a cell of `loading`,
+  `value`, `error` and `refreshing` that a render reads like any store. When what the source read changes, the previous
+  request is aborted and the source runs again; only the latest request ever writes, and an aborted request is not an
+  error. A refetch keeps the previous value on screen. Removing the component aborts the request in flight. On a server it
+  does not fetch: the page renders the loading state. 390 B gzip, and nothing added to an app that does not import it.
+- Updated dependencies [da55d31]
+- Updated dependencies [b1e8b6a]
+- Updated dependencies [f896112]
+- Updated dependencies [14c7a84]
+- Updated dependencies [b8f7d30]
+- Updated dependencies [0986593]
+- Updated dependencies [afbae92]
+- Updated dependencies [dc329ac]
+- Updated dependencies [8854735]
+- Updated dependencies [aab427a]
+- Updated dependencies [c300bb3]
+- Updated dependencies [0c4ffac]
+- Updated dependencies [da55d31]
+- Updated dependencies [2912a97]
+- Updated dependencies [78fa178]
+- Updated dependencies [d4dc769]
+- Updated dependencies [d220d2c]
+- Updated dependencies [8317803]
+- Updated dependencies [b39a5ae]
+- Updated dependencies [bb4bc7a]
+- Updated dependencies [d220d2c]
+- Updated dependencies [0986593]
+- Updated dependencies [b71541b]
+- Updated dependencies [2cea5ce]
+- Updated dependencies [0986593]
+- Updated dependencies [46865a3]
+  - @verajs/core@0.4.0
+
 ## 0.1.2
 
 ### Patch Changes

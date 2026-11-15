@@ -1,5 +1,440 @@
 # @verajs/core
 
+## 0.4.0
+
+### Minor Changes
+
+- f896112: `computed` is core's, and `ref` / `shallowRef` became `signal` — shallow by default
+  
+  **Breaking.** Four changes to state, in one release:
+  
+  - **`computed` moved into core** (`import { computed } from '@verajs/core'`); `@verajs/store/computed` is removed. It is
+    now **lazy and linked only while something reads it**: read by a render, an effect or another computed, it stays
+    current inside the write that changes its source; read by nothing, it holds no subscription and evaluates when read
+    (cached until the next store write); when its last reader goes, it lets go of its sources. A computed made anywhere —
+    a setup, a render, an effect, module scope — never keeps anything alive past its last reader. It used to evaluate at
+    creation and on every dependency write, read or not.
+  - **`ref` was deep; `signal` is shallow by default — use `signal(v, { deep: true })` for the old behavior.** `ref(v)`
+    and `shallowRef(v)` are removed: `shallowRef(v)` is `signal(v)`, and `ref(v)` holding an object is
+    `signal(v, { deep: true })` (a primitive, or a value only ever replaced, needs no option). Replacing `.value` always
+    notifies; with the default, mutating inside it does not — the semantics of every signals library and TC39's
+    `Signal.State`. An element ref is `signal()`, as `ref()` was.
+  - **A signal is a small object, not a Proxy: its `value` lives on a prototype every signal shares.** Reading `.value`
+    subscribes and a write that is not `Object.is` the held value notifies (see the equality rule below). `JSON.stringify(signal)` writes the value it holds (`toJSON`);
+    `Object.keys(signal)` is `[]` and a spread or `structuredClone` copies no `value`; `'value' in signal` is `true`. Only
+    reading `.value` subscribes: `in`, `Object.keys` and `for…in` on a signal subscribe to nothing. Its tag is
+    `[object Signal]`, so a store never wraps one written into it.
+  
+  **One equality rule for stores, signals and computeds: `Object.is`.** A write, a definition or a recomputation is a
+  change when the new value is not `Object.is` the old one: `-0` written over `0` is stored and notified (it was dropped as
+  no change), and `NaN` over `NaN` is no change (a signal, an array's walkers and a computed were notified). Every other
+  value compares as `===`, at the same cost.
+  
+  `deep` takes effect only as `true`, in both builds; any other value is the default, and development names it
+  (`deep-not-boolean`).
+  
+  **TypeScript:** `Signal` is now the type `signal()` returns (`{ value: T }`); the change payload a hook is handed —
+  what `Signal<V>` used to name — is `Change<V>`. Code importing the old `Signal` type for a hook's argument switches to
+  `Change`.
+- dc329ac: `effect(fn, options)` is the one primitive for work that follows state; `portal(target, template)` draws into another element
+  
+  **Breaking.** Six exports leave `@verajs/core`, replaced by `effect`:
+  
+  | Before | Now |
+  | --- | --- |
+  | `useEffect(fn)` | `effect(fn)` |
+  | `useLayoutEffect(fn)` | `effect(fn, { timing: 'layout' })` |
+  | `useSyncEffect(fn)` | `effect(fn, { timing: 'sync' })` |
+  | `useHook(fn, priority, element?)` | `effect(fn, { priority, owner: element })` |
+  | `createHook({ callback, priority, element })` | `effect(fn, { priority, owner })`, started with `.run()` — scheduled, once per flush. Running INSIDE every write, unbatched, is no longer public; `computed` covers a derived value |
+  | `useRender(template, element)` | return the render from the setup; to draw into another element, `portal` (below) |
+  
+  - **`effect` returns the effect itself**: `run()` runs it now, `stop()` ends it for good — its cleanup runs once, it
+    leaves every store, and nothing runs it again.
+  - **`owner`** makes an effect outside a setup — a module's own value, retired by whoever owns it. With no owner and no
+    component being set up, it throws (`no-owner`), as the hooks did.
+  - **`priority`** orders within a flush, lower first (50 is the render); a non-finite one registers nothing, and
+    development says why (`priority-not-finite`).
+  
+  **`@verajs/renderer/portal`** (new): `portal(target, template)`, called in a setup, draws into `target` — a modal on
+  `document.body` — in a range of its own (any number share a target), in the render's slot (keyed rows follow their
+  items; layout effects see it drawn), and leaves with its component (a `persist`ing one takes it out while away and draws
+  it again when back). It draws `target`'s light DOM, never a shadow root, and registers nothing on a server. It keeps
+  `@verajs/core` external in every build, so the renderer now lists `@verajs/core` as an OPTIONAL peer dependency — only
+  this entry needs it.
+- 0c4ffac: A component moved by one DOM operation is no longer torn down and set up again — and core no longer touches custom elements that are not its own
+  
+  **Breaking for code that relied on a move re-running setup.** Moving a Vera component (one that ran `init()`) that
+  is already in the page in ONE operation — `append` or `insertBefore`, which is how a keyed list reorders and how
+  light-DOM slots place a slotted component — used to run its whole teardown and then its whole setup again:
+  its effect cleanups, its `disconnectedCallback`, its `connectedCallback`, a second render, and a second fetch if it
+  fetched in its setup. A Vera component moved by one DOM operation is no longer re-rendered or set up again: neither
+  callback runs, its effects stay live, and its state is untouched. Core tells a move from a removal the way the platform
+  lets it — a moved element is still connected when its `disconnectedCallback` runs. A removal (`remove()`, or a hop
+  through a `DocumentFragment`) tears down exactly as before, synchronously, and a move into another document (a
+  popped-out window) still tears down and sets up again, since its listeners and frame clock belong to the old window.
+  
+  **Fixed: core wrote to third-party custom elements.** Core wraps `customElements.define` to run effect cleanups on
+  removal, and that wrapper sees every class defined after core loads. On every disconnect it set a field of its own on
+  the element — in production a one-letter name (`t` in 0.3.1) — so a minified third-party component keeping a field of
+  that name had it overwritten with `true` whenever it left the page. The wrapper now touches only elements `init()` has
+  run on; any other custom element gets exactly its own callbacks, with nothing read from it or written to it.
+  
+  The wrapped `connectedCallback` also returns what the component's own returned, so a server render still awaits an
+  `async connectedCallback`.
+- da55d31: A hook, `render()` or `mount()` with no component being set up now throws (`no-owner`, in every build)
+  
+  **Breaks:** `async connectedCallback() { init(this); await load(); useEffect(…); render(…) }` — an `await` BETWEEN
+  `init()` and a hook or `render()`. It worked for a component alone and now throws, in the browser and on the server
+  (`renderToStringAsync`) alike. Three fixes, in the order the message gives them:
+  
+  1. Await **before** `init(this)`: `const data = await load(); init(this); …`
+  2. Or set up first and write what arrives into state: `init(this); const state = createStore({ data: null });
+     render(…); state.data = await load();`
+  3. Or pass the element to a hook created later: `useEffect(fn, this)`.
+  
+  **Fixes:** setup used to stay open until a `render()`/`mount()` or the next component's `init()`, so the same code
+  behaved three ways: alone it worked; overtaken by a component that had finished setup, its hooks were dropped
+  silently; overtaken by one still mid-setup (another async component, initialized later), its hooks — and its render —
+  attached to THAT component and ran against the wrong element, with no error. Setup now ends at the end of `init()`'s
+  microtask turn, so a hook after an `await` fails the same way every time, naming the fixes. A hook or `render()` from
+  a handler after setup, and a second `render()`, fail the same way (they did nothing before).
+- 2912a97: A component is one setup that returns its render — `render()` and `mount()` are removed
+  
+  **Breaking.** `init` takes the component's setup as its second argument. The setup runs once, untracked, and returns
+  the function that draws; that function is the only part that re-runs when state it read changes:
+  
+  ```js
+  class ClickCounter extends HTMLElement {
+    connectedCallback() {
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ count: 0 });
+        return () => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`;
+      });
+    }
+  }
+  ```
+  
+  Migrating:
+  
+  - **`render(fn)` becomes `return fn`** from the setup: move everything between `init(this)` and `render(…)` into a
+    function, `init(this, () => { …; return () => html`…`; })`. A template passed to `render` directly (not a function)
+    was drawn once; return `() => view` for the same result.
+  - **`mount()` goes.** A setup that returns nothing is a side-effect setup: its effects run and it draws nothing.
+  - **The options travel with the host.** `init(this, { mode: 'open' })` becomes `init({ host: this, shadow: 'open' },
+    setup)`; `shadow` is `'open'`, `'closed'`, `false` (light DOM) or a `ShadowRootInit`. An old call still runs — the
+    object is ignored in every build, so it sets up with no shadow root — and development names the new spelling once
+    (`init-options`); TypeScript refuses it at build time.
+  - **Extra arguments to `render(template, …args)`** were forwarded to the renderer, which never read them. Capture
+    anything the render needs in the setup instead. `useRender(template, element)` takes exactly two.
+  - **`useRender` returns nothing (`void`)**, as its docs always said. Its TypeScript type had declared the hook it
+    registered (`HookCallback | undefined`), and calling that ran a render pass by hand; a render re-runs when state it
+    read changes, so write to that state instead.
+  - **A class can keep a method.** `init(this)` with no setup calls `this.setup()`, so
+    `connectedCallback() { init(this); }` plus `setup() { …; return () => html`…`; }` is the same component.
+    `init({ host: this, shadow: 'open' })` does the same with a shadow root. Development names a near-miss
+    spelling (`setUp`, `Setup`, `set_up`) once.
+  - **An async setup is atomic.** Its hooks must be registered before its first `await` — one after it throws
+    `no-owner`, as before. Nothing it registered runs until it resolves, a write while it is pending does not re-run
+    it, and a rejection is reported once through the error chain and commits nothing.
+  
+  `renderer({ shadow })` sets the app's default root — `wire([renderer({ shadow: 'open' })])` — which a component's own
+  `shadow` overrides. The same `wire` call works unchanged on the server, where `@verajs/ssr` keeps its own renderer
+  and learns the default from it.
+  
+  A removed component now leaves nothing behind in a store it read: each hook unsubscribes exactly the keys it joined,
+  with no sweep, and an element set up again in place runs its previous setup's effect cleanups first.
+- 8317803: A component's shadow root belongs to its template: `foreignNodes: 'drop' | 'preserve'`
+  
+  **Breaking:** a shadow component whose root is empty at its first render no longer carries the two marker comments
+  around its template. Its template owns the root: foreign nodes — nodes placed in it by anything other than the template
+  — are left alone by an ordinary re-render and cleared with the rest when the template changes (a different template,
+  text, a list, nothing). Development names the first one it clears. Creating a shadow component is cheaper for it.
+  
+  To keep the old behavior, a component says `init({ host: this, shadow: 'open', foreignNodes: 'preserve' }, setup)`, or
+  an app sets it for every component with `wire([renderer({ foreignNodes: 'preserve' })])`. That default covers component
+  roots only: a container handed to `renderInto` directly (`document.body`, `#app`, a shadow root you render into
+  yourself) always keeps foreign nodes where they are. A shadow root that already holds something at its first render — a
+  server's declarative root, `@verajs/styles`' `<style>` fallback — keeps its markers, and light-DOM component roots are
+  unchanged. An invalid value is named in development and treated as `'drop'`.
+- b71541b: One queue, one flush: renders and effects run as a microtask
+  
+  **Breaking for timing.** Every queued render, layout effect and effect now runs in ONE flush — a microtask, as in Lit
+  and Vue — instead of on the element's next animation frame. After any `await`, everything Vera has queued is done — the DOM
+  and its effects are current, on every device; `flush()` drains at once without an `await`. A write reaches the DOM in about 1–5 ms instead of 19–24.
+  
+  - **Order:** renders, then layout effects, then effects — and parents before children, so a child re-rendered by its
+    parent's new props renders once.
+  - **`useLayoutEffect` now means what it means in React:** it runs right after the render, so it measures the DOM that
+    render made, and a write it makes re-renders in the same flush, before paint. It used to run BEFORE the render and
+    see the previous render's DOM — a measurement ported from React measured stale layout. A layout effect now also runs
+    after `@verajs/directives` has applied an element's directives. A hook of your own made with `createHook` at a
+    priority between 25 and 60 that relied on running after layout effects on the first pass now runs before them.
+  - **`frameBudget`** (new, opt-in): for apps that receive bursts of data as many tasks in one frame — past about 4 ms
+    of flush work in a frame, the next flush waits for the element window's frame (or a short timer where there are no
+    frames), so a burst renders about once per frame (measured 2–4× faster to the final DOM). The trade: after `await`
+    the DOM may still be on its way — `flush()` first. User input gains nothing; browsers already merge it.
+  - **Loops:** a hook may run twice in one flush — so an effect that measures what was just rendered and stores it lands
+    before paint — and a third run waits for the next frame. A self-feeding effect never freezes the page; development
+    warns after 50 consecutive frames, naming the hook that writes. `allowRenderLoop(element)` silences it.
+  - **`flush()`** runs everything queued, synchronously — replacing the swap-the-scheduler `flushSync` recipe. Inside a
+    running flush (a hook, a render, an event one of them fired) it does nothing — the DOM updates when that flush ends —
+    and development says so once (React's `flushSync` makes the same choice).
+  - **`setRenderScheduler(fn)`** now decides when a FLUSH runs; `microtask` is the same timing without the budget.
+  - **Effects run before paint**, after their flush's renders: a slow `useEffect` delays its own update's paint.
+  - A window with no animation frames updates after a microtask, like every other, rather than synchronously.
+  - **`useHook(callback, priority, element?)`** is new: a hook of your own, scheduled as the built-in ones are, at a
+    priority you choose — `25` runs before the render and reads the DOM the last render left. `createHook` stays the
+    raw primitive, which runs inside every write it hears, unbatched.
+  
+  `@verajs/ssr`: each round of the server's drains runs core's flush first, so both `renderToString` and
+  `renderToStringAsync` serialize the same settled markup — a `useLayoutEffect`'s state now reaches the markup through
+  both (it reached only the asynchronous one).
+
+### Patch Changes
+
+- da55d31: `useEffect(async () => …)` works: only a returned function is a cleanup
+  
+  An async callback returns a promise, and core took it as the cleanup — calling it on the next run and on removal
+  printed `[vera] a hook threw:`. It now just runs (`useEffect`, `useLayoutEffect`, `useHook`), the type admits it, and
+  development names an async callback once: it cannot clean up, and what it awaits can arrive late — write a plain
+  effect that starts the work and returns a cleanup that cancels it.
+- b1e8b6a: `effect()` throws at the call when given a non-function callback
+  
+  Previously `effect(undefined)` was accepted and failed later, at its first run, far from the line that caused it. It
+  now throws a `TypeError` at the call, in development and production alike, coded `callback-not-function`: the usual
+  cause is passing a function's result (`effect(fn())`) instead of the function, or a callback read from options that is
+  undefined.
+- 14c7a84: A component moved into another window — a `window.open` pop-out or an iframe — and back is kept
+  
+  Moving a component into another window's document with plain DOM no longer tears it down and sets it up again: its
+  state survives the trip both ways. Its `useEffect` and `useLayoutEffect` run their cleanups and run again against the
+  new window, and `@verajs/styles` applies its styles again (a move empties a shadow root's adopted stylesheets). Content
+  rendered while it is out is built in its own window's realm, so child components created there work in every engine
+  (Firefox and Safari left them inert). A built-in host set up through `@verajs/renderer/native-elements` behaves the
+  same. Read the window inside an effect rather than in setup; remove and re-append a component to reset it.
+- b8f7d30: `persist: seconds`, and an async setup is never run twice for one element
+  
+  A removed component can now be kept for a while: with `persist: seconds` (an `init` and `define` option), removal
+  PAUSES it — every effect's cleanup runs, its state and DOM are kept — and re-adding it within that many seconds resumes
+  it (every hook runs once, so a change it missed is drawn; its setup does not run again). Past the window it is torn
+  down. The default, 0, keeps today's behavior.
+  
+  The same pause fixes a bug: a component removed and re-added while its **async setup** was still awaiting started a
+  SECOND setup, and an effect the first one registered after its `await` then ran twice on every change. Now, removed
+  while pending, a component waits up to 5 s: re-added in time, the in-flight setup carries on (one setup, one fetch);
+  still out, it is torn down — and development says so.
+- 0986593: `define()` — a component without writing a class
+  
+  `define('tag', setup)` and `define({ tag, …options }, setup)` register the custom element and return its class —
+  the registered one, so `new` and `instanceof` work even after a development redefine. The
+  options are `init`'s, plus:
+  
+  - `props: { name: default }` — declared props, for components other code drives: a plain write after connect repaints
+    (an undeclared prop's does not). Defaults are lazy and copied per element for arrays and plain objects; types follow
+    the defaults; a value set before the tag was defined wins.
+  - `attributes: ['label', 'data-count']` — observed attributes, each a `string | null` prop under its camel name; one
+    way only; removal writes `null`. A tag that declares none carries no attribute callback.
+  - `methods: { open() {…} }` — public methods on the prototype; `this` is the element.
+  
+  Development names the mistakes by code: a bad tag or setup, a second `define`, a default that cannot be copied, a
+  shared prop that would change type, an attribute or method shadowing the platform's.
+  
+  Also: a component's props record is released when it is removed (class components included), so a removed element no
+  longer keeps its props store alive until the browser's cycle collector frees it.
+- afbae92: Core's diagnostics return, and two behaviors are corrected
+  
+  The diagnostics the 0.3 rebuild set aside are back, each tied to a code with a docs entry. Development only (zero
+  production bytes) unless noted:
+  
+  - **No renderer wired** is said once per page **in every build** — a CDN page never runs a development build.
+  - A self-feeding `useSyncEffect` is stopped and named at depth 50; `html`/`svg`/`mathml` called with a string,
+    `untrack`/`setRenderScheduler` given a non-function, `init`/`allowRenderLoop` given a non-element are named; a write a
+    store's source object refuses (frozen, sealed, non-writable, getter-only) names the rule instead of the engine's
+    trap message; a `Map`/`Set` in a store with nothing to make it reactive is said once; a bound property meeting a
+    getter-only member is refused and said once; a setup that registered hooks but was never committed, and a second
+    `init()` in one setup, are said; markup addressed to an unwired directives engine is said. A component declaring `static styles` with `@verajs/styles` not wired is said
+    once per page — the check asks for styles itself, so wiring another `'init'` module no longer silences it.
+  - A bare `render()` (no template) commits the setup without registering a render — it no longer draws `undefined`
+    over the root — and development names `mount()`.
+  - **A cleanup that throws now reaches the app's `'error'` chain**, like a hook that throws, attributed to its
+    component — apps with a chain wired will now see cleanup errors they did not before. With no chain it is reported
+    the platform's way, beside its code (`cleanup-threw`) where the console prints it.
+  - `init` and `allowRenderLoop` accept an element from another window (a popped-out window's component failed the
+    opener's `instanceof Element`).
+  - Each copy of core tears down only the components it initialized: a page holding two copies (a bundle that inlines
+    core) threw on removing a component, as one copy read fields the other never set.
+- 8854735: Hooks run in exact priority order, and a non-finite priority is refused the same way in both builds — development says why
+  
+  **Fixes:** hooks were ordered by one number, `priority × 1e9 + a page-wide creation count`. Close fractional priorities
+  could run in the wrong order (`50.000001` after `50.000002` once enough hooks were created between them), priorities
+  above about 9 million collided, and on a page that had created a billion hooks a priority-50 hook was read as 51 — it
+  ran after priority-51 hooks and a property arriving late no longer re-rendered it. Priority and creation order are now
+  compared separately: any finite priority runs in exact order, then creation order within it.
+  
+  **A priority that is not a finite number** (`NaN` — what `parseInt` of a missing config value gives — `Infinity`,
+  `-Infinity`): `useHook` and `createHook` register nothing and return `undefined`, in both builds, as before; development
+  now also prints `[vera] … (priority-not-finite)` naming the call, where it used to say nothing. `wire` follows the same
+  rule: it used to throw in development only and, in production, wire the entry and misbehave; it now refuses in both
+  builds — nothing is wired — and development prints `(wire-priority)`. **In production the refusal is SILENT** (no
+  message is shipped): an effect with a bad priority simply never runs, so check development's console.
+- aab427a: Creating and removing light-DOM components is up to 6% faster: core marks its own components with a field, not a WeakSet
+  
+  **Performance:** core recorded every component it initialized in a WeakSet keyed by the element, and its
+  `customElements.define` wrapper asked that set on every connect and disconnect. A weak collection keyed by DOM nodes
+  costs both engines' garbage collectors for every entry, so the mark is now a field on the element under a `Symbol`
+  private to each copy of core — two copies of core on one page still each know only their own components. Measured on
+  light-DOM components with a fresh browser per page: creation 5–6% faster in Chrome and Firefox, churn 5% faster in
+  Chrome and even in Firefox.
+- c300bb3: A module can own a key on a component's options: core hands `init({ host, … })`'s object to every `'init'` hook, and `wire` hands a connector itself
+  
+  **Feature (for module authors):** an `'init'` hook now receives the component's options object beside the element, or
+  `undefined`. A module reads only its own key (slots reads `observeSlots`), and core never reads, copies or validates one.
+  For the key's type, a module adds it to the global `VeraInitOptions` interface that `InitOptions` extends
+  (`declare global { interface VeraInitOptions { myKey?: boolean } }`), so the key exists only where that module is
+  imported. For development's unknown-option check, it sets `$keys` on its hook function. Two modules claiming one key are
+  reported once (`option-claimed-twice`). An unknown key is ignored in both builds, as before, and development names it.
+  
+  **Feature:** a connector, a function `wire` calls with the registry, is now also handed `wire` itself, so a module made
+  of several insert points can take options and still be wired bare, as `slots` does. Existing connectors ignore the second
+  argument. Production core grows by 1 B.
+- 78fa178: `shallowRef()`'s public type drops the internal `_ignore` flag, and the README says to set up on every connection
+  
+  `connectedCallback` runs again every time an element is put back in the page, and `init()` there is
+  what gives it current markup and live effects again; the core README now says so plainly — set up on
+  every connection, keep state on the element or in a store.
+  
+  `shallowRef()`'s return type is `{ value: T }`; the store's internal `_ignore` flag no longer shows in
+  autocomplete on every `shallowRef`.
+- d4dc769: `snapshot(value)`: a deep plain copy of state, for cloning, sending or saving it
+  
+  A record written into a store is stored as given (its getters never run on the write), so the raw data passed to
+  `createStore` can hold stores, which can't be cloned (`structuredClone`, `postMessage` and IndexedDB throw on one).
+  `snapshot(state)` returns a plain copy instead: every store replaced by its data at every depth, `Map`s and `Set`s copied
+  with their entries, cycles kept, and anything else (a class instance, a `Date`) kept as given. An own `__proto__` key (as
+  `JSON.parse` makes) is copied as a key. It costs a walk of what it copies, only when called.
+- d220d2c: A throwing `&ref` reaches the `'error'` insert, and an error nothing handles reaches `window.onerror`
+  
+  **`@verajs/renderer`:** an element ref that threw was caught and printed with `console.error`, but
+  never reached the `'error'` insert a throwing effect reaches, so an error boundary could not see it.
+  It now goes through the same chain, handed the component being rendered (a shadow root resolves to
+  its host), exactly as core hands a hook's error. The render still continues past it.
+  
+  **`@verajs/core` and `@verajs/renderer`:** with no `'error'` handler wired, a hook or ref error went to
+  `console.error` alone — so `window.onerror`, error trackers and test runners that listen for page
+  errors stayed silent while a component had stopped updating. It now goes to `reportError`, which
+  fires the window's `error` event without unwinding, so one failure still never stops its siblings.
+  Development prints the `[vera]` sentence beside it; off-browser, where there is no `reportError`, the
+  console is used as before.
+  
+  **`@verajs/inserts`:** the `'error'` insert's documentation says what now reaches it.
+- b39a5ae: The line printed beside an error your own code threw now carries a code
+  
+  When a hook, a hook's cleanup, an element ref or an element claim throws and no `'error'` insert is wired, the error
+  is reported the platform's way (`reportError`), and — in development, or wherever the platform has no `reportError`, as
+  in Node — printed with a line of ours beside it. That line was the one message without a code. It now has one:
+  production prints `[vera] hook-threw`, `[vera] cleanup-threw`, `[vera] ref-threw` or `[vera] claim-threw`, and
+  development the full sentence ending in that code, so every line the framework prints carries a code. The bare codes
+  are shorter than the words they replace: `vera.min.js` is 7 B smaller and `vera-renderer.min.js` 2 B.
+- bb4bc7a: `!name` on a component is delivered: a running component re-renders when only a `!name` changed
+  
+  `!name` on a custom element wrote a plain property, so a component that was already running never heard a change to it
+  alone: the element held the new value while its render went on showing the old one (a `.name` beside it, changing in
+  the same render, hid this). On a hydrated page every prop arrives after the child is running, so a `!name` never
+  reached it at all. It is now delivered exactly as `.name` is — template binding and `spread()` key alike — compared
+  against the component's current value on every render, so an equal value costs one read and renders nothing.
+  
+  Also:
+  - During hydration, `!name` on a built-in element is recorded only for a control's user state — `value`, `checked`,
+    `selected`, `open` (the same list now applies to `.open`) — and any other `!name` is written: `!indeterminate`,
+    which no markup can carry, used to be dropped on adoption.
+  - A getter with no setter bound through `!name` is refused with one development warning, instead of a plain write that
+    threw in module code.
+- d220d2c: A component in a popped-out window or an iframe renders on that window's frames, with that window's elements
+  
+  **`@verajs/core`:** renders and effects were scheduled on the `requestAnimationFrame` of the window
+  that loaded VeraJS, so an element moved into another window was redrawn on the opener's clock — one
+  opener call and none on the iframe's, measured — and would freeze when the opener's tab was hidden.
+  The default scheduler now uses the element's own window (`element.ownerDocument.defaultView`), with
+  the global as the fallback. A scheduler passed to `setRenderScheduler` now receives the element as a
+  second argument, `(run, element)`, so a custom one can do the same; one-argument schedulers are
+  unaffected.
+  
+  **`@verajs/renderer`:** every template was imported through the module's `document`, so a custom
+  element in a template rendered into another window was constructed by the opener's registry, with the
+  opener's class — whose constructed stylesheets that window cannot adopt. Instances are now imported
+  into the document they will live in, so they are built by that window's own registry.
+- 0986593: `@verajs/renderer/native-elements` — built-in hosts get a custom element's lifecycle
+  
+  `wire([renderer, nativeElements])` lets `init(div, setup)` on a built-in element (a `div`, a `section`…) behave like a
+  custom element: torn down when removed, set up again when re-added, kept on a move, and set up at its first connect
+  when `init` ran off the page. Without the module, development warns once that such a host is never released.
+  
+  Core: an `'init'` insert now receives the setup as its third argument and may answer `false` to defer it.
+- 2cea5ce: Light-DOM slots live in `@verajs/renderer/slots` — an app without them no longer ships their code
+  
+  **`@verajs/renderer` — breaking for custom slot strategies, which are retired.** Finding a template's `<slot>`s,
+  mounting them after the first update, parking them at teardown and marking the render's own output
+  in a light host all moved out of the renderer into `@verajs/renderer/slots`. The renderer keeps
+  generic points they plug into: an **instance hook** a `'template'` hook may set on a template
+  (`{ $c, $m, $q }` — called for every instance before its first update, once its render has finished, and at teardown,
+  with nothing on the hot path for templates that have none). Slotted creation measures level with the renderer before this change on Chromium, Firefox
+  and WebKit.
+  
+  **What it weighs, against 0.2.2, gzipped.** The renderer is 4 893 B (0.2.2: 4 679), now carrying the
+  `'template'` hook `@verajs/renderer/namespaces` plugs into and the fixes below; an app that does not
+  use slots is 7 403 B (7 141). The slots module is 3 874 B (3 424), and a slotted light component
+  bundled with both is **10 831 B, up from 10 028 — about 800 B more** for the apps that use slots: the
+  contract now crosses a bundle boundary, and those apps carry it.
+  
+  - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
+    later, whose `wire` accepts the nested array `slots` now is. An older core wires nothing from it,
+    silently.
+  - `slots` is now an array; code that read `slots.fn` or `slots.on` no longer finds them.
+  - Development warns when the slots module and the renderer come from different versions of the
+    package: they are one contract across a bundle boundary. An older slots module beside this
+    renderer is treated as unwired in both builds — its fallback shows and nothing is lost.
+  - `slotDiscovery` claims each `<slot>` through `@verajs/renderer/elements` (an `'element'` claimant)
+    and carries `elements` with it; an app wiring `elements` for its own claims as well gets one
+    module, not two. A `'template'` hook that sets an instance hook before `elements` is replaced, and
+    development says so.
+  
+  **Fixed — also in 0.2.2: with slots wired, a light component's own top-level `${…}` lost its
+  content on update.** `${busy ? spinner() : list()}` as a component's whole template rendered the
+  spinner and then an empty host; a top-level list grew to one row of three. It hit components with
+  no `<slot>` at all, because every light host is captured once slots is wired. A nested render during
+  a slotted template's first update — a ref that renders a tooltip — no longer loses the slot's content
+  either.
+  
+  **`@verajs/inserts` and `@verajs/core`: `wire` takes nested arrays**, so a module made of several
+  descriptors and connectors is itself an array and sits in an app's list like any other module. The
+  `Wireable` type names what `wire` accepts.
+- 0986593: A server render's components are released when it ends
+  
+  Each `renderToString` / `renderToStringAsync` is a turn: the hooks its tree created leave every store when it ends, so
+  a module-scope store read by server-rendered components no longer keeps every rendered component alive for the life of
+  the process, and a later write no longer re-runs renders that already served their request.
+- 46865a3: A store array's `splice`, `shift`, `sort` and other whole-array methods notify once, after they finish
+  
+  Called through a store, `rows.splice(4, 1)` on ten rows wrote them back one index at a time, and a hook
+  that runs on every write — a raw `createHook`, or `useSyncEffect` — ran between those writes: seven
+  times, six of them on a half-shifted array holding one row twice or a hole. `splice`, `push`, `pop`,
+  `shift`, `unshift`, `sort`, `reverse`, `fill` and `copyWithin` now run whole on the array and then tell
+  each subscriber once, so a synchronous hook only ever sees the finished array. Queued hooks (a
+  component's render) already ran once and saw the end state; what they skip now is the per-index
+  bookkeeping. What the methods return is unchanged: the store array itself, or the same proxies a read
+  would hand back.
+  `sort`'s comparator still receives the store's proxies; a comparator that writes to the store is heard mid-sort, as any
+  write is, so keep comparators pure. One idiom keeps the old behavior, because it never reads the
+  method through the store: `Array.prototype.push.apply(state.rows, more)` — write `state.rows.push(...more)`.
+- Updated dependencies [194266a]
+- Updated dependencies [8854735]
+- Updated dependencies [c300bb3]
+- Updated dependencies [d220d2c]
+- Updated dependencies [f96bfc4]
+- Updated dependencies [2cea5ce]
+  - @verajs/inserts@0.2.2
+
 ## 0.3.1
 
 ### Patch Changes

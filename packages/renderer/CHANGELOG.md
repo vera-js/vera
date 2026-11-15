@@ -1,5 +1,602 @@
 # @verajs/renderer
 
+## 0.3.0
+
+### Minor Changes
+
+- 8317803: A component's shadow root belongs to its template: `foreignNodes: 'drop' | 'preserve'`
+  
+  **Breaking:** a shadow component whose root is empty at its first render no longer carries the two marker comments
+  around its template. Its template owns the root: foreign nodes — nodes placed in it by anything other than the template
+  — are left alone by an ordinary re-render and cleared with the rest when the template changes (a different template,
+  text, a list, nothing). Development names the first one it clears. Creating a shadow component is cheaper for it.
+  
+  To keep the old behavior, a component says `init({ host: this, shadow: 'open', foreignNodes: 'preserve' }, setup)`, or
+  an app sets it for every component with `wire([renderer({ foreignNodes: 'preserve' })])`. That default covers component
+  roots only: a container handed to `renderInto` directly (`document.body`, `#app`, a shadow root you render into
+  yourself) always keeps foreign nodes where they are. A shadow root that already holds something at its first render — a
+  server's declarative root, `@verajs/styles`' `<style>` fallback — keeps its markers, and light-DOM component roots are
+  unchanged. An invalid value is named in development and treated as `'drop'`.
+- 610a231: Hydration is a module wired beside the renderer; the `@verajs/renderer/hydrate` entry is retired
+  
+  **Breaking for apps that hydrate.** `@verajs/renderer/hydrate` — a second renderer whose first render adopted server
+  markup — is gone. Hydration is now `hydration`, from `@verajs/renderer/hydration`, wired beside the one renderer:
+  
+  ```js
+  import { renderer } from '@verajs/renderer';
+  import { hydration } from '@verajs/renderer/hydration';
+  wire([renderer, hydration]);
+  ```
+  
+  On a CDN page, load `vera-renderer-hydration.min.js` beside `vera-renderer.min.js` and wire both; the import-map
+  swap to `vera-renderer-hydrate.min.js` no longer exists. Adoption is unchanged in what it promises — node identity
+  kept, attributes read and written only on a difference, form state left as the user left it, a mismatch rebuilding
+  one container and warning once — and an app that never hydrates loads none of it. `hydration` and
+  `@verajs/renderer/hydrate-slots` are Node-safe to import, unlike the retired entry.
+  
+  **A container holding nothing but its SSR stylesheets is rendered, not hydrated.** `styles` writes a
+  `<style data-vm-sheet>` into a client-made shadow root whenever it cannot adopt a sheet — string `static styles` in
+  every engine — and the retired entry took that for server output and warned a mismatch on a page no server rendered.
+- c7ab5fc: JSX `value` and `checked` are controlled: compared with the control's live state
+  
+  `value={x}` compiled to `.value`, which compares with the last value rendered — so a value reset before the next render
+  (typing, then a submit handler setting it back to `''` within one frame) rendered `''` twice, wrote nothing, and left the
+  user's text in the box. `value`/`checked` now compile to `!value`/`!checked`, which write whenever the control
+  disagrees, as React's controlled inputs do; `@verajs/renderer/tag`'s runtime name table (a tag used as a JSX component)
+  maps them the same. An explicit `.value={…}` is unchanged.
+  
+  **Breaking for one pattern:** as with React, a bound `value` the component never updates on input is now restored by the
+  next render — `<input value={initial}>` with no input handler used to keep what was typed. The compiler now says so, once,
+  with the file and position: a new `onWarning` option of `transformJsx` hears it, the Vite plugin reports it through Vite,
+  and the buildless loader prints it in development. Use `defaultValue` for an initial value, `readOnly` for a fixed one,
+  or keep the value in step with `onInput`/`onChange`.
+- 5399258: Light slots' carrier is `<ins hidden data-vm-unassigned>`, no longer `<vm-unassigned hidden>`
+  
+  Content no slot takes still waits connected and unrendered in the host's first child — only that child's element
+  changed. `<vm-unassigned>` was a dashed name nothing ever defined, so it matched `:not(:defined)` for good: a
+  discovery-based loader (`@verajs/autoloader` included) tried to import `vm-unassigned.js`, and a "wait until every
+  element is defined" check never finished. `<ins>` is a standard element — defined, valid HTML around any content, and
+  safe inside a `<p>`, where a `<div>` would close the paragraph.
+  
+  **Breaking for a selector that names the old element:** write `[data-vm-unassigned]` where you wrote `vm-unassigned` —
+  `:scope > :not([data-vm-unassigned])` to skip it among a host's children.
+- 446c81f: Light-DOM slots: the server states the light tree, and hydration reads it instead of inferring it
+  
+  **Breaking for server-rendered HTML cached from an earlier version.** `@verajs/ssr` now distributes
+  light-DOM slots itself, while `@verajs/renderer/slots` is wired. Each filled slot's content sits
+  between the same two comments the client keeps around a filled slot (`<!--[-->` … `<!--]-->`), and
+  every light host carries `data-vm-light`: a format number, then which of those ranges each light
+  child went into, in light order. A hydrating page reads them through a new opt-in module,
+  `@verajs/renderer/hydrate-slots` — `wire([renderer, hydration, slots, hydrateSlots])` — which only an
+  app that hydrates light slots loads. Without it, a server-rendered slots host is left exactly as
+  served and a coded error (`hydration-slots`) names what to wire. Render and hydrate with matching
+  releases: a page in another format renders fresh, its content kept, and the warning says so; a
+  component host without `data-vm-light` is treated as made on the client. Serve the server's HTML
+  unmodified, comments included — stripped markers mean the host renders fresh.
+  
+  What it fixes, measured by a new suite that hydrates real server output and compares it step by
+  step, with element identity, against the same component rendered on the client
+  (`tests/hydrate-slots-conformance.test.mjs`, eight scenarios, each asserted to have adopted rather
+  than fallen back):
+  
+  - **A light component nested in another's template now hydrates.** The outer template adopts what
+    it placed in the inner one from the inner host's stated light list. Before, it could not find that
+    content in the inner host's server markup, fell back, and the inner component showed its fallback.
+  - **A fallback keeps every light child.** The host owns its light list from the moment hydration
+    begins, so a mismatch returns the whole list to its slots, unnamed nodes and bare text included.
+    Before, a mismatch before the first slot could lose what the marks did not cover.
+  - **A light component created on the client keeps its children under a hydrating renderer.**
+    Measured before the fix: with hydration wired app-wide, a light component that a
+    client template or the user created with children lost all of them on its first render (the
+    render tried to adopt them as server output, failed and discarded them). A component host without
+    `data-vm-light` now gets a client first render, and a fallback warning no longer fires for it.
+- 2cea5ce: Light-DOM slots live in `@verajs/renderer/slots` — an app without them no longer ships their code
+  
+  **`@verajs/renderer` — breaking for custom slot strategies, which are retired.** Finding a template's `<slot>`s,
+  mounting them after the first update, parking them at teardown and marking the render's own output
+  in a light host all moved out of the renderer into `@verajs/renderer/slots`. The renderer keeps
+  generic points they plug into: an **instance hook** a `'template'` hook may set on a template
+  (`{ $c, $m, $q }` — called for every instance before its first update, once its render has finished, and at teardown,
+  with nothing on the hot path for templates that have none). Slotted creation measures level with the renderer before this change on Chromium, Firefox
+  and WebKit.
+  
+  **What it weighs, against 0.2.2, gzipped.** The renderer is 4 893 B (0.2.2: 4 679), now carrying the
+  `'template'` hook `@verajs/renderer/namespaces` plugs into and the fixes below; an app that does not
+  use slots is 7 403 B (7 141). The slots module is 3 874 B (3 424), and a slotted light component
+  bundled with both is **10 831 B, up from 10 028 — about 800 B more** for the apps that use slots: the
+  contract now crosses a bundle boundary, and those apps carry it.
+  
+  - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
+    later, whose `wire` accepts the nested array `slots` now is. An older core wires nothing from it,
+    silently.
+  - `slots` is now an array; code that read `slots.fn` or `slots.on` no longer finds them.
+  - Development warns when the slots module and the renderer come from different versions of the
+    package: they are one contract across a bundle boundary. An older slots module beside this
+    renderer is treated as unwired in both builds — its fallback shows and nothing is lost.
+  - `slotDiscovery` claims each `<slot>` through `@verajs/renderer/elements` (an `'element'` claimant)
+    and carries `elements` with it; an app wiring `elements` for its own claims as well gets one
+    module, not two. A `'template'` hook that sets an instance hook before `elements` is replaced, and
+    development says so.
+  
+  **Fixed — also in 0.2.2: with slots wired, a light component's own top-level `${…}` lost its
+  content on update.** `${busy ? spinner() : list()}` as a component's whole template rendered the
+  spinner and then an empty host; a top-level list grew to one row of three. It hit components with
+  no `<slot>` at all, because every light host is captured once slots is wired. A nested render during
+  a slotted template's first update — a ref that renders a tooltip — no longer loses the slot's content
+  either.
+  
+  **`@verajs/inserts` and `@verajs/core`: `wire` takes nested arrays**, so a module made of several
+  descriptors and connectors is itself an array and sits in an app's list like any other module. The
+  `Wireable` type names what `wire` accepts.
+
+### Patch Changes
+
+- 75e04ce: A bound `javascript:` URL in an SVG animation's `to`, `from`, `by` or `values` is refused
+  
+  `<animate attributeName="href" to=${url}>` (or `<set>`, or `values=`) writes its value onto the link it
+  animates, and every major engine runs a `javascript:` URL set that way when the link is clicked. A bound
+  `href` was already refused; a bound animation value, a spread `{ to }`, and a `values` list carrying the
+  payload in a later item were written. They are now refused on every element, whatever `attributeName`
+  says, by the client renderer, `spread` and the server alike — `values` is checked item by item. A
+  custom element's `.to` property gets the same string check as its `.href`.
+- b362460: An expression inside an attribute name is refused, with the spread that does what it meant
+  
+  `<p data-${key}="1">`, `<b ${name}="x">` and `<p ${key}-x>` cannot be rendered — the parser reads a name before
+  any value exists. The client renderer used to write a broken `data-="1"` with no warning, and the server threw
+  for some of these shapes while serving garbage for others (`<p data->`, and `<p ${k}-x>` fused into the tag
+  name as `<p-x>`). The server now refuses every shape, and the client refuses them in development; both errors
+  show the rewrite: `${spread({ [`data-${key}`]: '1' })}`. A value inside an HTML comment is dropped by the server,
+  as the client drops it, instead of being treated as part of a tag.
+- 820981b: A comment ends where the HTML tokenizer ends it
+  
+  The tokenizer closes a comment at `-->`, at `--!>`, and abruptly at `<!-->` and `<!--->`. Every scanner here knew
+  only `-->`, so `<p><!-->${value}</p>` dropped the value silently on the client and the server while a browser
+  renders it, and the server's DOM and its nested-component scan read the same markup differently from the browser.
+  All of them now follow the tokenizer's rule. The server also renders a template-shaped forgery as the constant text
+  `[object Object]`, never through the forgery's own `toString`, so a JSON `"toString"` key cannot make it throw.
+- 194266a: SVG and MathML in JSX are parsed where they land — and buildless JSX loads whole apps
+  
+  ```jsx
+  const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
+  <Frame><path d="M0 0h24" /><circle cx="12" cy="12" r="4" /></Frame>
+  ```
+  
+  built its shapes as HTML. `<path>` parsed as HTML is an `HTMLUnknownElement` — right tag name, no
+  geometry, nothing drawn — so an entire header of icons vanished for the app that reported it. The
+  call site cannot know what `Frame` renders, and JSX has no `` svg`…` `` to reach for, so no spelling
+  worked.
+  
+  **`@verajs/renderer/namespaces`: a template is parsed in the namespace of the position it lands
+  in.** Wire it — `wire([renderer, namespaces])` — and an `html` template placed inside an `<svg>` is
+  SVG, inside a `<math>` is MathML, and inside a `<foreignObject>` or a `<div>` is HTML, exactly as the
+  same markup written inline there would be. Which position means which namespace is asked of the
+  browser's own parser, once per parent name (and, under a MathML parent, per child tag — `<svg>` in
+  `<annotation-xml>`, `<mglyph>` in `<mi>`), rather than read from a list — so the integration points,
+  the breakout names and `<annotation-xml encoding>` behave as the parser has them. A hand-written
+  `` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 742 B gzipped, and
+  the renderer without it pays nothing on its render paths beyond a flag check.
+  
+  **`@verajs/jsx` 0.4.0 — breaking.**
+  
+  - **Every template is `html`, and every compiled module wires `@verajs/renderer/namespaces`**
+    (`import { namespaces } …; import { wire } …; wire([namespaces]);`, prepended). Wiring from every
+    module means no JSX template can be built before the resolver exists, whichever chunk loads first;
+    wiring the same descriptor again is idempotent. `namespaces: false` opts out, and `inject: false`
+    leaves the wiring to the caller along with every other import.
+  - **Requires `@verajs/renderer` 0.3.0 or later**, the first with the `./namespaces` entry.
+  - **The `svg` and `mathml` options are removed** — the compiler no longer decides a namespace, so
+    there is nothing for them to name.
+  - **`@verajs/jsx/standalone` is a module loader.** `<script type="text/vera-jsx">` blocks, inline or
+    `src`, run as real ES modules, and a file they import — `.jsx` or `.js`, relatively — is loaded
+    the same way, so a self-hosted buildless app is ordinary files beside its page and a three-entry
+    import map (`@verajs/core`, `@verajs/renderer`, `@verajs/jsx`). `import()` in any form — a template
+    literal, a computed path, a full same-site URL, with options — `import.meta.url`,
+    `import.meta.resolve`, a JSON or CSS module and a file behind a redirect all resolve as written, and
+    a package name in them resolves through the map exactly as from the file itself. Any `@verajs/renderer/<entry>` —
+    the helpers compiled JSX imports, and `slots` or `tag` if the app imports them — is found beside
+    wherever the map puts `@verajs/renderer`, so copy the renderer's whole `dist` folder. The
+    compiler is loaded only when something must compile, and each file's compiled output — an inline
+    block's too — is kept in `localStorage` and reused only for the exact text it came from (a
+    fingerprint of the file, not a server header), so a repeat visit compiles nothing on any static
+    server; a plain `.js` file keeps only where its imports are, never its text. A circular import is reported
+    with its chain, a missing file names the file that imported it, and a renderer helper missing
+    from beside the renderer is named. The entry is 2 236 B gzipped, down from 5 933 in 0.3.2, plus
+    the 5 737 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
+  
+  **Fixed in the compiler along the way** — each of these produced a module that died or silently
+  lost its JSX:
+  
+  - an injected import is renamed around a name the module already binds — a destructured binding, a
+    second declarator, a parameter, a TypeScript annotation — instead of colliding with it;
+  - `import html from './x'` from another module is a binding, not the tag;
+  - string, template-literal and regular-expression contents are never read as code, including a
+    nested template literal and a regex at statement position;
+  - a TypeScript postfix `!` ends an expression, a keyword before `!` is a prefix, and a TSX type
+    parameter list (`<T extends object = {}>`) is never markup;
+  - `hidden=""` and a literal `checked` mean true, an empty attribute expression is an error with a
+    position, and an injected import goes under a hashbang rather than above it;
+  - `<annotation-xml>` is not a custom element though its name has a dash, so its `encoding` stays an
+    attribute the parser can read.
+  
+  **`@verajs/renderer`: development names a namespace mismatch.** An element built in one namespace and
+  placed where the parser would have used another — a hand-written `` html`<path/>` `` handed into an
+  `<svg>` with the resolver not wired, or a `` mathml`…` `` in an `<svg>` — is named once, with the
+  remedy that fits it. Nothing of it survives minification.
+  
+  **`@verajs/inserts`: a `'template'` insert point**, called once when each template is built, which is
+  how `@verajs/renderer/namespaces` plugs in.
+- 14c7a84: A component moved into another window — a `window.open` pop-out or an iframe — and back is kept
+  
+  Moving a component into another window's document with plain DOM no longer tears it down and sets it up again: its
+  state survives the trip both ways. Its `useEffect` and `useLayoutEffect` run their cleanups and run again against the
+  new window, and `@verajs/styles` applies its styles again (a move empties a shadow root's adopted stylesheets). Content
+  rendered while it is out is built in its own window's realm, so child components created there work in every engine
+  (Firefox and Safari left them inert). A built-in host set up through `@verajs/renderer/native-elements` behaves the
+  same. Read the window inside an effect rather than in setup; remove and re-append a component to reset it.
+- dc329ac: `effect(fn, options)` is the one primitive for work that follows state; `portal(target, template)` draws into another element
+  
+  **Breaking.** Six exports leave `@verajs/core`, replaced by `effect`:
+  
+  | Before | Now |
+  | --- | --- |
+  | `useEffect(fn)` | `effect(fn)` |
+  | `useLayoutEffect(fn)` | `effect(fn, { timing: 'layout' })` |
+  | `useSyncEffect(fn)` | `effect(fn, { timing: 'sync' })` |
+  | `useHook(fn, priority, element?)` | `effect(fn, { priority, owner: element })` |
+  | `createHook({ callback, priority, element })` | `effect(fn, { priority, owner })`, started with `.run()` — scheduled, once per flush. Running INSIDE every write, unbatched, is no longer public; `computed` covers a derived value |
+  | `useRender(template, element)` | return the render from the setup; to draw into another element, `portal` (below) |
+  
+  - **`effect` returns the effect itself**: `run()` runs it now, `stop()` ends it for good — its cleanup runs once, it
+    leaves every store, and nothing runs it again.
+  - **`owner`** makes an effect outside a setup — a module's own value, retired by whoever owns it. With no owner and no
+    component being set up, it throws (`no-owner`), as the hooks did.
+  - **`priority`** orders within a flush, lower first (50 is the render); a non-finite one registers nothing, and
+    development says why (`priority-not-finite`).
+  
+  **`@verajs/renderer/portal`** (new): `portal(target, template)`, called in a setup, draws into `target` — a modal on
+  `document.body` — in a range of its own (any number share a target), in the render's slot (keyed rows follow their
+  items; layout effects see it drawn), and leaves with its component (a `persist`ing one takes it out while away and draws
+  it again when back). It draws `target`'s light DOM, never a shadow root, and registers nothing on a server. It keeps
+  `@verajs/core` external in every build, so the renderer now lists `@verajs/core` as an OPTIONAL peer dependency — only
+  this entry needs it.
+- 2912a97: A component is one setup that returns its render — `render()` and `mount()` are removed
+  
+  **Breaking.** `init` takes the component's setup as its second argument. The setup runs once, untracked, and returns
+  the function that draws; that function is the only part that re-runs when state it read changes:
+  
+  ```js
+  class ClickCounter extends HTMLElement {
+    connectedCallback() {
+      init({ host: this, shadow: 'open' }, () => {
+        const state = createStore({ count: 0 });
+        return () => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`;
+      });
+    }
+  }
+  ```
+  
+  Migrating:
+  
+  - **`render(fn)` becomes `return fn`** from the setup: move everything between `init(this)` and `render(…)` into a
+    function, `init(this, () => { …; return () => html`…`; })`. A template passed to `render` directly (not a function)
+    was drawn once; return `() => view` for the same result.
+  - **`mount()` goes.** A setup that returns nothing is a side-effect setup: its effects run and it draws nothing.
+  - **The options travel with the host.** `init(this, { mode: 'open' })` becomes `init({ host: this, shadow: 'open' },
+    setup)`; `shadow` is `'open'`, `'closed'`, `false` (light DOM) or a `ShadowRootInit`. An old call still runs — the
+    object is ignored in every build, so it sets up with no shadow root — and development names the new spelling once
+    (`init-options`); TypeScript refuses it at build time.
+  - **Extra arguments to `render(template, …args)`** were forwarded to the renderer, which never read them. Capture
+    anything the render needs in the setup instead. `useRender(template, element)` takes exactly two.
+  - **`useRender` returns nothing (`void`)**, as its docs always said. Its TypeScript type had declared the hook it
+    registered (`HookCallback | undefined`), and calling that ran a render pass by hand; a render re-runs when state it
+    read changes, so write to that state instead.
+  - **A class can keep a method.** `init(this)` with no setup calls `this.setup()`, so
+    `connectedCallback() { init(this); }` plus `setup() { …; return () => html`…`; }` is the same component.
+    `init({ host: this, shadow: 'open' })` does the same with a shadow root. Development names a near-miss
+    spelling (`setUp`, `Setup`, `set_up`) once.
+  - **An async setup is atomic.** Its hooks must be registered before its first `await` — one after it throws
+    `no-owner`, as before. Nothing it registered runs until it resolves, a write while it is pending does not re-run
+    it, and a rejection is reported once through the error chain and commits nothing.
+  
+  `renderer({ shadow })` sets the app's default root — `wire([renderer({ shadow: 'open' })])` — which a component's own
+  `shadow` overrides. The same `wire` call works unchanged on the server, where `@verajs/ssr` keeps its own renderer
+  and learns the default from it.
+  
+  A removed component now leaves nothing behind in a store it read: each hook unsubscribes exactly the keys it joined,
+  with no sweep, and an element set up again in place runs its previous setup's effect cleanups first.
+- d220d2c: A throwing `&ref` reaches the `'error'` insert, and an error nothing handles reaches `window.onerror`
+  
+  **`@verajs/renderer`:** an element ref that threw was caught and printed with `console.error`, but
+  never reached the `'error'` insert a throwing effect reaches, so an error boundary could not see it.
+  It now goes through the same chain, handed the component being rendered (a shadow root resolves to
+  its host), exactly as core hands a hook's error. The render still continues past it.
+  
+  **`@verajs/core` and `@verajs/renderer`:** with no `'error'` handler wired, a hook or ref error went to
+  `console.error` alone — so `window.onerror`, error trackers and test runners that listen for page
+  errors stayed silent while a component had stopped updating. It now goes to `reportError`, which
+  fires the window's `error` event without unwinding, so one failure still never stops its siblings.
+  Development prints the `[vera]` sentence beside it; off-browser, where there is no `reportError`, the
+  console is used as before.
+  
+  **`@verajs/inserts`:** the `'error'` insert's documentation says what now reaches it.
+- d220d2c: Development names an event binding that is a keystroke or two from a real event
+  
+  `@clik` — or `onClik` in JSX, which compiles to it — listened for an event that never fires, and
+  nothing said so. Development now warns once, where it is bound: *"@clik on <button> is not an event
+  <button> fires — did you mean @click?"*. Only names within two edits of an event the element really
+  has are named; real events, custom events and names that extend a real one (`changed`, `loaded`) are
+  left alone. Production carries neither the check nor the text.
+- b39a5ae: The line printed beside an error your own code threw now carries a code
+  
+  When a hook, a hook's cleanup, an element ref or an element claim throws and no `'error'` insert is wired, the error
+  is reported the platform's way (`reportError`), and — in development, or wherever the platform has no `reportError`, as
+  in Node — printed with a line of ours beside it. That line was the one message without a code. It now has one:
+  production prints `[vera] hook-threw`, `[vera] cleanup-threw`, `[vera] ref-threw` or `[vera] claim-threw`, and
+  development the full sentence ending in that code, so every line the framework prints carries a code. The bare codes
+  are shorter than the words they replace: `vera.min.js` is 7 B smaller and `vera-renderer.min.js` 2 B.
+- f5c4438: A bound event handler never subscribes the hook that happens to be running
+  
+  An effect that fires an event synchronously (`button.click()`, `input.focus()`, `dispatchEvent`) runs the handler
+  inside itself, and the handler's reads subscribed that effect — a handler doing `state.count++` re-ran the effect on
+  every later click, and a handler that read what the effect wrote fed a loop. `@event` bindings and spread's `@event`
+  key now run their handler untracked. A listener added with `addEventListener` is outside the renderer: read through
+  `untrack()` there if a hook fires it synchronously.
+- bb4bc7a: `!name` on a component is delivered: a running component re-renders when only a `!name` changed
+  
+  `!name` on a custom element wrote a plain property, so a component that was already running never heard a change to it
+  alone: the element held the new value while its render went on showing the old one (a `.name` beside it, changing in
+  the same render, hid this). On a hydrated page every prop arrives after the child is running, so a `!name` never
+  reached it at all. It is now delivered exactly as `.name` is — template binding and `spread()` key alike — compared
+  against the component's current value on every render, so an equal value costs one read and renders nothing.
+  
+  Also:
+  - During hydration, `!name` on a built-in element is recorded only for a control's user state — `value`, `checked`,
+    `selected`, `open` (the same list now applies to `.open`) — and any other `!name` is written: `!indeterminate`,
+    which no markup can carry, used to be dropped on adoption.
+  - A getter with no setter bound through `!name` is refused with one development warning, instead of a plain write that
+    threw in module code.
+- 30fbc01: Two binding shapes that never rendered are refused in development
+  
+  Inside `<svg>`/`<math>`, a `<title>` or `<style>` holding an element and a binding lost the binding: the renderer reads
+  those tags as text and rebuilt the text around the binding, destroying the element. A binding inside `<xmp>`,
+  `<noembed>`, `<noframes>` or `<plaintext>` never rendered either, with a misleading warning that the parser had dropped
+  the element. Both now throw in development with what to write instead; text bound directly in an SVG `<title>`
+  renders as before, and production is byte-identical.
+- d220d2c: A component in a popped-out window or an iframe renders on that window's frames, with that window's elements
+  
+  **`@verajs/core`:** renders and effects were scheduled on the `requestAnimationFrame` of the window
+  that loaded VeraJS, so an element moved into another window was redrawn on the opener's clock — one
+  opener call and none on the iframe's, measured — and would freeze when the opener's tab was hidden.
+  The default scheduler now uses the element's own window (`element.ownerDocument.defaultView`), with
+  the global as the fallback. A scheduler passed to `setRenderScheduler` now receives the element as a
+  second argument, `(run, element)`, so a custom one can do the same; one-argument schedulers are
+  unaffected.
+  
+  **`@verajs/renderer`:** every template was imported through the module's `document`, so a custom
+  element in a template rendered into another window was constructed by the opener's registry, with the
+  opener's class — whose constructed stylesheets that window cannot adopt. Instances are now imported
+  into the document they will live in, so they are built by that window's own registry.
+- 07dbacd: The renderer's `@verajs/core` peer range is a caret range
+  
+  It accepts core 0.4.x. It used to accept any later core, so a future breaking core would have been installed beside it
+  without a word; now that is reported at install.
+- f96bfc4: `@verajs/renderer/elements`: attach behavior to elements in templates
+  
+  A new wired module. A claimant is an ordinary `'element'` insert, asked about each element of a
+  template once — its tag and static attributes — and answering with a shared `{ mount?, unmount? }` or
+  `undefined`. Every instance of the template runs `mount(element, { root, adopted })` once the render
+  that created it has finished, with the tree in place, and `unmount(kept, element)` at teardown with
+  what `mount` returned. `hold()` is not teardown; several claimants may claim one element. An app that
+  wires no claimant pays nothing.
+  
+  ```js
+  const autofocus = { mount: (element) => element.focus() };
+  wire([renderer, elements, { on: 'element', fn: (el) => (el.hasAttribute('autofocus') ? autofocus : undefined), priority: 50 }]);
+  ```
+  
+  That example is a real platform gap: on Chromium, Firefox and WebKit only the first `autofocus`
+  rendered after page load takes focus, so every later form an app shows ignores it.
+  
+  **`@verajs/renderer`:** an instance hook's `$m` now runs once the render that created the instance has
+  finished, rather than straight after its first update, when the instance was still in a detached
+  fragment. An instance torn down before its render ends never gets `$m`.
+  
+  **`@verajs/inserts`:** declares the `'element'` insert point.
+- 0986593: `@verajs/renderer/native-elements` — built-in hosts get a custom element's lifecycle
+  
+  `wire([renderer, nativeElements])` lets `init(div, setup)` on a built-in element (a `div`, a `section`…) behave like a
+  custom element: torn down when removed, set up again when re-added, kept on a move, and set up at its first connect
+  when `init` ran off the page. Without the module, development warns once that such a host is never released.
+  
+  Core: an `'init'` insert now receives the setup as its third argument and may answer `false` to defer it.
+- 563087d: Creating and removing components is faster in every engine: a root's part is kept on the root, not in a WeakMap
+  
+  **Performance:** the renderer found each root's part — a component's root, or any container handed to `renderInto` —
+  through a WeakMap keyed by the DOM node, and both engines' garbage collectors paid for every entry on creation and
+  removal. The part is now a field on its root, under a `Symbol` private to each copy of the renderer (two copies on one
+  page still never see each other's parts), and a removed root's part lets go of the root, so Firefox's cycle collector
+  has nothing to break. Measured on shadow components with a fresh browser per page: creation and churn about 11% faster
+  in Firefox and 9% faster in Chrome, and about 16–17% together with component roots owning their content.
+- 75e04ce: A root render owns its range, never its container
+  
+  `renderInto(result, container)` used to anchor its root on one marker whose range ran to the end of the
+  container, so a node other code appended after the first render — a script's, or a browser extension's in
+  `document.body` — was cleared by the next template swap along with the render's own content. The root is now
+  bracketed by two markers like every other position: content before and after the render survives every
+  re-render, and hydration bounds its root the same way.
+- cd025f8: `.innerHTML` and `.textContent` render on the server, and hydrate
+  
+  The trusted-markup binding, `<div .innerHTML=${markup}>`, used to serve an empty element that the client filled in,
+  and hydration then discarded the container for any non-empty value. The server now writes the content into the
+  page, made to behave as an `innerHTML` assignment does: a `<script>` in it is served inert and a
+  `<template shadowrootmode>` cannot attach a shadow root. Whatever the markup leaves open is closed before the
+  element ends, a raw-text, text-only or foreign host and any `.textContent` get escaped text, and each property's
+  null/undefined conversion follows its IDL. Hydration adopts such an element instead of rebuilding its container
+  (+44 B gzip on the hydrate entry; the base renderer is unchanged).
+- 83d0024: `node.assignedSlot` now answers light-DOM slots, as it does shadow ones
+  
+  **Behavior:** a light child of a light-DOM component used to read `assignedSlot` as `null`, because the platform's
+  getter knows only shadow roots. slots now replaces that getter once per window, at the window's first light host. It
+  answers for the nodes slots placed, from what distribution already records, so nothing is written per node, and it
+  defers to the getter it replaced for every other node. So shadow-DOM nodes, another copy of Vera on the page, and other
+  code that patched the getter answer as before. Measured with the getter installed mid-session on a warm page, in
+  Chromium, Firefox and WebKit: no measurable cost to code that never reads it, and none to a page that reads it on every
+  element. A node created in another window and placed into a light host here reads `null` unless its own window also
+  has a light host.
+- a49c397: Template-rendered lists of light-DOM slotted components are about twice as fast to create and churn
+  
+  **Performance:** slots recorded every slotted component a template created, so it could distribute their content at
+  the end of that template's render, and kept each record until the browser's garbage collector freed the component. A
+  list of slotted cards that kept changing therefore re-read a growing record on every render. A component that left the
+  page is now dropped at its root's next render. Measured with a fresh browser per page, a template-rendered list of
+  slotted components: Firefox 56% faster to create and to churn, Chrome 51%.
+  
+  **Behavior:** a slotted component you remove by hand and put back follows the rule for any hand edit to a light host:
+  what its outer template then writes into it is distributed a microtask later, by the component's own observer. The
+  slots API reads it at once.
+- 291f65a: Light-DOM slots: on a component observed with `observeSlots: 'eager'`, a `<slot>` inserted by hand now takes part, as
+  in a shadow root. It is claimed like the template's own and takes the assignment by tree order, and removing it again
+  hands its content back. A `<slot>` inside the component's light content is light DOM and is left alone. Components
+  observed lazily (the default) don't follow hand-inserted slots and pay nothing for it; render slots conditionally
+  from the template there.
+- 437bd2b: A light-DOM `<slot>` removed by hand now unassigns its content, as in a shadow root
+  
+  **Behavior:** removing a `<slot>` by hand (its `remove()` or `replaceWith()`, or removing its parent or an ancestor)
+  used to leave its content shown, because a slot with content has stepped out of the page. Its content is now
+  unassigned, as a shadow root does it: it shows in the next slot of that name in tree order, or nowhere. A removal of
+  the slot's parent or an ancestor is followed a microtask later, the rule for any hand edit to a light host; the slots
+  API reads it at once. One spelling still cannot work: `slot.parentNode.removeChild(slot)` on a slot that shows content
+  finds no parent, so use `slot.remove()`.
+- 610a231: Light-DOM slots no longer keep removed hosts alive, and stop slowing down as hosts come and go
+  
+  Every light host slots had ever captured stayed reachable after it was removed from the page, and every
+  distribution pass walked them all — so an app that keeps replacing light-slot components (routes, lists) leaked them
+  and got slower each time. Measured in Chrome with real garbage collection: 30 of 30 removed hosts stayed alive;
+  now none do beyond what the same page keeps without slots. In Firefox each new light host also paid for every one
+  created before it (a shared `MutationObserver` that Firefox searches linearly): 2000 hosts went from ~260 ms to over
+  9 s across eight renders; it is now flat, ~100 ms. Chrome and WebKit are unchanged or faster.
+  
+  One timing detail moved: a light host changed directly by your code (`host.append(node)`, `node.slot = 'x'`), followed
+  in the same task by an unrelated component's render, is now redistributed at the next microtask rather than by that
+  render. Anything a template does is still distributed by the end of its render, and reading through `slotted()` or
+  `slot.assignedNodes()` is always current.
+- c300bb3: Wiring light-DOM slots no longer slows down components that have no slot: only a component that needs slotting pays for it
+  
+  **Performance:** once an app wired `slots`, every light-DOM custom element paid for it, slot or not: a hidden element, a
+  `MutationObserver`, and per-element bookkeeping for each one a template created. Measured with a fresh browser per page,
+  a list of plain components rendered by a template was about 9× slower to create in Firefox and Chrome. It is now
+  within a few percent of an app without slots. A component with neither a slot nor light content gets nothing from slots.
+  One with light children has them hidden from the start, as a shadow root does. A component is observed from its first
+  `<slot>`, decided once per template, not per element.
+  
+  **Behavior:** one difference from native shadow DOM follows. A child appended by hand to a component that has neither
+  a slot nor light content shows until a slot renders, where a shadow root hides it. A component can be observed from its first
+  render instead, as a shadow root follows every host — `observeSlots: 'eager'` (the default is `'lazy'`, as HTML's
+  `loading` pairs them; lazy is fully correct for everything a template renders):
+  
+  ```js
+  init({ host: this, observeSlots: 'eager' }, setup);
+  wire([renderer, slots({ observeSlots: 'eager' })]); // every light component's default; its own observeSlots wins
+  ```
+  
+  `slots` stays usable bare, `wire([renderer, slots])`. Called with options, it needs a `@verajs/core` whose `wire` hands
+  connectors `wire` itself (this release). An older one is refused with `slots-wire-too-old` instead of wiring nothing.
+  
+  **Behavior:** a server-rendered light host that reaches the client with NO children at all — its content stripped on
+  the way (an HTML rewriter, an edge transform) while its `data-vm-light` statement was kept — is now rendered fresh. It
+  used to be refused with `hydration-unwired`. Nothing can be duplicated or lost when the host is empty, so there is
+  nothing for the refusal to protect.
+  
+  
+  A page that wires slots but has nothing slotted yet now pays nothing per render: slots installs its render-end hook at
+  the first component that needs it. Firefox creates plain components 4.4% faster on such a page, and Chrome is
+  unchanged within noise (measured in headless browsers).
+  
+  Light-DOM components whose light children all have a slot create faster: 8% in Firefox, headed and headless alike,
+  and 9% in Chrome and 14% in WebKit headless (headed Chrome measures a smaller win). The
+  hidden element that holds unassigned children is now built only when a child first has no slot to go to.
+- a236cfd: `@verajs/renderer/tag`: four component fixes
+  
+  - `tag('h1')`, called as a function rather than a tagged template, is refused in every build. Production used to
+    render a silent `<h>`.
+  - A void tag renders one element: `` tag`br` `` no longer emits `<br></br>` (two `<br>`s by the parser's rule),
+    and children given to one are refused in development rather than silently dropped.
+  - A custom-element tag maps props the way compiled JSX does: an identifier prop is a property (`.foo`), its own
+    `disabled` is a property rather than the HTML boolean, `data-*`/`aria-*` and `class`/`for` stay attributes, and an
+    object `style` is refused in development.
+  - A tag outside tag position (as text, an attribute value or an attribute name) is refused in development.
+- 65cd3f8: A value in tag position is refused, and the server reads raw-text elements as the client does
+  
+  `<${x}>`, `</${x}>` and `<my-${x}>` without `@verajs/renderer/tag` cannot make an element — the parser reads a tag
+  name before any value exists. The client rendered `&lt;&gt;` and the server served `<>`; now the server refuses the
+  template in every build and the client in development, both naming the tag entry, where a runtime tag name is a tag
+  value. Only markup counts: a `<` inside a comment, a raw-text element or a quoted attribute value never makes a tag
+  position.
+  
+  The server's scanner now treats `<textarea>`, `<title>` and `<iframe>` content as text, as the client always has
+  (escaping unchanged), so `<textarea><b title=${v}>` serializes the value as text instead of quoting it as an
+  attribute.
+- 43009a8: A tag component passes on props named like `Object.prototype` members
+  
+  `@verajs/renderer/tag`'s JSX-component path looked prop names up in plain object tables, so `constructor`,
+  `toString`, `valueOf`, `hasOwnProperty` and `isPrototypeOf` were answered with the prototype's own functions, refused
+  as names, and silently dropped. They now reach the element like any other attribute. `__proto__` is still never a
+  prop.
+- 48f27d8: Security: a nested template cannot change how its parent's markup parses
+  
+  The client parses every template on its own and closes whatever it left open at its end; the server concatenated
+  them. So a child template that left an `<svg>`, a comment, a `<style>` or a `<textarea>` open, or that ended inside
+  a tag, changed how the browser read the parent's following markup, and a raw-text value there could become
+  elements. The server now closes, at each template's end, everything that changes how the rest of the page parses,
+  which is what the client already did. It refuses a template that ends inside a tag (the client refuses it too, in
+  development) and a template rendered inside a text-only element such as `<textarea>`. `<noscript/>` and
+  `<template/>` now open their element on the server, as the HTML parser reads them.
+- 1562340: Security: data shaped like a template renders as text, never as markup
+  
+  A value was treated as a template whenever it had a `strings` property, so a template-shaped object from
+  `JSON.parse` (an API field an attacker can turn into an object) was rendered as markup by the client renderer and by
+  the server. A template now has to come from a tagged template literal, whose strings array owns `raw`, which JSON
+  cannot produce. Anything else renders as the text any object does, `[object Object]`, on both sides, with a
+  development warning on the client. It never throws. A hand-built `html([markup])` is data by the same rule; trusted
+  markup is a property binding, `.innerHTML=${markup}`. A spread or self-applying value must now carry a function, not
+  merely the key. The check runs where a template is first built, so a cached template pays nothing: +50 B gzip on
+  the base renderer.
+- 11334a8: A template is marked for its extensions only when one of them claimed it
+  
+  The renderer gives a template's instances the extension path (instance hooks, the create scope, namespace resolution)
+  when a `'template'` insert left something on it. It used to mark every template as soon as any such insert was
+  wired, so an app wiring `@verajs/renderer/elements`, as every app using slots does, sent every template down that
+  path, claimed or not, at about 1% on creation. The mark is now derived from what the inserts left (`_$at$`,
+  `_$inst$`, `_$ns$`), so unclaimed templates keep the plain path. The `'template'` insert contract is unchanged:
+  a hook still returns nothing. +3 B gzip on the base renderer.
+- Updated dependencies [da55d31]
+- Updated dependencies [b1e8b6a]
+- Updated dependencies [f896112]
+- Updated dependencies [14c7a84]
+- Updated dependencies [b8f7d30]
+- Updated dependencies [0986593]
+- Updated dependencies [afbae92]
+- Updated dependencies [dc329ac]
+- Updated dependencies [8854735]
+- Updated dependencies [aab427a]
+- Updated dependencies [c300bb3]
+- Updated dependencies [0c4ffac]
+- Updated dependencies [da55d31]
+- Updated dependencies [2912a97]
+- Updated dependencies [78fa178]
+- Updated dependencies [d4dc769]
+- Updated dependencies [d220d2c]
+- Updated dependencies [8317803]
+- Updated dependencies [b39a5ae]
+- Updated dependencies [bb4bc7a]
+- Updated dependencies [d220d2c]
+- Updated dependencies [0986593]
+- Updated dependencies [b71541b]
+- Updated dependencies [2cea5ce]
+- Updated dependencies [0986593]
+- Updated dependencies [46865a3]
+  - @verajs/core@0.4.0
+
 ## 0.2.2
 
 ### Patch Changes

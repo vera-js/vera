@@ -1,5 +1,124 @@
 # @verajs/jsx
 
+## 0.4.0
+
+### Minor Changes
+
+- 194266a: SVG and MathML in JSX are parsed where they land — and buildless JSX loads whole apps
+  
+  ```jsx
+  const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
+  <Frame><path d="M0 0h24" /><circle cx="12" cy="12" r="4" /></Frame>
+  ```
+  
+  built its shapes as HTML. `<path>` parsed as HTML is an `HTMLUnknownElement` — right tag name, no
+  geometry, nothing drawn — so an entire header of icons vanished for the app that reported it. The
+  call site cannot know what `Frame` renders, and JSX has no `` svg`…` `` to reach for, so no spelling
+  worked.
+  
+  **`@verajs/renderer/namespaces`: a template is parsed in the namespace of the position it lands
+  in.** Wire it — `wire([renderer, namespaces])` — and an `html` template placed inside an `<svg>` is
+  SVG, inside a `<math>` is MathML, and inside a `<foreignObject>` or a `<div>` is HTML, exactly as the
+  same markup written inline there would be. Which position means which namespace is asked of the
+  browser's own parser, once per parent name (and, under a MathML parent, per child tag — `<svg>` in
+  `<annotation-xml>`, `<mglyph>` in `<mi>`), rather than read from a list — so the integration points,
+  the breakout names and `<annotation-xml encoding>` behave as the parser has them. A hand-written
+  `` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 742 B gzipped, and
+  the renderer without it pays nothing on its render paths beyond a flag check.
+  
+  **`@verajs/jsx` 0.4.0 — breaking.**
+  
+  - **Every template is `html`, and every compiled module wires `@verajs/renderer/namespaces`**
+    (`import { namespaces } …; import { wire } …; wire([namespaces]);`, prepended). Wiring from every
+    module means no JSX template can be built before the resolver exists, whichever chunk loads first;
+    wiring the same descriptor again is idempotent. `namespaces: false` opts out, and `inject: false`
+    leaves the wiring to the caller along with every other import.
+  - **Requires `@verajs/renderer` 0.3.0 or later**, the first with the `./namespaces` entry.
+  - **The `svg` and `mathml` options are removed** — the compiler no longer decides a namespace, so
+    there is nothing for them to name.
+  - **`@verajs/jsx/standalone` is a module loader.** `<script type="text/vera-jsx">` blocks, inline or
+    `src`, run as real ES modules, and a file they import — `.jsx` or `.js`, relatively — is loaded
+    the same way, so a self-hosted buildless app is ordinary files beside its page and a three-entry
+    import map (`@verajs/core`, `@verajs/renderer`, `@verajs/jsx`). `import()` in any form — a template
+    literal, a computed path, a full same-site URL, with options — `import.meta.url`,
+    `import.meta.resolve`, a JSON or CSS module and a file behind a redirect all resolve as written, and
+    a package name in them resolves through the map exactly as from the file itself. Any `@verajs/renderer/<entry>` —
+    the helpers compiled JSX imports, and `slots` or `tag` if the app imports them — is found beside
+    wherever the map puts `@verajs/renderer`, so copy the renderer's whole `dist` folder. The
+    compiler is loaded only when something must compile, and each file's compiled output — an inline
+    block's too — is kept in `localStorage` and reused only for the exact text it came from (a
+    fingerprint of the file, not a server header), so a repeat visit compiles nothing on any static
+    server; a plain `.js` file keeps only where its imports are, never its text. A circular import is reported
+    with its chain, a missing file names the file that imported it, and a renderer helper missing
+    from beside the renderer is named. The entry is 2 236 B gzipped, down from 5 933 in 0.3.2, plus
+    the 5 737 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
+  
+  **Fixed in the compiler along the way** — each of these produced a module that died or silently
+  lost its JSX:
+  
+  - an injected import is renamed around a name the module already binds — a destructured binding, a
+    second declarator, a parameter, a TypeScript annotation — instead of colliding with it;
+  - `import html from './x'` from another module is a binding, not the tag;
+  - string, template-literal and regular-expression contents are never read as code, including a
+    nested template literal and a regex at statement position;
+  - a TypeScript postfix `!` ends an expression, a keyword before `!` is a prefix, and a TSX type
+    parameter list (`<T extends object = {}>`) is never markup;
+  - `hidden=""` and a literal `checked` mean true, an empty attribute expression is an error with a
+    position, and an injected import goes under a hashbang rather than above it;
+  - `<annotation-xml>` is not a custom element though its name has a dash, so its `encoding` stays an
+    attribute the parser can read.
+  
+  **`@verajs/renderer`: development names a namespace mismatch.** An element built in one namespace and
+  placed where the parser would have used another — a hand-written `` html`<path/>` `` handed into an
+  `<svg>` with the resolver not wired, or a `` mathml`…` `` in an `<svg>` — is named once, with the
+  remedy that fits it. Nothing of it survives minification.
+  
+  **`@verajs/inserts`: a `'template'` insert point**, called once when each template is built, which is
+  how `@verajs/renderer/namespaces` plugs in.
+- c7ab5fc: JSX `value` and `checked` are controlled: compared with the control's live state
+  
+  `value={x}` compiled to `.value`, which compares with the last value rendered — so a value reset before the next render
+  (typing, then a submit handler setting it back to `''` within one frame) rendered `''` twice, wrote nothing, and left the
+  user's text in the box. `value`/`checked` now compile to `!value`/`!checked`, which write whenever the control
+  disagrees, as React's controlled inputs do; `@verajs/renderer/tag`'s runtime name table (a tag used as a JSX component)
+  maps them the same. An explicit `.value={…}` is unchanged.
+  
+  **Breaking for one pattern:** as with React, a bound `value` the component never updates on input is now restored by the
+  next render — `<input value={initial}>` with no input handler used to keep what was typed. The compiler now says so, once,
+  with the file and position: a new `onWarning` option of `transformJsx` hears it, the Vite plugin reports it through Vite,
+  and the buildless loader prints it in development. Use `defaultValue` for an initial value, `readOnly` for a fixed one,
+  or keep the value in step with `onInput`/`onChange`.
+
+### Patch Changes
+
+- c7ab5fc: A comment among a JSX element's attributes is dropped, as TypeScript, Babel and esbuild drop it
+  
+  `<button type="button" /* note */ class="x">` — or a `// why` line above one attribute of a long element — left that
+  element as raw JSX with no warning, and the bundler then failed on it with an unrelated parse error. Comments are now
+  skipped anywhere between attributes (beside `=`, before `>` and `/>` too), and an unterminated `/*` there is reported
+  with the file and position instead of passing the element through.
+- fd55cb2: TSX event handlers on built-in elements infer their event, so `onClick={(e) => …}` compiles under `strict`
+  
+  Every element's props were one `Record<string, unknown>`, so an inline handler had nothing to infer
+  from and `strict` rejected it with TS7006 — every handler had to name its event and cast
+  `currentTarget` by hand. Handlers on HTML, SVG and MathML elements are now typed from TypeScript's
+  own DOM library: `onInput={(e) => e.currentTarget.value}` is an `InputEvent` on an
+  `HTMLInputElement`, and `onClick` a `PointerEvent`.
+  
+  - Both `onKeyDown` and `onKeydown` are typed; the compiler lowercases whatever follows `on`, so
+    every casing binds the same event.
+  - A handler may be anything the renderer accepts: a function (called with the element as `this`),
+    a `{ handleEvent }` object, or `false`, `null` or `undefined` for none — `onClick={open && close}`
+    type-checks.
+  - An `on…` name the DOM library does not know, such as a custom event, gets a plain `Event`, as
+    `addEventListener` does. A handler declared ahead with a narrower type, `(e: MouseEvent) => …`,
+    still fits.
+  - A number or a string where a handler belongs is now an error. Nothing else changes: other props
+    stay permissive, custom elements accept anything, and declaring your own elements' props by
+    merging into `JSX.IntrinsicElements` works as before.
+  
+  Types only — no runtime change, no bytes.
+
 ## 0.3.2
 
 ### Patch Changes
