@@ -638,6 +638,16 @@ from another machine, or after that is undone, has a variable changed.
   the end, and sessions it marks contended go into a removed-together suspect set, because a covered or contended
   window could be throttled (not measured); and the wallpaper is set to a still image in System Settings, not by script.
   (Headed races on macOS; 2026-11-06 and 11-07.)
+- **The user's own installed Chrome left running, plus a dictation app, made a bench row two-mode per page; the race's
+  quiet check passed throughout.** Chrome 151 (the installed Chrome launched by Playwright, headed, a fresh browser per
+  page), 2026-11-17: with the user's installed Chrome running (open 17 h, a renderer helper bursting to ~96% of a core)
+  and a dictation app (Wispr Flow, corespeechd), `bench/dom`'s `append1k` on the lite tier landed each page in one of two
+  modes (~30 or ~40 ms), and the A/A copy spread across both, so medians said nothing. With both quit, the same row was
+  unimodal at ±2% (10 sessions; the A/A within 0.2%). Observed as one before/after pair, a correlation; the mechanism is
+  not isolated. The load came in bursts, after each session's start-of-session CPU sample, so the quiet check never saw
+  it. Consequence: quit other browsers and background apps before a race; a start-of-session CPU sample cannot see bursty
+  load. (The lite rebuild's races, the `chrome-bisect*` and `chrome-freq` logs and JSON in that work tree's race probe
+  folder; 2026-11-17)
 - **Heap growth measured in a `--expose-gc` child process moves with the load beside it.** A fixed 0.4 MB bar between
   two arms of `tests/core-key-map-bounded` failed once inside the full development suite (selector 1.33 MB vs control
   0.78, a 0.55 gap) and passed 3 of 3 alone and in five other full runs the same night. Consequence: a memory bar is
