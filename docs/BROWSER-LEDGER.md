@@ -21,6 +21,14 @@ from another machine, or after that is undone, has a variable changed.
   `<my-row>` written inside `<table><tbody>` is moved out of the table when a template is parsed, so the slot and
   everything distributed into it land outside the table. Consequence: documented as a light-DOM slots limitation that
   holds in BOTH modes; the DOM benchmark's component rows are `<div>`s. (light-dom-slots.md; 2026-10-18)
+- **A `<script>` parsed into a `<template>` never runs, however it reaches the document.** Chromium 151, Firefox 153
+  and WebKit 26.5 (Playwright, headless): a template's script — in its statics, or with its text set after parsing —
+  adopted, cloned (`cloneNode`) or imported (`importNode`) and inserted does not execute; a `createElement('script')` with
+  the same text, inserted, does (the positive control). The parser marks it "already started", and cloning keeps the
+  flag. Consequence: on the client a value bound into a script hole is inert text in every renderer here (core, lite,
+  static); a script that must run would have to be RECREATED (a fresh element, its attributes copied, its text set). A
+  SERVER-rendered page is different: the browser parses it as a document, and its scripts run on load.
+  (`.probe/verify/script-run.test.js` in the tiers' work tree; 2026-11-17)
 - **jsdom fosters text out of a table to the WRONG side: after the table, where every engine puts it before.** Text
   written directly inside `<table>` is foster-parented. Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless,
   a parse only) insert it immediately BEFORE the table, in a `<template>` and in a `<div>` alike: `<!--m--><table>c</table>`
