@@ -66,6 +66,12 @@ const steps = [
   /** The NODE builds — what Node and Vite load through a `node` export condition (minified, __DEV__ true): jsx's
    *  compiler and cms's content. Third programs, so their suites run against them too (2026-10-09). */
   ['node (node builds)', 'npm', ['run', 'test:node-builds']],
+  /**
+   * **A server suite must see what it asserts is absent** (Brian approved, 2026-11-17): the SSR suites run under an
+   * instrument that records a query coming back empty while a `<template>` holds a match — a served shadow root parses as
+   * one in jsdom, and a security suite had searched an empty document on every run. ≈ 9 s.
+   */
+  ['blind queries', 'node', ['scripts/blind-queries.mjs']],
   ['browser × 3', 'npm', ['run', 'test:browser:all']],
 ];
 

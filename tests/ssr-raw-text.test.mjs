@@ -77,11 +77,12 @@ test('no payload escapes the element it was interpolated into', async () => {
     const { html } = await renderToString(source, { attributes: { v } });
     const parsed = new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
     /**
-     * Every match, template content included: the component renders into a declarative shadow root, which jsdom parses as
-     * a plain `<template>` — a query of the document alone found nothing at all, so these checks measured nothing until
-     * the control below (2026-11-17).
+     * The component renders into a declarative shadow root, which jsdom parses as a plain `<template>`: a query of the
+     * document alone found NOTHING, so these checks measured nothing until the control below (2026-11-17). Every template
+     * is unwrapped into its content first, so one query sees everything.
      */
-    const all = (selector) => [...parsed.querySelectorAll(selector), ...[...parsed.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll(selector)])];
+    for (let template = parsed.querySelector('template'); template !== null; template = parsed.querySelector('template')) template.replaceWith(template.content);
+    const all = (selector) => [...parsed.querySelectorAll(selector)];
     assert.equal(all('img[onerror]').length, 0, `img injected by ${v}`);
     /** A script the payload MADE: not the template's own JSON data block, which carries the payload as data. */
     const escaped = all('script').filter(

@@ -92,6 +92,9 @@ jobs:
       - run: npm run test:prod
       # The NODE builds (what Node and Vite load through a `node` export condition) are third programs.
       - run: npm run test:node-builds
+      # A server suite must see what it asserts is absent: the SSR suites under an instrument that records a query coming
+      # back empty while a <template> holds a match (a served shadow root parses as one in jsdom). Its control runs first.
+      - run: node scripts/blind-queries.mjs
       # @verajs/motion USED TO carry its own gate here — audit rules, generated-reference drift, a
       # consumer compiled against built declarations, the built-artifact wiring check, doc examples
       # through the real parser, and its suite under node --test + happy-dom.
