@@ -133,8 +133,8 @@ test('a hole inside an element whose name only STARTS like a raw-text one is esc
   }
 });
 
-test('control: a real <script> and <style> still carry their hole raw', () => {
-  assert.equal(serializeTemplate(template(['<script>', '</script>'], 'a<b')), '<script>a<b</script>');
+test('control: a real JSON data block and <style> still carry their hole (raw, `<` as \\u003c in the block)', () => {
+  assert.equal(serializeTemplate(template(['<script type="application/json">', '</script>'], 'a<b')), '<script type="application/json">a\\u003cb</script>');
   assert.equal(serializeTemplate(template(['<style>', '</style>'], '.a>.b{}')), '<style>.a>.b{}</style>');
 });
 
@@ -179,8 +179,8 @@ test('`<svg a=x/>` leaves the svg open, and `<style/>` opens raw text', () => {
 
 /** `</scripts` ends nothing: the end tag needs the tokenizer's boundary after its name. */
 test('a raw-text element ends only at its own end tag', () => {
-  const served = serializeTemplate(template(['<script>a</scripts>', '</script>'], 'b'));
-  assert.equal(served, '<script>a</scripts>b</script>');
+  const served = serializeTemplate(template(['<script type="application/json">a</scripts>', '</script>'], 'b'));
+  assert.equal(served, '<script type="application/json">a</scripts>b</script>');
   const style = serializeTemplate(template(['<style>a</style\v>', '</style>'], '.a>.b{}'));
   assert.equal(style, '<style>a</style\v>.a>.b{}</style>');
 });

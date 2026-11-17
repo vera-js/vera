@@ -148,6 +148,32 @@ export const SCRIPT_URL_ITEM = /(?:^|;)[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*
 export const INLINE_HANDLER = /^on./i;
 
 /**
+ * **A `<script>` that is a JSON data block, by its `type`** (Brian, 2026-11-17): the only script a value may enter (state
+ * handoff, JSON-LD); every other script hole is refused (`script-hole`), since a value there is code — run on a page the
+ * server rendered. "The type ends in `json`" never names a script that runs — measured on Chromium, Firefox and WebKit,
+ * parameters included (`text/javascript; x=json` is inert), as the spec reads a type (a JavaScript MIME essence match on
+ * the whole string); `type=""` and a `language` attribute alone do run, and end in no `json`.
+ */
+export const JSON_BLOCK = /json\s*$/i;
+
+/**
+ * Whether a script START TAG, as written, opens a JSON data block: its attributes read IN ORDER (so a `type=` inside
+ * another attribute's quoted value is never taken for the type), the first `type` as the parser keeps it, and that value
+ * holding no `&` (a character reference is refused rather than decoded — a decoder slightly off would make the server
+ * and the client disagree) and ending in `json` (`JSON_BLOCK`). Every side applies it to the start tag that OPENED the
+ * script a hole sits in — recorded where the scanner enters raw text, never found by searching back (a `<script…>`
+ * inside a script's own text is no start tag). `@verajs/ssr` holds a twin, held equal by a test.
+ */
+export const dataBlock = (openTag: string) => {
+  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/g))
+    if (name!.toLowerCase() === 'type') {
+      const type = double ?? single ?? bare ?? '';
+      return !type.includes('&') && JSON_BLOCK.test(type);
+    }
+  return false;
+};
+
+/**
  * **The properties that replace an element's whole content** — a binding to one owns the element's children, so it
  * cannot share the element with content of its own (markup, or a child binding the write would strand: a later commit
  * into it then throws on a missing parent). Development refuses the pair in the template scanner and in `spread` alike.

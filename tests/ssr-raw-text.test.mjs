@@ -49,11 +49,12 @@ test('a stylesheet interpolation is written raw, exactly as the client writes it
   assert.doesNotMatch(css, /&#/, 'a `>` in a selector must survive');
 });
 
-test('a script interpolation is written raw', async () => {
-  const { html } = await renderToString(component('<script>${v}</script>'), {
-    attributes: { v: 'if (a < b && c > d) go();' },
+test('a JSON data block\'s value is written raw but for `<`, as \\u003c (lossless in JSON); a value in any other script is refused', async () => {
+  const { html } = await renderToString(component('<script type="application/json">${v}</script>'), {
+    attributes: { v: '{"x":"a < b && c > d"}' },
   });
-  assert.match(html, /if \(a < b && c > d\) go\(\);/, 'JavaScript must not be entity-encoded');
+  assert.match(html, /\{"x":"a \\u003c b && c > d"\}/, 'JSON must not be entity-encoded; only `<` is written as \\u003c');
+  await assert.rejects(renderToString(component('<script>${v}</script>'), { attributes: { v: 'go()' } }), /ssr-script-hole/);
 });
 
 /* ── and the end tag still cannot be written ─────────────────────────────────────────────────── */
@@ -70,15 +71,24 @@ const PAYLOADS = [
 
 test('no payload escapes the element it was interpolated into', async () => {
   const source = component(
-    '<style>${v}</style><script>${v}</script><title>${v}</title><textarea>${v}</textarea><p>${v}</p>'
+    '<style>${v}</style><script type="application/json">${v}</script><title>${v}</title><textarea>${v}</textarea><p>${v}</p>'
   );
   for (const v of PAYLOADS) {
     const { html } = await renderToString(source, { attributes: { v } });
     const parsed = new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
-    assert.equal(parsed.querySelectorAll('img[onerror]').length, 0, `img injected by ${v}`);
-    const escaped = [...parsed.querySelectorAll('script')].filter(
-      (element) => element.textContent.includes('alert(1)') && element.parentElement?.localName !== 'style'
+    /**
+     * Every match, template content included: the component renders into a declarative shadow root, which jsdom parses as
+     * a plain `<template>` — a query of the document alone found nothing at all, so these checks measured nothing until
+     * the control below (2026-11-17).
+     */
+    const all = (selector) => [...parsed.querySelectorAll(selector), ...[...parsed.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll(selector)])];
+    assert.equal(all('img[onerror]').length, 0, `img injected by ${v}`);
+    /** A script the payload MADE: not the template's own JSON data block, which carries the payload as data. */
+    const escaped = all('script').filter(
+      (element) => element.textContent.includes('alert(1)') && element.parentElement?.localName !== 'style' && element.type !== 'application/json'
     );
+    assert.equal(all('script').length, 1, `CONTROL: the data block stands alone, whole, for ${v}`);
+    assert.equal(all('p').length, 1, `CONTROL: the <p> after it parsed (the checks reach the rendered content) for ${v}`);
     assert.equal(escaped.length, 0, `script injected by ${v}`);
   }
 });

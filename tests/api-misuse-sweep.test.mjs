@@ -65,6 +65,7 @@ const CASES = [
   ['a content property beside content', () => renderInto(core.html`<div .textContent=${'v'}><b>s</b></div>`, document.createElement('div')), /renderer: <div> binds `\.textContent`/],
   ['a binding inside an SVG <title> beside an element', () => renderInto(core.html`<svg><title>${'a'}<desc></desc></title></svg>`, document.createElement('div')), /renderer: a binding inside <title> in SVG or MathML/],
   ['a binding inside an obsolete raw-text element', () => renderInto(core.html`<xmp>${'a'}</xmp>`, document.createElement('div')), /renderer: a binding inside <xmp> is never rendered/],
+  ['a value in a script that is no JSON data block', () => renderInto(core.html`<script>${'go()'}</script>`, document.createElement('div')), /renderer: a value in a <script> is code/],
   ['a template ending inside a tag', () => renderInto(core.html`<p title=${'x'}`, document.createElement('div')), /renderer: a template cannot end inside a tag/],
   ['an expression in an attribute name', () => renderInto(core.html`<p data-${'x'}="1"></p>`, document.createElement('div')), /renderer: an attribute name cannot be an expression/],
   ['an expression in tag-name position', () => renderInto(core.html`<${'p'}>x</${'p'}>`, document.createElement('div')), /renderer: an expression in tag position/],

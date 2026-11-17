@@ -290,7 +290,7 @@ const CASES = {
   'a spread live property': 'html`<input type="checkbox" ${spread({ "!checked": true })} />`',
   'a binding inside a style element': "html`<style>.a{color:${'red'}}</style>`",
   'a binding inside a title element': "html`<title>${'hi'}</title>`",
-  'a binding inside a script element': "html`<script>var a = ${1}</script>`",
+  'a binding inside a script element (a JSON data block, the one script a value enters)': "html`<script type=\"application/json\">{\"a\": ${1}}</script>`",
   'a binding inside a comment': "html`<b><!-- ${'x'} --></b>`",
   'a binding after a comment': "html`<!-- c --><b>${'x'}</b>`",
   'a comment holding a tag': "html`<b><!-- <i>no</i> -->${'x'}</b>`",

@@ -25,7 +25,7 @@ const quoted = '"><img id=pwn src=x onerror=1>';
 /** Each parent sink a leaked state could reach: raw text, a quoted attribute, a URL. */
 const sinks = (child) => ({
   style: html\`<div>\${child}<style>\${pwn}</style></div>\`,
-  script: html\`<div>\${child}<script>\${pwn}</script></div>\`,
+  script: html\`<div>\${child}<script type="application/json">\${pwn}</script></div>\`,
   attribute: html\`<div>\${child}<b title="\${quoted}">x</b></div>\`,
   url: html\`<div>\${child}<a href="\${'javascript:alert(1)'}">x</a></div>\`,
 });

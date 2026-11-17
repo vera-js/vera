@@ -129,6 +129,12 @@
       "fix": "Load a renderer per core — each app wires its own vera-renderer bundle — or share one core between the apps."
     },
     {
+      "code": "script-hole",
+      "params": [],
+      "message": "a value in a <script> is code — on a page the server rendered it runs — so a script hole is refused, except in a JSON data block (its type ends in `json`, with no character reference).",
+      "fix": "Give the script a JSON type (`type=\"application/json\"` or `application/ld+json`) for state or JSON-LD, or pass the value another way."
+    },
+    {
       "code": "self-closed-tag",
       "params": [
         "tag"

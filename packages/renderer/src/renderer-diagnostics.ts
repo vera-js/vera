@@ -39,6 +39,10 @@ export const PROSE: Record<string, Prose> = {
     `a binding inside <${tag}> in SVG or MathML cannot sit beside an element there — the renderer reads <${tag}> as text and rebuilds it around its bindings, which destroys the elements in it.`,
     `Bind text directly in the <${tag}> (no elements), or move the element out of it.`,
   ],
+  'script-hole': () => [
+    'a value in a <script> is code — on a page the server rendered it runs — so a script hole is refused, except in a JSON data block (its type ends in `json`, with no character reference).',
+    'Give the script a JSON type (`type="application/json"` or `application/ld+json`) for state or JSON-LD, or pass the value another way.',
+  ],
   'obsolete-raw-text': (tag) => [
     `a binding inside <${tag}> is never rendered — the parser reads its content as text whole, and <${tag}> is obsolete.`,
     'Use <pre> for preformatted text.',

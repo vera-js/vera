@@ -103,6 +103,11 @@ export const escapeStyleText = (value: unknown): string => `${value}`.replace(/<
 const RAW_TEXT_CLOSERS: Partial<Record<string, RegExp>> = { style: /<\/(style)/gi, script: /<\/(script)/gi };
 
 export const escapeRawText = (value: unknown, tag: string): string => {
+  /**
+   * A JSON data block's value (`dataBlock`, `serializer.ts`): `<` as `\u003c`, lossless in JSON — it ends no element
+   * and opens no escaped-script state (`<!--<script>` in a script's text swallows the rest of the page: BROWSER-LEDGER).
+   */
+  if (tag === 'json') return `${value}`.replace(/</g, '\\u003c');
   const closer = RAW_TEXT_CLOSERS[tag];
   return closer ? `${value}`.replace(closer, '<\\/$1') : escapeHtml(value);
 };
@@ -192,6 +197,23 @@ export const SCRIPT_URL_ITEM = /(?:^|;)[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*
 
 /** A bound inline event-handler attribute runs its value as code — the twin of `INLINE_HANDLER` there. */
 export const INLINE_HANDLER = /^on./i;
+
+/** A script `type` that names a JSON data block — the twin of `JSON_BLOCK` in `@verajs/shared-utils`. */
+export const JSON_BLOCK = /json\s*$/i;
+
+/**
+ * Whether a script START TAG, as written, opens a JSON data block — the twin of `dataBlock` in `@verajs/shared-utils`
+ * (held equal by `tests/script-data-blocks.test.mjs`): the first `type`, read in attribute order, holding no `&` and
+ * ending in `json`. The only script a bound value may enter on the server (`ssr-script-hole`).
+ */
+export const dataBlock = (openTag: string) => {
+  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/g))
+    if (name!.toLowerCase() === 'type') {
+      const type = double ?? single ?? bare ?? '';
+      return !type.includes('&') && JSON_BLOCK.test(type);
+    }
+  return false;
+};
 
 /**
  * The character references that can spell part of a scheme, decoded — enough to give the verdict a

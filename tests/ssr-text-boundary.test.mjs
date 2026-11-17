@@ -169,7 +169,7 @@ test('a carriage return cannot survive inside style or script, and the README sa
     assert.equal(served.textContent, 'a\nb', `${tag}: the parser collapses the CR the server wrote`);
 
     const host = document.createElement('div');
-    renderInto(tag === 'style' ? html`<style>a${cr}b</style>` : html`<script>a${cr}b</script>`, host);
+    renderInto(tag === 'style' ? html`<style>a${cr}b</style>` : html`<script type="application/json">a${cr}b</script>`, host);
     assert.equal(host.querySelector(tag).textContent, `a${cr}b`, `${tag}: the client keeps it`);
   }
 

@@ -828,6 +828,11 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   string written); a custom element's same-named property (`.data=${rows}`) gets objects untouched and
   only a string is checked. A bound `srcdoc` attribute is refused too — use
   `.srcdoc=${trusted}`. `@verajs/ssr` refuses the same values, so server and client agree.
+- A value enters a `<script>` ONLY as a JSON data block: the script's `type`, as written, ends in `json`
+  (`application/json`, `application/ld+json`) with no character reference — e.g.
+  `<script type="application/ld+json">${JSON.stringify(schema)}</script>`. Any other script hole is REFUSED:
+  `@verajs/ssr` in every build (`ssr-script-hole`, since a served script runs), the renderer in development
+  (`script-hole`). On the server a data block's value is written with `<` as `\u003c`.
 - Child-position values match lit exactly: only `null`/`undefined` are empty. `false` and `0`
   RENDER, so `${cond && 'x'}` puts the word `false` on the page — write `${cond ? 'x' : null}`.
   `@verajs/ssr` serializes them the same way, so server and client agree.

@@ -13,7 +13,8 @@ export const CR = '\r';
 customElements.define('t-rawtext', class extends HTMLElement {
   connectedCallback() {
     init({ host: this, shadow: 'open' }, () => {
-      return () => html`<div><style>a${CR}b</style><script>a${CR}b</script></div>`;
+      /** The script is a JSON data block: the one script a value may enter (2026-11-17). */
+      return () => html`<div><style>a${CR}b</style><script type="application/json">a${CR}b</script></div>`;
     });
   }
 });

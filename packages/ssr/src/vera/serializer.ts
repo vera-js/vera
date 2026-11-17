@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, dataBlock, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
@@ -275,6 +275,35 @@ const takesNewline = (text: string, before: ScanStart | ScanResult): boolean => 
   return (
     at.inTag && !at.closing && !(at.inValue && at.quote !== '') && at.comment === '' && NEWLINE_TAKERS.has(at.tagName)
   );
+};
+
+/** A scan state to run `scanTag` from without touching the original (`scanTag` mutates `opens`). */
+const copyScan = (state: ScanStart | ScanResult): ScanStart | ScanResult => ({ ...state, opens: [...state.opens] });
+
+/**
+ * **The start tag that OPENED the script hole `hole` sits in, as written** (a hole inside the tag as `\uFFFF`), read by
+ * THIS tokenizer, never searched for: the static in which `rawTag` turns `script`, the `>` that turns it (the shortest
+ * prefix of that static whose scan does), and where that tag began — in that static (`tagAt`) or in the earlier one it
+ * was left open in. Cold: once per script hole, once per template (`compile`).
+ */
+const openingTag = (strings: readonly string[], hole: number, depth: number): string => {
+  let state: ScanStart | ScanResult = freshScan(depth);
+  let open: [number, number] = [0, 0];
+  let found = '';
+  for (let j = 0; j <= hole; j++) {
+    const text = strings[j]!;
+    const after = scanTag(text, copyScan(state));
+    if (state.rawTag !== 'script' && after.rawTag === 'script') {
+      let end = 1;
+      while (scanTag(text.slice(0, end), copyScan(state)).rawTag !== 'script') end++;
+      const before = scanTag(text.slice(0, end - 1), copyScan(state));
+      const [from, at] = before.tagAt >= 0 ? [j, before.tagAt] : open;
+      found = from === j ? text.slice(at, end) : strings[from]!.slice(at) + '\uFFFF' + strings.slice(from + 1, j).map((t) => `${t}\uFFFF`).join('') + text.slice(0, end);
+    }
+    if (after.inTag && after.tagAt >= 0) open = [j, after.tagAt];
+    state = after;
+  }
+  return found;
 };
 
 const compile = (strings: unknown, depth: number): Plan | null => {
@@ -651,6 +680,18 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     throw own(new Error(ssrMisuse('ssr-unfinished-tag', PROSE['ssr-unfinished-tag']!())));
   const closers = closersOf(end);
   if (closers) parts[parts.length - 1] += closers;
+
+  /**
+   * A value in a `<script>` is code — on a served page it runs — so a script hole is refused (`ssr-script-hole`, every
+   * build) unless the script is a JSON data block, judged on the start tag that OPENED it (`openingTag`: this tokenizer's
+   * own reading, never a search back, so a `<script…>` inside a script's text or a quoted value is never taken for it).
+   * A data block's values are written with `<` as `\u003c` (`escapeRawText`'s `json`). Once per template, here.
+   */
+  for (let i = 0; i < raws.length; i++)
+    if (raws[i] === 'script') {
+      if (!dataBlock(openingTag(strings, i, depth))) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
+      raws[i] = 'json';
+    }
 
   /**
    * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls

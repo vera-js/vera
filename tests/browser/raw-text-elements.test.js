@@ -27,7 +27,8 @@ wire({ on: 'render', fn: renderInto, priority: 50 });
 
 /** Every raw-text element, plus a control that is not one. */
 const SUBJECTS = [
-  ['script', (v) => html`<script>const x = "${v}";<\/script>`],
+  /** A script takes a value only as a JSON data block (2026-11-17: a value in any other script is refused, `script-hole`). */
+  ['script', (v) => html`<script type="application/json">{"x": "${v}"}<\/script>`],
   ['style', (v) => html`<style>.a { color: ${v}; }</style>`],
   ['textarea', (v) => html`<textarea>${v}</textarea>`],
   ['title', (v) => html`<title>${v}</title>`],

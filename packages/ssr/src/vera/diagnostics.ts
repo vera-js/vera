@@ -26,6 +26,10 @@ export const PROSE: Record<string, Prose> = {
     `<${tag}> refused the bound property \`.${name}\` — its setter threw ${thrown}.`,
     "The binding's value is the argument it was given; the setter's own error is this one's cause.",
   ],
+  'ssr-script-hole': () => [
+    'a value in a <script> is code — on a served page it runs — so a script hole is refused, except in a JSON data block (its type ends in `json`, with no character reference).',
+    'Give the script a JSON type (`type="application/json"` or `application/ld+json`) for state or JSON-LD, or pass the value another way.',
+  ],
   'ssr-unfinished-tag': () => [
     'a template cannot end inside a tag — the client drops an unfinished tag.',
     'Close the tag inside the template.',

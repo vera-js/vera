@@ -1323,6 +1323,21 @@ checked. A bound `srcdoc`
 URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.
 Development builds name each refusal.
 
+**Security: a value enters a `<script>` only as a JSON data block.** A value in a script's text is code: on a page
+`@verajs/ssr` rendered, the browser runs it, and a value holding `<!--<script>` would make the rest of the page script
+text. So a script hole is accepted only when the script is a JSON data block — its `type`, as written in the template,
+ends in `json` (`application/json`, `application/ld+json`), with no character reference — for handing state to the
+client or for JSON-LD:
+
+```js
+html`<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+```
+
+Any other script hole is refused: by `@verajs/ssr` in every build (`ssr-script-hole`), and by this renderer in
+development (`script-hole`). The start tag judged is the one that opened the script, never one found in the script's
+own text. On the server a data block's value is written with `<` as `\u003c`, which JSON reads back unchanged. In the
+client a template's `<script>` never runs, so production adds nothing there.
+
 **Security: spread refuses the injection sinks.** The `.innerHTML` posture above rests on the
 template spelling being greppable, obviously yours, and reviewable — three properties a spread key
 does not have, because spread names arrive at runtime inside a props object that is often built

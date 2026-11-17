@@ -91,7 +91,8 @@ const POSITIONS = {
   'inside <style>': (v) => html`<style>${v}</style>`,
   'inside <title>': (v) => html`<title>${v}</title>`,
   'inside <textarea>': (v) => html`<textarea>${v}</textarea>`,
-  'inside <script>': (v) => html`<script>${v}</script>`,
+  /** The one script a value may enter (2026-11-17): a JSON data block, its value with `<` as \u003c. */
+  'inside a JSON data block': (v) => html`<script type="application/json">${v}</script>`,
   'an href': (v) => html`<a href=${v}>link</a>`,
   'nested deep': (v) => html`<div><section><p>${v}</p></section></div>`,
 };
@@ -138,7 +139,7 @@ test('no interpolated value escapes its position', () => {
 
       const seen = inspect(markup);
       /** A `<script>` is legitimate in that one position; a *second* one is not. */
-      const allowedScripts = position === 'inside <script>' ? 1 : 0;
+      const allowedScripts = position === 'inside a JSON data block' ? 1 : 0;
       if (seen.scripts > allowedScripts || seen.handlers > 0 || seen.injected > 0)
         escapes.push(
           `${position} / ${JSON.stringify(payload)}\n      scripts=${seen.scripts} handlers=${seen.handlers} injected=${seen.injected}\n      markup: ${markup.slice(0, 140)}`
@@ -169,4 +170,16 @@ test('and every payload still arrives as data rather than being dropped', () => 
   }
 
   assert.deepEqual(lost, [], `these positions dropped the value entirely rather than escaping it: ${lost.join(', ')}`);
+});
+
+test('a value in any other <script> is refused, every payload, coded ssr-script-hole (a served script runs)', () => {
+  for (const payload of PAYLOADS) {
+    let error;
+    try {
+      serializeTemplate(html`<script>${payload}</script>`);
+    } catch (e) {
+      error = e;
+    }
+    assert.match(String(error?.cause?.message ?? error?.message), /ssr-script-hole/, JSON.stringify(payload));
+  }
 });

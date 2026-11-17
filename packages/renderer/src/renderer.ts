@@ -33,6 +33,7 @@ import {
   SCRIPT_URL,
   SCRIPT_URL_ITEM,
   URL_SINK,
+  dataBlock,
   diagnostic,
   dispatch,
   hasWarned,
@@ -278,6 +279,14 @@ class Template {
     let markup = '';
     let regex = TEXT_END;
     let rawEnd: RegExp | undefined;
+    /**
+     * Development: where the start tag of the raw-text element being opened begins (its string, its offset), its name,
+     * and, once its `>` enters raw text, that start tag as written (`MARKER` where a hole sat in it) — the tag that OPENED
+     * the raw text a hole sits in, never one found by searching back (a `<script…>` inside a script's text is no tag).
+     */
+    let rawOpen: [number, number] | undefined;
+    let rawName = '';
+    let rawTag = '';
     /** The previous binding opened an UNQUOTED value, so a string that matches nothing continues it (`a=${x}${y}`). */
     let open: boolean = false;
     /** Development also scans the LAST static, so a template that ends inside a tag is refused (below); production does not. */
@@ -298,7 +307,13 @@ class Template {
           if (match[1] === '!--') regex = COMMENT_END;
           else if (match[1] !== undefined) regex = COMMENT2_END;
           else {
-            if (match[2] !== undefined && RAW_TEXT_TAGS.test(match[2])) rawEnd = new RegExp(`</${match[2]}`, 'gi');
+            if (match[2] !== undefined && RAW_TEXT_TAGS.test(match[2])) {
+              rawEnd = new RegExp(`</${match[2]}`, 'gi');
+              if (__DEV__) {
+                rawOpen = [i, match.index];
+                rawName = match[2].toLowerCase();
+              }
+            }
             if (__DEV__) tags![i] = match[2] ?? '';
             regex = TAG_END;
           }
@@ -307,6 +322,13 @@ class Template {
           if (match[0] === '>') {
             regex = rawEnd ?? TEXT_END;
             nameEnd = -1;
+            if (__DEV__ && rawOpen !== undefined) {
+              const [from, offset] = rawOpen;
+              rawTag =
+                from === i ? s.slice(offset, at)
+                : strings[from]!.slice(offset) + MARKER + strings.slice(from + 1, i).map((t) => t + MARKER).join('') + s.slice(0, at);
+              rawOpen = undefined;
+            }
           } else if (match[1] === undefined) nameEnd = -2;
           else {
             name = match[1];
@@ -333,6 +355,13 @@ class Template {
           throw new Error(misuse('renderer', 'unfinished-tag', __DEV__ && PROSE['unfinished-tag']()));
         break;
       }
+      /**
+       * Development: a value in a `<script>` is code, so a script hole is refused unless the script is a JSON data block
+       * (`dataBlock`, on the start tag that opened it). Silent in production, where it is dead text in the client (a
+       * template's script never runs); the SERVER refuses it in every build, where a served script runs.
+       */
+      if (__DEV__ && regex === rawEnd && rawName === 'script' && !dataBlock(rawTag))
+        throw new Error(misuse('renderer', 'script-hole', __DEV__ && PROSE['script-hole']()));
       if (regex === TEXT_END) {
         markup += `${s}<?${MARKER}${i}>`;
         kinds[i] = CHILD;

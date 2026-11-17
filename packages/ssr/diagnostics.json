@@ -82,6 +82,12 @@
       "fix": "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring (`if (!globalThis.__veraSsrShimmed)`)."
     },
     {
+      "code": "ssr-script-hole",
+      "params": [],
+      "message": "a value in a <script> is code — on a served page it runs — so a script hole is refused, except in a JSON data block (its type ends in `json`, with no character reference).",
+      "fix": "Give the script a JSON type (`type=\"application/json\"` or `application/ld+json`) for state or JSON-LD, or pass the value another way."
+    },
+    {
       "code": "ssr-selector-unsupported",
       "params": [
         "selector",

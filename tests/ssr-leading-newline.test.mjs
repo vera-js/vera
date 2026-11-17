@@ -118,9 +118,9 @@ test('the control: the parser does take a leading line feed, so the rows above c
   assert.equal(parsedText('<pre>&#10;abc</pre>', 'pre'), 'abc');
 });
 
-test('a <script> holding a <pre> is raw text: nothing is added', () => {
-  const draw = () => html`<script><pre>${'\nx'}</script>`;
-  assert.equal(serializeTemplate(draw()), '<script><pre>\nx</script>');
+test('a <script> holding a <pre> is raw text: nothing is added (a JSON data block, the one script a value enters)', () => {
+  const draw = () => html`<script type="application/json"><pre>${'\nx'}</script>`;
+  assert.equal(serializeTemplate(draw()), '<script type="application/json"><pre>\nx</script>');
 });
 
 test('the added line feed lands before a <select> value is resolved', () => {

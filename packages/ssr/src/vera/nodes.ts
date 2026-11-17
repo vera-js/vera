@@ -9,7 +9,7 @@
  * tripping over it.
  */
 import { interfaceFor } from './reflections.js';
-import { escapeHtml, escapeRawText, escapeStyleText, leadingNewline, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
+import { JSON_BLOCK, escapeHtml, escapeRawText, escapeStyleText, leadingNewline, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { decode, parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
@@ -689,7 +689,10 @@ export class TextShim extends CharacterDataShim {
     if (this._source !== null) return this._source;
     const parent = (this._parent as { localName?: string } | null)?.localName;
     /** Named, not looked up: a lookup keyed by every parent's name is a megamorphic load on every text node written. */
-    return parent === 'style' || parent === 'script' ? escapeRawText(this._data, parent) : escapeHtml(this._data);
+    // A JSON data block's text keeps `<` out as `\u003c` (`escapeRawText`'s `json`): the static tier writes one here.
+    return parent === 'style' || parent === 'script'
+      ? escapeRawText(this._data, parent === 'script' && JSON_BLOCK.test((this._parent as ElementShim).getAttribute('type') ?? '') ? 'json' : parent)
+      : escapeHtml(this._data);
   }
   cloneNode(): TextShim {
     const copy = new TextShim(this._data);
