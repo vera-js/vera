@@ -21,6 +21,16 @@ from another machine, or after that is undone, has a variable changed.
   `<my-row>` written inside `<table><tbody>` is moved out of the table when a template is parsed, so the slot and
   everything distributed into it land outside the table. Consequence: documented as a light-DOM slots limitation that
   holds in BOTH modes; the DOM benchmark's component rows are `<div>`s. (light-dom-slots.md; 2026-10-18)
+- **jsdom fosters text out of a table to the WRONG side: after the table, where every engine puts it before.** Text
+  written directly inside `<table>` is foster-parented. Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless,
+  a parse only) insert it immediately BEFORE the table, in a `<template>` and in a `<div>` alike: `<!--m--><table>c</table>`
+  parses as comment, `c`, table. jsdom 25.0.1 (parse5 7.2.0) appends it to a text node that already precedes the table
+  (`v<table>c</table>` gives `vc` and the table, as the engines do), but otherwise puts it AFTER the table
+  (`<table>c</table>` gives the table, then `c`). Consequence: a jsdom comparison of two renderers that differ only in
+  whether a text node or a comment precedes the table reports a difference no engine has. Found by the small tiers' parity
+  fuzz, where static (a value written as text) and core (a comment marker) disagreed in jsdom only; that fuzz sets the
+  `<table>` shape aside, and the tiers' table rows rest on the engines. (`.probe/verify/foster-engines.mjs` in the tiers'
+  work tree; 2026-11-17)
 - **Every real engine accepts attribute names jsdom rejects.** jsdom implements the XML Name production and throws on
   `a(b)`, `a|b`, `a?b` and ~50 more; Chrome, Firefox and WebKit reject only `a b`, `a>b`, `a=b`, `a/b`. Consequence: the
   spread denylist follows the engines; `tests/browser/spread-names.test.js` records their rule; a jsdom-only probe of
