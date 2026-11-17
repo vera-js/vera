@@ -184,6 +184,11 @@ code, so they are not re-litigated.
   idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
   no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
   perfectly by an entry that never ran at all.
+  **jsdom parses a served declarative shadow root as a plain `<template>`** (Brian approved, 2026-11-17): a server suite
+  that renders a shadow component and then queries only the document sees none of the component's content, so it
+  asserts absence against nothing — `tests/ssr-raw-text.test.mjs`'s "no payload escapes" checks found 0 scripts and 0
+  injected images on every run, because there was nothing to search. Query template content too, and assert a positive
+  control (an element known to be inside) before any "absent" counts.
 - **A metric with two modes or a heavy tail gets a frequency bar, a median bar and a control bar — never a range bar**
   (Brian approved, 2026-10-24). GC time, cycle-collector time, hydration's alternating modes: pre-register (1) how often
   the HIGH mode occurs, with its threshold, (2) the median, and (3) the POSITIVE CONTROL's expected reading, the run
