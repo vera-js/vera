@@ -21,6 +21,14 @@ from another machine, or after that is undone, has a variable changed.
   `<my-row>` written inside `<table><tbody>` is moved out of the table when a template is parsed, so the slot and
   everything distributed into it land outside the table. Consequence: documented as a light-DOM slots limitation that
   holds in BOTH modes; the DOM benchmark's component rows are `<div>`s. (light-dom-slots.md; 2026-10-18)
+- **Which `<script>` types run: the WHOLE type string, never a parameter.** Chromium 151, Firefox 153 and WebKit 26.5
+  (Playwright, a served page; positive control `text/javascript` runs): `text/javascript; x=json`,
+  `text/javascript;json`, `application/javascript ;charset=json` and `module; json` are all INERT (a parameter makes the
+  string no JavaScript MIME essence match, as the spec reads it); `type=""` and an absent type with the obsolete
+  `language="javascript"` RUN; `type=" "` is inert; `application/json` and `application/ld+json` are inert. Consequence:
+  "the type ends in `json`" never names a script that runs, so it is a safe test for a JSON data block — and the server
+  and the client must apply it to the same string (the whole attribute value). (`.probe/verify/script-types.mjs` in the
+  tiers' work tree; 2026-11-17)
 - **`<!--<script>` inside a `<script>`'s text swallows the rest of the page; neutralizing `</script` alone does not
   stop it.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, a parse only): `<script type="application/json">
   {"a":"<!--<script>"}</script><p id="after">` leaves no `#after` — the tokenizer's double-escaped script state ignores
