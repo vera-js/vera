@@ -21,6 +21,14 @@ from another machine, or after that is undone, has a variable changed.
   `<my-row>` written inside `<table><tbody>` is moved out of the table when a template is parsed, so the slot and
   everything distributed into it land outside the table. Consequence: documented as a light-DOM slots limitation that
   holds in BOTH modes; the DOM benchmark's component rows are `<div>`s. (light-dom-slots.md; 2026-10-18)
+- **`<!--<script>` inside a `<script>`'s text swallows the rest of the page; neutralizing `</script` alone does not
+  stop it.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, a parse only): `<script type="application/json">
+  {"a":"<!--<script>"}</script><p id="after">` leaves no `#after` — the tokenizer's double-escaped script state ignores
+  the `</script>` that should close it, so everything up to a LATER `</script>` becomes script text. A plain value, and
+  `<!--` alone, leave the page intact (the controls). Consequence: anything that writes a value into a script's text
+  on a SERVER (a JSON data block, JSON-LD) must neutralize `<!--` and `<script` as well as `</script` — for JSON, `<` as
+  `\u003c` is valid and changes nothing. A client writing through `textContent` is not affected (no tokenizer).
+  (`.probe/verify/script-double-escape.mjs` in the tiers' work tree; 2026-11-17)
 - **A `<script>` parsed into a `<template>` never runs, however it reaches the document.** Chromium 151, Firefox 153
   and WebKit 26.5 (Playwright, headless): a template's script — in its statics, or with its text set after parsing —
   adopted, cloned (`cloneNode`) or imported (`importNode`) and inserted does not execute; a `createElement('script')` with
