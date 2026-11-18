@@ -28,6 +28,15 @@ from another machine, or after that is undone, has a variable changed.
   `language="javascript"` RUN; `type=" "` is inert; `application/json` and `application/ld+json` are inert. Consequence:
   "the type ends in `json`" never names a script that runs, so it is a safe test for a JSON data block — and the server
   and the client must apply it to the same string (the whole attribute value). (2026-11-17)
+- **`<![CDATA[` inside an SVG or MathML integration point: a CDATA section in Firefox and WebKit, a bogus comment in
+  Chromium.** Playwright Chromium 151, Firefox 153 and WebKit 26.5 (headless), parsed by `<template>` and by a `<div>`'s
+  `innerHTML` alike. In SVG `<title>`, `<desc>`, `<foreignObject>` and MathML `<mi>`, Firefox and WebKit make the
+  content TEXT (`x`), Chromium a comment (`[CDATA[x]]`); jsdom (parse5) agrees with Chromium. In plain SVG content
+  (`<g>`) and SVG `<style>`, all three make text. Firefox and WebKit read the spec as written: the tokenizer opens a CDATA
+  section whenever the adjusted current node is not in the HTML namespace, and an integration point is still an SVG or
+  MathML element. Consequence: a template hole inside CDATA in those elements is refused by `@verajs/lite` in Chromium
+  (its marker is a comment's text) and filled as TEXT in Firefox and WebKit — safe in all three, never markup, but
+  the verdict differs by engine; `tests/browser/lite.test.js` pins each engine's reading. (2026-11-18)
 - **`<!--<script>` inside a `<script>`'s text swallows the rest of the page; neutralizing `</script` alone does not
   stop it.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, a parse only): `<script type="application/json">
   {"a":"<!--<script>"}</script><p id="after">` leaves no `#after` — the tokenizer's double-escaped script state ignores
