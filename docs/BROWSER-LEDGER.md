@@ -270,6 +270,30 @@ from another machine, or after that is undone, has a variable changed.
   split-render ablation's "26.9 MB per scavenge" was its per-row ref literal; Vera's split render is 0.11 MB with a
   class ref), and a per-row closure over row data in an app's hot create path is worth measuring. (node 24 / V8 13.6
   and node 26 / V8 14.6, macOS; 2026-11-12.)
+- **In Chrome, two forms of a per-row array whose script parts differed by ≤0.15 ms read ~7–10% apart on a
+  paint-inclusive row; the gap tracked the page's major-collection count, and its sign depended on what ran earlier on
+  the page.** Chrome 157.0.8103.79 (installed Chrome, Playwright, headed, a fresh browser per page), 2026-11-17; Chrome
+  only, Firefox and WebKit not checked. `bench/dom`'s `append1k` on the lite tier, three forms of one per-row array of 3
+  entries: grown by `push` from `[]` (V8 backs it with 17 slots), or built exact-size by `map`, with a module-level
+  callback or a closure. User-timing marks split each timed sample (script done; painted), and CDP tracing of the
+  renderer main thread split the rest; 4 pages per form, 28 timed samples each, means below. The script part was ~2.8 of
+  ~25 ms; the rest was the frame's style, layout and pre-paint on an identical DOM.
+  After `create1k` on the same page, the `push` form was slower on 8 of 8 pages over two runs (mean 26.2–26.3 ms against
+  24.5–24.8), every `push` page with 5 major collections and every exact-size page with 10. Its +1.76 ms (second run)
+  split into script +0.13, idle wait for the frame +0.78, and rendering +0.75 (layout +0.55, pre-paint +0.18, style
+  +0.10), with nothing after the rendering. On a fresh page, the races (no tracing) read both exact-size forms +7–9%
+  slower than `push`; in this probe only the module-level-callback form was (25.8 against 24.8–24.9), on pages with 3, 3,
+  4 and 7 major collections against 7 on every other page, although that form and the closure form build identical
+  arrays: on a fresh page the variance is per page within one form, not the allocation pattern alone. No major
+  collection landed inside any timed window; minor ones landed in 3 and 4 of 28 windows of one exact-size form, and none
+  in the windows of the slow form. With a full collection forced before every sample (`--expose-gc`), script and
+  rendering tied across the forms in both designs (rendering 23.2–23.4 ms after `create1k`, 22.4–22.7 fresh; window
+  means within 1.3% fresh, and within 3.2% after `create1k`, all of it idle frame wait, whose variance grew), and every
+  form got slower (layout 12.1–12.8 → 13.5–14.1 ms). So the mechanism is not "less garbage, faster layout", and it is not
+  isolated. Consequence: on a paint-inclusive row, an arm that changes only how JavaScript allocates can move the row
+  ~10% either way, and which way depends on the page's history. That is a real cost on that history, not noise. Before
+  reading such a difference as code speed, split the window into script and rendering, and check it against equalized
+  collections.
 
 ## Custom elements
 
@@ -639,7 +663,7 @@ from another machine, or after that is undone, has a variable changed.
   window could be throttled (not measured); and the wallpaper is set to a still image in System Settings, not by script.
   (Headed races on macOS; 2026-11-06 and 11-07.)
 - **The user's own installed Chrome left running, plus a dictation app, made a bench row two-mode per page; the race's
-  quiet check passed throughout.** Chrome 151 (the installed Chrome launched by Playwright, headed, a fresh browser per
+  quiet check passed throughout.** Chrome 157.0.8103.79 (the installed Chrome launched by Playwright, headed, a fresh browser per
   page), 2026-11-17: with the user's installed Chrome running (open 17 h, a renderer helper bursting to ~96% of a core)
   and a dictation app (Wispr Flow, corespeechd), `bench/dom`'s `append1k` on the lite tier landed each page in one of two
   modes (~30 or ~40 ms), and the A/A copy spread across both, so medians said nothing. With both quit, the same row was
