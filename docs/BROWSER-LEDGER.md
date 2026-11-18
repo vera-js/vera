@@ -37,6 +37,15 @@ from another machine, or after that is undone, has a variable changed.
   MathML element. Consequence: a template hole inside CDATA in those elements is refused by `@verajs/lite` in Chromium
   (its marker is a comment's text) and filled as TEXT in Firefox and WebKit — safe in all three, never markup, but
   the verdict differs by engine; `tests/browser/lite.test.js` pins each engine's reading. (2026-11-18)
+- **A `<style>`'s or `<script>`'s text is serialized verbatim, so a value written into one as text becomes markup after
+  a round trip.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless), and jsdom: an element's text set to
+  `</style><img src=x onerror=…>` is inert in the live DOM, and `outerHTML` writes it back unescaped (the HTML
+  serialization algorithm does not escape raw-text content), so parsing that markup again builds the `<img>`. Measured
+  through `@verajs/lite` and `@verajs/core`'s renderer (a value in `<style>` and in a JSON data block: one `<img>` after a
+  round trip, every engine, both builds) and `@verajs/static` (none: it writes `</style` as `<\/style` and `<` as
+  `\u003c` in JSON, both lossless). Consequence: any code that saves or moves markup through `innerHTML`/`outerHTML` (an
+  editor saving a page from the DOM) turns such a value into markup unless the renderer keeps raw text unable to end its
+  element. (2026-11-18)
 - **The HTML Sanitizer API (`Element.setHTML`) ships in Chromium 151 and Firefox 153, not in WebKit 26.5** (Playwright,
   headless; `typeof el.setHTML`, `typeof Sanitizer`). Its DEFAULT configuration drops a custom element whole, content
   and all (`<my-card>c</my-card>` → nothing); with a configuration object (`setHTML(markup, { sanitizer: {} })`, or
