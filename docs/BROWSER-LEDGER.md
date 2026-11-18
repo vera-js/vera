@@ -651,7 +651,8 @@ from another machine, or after that is undone, has a variable changed.
 - **jsdom builds Proxies of its own for its elements** (a `NamedNodeMap` per element, and a `DOMStringMap` per HTML or SVG
   element: 12,021 constructed while rendering 1000 table rows). Consequence: a probe that counts `new Proxy` to see whether code reaches a
   store must group the count by handler or target, or jsdom's own swamp it. (jsdom, Node; 2026-11-07)
-- **On macOS, the Aerial wallpaper keeps a process busy behind headed browsers, and `caffeinate -dimsu` does not stop it.**
+- **[PARTLY WRONG, 2026-11-17: the process is the Aerials SCREEN SAVER, not a wallpaper; see the next entry.] On macOS,
+  the Aerial wallpaper keeps a process busy behind headed browsers, and `caffeinate -dimsu` does not stop it.**
   In one three-engine race under caffeinate, `WallpaperAerialsExtension` was in the top three processes at the start of
   all 16 Chrome and Firefox sessions, at 6.4–16.2% of a core (at or above 10% in 5 of 8 Chrome and 3 of 8 Firefox
   sessions); no WebKit session showed it. After the wallpaper was set to a still image through System Events (the legacy
@@ -662,6 +663,17 @@ from another machine, or after that is undone, has a variable changed.
   the end, and sessions it marks contended go into a removed-together suspect set, because a covered or contended
   window could be throttled (not measured); and the wallpaper is set to a still image in System Settings, not by script.
   (Headed races on macOS; 2026-11-06 and 11-07.)
+- **The `WallpaperAerialsExtension` load is the Aerials screen saver, it runs with no `ScreenSaverEngine` process, and
+  nothing a harness can do dismisses it once it has started.** macOS 26 (Darwin 25.6), 2026-11-17: the desktop is a
+  still black image (wallpaper store: `com.apple.wallpaper.choice.image`); the store's idle provider is the Aerials screen
+  saver, and `defaults -currentHost read com.apple.screensaver idleTime` is 600. With the machine idle 1637 s
+  (`ioreg -c IOHIDSystem` HIDIdleTime), `WallpaperAerialsExtension` held 11–16% of a core (`ps` %cpu) for a whole race,
+  while no `ScreenSaverEngine` or `legacyScreenSaver` process existed, so a check that looks for those reads "none" with
+  the screen saver up. `caffeinate -u -t 2` did not dismiss it (`top` still 8–9% after) and did not reset HIDIdleTime;
+  only real input does. Caffeinate started BEFORE the 600 s mark keeps it from starting (the entry above, hours under
+  caffeinate with no screen saver). Consequence: an unattended race must hold its caffeinate from before the idle
+  threshold, never start one after it; once the screen saver is up, the race harness's per-page check marks every page
+  contended and the session VOID (measured: 1 session, every page re-run twice, VOID). (`bench/dom/race.mjs`.)
 - **The user's own installed Chrome left running, plus a dictation app, made a bench row two-mode per page; the race's
   quiet check passed throughout.** Chrome 157.0.8103.79 (the installed Chrome launched by Playwright, headed, a fresh browser per
   page), 2026-11-17: with the user's installed Chrome running (open 17 h, a renderer helper bursting to ~96% of a core)
