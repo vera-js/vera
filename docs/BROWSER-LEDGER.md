@@ -37,6 +37,13 @@ from another machine, or after that is undone, has a variable changed.
   MathML element. Consequence: a template hole inside CDATA in those elements is refused by `@verajs/lite` in Chromium
   (its marker is a comment's text) and filled as TEXT in Firefox and WebKit — safe in all three, never markup, but
   the verdict differs by engine; `tests/browser/lite.test.js` pins each engine's reading. (2026-11-18)
+- **The HTML Sanitizer API (`Element.setHTML`) ships in Chromium 151 and Firefox 153, not in WebKit 26.5** (Playwright,
+  headless; `typeof el.setHTML`, `typeof Sanitizer`). Its DEFAULT configuration drops a custom element whole, content
+  and all (`<my-card>c</my-card>` → nothing); with a configuration object (`setHTML(markup, { sanitizer: {} })`, or
+  `{ removeElements: [] }`) both keep custom elements, `data-*` and `<img>`, and still strip `<script>`, event-handler
+  attributes and `javascript:` URLs (the safe baseline always applies). Consequence: it cannot be a renderer's only
+  injection guard while Safari lacks it; it is the upgrade path for a string-rendering tier once WebKit ships it, and a
+  custom-element page must pass a configuration. (2026-11-18)
 - **`<!--<script>` inside a `<script>`'s text swallows the rest of the page; neutralizing `</script` alone does not
   stop it.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, a parse only): `<script type="application/json">
   {"a":"<!--<script>"}</script><p id="after">` leaves no `#after` — the tokenizer's double-escaped script state ignores
