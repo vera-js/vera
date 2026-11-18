@@ -59,7 +59,14 @@ from another machine, or after that is undone, has a variable changed.
   flag. Consequence: on the client a value bound into a script hole is inert text in every renderer here (core, lite,
   static); a script that must run would have to be RECREATED (a fresh element, its attributes copied, its text set). A
   SERVER-rendered page is different: the browser parses it as a document, and its scripts run on load.
-  (2026-11-17)
+  (2026-11-17) **WRONG for an SVG `<script>` (marked 2026-11-18, the entry below): it was measured on HTML scripts only.**
+- **An SVG `<script>` parsed into a `<template>` DOES run when cloned or imported and inserted — in Chromium and WebKit.**
+  Chromium 151 and WebKit 26.5 run `<svg><script>…</script></svg>` from a template's content, `cloneNode` and
+  `importNode` alike; Firefox 153 does not (it runs one from `createContextualFragment`). The same probe's HTML
+  `<script>` ran from none of them (only `createContextualFragment`, everywhere), and a `createElement('script')` ran
+  (the positive control). Playwright, headless. Consequence: a value bound into an SVG script hole is CODE on the client
+  in two of three engines, so a refusal that holds only in development, resting on the entry above, does not cover the
+  SVG case; and on the server an SVG script's hole runs on load like any served script. (2026-11-18)
 - **jsdom fosters text out of a table to the WRONG side: after the table, where every engine puts it before.** Text
   written directly inside `<table>` is foster-parented. Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless,
   a parse only) insert it immediately BEFORE the table, in a `<template>` and in a `<div>` alike: `<!--m--><table>c</table>`
