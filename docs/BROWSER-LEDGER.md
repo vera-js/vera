@@ -27,8 +27,7 @@ from another machine, or after that is undone, has a variable changed.
   string no JavaScript MIME essence match, as the spec reads it); `type=""` and an absent type with the obsolete
   `language="javascript"` RUN; `type=" "` is inert; `application/json` and `application/ld+json` are inert. Consequence:
   "the type ends in `json`" never names a script that runs, so it is a safe test for a JSON data block — and the server
-  and the client must apply it to the same string (the whole attribute value). (`.probe/verify/script-types.mjs` in the
-  tiers' work tree; 2026-11-17)
+  and the client must apply it to the same string (the whole attribute value). (2026-11-17)
 - **`<!--<script>` inside a `<script>`'s text swallows the rest of the page; neutralizing `</script` alone does not
   stop it.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, a parse only): `<script type="application/json">
   {"a":"<!--<script>"}</script><p id="after">` leaves no `#after` — the tokenizer's double-escaped script state ignores
@@ -36,7 +35,7 @@ from another machine, or after that is undone, has a variable changed.
   `<!--` alone, leave the page intact (the controls). Consequence: anything that writes a value into a script's text
   on a SERVER (a JSON data block, JSON-LD) must neutralize `<!--` and `<script` as well as `</script` — for JSON, `<` as
   `\u003c` is valid and changes nothing. A client writing through `textContent` is not affected (no tokenizer).
-  (`.probe/verify/script-double-escape.mjs` in the tiers' work tree; 2026-11-17)
+  (2026-11-17)
 - **A `<script>` parsed into a `<template>` never runs, however it reaches the document.** Chromium 151, Firefox 153
   and WebKit 26.5 (Playwright, headless): a template's script — in its statics, or with its text set after parsing —
   adopted, cloned (`cloneNode`) or imported (`importNode`) and inserted does not execute; a `createElement('script')` with
@@ -44,7 +43,7 @@ from another machine, or after that is undone, has a variable changed.
   flag. Consequence: on the client a value bound into a script hole is inert text in every renderer here (core, lite,
   static); a script that must run would have to be RECREATED (a fresh element, its attributes copied, its text set). A
   SERVER-rendered page is different: the browser parses it as a document, and its scripts run on load.
-  (`.probe/verify/script-run.test.js` in the tiers' work tree; 2026-11-17)
+  (2026-11-17)
 - **jsdom fosters text out of a table to the WRONG side: after the table, where every engine puts it before.** Text
   written directly inside `<table>` is foster-parented. Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless,
   a parse only) insert it immediately BEFORE the table, in a `<template>` and in a `<div>` alike: `<!--m--><table>c</table>`
@@ -53,8 +52,7 @@ from another machine, or after that is undone, has a variable changed.
   (`<table>c</table>` gives the table, then `c`). Consequence: a jsdom comparison of two renderers that differ only in
   whether a text node or a comment precedes the table reports a difference no engine has. Found by the small tiers' parity
   fuzz, where static (a value written as text) and core (a comment marker) disagreed in jsdom only; that fuzz sets the
-  `<table>` shape aside, and the tiers' table rows rest on the engines. (`.probe/verify/foster-engines.mjs` in the tiers'
-  work tree; 2026-11-17)
+  `<table>` shape aside, and the tiers' table rows rest on the engines. (2026-11-17)
 - **Every real engine accepts attribute names jsdom rejects.** jsdom implements the XML Name production and throws on
   `a(b)`, `a|b`, `a?b` and ~50 more; Chrome, Firefox and WebKit reject only `a b`, `a>b`, `a=b`, `a/b`. Consequence: the
   spread denylist follows the engines; `tests/browser/spread-names.test.js` records their rule; a jsdom-only probe of
@@ -677,13 +675,12 @@ from another machine, or after that is undone, has a variable changed.
 - **The user's own installed Chrome left running, plus a dictation app, made a bench row two-mode per page; the race's
   quiet check passed throughout.** Chrome 157.0.8103.79 (the installed Chrome launched by Playwright, headed, a fresh browser per
   page), 2026-11-17: with the user's installed Chrome running (open 17 h, a renderer helper bursting to ~96% of a core)
-  and a dictation app (Wispr Flow, corespeechd), `bench/dom`'s `append1k` on the lite tier landed each page in one of two
+  and a dictation app, `bench/dom`'s `append1k` on the lite tier landed each page in one of two
   modes (~30 or ~40 ms), and the A/A copy spread across both, so medians said nothing. With both quit, the same row was
   unimodal at ±2% (10 sessions; the A/A within 0.2%). Observed as one before/after pair, a correlation; the mechanism is
   not isolated. The load came in bursts, after each session's start-of-session CPU sample, so the quiet check never saw
   it. Consequence: quit other browsers and background apps before a race; a start-of-session CPU sample cannot see bursty
-  load. (The lite rebuild's races, the `chrome-bisect*` and `chrome-freq` logs and JSON in that work tree's race probe
-  folder; 2026-11-17)
+  load. (The lite rebuild's races; 2026-11-17)
 - **Heap growth measured in a `--expose-gc` child process moves with the load beside it.** A fixed 0.4 MB bar between
   two arms of `tests/core-key-map-bounded` failed once inside the full development suite (selector 1.33 MB vs control
   0.78, a 0.55 gap) and passed 3 of 3 alone and in five other full runs the same night. Consequence: a memory bar is
