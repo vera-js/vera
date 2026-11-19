@@ -961,7 +961,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   </section>`
   ```
 - Hydration is one more module wired beside the renderer: `wire([renderer, hydration])`
-  (`import { hydration } from '@verajs/renderer/hydration'`; on a CDN page, `vera-renderer-hydration.min.js`) — and the
+  (`import { hydration } from '@verajs/renderer/hydration'`; on a CDN page, `vera-renderer-hydration.min.js`, the same version as the renderer's) — and the
   first render ADOPTS server-rendered children — no per-part marker comments in server HTML
   (with light slots, each filled slot's content sits between two `<!--[-->`/`<!--]-->` comments, the host
   states its light tree in `data-vm-light` and keeps content no slot took in `<ins hidden data-vm-unassigned>` —

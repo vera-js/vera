@@ -1027,7 +1027,7 @@ required in the server markup, and one in the server markup that your template d
 a disagreement. A comment renders nothing, so neither direction changes what a reader sees; matching
 on them would only cost every commented template its adoption.
 
-On a CDN page, load `vera-renderer-hydration.min.js` beside `vera-renderer.min.js` and wire both. Apps that never
+On a CDN page, load `vera-renderer-hydration.min.js` beside `vera-renderer.min.js`, from the same version, and wire both. Apps that never
 hydrate download none of this.
 
 ### Importing this in Node
