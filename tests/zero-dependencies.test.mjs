@@ -86,6 +86,7 @@ test('every published package ships the LICENSE its manifest names', () => {
   const dirs = globSync('packages/*/package.json', { cwd: root })
     .filter((file) => !JSON.parse(readFileSync(join(root, file), 'utf8')).private)
     .map((file) => file.replace(/\/package\.json$/, ''));
+  assert.ok(dirs.length >= 7, `the scan is broken, not the list: it found ${dirs.length} published packages`);
   assert.equal(dirs.length, packages.length, 'CONTROL: the same published packages as the rows above');
   const reference = readFileSync(join(root, 'LICENSE'), 'utf8');
   const missing = dirs.filter((dir) => {
