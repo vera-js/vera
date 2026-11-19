@@ -73,6 +73,56 @@ test('an unregistered name that starts like a registered one is left exactly as 
   assert.ok(!served.includes('<i>kid</i>'), served);
 });
 
+/**
+ * **A `<noscript>` is HTML's only where HTML rules read its start tag** (2026-11-19, a rotated-seed find:
+ * `<svg><scan-kid></math><noscript><p> a=<scan-kid></p>`). Inside `<svg>`/`<math>` proper it is a foreign element
+ * like any — raw text exists only for HTML elements — so a breakout tag after it (`<p>`) pops it with the foreign
+ * content and the component after it is live HTML, rendered. At an HTML integration point (`foreignObject`, `desc`,
+ * `title`, `mi`, `mtext`, an HTML `annotation-xml`) HTML rules read it: an HTML `<noscript>`, raw text to parse5
+ * (scripting on, as a browser running this page), so nothing inside is a component and nothing is rendered into it.
+ * The element-walking oracle cannot see a component rendered into raw TEXT, so those rows also read every text node.
+ */
+const FOREIGN_NOSCRIPT = [
+  '<svg><noscript><p><scan-kid></scan-kid></p>', '<svg><g><noscript><p><scan-kid></scan-kid></p>',
+  '<math><noscript><p><scan-kid></scan-kid></p>', '<math><mrow><noscript><p><scan-kid></scan-kid></p>',
+  '<svg><scan-kid></math><noscript><p> a=<scan-kid></p>',
+];
+const POINT_NOSCRIPT = [
+  '<svg><foreignObject><noscript><scan-kid></scan-kid></noscript></foreignObject></svg>',
+  '<svg><desc><noscript><scan-kid></scan-kid></noscript></desc></svg>',
+  '<svg><title><noscript><scan-kid></scan-kid></noscript></title></svg>',
+  '<math><mi><noscript><scan-kid></scan-kid></noscript></mi></math>',
+  '<math><mtext><noscript><scan-kid></scan-kid></noscript></mtext></math>',
+  '<math><annotation-xml encoding="text/html"><noscript><scan-kid></scan-kid></noscript></annotation-xml></math>',
+];
+/** Every text node's data in the served page, inert template content included. */
+const texts = (served) => {
+  const out = [];
+  const walk = (node) => {
+    for (const child of node.childNodes ?? []) {
+      if (child.nodeName === '#text') out.push(child.value);
+      walk(child.tagName === 'template' ? child.content : child);
+    }
+  };
+  walk(parse(`<!doctype html><body>${served}`));
+  return out;
+};
+
+test('a <noscript> in SVG/MathML content is foreign (a breakout after it reaches HTML); at an integration point it is HTML raw text, nothing rendered in it', async () => {
+  for (const shape of FOREIGN_NOSCRIPT) {
+    const served = await serve(shape);
+    assert.deepEqual(disagreements(served), [], `${shape} -> ${served}`);
+    assert.ok(served.includes('<scan-kid><template shadowrootmode'), `CONTROL: the live component is rendered: ${shape} -> ${served}`);
+  }
+  for (const shape of POINT_NOSCRIPT) {
+    const served = await serve(shape);
+    assert.deepEqual(disagreements(served), [], `${shape} -> ${served}`);
+    assert.deepEqual(texts(served).filter((t) => t.includes('shadowrootmode')), [], `rendered into raw text: ${shape} -> ${served}`);
+    /** CONTROL: parse5 does read this noscript as raw text — its `<scan-kid>` is text, never an element. */
+    assert.ok(texts(served).some((t) => t.includes('<scan-kid>')), `the noscript's content is text: ${shape} -> ${served}`);
+  }
+});
+
 const SEEDS = extendSeeds([3, 17, 404, 8086]);
 const CASES_PER_SEED = 250;
 /** Breakout tags are in (`<p>`, `<b>`, `</p>`…); `<font color>` is not — it breaks out in a browser and, on purpose, not here. */

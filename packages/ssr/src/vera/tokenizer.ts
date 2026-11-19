@@ -456,7 +456,13 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         const own = space === 'html' || (tagName === 'svg' && top !== undefined && top.name === 'annotation-xml');
         opens.push({ name: tagName, foreign, inert, space: own ? tagName : space });
         foreign++;
-      } else if (tagName === 'noscript') {
+      } else if (tagName === 'noscript' && space !== 'svg' && space !== 'math') {
+        /**
+         * Only where HTML rules read the tag (2026-11-19, a rotated-seed find): inside `<svg>`/`<math>` proper a
+         * `<noscript>` is a foreign element like any (raw text exists only for HTML elements), so it is not tracked and a
+         * breakout after it (`<svg><noscript><p>`) pops it with the foreign content, as the parser does. At an
+         * integration point `space` is HTML, so it is tracked there — an HTML `<noscript>`, as `<template>` below.
+         */
         opens.push({ name: tagName, foreign, inert, space: '' });
         foreign++;
       } else if (tagName === 'template' && space !== 'svg' && space !== 'math') {
