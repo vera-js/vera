@@ -150,7 +150,9 @@ const decode = (text: string, json: boolean) => {
  * a `<template>` (`strict`), ANY value refuses — its content is never shown, and is a fragment of its own, outside
  * `childNodes` and `textContent`, so it is entered explicitly, nested templates and attributes included.
  */
-const judge = (parent: Node, strict: boolean) => {
+const judge = (parent: Node, strict: boolean): number => {
+  /** The value spans seen here (their opening sentinels), so `renderInto` can tell whether every one written landed. */
+  let seen = 0;
   for (let node = parent.firstChild; node !== null; node = node.nextSibling)
     if (node.nodeType === 1) {
       const element = node as Element;
@@ -158,6 +160,7 @@ const judge = (parent: Node, strict: boolean) => {
       if (marked(name)) refuse();
       for (const attribute of [...element.attributes]) {
         if (marked(attribute.name)) refuse();
+        seen += spans(attribute.value);
         if (!marked(attribute.value)) continue;
         if (strict) refuse();
         /**
@@ -190,7 +193,7 @@ const judge = (parent: Node, strict: boolean) => {
         else element.setAttribute(attribute.name, value);
       }
       const content = (element as HTMLTemplateElement).content;
-      if (content !== undefined) judge(content, true);
+      if (content !== undefined) seen += judge(content, true);
       /**
        * RAW text, where the parser decodes nothing — an HTML `<style>` or JSON data block (Brian, 2026-11-17: a value there
        * is text): its spans decoded back and written as data, never parsed. `title` and `textarea` (RCDATA) and SVG's or
@@ -203,16 +206,21 @@ const judge = (parent: Node, strict: boolean) => {
       if (!strict && (element.tagName === 'STYLE' || (element.tagName === 'SCRIPT' && JSON_BLOCK.test(element.getAttribute('type') ?? '')))) {
         /** Read only here and below: `textContent` walks its subtree, and read for every element it would cost n × depth. */
         const text = element.textContent!;
+        seen += spans(text);
         if (marked(text)) element.textContent = decode(text, name === 'script').replace(SENTINELS, '');
       } else if (strict || NEVER.test(name)) {
         if (marked(element.textContent!)) refuse();
-        judge(element, true);
-      } else judge(element, false);
+        seen += judge(element, true);
+      } else seen += judge(element, false);
     } else if (marked((node as CharacterData).data)) {
       if (strict) refuse();
+      seen += spans((node as CharacterData).data);
       (node as CharacterData).data = (node as CharacterData).data.replace(SENTINELS, '');
     }
+  return seen;
 };
+/** How many value spans `text` holds — counted by their opening sentinel, which no encoded value or static holds. */
+const spans = (text: string) => text.split('\u0001').length - 1;
 
 /**
  * **Renders `result` into `root`**: written, parsed in a `<template>` of the root's document, judged, and moved in. The
@@ -221,9 +229,18 @@ const judge = (parent: Node, strict: boolean) => {
  */
 export const renderInto = (result: unknown, root: Element | ShadowRoot) => {
   const template = root.ownerDocument.createElement('template');
-  template.innerHTML = toMarkup(result);
+  const markup = toMarkup(result);
+  template.innerHTML = markup;
   const parsed: Node = template.content ?? template;
-  judge(parsed, false);
+  /**
+   * **Every value written must land** (2026-11-19, S4, the tier suites): the parser DROPS some markup outright — a
+   * duplicated attribute's second occurrence, with the value static wrote there — and a value that vanished was never
+   * judged. Lite refuses such a template; so does static: no span written may be missing. MORE may land than were
+   * written — the parser clones a formatting element (`<a>`, `<font>`…) with its attributes when it reopens one, and a
+   * value in them lands twice, each copy judged — so only fewer refuses. Measured on the placement fuzz's corpus
+   * (6400 templates, a unique marker per hole): every one of the 170 templates this newly refuses had lost a value.
+   */
+  if (judge(parsed, false) < spans(markup)) refuse();
   if (template.content === undefined && marked(template.innerHTML)) refuse();
   root.replaceChildren(...parsed.childNodes);
 };

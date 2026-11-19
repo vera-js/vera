@@ -222,3 +222,16 @@ test('static: a template-shaped object renders [object Object], never throws; a 
   /** CONTROL: a false one leaves the block JSON, its value text. */
   assert.equal(viaStatic(['<script type="application/json" ?type=', '>', '</script>'], [false, '{"a":1}']).querySelector('script').getAttribute('type'), 'application/json');
 });
+
+/**
+ * **S4: every value static writes must land** (2026-11-19). The parser keeps a duplicated attribute's FIRST occurrence and
+ * drops the second, with the value static wrote there — silently lost until now. Static refuses such a template
+ * (`static-hole`), as lite refuses a duplicated attribute; core keeps the last (the control). A value that lands is unaffected.
+ */
+test('static: a template whose value the parser drops (a duplicated attribute) is refused; core keeps the last', () => {
+  /** The value sits in the SECOND occurrence, which the parser drops: refused, never silently lost. */
+  assert.throws(() => viaStatic(['<b title="a" title=', '>t</b>'], ['dropped']), /static-hole/);
+  assert.equal(viaCore(['<b title="a" title=', '>t</b>'], ['last']).querySelector('b').getAttribute('title'), 'last', 'CONTROL: core keeps the last');
+  /** CONTROL: the value in the FIRST occurrence lands (the parser drops the static second): rendered, nothing refused. */
+  assert.equal(viaStatic(['<b title=', ' title="x">t</b>'], ['kept']).querySelector('b').getAttribute('title'), 'kept');
+});

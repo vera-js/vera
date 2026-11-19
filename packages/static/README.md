@@ -5,7 +5,7 @@ reactivity, nothing to wire, and no value ever becomes code.
 
 | Package | gzipped | A render | For |
 | --- | ---: | --- | --- |
-| `@verajs/static` | <!--size:static.gzip-->1.66 KB<!--/size:static.gzip--> | once, at the first connect | static sites, markup enhanced by `@verajs/directives` |
+| `@verajs/static` | <!--size:static.gzip-->1.71 KB<!--/size:static.gzip--> | once, at the first connect | static sites, markup enhanced by `@verajs/directives` |
 | `@verajs/lite` | <!--size:lite.gzip-->4.17 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small dynamic sites |
 
 <!-- recipe -->
@@ -59,7 +59,8 @@ each value landed is judged from what the parser built — never guessed from th
 - An event-handler attribute (`onclick="…"`) or `srcdoc` holding a value is not written, as `@verajs/core` leaves it
   out, and development says so in core's words (`handler-attribute`, `srcdoc-attribute`).
 - **Refused**, coded `static-hole`, in every build: a value in a tag or attribute NAME, or inside any other `<script>` (an
-  SVG one too), `<iframe>`, `<noscript>`, `<template>` or the obsolete raw-text elements. Data shaped like a template
+  SVG one too), `<iframe>`, `<noscript>`, `<template>` or the obsolete raw-text elements — and a value the HTML parser
+  would drop (the second occurrence of a duplicated attribute): every value written must land. Data shaped like a template
   (JSON) is text, never markup. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 
 **Behavior comes from `@verajs/directives`** (or from moving the component to `@verajs/lite` or `@verajs/core`, which

@@ -448,7 +448,8 @@ document.body.append(document.createElement('lite-counter'));
   `.prop`, `!live` or `@event` binding and a function in any attribute write nothing (`static-needs-renderer` in
   development); an iterable child renders its items; a `javascript:` URL in a URL attribute is removed (every URL name
   checked item by item); an event-handler or `srcdoc` attribute holding a value is not written; in `<style>` or a JSON data block a value
-  is text that cannot end the element. Refused (`static-hole`): a value in a tag or attribute name, or inside another
+  is text that cannot end the element. Refused (`static-hole`): a value the parser would drop (a duplicated attribute's
+  second occurrence), a value in a tag or attribute name, or inside another
   `<script>` (SVG too), `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 - **Behavior** comes from `@verajs/directives` (`/standalone` on a page with no other vera): the engine watches the
   document, so it enhances what static writes after load; a shadow root is the engine's once the page calls

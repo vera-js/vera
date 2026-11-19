@@ -33,6 +33,37 @@ for (const [name, { define, html, svg, mathml }] of Object.entries(TIERS)) {
     expect(window.zqStatic).to.equal(0);
     el.remove();
   });
+
+  /**
+   * **Static's attribute rules in a real engine** (2026-11-19, S1–S4 of the tier suites): `?name` honored; a `.prop`,
+   * `!live` or `@event` binding and a function value write NOTHING (they had been written as attributes literally named,
+   * a function's source included — measured in all three engines); a nullish whole attribute removed; an iterable child
+   * listed; and a value the parser drops (a duplicated attribute) refused, never silently lost.
+   */
+  it(`${name}: ?name honored; .prop, !live, @event and a function write nothing; null removes; a Set lists; a dropped value refuses`, () => {
+    const t = tag('attrs');
+    define(t, () => () =>
+      html`<p ?hidden=${true} ?inert=${false} class=${null} title=${() => 'app code'}>${new Set(['a', 'b'])}</p><input .value=${'v'} !checked=${true}><button @click=${() => {}}>b</button>`);
+    const el = document.body.appendChild(document.createElement(t));
+    const p = el.querySelector('p');
+    expect(p.hasAttribute('hidden') && !p.hasAttribute('inert'), '?name: present when true, absent when false').to.equal(true);
+    expect(p.hasAttribute('class') || p.hasAttribute('title'), 'null and a function: no attribute').to.equal(false);
+    expect(p.textContent, 'a Set renders its items').to.equal('ab');
+    const junk = [...el.querySelectorAll('*')].flatMap((e) => [...e.attributes].map((a) => a.name)).filter((n) => /^[?.!@]/.test(n));
+    expect(junk.join(' '), 'no binding written as an attribute literally named').to.equal('');
+    expect(el.innerHTML.includes('app code') || el.innerHTML.includes('=>'), 'no function source in the markup').to.equal(false);
+    el.remove();
+    /** Called directly, so the refusal throws here rather than reaching the page's error handler (the runner fails on one). */
+    const d = tag('dup');
+    const Dup = define(d, () => () => html`<b title="a" title=${'dropped'}>t</b>`);
+    let thrown;
+    try {
+      new Dup().connectedCallback();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(/static-hole/.test(String(thrown?.message)), `a dropped value is refused: ${thrown?.message}`).to.equal(true);
+  });
 }
 
 /**

@@ -77,7 +77,7 @@ const CLAIMS = new Map([
   ['packages/core/README.md#e10620ebc8', 'define-method-ignored'], // methods: connectedCallback and constructor are core's own — development says so
   ['packages/core/README.md#4074c25222', 'define-shadows'], // methods: a platform name replaces it — development says that too
   ['packages/lite/README.md#c765eb013f', 'tier-needs-core'],
-  ['packages/static/README.md#09b2d38f04', 'pinned by tests/static.test.mjs: the item-by-item URL row — `href="a;javascript:…"` removed'],
+  ['packages/static/README.md#ed6964f01b', 'pinned by tests/static.test.mjs: the item-by-item URL row — `href="a;javascript:…"` removed'],
   ['packages/static/README.md#057802d34c', 'static-needs-renderer'], // a function value renders nothing; tests/static.test.mjs' development row // @verajs/lite: an option or a value only core handles — development names it
   ['packages/ssr/README.md#23dc7b1cfe', 'ssr-template-in-text'], // **A template in an HTML `<title>` or `<textarea>` is refused here** (`ssr-template-in-text`), while core's renderer places it and warns
   ['packages/ssr/README.md#22e66ee19b', 'pinned by tests/ssr-coded-diagnostics.test.mjs: every code ssr raises has its entry, each line ending on its code'], // **What ssr says, and how.** Every line ends with its code
