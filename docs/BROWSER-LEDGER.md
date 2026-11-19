@@ -678,6 +678,16 @@ from another machine, or after that is undone, has a variable changed.
   Consequence: probes read direct children with `[...el.children]`. (2026-10-02)
 - **Linux WebKit exposes `PublicKeyCredential`, macOS WebKit does not**; a recorded DOM surface must not depend on it.
   (`tests/dom-surface.mjs`)
+- **Playwright WebKit stops being able to open a test page after a cumulative number of test files in ONE browser
+  instance** ("The browser was unable to create and start a test page after 120000ms", then "page.goto: Target page,
+  context or browser has been closed" for the files after it). Chromium and Firefox complete the same run. It is not
+  load and not concurrency: it reproduces on an idle machine, with `VERA_WTR_CONCURRENCY=1`, after killing leaked
+  Playwright processes, and with a change reverted; the files where it lands pass when run alone (2026-11-18:
+  `node-idl-facts`, `pre-upgrade-property`, `r4-cross-window` — 3/3 files, 29 passed, 0 failed, in 4.7 s), and no crash
+  report is written. Consequence: the local gate's browser step reads ✗ on WebKit with every test that ran green, and a
+  real WebKit regression in a file that never opened would read the same — the fix is to recycle the WebKit instance
+  partway through the file list (two runs), not a longer timeout. (Playwright WebKit build 2336 via playwright 1.62.1,
+  macOS; first measured 2026-09-18, the measurement in `web-test-runner.config.mjs`; again 2026-11-18.)
 - **jsdom builds Proxies of its own for its elements** (a `NamedNodeMap` per element, and a `DOMStringMap` per HTML or SVG
   element: 12,021 constructed while rendering 1000 table rows). Consequence: a probe that counts `new Proxy` to see whether code reaches a
   store must group the count by handler or target, or jsdom's own swamp it. (jsdom, Node; 2026-11-07)
