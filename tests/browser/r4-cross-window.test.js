@@ -8,8 +8,9 @@
  *
  * **Load-sensitive**: the pop-out release row ("a component left in a pop-out that CLOSES is released") went red on
  * Firefox while a CPU-heavy job ran beside the suite (panel not released, `woke` true), and was green 3 of 3 alone on the
- * same tree (2026-11-08). Read a red there under load as load until it reproduces alone. Since 2026-11-19 it waits for
- * the release (2 s ceiling) rather than a fixed time, and its message says which of the two it was.
+ * same tree (2026-11-08). Read a red there under load as load until it reproduces alone. Since 2026-11-19 every row
+ * that asserts a release after a close waits for it (`closeAndAwait`, a 2 s ceiling) rather than a fixed time, and its
+ * message says which of the two it was.
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, define, init, html, createStore, effect } from '../../packages/core/dist/development/vera.js';
@@ -354,6 +355,19 @@ describe('R4: cross-window moves keep the component', () => {
 
   describe('multiWindow: a component left in a pop-out that CLOSES is released (R4 decision 4)', () => {
     const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
+    /**
+     * Closes the pop-out and waits until `released()` reads true — never a fixed time (2026-11-19): CI's Linux Firefox
+     * had not finished closing a pop-out 150 ms after `close()`, once in this row and once in the back/forward-cache row
+     * (CLAUDE.md: wait for the property rather than sampling an instant). A release that never comes still fails, once
+     * the 2 s ceiling passes, and the reason it answers says which: "never came" versus a wrong value read after it.
+     */
+    const closeAndAwait = async (w, released) => {
+      w.close();
+      let waited = 0;
+      for (; !released() && waited < 2000; waited += 25) await settle(25);
+      await settle();
+      return waited >= 2000 ? 'the release never came within 2 s of close()' : `released after ${waited} ms, then`;
+    };
     it('a panel left behind, and a child it built while out: each cleanup exactly once, and a later write wakes neither', async function () {
       const counts = { panelClean: 0, childClean: 0, panelRenders: 0, childRenders: 0 };
       const s = createStore({ n: 1, kid: false });
@@ -371,17 +385,7 @@ describe('R4: cross-window moves keep the component', () => {
       const childThere = w.document.querySelector('r4-rel-kid')?.textContent === '1';
       /** The move in already ran the panel's cleanup once (a cross-window move re-runs its effects): the release adds ONE. */
       const panelBefore = counts.panelClean;
-      w.close();
-      /**
-       * Wait for the RELEASE, not a fixed time (2026-11-19): CI's Linux Firefox had not closed the pop-out 150 ms after
-       * `close()`, so the row read "not released yet" (CLAUDE.md: wait for the property rather than sampling an instant).
-       * A release that never comes still fails, once the ceiling passes, and says so: the message tells a release that
-       * never came apart from a wrong value read after it.
-       */
-      let waited = 0;
-      for (; counts.panelClean - panelBefore < 1 && waited < 2000; waited += 25) await settle(25);
-      const why = waited >= 2000 ? 'the release never came within 2 s of close()' : `released after ${waited} ms, then`;
-      await settle();
+      const why = await closeAndAwait(w, () => counts.panelClean - panelBefore >= 1);
       const before = { ...counts };
       s.n = 2;
       await settle(50);
@@ -401,12 +405,12 @@ describe('R4: cross-window moves keep the component', () => {
       w.document.body.append(el);
       await settle(50);
       w.addEventListener('pagehide', () => document.body.append(el));
-      w.close();
-      await settle();
+      /** The close is done when its pagehide has moved the panel home. */
+      const why = await closeAndAwait(w, () => el.ownerDocument === document);
       s.n = 2;
       await settle(50);
       /** Effects re-run on each cross-window move (cleanup, then run): out and back is two cleanups, never a release. */
-      expect({ home: el.ownerDocument === document, live: el.textContent === '2', setups }).to.deep.equal({ home: true, live: true, setups: 1 });
+      expect({ home: el.ownerDocument === document, live: el.textContent === '2', setups }, why).to.deep.equal({ home: true, live: true, setups: 1 });
       el.remove();
     });
 
@@ -424,9 +428,8 @@ describe('R4: cross-window moves keep the component', () => {
       w.dispatchEvent(new w.PageTransitionEvent('pagehide', { persisted: true }));
       await settle();
       const kept = cleans === afterMove;
-      w.close();
-      await settle();
-      expect({ kept, releasedOnClose: cleans === afterMove + 1 }).to.deep.equal({ kept: true, releasedOnClose: true });
+      const why = await closeAndAwait(w, () => cleans >= afterMove + 1);
+      expect({ kept, releasedOnClose: cleans === afterMove + 1 }, why).to.deep.equal({ kept: true, releasedOnClose: true });
     });
 
     it('a component APPENDED directly into a pop-out (never moved) is released too (multiWindow\'s init watch)', async function () {
@@ -438,12 +441,11 @@ describe('R4: cross-window moves keep the component', () => {
       w.document.body.append(document.createElement('r4-rel-direct'));
       await settle(50);
       const ran = renders === 1;
-      w.close();
-      await settle();
+      const why = await closeAndAwait(w, () => cleans >= 1);
       const before = renders;
       s.n = 2;
       await settle(50);
-      expect({ ran, cleans, woke: renders !== before }).to.deep.equal({ ran: true, cleans: 1, woke: false });
+      expect({ ran, cleans, woke: renders !== before }, why).to.deep.equal({ ran: true, cleans: 1, woke: false });
     });
 
     it('a HOME component portals into the pop-out; the pop-out closes; the target returns home: the content is visible and LIVE (redrawn, not the released one)', async function () {
