@@ -480,6 +480,31 @@ rest of this file.
   outstanding.
 - Collaboration is the point. Prefer a short check-in over an impressive unilateral result.
 
+### Context limits — no session or agent past 300k tokens (Brian, 2026-11-19)
+
+- **Auto-compaction is set at user level**, in `~/.claude/settings.json`: `"autoCompactEnabled": true` and
+  `"env": { "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "300000" }` (a plain token count; a bare `300` is 300 tokens). Never set
+  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (it only lowers the threshold) or `DISABLE_AUTO_COMPACT`, and never turn
+  `autoCompactEnabled` off. Settings reach sessions started after a change; check a new one with `/context`. A custom
+  subagent in `.claude/agents/*.md` carries `autoCompactWindow: 300000` in its frontmatter.
+- **Context = the last API turn's `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`** (output does
+  not count): the status line's `context_window`, or the last `"usage"` entry in a transcript under
+  `~/.claude/projects/<project>/` (a subagent's is `<sessionId>/subagents/agent-<agentId>.jsonl`). Read only a
+  transcript's tail, never the file; a missing field is "unknown", never 0. Measure before spawning an agent, at every
+  checkpoint (a commit, a test run, a phase's end), and at least every 30 minutes while agents run.
+- **Thresholds.** Under 200k: normal. 200–250k: no new large reads, finish the step (an agent writes its handoff).
+  250–300k: the main session asks Brian for `/compact` at the next checkpoint, its handoff written first (a session
+  cannot compact itself; auto-compaction at 300k is the backstop); an agent is respawned there. Over 300k: the same,
+  now, at a safe point — between steps, never mid-commit, mid-test-run, mid-write or mid-push.
+- **Respawning is the only reset for an agent.** At a safe point it writes a handoff of 15 lines or fewer (goal, what
+  is done with shas and branch, the exact next step, the files to read, open questions); stop it with `TaskStop`; stop
+  any child it left by exact PID (never by keyword); brief a fresh agent with the handoff alone, pointing at files; log
+  one line (old agent, its context, new agent, handoff path).
+- **Keeping context low:** read line ranges and log tails, never a whole large file, log, JSONL or build output; long
+  output goes to a file first; wide searches go to a subagent and only its conclusion comes back; one task per agent,
+  at most 2 agents at once per session unless a task says otherwise; wait for a background command's notice instead of
+  polling it.
+
 ---
 
 ## What this is
