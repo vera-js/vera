@@ -17,17 +17,19 @@
     "dev:slots": "wireit",
     "build": "wireit",
     "preview": "wireit",
-    "test": "node --conditions development --test \"tests/**/*.test.mjs\"",
+    "test": "node scripts/test-batch.mjs node --conditions development --test \"tests/**/*.test.mjs\"",
     "check": "node scripts/sync-packages.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "release": "npm run build && changeset publish",
-    "test:prod": "VERA_DIST=production node --test \"tests/**/*.test.mjs\"",
-    "test:node-builds": "VERA_DIST=node node --conditions development --test \"tests/jsx*.test.mjs\" \"tests/cms*.test.mjs\" tests/llms-recipes.test.mjs",
+    "test:prod": "VERA_DIST=production node scripts/test-batch.mjs node --test \"tests/**/*.test.mjs\"",
+    "test:node-builds": "VERA_DIST=node node scripts/test-batch.mjs node --conditions development --test \"tests/jsx*.test.mjs\" \"tests/cms*.test.mjs\" tests/llms-recipes.test.mjs",
     "metrics": "node scripts/metrics.mjs",
-    "test:browser": "web-test-runner --config web-test-runner.config.mjs",
-    "test:all": "npm test && npm run test:prod && npm run test:browser",
-    "test:browser:all": "VERA_BROWSERS=chromium web-test-runner --config web-test-runner.config.mjs && VERA_BROWSERS=firefox web-test-runner --config web-test-runner.config.mjs && VERA_BROWSERS=webkit web-test-runner --config web-test-runner.config.mjs",
-    "gate": "node scripts/gate.mjs"
+    "test:browser": "node scripts/test-batch.mjs web-test-runner --config web-test-runner.config.mjs",
+    "test:all": "node scripts/test-batch.mjs npm run test:all:steps",
+    "test:browser:all": "node scripts/test-batch.mjs npm run test:browser:all:steps",
+    "gate": "node scripts/gate.mjs",
+    "test:all:steps": "npm test && npm run test:prod && npm run test:browser",
+    "test:browser:all:steps": "VERA_BROWSERS=chromium web-test-runner --config web-test-runner.config.mjs && VERA_BROWSERS=firefox web-test-runner --config web-test-runner.config.mjs && VERA_BROWSERS=webkit web-test-runner --config web-test-runner.config.mjs"
   },
   "wireit": {
     "build": {

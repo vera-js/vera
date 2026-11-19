@@ -8,6 +8,11 @@
  *
  *   const cool = heavyBatch('gate');   // caffeinate + the batch pause (macOS only)
  *   for (const step of steps) { cool(); … }
+ *
+ * A batch started INSIDE another (`npm test` as a gate step) inherits it: the outer batch sets `VERA_HEAVY_BATCH` for
+ * its children, so the inner one neither pauses again nor starts a second caffeinate — the outer one holds both and
+ * checks the pressure before each of its steps. `{ pause: false }` is for a light run (one file, a replay): caffeinated
+ * and thermal-checked, never paused.
  */
 import { spawn, spawnSync } from 'node:child_process';
 
@@ -16,11 +21,12 @@ const pressure = () => Number(spawnSync('notifyutil', ['-g', 'com.apple.system.t
 const pauseS = (seconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000);
 
 /** Starts the batch (caffeinate, the pause) and answers the per-step check: wait while thermal pressure is above 0. */
-export const heavyBatch = (name) => {
-  if (!LOCAL) return () => {};
+export const heavyBatch = (name, { pause = true } = {}) => {
+  if (!LOCAL || process.env.VERA_HEAVY_BATCH) return () => {};
+  process.env.VERA_HEAVY_BATCH = name;
   spawn('caffeinate', ['-dimsu', '-w', String(process.pid)], { stdio: 'ignore', detached: true }).unref();
   if (!Number.isInteger(pressure())) throw new Error(`${name}: the thermal pressure level could not be read — refusing to run ungated`);
-  const batchPause = Number(process.env.BATCH_PAUSE_S ?? 120);
+  const batchPause = pause ? Number(process.env.BATCH_PAUSE_S ?? 120) : 0;
   if (batchPause > 0) {
     process.stdout.write(`  (batch pause: ${batchPause} s before the first step)\n`);
     pauseS(batchPause);
