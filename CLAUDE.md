@@ -493,11 +493,14 @@ rest of this file.
   transcript's tail, never the file; a missing field is "unknown", never 0. Measure before spawning an agent, at every
   checkpoint (a commit, a test run, a phase's end), and at least every 30 minutes while agents run.
 - **Thresholds.** Under 200k: normal. 200–250k: no new large reads, finish the step (an agent writes its handoff).
-  250–300k: the main session asks Brian for `/compact` at the next checkpoint, its handoff written first (a session
-  cannot compact itself; auto-compaction at 300k is the backstop); an agent is respawned there. Over 300k: the same,
-  now, at a safe point — between steps, never mid-commit, mid-test-run, mid-write or mid-push.
-- **Respawning is the only reset for an agent.** At a safe point it writes a handoff of 15 lines or fewer (goal, what
-  is done with shas and branch, the exact next step, the files to read, open questions); stop it with `TaskStop`; stop
+  250–300k: at its first checkpoint past 250k the main session writes its handoff and asks Brian for `/compact` (a
+  session cannot compact itself), then REFRESHES the handoff at every checkpoint until the compaction, so
+  auto-compaction at 300k (the backstop, wherever it lands) finds it at most one step behind — 250k and not later,
+  because a step can add 20–50k between checkpoints; an agent is respawned there. Over 300k: the same, now, at a safe
+  point — between steps, never mid-commit, mid-test-run, mid-write or mid-push.
+- **Respawning is the only reset for an agent.** At a safe point it writes a handoff with no line cap: the essentials
+  first in a few lines (goal, what is done with shas and branch, the exact next step, the files to read, open
+  questions), then whatever detail the next agent needs; stop it with `TaskStop`; stop
   any child it left by exact PID (never by keyword); brief a fresh agent with the handoff alone, pointing at files; log
   one line (old agent, its context, new agent, handoff path).
 - **Keeping context low:** read line ranges and log tails, never a whole large file, log, JSONL or build output; long
