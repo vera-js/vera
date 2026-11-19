@@ -132,6 +132,18 @@ code, so they are not re-litigated.
   ≈ 44% (2026-10-02; paired deltas held). The race harnesses wait on exactly that check. **And leave it time to cool** (Brian, 2026-09-27): a few
   minutes after the last build, gate or race before any timing run, and between consecutive races —
   it is a fanless laptop, and correctness suites are the only thing that can run back to back.
+- **Every heavy run is caffeinated, paused and thermal-gated — written into the TOOL, never left to a wrapper** (Brian,
+  2026-11-18). A wrapper script that forgot the gate ran a whole cycle batch ungated, and a race was refused because the
+  screen saver's line had been crossed. So, for every race, timing run, test batch, gate and counter/VM batch:
+  (1) it runs under `caffeinate -dimsu -w <its pid>` (or `caffeinate -dimsu <cmd>`) — the screen saver must NEVER come
+  on, and the harness's saver check is only a safety net; (2) a **2-minute pause before each heavy batch starts** (not
+  between the runs inside one; `BATCH_PAUSE_S`, default 120); (3) before every sample or page, macOS's thermal pressure
+  (`notifyutil -g com.apple.system.thermalpressurelevel`) must be **0** — above it, **pause a minute at a time until it
+  clears**, and report the time spent cooling. `bench/dom/race.mjs` and `scripts/gate.mjs` do all three in their own
+  code (the gate on the macOS laptop only — CI runs on Linux); any new timing tool,
+  harness or batch launcher gets the same code in the tool itself, and a tool that cannot read the pressure refuses to
+  run rather than timing ungated. Instruction counts are not changed by heat, but their VM batches are what heat the
+  machine, so they are gated and paused too.
 - **Timing deferred work, "see the DOM, then wait for the next paint" charges deferral a frame it never cost.** A
   flush deferred to a frame writes the DOM INSIDE that frame's callbacks, and that frame paints it; a probe that
   notices the DOM and only then requests a frame waits for the NEXT one. Measured 2026-10-08: it made the scheduler's
