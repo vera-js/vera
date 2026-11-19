@@ -8,7 +8,8 @@
  *
  * **Load-sensitive**: the pop-out release row ("a component left in a pop-out that CLOSES is released") went red on
  * Firefox while a CPU-heavy job ran beside the suite (panel not released, `woke` true), and was green 3 of 3 alone on the
- * same tree (2026-11-08). Read a red there under load as load until it reproduces alone.
+ * same tree (2026-11-08). Read a red there under load as load until it reproduces alone. Since 2026-11-19 it waits for
+ * the release (2 s ceiling) rather than a fixed time, and its message says which of the two it was.
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, define, init, html, createStore, effect } from '../../packages/core/dist/development/vera.js';
@@ -374,14 +375,17 @@ describe('R4: cross-window moves keep the component', () => {
       /**
        * Wait for the RELEASE, not a fixed time (2026-11-19): CI's Linux Firefox had not closed the pop-out 150 ms after
        * `close()`, so the row read "not released yet" (CLAUDE.md: wait for the property rather than sampling an instant).
-       * A release that never comes still fails, once the ceiling passes.
+       * A release that never comes still fails, once the ceiling passes, and says so: the message tells a release that
+       * never came apart from a wrong value read after it.
        */
-      for (let waited = 0; counts.panelClean - panelBefore < 1 && waited < 2000; waited += 25) await settle(25);
+      let waited = 0;
+      for (; counts.panelClean - panelBefore < 1 && waited < 2000; waited += 25) await settle(25);
+      const why = waited >= 2000 ? 'the release never came within 2 s of close()' : `released after ${waited} ms, then`;
       await settle();
       const before = { ...counts };
       s.n = 2;
       await settle(50);
-      expect({ childThere, panelReleased: counts.panelClean - panelBefore, childClean: counts.childClean, woke: counts.panelRenders !== before.panelRenders || counts.childRenders !== before.childRenders })
+      expect({ childThere, panelReleased: counts.panelClean - panelBefore, childClean: counts.childClean, woke: counts.panelRenders !== before.panelRenders || counts.childRenders !== before.childRenders }, why)
         .to.deep.equal({ childThere: true, panelReleased: 1, childClean: 1, woke: false });
     });
 
