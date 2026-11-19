@@ -16,7 +16,8 @@
  * The sibling suite `./lifecycle-parity.test.mjs` asks the same question one level up, about a whole
  * component rather than one template.
  */
-import { load } from './dist.mjs';
+import { load, tier, tierRefused } from './dist.mjs';
+import { TIERS } from './tier-skips.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import { canonical } from './canonical.mjs';
@@ -383,13 +384,36 @@ const parse = (markup) => {
 
 let pass = 0;
 const failures = [];
+/** Under a tier, the templates it refuses or that need core (spread, keyed, hold): named and counted, never a pass. */
+const tierCases = [];
 for (const name of Object.keys(ALL)) {
   const container = dom.window.document.createElement('div');
-  renderInto(clientTemplates[name](), container);
+  try {
+    renderInto(clientTemplates[name](), container);
+  } catch (error) {
+    if (!tierRefused(error)) throw error;
+    tierCases.push(`${name}: ${String(error.message).slice(0, 90)}`);
+    continue;
+  }
 
   const fromClient = canonical(container);
   const fromServer = parse(server[name]);
   const agree = fromClient === fromServer;
+  /**
+   * Under a tier, a template the tier renders differently BY DESIGN is listed with its reason (tests/tier-skips.mjs):
+   * counted, and it must still differ — one that now agrees has outlived its allowance.
+   */
+  const designed = tier !== undefined ? TIERS[tier]?.suites['render-parity']?.cases?.[name] : undefined;
+  /** Core's own known divergences from the server are core's: a tier may share one or not. */
+  if (tier !== undefined && KNOWN_DIVERGENCES[name]) {
+    pass++;
+    continue;
+  }
+  if (designed !== undefined) {
+    if (agree) failures.push(`${name} — listed for ${tier} (${designed}) and the two sides now agree; delete the entry`);
+    else tierCases.push(`${name}: ${designed}`);
+    continue;
+  }
   /** A known divergence must still *be* one: if it starts agreeing, the note above is stale. */
   if (KNOWN_DIVERGENCES[name] ? !agree : agree) pass++;
   else if (KNOWN_DIVERGENCES[name])
@@ -397,6 +421,10 @@ for (const name of Object.keys(ALL)) {
   else failures.push(`${name}\n      server: ${fromServer}\n      client: ${fromClient}`);
 }
 
+if (tierCases.length > 0) {
+  console.log(`  ${tierCases.length} template(s) the ${tier} tier refuses or that need core:\n    ${tierCases.join('\n    ')}`);
+  if (pass === 0) throw new Error(`CONTROL: under ${tier}, no template ran — every one was the tier's`);
+}
 if (failures.length) {
   console.log(`\n  ${failures.length} template(s) render differently on the two sides:\n`);
   for (const failure of failures) console.log('    ' + failure + '\n');

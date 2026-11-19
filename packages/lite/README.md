@@ -5,7 +5,7 @@ wire.
 
 | Package | gzipped | A render | For |
 | --- | ---: | --- | --- |
-| `@verajs/lite` | <!--size:lite.gzip-->4.10 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small sites |
+| `@verajs/lite` | <!--size:lite.gzip-->4.17 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small sites |
 | `@verajs/core` + `@verajs/renderer` | <!--size:core.gzip-->8.05 KB<!--/size:core.gzip--> + <!--size:renderer.gzip-->6.26 KB<!--/size:renderer.gzip--> | patches in place, keyed lists, hydration | everything else |
 
 <!-- recipe -->
@@ -72,7 +72,16 @@ against the parser's, which lowercases only ASCII, so a `.prop` or event name wi
 
 **What only `@verajs/core` has:** `createStore`, `computed`, `effect`, `keyed` lists, `spread`, refs, light-DOM slots,
 hydration and an async setup. Importing one from lite fails when the module loads;
-development names an option or a value only `@verajs/core` handles (`tier-needs-core`).
+development names an option or a value only `@verajs/core` handles (`tier-needs-core`). An object shaped like a template
+that is not one — data from `JSON.parse`, or a `{ strings, values }` wrapper core's `hold` and `tag` build — renders as the
+text `[object Object]` and is never converted (development says `forged-template` or `template-wrapper`; core renders such
+a wrapper as its template).
+
+**Values render as they do in core:** a list or any other iterable (a `Set`, a `Map`) as its items, a property bound to
+`undefined` gets `undefined` (the platform's setter writes it as the text "undefined" in a field, as core does), and
+development says core's warnings in core's words — a boolean child that renders as a word (`boolean-child`), an attribute
+value that is not text (`attribute-value`), a handler that cannot listen (`not-a-listener`), a misspelled event
+(`event-name-typo`). Production carries none of the warnings.
 
 **Moving up.** A component written for lite runs on `@verajs/core`: add `@verajs/core` and `@verajs/renderer`, change
 the import, and `wire([renderer])`. The refusals are the same in both: escaped text, no script URLs (in an attribute or

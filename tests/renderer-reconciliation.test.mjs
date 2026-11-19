@@ -10,7 +10,7 @@
  * that the text ends up right. A reconciler that silently rebuilds rows produces identical markup
  * and loses focus, scroll position, form state and animation.
  */
-import { load } from './dist.mjs';
+import { load, tier, tierRefused } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<body></body>', { pretendToBeVisual: true });
@@ -27,6 +27,20 @@ const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => ok ? pass++ : (fail++, console.log('FAIL:', name, extra));
 
+/**
+ * Under a tier, a section that reaches a core-only API (keyed, hold) or one of the tier's refusals is named and counted,
+ * and the sections after it still run; anything else it throws is a failure, as under core.
+ */
+const tierSections = [];
+const section = (name, run) => {
+  try {
+    run();
+  } catch (error) {
+    if (!tierRefused(error)) throw error;
+    tierSections.push(`${name}: ${String(error.message).slice(0, 80)}`);
+  }
+};
+
 const host = () => {
   const element = dom.window.document.createElement('div');
   dom.window.document.body.appendChild(element);
@@ -35,7 +49,7 @@ const host = () => {
 const rows = (element) => [...element.querySelectorAll('li')].map((node) => node.textContent).join(',');
 
 /* ── keyed reconciliation ───────────────────────────────────────────────────────────────────── */
-{
+section('keyed reconciliation', () => {
   const draw = (element, items) =>
     renderInto(html`<ul>${items.map((item) => keyed(item.k, html`<li>${item.v}</li>`))}</ul>`, element);
 
@@ -69,10 +83,10 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   const wasEmpty = rows(emptied) === '';
   draw(emptied, [{ k: 2, v: 'b' }]);
   check('list → empty → list', wasEmpty && rows(emptied) === 'b', `${wasEmpty} / ${rows(emptied)}`);
-}
+});
 
 /* ── a thousand rows, shuffled ──────────────────────────────────────────────────────────────── */
-{
+section('a thousand rows, shuffled', () => {
   const element = host();
   const draw = (order) =>
     renderInto(html`<ul>${order.map((k) => keyed(k, html`<li>${k}</li>`))}</ul>`, element);
@@ -90,10 +104,10 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   check('a 1000-row shuffle keeps every row', after.length === 1000, `${after.length} rows`);
   check('and reuses every element rather than rebuilding',
     after.every((node, i) => node === byKey.get(shuffled[i])));
-}
+});
 
 /* ── combinations ───────────────────────────────────────────────────────────────────────────── */
-{
+section('combinations', () => {
   const nested = host();
   const drawGroups = (groups) =>
     renderInto(
@@ -134,10 +148,10 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   drawEvents([2, 1]);
   events.querySelectorAll('li')[0].dispatchEvent(new dom.window.Event('click'));
   check('a moved row carries its own handler', fired === 2, `fired for ${fired}`);
-}
+});
 
 /* ── part-mode transitions ──────────────────────────────────────────────────────────────────── */
-{
+section('part-mode transitions', () => {
   const element = host();
   renderInto(html`<div>${'plain'}</div>`, element);
   const asText = element.textContent;
@@ -168,10 +182,10 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   renderInto(html`<div>[${null}][${undefined}][${false}][${0}]</div>`, values);
   check('null and undefined are empty; false and 0 render',
     values.textContent === '[][][false][0]', JSON.stringify(values.textContent));
-}
+});
 
 /* ── hold, from a single call site ──────────────────────────────────────────────────────────── */
-{
+section('hold, from a single call site', () => {
   const element = host();
   /**
    * One call site, toggling. `hold` keys parked instances by template identity, so two separate
@@ -190,7 +204,11 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   const returned = element.querySelector('input');
   check('and the same element comes back', returned === input);
   check('carrying state no attribute records', returned?.value === 'user typed', returned?.value);
-}
+});
 
+if (tierSections.length > 0) {
+  console.log(`${tierSections.length} section(s) the ${tier} tier refuses or that need core:\n  ${tierSections.join('\n  ')}`);
+  if (pass === 0) throw new Error(`CONTROL: under ${tier}, no check ran — every section was the tier's`);
+}
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

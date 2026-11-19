@@ -123,8 +123,8 @@ describing the bytes honestly.)*
 | Module | gzip | |
 | --- | ---: | --- |
 | `@verajs/core` | 8 243 B | state (incl. Map and Set), hooks, lifecycle, render |
-| `@verajs/lite` | 4 196 B | the lite tier: `define`, `signal`, `html`, a renderer that patches in place |
-| `@verajs/static` | 1 537 B | the static tier: `define` and `html` rendered once into markup, values never code |
+| `@verajs/lite` | 4 270 B | the lite tier: `define`, `signal`, `html`, a renderer that patches in place |
+| `@verajs/static` | 1 700 B | the static tier: `define` and `html` rendered once into markup, values never code |
 | `@verajs/renderer` | 6 409 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 522 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 618 B | lazy component discovery |

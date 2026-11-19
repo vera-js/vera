@@ -113,4 +113,124 @@ export const distUrl = (name, query = '') => {
   return new URL(`../packages/${pkg}/dist/${path}${query}`, import.meta.url).href;
 };
 
-export const load = (name, query = '') => import(distUrl(name, query));
+/**
+ * **`VERA_TIER=lite` or `static`: the renderer suites run against a small tier's SHIPPED bundle** (Brian, 2026-11-19: lite
+ * and static go through every applicable core/renderer suite before their first publish). `load('core')` and
+ * `load('renderer')` answer a facade: the tier's `html`/`svg`/`mathml`/`define`(/`signal`), a no-op `wire`, and a
+ * `renderInto` built on a real component of the tier — never a test-only build. EVERY other export of core or the
+ * renderer throws when called (`core-only`), so a suite can never pass under a tier by quietly running core: a row that
+ * needs one is red, and is skipped by name with its reason (`tests/tier-skips.mjs`, run by `scripts/tier-suites.mjs`).
+ *
+ * - lite: one connected host per container, rendering INTO it (`_$r$`, the root sigil a component renders into); a
+ *   later call re-renders synchronously through `connectedCallback()` (set-up hosts skip setup and patch), so updates
+ *   are lite's own patching, in place. Hosts live in a holder outside `<body>` — a lite render needs a connected host.
+ * - static: renders once, synchronously, into a fresh component, and its nodes MOVE into the container (static never
+ *   touches them again). A second call is a fresh render: static has no updates, so update rows are skipped.
+ */
+export const tier = process.env.VERA_TIER;
+/**
+ * Under a tier: whether `error` is the tier saying "not here" — a `core-only` call or one of the tier's coded refusals.
+ * A script-style suite that renders case after case uses it to count such a case and go on, so one refusal never hides
+ * the cases behind it; anything else it throws is a failure, as it is under core.
+ */
+export const tierRefused = (error) =>
+  tier !== undefined && /core-only:|tier-hole-position|static-hole|unfinished-tag|tier-needs-core/.test(String(error?.message ?? ''));
+if (tier !== undefined && tier !== 'lite' && tier !== 'static') throw new Error(`tests/dist.mjs: VERA_TIER=${tier} is not lite or static`);
+const coreOnly = (where, key) => () => {
+  throw new Error(`core-only: ${where}'s \`${key}\` is not in @verajs/${tier}`);
+};
+/** A module's facade: `own` answered as given, every other function export a `core-only` thrower, other values as they are. */
+const facade = (mod, where, own) =>
+  new Proxy(own, {
+    get: (target, key) => (key in target ? target[key] : typeof mod[key] === 'function' ? coreOnly(where, String(key)) : mod[key]),
+    has: (target, key) => key in target || key in mod,
+  });
+let tierModule;
+let current;
+/**
+ * Everything is taken from the CONTAINER's window, never the globals (CLAUDE.md: use the element's window): a suite may
+ * replace `globalThis.document` after loading (importing `@verajs/ssr` installs its server DOM), and its containers come
+ * from its own jsdom. Per window: the host is defined once — `define` reads the global registry and `HTMLElement`, so
+ * they point at that window while it runs — and the hosts sit in a holder outside `<body>` (a lite render needs a
+ * connected host). Defined at the first render, not at load: a renderer suite may set no registry global at all.
+ */
+const perWindow = new WeakMap();
+const hostFor = (view) => {
+  let entry = perWindow.get(view);
+  if (entry === undefined) {
+    const saved = [globalThis.customElements, globalThis.HTMLElement];
+    globalThis.customElements = view.customElements;
+    globalThis.HTMLElement = view.HTMLElement;
+    try {
+      tierModule.define('vera-tier-host', () => () => current);
+    } finally {
+      [globalThis.customElements, globalThis.HTMLElement] = saved;
+    }
+    perWindow.set(view, (entry = { hosts: new WeakMap(), holder: undefined }));
+  }
+  return entry;
+};
+const tierRenderInto = (result, container) => {
+  current = result;
+  const doc = container.ownerDocument ?? container;
+  const view = doc.defaultView;
+  const entry = hostFor(view);
+  if (tier === 'static') {
+    const element = doc.createElement('vera-tier-host');
+    element.connectedCallback();
+    container.replaceChildren(...element.childNodes);
+    return;
+  }
+  const host = entry.hosts.get(container);
+  if (host !== undefined) return host.connectedCallback();
+  const made = doc.createElement('vera-tier-host');
+  made._$r$ = container;
+  entry.hosts.set(container, made);
+  if (entry.holder === undefined || !entry.holder.isConnected) doc.documentElement.append((entry.holder = doc.createElement('vera-tier-holder')));
+  /**
+   * The first render runs in the connect REACTION, which reports an exception to the window instead of throwing it;
+   * core's `renderInto` throws. So the reported error is caught and rethrown — a refusal reaches the row as core's would.
+   */
+  let reported;
+  /**
+   * Through the window's `onerror` PROPERTY, never `addEventListener`: a suite counting listener traffic (listener-churn)
+   * spies on `addEventListener` and would count the harness's own catcher as the tier's.
+   */
+  const previous = view.onerror;
+  view.onerror = (message, source, line, column, error) => {
+    reported ??= error ?? new Error(String(message));
+    return true;
+  };
+  try {
+    entry.holder.append(made);
+  } finally {
+    view.onerror = previous;
+  }
+  if (reported !== undefined) {
+    entry.hosts.delete(container);
+    made.remove();
+    throw reported;
+  }
+};
+const tierFacade = async (name, mod) => {
+  tierModule ??= await import(distUrl(tier));
+  const { html, svg, mathml, define, signal } = tierModule;
+  if (name === 'core') return facade(mod, 'core', { html, svg, mathml, define, ...(signal ? { signal } : {}), wire: () => {} });
+  /** `renderer` is a dual (`renderer({ foreignNodes })`): wiring it is a no-op, calling it is core's. */
+  const renderer = Object.assign(coreOnly('renderer', 'renderer(options)'), { tier });
+  return facade(mod, 'renderer', { renderer, renderInto: tierRenderInto });
+};
+/** Core's own modules: under a tier every function they export is core's, so each throws `core-only` when called. */
+const CORE_ONLY = /^(?:renderer\/|store)/;
+
+export const load = async (name, query = '') => {
+  const mod = await import(distUrl(name, query));
+  if (tier === undefined || query !== '') return mod;
+  if (name === 'core' || name === 'renderer') return tierFacade(name, mod);
+  /** `renderer/tag`'s `html`/`svg` are the ordinary tags (plus tag VALUES, core's): under a tier, the tier's own tags. */
+  if (name === 'renderer/tag') {
+    tierModule ??= await import(distUrl(tier));
+    return facade(mod, name, { html: tierModule.html, svg: tierModule.svg });
+  }
+  return CORE_ONLY.test(name) ? facade(mod, name, {}) : mod;
+};

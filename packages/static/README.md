@@ -5,8 +5,8 @@ reactivity, nothing to wire, and no value ever becomes code.
 
 | Package | gzipped | A render | For |
 | --- | ---: | --- | --- |
-| `@verajs/static` | <!--size:static.gzip-->1.50 KB<!--/size:static.gzip--> | once, at the first connect | static sites, markup enhanced by `@verajs/directives` |
-| `@verajs/lite` | <!--size:lite.gzip-->4.10 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small dynamic sites |
+| `@verajs/static` | <!--size:static.gzip-->1.66 KB<!--/size:static.gzip--> | once, at the first connect | static sites, markup enhanced by `@verajs/directives` |
+| `@verajs/lite` | <!--size:lite.gzip-->4.17 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small dynamic sites |
 
 <!-- recipe -->
 ```js
@@ -45,7 +45,12 @@ there is one. The setup returns a render function or the template itself. The ca
 each value landed is judged from what the parser built — never guessed from the markup:
 
 - In text and attribute values a value is text. A list in an attribute value is joined, and an object is its text, as
-  `@verajs/core` writes them.
+  `@verajs/core` writes them. A child that is a list or any other iterable (a `Set`, a `Map`) renders its items, as
+  core's does. `null` or `undefined` as an attribute's whole value removes the attribute, as core does.
+- `?name=${…}` is honored: the attribute is present when the value is truthy. A `.prop`, `!live` or `@event` binding,
+  and a function in any attribute value, write nothing — static has no behavior, and app code never lands in the markup
+  — and development names what does it (`static-needs-renderer`). (Core writes a function's source there; static does
+  not.)
 - A `javascript:` URL in a URL-bearing attribute (`href`, `src`, `action`, `formaction`, `xlink:href`, `data`, and an
   animation's `to`, `from`, `by`, `values`) is removed. **Every one of them is checked item by item** — as
   `@verajs/core` checks an animation's `values` — so `href="a;javascript:…"` is removed here where core keeps it.

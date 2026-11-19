@@ -14,7 +14,8 @@
  *
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
-import { load } from './dist.mjs';
+import assert from 'node:assert/strict';
+import { load, tier, tierRefused } from './dist.mjs';
 import { canonical } from './canonical.mjs';
 import { JSDOM } from 'jsdom';
 
@@ -102,7 +103,17 @@ const failures = [];
 
 const fresh = () => dom.window.document.createElement('div');
 
+/** Under a tier, the cases the tier refuses or that need core (spread, keyed): named and counted, never a pass. */
+const tierCases = [];
 const compare = (label, first, second) => {
+  try {
+    compareRendered(label, first, second);
+  } catch (error) {
+    if (!tierRefused(error)) throw error;
+    tierCases.push(label);
+  }
+};
+const compareRendered = (label, first, second) => {
   const updated = fresh();
   renderInto(first(), updated);
   renderInto(second(), updated);
@@ -170,13 +181,18 @@ for (const [positionName, position] of Object.entries(POSITIONS))
   for (const [name, value] of Object.entries(VALUES)) {
     const label = `${positionName}: null → ${name} → null → ${name}`;
     const updated = fresh();
-    renderInto(position(null), updated);
-    renderInto(position(value()), updated);
-    renderInto(position(null), updated);
-    renderInto(position(value()), updated);
-
     const direct = fresh();
-    renderInto(position(value()), direct);
+    try {
+      renderInto(position(null), updated);
+      renderInto(position(value()), updated);
+      renderInto(position(null), updated);
+      renderInto(position(value()), updated);
+      renderInto(position(value()), direct);
+    } catch (error) {
+      if (!tierRefused(error)) throw error;
+      tierCases.push(label);
+      continue;
+    }
 
     const a = canonical(updated);
     const b = canonical(direct);
@@ -184,6 +200,10 @@ for (const [positionName, position] of Object.entries(POSITIONS))
     else failures.push(`${label}\n      updated: ${a}\n      fresh:   ${b}`);
   }
 
+if (tierCases.length > 0) {
+  console.log(`  ${tierCases.length} case(s) the ${tier} tier refuses or that need core (spread, keyed): not counted`);
+  assert.ok(pass > 0, `CONTROL: under ${tier}, some cases ran — not every one was the tier's`);
+}
 if (failures.length) {
   console.log(`\n  ${failures.length} update(s) that do not match a fresh render:\n`);
   for (const failure of failures.slice(0, 25)) console.log(`    ${failure}\n`);

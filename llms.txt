@@ -420,6 +420,10 @@ document.body.append(document.createElement('lite-counter'));
   parser puts it. Development names an element placed where its namespace does not render (`wrong-namespace`).
 - **Only in `@verajs/core`:** `createStore`, `computed`, `effect`, `keyed`, `spread`, refs, light-DOM slots, hydration,
   an async setup. Importing one from lite fails when the module loads.
+- **Values as core renders them:** an iterable child (a `Set`, a `Map`) renders its items; a property bound to
+  `undefined` gets it (as core); a template-shaped object that is no template (JSON data, a `{ strings, values }` wrapper)
+  renders `[object Object]`, never converted; development says core's warnings (`boolean-child`, `attribute-value`,
+  `not-a-listener`, `event-name-typo`).
 - **The parser judges every template once:** a hole it would move or drop (a `<div>` in `<select>`, a duplicate
   attribute, a hole in a comment, `<noscript>`, `<iframe>` or `<template>`) is refused, coded `tier-hole-position`; a
   template ending inside a tag, `unfinished-tag`. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
@@ -440,8 +444,10 @@ document.body.append(document.createElement('lite-counter'));
 `shadow`), so a component that must update moves to `@verajs/lite` or `@verajs/core` by changing the import.
 
 - **No value ever becomes code:** values are written as inert text and the HTML parser's result is judged. In text and
-  attribute values a value is text; a `javascript:` URL in a URL attribute is removed (every URL name checked item by
-  item); an event-handler or `srcdoc` attribute holding a value is not written; in `<style>` or a JSON data block a value
+  attribute values a value is text; `null`/`undefined` as a whole attribute value removes it; `?name=${…}` is honored; a
+  `.prop`, `!live` or `@event` binding and a function in any attribute write nothing (`static-needs-renderer` in
+  development); an iterable child renders its items; a `javascript:` URL in a URL attribute is removed (every URL name
+  checked item by item); an event-handler or `srcdoc` attribute holding a value is not written; in `<style>` or a JSON data block a value
   is text that cannot end the element. Refused (`static-hole`): a value in a tag or attribute name, or inside another
   `<script>` (SVG too), `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 - **Behavior** comes from `@verajs/directives` (`/standalone` on a page with no other vera): the engine watches the

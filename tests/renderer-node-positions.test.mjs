@@ -17,7 +17,7 @@ for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text'
   globalThis[key] = dom.window[key];
 
 const { renderInto } = await load('renderer');
-const html = (strings, ...values) => ({ strings, values });
+const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
 let pass = 0;
 const failures = [];

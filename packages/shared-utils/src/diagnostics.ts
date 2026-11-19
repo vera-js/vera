@@ -207,3 +207,25 @@ export const setupReturnedValue: Prose = (kind) => [
     `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
     'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
 ];
+/**
+ * **A boolean at a child position renders as the WORD** — said in development by `@verajs/renderer` and `@verajs/lite`
+ * (moved from the renderer's table, 2026-11-19: lite says core's development diagnostics too).
+ */
+export const booleanChild: Prose = (value) => [
+    `a child position was given \`${value}\`, which renders as the word "${value}" — the usual cause is \`\${cond && …}\` with a false \`cond\`.`,
+    'Write `${cond ? … : null}`, or `${(cond && …) || null}`; `null` and `undefined` are the values that render nothing. If you meant to display the boolean, say so with `${String(value)}` and this goes quiet.',
+];
+/** **A misspelled event name** (`@clik`) — said in development by `@verajs/renderer` and `@verajs/lite` (moved 2026-11-19). */
+export const eventNameTypo: Prose = (name, tag, best) => [
+    `@${name} is not an event <${tag}> fires — did you mean @${best}? (In JSX, on${name.slice(0, 1).toUpperCase()}${name.slice(1)} compiles to @${name}.)`,
+    'A custom event by this name is fine, and this is said only in development.',
+];
+/**
+ * **A wrapper around a real template literal's strings is no template in the small tiers** — `{ strings, values }` without
+ * `_$litType$`, which only `@verajs/core`'s `hold` or `tag` build: a template to core, the text `[object Object]` in
+ * `@verajs/lite` and `@verajs/static` (Brian, 2026-11-19: a recorded difference, said in development by both).
+ */
+export const templateWrapper: Prose = () => [
+    "an object holding a real template literal's `strings` but no `_$litType$` — a wrapper only `@verajs/core`'s `hold` or `tag` builds — is no template here: it renders as the text any object renders as, `[object Object]`.",
+    'Render the `html` result itself; `@verajs/core` renders such a wrapper as its template.',
+];

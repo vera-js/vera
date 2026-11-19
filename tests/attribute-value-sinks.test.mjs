@@ -15,7 +15,7 @@
  * is a house rule in none of them.**
  *
  * The second half is the diagnostic, and its shape was argued and then MEASURED. See
- * `packages/renderer/src/dev-values.ts` for why the accepted set is closed rather than predicated.
+ * `packages/shared-utils/src/dev-values.ts` for why the accepted set is closed rather than predicated.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';

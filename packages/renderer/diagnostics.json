@@ -36,14 +36,6 @@
       "fix": "Hoist the applier — written as an object-literal method it is a new function per call: `function applyThing(part, previous) { … }` once at module scope, and `const thing = (x) => ({ _$child$: applyThing, x })` with the state on the object."
     },
     {
-      "code": "boolean-child",
-      "params": [
-        "value"
-      ],
-      "message": "a child position was given `{value}`, which renders as the word \"{value}\" — the usual cause is `${cond && …}` with a false `cond`.",
-      "fix": "Write `${cond ? … : null}`, or `${(cond && …) || null}`; `null` and `undefined` are the values that render nothing. If you meant to display the boolean, say so with `${String(value)}` and this goes quiet."
-    },
-    {
       "code": "dropped-binding",
       "params": [
         "where",
@@ -51,16 +43,6 @@
       ],
       "message": "{where} never reached the parsed tree — the HTML parser DROPPED the element it was written on, because its parent's content model forbids it (`<select>` takes only options, `<form>` cannot nest, and so on). {lost} binding(s) lost; the bindings AFTER it are unaffected, because each marker carries its own index.",
       "fix": "Move the element out of its parent, or use one the parent can hold."
-    },
-    {
-      "code": "event-name-typo",
-      "params": [
-        "name",
-        "tag",
-        "best"
-      ],
-      "message": "@{name} is not an event <{tag}> fires — did you mean @{best}? (In JSX, on{name} compiles to @{name}.)",
-      "fix": "A custom event by this name is fine, and this is said only in development."
     },
     {
       "code": "foreign-dropped",

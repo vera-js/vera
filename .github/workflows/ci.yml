@@ -92,6 +92,8 @@ jobs:
       - run: npm run test:prod
       # The NODE builds (what Node and Vite load through a `node` export condition) are third programs.
       - run: npm run test:node-builds
+      - run: npm run test:tiers
+      - run: npm run test:tiers:prod
       # A server suite must see what it asserts is absent: the SSR suites under an instrument that records a query coming
       # back empty while a <template> holds a match (a served shadow root parses as one in jsdom). Its control runs first.
       - run: node scripts/blind-queries.mjs

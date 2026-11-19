@@ -7,12 +7,12 @@
       "gzip": 8243
     },
     "lite": {
-      "raw": 9627,
-      "gzip": 4196
+      "raw": 9814,
+      "gzip": 4270
     },
     "static": {
-      "raw": 2961,
-      "gzip": 1537
+      "raw": 3378,
+      "gzip": 1700
     },
     "renderer": {
       "raw": 15372,

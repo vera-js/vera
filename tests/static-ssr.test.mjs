@@ -41,15 +41,15 @@ test('static: a shadow component is served as a declarative shadow root', async 
 });
 
 /**
- * **The server's DOM accepts the names the engines accept** (2026-11-18): a static JSON block with `?type=${…}` and
- * `.type=${…}` is served with those as inert attributes literally named, and its type still `application/json` — as the
- * browsers write it (tests/browser/static.test.js), never a raw DOMException the way jsdom's stricter `setAttribute` throws.
+ * **A `?type` / `.type` binding on a static JSON block** (2026-11-19, Brian: static honors `?name` and drops `.prop`): a
+ * false `?type` removes nothing real and `.type` is not written, so the block is served with its type `application/json`
+ * and neither junk attribute (until 2026-11-19 they were served literally named, `?type="false"` — the tier suites found
+ * it; a true `?type` empties the type, and the script's value is then refused: tests/tier-parity-fixes.test.mjs).
  */
-test('static: a ?type / .type "binding" on a JSON block is served as inert, literally named attributes; the type stays JSON', async () => {
+test('static: a false ?type and a .type binding on a JSON block are not served; the type stays JSON', async () => {
   const [markup, host] = await served('ssr-static-typeswap');
   const script = host?.querySelector('script');
   assert.ok(script, `CONTROL: served (${markup})`);
   assert.equal(script.getAttribute('type'), 'application/json');
-  assert.match(markup, /\?type="false"/);
-  assert.match(markup, /\.type="text\/javascript"/);
+  assert.doesNotMatch(markup, /\?type|\.type/, markup);
 });

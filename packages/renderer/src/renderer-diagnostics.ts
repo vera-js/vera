@@ -56,14 +56,6 @@ export const PROSE: Record<string, Prose> = {
     'Write the section explicitly — `<table><tbody>${rows}</tbody></table>` — and every path agrees.',
   ],
   /* ── values (said as they happen) ── */
-  'boolean-child': (value) => [
-    `a child position was given \`${value}\`, which renders as the word "${value}" — the usual cause is \`\${cond && …}\` with a false \`cond\`.`,
-    'Write `${cond ? … : null}`, or `${(cond && …) || null}`; `null` and `undefined` are the values that render nothing. If you meant to display the boolean, say so with `${String(value)}` and this goes quiet.',
-  ],
-  'event-name-typo': (name, tag, best) => [
-    `@${name} is not an event <${tag}> fires — did you mean @${best}? (In JSX, on${name.slice(0, 1).toUpperCase()}${name.slice(1)} compiles to @${name}.)`,
-    'A custom event by this name is fine, and this is said only in development.',
-  ],
   'applier-identity': (swaps) => [
     `a child applier changed identity ${swaps} times at one part, so \`previous\` is always undefined and it restarts every render.`,
     'Hoist the applier — written as an object-literal method it is a new function per call: `function applyThing(part, previous) { … }` once at module scope, and `const thing = (x) => ({ _$child$: applyThing, x })` with the state on the object.',

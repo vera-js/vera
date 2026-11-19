@@ -18,9 +18,8 @@
  * and still works), names that cannot survive markup, and — as the renderer does — a `javascript:` URL
  * where a browser navigates.
  */
-import { adoptProperty, call, CONTENT_PROPERTY, dispatch, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, diagnostic, SHARED } from '@verajs/shared-utils';
+import { adoptProperty, attributeValueKind, call, CONTENT_PROPERTY, dispatch, contentClash, INLINE_HANDLER, ownsContent, isSelection, read, saySelectMultiple, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, diagnostic, SHARED } from '@verajs/shared-utils';
 import type { Untracked } from '@verajs/shared-utils';
-import { attributeValueKind } from './dev-values.js';
 import { PROSE } from './spread-diagnostics.js';
 
 const ATTR = 0;

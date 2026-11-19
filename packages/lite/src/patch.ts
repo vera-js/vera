@@ -7,7 +7,7 @@
  */
 import { JSON_BLOCK, SHARED, checkForeign, closedRawText, landing, misuse } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
-import { IN_TAG, RAW, SCRIPT_START, TEXT_MARK, TEXT_MARKS, TEXT_ONLY, VALUE_MARK, WRITTEN_NAME, genuine, onlyCore, refusedName, sayRefused, sayScriptUrl, urlCheck } from './markup.js';
+import { IN_TAG, RAW, SCRIPT_START, TEXT_MARK, TEXT_MARKS, TEXT_ONLY, VALUE_MARK, WRITTEN_NAME, genuine, onlyCore, refusedName, sayAttributeValue, sayBooleanChild, sayListener, sayRefused, sayScriptUrl, urlCheck } from './markup.js';
 import type { TemplateResult, LiteRoot } from './types.js';
 
 /**
@@ -315,6 +315,28 @@ const removeRun = (first: Node, last: Node) => {
 };
 
 /**
+ * **Core's child rule for a list** (2026-11-19, the tier suites: a `Set` rendered `[object Set]`): an array, or any other
+ * iterable OBJECT that is not a node — a `Set`, a `Map`'s entries, a generator — renders its items; a string (iterable
+ * too, but a primitive) is one text, and a `<select>` or `<form>` (iterable nodes) is placed, never listed. Asked after
+ * the template check, so a template or an array pays nothing for it.
+ */
+const isList = (value: unknown): boolean =>
+  Array.isArray(value) ||
+  (value !== null && typeof value === 'object' && typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined);
+
+/**
+ * A value's text at a child position. An object holding `strings` is template-SHAPED — a forgery (`JSON.parse`) or a
+ * wrapper only core's `hold`/`tag` build — and never a template here: it renders as the constant text any object renders
+ * as, NEVER converted (its own `toString` may be data, and a string there throws), as core renders a forgery.
+ */
+const childText = (value: unknown): string =>
+  value == null ? '' : typeof value === 'object' && (value as { strings?: unknown }).strings !== undefined ? FORGED : `${value}`;
+const FORGED = `${{}}`;
+
+/** Never a value: what an attribute part last wrote before its first write (core's `UNSET`). */
+const UNSET = {};
+
+/**
  * **A new list item from `list[i]`, inserted into `parent` before `before`** — no comment of its own unless it needs one:
  * a template instance is bounded by its own first and last nodes (a one-element template is that element; one that
  * starts with a hole has a boundary comment; one that ends with a hole ends at that hole's comment), and a text value is
@@ -334,7 +356,7 @@ const makeItem = (source: readonly unknown[], at: number, parent: Node, before: 
     parent.insertBefore(clone, before);
     return item;
   }
-  if (Array.isArray(value)) {
+  if (isList(value)) {
     const first = doc.createComment('');
     const last = doc.createComment('');
     parent.insertBefore(first, before);
@@ -344,7 +366,8 @@ const makeItem = (source: readonly unknown[], at: number, parent: Node, before: 
     return { _first: first, _last: last, _range: range };
   }
   if (__DEV__) onlyCore(value);
-  const text = doc.createTextNode(value == null ? '' : `${value}`);
+  if (__DEV__) sayBooleanChild(value);
+  const text = doc.createTextNode(childText(value));
   parent.insertBefore(text, before);
   return { _first: text, _last: text, _value: value };
 };
@@ -355,11 +378,14 @@ const updateItem = (items: Item[], i: number, source: readonly unknown[], at: nu
   const value = source[at];
   if ((value as TemplateResult | null)?._$litType$) {
     if (item._strings === (value as TemplateResult).strings) return commit(item._parts!, item._holes!, (value as TemplateResult).values);
-  } else if (Array.isArray(value)) {
+  } else if (isList(value)) {
     if (item._range !== undefined) return item._range(source, at);
   } else if (item._strings === undefined && item._range === undefined) {
     /** Compared with the value it last WROTE, never read back from the DOM (a read is a call into the engine per item). */
-    if (value !== item._value) (item._first as Text).data = (item._value = value) == null ? '' : `${value}`;
+    if (value !== item._value) {
+      if (__DEV__) sayBooleanChild(value);
+      (item._first as Text).data = childText((item._value = value));
+    }
     return;
   }
   items[i] = makeItem(source, at, item._last.parentNode!, item._last.nextSibling);
@@ -390,7 +416,9 @@ const childPart = (start: Node | null, end: Comment): Part => {
     items = undefined;
   };
   return (values, at) => {
-    const value = values[at];
+    let value = values[at];
+    /** A non-array list (core's rule, `isList`) renders as the array of its items, read once per render. */
+    if (!Array.isArray(value) && !(value as TemplateResult | null)?._$litType$ && isList(value)) value = [...(value as Iterable<unknown>)];
     if (Array.isArray(value)) {
       if (!list || items === undefined || value.length === 0) {
         clear();
@@ -432,7 +460,10 @@ const solePart = (text: Text): Part => {
   return (values, at) => {
     const value = values[at];
     if (range === undefined && (value == null || typeof value !== 'object')) {
-      if (value !== last) text.data = (last = value) == null ? '' : `${value}`;
+      if (value !== last) {
+        if (__DEV__) sayBooleanChild(value);
+        text.data = (last = value) == null ? '' : `${value}`;
+      }
     } else {
       if (range === undefined) {
         const end = text.ownerDocument.createComment('');
@@ -491,7 +522,8 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
   const prefix = name[0];
   const real = name.slice(1);
   const target = element as unknown as Record<string, unknown>;
-  let last: unknown;
+  /** The value last written; a sentinel at first, so a first `undefined` is WRITTEN as core writes it (2026-11-19). */
+  let last: unknown = UNSET;
   if (prefix === '@') {
     let handler: unknown;
     /** One listener per hole, registered once; a new handler only replaces what it calls. `this` is the element (core's). */
@@ -502,6 +534,7 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
       },
     });
     return (values, at) => {
+      if (__DEV__) sayListener(element, real, values[at], handler == null);
       handler = values[at];
     };
   }
@@ -544,7 +577,7 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
         if (__DEV__ && value !== refused) sayScriptUrl(element, key);
         if (__DEV__) refused = value;
         element.removeAttribute(key);
-        last = undefined;
+        last = UNSET;
         return;
       }
     }
@@ -555,7 +588,10 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
       last = value;
       if (property) target[key] = value;
       else if (value == null) element.removeAttribute(key);
-      else element.setAttribute(key, value as string);
+      else {
+        if (__DEV__ && whole) sayAttributeValue(element, key, values[at]);
+        element.setAttribute(key, value as string);
+      }
     }
   };
 };

@@ -36,9 +36,9 @@ for (const [name, { define, html, svg, mathml }] of Object.entries(TIERS)) {
 }
 
 /**
- * **Static is immune to a type swap** (2026-11-18): it judges a script AFTER its parse, on the final type, and has no
- * `?bool` / `.prop` bindings — `?type=${…}` is an ordinary attribute literally named `?type` in a real engine (jsdom
- * refuses that name; the engines accept it). So the script stays a JSON block, live and after a round trip.
+ * **Static is immune to a type swap** (2026-11-18): it judges a script AFTER its parse, on the final type. A false
+ * `?type` removes nothing real and a `.type` binding is not written (2026-11-19; until then both were written as
+ * attributes literally named), so the script stays a JSON block, live and after a round trip.
  */
 it('static: a JSON block with a ?type / .type "binding" stays a JSON block after a round trip (static has no such bindings)', () => {
   for (const [i, draw] of [

@@ -45,8 +45,10 @@ import {
   misuse,
   SHARED,
   warnOnce,
+  attributeValueKind,
+  eventKey,
+  eventNameGuess,
 } from '@verajs/shared-utils';
-import { attributeValueKind, eventKey, eventNameGuess } from './dev-values.js';
 import { PROSE } from './renderer-diagnostics.js';
 import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
@@ -867,7 +869,7 @@ const update = (instance: Instance, values: unknown[]) => {
  * producing `false` speaks once, and one that flips to `true` speaks again.
  */
 const warnBooleanChild = (value: boolean) =>
-  console.warn(diagnostic('renderer', 'a child position', 'boolean-child', __DEV__ && PROSE['boolean-child'](String(value))));
+  console.warn(diagnostic('renderer', 'a child position', 'boolean-child', __DEV__ && SHARED.booleanChild(String(value))));
 
 /**
  * **Content in the wrong namespace does not render**: development names it at each insert (shared-utils'
@@ -1049,7 +1051,7 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
       if (listener._handler === null) {
         const best = eventNameGuess(element, name);
         if (best !== null)
-          warnOnce('renderer', `<${element.localName}>`, 'event-name-typo', __DEV__ && (() => PROSE['event-name-typo'](name, element.localName, best)), eventKey(element, name));
+          warnOnce('renderer', `<${element.localName}>`, 'event-name-typo', __DEV__ && (() => SHARED.eventNameTypo(name, element.localName, best)), eventKey(element, name));
       }
     }
     /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */

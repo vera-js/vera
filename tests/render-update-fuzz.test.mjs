@@ -27,7 +27,7 @@
  * Seeded, per `CLAUDE.md`, and each shape is one function so every render in a sequence shares a call
  * site — otherwise each render would be a different template and every "update" a rebuild.
  */
-import { load } from './dist.mjs';
+import { load, tier, tierRefused } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -98,6 +98,8 @@ const ROUNDS = 80;
 test('a sequence of updates ends where a fresh render of the last value starts', () => {
   const failures = [];
   let cases = 0;
+  /** Under a tier, the sequences it refuses or that need core (keyed, spread, hold): counted, never a pass. */
+  let tierCases = 0;
 
   for (const seed of SEEDS) {
     const random = rng(seed);
@@ -112,7 +114,8 @@ test('a sequence of updates ends where a fresh render of the last value starts',
       try {
         for (const value of sequence) renderInto(shape(value), updated);
       } catch (error) {
-        failures.push(`${where}\n      threw during the update sequence: ${error.message}`);
+        if (tierRefused(error)) tierCases++;
+        else failures.push(`${where}\n      threw during the update sequence: ${error.message}`);
         continue;
       }
 
@@ -132,6 +135,10 @@ test('a sequence of updates ends where a fresh render of the last value starts',
   }
 
   assert.equal(cases, SEEDS.length * ROUNDS, 'the generator did not produce the expected number of sequences');
+  if (tierCases > 0) {
+    console.log(`  ${tierCases} of ${cases} sequences the ${tier} tier refuses or that need core: not counted`);
+    assert.ok(tierCases < cases, `CONTROL: under ${tier}, some sequences ran`);
+  }
   assert.deepEqual(
     failures.slice(0, 10),
     [],

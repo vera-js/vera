@@ -9,7 +9,7 @@
  * shared-utils' one grammar: a bound inline handler or `srcdoc` is never written, and a script URL on a URL-bearing name
  * is removed.
  */
-import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, SHARED, URL_SINK, diagnostic, warnOnce } from '@verajs/shared-utils';
+import { INLINE_HANDLER, SCRIPT_URL, SCRIPT_URL_ITEM, SHARED, URL_SINK, attributeValueKind, diagnostic, eventKey, eventNameGuess, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
 /**
@@ -111,12 +111,48 @@ export const urlCheck = (name: string) => {
 };
 
 /**
+ * **Development: core's value diagnostics, in core's words** (Brian, 2026-11-19: lite says them too — the same checks
+ * and prose, shared from `@verajs/shared-utils`; production carries none of it). A boolean at a child position renders
+ * as the word, said on each change to one (core's rule).
+ */
+export const sayBooleanChild = (value: unknown) => {
+  if (typeof value === 'boolean') console.warn(diagnostic('lite', 'a child position', 'boolean-child', __DEV__ && SHARED.booleanChild(String(value))));
+};
+/** Development: a whole attribute value that is not text (a function, an array, a Date…), once per element, name and kind. */
+export const sayAttributeValue = (element: Element, name: string, value: unknown) => {
+  const kind = value == null ? null : attributeValueKind(element.localName, name, value);
+  if (kind !== null) console.warn(diagnostic('lite', `<${element.localName}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind, `.${name}=\${value}`)));
+};
+/**
+ * Development: a handler that cannot listen (`@click=${'alert(1)'}` — `false`/`undefined` are the deliberate "none"), and
+ * at a binding's FIRST handler a misspelled event name (`@clik`), once per tag and name — core's two checks.
+ */
+export const sayListener = (element: Element, name: string, value: unknown, first: boolean) => {
+  if (value == null || value === false) return;
+  if (typeof value !== 'function' && typeof (value as EventListenerObject).handleEvent !== 'function')
+    console.warn(diagnostic('lite', `<${element.localName}>`, 'not-a-listener', __DEV__ && SHARED.notAListener(name, typeof value)));
+  const best = first ? eventNameGuess(element, name) : null;
+  if (best !== null) warnOnce('lite', `<${element.localName}>`, 'event-name-typo', __DEV__ && (() => SHARED.eventNameTypo(name, element.localName, best)), eventKey(element, name));
+};
+
+/**
  * Development: a value only core renders, in a text position — an object that is not a template or a list (a `keyed` or
  * `spread` result, a DOM node: rendered as its text here). Said once.
  */
 export const onlyCore = (value: unknown) => {
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    const what = 'an object value (a `keyed` or `spread` result, a DOM node)';
-    warnOnce('lite', 'html', 'tier-needs-core', __DEV__ && (() => PROSE['tier-needs-core'](what)), what);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return;
+  /**
+   * Template-SHAPED (it holds `strings`) but no template: a forgery (`JSON.parse`), said in core's words
+   * (`forged-template`), or a wrapper around a real literal's strings, which only core's `hold`/`tag` build — a template
+   * to core, text here (2026-11-19, Brian: a recorded difference, said in development).
+   */
+  const strings = (value as { strings?: unknown }).strings;
+  if (strings !== undefined) {
+    if (Array.isArray(strings) && Object.hasOwn(strings, 'raw'))
+      warnOnce('lite', 'html', 'template-wrapper', __DEV__ && (() => SHARED.templateWrapper()), 'template-wrapper');
+    else warnOnce('lite', 'html', 'forged-template', __DEV__ && (() => SHARED.forgedTemplate()), 'forged-template');
+    return;
   }
+  const what = 'an object value (a `keyed` or `spread` result, a DOM node)';
+  warnOnce('lite', 'html', 'tier-needs-core', __DEV__ && (() => PROSE['tier-needs-core'](what)), what);
 };

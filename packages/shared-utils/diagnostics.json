@@ -12,6 +12,14 @@
       "fix": "If the element is meant to RECEIVE this value, bind a property instead — `{property}` — which is how a custom element takes anything that is not text. If it is meant to be read as text, convert it where you know what it means: `date.toISOString()`, `list.join(' ')`. A Date in particular serializes with the SERVER's timezone on one side and the browser's on the other, so it will not survive hydration."
     },
     {
+      "code": "boolean-child",
+      "params": [
+        "value"
+      ],
+      "message": "a child position was given `{value}`, which renders as the word \"{value}\" — the usual cause is `${cond && …}` with a false `cond`.",
+      "fix": "Write `${cond ? … : null}`, or `${(cond && …) || null}`; `null` and `undefined` are the values that render nothing. If you meant to display the boolean, say so with `${String(value)}` and this goes quiet."
+    },
+    {
       "code": "content-clash",
       "params": [
         "tag",
@@ -135,6 +143,16 @@
       "fix": "Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define."
     },
     {
+      "code": "event-name-typo",
+      "params": [
+        "name",
+        "tag",
+        "best"
+      ],
+      "message": "@{name} is not an event <{tag}> fires — did you mean @{best}? (In JSX, on{name} compiles to @{name}.)",
+      "fix": "A custom event by this name is fine, and this is said only in development."
+    },
+    {
       "code": "forged-template",
       "params": [],
       "message": "is shaped like a template but was not made by html`` — rendered as text.",
@@ -250,6 +268,12 @@
       "params": [],
       "message": "a template inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`, or never-shown content: `<noscript>`, `<iframe>`) is never shown as markup — its content is text.",
       "fix": "Render a string there; a list of strings is joined."
+    },
+    {
+      "code": "template-wrapper",
+      "params": [],
+      "message": "an object holding a real template literal's `strings` but no `_$litType$` — a wrapper only `@verajs/core`'s `hold` or `tag` builds — is no template here: it renders as the text any object renders as, `[object Object]`.",
+      "fix": "Render the `html` result itself; `@verajs/core` renders such a wrapper as its template."
     },
     {
       "code": "unfinished-tag",

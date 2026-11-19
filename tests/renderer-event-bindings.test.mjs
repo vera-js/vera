@@ -35,7 +35,7 @@ const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true,
 for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment', 'Event', 'Element'])
   globalThis[key] = dom.window[key];
 
-const html = (strings, ...values) => ({ strings, values });
+const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const div = () => dom.window.document.createElement('div');
 const click = (el) => el.dispatchEvent(new dom.window.Event('click', { bubbles: true }));
 

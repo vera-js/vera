@@ -20,7 +20,7 @@
  * shapes rather than arguing about them, and the closed-vocabulary form is theirs.
  */
 
-import { hasWarned } from '@verajs/shared-utils';
+import { hasWarned } from './diagnostic.js';
 
 /**
  * Blessed non-primitives — types whose `toString` IS the value the author means.

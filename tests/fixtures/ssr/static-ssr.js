@@ -8,5 +8,5 @@ define({ tag: 'ssr-static-card', props: { heading: 'A "q" <b>', items: ['x', 'y'
   html`<h2 title=${host.heading}>${host.heading}</h2><ul>${host.items.map((i) => html`<li class="${i}">${i}</li>`)}</ul><svg>${svg`<circle r=${'5'}/>`}</svg>`);
 define('ssr-static-attack', () => () => html`<a href=${'javascript:alert(1)'}>a</a><p>${'<img src=x onerror=alert(1)>'}</p>`);
 define({ tag: 'ssr-static-shadow', shadow: 'open' }, () => () => html`<b>in</b>`);
-/** A JSON block with a `?type` / `.type` "binding": static has none, so these are ordinary attributes, literally named. */
+/** A JSON block with a `?type` / `.type` binding: a false `?type` removes nothing real, `.type` is not written (static, 2026-11-19). */
 define('ssr-static-typeswap', () => () => html`<script type="application/json" ?type=${false} .type=${'text/javascript'}>${'{"a":1}'}</script>`);

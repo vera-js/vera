@@ -68,6 +68,13 @@ const steps = [
    *  compiler and cms's content. Third programs, so their suites run against them too (2026-10-09). */
   ['node (node builds)', 'npm', ['run', 'test:node-builds']],
   /**
+   * **The small tiers through core's applicable suites** (Brian, 2026-11-19): every suite in `tests/tier-skips.mjs`
+   * under `VERA_TIER=lite|static`, against each tier's shipped bundle — a row that fails and is not on the list, or a
+   * listed skip that names no row, fails the step.
+   */
+  ['tier suites (development)', 'npm', ['run', 'test:tiers']],
+  ['tier suites (production)', 'npm', ['run', 'test:tiers:prod']],
+  /**
    * **A server suite must see what it asserts is absent** (Brian approved, 2026-11-17): the SSR suites run under an
    * instrument that records a query coming back empty while a `<template>` holds a match — a served shadow root parses as
    * one in jsdom, and a security suite had searched an empty document on every run. ≈ 9 s.
