@@ -9,10 +9,11 @@
  *
  * Mirrors `ci.yml` so a green run here means a green run there.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { heavyBatch } from './heavy-batch.mjs';
 
 const steps = [
   ['sync-packages', 'npm', ['run', 'check']],
@@ -90,32 +91,8 @@ const NOTABLE = /\berror\b|timed out|timeout|did not (start|finish)|unable to (c
 /** Kept out of the repo: files appearing and vanishing in the tree are what broke `tests/walk.mjs`. */
 const logPath = (name) => join(tmpdir(), `vera-gate-${name.replace(/[^a-z0-9]+/gi, '-')}-${process.pid}.log`);
 
-/**
- * **The gate is a heavy batch: caffeinated, paused, thermal-gated — in this tool, never left to a launcher** (Brian,
- * 2026-11-18; CLAUDE.md). On the fanless macOS laptop only (CI runs on Linux, with neither `caffeinate` nor
- * `notifyutil`): `caffeinate -dimsu -w` this process, so the screen saver never comes on; a 2-minute pause before the
- * batch starts (`BATCH_PAUSE_S`, default 120); and before every step, macOS's thermal pressure must be 0 — above it,
- * pause a minute at a time until it clears. A pressure that cannot be read refuses the gate rather than running ungated.
- */
-const LOCAL = process.platform === 'darwin' && !process.env.CI;
-const pressure = () => Number(spawnSync('notifyutil', ['-g', 'com.apple.system.thermalpressurelevel'], { encoding: 'utf8' }).stdout?.trim().split(/\s+/)[1]);
-const pauseS = (seconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000);
-const cool = () => {
-  if (!LOCAL) return;
-  while (pressure() > 0) {
-    process.stdout.write(`  (thermal ${pressure()}: pausing 60 s)\n`);
-    pauseS(60);
-  }
-};
-if (LOCAL) {
-  spawn('caffeinate', ['-dimsu', '-w', String(process.pid)], { stdio: 'ignore', detached: true }).unref();
-  if (!Number.isInteger(pressure())) throw new Error('gate: the thermal pressure level could not be read — refusing to run ungated');
-  const batchPause = Number(process.env.BATCH_PAUSE_S ?? 120);
-  if (batchPause > 0) {
-    process.stdout.write(`  (batch pause: ${batchPause} s before the first step)\n`);
-    pauseS(batchPause);
-  }
-}
+/** The gate is a heavy batch: caffeinated, paused and thermal-gated before every step (see `heavy-batch.mjs`). */
+const cool = heavyBatch('gate');
 
 let failed = 0;
 for (const [name, command, args] of steps) {

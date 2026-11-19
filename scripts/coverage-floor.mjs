@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { heavyBatch } from './heavy-batch.mjs';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -63,6 +64,8 @@ if (process.argv.includes('--self-check')) {
   process.exit(found && clean ? 0 : 1);
 }
 
+/** A heavy batch (the production suite under coverage): caffeinated, paused, thermal-gated (see `heavy-batch.mjs`). */
+heavyBatch('coverage-floor')();
 const dir = mkdtempSync(join(tmpdir(), 'vera-coverage-floor-'));
 try {
   const run = spawnSync('npm', ['run', 'test:prod'], { cwd: root, env: { ...process.env, NODE_V8_COVERAGE: dir }, encoding: 'utf8', maxBuffer: 1 << 28 });
