@@ -1,0 +1,19 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "static-hole",
+      "params": [],
+      "message": "a hole sits where a value could become code or choose markup: in a tag or attribute name (`<${…}>`, `<p ${…}>`), or inside a `<script>` that is not a JSON data block (in any namespace), an `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element. The template is refused, in every build.",
+      "fix": "Put values in text and attribute values; bind behavior with `@verajs/directives`, or move the component to `@verajs/lite` or `@verajs/core`, which bind events and properties."
+    },
+    {
+      "code": "static-needs-renderer",
+      "params": [
+        "what"
+      ],
+      "message": "{what} needs `@verajs/lite` or `@verajs/core`: `@verajs/static` renders markup once, so it does not work here (development says so; production renders nothing for it).",
+      "fix": "Bind behavior with `@verajs/directives`, or import the component from `@verajs/lite` or `@verajs/core`: the same source runs there."
+    }
+  ]
+}

@@ -149,9 +149,9 @@ const median = (xs) => {
 };
 
 const OPERATIONS = [
-  { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1) },
-  { key: 'create10k', label: 'create 10 000 rows',    setup: (a) => a.clear(),        run: (a) => a.create(10000, 2) },
-  { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4) },
+  { key: 'create1k',  label: 'create 1 000 rows',     setup: (a) => a.clear(),        run: (a) => a.create(1000, 1), rows: 1000 },
+  { key: 'create10k', label: 'create 10 000 rows',    setup: (a) => a.clear(),        run: (a) => a.create(10000, 2), rows: 10000 },
+  { key: 'append1k',  label: 'append 1 000 to 1 000', setup: (a) => a.create(1000, 3), run: (a) => a.append(1000, 4), rows: 2000 },
   { key: 'update10',  label: 'update every 10th',     setup: (a) => a.create(1000, 5), run: (a) => a.updateEvery10th(), each: (a) => a.updateEvery10th(), fixed: Number(params.get('n10')) || 200 },
   { key: 'select',    label: 'select row',            setup: (a) => a.create(1000, 6), run: (a) => a.select(300), each: (a, k) => a.select(300 + (k % 600)) },
   { key: 'swap',      label: 'swap 2 rows',           setup: (a) => a.create(1000, 7), run: (a) => a.swap(), each: (a) => a.swap() },
@@ -201,6 +201,18 @@ const mount = document.getElementById('mount');
 const tbody = document.getElementById('results');
 const status = document.getElementById('status');
 const runBtn = document.getElementById('run');
+
+/**
+ * **Every timed sample of a row-making op must have made its rows** (2026-11-17): a create1k sample 25% faster
+ * than its siblings is the shape of a sample that measured nothing, and nothing checked the DOM a sample left. Counted
+ * AFTER the timing, before teardown — every `<tr>` under the mount, open shadow roots included — and a wrong count is a
+ * row error, which fails the race: a precondition, never part of a reading.
+ */
+const rowsIn = (root) => {
+  let n = root.querySelectorAll('tr').length;
+  for (const el of root.querySelectorAll('*')) if (el.shadowRoot) n += rowsIn(el.shadowRoot);
+  return n;
+};
 
 const cell = (html, cls) => {
   const td = document.createElement('td');
@@ -295,6 +307,10 @@ async function measure(impl, op) {
       await painted();
     }
 
+    if (op.rows !== undefined && !(BATCH && op.each)) {
+      const made = rowsIn(mount);
+      if (made !== op.rows) (window.__ROW_ERRORS__ ??= []).push(`${impl.name} / ${op.key}: sample ${i} left ${made} rows, expected ${op.rows}`);
+    }
     app.teardown();
     mount.textContent = '';
     if (i < WARMUP) perRun = dt; // the last warm-up's per-run time, unplanted

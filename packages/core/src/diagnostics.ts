@@ -22,10 +22,6 @@ export const PROSE: Record<string, Prose> = {
     'its async setup rejected, so nothing it registered runs; the error is printed beside this line.',
     "Catch inside the setup to render a fallback, or wire an 'error' insert to handle it: `wire([{ on: 'error', fn: (error, element) => … }])`.",
   ],
-  'setup-returned-value': (kind) => [
-    `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
-    'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
-  ],
   'shadow-option': (value, platform) => [
     platform
       ? `\`shadow: ${value}\` names a mode the platform does not have, so attachShadow refuses it (it throws, in every build).`
@@ -165,68 +161,6 @@ export const PROSE: Record<string, Prose> = {
       `to attach them to.`,
     'Called after an `await` in an async setup? Call effect() BEFORE the first `await`, and return the render after it. ' +
       'To change what is shown later, write to a store. A builder\'s own primitive names its owner: `effect(fn, { owner })`.',
-  ],
-  'define-tag': (received) => [
-    `expected a custom element name — a string with a hyphen, not at the start — and received ${received}.`,
-    "Name it the way the platform requires: `define('x-card', setup)` or `define({ tag: 'x-card' }, setup)`.",
-  ],
-  'define-setup': (received) => [
-    `the second argument is the SETUP, a function, and received ${received}.`,
-    'Pass the setup after the tag or the options: `define(\'x-card\', (host) => () => html`…`)`.',
-  ],
-  'define-twice': (tag) => [
-    `<${tag}> is already defined; the platform refuses a second definition of a tag and throws next.`,
-    'Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define.',
-  ],
-  'define-method-ignored': (name) => [
-    `\`${name}\` is core's own on a define-made class, so this one is never installed (in any build).`,
-    name === 'constructor'
-      ? 'A setup is where per-instance work goes: `define(tag, (host) => { … })`.'
-      : 'Put connect-time work in the setup; for work on removal, a `disconnectedCallback` in methods runs as the teardown hook.',
-  ],
-  'define-proto-key': (kind) => [
-    `is skipped, in every build: written onto the ${kind === 'prop' ? 'props record' : 'class prototype'} it would replace a prototype instead of adding a ${kind}.`,
-    'Rename the key. An own `__proto__` comes from `JSON.parse` or `Object.defineProperty`, never from an object literal.',
-  ],
-  'define-method-not-function': () => [
-    'is not a function, so it is installed as a plain value shared by every instance — and a getter ran ONCE, here.',
-    'Methods are functions; a value that changes per element is a prop (`props: { name: default }`).',
-  ],
-  'define-method-adopted': () => [
-    'an `adoptedCallback` costs every element of this tag its creation (measured +7.4% on create10k), and it is installed.',
-    'Keep it only if moving elements between documents needs it.',
-  ],
-  'define-method-unobserved': () => [
-    'never fires: the class observes no attributes, and it is installed anyway.',
-    "Declare them: `define({ tag, attributes: ['label'] }, …)` — each then arrives as a prop.",
-  ],
-  'define-shadows': (name) => [
-    `replaces the platform's \`${name}\` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.`,
-    'Give it a name of its own, unless replacing the platform member is the point.',
-  ],
-  'define-props-not-object': (received) => [
-    `expected an object of names and their defaults and received ${received}, so no prop is declared.`,
-    "Name each prop with its default: `props: { heading: '', items: [] }`.",
-  ],
-  'define-prop-method': (name) => [
-    `\`${name}\` is also a method, and the prop wins (it is installed after the methods), in every build.`,
-    'Give the method or the prop another name.',
-  ],
-  'define-prop-shared-default': () => [
-    'this default is an object that cannot be copied per element (a Set, a Map, a class instance), so EVERY element of the tag shares this one — a change through one shows in all.',
-    'Declare it `null` and create it in the setup (`props: { selected: null }`, then `host.selected = new Set()`), or pass it in; arrays and plain objects are copied per element.',
-  ],
-  'define-attributes': (received) => [
-    `expected an array of attribute names and received ${received}.`,
-    "List them: `attributes: ['label', 'data-count']` — each arrives as a prop (`label`, `dataCount`).",
-  ],
-  'define-attribute-type': (prop, type) => [
-    `shares the prop \`${prop}\`, whose default is a ${type} — and the attribute arrives as a STRING, so the prop changes type the moment it appears.`,
-    'Give the prop a string (or null) default, and convert in the render; or keep the attribute and the prop under different names.',
-  ],
-  'define-attribute-reflected': (prop) => [
-    `observes an attribute whose prop, \`${prop}\`, is one the platform's element already REFLECTS — this tag's accessor replaces it, so setting \`el.${prop}\` no longer does what the platform's does (it no longer writes the attribute).`,
-    'Observe it only if the component owns that attribute; otherwise read it in the render with `host.getAttribute(…)`.',
   ],
   'init-options': () => [
     "`init`'s second argument is the SETUP, a function, and this is an options object (the old `init(this, { mode })`): " +

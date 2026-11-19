@@ -284,3 +284,30 @@ define('x-consumer-portal', () => {
   // @ts-expect-error — a target is a node to append to, not a selector
   portal('body', html`<b></b>`);
 });
+
+/**
+ * **The small tier, `@verajs/lite`**: core's `define` shape and generics, with the host
+ * typed from the declared props, attributes and methods; `signal` as core's; what only core has refused by the types.
+ */
+import { define as defineLite, html as liteHtml, signal as liteSignal } from '@verajs/lite';
+
+const TierCard = defineLite(
+  { tag: 'tier-card', shadow: 'open', props: { count: 0, items: [] as string[] }, attributes: ['data-tone'] as const, methods: { bump() { this.count++; } } },
+  (host) => {
+    const typed = liteSignal('');
+    const count: number = host.count;
+    const tone: string | null = host.dataTone;
+    host.bump();
+    return () => liteHtml`<b>${count}${tone}${typed.value}${host.items.length}</b>`;
+  }
+);
+const tierCard = new TierCard();
+tierCard.count = 2;
+// @ts-expect-error a declared number prop is not a string
+tierCard.count = 'two';
+// @ts-expect-error `persist` is core's alone
+defineLite({ tag: 'tier-persist', persist: 1 }, () => () => liteHtml`x`);
+// @ts-expect-error `signal`'s `{ deep }` is core's alone
+liteSignal([], { deep: true });
+defineLite('tier-text', () => () => liteHtml`<p>${'text'}</p>`);
+defineLite('tier-none', () => {});

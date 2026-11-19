@@ -4,7 +4,7 @@
  * every build (`ssr-script-hole`) unless the script's start tag — the one that OPENED it, read by the tokenizer, never
  * found by searching back — names a JSON type with no character reference (`dataBlock`), and writes the value with `<`
  * as `<` (a `<!--<script>` value otherwise swallows the rest of the page). The client's renderer refuses the same
- * shapes in DEVELOPMENT (`script-hole`); production carries nothing (a client script hole is dead text).
+ * shapes in EVERY build (`script-hole`; Brian, 2026-11-18 — a page saved from the DOM and served again runs a script).
  * Rows: the twin held equal, the rule's table, the server's output, the client's refusals, and the two sides agreeing.
  */
 import { test } from 'node:test';
@@ -16,13 +16,13 @@ import { isProduction, load } from './dist.mjs';
 
 const root = new URL('../', import.meta.url);
 const source = (path) => readFileSync(new URL(path, root), 'utf8');
-/** A definition's text: a function's through its closing `};`, or a one-line constant's line. */
-const definition = (text, name) => new RegExp(`export const ${name} = (?:\\([^]*?\\n};|[^\\n]*;)`).exec(text)?.[0];
+/** A definition's text: a two-line arrow's two lines, a function's through its closing `};`, or a one-line constant's line. */
+const definition = (text, name) => new RegExp(`export const ${name} = (?:\\([^)]*\\) =>\\n[^\\n]*;|\\([^]*?\\n};|[^\\n]*;)`).exec(text)?.[0];
 
-test('the server holds an exact twin of the shared rule: dataBlock and JSON_BLOCK, the same text', () => {
+test('the server holds an exact twin of the shared rule: dataBlock, JSON_BLOCK and closedRawText, the same text', () => {
   const shared = source('packages/shared-utils/src/markup-grammar.ts');
   const ssr = source('packages/ssr/src/vera/escaping.ts');
-  for (const name of ['JSON_BLOCK', 'dataBlock']) {
+  for (const name of ['JSON_BLOCK', 'dataBlock', 'closedRawText']) {
     assert.ok(definition(shared, name), `CONTROL: ${name} found in shared-utils`);
     assert.equal(definition(ssr, name), definition(shared, name), `${name}: the twin differs`);
   }
@@ -62,11 +62,11 @@ test('the server: a JSON data block is served with `<` as \\u003c; every other s
   assert.equal(JSON.parse(json.querySelector('script').textContent).a, '<!--<script></script>', 'the value round-trips');
 });
 
-test('the client (development): the renderer refuses the same shapes (script-hole), and the two sides agree on every one', { skip: isProduction && 'a development diagnostic: production carries nothing (a client script hole is dead text)' }, async () => {
+test('the client (every build): the renderer refuses the same shapes (script-hole), and the two sides agree on every one', async () => {
   const core = await load('core');
   const { renderer } = await load('renderer');
   core.wire([renderer]);
-  SHAPES.forEach(([name, draw, accepted], i) => {
+  for (const [i, [name, draw, accepted]] of SHAPES.entries()) {
     const said = [];
     const saved = [console.error, console.warn];
     console.error = console.warn = (...args) => said.push(args.map(String).join(' '));
@@ -78,8 +78,57 @@ test('the client (development): the renderer refuses the same shapes (script-hol
     } finally {
       [console.error, console.warn] = saved;
     }
-    const refused = said.some((line) => line.includes('(script-hole)'));
+    /**
+     * A refusal, by its code: `script-hole`; or, for a hole in an ELEMENT inside an SVG script, the client's earlier
+     * `foreign-raw-text` (an element in what it scans as raw text) — the same template refused either way.
+     */
+    const refused = said.some((line) => /\((?:script-hole|foreign-raw-text)\)|\/e\/(?:script-hole|foreign-raw-text)/.test(line));
+    /**
+     * The one allowance, production only: a JSON type written with a character reference (`application&#47;json`) is
+     * refused by the server and by development's scan (they read the type as written), and accepted by production's
+     * post-parse check, which reads it decoded — a genuine JSON block, which never runs, before or after a round trip.
+     * Judging after the parse is what keeps production's refusal to +35 B (the scan form measured +261 B).
+     */
+    if (isProduction && /reference/.test(name)) {
+      assert.equal(refused, false, `${name}: production's post-parse check reads the decoded JSON type`);
+      continue;
+    }
     assert.equal(refused, !accepted, `${name}: the client ${refused ? 'refused' : 'accepted'}`);
     assert.equal(refused, served[i].refused === 'ssr-script-hole', `${name}: the server and the client disagree`);
-  });
+  }
+});
+
+/**
+ * **The client, EVERY build: a hole in an SVG `<script>` is refused** (2026-11-18). An SVG script from a template runs in
+ * Chromium and WebKit (BROWSER-LEDGER), so it is refused even with a JSON type — as an HTML script hole is refused in
+ * every build unless a JSON block. Read from the DOM: no foreign script holds the value.
+ */
+test('the client (every build): a hole in a foreign <script> never reaches the DOM — the template is refused', async () => {
+  const core = await load('core');
+  const { renderer } = await load('renderer');
+  core.wire([renderer]);
+  const foreign = SHAPES.filter(([name]) => /svg|MathML/.test(name) && !/closed/.test(name));
+  assert.ok(foreign.length >= 5, 'CONTROL: the foreign shapes are in the table');
+  const saved = [console.error, console.warn];
+  console.error = console.warn = () => {};
+  try {
+    for (const [name, draw] of foreign) {
+      const tag = `shp-${SHAPES.findIndex(([n]) => n === name)}`;
+      core.define(tag, () => draw);
+      const element = document.body.appendChild(document.createElement(tag));
+      core.flush();
+      const scripts = [...element.querySelectorAll('script')].filter((s) => s.namespaceURI !== 'http://www.w3.org/1999/xhtml');
+      assert.equal(scripts.some((s) => s.textContent.includes('zq') || s.textContent === '1'), false, `${name}: the value reached a foreign script`);
+      element.remove();
+    }
+    /** CONTROL: a closed SVG script followed by a hole renders, in every build. */
+    const [, draw] = SHAPES.find(([name]) => /closed/.test(name));
+    core.define('shp-control', () => draw);
+    const control = document.body.appendChild(document.createElement('shp-control'));
+    core.flush();
+    assert.equal(control.querySelector('text')?.textContent, 'ok', 'CONTROL: the template after a closed script rendered');
+    control.remove();
+  } finally {
+    [console.error, console.warn] = saved;
+  }
 });

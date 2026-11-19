@@ -12,6 +12,8 @@
  */
 export const MODULES = [
   { pkg: 'core', dist: 'packages/core/dist/vera.min.js', what: 'state (incl. Map and Set), hooks, lifecycle, render' },
+  { pkg: 'lite', dist: 'packages/lite/dist/vera-lite.min.js', what: 'the lite tier: `define`, `signal`, `html`, a renderer that patches in place' },
+  { pkg: 'static', dist: 'packages/static/dist/vera-static.min.js', what: 'the static tier: `define` and `html` rendered once into markup, values never code' },
   { pkg: 'renderer', dist: 'packages/renderer/dist/vera-renderer.min.js', what: 'keyed template renderer, refs, `hold`' },
   { pkg: 'router', dist: 'packages/router/dist/vera-router.min.js', what: 'nested routes, params, wildcards, redirects, scroll memory' },
   { pkg: 'autoloader', dist: 'packages/autoloader/dist/vera-autoloader.min.js', what: 'lazy component discovery' },

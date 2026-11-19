@@ -57,6 +57,8 @@ const importInNode = (specifier) => {
  */
 const SAFE = [
   '@verajs/core',
+  '@verajs/lite',
+  '@verajs/static',
   '@verajs/inserts',
   '@verajs/store',
   '@verajs/store/collections',

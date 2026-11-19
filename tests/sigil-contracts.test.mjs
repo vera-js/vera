@@ -86,15 +86,30 @@ const SHARED = {
    * the same two fields; both writers are known.)
    */
   _$raw$: ['core', 'hot'],
-  _$v$: ['core', 'hot'],
+  /**
+   * …and `@verajs/lite` keeps its props record under core's name, the same record by meaning (its types say so). No
+   * collision is possible: every element is defined by exactly one package, so core's and lite's writes never meet on one
+   * element. `@verajs/hot` reads `_$v$` too, but only on a redefinition through core's `define`, never on a lite element,
+   * so the shared meaning carries nothing across packages today.
+   */
+  _$v$: ['core', 'hot', 'lite'],
+  /**
+   * A component's render root: core's, `@verajs/lite`'s and `@verajs/static`'s (where static also reads it as "rendered
+   * already"), each only on elements its own `define` made (one package per element), the same meaning.
+   */
+  _$r$: ['core', 'lite', 'static'],
   /**
    * The release-on-unmount Set for OTHER packages' cleanups — @verajs/hooks' useDismiss, ui's select — created by the
    * first one through `??=`. Core only READS and drains it at removal: its own effects keep their cleanups on their hooks
    * (2026-10-11), so core no longer writes it.
    */
   _$c$: ['hooks', 'ui'],
-  /** The template-result protocol (lit's interop name): core's `html` and the renderer's `tag()` build the same shape. */
-  _$litType$: ['core', 'renderer'],
+  /**
+   * The template-result protocol (lit's interop name): core's tags, `@verajs/lite`'s and `@verajs/static`'s own tags and
+   * the renderer's `tag()` build the same shape. Lite's and static's are copies of core's on purpose — shared, core's
+   * create1k measured +3.5% slower — and `tests/static.test.mjs` holds the three to one shape.
+   */
+  _$litType$: ['core', 'lite', 'renderer', 'static'],
   /** The seams mark a pack's wire function tests for: directives' seams and motion's SSR seams carry it. */
   _$seams$: ['directives', 'motion'],
 };

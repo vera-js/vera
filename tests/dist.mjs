@@ -44,6 +44,8 @@ export const ENTRY = {
   'cms/node': ['cms', 'vera-cms-node'],
   'cms/cli': ['cms', 'vera-cms-cli'],
   core: ['core', 'vera'],
+  lite: ['lite', 'vera-lite'],
+  static: ['static', 'vera-static'],
   jsx: ['jsx', 'vera-jsx'],
   'jsx/standalone': ['jsx', 'vera-jsx-standalone'],
   renderer: ['renderer', 'vera-renderer'],

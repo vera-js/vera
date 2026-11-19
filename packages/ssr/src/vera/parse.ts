@@ -122,6 +122,77 @@ const FOREIGN = new Set(['svg', 'math']);
  */
 const OPAQUE = new Set([...FOREIGN, 'template']);
 
+export const SVG_NS = 'http://www.w3.org/2000/svg';
+export const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
+
+/**
+ * **Which rules a chunk of markup is parsed under** (2026-11-18): HTML's; SVG's or MathML's (foreign content); or HTML's
+ * inside a MathML TEXT integration point (`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`), where `<mglyph>` and
+ * `<malignmark>` would be MathML and are declined. ONE namespace per parse: `<svg>` and `<math>` in HTML, and every
+ * integration point in foreign content, stay opaque boundaries, and their interior is parsed in its own namespace when
+ * a node view of it is asked for (`nodes.ts`'s `parseChunks`, with `contentSpace`).
+ */
+export type Space = 'html' | 'svg' | 'math' | 'math-text';
+
+/** MathML's text integration points: their content is HTML. */
+const MATH_TEXT = new Set(['mi', 'mo', 'mn', 'ms', 'mtext']);
+
+/** The space an element's CONTENT is parsed in — what an interior kept opaque under it is read as. */
+export const contentSpace = (element: { readonly localName: string; readonly namespaceURI: string | null; getAttribute(name: string): string | null }): Space => {
+  const name = element.localName;
+  if (element.namespaceURI === SVG_NS) return name === 'foreignObject' || name === 'desc' || name === 'title' ? 'html' : 'svg';
+  if (element.namespaceURI !== MATHML_NS) return 'html';
+  if (MATH_TEXT.has(name)) return 'math-text';
+  return name === 'annotation-xml' && htmlEncoded(element.getAttribute('encoding')) ? 'html' : 'math';
+};
+
+/** An `<annotation-xml>` whose `encoding` makes its content HTML (an HTML integration point). */
+const htmlEncoded = (encoding: string | null | undefined): boolean => {
+  const value = encoding?.toLowerCase();
+  return value === 'text/html' || value === 'application/xhtml+xml';
+};
+
+/**
+ * **Start tags that BREAK OUT of foreign content** (the spec's list, "in foreign content"; `<font>` with `color`, `face`
+ * or `size` too, and the end tags `</br>` and `</p>`): a real parser pops out of the `<svg>` or `<math>` and continues in
+ * HTML, which this parser does not reproduce — so it declines them, and the markup stays a string.
+ */
+const BREAKOUT = new Set([
+  'b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4',
+  'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small',
+  'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var',
+]);
+
+/** SVG's mixed-case element names, as the parser adjusts them (the spec's table, keyed lower case). */
+const SVG_TAGS = new Map(
+  ['altGlyph', 'altGlyphDef', 'altGlyphItem', 'animateColor', 'animateMotion', 'animateTransform', 'clipPath', 'feBlend',
+    'feColorMatrix', 'feComponentTransfer', 'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap',
+    'feDistantLight', 'feDropShadow', 'feFlood', 'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur', 'feImage',
+    'feMerge', 'feMergeNode', 'feMorphology', 'feOffset', 'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile',
+    'feTurbulence', 'foreignObject', 'glyphRef', 'linearGradient', 'radialGradient', 'textPath'].map((name) => [name.toLowerCase(), name])
+);
+
+/** SVG's mixed-case attribute names, as the parser adjusts them (the spec's table, keyed lower case). */
+const SVG_ATTRIBUTES = new Map(
+  ['attributeName', 'attributeType', 'baseFrequency', 'baseProfile', 'calcMode', 'clipPathUnits', 'diffuseConstant',
+    'edgeMode', 'filterUnits', 'glyphRef', 'gradientTransform', 'gradientUnits', 'kernelMatrix', 'kernelUnitLength',
+    'keyPoints', 'keySplines', 'keyTimes', 'lengthAdjust', 'limitingConeAngle', 'markerHeight', 'markerUnits',
+    'markerWidth', 'maskContentUnits', 'maskUnits', 'numOctaves', 'pathLength', 'patternContentUnits', 'patternTransform',
+    'patternUnits', 'pointsAtX', 'pointsAtY', 'pointsAtZ', 'preserveAlpha', 'preserveAspectRatio', 'primitiveUnits',
+    'refX', 'refY', 'repeatCount', 'repeatDur', 'requiredExtensions', 'requiredFeatures', 'specularConstant',
+    'specularExponent', 'spreadMethod', 'startOffset', 'stdDeviation', 'stitchTiles', 'surfaceScale', 'systemLanguage',
+    'tableValues', 'targetX', 'targetY', 'textLength', 'viewBox', 'viewTarget', 'xChannelSelector', 'yChannelSelector',
+    'zoomAndPan'].map((name) => [name.toLowerCase(), name])
+);
+
+/**
+ * An attribute name as the parser stores it on an element in `namespace`: SVG's and MathML's adjusted case. A prefixed
+ * name (`xlink:href`, `xmlns:xlink`) keeps its qualified name; its NAMESPACE is not modeled (`getAttributeNS` and an
+ * attribute's `namespaceURI` differ from a browser's) — what a selector, `getAttribute` and serialization see agree.
+ */
+const adjustAttribute = (name: string, namespace: string): string =>
+  namespace === SVG_NS ? (SVG_ATTRIBUTES.get(name) ?? name) : namespace === MATHML_NS && name === 'definitionurl' ? 'definitionURL' : name;
+
 const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
 /**
  * **The attribute-name charset, owned here and shared.** Everything a start tag can carry as a
@@ -140,7 +211,7 @@ const ATTRIBUTE = new RegExp(`^(${ATTRIBUTE_NAME})(?:\\s*=\\s*(?:"([^"]*)"|'([^'
 
 /** The node factories `parseFragment` builds with; the caller owns node identity, so this file never imports the DOM it builds. */
 type NodeFactories = {
-  readonly element: (name: string) => ElementShim;
+  readonly element: (name: string, namespaceURI?: string) => ElementShim;
   readonly text: (data: string) => TextShim;
   readonly comment: (data: string) => CommentShim;
 };
@@ -173,9 +244,13 @@ type Child = ElementFrame | TextShim | CommentShim | string;
  */
 export const parseFragment = (
   markup: string,
-  create: NodeFactories
+  create: NodeFactories,
+  space: Space = 'html'
 ): Array<ElementShim | TextShim | CommentShim | string> | null => {
   if (typeof markup !== 'string' || markup === '') return null;
+  /** Foreign content: `/>` closes, names are case-adjusted, nothing is raw text, nothing closes implicitly. */
+  const foreign = space === 'svg' || space === 'math';
+  const namespace = space === 'svg' ? SVG_NS : space === 'math' ? MATHML_NS : undefined;
 
   const root: RootFrame = { children: [], localName: '#root' };
   const stack: Array<RootFrame | ElementFrame> = [root];
@@ -218,6 +293,8 @@ export const parseFragment = (
       continue;
     }
     if (markup.startsWith('<!', next)) {
+      /** In foreign content `<![CDATA[` is a text section, and the rest is error recovery: declined. */
+      if (foreign) return null;
       const end = markup.indexOf('>', next);
       if (end === -1) return null;
       text += markup.slice(next, end + 1);
@@ -232,6 +309,17 @@ export const parseFragment = (
       const name = markup.slice(next + 2, end).trim().toLowerCase();
       if (!name) return null;
       flushText();
+      /**
+       * Foreign content closes only the open element, by name (any case), and `</br>` and `</p>` break out of it: anything
+       * else is error recovery, declined.
+       */
+      if (foreign) {
+        if (name === 'br' || name === 'p' || stack.length === 1 || open().localName.toLowerCase() !== name) return null;
+        (open() as ElementFrame).closeTag = markup.slice(next, end + 1);
+        stack.pop();
+        index = end + 1;
+        continue;
+      }
       /** Close through anything the spec would have closed implicitly; anything else is recovery. */
       let depth = stack.length - 1;
       while (depth > 0 && stack[depth].localName !== name) {
@@ -256,6 +344,17 @@ export const parseFragment = (
     }
     const name = nameMatch[0].toLowerCase();
     if (REFUSED.has(name)) return null;
+    /** A start tag that leaves foreign content, or a MathML element inside a MathML text integration point: declined. */
+    if (foreign ? BREAKOUT.has(name) || name === 'font' : space === 'math-text' && (name === 'mglyph' || name === 'malignmark')) return null;
+    /**
+     * The element's namespace: the foreign content's; `<svg>` and `<math>` open theirs in HTML; and an `<svg>` directly
+     * inside MathML's `<annotation-xml>` is SVG (the spec's one exception).
+     */
+    const elementNamespace =
+      foreign && !(space === 'math' && name === 'svg' && open().localName === 'annotation-xml') ? namespace!
+      : name === 'svg' ? SVG_NS
+      : name === 'math' ? MATHML_NS
+      : undefined;
 
     let cursor = next + 1 + nameMatch[0].length;
     const attributes: Array<[string, string]> = [];
@@ -270,7 +369,8 @@ export const parseFragment = (
       const attribute = ATTRIBUTE.exec(markup.slice(cursor));
       if (!attribute || cursor >= markup.length) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
-      attributes.push([attribute[1].toLowerCase(), decode(normalized(value))]);
+      const lower = attribute[1].toLowerCase();
+      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(normalized(value))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);
@@ -279,8 +379,8 @@ export const parseFragment = (
     const openTag = markup.slice(next, end + 1);
 
     flushText();
-    /** The implied end tags, before this element joins the stack. */
-    for (;;) {
+    /** The implied end tags, before this element joins the stack (HTML's rule: foreign content has none). */
+    for (; !foreign; ) {
       const current = open().localName;
       const closes = CLOSED_BY[name]?.has(current) || (current === 'p' && CLOSES_P.has(name));
       if (!closes || stack.length === 1) break;
@@ -293,7 +393,7 @@ export const parseFragment = (
      * tag) and agree with a real parser about the tree (which requires it). Markup that writes the
      * section itself parses normally, so the common explicit form is unaffected.
      */
-    if ((name === 'tr' || name === 'td' || name === 'th') && open().localName === 'table') return null;
+    if (!foreign && (name === 'tr' || name === 'td' || name === 'th') && open().localName === 'table') return null;
 
     /**
      * **A name the DOM rejects is a DECLINE, never a throw.** `TAG_NAME` is deliberately loose
@@ -306,7 +406,7 @@ export const parseFragment = (
      */
     let element: ElementShim;
     try {
-      element = create.element(name);
+      element = elementNamespace === undefined ? create.element(name) : create.element(elementNamespace === SVG_NS ? (SVG_TAGS.get(name) ?? name) : name, elementNamespace);
     } catch {
       return null;
     }
@@ -327,7 +427,7 @@ export const parseFragment = (
      * text node's. It stays in the bytes as part of the source tag — which is how `serializeElement` knows the markup
      * already carries one and adds none.
      */
-    if (NEWLINE_TAKERS.has(name)) {
+    if (!foreign && NEWLINE_TAKERS.has(name)) {
       const taken = leadingNewline(markup, index);
       if (taken !== 0) {
         element._sourceOpenTag += markup.slice(index, index + taken);
@@ -336,18 +436,31 @@ export const parseFragment = (
     }
 
     /** A void element never has children and never has an end tag. */
-    if (VOID_ELEMENTS.has(name)) continue;
+    if (!foreign && VOID_ELEMENTS.has(name)) continue;
     /**
      * `<div/>` is **not** self-closing in HTML — the slash is ignored and the element stays open.
-     * Treating it as closed is a common and quiet way to build the wrong tree, so it declines.
+     * Treating it as closed is a common and quiet way to build the wrong tree, so it declines. In foreign content it IS
+     * self-closing (2026-11-18): the element is closed, with no end tag to write back.
      */
-    if (selfClosing) return null;
+    if (selfClosing) {
+      if (foreign) continue;
+      return null;
+    }
 
     /**
-     * Foreign content runs to its matching end tag and is kept verbatim, nesting counted so an
+     * An opaque boundary: in HTML, `<svg>`, `<math>` and `<template>`; in foreign content, an integration point (its
+     * content is HTML: `contentSpace`) and the SVG an `<annotation-xml>` opens.
+     */
+    const opaque = foreign
+      ? elementNamespace !== namespace ||
+        (space === 'svg' ? name === 'foreignobject' || name === 'desc' || name === 'title'
+        : MATH_TEXT.has(name) || (name === 'annotation-xml' && htmlEncoded(attributes.find(([n]) => n === 'encoding')?.[1])))
+      : OPAQUE.has(name);
+    /**
+     * An opaque interior runs to its matching end tag and is kept verbatim, nesting counted so an
      * `<svg>` inside an `<svg>` closes the right one.
      */
-    if (OPAQUE.has(name)) {
+    if (opaque) {
       let depth = 1;
       let closeAt = -1;
       const opener = new RegExp(`<(/?)${name}\\b`, 'giu');
@@ -369,8 +482,8 @@ export const parseFragment = (
       continue;
     }
 
-    /** Raw text runs to its own end tag and is never parsed as markup. */
-    if (RAW_TEXT_ELEMENTS.has(name)) {
+    /** Raw text runs to its own end tag and is never parsed as markup (HTML's rule: foreign content has none). */
+    if (!foreign && RAW_TEXT_ELEMENTS.has(name)) {
       const close = markup.toLowerCase().indexOf(`</${name}`, index);
       if (close === -1) return null;
       const closeEnd = markup.indexOf('>', close);
@@ -393,7 +506,7 @@ export const parseFragment = (
    * What is still open at the end is fine if the spec would have closed it implicitly, and is error
    * recovery otherwise — an unclosed `<div>` is a mistake this parser will not guess about.
    */
-  while (stack.length > 1 && OPTIONAL_END_TAG.has(open().localName)) stack.pop();
+  while (!foreign && stack.length > 1 && OPTIONAL_END_TAG.has(open().localName)) stack.pop();
   if (stack.length !== 1) return null;
 
   /** Build the real nodes now that the shape is known to be sound. */

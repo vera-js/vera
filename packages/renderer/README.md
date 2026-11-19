@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->5.69 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->6.08 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -1333,10 +1333,28 @@ client or for JSON-LD:
 html`<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 ```
 
-Any other script hole is refused: by `@verajs/ssr` in every build (`ssr-script-hole`), and by this renderer in
-development (`script-hole`). The start tag judged is the one that opened the script, never one found in the script's
-own text. On the server a data block's value is written with `<` as `\u003c`, which JSON reads back unchanged. In the
-client a template's `<script>` never runs, so production adds nothing there.
+Any other script hole is refused, in every build: by `@verajs/ssr` (`ssr-script-hole`) and by this renderer
+(`script-hole`). A template's HTML `<script>` never runs on the live page, but a page saved from the DOM and served again
+runs it, and an SVG `<script>` from a template runs in Chromium and WebKit — so an SVG script hole is refused even with
+a JSON type. The start tag judged is the one that opened the script, never one found in the script's own text.
+
+**A `<style>`'s or a data block's text stays text after the page is saved and parsed again.** A browser serializes such
+an element's text exactly as it is, so a value written into it as it stands would become markup once the page is saved
+from the DOM (`outerHTML`, an editor's publish) and served again. So the renderer and `@verajs/ssr` write the same
+bytes: the element's statics and values composed together (a closer can form across a hole), a data block's every `<`
+as `\u003c`, which JSON reads back unchanged, and a style's every `</style` as `<\/style`, the same CSS. Hydration
+adopts a served text equal to that, and rewrites one that differs.
+
+**A value in a text-only element is text, the same on every tier and the server** — a `<style>`, a JSON block, an HTML
+`<title>` or `<textarea>`: nothing for `null`/`undefined`, a list its items' text (nested lists flattened), anything
+else `String(value)`, and a **template refused** (`template-in-text`; the server's `ssr-template-in-text`) — its markup
+is not text, so `<style>${rules.map(…)}</style>` joins the rules and `<textarea>${html`…`}</textarea>` throws. An SVG
+`<title>` is markup (an integration point), so a template there renders, as the server renders it.
+
+**`.textContent` into a `<style>` or `<script>` is the platform's, not a template hole.** A browser serializes such an
+element's text exactly as it is, so a user value written there with `.textContent=${value}` (or any DOM write) becomes
+markup the moment the page is saved through `innerHTML`/`outerHTML` and parsed again. Escape `</` in such a value
+yourself, or put it in a template hole, which does.
 
 **Security: spread refuses the injection sinks.** The `.innerHTML` posture above rests on the
 template spelling being greppable, obviously yours, and reviewable — three properties a spread key

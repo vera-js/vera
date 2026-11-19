@@ -60,6 +60,12 @@
       "@verajs/hot": [
         "./packages/hot/src/index.ts"
       ],
+      "@verajs/lite": [
+        "./packages/lite/src/index.ts"
+      ],
+      "@verajs/static": [
+        "./packages/static/src/index.ts"
+      ],
       "@verajs/ui": [
         "./packages/ui/src/index.ts"
       ],

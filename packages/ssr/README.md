@@ -479,6 +479,14 @@ markup itself is served byte for byte as it was written.
   repair it. `mode`, `delegatesFocus`, `clonable` and `serializable` are all serialized.
 - A function interpolated at a text position renders as nothing here and as its source on the
   client — put functions in `@event` bindings, where both sides drop them.
+- **A hole right after a raw-text element's whole end-tag name (`<style>a</style${x}`) is refused here** as a
+  tag-name hole (as core's renderer refuses it in development), while `@verajs/lite`, `@verajs/static` and core in
+  production render it (the closer the value completes cannot end the element). Every shorter split (`</sty${x}`)
+  renders everywhere. Safe both ways; such CSS is rare.
+- **A `@verajs/lite` component whose raw text holds something that only LOOKS like an end tag** (`<style>p{}</stylex>`,
+  `</style\v`) is refused on the server (`tier-hole-position`): lite parses its template with this DOM, which declines
+  markup it cannot reproduce exactly. Core's components serve it, written as every side writes a style's text
+  (`<\/stylex`). Safe; such text is rare.
 - **What a render creates leaves every store when its render ends.** Its components are reactive DURING the render
   (a write in a setup or a router's first navigation re-renders before the markup is written), and nothing they read
   keeps them alive afterwards. Module-scope state — a store, a `computed` — belongs to the process and stays live; a

@@ -15,8 +15,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFragment as parse5Fragment } from 'parse5';
-import { parseFragment } from '../packages/ssr/dist/vera/parse.js';
+import { defaultTreeAdapter, html as parse5Html, parseFragment as parse5Fragment } from 'parse5';
+import { contentSpace, parseFragment } from '../packages/ssr/dist/vera/parse.js';
 import { TextShim, CommentShim } from '../packages/ssr/dist/vera/nodes.js';
 import '@verajs/ssr';
 import { printed } from './console-args.mjs';
@@ -66,15 +66,15 @@ const row = (spec) => {
  * a server component READING its content saw what no browser holds, while every tree matched.
  */
 /**
- * **Foreign content is compared at its boundary only.** `<svg>` and `<math>` switch the spec into
- * rules this parser does not implement, so it models the element and keeps the interior as one
- * opaque chunk — deliberately, because refusing the whole fragment meant a card with an icon in it
- * got no node view at all. Comparing the interior would therefore always fail, and comparing the
- * attributes would fail on casing (`viewBox` stays `viewBox` in the markup and is lowercased on the
- * element, which is what `getAttribute` then answers either way).
+ * **Foreign content is compared all the way down** (2026-11-18). `<svg>` and `<math>` are opaque boundaries to the
+ * parser — each interior is kept as one chunk and parsed in its own namespace when a node view of it is asked for
+ * (`contentSpace`) — so here every chunk is parsed the same way and compared with what parse5 built: namespace, the
+ * case-adjusted tag (`linearGradient`), the attributes by qualified name (`viewBox`, `xlink:href`) and the children.
+ * Until 2026-11-18 the comparison stopped at the boundary, so nothing in foreign parsing had an oracle — and the
+ * interior was parsed as HTML (a self-closing `<circle/>` declined, every element in the HTML namespace).
  *
- * The comparison stops there rather than being skipped: the element itself, and everything around
- * it, still has to match.
+ * An interior the parser DECLINES makes the whole input declined (`null`), which is allowed and never counted as
+ * agreement. `<template>` is still compared at its boundary, for the reason below.
  *
  * **`<template>` is compared the same way**, and for a reason that is about the question this
  * parser answers rather than about convenience: a real DOM does not match template content from the
@@ -82,40 +82,54 @@ const row = (spec) => {
  * parse5's content fragment agree on everything a selector can see. The parse used to refuse such
  * markup outright, which cost a component with a `<template>` anywhere in it its entire node view.
  */
-const FOREIGN = new Set(['svg', 'math', 'template']);
-
-const ours = (entries) =>
-  entries
-    .filter((entry) => typeof entry !== 'string')
-    .map((element) =>
-      element instanceof TextShim
-        ? { text: element.data }
-        : element instanceof CommentShim
-          ? { comment: element.data }
-          : FOREIGN.has(element.localName)
-        ? { tag: element.localName, foreign: true }
-        : {
-            tag: element.localName,
-            attrs: [...element._attributes].sort(([a], [b]) => (a < b ? -1 : 1)),
-            children: ours(element._entries),
-          }
-    );
+const factories = {
+  element: (name, namespace) => (namespace ? document.createElementNS(namespace, name) : document.createElement(name)),
+  text: (data) => new TextShim(data),
+  comment: (data) => new CommentShim(data),
+};
+/** Our entries as a tree, each opaque interior parsed in its own space; `null` when any interior declined. */
+const ours = (entries) => {
+  const out = [];
+  for (const element of entries) {
+    if (typeof element === 'string') continue;
+    if (element instanceof TextShim) out.push({ text: element.data });
+    else if (element instanceof CommentShim) out.push({ comment: element.data });
+    else if (element.localName === 'template' && element.namespaceURI === 'http://www.w3.org/1999/xhtml') out.push({ tag: 'template', foreign: true });
+    else {
+      let kids = [];
+      for (const entry of element._entries)
+        if (typeof entry === 'string') {
+          const parsed = parseFragment(entry, factories, contentSpace(element));
+          if (parsed === null) return null;
+          const tree = ours(parsed);
+          if (tree === null) return null;
+          kids.push(...tree);
+        } else {
+          const tree = ours([entry]);
+          if (tree === null) return null;
+          kids.push(...tree);
+        }
+      out.push({ tag: element.localName, ns: element.namespaceURI, attrs: [...element._attributes].sort(([x], [y]) => (x < y ? -1 : 1)), children: kids });
+    }
+  }
+  return out;
+};
 
 const theirs = (nodes) =>
-  nodes
-    .map((node) =>
-      node.nodeName === '#text'
-        ? { text: node.value }
-        : node.nodeName === '#comment'
-          ? { comment: node.data }
-          : FOREIGN.has(node.tagName)
-        ? { tag: node.tagName, foreign: true }
-        : {
-            tag: node.tagName,
-            attrs: node.attrs.map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)),
-            children: theirs(node.childNodes ?? []),
-          }
-    );
+  nodes.map((node) =>
+    node.nodeName === '#text'
+      ? { text: node.value }
+      : node.nodeName === '#comment'
+        ? { comment: node.data }
+        : node.tagName === 'template' && node.namespaceURI === 'http://www.w3.org/1999/xhtml'
+          ? { tag: 'template', foreign: true }
+          : {
+              tag: node.tagName,
+              ns: node.namespaceURI,
+              attrs: node.attrs.map((a) => [a.prefix ? `${a.prefix}:${a.name}` : a.name, a.value]).sort(([x], [y]) => (x < y ? -1 : 1)),
+              children: theirs(node.childNodes ?? []),
+            }
+  );
 
 const CORPUS = [
   /* Ordinary, well-formed. */
@@ -157,8 +171,22 @@ const CORPUS = [
   '<p>a &amp; b</p>',
   '<p title="a &#38; b">t</p>',
 
-  /* Foreign content: the element is modeled, its interior is kept whole. */
+  /* Foreign content, compared all the way down (2026-11-18). */
   '<svg viewBox="0 0 8 8"><circle cx="4" /></svg>',
+  '<svg><circle r="1"/><rect width="2"/><g><path d="M0 0"/></g></svg>',
+  '<svg viewbox="0 0 1 1"><lineargradient gradientunits="userSpaceOnUse" spreadmethod="pad"><stop offset="0"/></lineargradient><clippath id="c"/></svg>',
+  '<svg><foreignObject><p>x</p><b>y</b></foreignObject><desc><b>d</b></desc><title>t &amp; u</title></svg>',
+  '<svg><style>.a{fill:red}</style><script>go()</script><title>a &amp; b</title></svg>',
+  '<svg><svg><circle/></svg><math><mi>x</mi></math></svg>',
+  '<svg><circle></CIRCLE><RECT/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="#a"/></svg>',
+  '<svg><text>a<tspan>b</tspan>c</text><!--note--></svg>',
+  '<div><svg><g/></svg><b>after</b></div>',
+  '<math><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow><msup><mi>a</mi><mn>2</mn></msup></math>',
+  '<math definitionurl="u"><mi mathvariant="bold">x</mi><mspace width="1em"/></math>',
+  '<math><semantics><mi>x</mi><annotation-xml encoding="text/html"><p>h</p></annotation-xml></semantics></math>',
+  '<math><annotation-xml encoding="image/svg+xml"><svg><circle r="1"/></svg></annotation-xml></math>',
+  '<math><mtext><b>bold</b> text</mtext></math>',
   '<div class="card"><svg viewBox="0 0 8 8"><circle cx="4"/></svg><h2>T</h2></div>',
   '<p>before</p><svg><g><path d="M0 0"/></g></svg><p>after</p>',
   '<math><mi>x</mi></math>',
@@ -232,11 +260,7 @@ const CORPUS = [
  */
 test('named references beyond the six-entry table', { todo: 'pending a decision: vendor the WHATWG table, or not' }, () => {
   for (const markup of ['<p>&copy; &hellip; &mdash;</p>', '<p>&amp</p>', '<p title="&ampx=1">x</p>', '<p>&notin; &notit;</p>']) {
-    const parsed = parseFragment(markup, {
-      element: (name) => document.createElement(name),
-      text: (data) => new TextShim(data),
-      comment: (data) => new CommentShim(data),
-    });
+    const parsed = parseFragment(markup, factories);
     assert.deepEqual(ours(parsed), theirs(parse5Fragment(markup).childNodes), markup);
   }
 });
@@ -246,16 +270,12 @@ test('never disagrees with parse5 — it matches or it declines', () => {
   let agreed = 0;
 
   for (const markup of CORPUS) {
-    const parsed = parseFragment(markup, {
-      element: (name) => document.createElement(name),
-      text: (data) => new TextShim(data),
-      comment: (data) => new CommentShim(data),
-    });
-    if (parsed === null) {
+    const parsed = parseFragment(markup, factories);
+    const mine = parsed === null ? null : ours(parsed);
+    if (mine === null) {
       declined.push(markup);
       continue;
     }
-    const mine = ours(parsed);
     const oracle = theirs(parse5Fragment(markup).childNodes);
     assert.deepEqual(mine, oracle, `disagreed with parse5 about ${JSON.stringify(markup)}`);
 
@@ -273,6 +293,8 @@ test('never disagrees with parse5 — it matches or it declines', () => {
    * could otherwise mean nothing at all.
    */
   console.log(`      parsed ${agreed}/${CORPUS.length}, declined ${declined.length}`);
+  /** Foreign content must be PARSED, not declined: a decline here would let every foreign row pass while comparing nothing. */
+  assert.deepEqual(declined.filter((markup) => /<(svg|math)\b/.test(markup)), [], 'no foreign input in the corpus declined');
   for (const markup of declined) console.log(`      declined: ${JSON.stringify(markup)}`);
   assert.ok(agreed >= CORPUS.length * 0.6, `only ${agreed} of ${CORPUS.length} parsed — too many declines to be useful`);
 });
@@ -381,4 +403,66 @@ test('a declined chunk is reported even when the element has other children', ()
     const quiet = warningsFor(name);
     assert.equal(quiet.said.length, 0, `${name} should not warn — a string argument is text, not declined markup`);
   }
+});
+
+/**
+ * **What foreign parsing DECLINES** (2026-11-18): each of these a real parser recovers from in a way this parser does
+ * not reproduce — an HTML element written in foreign content breaks out of it, `</p>` and `</br>` too, `<font>` with a
+ * presentational attribute, CDATA, a MathML element inside a MathML text integration point, an end tag that is not the
+ * open element's. Declined means no tree at all for the interior, never a different one.
+ */
+const DECLINED = [
+  '<svg><div>x</div></svg>',
+  '<svg><g><p>x</p></g></svg>',
+  '<svg><b>x</b></svg>',
+  '<svg></p></svg>',
+  '<svg></br></svg>',
+  '<svg><font color="red">x</font></svg>',
+  '<svg><![CDATA[x]]></svg>',
+  '<math><mi><mglyph/></mi></math>',
+  '<svg><g></rect></g></svg>',
+  '<svg><g><circle></rect></g></svg>',
+  '<svg><g></p></g></svg>',
+  '<math><mi>x<img src="y"></mi></math>'.replace('<img src="y">', '') + '<svg><img/></svg>',
+];
+test('foreign content: every shape a real parser recovers from is declined, never parsed differently', () => {
+  const parsedAtAll = [];
+  for (const markup of DECLINED) {
+    const parsed = parseFragment(markup, factories);
+    if (parsed !== null && ours(parsed) !== null) parsedAtAll.push(markup);
+  }
+  assert.deepEqual(parsedAtAll, []);
+});
+test('CONTROL: foreign content the parser must parse, all the way down, against parse5', () => {
+  const markup = '<svg><circle r="1"/><lineargradient gradientunits="x"/></svg>';
+  const parsed = parseFragment(markup, factories);
+  const tree = parsed && ours(parsed);
+  assert.ok(tree !== null, 'parsed, interior included');
+  assert.equal(tree[0].children[1].tag, 'linearGradient', 'the tag case-adjusted');
+  assert.deepEqual(tree, theirs(parse5Fragment(markup).childNodes));
+});
+
+/**
+ * **The same interiors, parsed in their CONTEXT** (2026-11-18): parse5 given the context element itself (an `<svg>`, a
+ * `<math>`, a `<foreignObject>`), the way a lazily parsed interior is parsed here — not a whole document wrapped by hand,
+ * which would compare two wrappers. Each chunk must agree in its space, and a breakout in it must decline.
+ */
+const CONTEXTS = [
+  ['svg', parse5Html.NS.SVG, 'svg', ['<circle r="1"/><rect/>', '<lineargradient gradientunits="x"><stop/></lineargradient>', '<foreignObject><p>x</p></foreignObject>', '<style>.a{}</style><title>t</title>']],
+  ['math', parse5Html.NS.MATHML, 'math', ['<mi>x</mi><mo>=</mo><mspace/>', '<annotation-xml encoding="text/html"><p>h</p></annotation-xml>']],
+  ['foreignObject', parse5Html.NS.SVG, 'html', ['<p>x</p><b>y</b>', '<div><svg><circle/></svg></div>']],
+];
+test('foreign interiors in their context element agree with parse5 given the same context', () => {
+  let compared = 0;
+  for (const [name, namespace, space, chunks] of CONTEXTS)
+    for (const chunk of chunks) {
+      const context = defaultTreeAdapter.createElement(name, namespace, []);
+      const parsed = parseFragment(chunk, factories, space);
+      const tree = parsed && ours(parsed);
+      assert.ok(tree !== null, `${name}: ${chunk} parsed`);
+      assert.deepEqual(tree, theirs(parse5Fragment(context, chunk).childNodes), `${name}: ${chunk}`);
+      compared++;
+    }
+  assert.equal(compared, 8);
+  assert.equal(parseFragment('<div>x</div>', factories, 'svg'), null, 'a breakout in svg context declines');
 });

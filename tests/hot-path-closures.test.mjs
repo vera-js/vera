@@ -29,6 +29,12 @@ const HOT = {
   /** A hook's run and its notification: every write that reaches a hook goes through `$n`, every flushed run through `$t`. */
   'packages/core/src/modules/createHook.ts': ['HookState.run', 'HookState.$n', 'HookState.$t'],
   'packages/core/src/modules/computed.ts': ['Computed.value'],
+  /**
+   * The lite tier (2026-11-17): every instance, commit, list item and queued render. Its part FACTORIES (`childPart`,
+   * `attrPart`, `solePart`, `textPart`) return a closure by design and are not listed: the closure is the part.
+   */
+  'packages/lite/src/patch.ts': ['instantiate', 'commit', 'makeItem', 'updateItem'],
+  'packages/lite/src/schedule.ts': ['render', 'queue', 'flush'],
 };
 /** How many functions a listed name is (1 unless an accessor pair). */
 const COUNT = {};

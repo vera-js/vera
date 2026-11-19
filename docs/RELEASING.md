@@ -30,11 +30,16 @@ ones.
 
 ```sh
 npx changeset version            # bump versions, write CHANGELOGs, consume changesets
+npm install --package-lock-only  # the lockfile's workspace entries follow the new versions (node_modules untouched)
 git diff                         # review — this is the release gate
 git add -A && git commit -m "release: 0.x.y"
 node scripts/tag-release.mjs     # annotated tag per publishable package — AFTER the commit
 git push --follow-tags
 ```
+
+**Regenerate the lockfile after versioning.** `changeset version` bumps each `package.json` and not
+`package-lock.json`, so without this step the lockfile's workspace entries fall a release behind every time
+(`tests/lockfile-workspaces.test.mjs` refuses that). `--package-lock-only` rewrites only the lockfile.
 
 **Commit before tagging.** `tag-release.mjs` tags `HEAD`, so running it first points every tag at
 the commit *before* the bump — a `@verajs/core@0.2.1` tag on a tree that still says `0.2.0`. It does
@@ -101,6 +106,7 @@ design. The first version goes up by hand; every version after that is an ordina
 
 ```sh
 npx changeset version                       # bump everything that has a changeset
+npm install --package-lock-only             # the lockfile follows the new versions
 
 # First publish of the new package only. Run this in a real terminal, one package at a time:
 # npm's 2FA approval prints a URL and polls for it, so it needs a TTY and cannot be scripted.

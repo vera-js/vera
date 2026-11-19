@@ -1,0 +1,19 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "tier-hole-position",
+      "params": [],
+      "message": "a hole sits where the HTML parser does not keep it as a value (inside a comment, a `<script>` that is not a JSON data block, an element that is never shown such as `<noscript>`, `<iframe>` or `<template>`, a tag position such as `<p ${…}>`, a duplicate attribute, a binding name with a non-ASCII capital letter (the parser lowercases only ASCII), an element its parent cannot hold such as `<div>` in `<select>`), or a value is bound under an element whose content `.innerHTML` or `.textContent` replaces: a value would land where the template does not show it, so the template is refused, in every build. ON THE SERVER, one more cause: an HTML element written inside SVG or MathML content (`<div>` in an `<svg>`), which a browser moves out of it and `@verajs/ssr`'s DOM does not reproduce, so a hole in that subtree is never found there.",
+      "fix": "Keep holes in text, attribute values and the text of `<title>`, `<textarea>`, `<style>` or a JSON data block; a binding in a tag position (a ref, a spread) is core's. Put HTML inside SVG in a `<foreignObject>`, and inside MathML in an `<mtext>`."
+    },
+    {
+      "code": "tier-needs-core",
+      "params": [
+        "what"
+      ],
+      "message": "{what} needs `@verajs/core`: `@verajs/lite` does not have it, so it does not work here (development says so; production is silent).",
+      "fix": "Import from `@verajs/core` and wire a renderer to use it: every component written for `@verajs/lite` runs there unchanged."
+    }
+  ]
+}

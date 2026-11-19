@@ -144,3 +144,6 @@ export const thrownMessage = (error: unknown): string => {
     return '[unprintable value thrown]';
   }
 };
+
+/** `data-tone` → `dataTone`: the prop an observed attribute arrives as, in every package that defines components (`@verajs/core`'s `define`, its checks, `@verajs/lite`). */
+export const camel = (name: string) => name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());

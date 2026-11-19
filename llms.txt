@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->12.2 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->12.6 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -390,6 +390,65 @@ whatever it returned instead.
 
 ---
 
+## Small tier — `@verajs/lite` (its own package)
+
+`define`, `signal` and the `html`, `svg` and `mathml` tags, with a renderer built in: no `wire`, nothing else to
+import. Reactive: a write to a
+declared prop, an observed attribute or a `signal` a render read re-renders the component once, in a microtask. A
+render patches values in place (focus and typed input survive). It binds text, attributes (whole or partial), `?bool`,
+`.prop`, `!live`, `@event` (or `onClick=${…}`, as core maps it), nested templates and arrays (unkeyed, reused by
+position).
+
+<!-- recipe -->
+```js
+import { define, html, signal } from '@verajs/lite';
+
+const count = signal(0);
+define({ tag: 'lite-counter', props: { step: 1 } }, (host) => () =>
+  html`<button @click=${() => (count.value += host.step)}>Count: ${count.value}</button>`);
+document.body.append(document.createElement('lite-counter'));
+```
+
+- `define(tag, setup)` / `define({ tag, props, attributes, methods, shadow }, setup)`: the same shape and types as
+  `@verajs/core`'s. `shadow` is `'open'`, `'closed'` or `false`. The setup returns the render function.
+- `signal(value)`: shallow, `.value`, as `@verajs/core`'s; read during a render, it re-renders that component on a write.
+- **Text-only elements:** the text of `<title>`, `<textarea>` and `<style>` takes a value as TEXT, and so does a JSON data
+  block (`<script type="application/json">`, any type ending in `json`); any other `<script>` refuses a value. Trusted
+  markup goes in through `.innerHTML=${markup}`, as in `@verajs/core`.
+- **SVG and MathML:** markup inside `<svg>` / `<math>` is SVG / MathML already; a fragment rendered into one from its
+  own template is tagged `` svg`…` `` / `` mathml`…` ``, as in `@verajs/core`. An HTML element in it breaks out where the
+  parser puts it. Development names an element placed where its namespace does not render (`wrong-namespace`).
+- **Only in `@verajs/core`:** `createStore`, `computed`, `effect`, `keyed`, `spread`, refs, light-DOM slots, hydration,
+  an async setup. Importing one from lite fails when the module loads.
+- **The parser judges every template once:** a hole it would move or drop (a `<div>` in `<select>`, a duplicate
+  attribute, a hole in a comment, `<noscript>`, `<iframe>` or `<template>`) is refused, coded `tier-hole-position`; a
+  template ending inside a tag, `unfinished-tag`.
+- **The same refusals as `@verajs/core`, said the same way in development:** a `javascript:` URL in a URL-bearing
+  attribute or property (the attribute removed), a bound inline-handler attribute (`onclick=${…}`: bind `@click=${…}` or
+  `onClick=${…}`), a bound `srcdoc` attribute (trusted markup goes in through `.srcdoc=${trusted}`), and `.__proto__`.
+- **Moving up:** the same component source runs on `@verajs/core`; change the import and `wire([renderer])`.
+- `@verajs/ssr` renders lite components; lite does not hydrate (a component's first client render replaces what the
+  server sent: the page looks the same, but input typed, boxes ticked, options chosen, `<details>` opened or containers
+  scrolled before lite's module ran are lost). Load the module early; serve `@verajs/core` for forms used before scripts.
+  On the server, keep HTML out of SVG/MathML content (use `<foreignObject>` / `<mtext>`): a browser moves it out, which
+  the server's DOM does not reproduce, so a hole in such a subtree is refused there (`tier-hole-position`). JSX for lite: `veraJsx({ html: ['html', '@verajs/lite'], namespaces: false })`.
+
+## Static tier — `@verajs/static` (its own package)
+
+`define` and `html` / `svg` / `mathml`, rendering a component ONCE into markup at its first connect: no reactivity, no
+`wire`. The call shape is core's and lite's (props copied per element, attributes read once as camel props, `methods`,
+`shadow`), so a component that must update moves to `@verajs/lite` or `@verajs/core` by changing the import.
+
+- **No value ever becomes code:** values are written as inert text and the HTML parser's result is judged. In text and
+  attribute values a value is text; a `javascript:` URL in a URL attribute is removed (every URL name checked item by
+  item); an event-handler or `srcdoc` attribute holding a value is not written; in `<style>` or a JSON data block a value
+  is text that cannot end the element. Refused (`static-hole`): a value in a tag or attribute name, or inside another
+  `<script>` (SVG too), `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element.
+- **Behavior** comes from `@verajs/directives` (`/standalone` on a page with no other vera): the engine watches the
+  document, so it enhances what static writes after load; a shadow root is the engine's once the page calls
+  `activate(element.shadowRoot)`.
+- `@verajs/ssr` renders static components.
+
 ## Other packages
 
 ```js
@@ -777,7 +836,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->5.69 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->6.08 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts (lit-html templates also work,
 being structurally identical).
 
@@ -830,9 +889,14 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   `.srcdoc=${trusted}`. `@verajs/ssr` refuses the same values, so server and client agree.
 - A value enters a `<script>` ONLY as a JSON data block: the script's `type`, as written, ends in `json`
   (`application/json`, `application/ld+json`) with no character reference — e.g.
-  `<script type="application/ld+json">${JSON.stringify(schema)}</script>`. Any other script hole is REFUSED:
-  `@verajs/ssr` in every build (`ssr-script-hole`, since a served script runs), the renderer in development
-  (`script-hole`). On the server a data block's value is written with `<` as `\u003c`.
+  `<script type="application/ld+json">${JSON.stringify(schema)}</script>`. Any other script hole is REFUSED, in
+  every build: `@verajs/ssr` (`ssr-script-hole`) and the renderer (`script-hole`) — a saved page runs a script, and an
+  SVG script runs from a template in Chromium and WebKit (refused even with a JSON type). A data block's text is
+  written with `<` as `\u003c`, a style's with `</style` as `<\/style` — on the composed text, by the server and
+  the client alike, byte for byte (hydration adopts it): neither can end its element if the page is saved and parsed again.
+- A value in a text-only element (`<style>`, a JSON block, HTML `<title>`/`<textarea>`) is TEXT on every tier and the
+  server: a list is its items' text joined (`<style>${rules.map(…)}</style>`), and a template there is REFUSED
+  (`template-in-text` / `ssr-template-in-text`).
 - Child-position values match lit exactly: only `null`/`undefined` are empty. `false` and `0`
   RENDER, so `${cond && 'x'}` puts the word `false` on the page — write `${cond ? 'x' : null}`.
   `@verajs/ssr` serializes them the same way, so server and client agree.

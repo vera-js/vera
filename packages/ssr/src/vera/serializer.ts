@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, dataBlock, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
@@ -339,6 +339,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   const owners: string[] = [];
   /** Which RAWTEXT element each binding sits inside, `''` when none. See `RAWTEXT`. */
   const raws: string[] = [];
+  /**
+   * Per static, the raw-content bounds its scan reported (`rawFrom`, `rawUntil`) — read only for a JSON block or an
+   * HTML style, below.
+   */
+  const rawBounds: Array<[number, number]> = [];
   /** Per child binding (sparse): the foreign-content depth it sits at, which a template rendered there starts from. */
   const depths: Array<number | undefined> = [];
   /** Per child binding (sparse): whether it sits in a text-only element, where a template is refused (see `serializeValue`). */
@@ -414,7 +419,14 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       if (maybe) taker = takesNewline(text, tagState);
     }
     tagState = scanTag(strings[i], tagState);
+    rawBounds[i] = [tagState.rawFrom, tagState.rawUntil];
     if (taker && (tagState.foreign !== 0 || tagState.inert !== 0)) taker = false;
+    /**
+     * A hole in the content of an SVG `<script>` (or a MathML element of that name) is code too: refused as an HTML
+     * script's is (`ssr-script-hole`, every build), JSON or not — a foreign script is no data block (2026-11-18).
+     */
+    if (!tagState.inTag && tagState.opens.some((open) => open.name === 'script'))
+      throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
     /**
      * **Every question about where this hole sits is answered by that scan** — whether it is inside a tag, which tag,
      * whether a new one opened, and whether the hole is a sigil binding. They used to be answered beside it, by tests
@@ -676,6 +688,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * that never started a tag name, as in `a < b`, is text. The client refuses the same templates in development.
    */
   const end = scanTag(strings[strings.length - 1], tagState);
+  rawBounds[strings.length - 1] = [end.rawFrom, end.rawUntil];
   if (end.inValue || (end.inTag && end.tagName))
     throw own(new Error(ssrMisuse('ssr-unfinished-tag', PROSE['ssr-unfinished-tag']!())));
   const closers = closersOf(end);
@@ -687,11 +700,38 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * own reading, never a search back, so a `<script…>` inside a script's text or a quoted value is never taken for it).
    * A data block's values are written with `<` as `\u003c` (`escapeRawText`'s `json`). Once per template, here.
    */
-  for (let i = 0; i < raws.length; i++)
+  for (let i = 0; i < raws.length; i++) {
     if (raws[i] === 'script') {
-      if (!dataBlock(openingTag(strings, i, depth))) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
+      /**
+       * A start tag holding a hole is no data block either (2026-11-18): a binding there — `?type=${false}`, a spread,
+       * `.type` — changes the type after it was judged, and the script is then served (or saved) as code.
+       */
+      const tag = openingTag(strings, i, depth);
+      if (!dataBlock(tag) || tag.includes('\uFFFF')) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
       raws[i] = 'json';
     }
+    /**
+     * **The author's static text of a JSON block or an HTML `<style>` is written closed too** (2026-11-18), so the
+     * served text is the COMPOSED text closed (`closedRawText`), byte for byte what a client writes: in a block every
+     * `<` as `\u003c` (a static `<` before a value, `"<${'/script>…'}"`, otherwise closed it early; in valid JSON a `<` is
+     * only ever inside a string, so it is lossless), in a style each `</style` as `<\/style` (a static `</stylex` ends
+     * nothing, and is written so all the same). A closer formed ACROSS a style hole is `styleHole`'s, per render. The
+     * content in the static before this hole (from where its raw text began, or all of it inside the element) and in the
+     * static after (up to its end tag). Raw text follows the tag edits, so it is the same text in the part. Idempotent,
+     * so a static between two holes of one element may be visited twice.
+     */
+    if (raws[i] === 'json' || raws[i] === 'style') {
+      const json = raws[i] === 'json';
+      const [from] = rawBounds[i]!;
+      const [, until] = rawBounds[i + 1]!;
+      const before = parts[i]!;
+      const cut = from === -1 ? 0 : before.length - (strings[i]!.length - from);
+      parts[i] = before.slice(0, cut) + closedRawText(before.slice(cut), json);
+      const after = parts[i + 1]!;
+      const stop = until === -1 ? after.length : until;
+      parts[i + 1] = closedRawText(after.slice(0, stop), json) + after.slice(stop);
+    }
+  }
 
   /**
    * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
@@ -848,7 +888,8 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * `<title>` and `<textarea>` are RCDATA, not RAWTEXT — references *are* decoded there — so
          * they keep ordinary escaping, which is what the client produces for them too.
          */
-        else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
+        else if (raws[i] === 'style') out = styleHole(out, escapeRawText(rawTextOf(value), 'style'), part, parts[i + 1]!);
+        else if (raws[i]) out += escapeRawText(rawTextOf(value), raws[i]);
         else out += serializeValue(value, false, depths[i], texts[i]);
         break;
       case ATTRIBUTE: {
@@ -1129,6 +1170,46 @@ const fortify = (markup: string, depth: number): string => {
   }
   return out + markup.slice(from, stop) + tail + closersOf(end);
 };
+
+/**
+ * **A value written into a `<style>`, with every closer it takes part in neutralized** (2026-11-18). `</style` (any
+ * case) ends the element wherever it is formed, and it can be formed ACROSS a hole: the static before a value and the
+ * value (`"<${'/style><img…>'}"`), the value and the static after, or several values. A closer is 7 characters, so one
+ * that crosses this hole lies within the 6 characters already written, the value, and the next static's first 6; each
+ * such closer gets a `\` before its `/` (`<\/style`, the same CSS), wherever the `/` falls — in what is written, the
+ * value, or the next static (the `\` then goes after the value). A closer wholly inside the next static is the element's
+ * own end tag, and one wholly in what was written was dealt with at its own hole. Statics alone never hold a closer, so
+ * the output is the composed text's: byte for byte what a client writes.
+ */
+const styleHole = (out: string, value: string, before: string, next: string): string => {
+  /**
+   * What was written last, read from the static just written when it holds 6 characters — `out` is the whole document
+   * so far, and slicing it flattens that string on every hole (measured: most of a page's style-hole cost, 2026-11-18).
+   * A closer crossing this hole starts with a `<` in it or in the value; with neither, nothing crosses.
+   */
+  const tail = before.length >= 6 ? before.slice(-6) : out.slice(-6);
+  if (!value.includes('<') && !tail.includes('<')) return out + value;
+  const head = next.slice(0, 6);
+  const window = tail + value + head;
+  const start = tail.length;
+  const stop = start + value.length;
+  /** Where, in the window, a `\` goes: before each crossing closer's `/`. */
+  const at: number[] = [];
+  for (const match of window.matchAll(/<\/style/gi)) {
+    const m = match.index;
+    if (m < stop && m + 7 > start) at.push(m + 1);
+  }
+  if (at.length === 0) return out + value;
+  let written = out.slice(0, out.length - tail.length);
+  let from = 0;
+  const marked = window.slice(0, stop);
+  for (const p of at) {
+    written += marked.slice(from, Math.min(p, stop)) + '\\';
+    from = Math.min(p, stop);
+  }
+  return written + marked.slice(from);
+};
+
 /**
  * The content a `.innerHTML`/`.textContent` binding writes after the host's open tag. `innerHTML` is
  * `[LegacyNullToEmptyString]` (so `null` is `''` but `undefined` is `"undefined"`); `textContent` is nullable (both
@@ -1390,6 +1471,23 @@ type Probed = {
  */
 const refuseTemplateInText = (): never => {
   throw own(new Error(ssrMisuse('ssr-template-in-text', PROSE['ssr-template-in-text']!())));
+};
+
+/**
+ * **A value in a `<style>` or JSON data block, as text** — the rule `<textarea>`/`<title>` already follow, and every
+ * client writes (2026-11-18): nothing for `null`/`undefined`, a list its items' text (nested lists flattened by the same
+ * rule), a template refused (`ssr-template-in-text`), anything else `String`. Before, `String(value)` wrote a list as
+ * `a,b` (commas between CSS rules) and a template as `[object Object]`.
+ */
+const rawTextOf = (value: unknown): string => {
+  if (value == null) return '';
+  if (Array.isArray(value)) {
+    let out = '';
+    for (let i = 0; i < value.length; i++) out += rawTextOf(value[i]);
+    return out;
+  }
+  if (typeof value === 'object' && isLiteral((value as Probed).strings)) refuseTemplateInText();
+  return `${value}`;
 };
 
 /**

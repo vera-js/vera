@@ -10,7 +10,7 @@
  */
 import { interfaceFor } from './reflections.js';
 import { JSON_BLOCK, escapeHtml, escapeRawText, escapeStyleText, leadingNewline, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
-import { decode, parseFragment } from './parse.js';
+import { contentSpace, decode, parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
@@ -197,7 +197,11 @@ const SHADOW_ATTRIBUTES: ReadonlyArray<readonly [ShadowFlag, string]> = [
  */
 export const serializeElement = (element: ElementShim): string => {
   const open = element.openTag();
-  if (VOID_ELEMENTS.has(element.localName)) return open;
+  /**
+   * HTML's name-keyed rules are HTML's (2026-11-18): an SVG or MathML element named `link`, `img` or `pre` is an
+   * ordinary element, which keeps its children and its end tag. The namespace is read only for a name that matches.
+   */
+  if (VOID_ELEMENTS.has(element.localName) && element._ns === HTML_NS) return open;
   const inner = element.innerHTML;
   /**
    * Content that starts with a line feed gets one more for the parser to take (`NEWLINE_TAKERS`) — unless the open
@@ -207,7 +211,7 @@ export const serializeElement = (element: ElementShim): string => {
   const name = element.localName;
   /** Named, not hashed: this runs for every element written. */
   const guard =
-    (name === 'pre' || name === 'textarea' || name === 'listing') && open.charCodeAt(open.length - 1) === 62 && leadingNewline(inner, 0) !== 0;
+    (name === 'pre' || name === 'textarea' || name === 'listing') && element._ns === HTML_NS && open.charCodeAt(open.length - 1) === 62 && leadingNewline(inner, 0) !== 0;
   const close = element._sourceCloseTag ?? `</${name}>`;
   /** Two plain joins: an empty string joined into every element cost a server DOM's serialization ~2% (measured). */
   return guard ? open + '\n' + inner + close : open + inner + close;
@@ -397,11 +401,12 @@ const parseChunks = (container: ContainerShim): void => {
       entries.push(entry);
       continue;
     }
+    /** Parsed in the space the container's content is in (an `<svg>`'s interior as SVG, 2026-11-18). */
     const parsed = parseFragment(entry, {
-      element: (name: string) => build(name),
+      element: (name: string, namespaceURI?: string) => build(name, namespaceURI),
       text: (data: string) => new TextShim(data),
       comment: (data: string) => new CommentShim(data),
-    });
+    }, contentSpace(container as unknown as Parameters<typeof contentSpace>[0]));
     let round = '';
     if (parsed) for (const node of parsed) round += serializeEntry(node);
     if (!parsed || round !== entry) {
@@ -687,11 +692,16 @@ export class TextShim extends CharacterDataShim {
    */
   markup(): string {
     if (this._source !== null) return this._source;
-    const parent = (this._parent as { localName?: string } | null)?.localName;
-    /** Named, not looked up: a lookup keyed by every parent's name is a megamorphic load on every text node written. */
-    // A JSON data block's text keeps `<` out as `\u003c` (`escapeRawText`'s `json`): the static tier writes one here.
-    return parent === 'style' || parent === 'script'
-      ? escapeRawText(this._data, parent === 'script' && JSON_BLOCK.test((this._parent as ElementShim).getAttribute('type') ?? '') ? 'json' : parent)
+    const parent = this._parent as { localName?: string; _ns?: string } | null;
+    const name = parent?.localName;
+    /**
+     * Named, not looked up: a lookup keyed by every parent's name is a megamorphic load on every text node written. Raw
+     * text is HTML's alone (2026-11-18): an SVG or MathML `<style>`'s content is markup to a browser, so its text is
+     * escaped as text — raw-text escaping there let a value end the element and break out of it. A JSON data block's
+     * text keeps `<` out as `\u003c` (`escapeRawText`'s `json`): the static tier writes one here.
+     */
+    return (name === 'style' || name === 'script') && parent!._ns === HTML_NS
+      ? escapeRawText(this._data, name === 'script' && JSON_BLOCK.test((parent as unknown as ElementShim).getAttribute('type') ?? '') ? 'json' : name)
       : escapeHtml(this._data);
   }
   cloneNode(): TextShim {
@@ -777,7 +787,7 @@ export class ContainerShim extends NodeBaseShim {
      * reading its own `innerHTML` got a different answer server-side. `localName` is undefined on
      * a fragment or shadow root, so the guard cannot fire off an element.
      */
-    if (VOID_ELEMENTS.has((this as { localName?: string }).localName ?? '')) return '';
+    if (VOID_ELEMENTS.has((this as { localName?: string }).localName ?? '') && (this as { _ns?: string })._ns === HTML_NS) return '';
     let out = '';
     for (const entry of this._entries) out += serializeEntry(entry);
     return out;
@@ -797,7 +807,8 @@ export class ContainerShim extends NodeBaseShim {
      * is stored as one — and written by the text node's rule (`TextShim.markup`), never as given.
      */
     const name = (this as { localName?: string }).localName ?? '';
-    if (RAW_TEXT_ELEMENTS.has(name)) {
+    /** HTML's alone (2026-11-18): an SVG or MathML element of a raw-text name parses its markup. */
+    if (RAW_TEXT_ELEMENTS.has(name) && (this as { _ns?: string })._ns === HTML_NS) {
       const data = normalizeNewlines(text);
       this._replaceWithText(RCDATA_ELEMENTS.has(name) ? decode(data) : data);
       return;
@@ -2394,7 +2405,10 @@ export class ElementShim extends ContainerShim {
    */
   set textContent(value: unknown) {
     const text = value == null ? '' : value;
-    if (RAW_TEXT_ELEMENTS.has(this.localName)) this._replaceWithText(`${text}`);
+    // HTML's alone, as the class's other rules (2026-11-18). Not independently observable: an SVG <style>'s text written
+    // either way serializes the same once TextShim.markup escapes it as text, so this keeps one consistent rule and is
+    // not a tested barrier of its own (tests/ssr-foreign-names.test.mjs).
+    if (RAW_TEXT_ELEMENTS.has(this.localName) && this._ns === HTML_NS) this._replaceWithText(`${text}`);
     else this.innerHTML = escapeHtml(text);
   }
 }

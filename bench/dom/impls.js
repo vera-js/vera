@@ -711,7 +711,11 @@ const rawHtml = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const DEFAULT_SCHEDULER = setRenderScheduler(microtask);
 setRenderScheduler(DEFAULT_SCHEDULER);
 
-const veraOwnImpl = (mount, scheduler = microtask) => {
+/**
+ * `textarea` (2026-11-18): the row's label is a hole inside a `<textarea>` — the form case, raced for a change that moves
+ * text-only elements' holes off the plain text path (create writes each, update every 10th rewrites one in ten).
+ */
+const veraOwnImpl = (mount, scheduler = microtask, textarea = false) => {
   /** Microtask scheduling, matching Lit and Vue — see the note in veraImpl. */
   setRenderScheduler(scheduler);
   wireVera();
@@ -728,7 +732,9 @@ const veraOwnImpl = (mount, scheduler = microtask) => {
     return rawHtml`<table><tbody>${list.map((r) =>
       keyed(
         r.id,
-        rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`
+        textarea
+          ? rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><textarea>${r.label}</textarea></td><td><a>x</a></td></tr>`
+          : rawHtml`<tr class="${sel === r.id ? 'selected' : null}"><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`
       )
     )}</tbody></table>`;
   };
@@ -1090,10 +1096,103 @@ const svelteRunesImpl = (mount) => {
   };
 };
 
+/* ── The small tiers against core: one component source (2026-11-16) ────────────────────────────────────────── */
+
+import * as veraLite from '@verajs/lite';
+
+/**
+ * **One component SOURCE, rendered by a tier and by core** — the subset rule as a benchmark: `define`, `signal` and `html`
+ * from the API under test, the rows an UNKEYED `.map` (lite has no `keyed`; core is raced unkeyed here so the two do the
+ * same work: a swap or a removal rewrites rows in place, by index). The signals are made once per TAG (so the A/A copy
+ * shares nothing with its twin) and reset on teardown: a tag is defined once per page and its setup closes over them. Core gets its renderer and its
+ * default scheduler, as an app wires it; the tier needs neither.
+ */
+const tierState = new Map();
+const tierImpl = (api, tag, wirePro) => (mount) => {
+  if (wirePro) {
+    setRenderScheduler(DEFAULT_SCHEDULER);
+    wireVera();
+  }
+  let state = tierState.get(tag);
+  if (state === undefined) tierState.set(tag, (state = { rows: api.signal([]), selected: api.signal(-1) }));
+  const { rows, selected } = state;
+  if (!customElements.get(tag))
+    api.define(tag, () => () => {
+      const list = rows.value;
+      /** Read once, not once per row, as every other implementation here. */
+      const sel = selected.value;
+      return api.html`<table><tbody>${list.map((r) => api.html`<tr class=${sel === r.id ? 'selected' : null}><td>${r.id}</td><td><a>${r.label}</a></td><td><a>x</a></td></tr>`)}</tbody></table>`;
+    });
+  const el = document.createElement(tag);
+  mount.appendChild(el);
+  return {
+    create: (n, seed) => { rows.value = buildData(n, seed); },
+    append: (n, seed) => { rows.value = rows.value.concat(buildData(n, seed)); },
+    updateEvery10th: () => {
+      const next = rows.value.slice();
+      for (let i = 0; i < next.length; i += 10) next[i] = { ...next[i], label: next[i].label + ' !!!' };
+      rows.value = next;
+    },
+    swap: () => {
+      const next = rows.value.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      rows.value = next;
+    },
+    select: (i) => { selected.value = rows.value[i]?.id ?? -1; },
+    remove: (i) => { const next = rows.value.slice(); next.splice(i, 1); rows.value = next; },
+    clear: () => { rows.value = []; },
+    teardown: () => { el.remove(); rows.value = []; selected.value = -1; },
+  };
+};
+
+/**
+ * **Lite with rows as components: Van's per-row idiom, through lite's public API only** (2026-11-17). Each row is a
+ * `define`d element holding its record, whose label and selection are signals of its own, so an update10 or a select
+ * re-renders only the rows it touches; swap and remove go through the list (unkeyed: props rewritten by position).
+ * Rows are `<div>`s, as "VeraJS components" (a custom element is not allowed in `<tbody>`). No new bytes: this is the
+ * idiom lite already has. `row` is the row's template with its tag written out (a template's tag names are its static
+ * text, so each entry passes its own).
+ */
+const tierRowsState = new Map();
+const tierRowsImpl = (api, tag, rowTag, row) => (mount) => {
+  let state = tierRowsState.get(tag);
+  if (state === undefined) tierRowsState.set(tag, (state = { rows: api.signal([]), selected: undefined }));
+  const { rows } = state;
+  if (!customElements.get(rowTag))
+    api.define({ tag: rowTag, props: { r: null } }, (host) => () => {
+      const r = host.r;
+      return r && api.html`<div class=${r.sel.value ? 'selected' : null}><span>${r.id}</span><a>${r.label.value}</a><a>x</a></div>`;
+    });
+  if (!customElements.get(tag))
+    api.define(tag, () => () => api.html`<div>${rows.value.map(row)}</div>`);
+  const el = document.createElement(tag);
+  mount.appendChild(el);
+  const records = (data) => data.map(({ id, label }) => ({ id, label: api.signal(label), sel: api.signal(false) }));
+  return {
+    create: (n, seed) => { rows.value = records(buildData(n, seed)); },
+    append: (n, seed) => { rows.value = rows.value.concat(records(buildData(n, seed))); },
+    updateEvery10th: () => { const list = rows.value; for (let i = 0; i < list.length; i += 10) list[i].label.value += ' !!!'; },
+    swap: () => {
+      const next = rows.value.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      rows.value = next;
+    },
+    select: (i) => {
+      if (state.selected) state.selected.sel.value = false;
+      state.selected = rows.value[i];
+      if (state.selected) state.selected.sel.value = true;
+    },
+    remove: (i) => { const next = rows.value.slice(); next.splice(i, 1); rows.value = next; },
+    clear: () => { rows.value = []; state.selected = undefined; },
+    teardown: () => { el.remove(); rows.value = []; state.selected = undefined; },
+  };
+};
+
 export const IMPLEMENTATIONS = [
   { name: 'VeraJS', note: 'core + lit-html', factory: veraImpl },
   { name: 'VeraJS own', note: 'core + @verajs/renderer', factory: veraOwnImpl },
   { name: 'VeraJS default', note: 'core + @verajs/renderer, default scheduler', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
+  { name: 'VeraJS textarea', note: 'VeraJS default with each label in a <textarea> (the form case)', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER, true) },
   /** The same entry again: the A/A control a race needs to tell a real gap from noise. */
   { name: 'VeraJS default 2', note: 'A/A copy of VeraJS default', factory: (mount) => veraOwnImpl(mount, DEFAULT_SCHEDULER) },
   { name: 'VeraJS components', note: 'each row a light init component, default scheduler', factory: veraComponentsImpl },
@@ -1111,6 +1210,10 @@ export const IMPLEMENTATIONS = [
   { name: 'abl full', note: 'ablation: split + hook + store (= P1e creation)', factory: veraAblationImpl({ split: true, hook: true, store: true }) },
   { name: 'VeraJS fine P1e', note: 'P1 emulated with public APIs: table rows, a store + createHook per row', factory: veraFineP1eImpl },
   { name: 'VeraJS fine P0', note: 'userland ceiling: rows as init components with their own store; select / update write rows directly', factory: veraFineImpl },
+  { name: 'VeraJS unkeyed', note: 'core: core + @verajs/renderer, default scheduler, one define, an unkeyed .map (the tier comparison)', factory: tierImpl(vera, 'vb-tier-core', true) },
+  { name: 'Tier lite', note: '@verajs/lite: the same component source (wires nothing, so not named VeraJS: the race checks VeraJS arms wired core)', factory: tierImpl(veraLite, 'vb-tier-lite') },
+  { name: 'Tier lite rows', note: 'lite, rows as components with per-row signals (Van\'s idiom, public API only)', factory: tierRowsImpl(veraLite, 'vb-tier-lrows', 'vb-lrow', (r) => veraLite.html`<vb-lrow .r=${r}></vb-lrow>`) },
+  { name: 'Tier lite 2', note: 'A/A copy of Tier lite (its own tag, the same bundle)', factory: tierImpl(veraLite, 'vb-tier-lite2') },
   { name: 'Lit', note: 'LitElement', factory: litImpl },
   { name: 'Vanilla', note: 'plain createElement rows and one JS array, no framework (the churn tail control)', factory: (mount) => vanillaImpl(mount) },
   { name: 'Vanilla refs', note: "the same, with JS holding each row's nodes and one closure listener per row", factory: (mount) => vanillaImpl(mount, true) },

@@ -1,5 +1,4 @@
-import { diagnostic, misuse } from '@verajs/shared-utils';
-import { PROSE } from '../diagnostics.js';
+import { checkDefinition } from '@verajs/shared-utils';
 import { initWith } from './init.js';
 import { filledOf } from './adoptProps.js';
 import type { ComponentElement, DefinedClass, DefineOptions, InitOptions, Methods, Setup, WithAttributes } from '../types.js';
@@ -41,18 +40,15 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
       props?: Record<string, unknown>;
       attributes?: readonly string[];
     });
-  if (__DEV__) {
-    checkDefine(tag, setup);
-    if (methods) checkMethods(tag, methods, attributes);
-    if (props !== undefined) checkProps(tag, props, methods);
-    if (attributes !== undefined) checkAttributes(tag, attributes, props);
-  }
+  if (__DEV__) checkDefinition('core', tag, setup, methods, props, attributes, !!seams.$hot);
   /**
    * **Declared attributes** (Brian 2026-10-21: the platform way, `observedAttributes` — no MutationObserver):
    * each arrives as a PROP under its camel-cased name (`data-count` → `dataCount`), `string | null`, so attributes and
    * props are ONE path — the same accessors, the same store, the same hand-over. A name a declared prop also has SHARES
    * that prop (its default applies until the attribute appears); any other gets the default `null`. One way only:
    * attributes → props; a prop write never touches the attribute (no reflection). Removal writes `null`, not the default.
+   * The camel name is written out here, not taken from `services/camel.ts` (its twin, which the checks and the small
+   * tiers share): through the helper, core's production bundle measured +8 B gz and a different hash (2026-11-17).
    */
   const camels: Record<string, string> = {};
   if (attributes?.length) {
@@ -198,83 +194,4 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    * `new` can construct and `instanceof` answers for.
    */
   return customElements.get(tag) as unknown as DefinedClass<WithAttributes<P, A> & M>;
-};
-
-/**
- * Development: the declared attributes, said by code. Not an array of names → refused, by code (production throws the
- * platform's own error further on, so both builds refuse). A shared prop whose default is not a string or `null` FLIPS
- * type when the attribute arrives (the platform hands strings); a camel name the platform's element already has
- * (`hidden`, `title`, `ariaLabel`) replaces that REFLECTING property — `el.hidden = true` no longer hides it.
- */
-const checkAttributes = (tag: string, attributes: unknown, props: Record<string, unknown> | undefined) => {
-  if (!Array.isArray(attributes) || attributes.some((name) => typeof name !== 'string'))
-    throw new TypeError(misuse('define', 'define-attributes', __DEV__ && PROSE['define-attributes'](String(attributes))));
-  for (const name of attributes as string[]) {
-    const prop = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    const subject = `define('${tag}') attributes '${name}'`;
-    const shared = props && Object.hasOwn(props, prop) ? props[prop] : null;
-    if (shared !== null && typeof shared !== 'string')
-      console.warn(diagnostic('core', subject, 'define-attribute-type', __DEV__ && PROSE['define-attribute-type'](prop, typeof shared)));
-    if (prop in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-attribute-reflected', __DEV__ && PROSE['define-attribute-reflected'](prop)));
-  }
-};
-
-/**
- * Development: an own `__proto__` key of `props` or `methods` (`JSON.parse` makes one; an object literal never does),
- * which both builds skip, said by code. True when `name` is that key, so the caller moves on to the next.
- */
-const protoKey = (subject: string, name: string, kind: 'prop' | 'method') => {
-  if (name !== '__proto__') return false;
-  console.error(diagnostic('core', subject, 'define-proto-key', __DEV__ && PROSE['define-proto-key'](kind)));
-  return true;
-};
-
-/**
- * Development: the declared props, said by code — installed identically in both builds. A name a method also has (the
- * prop wins), a platform member's name, an object default that cannot be copied per element (a `Set`, a `Map`, a class
- * instance: SHARED by every instance — set it in the setup, or pass it in).
- */
-const checkProps = (tag: string, props: unknown, methods: object | undefined) => {
-  if (props === null || typeof props !== 'object') {
-    console.warn(diagnostic('core', `define('${tag}') props`, 'define-props-not-object', __DEV__ && PROSE['define-props-not-object'](String(props))));
-    return;
-  }
-  for (const name of Object.keys(props)) {
-    const subject = `define('${tag}') props.${name}`;
-    if (protoKey(subject, name, 'prop')) continue;
-    const value = (props as Record<string, unknown>)[name];
-    if (methods && Object.hasOwn(methods, name)) console.warn(diagnostic('core', subject, 'define-prop-method', __DEV__ && PROSE['define-prop-method'](name)));
-    else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
-    if (value !== null && typeof value === 'object' && !Array.isArray(value) && (value as object).constructor !== Object)
-      console.warn(diagnostic('core', subject, 'define-prop-shared-default', __DEV__ && PROSE['define-prop-shared-default']()));
-  }
-};
-
-/**
- * Development: each key of `methods`, said by code — never refused, so both builds INSTALL the same thing (Brian's rule:
- * one behavior, the words in development only). Read by descriptor, so a getter is reported, not run.
- */
-const checkMethods = (tag: string, methods: object, attributes: readonly string[] | undefined) => {
-  for (const name of Object.keys(methods)) {
-    const subject = `define('${tag}') methods.${name}`;
-    if (protoKey(subject, name, 'method')) continue;
-    const value = Object.getOwnPropertyDescriptor(methods, name)?.value as unknown;
-    /** The two names core re-asserts. A comparison, not a module-level `Set`: a top-level `new Set` SURVIVES production
-     *  (terser cannot prove the call free of effects — it cost +33 B gz here, 2026-10-21). */
-    if (name === 'constructor' || name === 'connectedCallback' || (name === 'attributeChangedCallback' && attributes?.length)) console.warn(diagnostic('core', subject, 'define-method-ignored', __DEV__ && PROSE['define-method-ignored'](name)));
-    else if (typeof value !== 'function') console.warn(diagnostic('core', subject, 'define-method-not-function', __DEV__ && PROSE['define-method-not-function']()));
-    else if (name === 'adoptedCallback') console.warn(diagnostic('core', subject, 'define-method-adopted', __DEV__ && PROSE['define-method-adopted']()));
-    else if (name === 'attributeChangedCallback')
-      console.warn(diagnostic('core', subject, 'define-method-unobserved', __DEV__ && PROSE['define-method-unobserved']()));
-    else if (name in HTMLElement.prototype) console.warn(diagnostic('core', subject, 'define-shadows', __DEV__ && PROSE['define-shadows'](name)));
-  }
-};
-
-/** Development: what a misused `define` received, by code, before the platform's own refusal (which throws in both builds). */
-const checkDefine = (tag: unknown, setup: unknown) => {
-  if (typeof tag !== 'string' || tag.indexOf('-') < 1)
-    throw new TypeError(misuse('define', 'define-tag', __DEV__ && PROSE['define-tag'](typeof tag === 'string' ? `'${tag}'` : String(tag))));
-  if (typeof setup !== 'function') throw new TypeError(misuse('define', 'define-setup', __DEV__ && PROSE['define-setup'](String(setup))));
-  /** Silent while `@verajs/hot` is wired (it sets `$hot` on the registry): a redefine is then a swap, not a mistake. */
-  if (customElements.get(tag) !== undefined && !seams.$hot) console.warn(diagnostic('core', `define('${tag}')`, 'define-twice', __DEV__ && PROSE['define-twice'](tag)));
 };

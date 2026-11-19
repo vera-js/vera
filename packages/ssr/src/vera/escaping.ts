@@ -195,6 +195,13 @@ export const URL_SINK = /^(?:(href|src|action|formaction|xlink:href|data)|to|fro
 // eslint-disable-next-line no-control-regex
 export const SCRIPT_URL_ITEM = /(?:^|;)[\u0000- ]*j[\t\n\r]*a[\t\n\r]*v[\t\n\r]*a[\t\n\r]*s[\t\n\r]*c[\t\n\r]*r[\t\n\r]*i[\t\n\r]*p[\t\n\r]*t[\t\n\r]*:/i;
 
+/**
+ * A raw-text element's composed text, unable to end its element: the twin of shared-utils' `closedRawText`, held
+ * equal by a test (the renderer writes a style's or JSON block's text with it; the compiled statics here, below).
+ */
+export const closedRawText = (text: string, json: boolean) =>
+  json ? text.replace(/</g, '\\u003c') : text.replace(/<\/(style)/gi, '<\\/$1');
+
 /** A bound inline event-handler attribute runs its value as code — the twin of `INLINE_HANDLER` there. */
 export const INLINE_HANDLER = /^on./i;
 

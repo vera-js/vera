@@ -180,9 +180,11 @@ test('`<svg a=x/>` leaves the svg open, and `<style/>` opens raw text', () => {
 /** `</scripts` ends nothing: the end tag needs the tokenizer's boundary after its name. */
 test('a raw-text element ends only at its own end tag', () => {
   const served = serializeTemplate(template(['<script type="application/json">a</scripts>', '</script>'], 'b'));
-  assert.equal(served, '<script type="application/json">a</scripts>b</script>');
+  /** Every `<` of a JSON block's composed text is `\u003c`, statics too (2026-11-18): the block still ends only at `</script>`. */
+  assert.equal(served, '<script type="application/json">a\\u003c/scripts>b</script>');
   const style = serializeTemplate(template(['<style>a</style\v>', '</style>'], '.a>.b{}'));
-  assert.equal(style, '<style>a</style\v>.a>.b{}</style>');
+  /** `</style\v` ends nothing, and is written closed all the same, as the client writes the composed text (2026-11-18). */
+  assert.equal(style, '<style>a<\\/style\v>.a>.b{}</style>');
 });
 
 /**

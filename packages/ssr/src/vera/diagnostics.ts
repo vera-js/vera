@@ -35,8 +35,8 @@ export const PROSE: Record<string, Prose> = {
     'Close the tag inside the template.',
   ],
   'ssr-template-in-text': () => [
-    'a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text.',
-    'Render a string there.',
+    'a template cannot render inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`) — its content is text.',
+    'Render a string there; a list of strings is joined.',
   ],
   'ssr-nesting-depth': (max) => [
     `component nesting exceeded ${max} levels. A component that renders itself recurses without bound, and on a server that is a hung request — so this refuses rather than waiting for the stack to go.`,

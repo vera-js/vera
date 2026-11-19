@@ -155,29 +155,12 @@
       "fix": "Write the section explicitly — `<table><tbody>${rows}</tbody></table>` — and every path agrees."
     },
     {
-      "code": "unfinished-tag",
-      "params": [],
-      "message": "a template cannot end inside a tag — the parser drops an unfinished tag.",
-      "fix": "Close the tag inside the template."
-    },
-    {
       "code": "void-end-tag",
       "params": [
         "tag"
       ],
       "message": "`</{tag}>` is read by the parser as ANOTHER <{tag}>, so this template renders two where it describes one.",
       "fix": "A void element has no end tag — write `<{tag}>` alone."
-    },
-    {
-      "code": "wrong-namespace",
-      "params": [
-        "tag",
-        "built",
-        "host",
-        "advice"
-      ],
-      "message": "<{tag}> was built as {built} and placed inside <{host}>, where it will not render.",
-      "fix": "{advice}"
     },
     {
       "code": "spread-inner-html",

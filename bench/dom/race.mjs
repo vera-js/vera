@@ -17,10 +17,11 @@ import { chromium, firefox, webkit } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, exec, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { holdRaceLock } from '../race-lock.mjs';
 import { harnessSha } from './harness-sha.mjs';
+import { parsePs, treeOf, outside, foreignBrowsers, busyApps, assess, saverUp, displayHeldFor, startVerdict } from './guards.mjs';
 
 const args = process.argv.slice(2);
 const sessions = Number(args[0]);
@@ -67,29 +68,63 @@ const server = createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(8098, resolve));
 
-/** OS daemons are ignored, never waited on (Brian, 2026-10-18): media/photo analysis and Spotlight run when they like. */
 /**
- * Processes a race does not wait for. **VS Code's `Code Helper` is NOT exempt** (Brian, 2026-11-05): it held 15-97% of a core
- * at the start of several 2026-11-05 sessions while the old list let them run as "quiet". `WindowServer` stays exempt (the
- * headed browsers drive it themselves), and so does `claude`, the session that runs the race. **Nor is `node`** (2026-11-05,
- * Brian via "whatever you recommend"): a build, a test run or another probe beside a race was invisible to this check. Only
- * THIS process and its descendants (the page server, Playwright's driver) are skipped, by PID.
+ * **What counts as load, and as a foreign browser, is decided in `guards.mjs`** (pure functions over `ps` snapshots, driven
+ * by `tests/race-guards.test.mjs`; the policy Brian approved 2026-11-17): our own tree and every browser we launched are
+ * never load; OS daemons, by binary path, are logged and never waited on; an app is load when sustained over 10% of a
+ * core; the machine is saturated past one full core, sustained. Here: running `ps`, and acting on the answers.
  */
-const BASELINE = /claude|WindowServer|\/ps$|Google Chrome|firefox|Firefox|WebKit|Playwright|mediaanalysisd|photoanalysisd|mds|mdworker|mds_stores|corespotlightd|spotlightknowledged|fseventsd|ospredictiond|ecosystemd|EcosystemAnalytics/;
 /** The whole race's quiet-machine waiting, bounded (2026-11-08): it is in the projected wall time, and a session that
  *  starts once it is spent is marked contended (the A/A arm is the defense) rather than waited for. */
 const QUIET_BUDGET_MS = 90000;
 let quietLeft = QUIET_BUDGET_MS;
+const PS = 'ps -Ao pid=,ppid=,pcpu=,comm= -r';
+/**
+ * **Every browser process this race ever launched, by PID, kept after it is killed** (2026-11-17):
+ * filled at each page's end from a snapshot taken just before the kill; `guards.mjs`'s `outside` says when it can fire.
+ */
+const launchedPids = new Set();
+const TEST_DYING = process.argv.includes('--test-dying-browser');
+if (TEST_DYING) console.log('TEST SWITCH --test-dying-browser: kills are not awaited; this run tests the harness, its numbers are not a race');
+let ownLeftoversExcluded = 0;
+/** One snapshot's processes outside this race; the own-leftover exclusion is counted, and logged the first time it fires. */
+const othersIn = (rows) => {
+  const { others, ownLeftovers } = outside(rows, process.pid, launchedPids);
+  if (ownLeftovers.length && ++ownLeftoversExcluded === 1)
+    console.log(`  own killed browser still exiting, excluded by PID: ${ownLeftovers.slice(0, 3).map(([pid, , , comm]) => `${comm.split('/').pop()} (PID ${pid})`).join(', ')}`);
+  return others;
+};
+const othersNow = () => othersIn(parsePs(execSync(PS)));
+/**
+ * **Load DURING a page** (2026-11-17): a pre-page sample cannot see a burst that starts inside the page,
+ * which is how the dictation app's load arrived. One asynchronous `ps` a second while the page runs, plus one after it;
+ * `stop()` answers `guards.mjs`'s `assess` over them. Every arm pays the same sampler, so the A/A arm carries its cost.
+ */
+const startSampler = () => {
+  const snapshots = [];
+  let pending = Promise.resolve();
+  const sample = () => (pending = new Promise((resolve) => exec(PS, (error, out) => {
+    if (!error) snapshots.push(othersIn(parsePs(out)));
+    resolve();
+  })));
+  const timer = setInterval(sample, 1000);
+  return { stop: async () => { clearInterval(timer); await pending; await sample(); return assess(snapshots); } };
+};
+/**
+ * **A browser this race did not launch refuses the race** (Brian approved, 2026-11-17): the user's own installed Chrome,
+ * left running, plus a dictation app made a row two-mode per page while every start-of-session CPU sample read quiet.
+ */
+const refuseForeignBrowser = () => {
+  const found = foreignBrowsers(othersNow());
+  if (found.length) throw new Error(`another browser is running outside this race: ${found.join(', ')}. Quit it and start again.`);
+};
+/** Waits, within the race's budget, until no app outside the race holds over 10% of a core; answers the last busy one once the budget is spent. */
 const quiet = async () => {
   for (;;) {
-    /** Our own process tree, by PID: a `node` there is the harness itself, never something to wait for. */
-    const all = execSync('ps -Ao pid=,ppid=,pcpu=,comm= -r').toString().trim().split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/)).filter(Boolean);
-    const ours = new Set([process.pid]);
-    for (let grew = true; grew; ) { grew = false; for (const m of all) if (!ours.has(Number(m[1])) && ours.has(Number(m[2]))) { ours.add(Number(m[1])); grew = true; } }
-    const rows = all.filter((m) => !ours.has(Number(m[1]))).slice(0, 5).map((m) => [m[0], m[3], m[4]]);
-    const busy = rows.find((m) => Number(m[1]) > 10 && !BASELINE.test(m[2]));
+    const busy = busyApps(othersNow())[0];
     if (!busy) return null;
     if (quietLeft <= 0) return `${busy[1]}% ${busy[2].slice(0, 60)}`;
+    console.log(`  waiting for a quiet machine: ${busy[1]}% ${busy[2].split('/').pop()} (${quietLeft / 1000} s of the budget left)`);
     quietLeft -= 10000;
     await new Promise((r) => setTimeout(r, 10000));
   }
@@ -107,8 +142,32 @@ console.log(`harness ${HARNESS} (main.js + impls.js; every bundle must carry it)
 holdRaceLock(root, 'bench/dom/race.mjs');
 /** The race's wall time, printed at the end (the 5–10-minute test standard, 2026-11-08). */
 const raceStart = Date.now();
-/** Whether the screensaver is up (2026-11-07): `caffeinate` stops sleep, not the screensaver, so each session records it. */
-const screensaver = () => { try { return execSync("pgrep -lx 'ScreenSaverEngine|legacyScreenSaver'").toString().trim().replace(/\n/g, ', ') || 'none'; } catch { return 'none'; } };
+/** The screen saver's state now (`guards.mjs`'s `saverUp`): its processes, and the Aerials extension's CPU. */
+const saverNow = () => {
+  let processes = [];
+  try { processes = execSync("pgrep -lx 'ScreenSaverEngine|legacyScreenSaver'").toString().trim().split('\n').filter(Boolean); } catch {}
+  return saverUp(processes, parsePs(execSync(PS)));
+};
+const screensaver = () => saverNow().join(', ') || 'none';
+/**
+ * **A screen saver up, or due, refuses the race at its start; caffeinate held from then on keeps one from coming up**
+ * (`guards.mjs`'s `startVerdict` decides; Brian allows caffeinate for every race, 2026-11-17). Here: the inputs — the
+ * saver's processes, the idle time, its threshold, the display assertions — and the race's own `caffeinate -dimsu`, tied
+ * to this process. Never touch the screen-saver setting itself.
+ */
+{
+  let threshold = 0;
+  try { threshold = Number(execSync('defaults -currentHost read com.apple.screensaver idleTime', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()) || 0; } catch {}
+  const verdict = startVerdict({
+    saver: saverNow(),
+    idle: Number(/"HIDIdleTime" = (\d+)/.exec(execSync('ioreg -c IOHIDSystem').toString())?.[1] ?? 0) / 1e9,
+    threshold,
+    held: displayHeldFor(execSync('pmset -g assertions').toString()),
+  });
+  if (!verdict.start) throw new Error(`${verdict.reason}: one mouse move dismisses it; then start the race again`);
+  console.log(`${verdict.reason}; caffeinate held for the race`);
+}
+spawn('caffeinate', ['-dimsu', '-w', String(process.pid)], { stdio: 'ignore' }).unref();
 console.log(`tree ${execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim()}${execSync('git status --porcelain -- packages', { cwd: root }).toString().trim() ? ' (packages/ DIRTY)' : ''} at ${root}`);
 /**
  * The harness's OWN source, hashed as it runs (2026-10-18): `tree` is HEAD, which says nothing about a working
@@ -135,13 +194,17 @@ const json = flag('json');
 const dump = {};
 const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
 const contended = [];
+/** Re-runs of a contended page, and the sessions that stayed contended (see the page loop). */
+const RETRIES = 2;
+const voidSessions = [];
 /**
  * **Thermal pressure is checked before EVERY page** (Brian, 2026-10-19 and 2026-10-25: cool only when pressure > 0, checked
  * per page): a fanless laptop throttles mid-session, so a check per session let throttled pages into the samples.
  */
 const pressureNow = () => Number(execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1]);
 let cooledS = 0;
-const cool = async () => { while (pressureNow() > 0) { console.log(`  thermal ${pressureNow()}: waiting 15 s`); cooledS += 15; await new Promise((r) => setTimeout(r, 15000)); } };
+/** Above 0, pause a MINUTE at a time until it clears (Brian, 2026-11-18). */
+const cool = async () => { while (pressureNow() > 0) { console.log(`  thermal ${pressureNow()}: pausing 60 s`); cooledS += 60; await new Promise((r) => setTimeout(r, 60000)); } };
 
 /**
  * update10's fixed N per ENGINE (2026-10-18): set in advance, the same for every implementation on that engine,
@@ -170,7 +233,11 @@ const launch = async (engine) => {
   const [type, options] = engine === 'chrome' ? [chromium, { channel: 'chrome' }] : [engine === 'firefox' ? firefox : webkit, {}];
   const prefs = COI && engine === 'firefox' ? { firefoxUserPrefs: { 'privacy.reduceTimerPrecision': false, 'privacy.reduceTimerPrecision.unconditional': false } } : {};
   const server = await type.launchServer({ ...options, ...prefs, headless: false });
-  return { browser: await type.connect(server.wsEndpoint()), end: () => server.kill() };
+  const root = server.process().pid;
+  launchedPids.add(root);
+  /** `--test-dying-browser` (a harness TEST switch, never for a timed race): the kill is not awaited, so the next page's
+   *  foreign-browser and CPU checks run while this browser is still exiting — the own-leftover exclusion must fire. */
+  return { browser: await type.connect(server.wsEndpoint()), end: () => { for (const pid of treeOf(parsePs(execSync(PS)), [root])) launchedPids.add(pid); const killing = server.kill(); return TEST_DYING ? undefined : killing; } };
 };
 /**
  * One page, start to finish: a fresh browser, the variant's bundle, the run, and every check a page must pass before its
@@ -192,7 +259,7 @@ const runPage = async (engine, label, file, impl, query) => {
   const pageError = await page.evaluate(() => window.__PAGE_ERROR__);
   if (pageError !== undefined) throw new Error(`${label}: ${pageError}`);
   const timer = await page.evaluate(() => window.__TIMER__);
-  if (!timerSeen[engine]) { timerSeen[engine] = true; console.log(`${engine}: crossOriginIsolated ${timer?.isolated}, observed timer tick ${timer?.tickUs} µs`); }
+  if (!timerSeen[engine]) { timerSeen[engine] = true; console.log(`${engine}: browser ${browser.version()} | crossOriginIsolated ${timer?.isolated}, observed timer tick ${timer?.tickUs} µs`); }
   if (COI && timer?.isolated !== true) throw new Error(`${label}: --coi, but the page is not cross-origin isolated`);
   const stamp = await page.evaluate(() => window.__HARNESS__);
   if (stamp !== HARNESS) throw new Error(`${label}: ${file} was built from harness ${stamp}, the files on disk are ${HARNESS}: rebuild it`);
@@ -226,6 +293,15 @@ const calibrate = async (engine) => {
   console.log(`${engine}: counts per sample, calibrated on ${name} / ${impls[0]}: ${counts[engine]}`);
 };
 const plantSeen = {};
+refuseForeignBrowser();
+/**
+ * **A 2-minute pause before the batch starts** (Brian, 2026-11-18: before starting the next heavy batch, not between its
+ * runs): the previous batch's heat is not this one's; then the thermal gate, a minute at a time until it clears.
+ * `BATCH_PAUSE_S` overrides the default (0 for a harness self-test only).
+ */
+const BATCH_PAUSE_S = Number(process.env.BATCH_PAUSE_S ?? 120);
+if (BATCH_PAUSE_S > 0) { console.log(`batch pause: ${BATCH_PAUSE_S} s before the first page`); await new Promise((r) => setTimeout(r, BATCH_PAUSE_S * 1000)); }
+await cool();
 for (const engine of engines) {
   console.log(`${engine}: update10 fixed N = ${N10[engine]}`);
   await calibrate(engine);
@@ -238,6 +314,8 @@ for (const engine of engines) {
   const rowWall = {};
   /** Per page: [launch, load, run, close] ms. */
   const phases = {};
+  /** Per page, the OS daemon bursts logged (`guards.mjs`): kept in the JSON so a two-mode reading can be checked against them. */
+  const daemons = {};
   for (let session = 0; session < sessions; session++) {
     const busy = await quiet();
     if (busy) contended.push(`${engine}/${session}: ${busy}`);
@@ -245,11 +323,41 @@ for (const engine of engines) {
     const top = execSync('ps -Ao pcpu,comm -r').toString().trim().split('\n').slice(1, 4).map((l) => { const m = l.trim().match(/^([\d.]+)\s+(.*)$/); return `${m[1]} ${m[2].split('/').pop()}`; }).join(', ');
     const pressure = execSync('notifyutil -g com.apple.system.thermalpressurelevel').toString().trim().split(/\s+/)[1];
     console.log(`${engine}/${session}: thermal ${pressure} | ${top} | screensaver ${screensaver()}`);
-    for (const [[name, file, query], impl] of shuffle(variants.flatMap((v) => impls.filter((i) => !subset[v[0]] || subset[v[0]].includes(i)).map((i) => [v, i])), session)) {
+    /**
+     * **A contended page is re-run, and a session that stays contended is VOID** (pre-registered; Brian
+     * approved the guards, 2026-11-17): a page with a foreign process over 10% of a core before it (once the wait budget
+     * is spent), during it or after it is discarded and queued again at the end of its session, up to RETRIES times; its
+     * last try is recorded and listed as contended. A session with more than one such page is VOID, and the race exits 3.
+     * One recorded page per arm per session either way, so the per-session columns stay aligned.
+     */
+    const queue = shuffle(variants.flatMap((v) => impls.filter((i) => !subset[v[0]] || subset[v[0]].includes(i)).map((i) => [v, i])), session).map((entry) => [entry, 0]);
+    let contendedHere = 0;
+    while (queue.length) {
+      const [[[name, file, query], impl], tries] = queue.shift();
       await cool();
+      /** **Before EVERY page, not only each session** (Brian approved, 2026-11-17): bursty load between a session's start
+       *  and its later pages was invisible to a once-per-session sample. Same bounded budget; a page that starts once
+       *  it is spent is listed as contended. */
+      refuseForeignBrowser();
+      const pageBusy = await quiet();
       const pageStart = Date.now();
+      const sampler = startSampler();
       const { page, end } = await runPage(engine, `${engine}/${session} ${name} ${impl}`, file, impl, `${query}${counts[engine] ? `&counts=${counts[engine]}` : ''}`);
       const results = await page.evaluate(() => window.__RESULTS__);
+      const { contended: busyDuring, daemonBursts } = await sampler.stop();
+      /** OS daemon bursts are LOGGED per page, never a verdict: a later two-mode reading can be checked against them. */
+      if (daemonBursts.length) {
+        console.log(`  ${engine}/${session} ${name} ${impl}: daemon bursts (logged, not voiding): ${[...new Set(daemonBursts)].join(', ')}`);
+        (((daemons[impl] ??= {})[name] ??= [])).push(daemonBursts);
+      }
+      const busyHere = pageBusy ?? busyDuring;
+      if (busyHere && tries < RETRIES) {
+        await end();
+        console.log(`  ${engine}/${session} ${name} ${impl}: contended (${pageBusy ? 'before' : 'during'}: ${busyHere}); re-run at the end of the session (${tries + 1}/${RETRIES})`);
+        queue.push([[[name, file, query], impl], tries + 1]);
+        continue;
+      }
+      if (busyHere) { contendedHere++; contended.push(`${engine}/${session} ${name} ${impl}: ${busyHere} (after ${RETRIES} re-runs)`); }
       const rowMs = await page.evaluate(() => window.__ROW_MS__);
       for (const [op, ms] of Object.entries(rowMs ?? {})) ((((rowWall[impl] ??= {})[op] ??= {})[name] ??= []).push(ms));
       /** The positive control's real size on this engine (`&plant`), printed once per engine and variant. */
@@ -277,11 +385,12 @@ for (const engine of engines) {
           ((fastest[impl] ??= {})[op] ??= {})[name] = [...(fastest[impl][op][name] ?? []), r?.min ?? NaN];
         }
     }
+    if (contendedHere > 1) { voidSessions.push(`${engine}/${session} (${contendedHere} contended pages)`); console.log(`  ${engine}/${session}: VOID, ${contendedHere} pages contended after their re-runs`); }
     /** Written after EVERY session (2026-10-25): a crash or an alarm costs one session, never an engine (one crash once cost a whole engine its 7 sessions). */
-    dump[engine] = { data, fastest, runs, elapsed, rowWall, phases, sessions: session + 1 };
+    dump[engine] = { data, fastest, runs, elapsed, rowWall, phases, daemons, sessions: session + 1 };
     if (json) writeFileSync(json, JSON.stringify(dump));
   }
-  dump[engine] = { data, fastest, runs, elapsed, rowWall, phases };
+  dump[engine] = { data, fastest, runs, elapsed, rowWall, phases, daemons };
   if (json) writeFileSync(json, JSON.stringify(dump));
   const base = variants[0][0];
   if (variants.length === 1 || Object.keys(data).length > 1) {
@@ -330,5 +439,7 @@ for (const engine of engines) {
 console.log(`cooled ${cooledS} s (thermal waits before pages)`);
 console.log(`screensaver at the end: ${screensaver()}`);
 console.log(`wall ${((Date.now() - raceStart) / 60000).toFixed(1)} min`);
-console.log(contended.length ? `\ncontended: ${contended.join('; ')}` : '\nquiet: every session started below 10% of a core');
+console.log(contended.length ? `\ncontended: ${contended.join('; ')}` : '\nquiet: every RECORDED page ran with no app sustained over 10% of a core and the machine under one full core (before, during and after); pages re-run for load, and OS daemon bursts, are logged above');
+console.log(`own killed browsers excluded by PID: ${ownLeftoversExcluded} check(s)`);
+if (voidSessions.length) { console.log(`VOID: ${voidSessions.join('; ')}`); process.exitCode = 3; }
 server.close();

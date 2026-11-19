@@ -161,6 +161,12 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   /** Where the attribute name being read began in THIS text — `-1` when it began in an earlier one. */
   let nameFrom = -1;
   let tagAt = -1;
+  /**
+   * Where, in THIS text, raw content last BEGAN (after its element's start tag) and first ENDED (its end tag's `<`) —
+   * `-1` for none: the bounds of a raw element's content inside the static around a hole (`compile`, a JSON block).
+   */
+  let rawFrom = -1;
+  let rawUntil = -1;
   let selfClosing = false;
   /** Where the value that opened in THIS text starts — `-1` when none did — so an `encoding` can be read whole. */
   let valueFrom = -1;
@@ -182,6 +188,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         i = at + 1;
         continue;
       }
+      if (rawTag !== '' && rawUntil === -1) rawUntil = at;
       rawTag = '';
       textTag = '';
       phase = TAG_NAME;
@@ -468,7 +475,18 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       } else if (reentry) {
         opens.push({ name: tagName, foreign, inert, space: 'math' });
         foreign = 1;
-      } else if (foreign === 0 && RAWTEXT.has(tagName)) rawTag = tagName;
+      } else if ((space === 'svg' || space === 'math') && tagName === 'script') {
+        /**
+         * A `<script>` in SVG (or a MathML element of that name) is tracked so a hole inside it is refused (see
+         * `compile`): its content is markup to the parser, so it is no raw text here, and an SVG script runs on a served
+         * page — and from a template, in Chromium and WebKit (BROWSER-LEDGER, 2026-11-18). An HTML `<script>` is raw text
+         * (`rawTag`, below) and never reaches `opens`, so every `script` there is a foreign one.
+         */
+        opens.push({ name: tagName, foreign, inert, space });
+      } else if (foreign === 0 && RAWTEXT.has(tagName)) {
+        rawTag = tagName;
+        rawFrom = i + 1;
+      }
       else if (foreign === 0 && TEXT_ONLY.has(tagName)) textTag = tagName;
     }
     tagName = '';
@@ -478,7 +496,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   }
   /** A name still being read at the end carries on into the next text (a hole there is refused — see `nameHole`). */
   if (phase === ATTRIBUTE_NAME) attrRaw = nameFrom === -1 ? attrRaw + text : text.slice(nameFrom);
-  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, opened, attrStart, valueStart, nameAt, tagAt };
+  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, opened, attrStart, valueStart, nameAt, tagAt, rawFrom, rawUntil };
 };
 
 

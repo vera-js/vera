@@ -27,6 +27,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 /** Bare specifier -> the bundle name `tests/dist.mjs` resolves. */
 const PACKAGES = {
   '@verajs/core': 'core',
+  '@verajs/lite': 'lite',
+  '@verajs/static': 'static',
   '@verajs/renderer': 'renderer',
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/native-elements': 'renderer/native-elements',

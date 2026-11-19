@@ -1,0 +1,111 @@
+{
+  "name": "@verajs/static",
+  "version": "0.0.0",
+  "private": true,
+  "description": "VeraJS's static tier: web components with define and html, rendered once into markup. Under 1 KB, no reactivity, safe values. No build step required.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/static"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "main": "./dist/vera-static.min.js",
+  "types": "./dist/development/vera-static.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-static.d.ts",
+      "development": "./dist/development/vera-static.js",
+      "default": "./dist/vera-static.min.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-static",
+  "keywords": [
+    "verajs",
+    "vera",
+    "web-components",
+    "custom-elements",
+    "static",
+    "small"
+  ],
+  "sideEffects": false
+}

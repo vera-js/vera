@@ -11,4 +11,6 @@ import pkg from './package.json' with { type: 'json' };
  * reservation, in every package at once. `_p` (the inserts chain's priority order, on a chain, not an element) stays
  * reserved here: `tests/cdn-cross-bundle.test.mjs` fails if it is ever mangled.
  */
-export default defaultRollupConfig(pkg.filename, ['@verajs/inserts'], /^_(?!p$)[a-z]/);
+/** The small tier, built here as `vera-lite` until 2026-11-17, is its own package now: `@verajs/lite`. */
+const mangle = /^_(?!p$)[a-z]/;
+export default [defaultRollupConfig(pkg.filename, ['@verajs/inserts'], mangle)];

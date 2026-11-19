@@ -129,8 +129,8 @@
     {
       "code": "ssr-template-in-text",
       "params": [],
-      "message": "a template cannot render inside a text-only element (`<textarea>`, `<title>`…) — its content is text.",
-      "fix": "Render a string there."
+      "message": "a template cannot render inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`) — its content is text.",
+      "fix": "Render a string there; a list of strings is joined."
     },
     {
       "code": "ssr-timeout",

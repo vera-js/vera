@@ -29,6 +29,29 @@ for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'cust
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
+const lite = await load('lite');
+const staticTier = await load('static');
+/**
+ * The lite tier refuses a template while CONNECTING, and jsdom reports an error thrown there on the window rather than
+ * to the caller: this mounts a fresh tag (each case runs twice) and rethrows what the window was told.
+ */
+let tierCase = 0;
+const mountTier = (tier, draw) => {
+  const tag = `x-sweep-tier-${tierCase++}`;
+  tier.define(tag, () => () => draw(tier.html));
+  let error;
+  const listener = (event) => {
+    error = event.error;
+    event.preventDefault();
+  };
+  dom.window.addEventListener('error', listener);
+  try {
+    dom.window.document.body.append(dom.window.document.createElement(tag));
+  } finally {
+    dom.window.removeEventListener('error', listener);
+  }
+  if (error) throw error;
+};
 const { renderInto } = await load('renderer');
 const { keyed, createSelector } = await load('renderer/keyed');
 const { tag, html: tagHtml } = await load('renderer/tag');
@@ -55,6 +78,10 @@ const CASES = [
   ['applyStyles([notCSS], element)', () => styleModule.applyStyles([42], document.createElement('div')), /applyStyles: expected CSS/],
   ['a frozen store refusing a write', () => { const store = core.createStore(Object.freeze({ n: 1 })); store.n = 2; }, /createStore: this store's source object refused the write/],
   ['html("markup")', () => core.html('<p>x</p>'), /html: expected a template literal/],
+  ['lite: a hole in an element that is never shown', () => mountTier(lite, (html) => html`<noscript>${'x'}</noscript>`), /html: .*tier-hole-position/s],
+  ['lite: a template in a text-only element', () => mountTier(lite, (html) => html`<textarea>${html`<b>x</b>`}</textarea>`), /html: .*template-in-text/s],
+  ['lite: a template ending inside a tag', () => mountTier(lite, (html) => html`<p>${'x'}</p><p class="`), /html: .*unfinished-tag/s],
+  ['static: a hole in a tag name', () => mountTier(staticTier, (html) => html`<ifr${'ame'} src="/a"></iframe>`), /static: .*static-hole/s],
   ['svg("markup")', () => core.svg('<c/>'), /svg: expected a template literal/],
   ['mathml("markup")', () => core.mathml('<m/>'), /mathml: expected a template literal/],
   ['css("text")', () => styleModule.css('p{}'), /css: expected a template literal/],
@@ -66,6 +93,7 @@ const CASES = [
   ['a binding inside an SVG <title> beside an element', () => renderInto(core.html`<svg><title>${'a'}<desc></desc></title></svg>`, document.createElement('div')), /renderer: a binding inside <title> in SVG or MathML/],
   ['a binding inside an obsolete raw-text element', () => renderInto(core.html`<xmp>${'a'}</xmp>`, document.createElement('div')), /renderer: a binding inside <xmp> is never rendered/],
   ['a value in a script that is no JSON data block', () => renderInto(core.html`<script>${'go()'}</script>`, document.createElement('div')), /renderer: a value in a <script> is code/],
+  ['a template in a style', () => renderInto(core.html`<style>${core.html`<b>x</b>`}</style>`, document.createElement('div')), /renderer: .*template-in-text/s],
   ['a template ending inside a tag', () => renderInto(core.html`<p title=${'x'}`, document.createElement('div')), /renderer: a template cannot end inside a tag/],
   ['an expression in an attribute name', () => renderInto(core.html`<p data-${'x'}="1"></p>`, document.createElement('div')), /renderer: an attribute name cannot be an expression/],
   ['an expression in tag-name position', () => renderInto(core.html`<${'p'}>x</${'p'}>`, document.createElement('div')), /renderer: an expression in tag position/],

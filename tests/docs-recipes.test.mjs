@@ -33,6 +33,8 @@ const blocks = [...README.matchAll(/```(\w+)\n([\s\S]*?)```/g)].map(([, lang, bo
 
 const PACKAGES = {
   '@verajs/core': 'core',
+  '@verajs/lite': 'lite',
+  '@verajs/static': 'static',
   '@verajs/renderer': 'renderer',
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
@@ -248,15 +250,17 @@ const EXPECTED_RECIPES = {
    * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
    * quick start is executed rather than merely printed. */
   'packages/autoloader/README.md': 1,
-  'packages/core/README.md': 11, // 6 → 7: computed moved into core (2026-10-22); 7 → 8: snapshot (2026-11-10); 8 → 10: a store as a prototype's two workarounds (2026-11-11); 10 → 11: a subclass mutator's workaround (2026-11-11)
+  'packages/core/README.md': 11, // 6 → 7: computed moved into core (2026-10-22); 7 → 8: snapshot (2026-11-10); 8 → 10: a store as a prototype's two workarounds (2026-11-11); 10 → 11: a subclass mutator's workaround (2026-11-11); 11 → 13: the small tiers, lite and static (2026-11-17); 13 → 11: lite's two moved to its own package's README (2026-11-17)
   'packages/directives/README.md': 1,
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
+  'packages/lite/README.md': 3, // @verajs/lite, its own package (2026-11-17); 2 → 3: svg and mathml (2026-11-18)
+  'packages/static/README.md': 2, // @verajs/static, its own package (2026-11-18)
   'packages/renderer/README.md': 9, // 8 → 7: the custom slot-strategy recipe retired with the contract (2026-10-02); 7 → 8: native-elements (2026-10-21); 8 → 9: portal (2026-10-22)
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
   /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */
-  'llms.txt': 2,
+  'llms.txt': 3, // 2 → 3: the lite tier (2026-11-17)
 };
 
 /**

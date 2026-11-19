@@ -40,6 +40,12 @@ const REMOVED = {
    *  name cannot go on this list. `tests/docs-moved-render.test.mjs` covers it by specifier. */
   connectRouter: 'router',
   '@verajs/collections': '@verajs/store/collections',
+  /** The static tier, retired before its release (2026-11-17): lite carries its features. Keyed on the specifier and the
+   *  bundle name; the bare word is ordinary prose. */
+  '@verajs/core/static': '@verajs/lite',
+  /** Lite's specifier before it became its own package, also before any release (2026-11-17). */
+  '@verajs/core/lite': '@verajs/lite',
+  'vera-static.': 'vera-lite.min.js',
   /** `computed` moved INTO core (C10, 2026-10-22): lazy, watched while read. */
   '@verajs/store/computed': "computed from '@verajs/core'",
   /** `ref` and `shallowRef` became `signal` (2026-10-22). `ref` was DEEP and `signal` is shallow by default, so the old

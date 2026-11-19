@@ -9,7 +9,7 @@
  *
  * Mirrors `ci.yml` so a green run here means a green run there.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -90,16 +90,50 @@ const NOTABLE = /\berror\b|timed out|timeout|did not (start|finish)|unable to (c
 /** Kept out of the repo: files appearing and vanishing in the tree are what broke `tests/walk.mjs`. */
 const logPath = (name) => join(tmpdir(), `vera-gate-${name.replace(/[^a-z0-9]+/gi, '-')}-${process.pid}.log`);
 
+/**
+ * **The gate is a heavy batch: caffeinated, paused, thermal-gated — in this tool, never left to a launcher** (Brian,
+ * 2026-11-18; CLAUDE.md). On the fanless macOS laptop only (CI runs on Linux, with neither `caffeinate` nor
+ * `notifyutil`): `caffeinate -dimsu -w` this process, so the screen saver never comes on; a 2-minute pause before the
+ * batch starts (`BATCH_PAUSE_S`, default 120); and before every step, macOS's thermal pressure must be 0 — above it,
+ * pause a minute at a time until it clears. A pressure that cannot be read refuses the gate rather than running ungated.
+ */
+const LOCAL = process.platform === 'darwin' && !process.env.CI;
+const pressure = () => Number(spawnSync('notifyutil', ['-g', 'com.apple.system.thermalpressurelevel'], { encoding: 'utf8' }).stdout?.trim().split(/\s+/)[1]);
+const pauseS = (seconds) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000);
+const cool = () => {
+  if (!LOCAL) return;
+  while (pressure() > 0) {
+    process.stdout.write(`  (thermal ${pressure()}: pausing 60 s)\n`);
+    pauseS(60);
+  }
+};
+if (LOCAL) {
+  spawn('caffeinate', ['-dimsu', '-w', String(process.pid)], { stdio: 'ignore', detached: true }).unref();
+  if (!Number.isInteger(pressure())) throw new Error('gate: the thermal pressure level could not be read — refusing to run ungated');
+  const batchPause = Number(process.env.BATCH_PAUSE_S ?? 120);
+  if (batchPause > 0) {
+    process.stdout.write(`  (batch pause: ${batchPause} s before the first step)\n`);
+    pauseS(batchPause);
+  }
+}
+
 let failed = 0;
 for (const [name, command, args] of steps) {
+  cool();
   process.stdout.write(`  ${name.padEnd(26)}`);
-  const run = spawnSync(command, args, { encoding: 'utf8' });
+  /**
+   * A buffer far above any step's output (2026-11-17): at spawnSync's default 1 MiB, the development suite's output
+   * (1.05 MB) got the step KILLED mid-run, and its log simply stopped, with no summary and no cause. A spawn error is
+   * printed as the step's first line, so a killed or unstartable step names why.
+   */
+  const run = spawnSync(command, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   if (run.status === 0) {
     console.log('✓');
     continue;
   }
   failed++;
   console.log('✗');
+  if (run.error) console.log(`      spawn: ${run.error.code ?? ''} ${run.error.message}`);
 
   const full = ((run.stdout ?? '') + (run.stderr ?? '')).trimEnd();
   const lines = full.split('\n');

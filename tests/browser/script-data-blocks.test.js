@@ -5,7 +5,7 @@ import { escapeRawText } from '../../packages/ssr/dist/vera/escaping.js';
  * **A JSON data block the server writes keeps the page whole, in the engines** (2026-11-17). A value holding
  * `<!--<script>` in a script's text puts the tokenizer in its double-escaped state, which ignores the `</script>` that
  * should close it, and the rest of the page becomes script text — measured on all three engines (BROWSER-LEDGER). The
- * server writes a data block's value with `<` as `<` (`escapeRawText`'s `json`): the page stays whole and the JSON
+ * server writes a data block's value with `<` as `\u003c` (`escapeRawText`'s `json`): the page stays whole and the JSON
  * reads back unchanged. The control, the same value unescaped, must swallow the page, or this row measures nothing.
  */
 const VALUE = '<!--<script></script><b id="zqinj">x</b>';

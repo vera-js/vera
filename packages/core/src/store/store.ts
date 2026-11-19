@@ -170,6 +170,11 @@ export const claim = (hook: HookRecord, cell: Cell, at: number, i: number) => {
  * the renderer with "Invalid value used as weak map key", naming nothing. `Array.isArray`, not `raw`: a hand-built
  * `html([markup])` works and is allowed. The name comes from the kind, so production carries no string.
  *
+ * **A second copy lives in `@verajs/lite`** (`packages/lite/src/tags.ts`), on purpose (2026-11-18): when both packages took
+ * these tags from one shared-utils module, they moved within core's production bundle, and core's create1k measured
+ * +3.5% slower in Chrome (20 sessions, A/A valid). With its own copy here, core's production bundle is byte-identical
+ * to the one raced at release. `tests/lite.test.mjs` holds the two copies to one shape — never fold them back into one.
+ *
  * `tagCalled` is that check, in development only: production folds every call to it away.
  */
 const tagCalled = (type: ResultType, strings: unknown): void => {

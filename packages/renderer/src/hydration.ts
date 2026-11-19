@@ -31,7 +31,7 @@
  * A mismatch — or a renderer speaking another hand-off protocol — never breaks the page: the container renders fresh,
  * and the console says so once per cause.
  */
-import { CONTENT_PROPERTY, diagnostic } from '@verajs/shared-utils';
+import { CONTENT_PROPERTY, closedRawText, diagnostic } from '@verajs/shared-utils';
 /** Development only — behind `__DEV__` at every use, so production drops the table whole. */
 import { PROSE } from './hydration-diagnostics.js';
 import {
@@ -44,6 +44,8 @@ import {
   LIVE,
   NODE,
   PROPERTY,
+  RAW_JSON,
+  RAW_STYLE,
   REF,
   SELECT,
   SELECT_INDEX,
@@ -412,7 +414,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
     later(APPLY, raw, live, bindings[slot]);
     return;
   }
-  if (kind === ATTR) {
+  if (kind === ATTR || kind >= RAW_STYLE) {
     const parts = template.$J[i];
     let text: string | null;
     if (parts === null) text = primitive(raw) ? (raw == null ? null : H[HANDOFF_TO_TEXT](raw)) : undefined!;
@@ -427,7 +429,18 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
         text += H[HANDOFF_TO_TEXT](v) + parts[p];
       }
     }
-    if (text !== undefined) {
+    /**
+     * A style's or JSON block's whole text (a lone value, or statics and values composed): ADOPTED when the served text is the
+     * composed text as the client writes it (`closedRawText`, the server's bytes) — seeded with the composed text, as the
+     * base's commit stores it — and otherwise left to the base's commit, which rewrites it.
+     */
+    if (kind !== ATTR) {
+      if (text !== undefined && live.textContent === /*@__NOINLINE__*/ closedRawText(text ?? '', kind === RAW_JSON)) {
+        /** As the base's commit stores it: a lone value itself, a composed text otherwise. */
+        bindings[slot + 1] = parts === null ? raw : text;
+        return;
+      }
+    } else if (text !== undefined) {
       const server = live.getAttribute(name);
       /**
        * Equal — both texts, or both absent: the client value itself is seeded, exactly what the base's commit would
@@ -462,7 +475,8 @@ const adoptElement = (canonical: Element, live: Element, into: Adoption, owned: 
       const kind = into.template.$K[i];
       if (kind === SOLE) sole = i;
       else {
-        if ((kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(into.template.$N[i])) content = true;
+        /** …and a style's or JSON block's text binding writes its element's text: no children to walk. */
+        if (((kind === PROPERTY || kind === LIVE) && CONTENT_PROPERTY.test(into.template.$N[i])) || kind >= RAW_STYLE) content = true;
         commitBinding(into, i, kind, live);
       }
     }

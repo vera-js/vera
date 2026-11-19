@@ -507,7 +507,7 @@ const unwiredStyles = (element: ComponentElement) => {
 /** Development: a setup returned a value, not a render function — drawn once, statically; said once per class. */
 const staticReturn = (element: ComponentElement, out: unknown) => {
   const kind = Array.isArray(out) ? 'an array' : typeof out === 'object' ? 'a template or object' : `a ${typeof out}`;
-  errorOnce('core', `<${element.localName}>`, 'setup-returned-value', __DEV__ && (() => PROSE['setup-returned-value'](kind)), element.constructor);
+  errorOnce('core', `<${element.localName}>`, 'setup-returned-value', __DEV__ && (() => SHARED.setupReturnedValue(kind)), element.constructor);
 };
 
 /**

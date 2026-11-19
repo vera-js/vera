@@ -12,7 +12,8 @@ export const ROWS = [
   { label: 'inside a comment: <!-- <${x}> -->', strings: ['<p><!-- <', '> --></p>'], refused: false },
   { label: 'inside a textarea: <textarea><${x}>', strings: ['<textarea><', '></textarea>'], refused: false },
   { label: 'inside a style: a<${x}', strings: ['<style>a<', '</style>'], refused: false },
-  { label: 'inside a script: if(a<${x})', strings: ['<script>if(a<', ')</script>'], refused: false },
+  /** A JSON data block: the one script a value enters, in every build (any other script hole is `script-hole`). */
+  { label: 'inside a JSON data block: {"a":"<${x}"}', strings: ['<script type="application/json">{"a":"<', '"}</script>'], refused: false },
   { label: 'inside a quoted value: title="a<${x}"', strings: ['<p title="a<', '">t</p>'], refused: false },
   { label: 'a text child after a tag: <p>${x}</p>', strings: ['<p>', '</p>'], refused: false },
 ];

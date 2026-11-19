@@ -32,6 +32,15 @@ export const LIVE_CUSTOM = 12;
 export const REFUSED = 13;
 /** A `<select>`'s `selectedIndex` — the rare spelling of its selection, queued as `SELECT` is (see `flush`). */
 export const SELECT_INDEX = 14;
+/**
+ * **An HTML `<style>`'s or JSON data block's whole text** — ONE binding (the element's first value; the others are
+ * consumed, as a multi-part attribute's are) composes the statics and values and writes the element's text when it
+ * changed. Its text is serialized VERBATIM (BROWSER-LEDGER), so it is written unable to end its element, as the server
+ * writes it: in a style each `</style` as `<\/style`, in a JSON block every `<` as `\u003c` — on the COMPOSED text, since
+ * a closer can form across a hole. Committed in `commit`'s cold branch: the hot text line is untouched.
+ */
+export const RAW_STYLE = 15;
+export const RAW_JSON = 16;
 
 
 /** A child part's mode: what its range currently holds. */
@@ -53,7 +62,7 @@ export const NODE = 4;
  * capture (`_$capture$`), both read by hydration. One number for both: the three ship in one package, and a change to
  * either seam bumps it. A hydration that meets another number declines (the page renders fresh) and says so.
  */
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 /** The protocol number — FROZEN at 0. */
 export const HANDOFF_PROTOCOL = 0;
 /** The first-render hook's setter — FROZEN at 1. */

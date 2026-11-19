@@ -76,6 +76,9 @@ const CLAIMS = new Map([
   ['packages/core/README.md#6c59b7f008', 'define-attribute-reflected'], // attributes: observing a reflected platform attribute replaces its property — development says so
   ['packages/core/README.md#e10620ebc8', 'define-method-ignored'], // methods: connectedCallback and constructor are core's own — development says so
   ['packages/core/README.md#4074c25222', 'define-shadows'], // methods: a platform name replaces it — development says that too
+  ['packages/lite/README.md#c765eb013f', 'tier-needs-core'],
+  ['packages/static/README.md#09b2d38f04', 'pinned by tests/static.test.mjs: the item-by-item URL row — `href="a;javascript:…"` removed'],
+  ['packages/static/README.md#057802d34c', 'static-needs-renderer'], // a function value renders nothing; tests/static.test.mjs' development row // @verajs/lite: an option or a value only core handles — development names it
   ['packages/ssr/README.md#22e66ee19b', 'pinned by tests/ssr-coded-diagnostics.test.mjs: every code ssr raises has its entry, each line ending on its code'], // **What ssr says, and how.** Every line ends with its code
   ['packages/ssr/README.md#616e1b6d69', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the same key twice is one line, a second key a second; outside text arrives JSON-quoted'], // Two rules make it safe on a server
   ['packages/ssr/README.md#12068394f6', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the refused javascript: value is never printed; a forged template warns once per component'], // A refused `javascript:` URL is reported without its value at all
@@ -109,6 +112,7 @@ const CLAIMS = new Map([
   ['llms.txt#01566eba01', 'render-loop'], // | `allowRenderLoop` | `(element) => void` | Marks a component's self-feeding loop as delib
   ['llms.txt#e6ce0bc198', 'wrong-namespace'], // It stays silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<tit
   ['llms.txt#18c739df33', 'wrong-namespace'], // A HAND-WRITTEN template without the module wired is the same story: ``Frame(html`<path/>`)
+  ['llms.txt#44ed44511d', 'wrong-namespace'], // lite's svg/mathml bullet (2026-11-18): lite says it too, tests/lite-namespaces.test.mjs
   ['llms.txt#7e56270521', 'no-scope'], // **Light DOM:** hoisted to the document once per class, inside `@scope (tag-name) { … }`, w
   ['llms.txt#bc2964b69a', 'unwired-styles'], // Omit the wiring and a component with `static styles` renders unstyled — core warns once, i
   ['llms.txt#08c76e5a7f', 'slot-attributes'], // Development builds warn, naming the attribute. - A node added AFTER the first render joins
@@ -186,6 +190,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#084ad57ff0', 'not a promise: a heading; the next sentence is entered'], // ### A template committed into the wrong namespace is named
   ['packages/renderer/README.md#e10a13490e', 'wrong-namespace'], // Without it, **development names it**, once per host namespace, host name, content namespac
   ['packages/renderer/README.md#bee0271268', 'wrong-namespace'], // It is silent where the content is correct: inside `<foreignObject>`, `<desc>` and `<title>
+  ['packages/lite/README.md#a5ce40a492', 'wrong-namespace'], // lite's SVG and MathML paragraph (2026-11-18), tests/lite-namespaces.test.mjs
   ['packages/renderer/README.md#af7465ba0c', 'not a promise: a measurement'], // **Never mix it with `@verajs/renderer` in one app** — that loads two renderers with two te
   ['packages/renderer/README.md#f3d555ed7b', 'pinned by tests/renderer-profiler.test.mjs: the report\'s own text, not a diagnostic'], // `formatReport` says so when it observed nothing, because a zero report is otherwise indist
   ['packages/renderer/README.md#78e9e20a99', 'not a promise: error routing of a throwing claim (the ref rule), not a message'], // **`hold()` is not teardown** … A throwing `create`, `mount` or `unmount` is reported, never raised

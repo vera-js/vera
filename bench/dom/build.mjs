@@ -120,8 +120,17 @@ const out = await esbuild.build({
 const veraInputs = Object.keys(out.metafile.inputs).map((path) => realpathSync(join(process.cwd(), path))).filter((path) => /\/packages\/[^/]+\/dist\//.test(path));
 const foreign = veraInputs.filter((path) => !path.startsWith(veraTree + '/'));
 if (foreign.length) throw new Error(`bench build: Vera modules from outside ${veraTree}: ${foreign.join(', ')}`);
-const cores = veraInputs.filter((path) => /\/packages\/core\/dist\//.test(path));
+/**
+ * Core's core exactly once. `@verajs/lite` (its own package since 2026-11-17) shares no state with core by design (no
+ * registry, no store), so one beside core is a page loading two products, not core split in two; it is still held to at
+ * most once.
+ */
+const cores = veraInputs.filter((path) => /\/packages\/core\/dist\/(development\/)?vera\.(min\.)?js$/.test(path));
 if (cores.length !== 1) throw new Error(`bench build: ${cores.length} copies of core in the bundle (${cores.join(', ')})`);
+const lites = veraInputs.filter((path) => /\/packages\/lite\/dist\/(development\/)?vera-lite\.(min\.)?js$/.test(path));
+if (lites.length > 1) throw new Error(`bench build: ${lites.length} copies of @verajs/lite in the bundle (${lites.join(', ')})`);
+const strays = veraInputs.filter((path) => /\/packages\/core\/dist\//.test(path) && !/\/vera\.(min\.)?js$/.test(path));
+if (strays.length) throw new Error(`bench build: core modules that are no entry: ${strays.join(', ')}`);
 console.log(`  vera from ${veraTree}: core ${cores[0].slice(veraTree.length + 1)}, ${veraInputs.length} Vera modules`);
 
 const code = out.outputFiles[0].text;

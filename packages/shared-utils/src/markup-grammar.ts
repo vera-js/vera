@@ -9,6 +9,11 @@ import * as SHARED from './diagnostics.js';
  * nature: nothing throws, the page renders, and the DOM simply has a different shape than the
  * source said. See `VOID_ELEMENTS` below for the two measured instances.
  *
+ * **Never `exec` a shared `/g` regex in a loop whose body can re-enter it** (a nested render, a recursive compose or
+ * serialize, a callback): the inner use resets `lastIndex`, and the outer loop restarts or skips. Setting `lastIndex`
+ * before every `exec` is not enough. Measured 2026-11-17: the static tier's composer re-entered its marker regex through
+ * a nested template and composed forever; split once, or use a fresh regex per walk.
+ *
  * **Why here.** These sets had grown copies in `@verajs/ssr`, `@verajs/cms` and (as a regex) the
  * renderer, all agreeing by luck rather than by construction. This file is the one source for
  * every package that can take a build-time import — `@verajs/shared-utils` is private and inlined,
@@ -172,6 +177,17 @@ export const dataBlock = (openTag: string) => {
     }
   return false;
 };
+
+/**
+ * **A raw-text element's composed text, unable to end its element** — the rule every side writes, byte for byte (the
+ * server's `styleHole` and JSON rule, the renderer, hydration's comparison, lite, static): in a style each `</style`
+ * (any case) as `<\/style` (the same CSS), in a JSON data block every `<` as `\u003c` (the same JSON). A style's or a
+ * JSON block's text is serialized VERBATIM (BROWSER-LEDGER), so written as composed, a value became markup once the page
+ * was saved from the DOM and parsed again. Applied to the COMPOSED text: a closer can form across a hole. Idempotent —
+ * neither form leaves what it replaces.
+ */
+export const closedRawText = (text: string, json: boolean) =>
+  json ? text.replace(/</g, '\\u003c') : text.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
  * **The properties that replace an element's whole content** — a binding to one owns the element's children, so it

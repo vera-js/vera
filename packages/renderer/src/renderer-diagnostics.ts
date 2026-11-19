@@ -47,10 +47,6 @@ export const PROSE: Record<string, Prose> = {
     `a binding inside <${tag}> is never rendered — the parser reads its content as text whole, and <${tag}> is obsolete.`,
     'Use <pre> for preformatted text.',
   ],
-  'unfinished-tag': () => [
-    'a template cannot end inside a tag — the parser drops an unfinished tag.',
-    'Close the tag inside the template.',
-  ],
   'inert-binding': (position) => [
     `the value at position ${position} sits inside a nested <template>'s content — inert markup that is never rendered — so it is ignored (and the server ignores it too).`,
     'Render into the live tree instead.',
@@ -62,10 +58,6 @@ export const PROSE: Record<string, Prose> = {
   'table-binding': () => [
     'a binding sits directly inside <table>, where the HTML parser inserts a <tbody> that a client render does not. The same template then renders as `table > tr` and parses as `table > tbody > tr`, so `table > tr` selectors match on only one path and hydration rebuilds this container instead of adopting it.',
     'Write the section explicitly — `<table><tbody>${rows}</tbody></table>` — and every path agrees.',
-  ],
-  'wrong-namespace': (tag, built, host, advice) => [
-    `<${tag}> was built as ${built} and placed inside <${host}>, where it will not render.`,
-    advice,
   ],
   /* ── values (said as they happen) ── */
   'boolean-child': (value) => [

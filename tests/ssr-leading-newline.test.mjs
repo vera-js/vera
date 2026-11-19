@@ -118,9 +118,10 @@ test('the control: the parser does take a leading line feed, so the rows above c
   assert.equal(parsedText('<pre>&#10;abc</pre>', 'pre'), 'abc');
 });
 
+/** A JSON block's composed text has every `<` as `\u003c`, statics too (2026-11-18): the `<pre>` is no element either way. */
 test('a <script> holding a <pre> is raw text: nothing is added (a JSON data block, the one script a value enters)', () => {
   const draw = () => html`<script type="application/json"><pre>${'\nx'}</script>`;
-  assert.equal(serializeTemplate(draw()), '<script type="application/json"><pre>\nx</script>');
+  assert.equal(serializeTemplate(draw()), '<script type="application/json">\\u003cpre>\nx</script>');
 });
 
 test('the added line feed lands before a <select> value is resolved', () => {

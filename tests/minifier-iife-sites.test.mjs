@@ -23,6 +23,15 @@ const PINS = {
   'packages/cms/dist/vera-cms-node.min.js': 9,
   'packages/cms/dist/vera-cms-publish.min.js': 2,
   'packages/core/dist/vera.min.js': 12,
+  /** The lite tier: every site COLD, on `instantiate`'s per-call-site cache miss — `prepare`, and the forged-template check
+   *  `genuine` → `literal` (3; 2026-11-17, the parser-judged rebuild; static retired). The hot calls (commit, the
+   *  attribute checks, retire, `patch` in `render`) are kept calls by annotation. */
+  'packages/lite/dist/vera-lite.min.js': 3,
+  /**
+   * The static tier (2026-11-18): it renders ONCE per element, so it has no hot path — counted so a new inlined function
+   * is seen. 1: `renderInto`, `connectedCallback`'s one call, pasted in (run once per element).
+   */
+  'packages/static/dist/vera-static.min.js': 1,
   'packages/directives/dist/vera-directives-core.min.js': 13,
   'packages/directives/dist/vera-directives-expressions.min.js': 0,
   'packages/directives/dist/vera-directives-interactions.min.js': 1,
@@ -58,7 +67,7 @@ const PINS = {
   'packages/router/dist/vera-router.min.js': 12,
   /** 3 → 4 (D29, 2026-11-12): warnOnce/errorOnce are built by one factory, inlined here. A private bundle (inlined into
    *  every package, never shipped), and in every shipped bundle the factory reaches development code only. */
-  'packages/shared-utils/dist/vera-shared-utils.min.js': 4,
+  'packages/shared-utils/dist/vera-shared-utils.min.js': 9, // 4 → 8 (2026-11-17): define's four development checks moved here from core (checkDefine, checkMethods, checkProps, checkAttributes, one caller each, inlined in this private bundle only; core and lite drop them in production); 8 → 9 (2026-11-18): the wrong-namespace check moved here from the renderer (foreignHost, one caller, checkForeign; development-only in every consumer, so no shipped production bundle carries it)
   'packages/store/dist/vera-store-collections.min.js': 1,
   'packages/store/dist/vera-store-resource.min.js': 0,
   'packages/store/dist/vera-store.min.js': 1,

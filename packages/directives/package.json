@@ -14,6 +14,10 @@
   },
   "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
+  "peerDependencies": {
+    "@verajs/core": ">=0.4.1",
+    "@verajs/motion": ">=0.0.0"
+  },
   "main": "./dist/vera-directives.min.js",
   "types": "./dist/development/vera-directives.d.ts",
   "type": "module",

@@ -767,6 +767,7 @@ be marked `patch` deliberately. Ordinary semver resumes at `1.0.0`. The loop:
 
 ```sh
 npx changeset version
+npm install --package-lock-only             # the lockfile follows the new versions (node_modules untouched)
 git add -A && git commit -m "release: …"    # changeset version only edits the working tree
 node scripts/tag-release.mjs                # tags HEAD — so it must run AFTER the commit
 git push --follow-tags
@@ -774,7 +775,9 @@ git push --follow-tags
 
 Both ordering rules are load-bearing and both were wrong here at some point. Skipping the commit
 publishes nothing while CI reports success; tagging before it points every tag at the pre-bump
-commit. Full walkthrough in `docs/RELEASING.md`.
+commit. And regenerate the lockfile after versioning (Brian approved, 2026-11-18): `changeset version` bumps each
+`package.json` and not `package-lock.json`, and `tests/lockfile-workspaces.test.mjs` refuses a release commit whose
+lockfile lags. Full walkthrough in `docs/RELEASING.md`.
 
 CI publishes whatever main has that npm does not, authenticated by npm **Trusted Publishing**
 (OIDC). Three invariants that silently break publishing if violated:

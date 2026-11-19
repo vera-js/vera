@@ -238,17 +238,6 @@ export interface InitOptions extends VeraInitOptions {
 }
 /** `define`'s options: the tag, then everything `init` takes but the host (one object per tag, shared by its instances). */
 export type DefineOptions = Omit<InitOptions, 'host'> & { tag: string };
-/** `define`'s `methods`: functions only, installed on the generated prototype (an accessor is a prop's job). */
-export type Methods = Record<string, (...args: never[]) => unknown>;
-/** `data-count` → `dataCount`: the prop an observed attribute arrives as. */
-export type Camel<S extends string> = S extends `${infer H}-${infer T}` ? `${H}${Capitalize<Camel<T>>}` : S;
-/**
- * The props once the observed attributes join them: each attribute is a `string | null` prop under its camel name, and a
- * declared prop it SHARES widens to its default's type `| string | null` — the platform writes strings, so the type says so.
- */
-export type WithAttributes<P, A extends readonly string[]> = Omit<P, Camel<A[number]>> & {
-  [K in A[number] as Camel<K>]: (Camel<K> extends keyof P ? P[Camel<K>] : never) | string | null;
-};
 /** The class `define` returns: its instances are components carrying the methods. */
 export type DefinedClass<M> = { new (): ComponentElement & M; prototype: ComponentElement & M };
 /**
@@ -257,26 +246,13 @@ export type DefinedClass<M> = { new (): ComponentElement & M; prototype: Compone
  */
 export type Setup = (host: ComponentElement) => unknown;
 
-/** Which kind of template a result is, numbered as lit numbers them: 1 html, 2 svg, 3 mathml. */
-export type ResultType = 1 | 2 | 3;
-
-/**
- * The object core's `html`, `svg` and `mathml` tags produce. Structurally compatible with lit-html's
- * `TemplateResult`, so a lit renderer consumes it directly.
- */
-export type TemplateResult<T extends ResultType = 1> = {
-  _$litType$: T;
-  strings: TemplateStringsArray;
-  values: unknown[];
-};
+/** Types `@verajs/lite` speaks too: shared-types', re-exported, so core's public surface is unchanged. */
+export type { Camel, Methods, ResultType, Signal, TemplateResult, WithAttributes } from '@verajs/shared-types';
 
 /** `effect()`'s options (2026-10-22): when it runs, its order within a flush, and an owner that is not the component being set up. */
 export type EffectOptions = { timing?: 'layout' | 'sync'; priority?: number; owner?: object };
 /** What `effect()` returns: `run()` runs it now; `stop()` ends it for good (its cleanup runs once). */
 export type Effect = { run(): void; stop(): void };
-
-/** What `signal()` returns: one value, read and written as `.value`. */
-export type Signal<T> = { value: T };
 /** `signal`'s one option: `{ deep: true }` holds the value in a store, so mutating inside it notifies too. */
 export type DeepOption = { deep?: boolean };
 

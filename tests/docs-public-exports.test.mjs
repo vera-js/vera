@@ -31,6 +31,8 @@ globalThis.cancelAnimationFrame = (id) => dom.window.clearTimeout(id);
 /** Every published entry point, by the specifier a consumer writes. */
 const PACKAGES = {
   '@verajs/core': 'core',
+  '@verajs/lite': 'lite',
+  '@verajs/static': 'static',
   '@verajs/renderer': 'renderer',
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/native-elements': 'renderer/native-elements',

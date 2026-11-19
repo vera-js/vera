@@ -26,6 +26,20 @@ export const tagCalled: Prose = (tag, received, example) => [
   `expected a template literal and received ${received}.`,
   `It is a tagged template — write ${tag}\`${example}\`, not ${tag}('${example}').`,
 ];
+/**
+ * A template in a text-only element (`<style>`, a JSON data block, `<title>`, `<textarea>`): its content is text. Lite
+ * refuses it, and so does the renderer in a style or JSON block (the server: `ssr-template-in-text`); in a `<title>` or
+ * `<textarea>` the renderer places it, as it always has, and says so in development only. A list there is joined.
+ */
+export const templateInText: Prose = () => [
+  'a template inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`) is never shown as markup — its content is text.',
+  'Render a string there; a list of strings is joined.',
+];
+/** A template that ends inside a tag: the renderer refuses it in development, the lite tier in every build. */
+export const unfinishedTag: Prose = () => [
+  'a template cannot end inside a tag — the parser drops an unfinished tag.',
+  'Close the tag inside the template.',
+];
 /** core's props adoption on an `init()` element, and the renderer's on any other element. */
 export const getterOnlyProp: Prose = (key) => [
   `received a bound property \`.${key}\` (or \`!${key}\`), but its class declares \`${key}\` as a getter with no setter — the value cannot be delivered and the binding is ignored.`,
@@ -79,6 +93,11 @@ export const nameExpression: Prose = (written, given) => [
   `an attribute name cannot be an expression — \`${written}\` is read by the parser before any value exists.`,
   `A name known only at runtime is a spread: \`\${spread({ [\`${written}\`]: ${given} })}\` (from @verajs/renderer/spread).`,
 ];
+/** The renderer and lite (`namespaces.ts`): an element placed where its namespace does not render. `advice` is built there. */
+export const wrongNamespace: Prose = (tag, built, host, advice) => [
+  `<${tag}> was built as ${built} and placed inside <${host}>, where it will not render.`,
+  advice,
+];
 /** The renderer (and, ruled 2026-10-09, @verajs/ssr): data shaped like a template, not made by `html`. */
 export const forgedTemplate: Prose = () => [
   'is shaped like a template but was not made by html`` — rendered as text.',
@@ -119,4 +138,72 @@ export const styleObject: Prose = (example) => [
 export const unknownOption: Prose = (key, list) => [
   `\`${key}\` is not an option, so it was ignored.`,
   `The options are ${list}.`,
+];
+
+/* ── `define`'s checks (define-checks.ts) and the setup's result: said by `@verajs/core` and `@verajs/lite` (moved from core's table, 2026-11-17) ── */
+export const defineAttributeReflected: Prose = (prop) => [
+    `observes an attribute whose prop, \`${prop}\`, is one the platform's element already REFLECTS — this tag's accessor replaces it, so setting \`el.${prop}\` no longer does what the platform's does (it no longer writes the attribute).`,
+    'Observe it only if the component owns that attribute; otherwise read it in the render with `host.getAttribute(…)`.',
+];
+export const defineAttributeType: Prose = (prop, type) => [
+    `shares the prop \`${prop}\`, whose default is a ${type} — and the attribute arrives as a STRING, so the prop changes type the moment it appears.`,
+    'Give the prop a string (or null) default, and convert in the render; or keep the attribute and the prop under different names.',
+];
+export const defineAttributes: Prose = (received) => [
+    `expected an array of attribute names and received ${received}.`,
+    "List them: `attributes: ['label', 'data-count']` — each arrives as a prop (`label`, `dataCount`).",
+];
+export const defineMethodAdopted: Prose = () => [
+    'an `adoptedCallback` costs every element of this tag its creation (measured +7.4% on create10k), and it is installed.',
+    'Keep it only if moving elements between documents needs it.',
+];
+export const defineMethodIgnored: Prose = (name) => [
+    `\`${name}\` is core's own on a define-made class, so this one is never installed (in any build).`,
+    name === 'constructor'
+      ? 'A setup is where per-instance work goes: `define(tag, (host) => { … })`.'
+      : 'Put connect-time work in the setup; for work on removal, a `disconnectedCallback` in methods runs as the teardown hook.',
+];
+export const defineMethodNotFunction: Prose = () => [
+    'is not a function, so it is installed as a plain value shared by every instance — and a getter ran ONCE, here.',
+    'Methods are functions; a value that changes per element is a prop (`props: { name: default }`).',
+];
+export const defineMethodUnobserved: Prose = () => [
+    'never fires: the class observes no attributes, and it is installed anyway.',
+    "Declare them: `define({ tag, attributes: ['label'] }, …)` — each then arrives as a prop.",
+];
+export const definePropMethod: Prose = (name) => [
+    `\`${name}\` is also a method, and the prop wins (it is installed after the methods), in every build.`,
+    'Give the method or the prop another name.',
+];
+export const definePropSharedDefault: Prose = () => [
+    'this default is an object that cannot be copied per element (a Set, a Map, a class instance), so EVERY element of the tag shares this one — a change through one shows in all.',
+    'Declare it `null` and create it in the setup (`props: { selected: null }`, then `host.selected = new Set()`), or pass it in; arrays and plain objects are copied per element.',
+];
+export const definePropsNotObject: Prose = (received) => [
+    `expected an object of names and their defaults and received ${received}, so no prop is declared.`,
+    "Name each prop with its default: `props: { heading: '', items: [] }`.",
+];
+export const defineProtoKey: Prose = (kind) => [
+    `is skipped, in every build: written onto the ${kind === 'prop' ? 'props record' : 'class prototype'} it would replace a prototype instead of adding a ${kind}.`,
+    'Rename the key. An own `__proto__` comes from `JSON.parse` or `Object.defineProperty`, never from an object literal.',
+];
+export const defineSetup: Prose = (received) => [
+    `the second argument is the SETUP, a function, and received ${received}.`,
+    'Pass the setup after the tag or the options: `define(\'x-card\', (host) => () => html`…`)`.',
+];
+export const defineShadows: Prose = (name) => [
+    `replaces the platform's \`${name}\` for every user of these elements — scripts, libraries and the browser's own callers — and it is installed.`,
+    'Give it a name of its own, unless replacing the platform member is the point.',
+];
+export const defineTag: Prose = (received) => [
+    `expected a custom element name — a string with a hyphen, not at the start — and received ${received}.`,
+    "Name it the way the platform requires: `define('x-card', setup)` or `define({ tag: 'x-card' }, setup)`.",
+];
+export const defineTwice: Prose = (tag) => [
+    `<${tag}> is already defined; the platform refuses a second definition of a tag and throws next.`,
+    'Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define.',
+];
+export const setupReturnedValue: Prose = (kind) => [
+    `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
+    'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
 ];

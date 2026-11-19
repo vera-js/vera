@@ -34,9 +34,13 @@ import {
   SCRIPT_URL_ITEM,
   URL_SINK,
   dataBlock,
+  JSON_BLOCK,
+  closedRawText,
   diagnostic,
   dispatch,
   hasWarned,
+  checkForeign,
+  landing,
   misuse,
   SHARED,
   warnOnce,
@@ -46,7 +50,7 @@ import { PROSE } from './renderer-diagnostics.js';
 import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
-import { PROTOCOL, IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
+import { PROTOCOL, IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, RAW_STYLE, RAW_JSON, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
 
 export type { TemplateResult } from './types.js';
 
@@ -280,8 +284,8 @@ class Template {
     let regex = TEXT_END;
     let rawEnd: RegExp | undefined;
     /**
-     * Development: where the start tag of the raw-text element being opened begins (its string, its offset), its name,
-     * and, once its `>` enters raw text, that start tag as written (`MARKER` where a hole sat in it) — the tag that OPENED
+     * Where the start tag of the raw-text element being opened begins (its string, its offset), its name, and, once its
+     * `>` enters raw text, that start tag as written — in every build, since a script hole is refused in every build (`MARKER` where a hole sat in it) — the tag that OPENED
      * the raw text a hole sits in, never one found by searching back (a `<script…>` inside a script's text is no tag).
      */
     let rawOpen: [number, number] | undefined;
@@ -308,7 +312,11 @@ class Template {
           else if (match[1] !== undefined) regex = COMMENT2_END;
           else {
             if (match[2] !== undefined && RAW_TEXT_TAGS.test(match[2])) {
-              rawEnd = new RegExp(`</${match[2]}`, 'gi');
+              /**
+               * The end tag needs the tokenizer's boundary after its name (whitespace, `/`, `>`): `</stylex>` ends
+               * nothing. Or the string's end: `</style${x}` is a tag-name position (refused in development).
+               */
+              rawEnd = new RegExp(`</${match[2]}(?=[\\t\\n\\f\\r />]|$)`, 'gi');
               if (__DEV__) {
                 rawOpen = [i, match.index];
                 rawName = match[2].toLowerCase();
@@ -352,15 +360,15 @@ class Template {
        */
       if (__DEV__ && i === count) {
         if (regex !== TEXT_END && regex !== rawEnd && regex !== COMMENT_END && regex !== COMMENT2_END)
-          throw new Error(misuse('renderer', 'unfinished-tag', __DEV__ && PROSE['unfinished-tag']()));
+          throw new Error(misuse('renderer', 'unfinished-tag', __DEV__ && SHARED.unfinishedTag()));
         break;
       }
       /**
-       * Development: a value in a `<script>` is code, so a script hole is refused unless the script is a JSON data block
-       * (`dataBlock`, on the start tag that opened it). Silent in production, where it is dead text in the client (a
-       * template's script never runs); the SERVER refuses it in every build, where a served script runs.
+       * Development: a script hole is refused unless the script is a JSON data block, judged exactly as the server judges
+       * it (`dataBlock`, on the start tag as written that opened it). PRODUCTION refuses the same holes after the parse,
+       * below — cheaper (+35 B against +261 B for this scan's tracking), reading the type the parser decoded.
        */
-      if (__DEV__ && regex === rawEnd && rawName === 'script' && !dataBlock(rawTag))
+      if (__DEV__ && regex === rawEnd && rawName === 'script' && (!dataBlock(rawTag) || rawTag.includes(MARKER)))
         throw new Error(misuse('renderer', 'script-hole', __DEV__ && PROSE['script-hole']()));
       if (regex === TEXT_END) {
         markup += `${s}<?${MARKER}${i}>`;
@@ -515,8 +523,33 @@ class Template {
       }
       /** A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. */
       if (RAW_TEXT_TAGS.test(el.localName) && el.textContent!.includes(MARKER)) {
+        /**
+         * **A script hole is refused in EVERY build unless the script is an HTML JSON data block** (Brian, 2026-11-18).
+         * A template's HTML script never runs on the live page, but a page saved from the DOM and served again (an
+         * editor's publish) runs it; an SVG `<script>` from a template runs in Chromium and WebKit (BROWSER-LEDGER), so
+         * it is refused even with a JSON type. `tagName` is upper case exactly for an HTML element (in an HTML document).
+         * The type is read as the parser decoded it, so `application&#47;json` passes here where the server (and the
+         * development scan, above) refuses it: a genuine JSON block, which never runs — the one recorded difference. A
+         * script carrying any binding of its own (`nodes` holds it: `?type`, `.type`, a spread) is refused too: it could
+         * change the type after this judged it, and a saved page would carry the value as code.
+         */
+        if (el.tagName === 'script' || (el.tagName === 'SCRIPT' && (!JSON_BLOCK.test(el.getAttribute('type') ?? '') || nodes.includes(el))))
+          throw new Error(misuse('renderer', 'script-hole', __DEV__ && PROSE['script-hole']()));
         const pieces = el.textContent!.split(MARKER);
         el.textContent = '';
+        /**
+         * An HTML style or JSON block (the script check above let only that script through): its first value owns the
+         * element's whole text (`RAW_STYLE`/`RAW_JSON`), its statics the even pieces; the values after it are consumed.
+         */
+        if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
+          const first = +pieces[1]!;
+          nodes[first] = el;
+          kinds[first] = el.tagName === 'STYLE' ? RAW_STYLE : RAW_JSON;
+          /** One value and no static text (`<style>${css}</style>`): no statics, so an unchanged value returns at once. */
+          statics[first] = pieces.length === 3 && pieces[0] === '' && pieces[2] === '' ? null : pieces.filter((_, p) => p % 2 === 0);
+          for (let p = 3; p < pieces.length; p += 2) kinds[+pieces[p]!] = IGNORED;
+          continue;
+        }
         for (let p = 0; p < pieces.length; p++) {
           if (p % 2 === 0) {
             if (pieces[p]) el.append(pieces[p]);
@@ -646,6 +679,35 @@ const getTemplate = (result: TemplateResult) => {
 
 /** `${value}` rather than `String(value)`: a symbol throws here as it does at every other sink. */
 const toText = (value: unknown) => (value == null ? '' : `${value}`);
+
+/**
+ * **A value in a `<style>` or JSON block, as text** — the server's rule: nothing for `null`/`undefined`, a list its items'
+ * text (nested lists flattened by the same rule), a template refused, anything else `String`. Cold: reached only when
+ * such a text changes. One function, nothing single-use beside it (the minifier would paste it in as an IIFE).
+ */
+const textOf = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    let text = '';
+    for (let i = 0; i < value.length; i++) text += textOf(value[i]);
+    return text;
+  }
+  /** A tagged literal's template (strings owning `raw`; a JSON-shaped forgery is not one) is refused, as the server refuses it. */
+  const strings = typeof value === 'object' && value !== null ? (value as TemplateResult).strings : undefined;
+  if (Array.isArray(strings) && Object.hasOwn(strings, 'raw'))
+    throw new Error(misuse('renderer', 'template-in-text', __DEV__ && SHARED.templateInText()));
+  return toText(value);
+};
+
+/**
+ * **A template placed in an HTML `<title>` or `<textarea>` is said, in development only** (Brian, 2026-11-18). Its elements
+ * are never shown there (the element shows its text), and a page saved from the DOM reads them back as text. Nothing
+ * unsafe happens, so production carries nothing: the renderer places it, as it always has. (The server refuses it —
+ * `ssr-template-in-text` — because there a template's markup could END the element; an SVG `title` is markup.)
+ */
+const TEXT_ONLY = /^(?:TITLE|TEXTAREA)$/;
+/** Said once per element name — a list of templates in one `<textarea>` speaks once, not per item. */
+const sayTemplateInText = (host: Node) =>
+  warnOnce('renderer', `<${(host as Element).localName}>`, 'template-in-text', __DEV__ && (() => SHARED.templateInText()), (host as Element).localName);
 
 /**
  * The record an `@event`, element-position or custom-element `.prop` binding holds in its node slot.
@@ -799,67 +861,13 @@ const warnBooleanChild = (value: boolean) =>
   console.warn(diagnostic('renderer', 'a child position', 'boolean-child', __DEV__ && PROSE['boolean-child'](String(value))));
 
 /**
- * **Content in the wrong namespace does not render** — `` html`<path/>` `` handed into an `<svg>` builds an HTML
- * `<path>`, which draws nothing and says nothing. Development only, at each insert: the host is read from where the
- * content LANDS, and a mismatch is named once per host and content (a toggled subtree would otherwise warn every
- * frame). Silent where HTML is correct — integration points (`<foreignObject>`, `<desc>`, `<title>`, MathML's token
- * elements, an HTML-encoded `<annotation-xml>`) and `<style>`/`<script>`, which never draw.
+ * **Content in the wrong namespace does not render**: development names it at each insert (shared-utils'
+ * `checkForeign`, which `@verajs/lite` says too); this renderer's other way to the right namespace is the namespaces
+ * module, so it is the renderer's `retag` sentence.
  */
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
-const foreignHost = (parent: Node): string | null => {
-  const element = parent as Element;
-  const namespace = element.namespaceURI;
-  const svg = namespace === SVG_NS;
-  if (!svg && namespace !== MATHML_NS) return null;
-  const name = element.localName;
-  if (svg) return name === 'foreignObject' || name === 'desc' || name === 'title' ? null : name;
-  if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') return null;
-  if (name === 'annotation-xml') {
-    /** The ATTRIBUTE — what the parser reads; `image/svg+xml` is MathML's own spelling for an SVG annotation. */
-    const encoding = element.getAttribute('encoding')?.toLowerCase();
-    return encoding === 'text/html' || encoding === 'application/xhtml+xml' || encoding === 'image/svg+xml' ? null : name;
-  }
-  return name;
-};
-/** The nodes an insert is about to place — a fragment empties as it is inserted, so they are read first. */
-const landing = (node: Node): Node[] => (node.nodeType === 11 ? [...node.childNodes] : [node]);
-const checkForeign = (parent: Node, nodes: Node[]) => {
-  const host = foreignHost(parent);
-  if (host === null) return;
-  const hostNamespace = (parent as Element).namespaceURI;
-  for (const node of nodes) {
-    if (node.nodeType !== 1) continue;
-    const element = node as Element;
-    if (element.namespaceURI === hostNamespace) continue;
-    const tag = element.localName;
-    if (tag === 'style' || tag === 'script') continue;
-    /** The parser itself opens SVG content for an `<svg>` inside `<annotation-xml>`, whatever the encoding. */
-    if (host === 'annotation-xml' && tag === 'svg' && element.namespaceURI === SVG_NS) continue;
-    const built = element.namespaceURI === MATHML_NS ? 'MathML' : element.namespaceURI === SVG_NS ? 'SVG' : 'HTML';
-    /** The island and its placement are chosen by the HOST's namespace; the encoding follows the CONTENT. */
-    const island =
-      hostNamespace === MATHML_NS
-        ? `<mtext>, or <annotation-xml encoding="${built === 'SVG' ? 'image/svg+xml' : 'text/html'}">, ` +
-          'inside a MathML container such as <mrow> or <math> rather than inside a token element'
-        : 'a <foreignObject>, which has to sit in an element whose content model accepts one — a container such as ' +
-          '<g> or <svg>, not a text, clipping, gradient or filter element';
-    /** Keyed by host namespace AND content namespace: `<a>` is a real element in all three. */
-    const seen = `${hostNamespace}${host}>${element.namespaceURI}${tag}`;
-    /** `hasWarned` first: the advice below is built only for a case not yet said. */
-    if (hasWarned('wrong-namespace', seen)) continue;
-    const advice =
-      built === 'HTML'
-        ? `If it is meant to be an SVG or MathML element, the template holding it needs the svg\`…\` or mathml\`…\` tag ` +
-          `at the call site — or wire @verajs/renderer/namespaces, which parses a template where it lands (compiled JSX ` +
-          `wires it itself). A template built before it was wired keeps the namespace it was first built in. If it is ` +
-          `genuinely HTML (a <div>, a custom element), it belongs in ${island}: tagging it will not help, and a custom ` +
-          `element only upgrades in the HTML namespace.`
-        : `The template's tag is already right — these two namespaces cannot nest directly. Put the ` +
-          `${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}.`;
-    warnOnce('renderer', `<${tag}>`, 'wrong-namespace', __DEV__ && (() => PROSE['wrong-namespace'](tag, built, host, advice)), seen);
-  }
-};
+const RETAG =
+  ` — or wire @verajs/renderer/namespaces, which parses a template where it lands (compiled JSX ` +
+  `wires it itself). A template built before it was wired keeps the namespace it was first built in`;
 
 /**
  * **The profiler's hook** (`@verajs/renderer/profiler`, a development-only entry): told of each same-shape update, each
@@ -928,11 +936,31 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
    * One test for the kinds decided before anything is computed — the same one comparison `REFUSED` alone cost. A
    * `selectedIndex` has no statics and no URL: queued, as a select's value is. (Hydration never commits a selection:
    * the server marked the option, and whatever the user chose before the script arrived stands.)
+   *
+   * A style's or JSON block's text (`RAW_STYLE`/`RAW_JSON`): composed, compared with the text last composed, and only
+   * when it changed escaped and written whole — the server's bytes (`@verajs/ssr`'s `styleHole` and JSON rule).
    */
   if (kind >= REFUSED) {
     if (kind === SELECT_INDEX) {
       bindings[slot + 1] = values[i];
       (pendingSelects ??= []).push(LATER, [node, values[i]]);
+    } else if (kind !== REFUSED) {
+      const parts = template.$J[i];
+      let text: string;
+      /**
+       * Every render reaches here (these kinds sit past `LIVE`), so an unchanged text returns before any write: a lone
+       * value by identity, as a plain text hole is skipped; statics and values by the composed text.
+       */
+      if (parts === null) {
+        if (values[i] === committed) return;
+        text = textOf((bindings[slot + 1] = values[i]));
+      } else {
+        text = parts[0]!;
+        for (let p = 1; p < parts.length; p++) text += textOf(values[i + p - 1]) + parts[p];
+        if (text === committed) return;
+        bindings[slot + 1] = text;
+      }
+      (node as Element).textContent = /*@__NOINLINE__*/ closedRawText(text, kind === RAW_JSON);
     }
     return;
   }
@@ -1195,7 +1223,7 @@ class ChildPart {
   _insert(node: Node) {
     const placed = __DEV__ ? landing(node) : undefined;
     (this.$w ?? this.$s!.parentNode!).insertBefore(node, this.$e);
-    if (__DEV__) checkForeign(this.$w ?? this.$s!.parentNode!, placed!);
+    if (__DEV__) checkForeign('renderer', this.$w ?? this.$s!.parentNode!, placed!, RETAG);
   }
 
   /**
@@ -1324,6 +1352,7 @@ class ChildPart {
       }
       if (this.$o !== EMPTY) this._clear();
       if (instance === undefined) {
+        if (__DEV__ && TEXT_ONLY.test(((this.$w ?? this.$s!.parentNode!) as Element).tagName)) sayTemplateInText(this.$w ?? this.$s!.parentNode!);
         let template = getTemplate(result);
         if (template.$X) template = resolved(template, this.$w ?? this.$s!.parentNode!);
         instance = instantiate(template, result, passDoc);
@@ -1385,12 +1414,13 @@ class ChildPart {
   /** Creates one list item before `ref`. */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
     if (value !== null && typeof value === 'object' && isTemplateResult(value)) {
+      if (__DEV__ && TEXT_ONLY.test((parent as Element).tagName)) sayTemplateInText(parent);
       let template = getTemplate(value);
       if (template.$X) template = resolved(template, parent);
       if (template.$R.nodeType === 1) {
         const instance = instantiate(template, value, passDoc);
         into(parent, ref).insertBefore(instance.$R, ref);
-        if (__DEV__) checkForeign(parent, [instance.$R]);
+        if (__DEV__) checkForeign('renderer', parent, [instance.$R], RETAG);
         instance.$k = value.key;
         /** Only a result marked `_$same$` (the keyed module marks its rows') records its identity. */
         if ((value as { _$same$?: unknown })._$same$ === 1) instance.$j = value;
