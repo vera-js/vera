@@ -311,3 +311,31 @@ defineLite({ tag: 'tier-persist', persist: 1 }, () => () => liteHtml`x`);
 liteSignal([], { deep: true });
 defineLite('tier-text', () => () => liteHtml`<p>${'text'}</p>`);
 defineLite('tier-none', () => {});
+
+/**
+ * **The smallest tier, `@verajs/static`**: the same `define` shape and generics, the host typed from the declared props,
+ * attributes and methods; what only core has (`persist`, a `ShadowRootInit`) refused by the types.
+ */
+import { define as defineStatic, html as staticHtml, svg as staticSvg, mathml as staticMathml } from '@verajs/static';
+import type { StaticElement } from '@verajs/static';
+
+const StaticCard = defineStatic(
+  { tag: 'static-card', shadow: 'open', props: { name: 'Ada', skills: [] as string[] }, attributes: ['data-role'] as const, methods: { label() { return this.name; } } },
+  (host) => {
+    const name: string = host.name;
+    const role: string | null = host.dataRole;
+    const label: string = host.label();
+    return () => staticHtml`<b>${name}${role}${label}${host.skills.length}</b>${staticSvg`<circle r="1"></circle>`}${staticMathml`<mi>x</mi>`}`;
+  }
+);
+const staticCard = new StaticCard();
+staticCard.skills = ['math'];
+// @ts-expect-error a declared string[] prop is not a number
+staticCard.skills = 1;
+const rendered: StaticElement = staticCard;
+void rendered;
+// @ts-expect-error `persist` is core's alone
+defineStatic({ tag: 'static-persist', persist: 1 }, () => () => staticHtml`x`);
+// @ts-expect-error a `ShadowRootInit` is core's alone
+defineStatic({ tag: 'static-init', shadow: { mode: 'open' } }, () => () => staticHtml`x`);
+defineStatic('static-text', () => () => staticHtml`<p>${'text'}</p>`);

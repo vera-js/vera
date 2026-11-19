@@ -25,10 +25,11 @@ measured in [size.md](size.md):
 | Vue | 22 | `@babel/helper-string-parser`, `@babel/helper-validator-identifier`, `@babel/parser`, `@babel/types`, +18 more |
 <!--/size:table.deps-->
 
-**All eleven published packages** declare no third-party dependency: `core`, `renderer`, `router`,
-`autoloader`, `inserts`, `jsx`, `ssr`, `store`, `styles`, `eslint-config` and `tsconfig`. The
-only entries in any `dependencies` field are first-party — `@verajs/inserts` for core, and
-`@verajs/core` for `store` — and the production bundles inline them.
+**All thirteen published packages** declare no third-party dependency: `core`, `lite`, `static`, `renderer`,
+`router`, `autoloader`, `inserts`, `jsx`, `ssr`, `store`, `styles`, `eslint-config` and `tsconfig`. Every
+entry in those fields is first-party: `dependencies` holds `@verajs/inserts` for core (its production bundle inlines
+it), and `peerDependencies` hold `@verajs/core` for `renderer`, `store` and `ssr`, plus `@verajs/styles` for `ssr`.
+`lite` and `static` declare none at all.
 
 Verify by enumerating rather than by list, since a list is what went stale here: this said "seven"
 from before `store` and `styles` were split out of core in 0.2.0, and the command below named
