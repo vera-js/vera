@@ -371,6 +371,12 @@ describe('R4: cross-window moves keep the component', () => {
       /** The move in already ran the panel's cleanup once (a cross-window move re-runs its effects): the release adds ONE. */
       const panelBefore = counts.panelClean;
       w.close();
+      /**
+       * Wait for the RELEASE, not a fixed time (2026-11-19): CI's Linux Firefox had not closed the pop-out 150 ms after
+       * `close()`, so the row read "not released yet" (CLAUDE.md: wait for the property rather than sampling an instant).
+       * A release that never comes still fails, once the ceiling passes.
+       */
+      for (let waited = 0; counts.panelClean - panelBefore < 1 && waited < 2000; waited += 25) await settle(25);
       await settle();
       const before = { ...counts };
       s.n = 2;
