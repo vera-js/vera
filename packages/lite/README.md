@@ -81,7 +81,9 @@ a wrapper as its template).
 `undefined` gets `undefined` (the platform's setter writes it as the text "undefined" in a field, as core does), and
 development says core's warnings in core's words — a boolean child that renders as a word (`boolean-child`), an attribute
 value that is not text (`attribute-value`), a handler that cannot listen (`not-a-listener`), a misspelled event
-(`event-name-typo`). Production carries none of the warnings.
+(`event-name-typo`). Production carries none of the warnings. One known difference, in the DOM's shape only: a hole that
+is its element's only content and went from a list to text to `null` ends holding only lite's position marker (a comment)
+where a fresh render holds an empty text node — the same text and the same rendering, a different node.
 
 **Moving up.** A component written for lite runs on `@verajs/core`: add `@verajs/core` and `@verajs/renderer`, change
 the import, and `wire([renderer])`. The refusals are the same in both: escaped text, no script URLs (in an attribute or

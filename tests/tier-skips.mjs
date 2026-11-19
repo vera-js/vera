@@ -106,7 +106,7 @@ export const TIERS = {
       "render-poisoned-values-fuzz": {},
       "render-update-fuzz": {
         "skip": {
-          "a sequence of updates ends where a fresh render of the last value starts": "L5 (for Brian): a sole hole that went list → text → null holds no empty text node where a fresh render does"
+          "a sequence of updates ends where a fresh render of the last value starts": "a known difference (lite README, Brian 2026-11-19): a sole hole that went list → text → null holds no empty text node where a fresh render does (it holds only its position marker, a comment, where a fresh render holds an empty text node) — the same text"
         },
         "allRefused": true
       },
