@@ -339,14 +339,10 @@ export const TIERS = {
       },
       "attribute-value-sinks": {
         "skip": {
-          "the three attribute sinks agree, shape for shape": "compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "a symbol is refused by every sink — the drift that started this": "compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "the diagnostic never throws, including on the shapes that break a naive guard": "[development] compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "the accepted set is CLOSED: primitives and the blessed list pass, everything else is named": "[development] compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "each complaint names what the value would BECOME, and what to write instead": "[development] compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "the same kind is reported once per binding — but a different kind still speaks": "[development] compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "a boolean child still renders, and development says so": "[development] compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)",
-          "the same boolean is reported once, and a different one still speaks": "[development] compares against `spread` (core's), or core's development attribute-value warnings, which static does not say (lite does since 2026-11-19; static: open, for Brian)"
+          "the three attribute sinks agree, shape for shape": "core-only: renderer/spread",
+          "a symbol is refused by every sink — the drift that started this": "core-only: renderer/spread",
+          "the accepted set is CLOSED: primitives and the blessed list pass, everything else is named": "[development] a function in an attribute is named `static-needs-renderer`, never `attribute-value`: static writes no function's source (decision 8, Brian 2026-11-19), so it says the binding that does",
+          "each complaint names what the value would BECOME, and what to write instead": "[development] a function in an attribute is named `static-needs-renderer`, never `attribute-value`: static writes no function's source (decision 8, Brian 2026-11-19), so it says the binding that does"
         }
       },
       "core-define": {
@@ -562,7 +558,7 @@ export const TIERS = {
       },
       "renderer-coded-warnings": {
         "skip": {
-          "boolean-child: false renders as the word and is named; the same value again is quiet; a flip speaks again": "[development] core's wording, or a warning about an update static never makes",
+          "boolean-child: false renders as the word and is named; the same value again is quiet; a flip speaks again": "[development] core's wording (`renderer:`); static says the same code as `static:` (tests/tier-parity-fixes.test.mjs)",
           "spread-unsafe-name: a key that cannot be written into markup is skipped and named": "core-only: renderer/spread",
           "keyed-duplicate-key: once per (list, key) — the same duplicate again is quiet, a new one speaks": "core-only: renderer/keyed"
         }

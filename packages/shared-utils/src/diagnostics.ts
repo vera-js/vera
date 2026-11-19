@@ -70,14 +70,15 @@ export const lateTemplateModule: Prose = () => [
   "a 'template' or 'element' module (namespaces, elements, slots) was wired after the renderer had already built templates — those never ask it, and keep rendering without it.",
   'Wire it beside the renderer, before the first render.',
 ];
-/** The renderer and spread (two bundles); @verajs/ssr refuses the same URLs silently today. */
+/** The renderer and spread (two bundles), `@verajs/lite` and `@verajs/static`; @verajs/ssr refuses the same URLs silently today. */
 export const scriptUrl: Prose = (name) => [
   `\`${name}\` was given a javascript: URL — refused, and the attribute removed.`,
   'A bound URL is data, and data must never become code.',
 ];
 /**
- * The renderer and spread: `kind` is what the value was (dev-values' `attributeValueKind`); `property` is the
- * emitter's own spelling of a property binding — a template's `.name=${value}`, a spread's `'.name': value`.
+ * The renderer and spread, `@verajs/lite` and `@verajs/static`: `kind` is what the value was (dev-values'
+ * `attributeValueKind`); `property` is the emitter's own spelling of a property binding — a template's
+ * `.name=${value}`, a spread's `'.name': value`.
  */
 export const attributeValue: Prose = (name, kind, property) => [
   `the attribute \`${name}\` was given ${kind}. An attribute value is a string and nothing else.`,
@@ -208,8 +209,8 @@ export const setupReturnedValue: Prose = (kind) => [
     'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',
 ];
 /**
- * **A boolean at a child position renders as the WORD** — said in development by `@verajs/renderer` and `@verajs/lite`
- * (moved from the renderer's table, 2026-11-19: lite says core's development diagnostics too).
+ * **A boolean at a child position renders as the WORD** — said in development by `@verajs/renderer`, `@verajs/lite` and
+ * `@verajs/static` (moved from the renderer's table, 2026-11-19: the small tiers say core's development diagnostics too).
  */
 export const booleanChild: Prose = (value) => [
     `a child position was given \`${value}\`, which renders as the word "${value}" — the usual cause is \`\${cond && …}\` with a false \`cond\`.`,

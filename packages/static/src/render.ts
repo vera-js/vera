@@ -21,7 +21,7 @@
  * is its text, as core writes it, and an unquoted value before `/>` keeps the slash out. A misread there changes only the
  * format: the judge decides safety.
  */
-import { INLINE_HANDLER, JSON_BLOCK, SCRIPT_URL_ITEM, SHARED, URL_SINK, diagnostic, misuse, warnOnce } from '@verajs/shared-utils';
+import { INLINE_HANDLER, JSON_BLOCK, SCRIPT_URL_ITEM, SHARED, URL_SINK, attributeValueKind, diagnostic, misuse, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import type { TemplateResult } from './types.js';
 
@@ -108,12 +108,65 @@ export const toMarkup = (value: unknown): string => {
   return encode(value);
 };
 
+/**
+ * Development: the markup so far ends inside a `<style>` or `<script>` (raw text, where core writes a boolean silently) or
+ * an element static refuses a value in (`NEVER`: the refusal says it).
+ */
+const IN_RAW_TEXT = /<(style|script|iframe|noscript|xmp|noembed|noframes|plaintext|template)\b(?:[^>"']|"[^"]*"|'[^']*')*>(?:(?!<\/\1)[^])*$/i;
+/**
+ * **Development: core's value warnings, in core's words** (2026-11-19: static says them as `@verajs/lite` does — the shared
+ * checks and `SHARED`'s prose; production carries none of it). Said as a value is WRITTEN, the one moment its kind is
+ * known (the judge sees only encoded text), and never where static already names the value (`static-needs-renderer`).
+ *
+ * A boolean in a child position renders as the word (`boolean-child`). Core says it in text, `<title>` and `<textarea>`,
+ * and not in a `<style>` or `<script>`, where it writes the word silently (`IN_RAW_TEXT`); an item of a list (any
+ * re-iterable: a one-shot generator is never read twice) is its hole's. Once per call site, hole and value — static draws
+ * once, so a card list of a thousand says it once, and the other boolean still speaks.
+ */
+const sayChild = (out: string, strings: TemplateStringsArray, at: number, value: unknown): void => {
+  if (typeof value === 'boolean') {
+    if (!IN_RAW_TEXT.test(out)) warnOnce('static', 'a child position', 'boolean-child', __DEV__ && (() => SHARED.booleanChild(String(value))), [strings, `${at} ${value}`]);
+  } else if (
+    value !== null &&
+    typeof value === 'object' &&
+    (value as Node).nodeType === undefined &&
+    typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' &&
+    (value as Iterable<unknown>)[Symbol.iterator]() !== value
+  )
+    for (const item of value as Iterable<unknown>) sayChild(out, strings, at, item);
+};
+/**
+ * Development: the markup so far ends where an attribute's value STARTS — its tag (group 1) and opening quote (group 2,
+ * empty when unquoted). Quote-aware, as `IN_VALUE`: a match is the start of the value `IN_VALUE` found.
+ */
+const VALUE_START = /<([a-zA-Z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*?[\s/][^\s"'>/=]+\s*=\s*(["']?)$/;
+/**
+ * Development: an attribute's WHOLE value that is not text (`attribute-value`) — a value beside other text is joined
+ * into a string, about which core says nothing. Once per tag, name and kind (`attributeValueKind` keeps core's key). Not
+ * for a value `attributeValue` names or drops (a binding's sigil, a function, `null`/`undefined`), and not for a script
+ * URL, which the judge removes and names (`script-url`, as core names only that).
+ */
+const sayAttribute = (out: string, next: string, name: string, value: unknown) => {
+  if (value == null || typeof value === 'function' || '.!@?'.includes(name[0]!)) return;
+  const start = VALUE_START.exec(out);
+  if (start === null || !(start[2] ? next.startsWith(start[2]) : /^(?:[\s>]|\/>)/.test(next))) return;
+  /** Converted a second time, in development only (production converts once, in `encode`); it throws only where `encode` would. */
+  if (URL_SINK.test(name) && SCRIPT_URL_ITEM.test(`${value as string}`)) return;
+  const kind = attributeValueKind(start[1]!, name, value);
+  if (kind !== null)
+    console.warn(diagnostic('static', `<${start[1]}>`, 'attribute-value', __DEV__ && SHARED.attributeValue(name, kind, `.${name}=\${value}\` in \`@verajs/lite\` or \`@verajs/core`)));
+};
+
 /** A template's markup: its statics, and each hole's value written by `toMarkup`, or as text in an attribute value. */
 const render = ({ strings, values }: TemplateResult): string => {
   let out = strings[0]!;
   for (let i = 1; i < strings.length; i++) {
     const value = values[i - 1];
     const attribute = IN_VALUE.exec(out);
+    if (__DEV__) {
+      if (attribute === null) sayChild(out, strings, i, value);
+      else sayAttribute(out, strings[i]!, attribute[1]!, value);
+    }
     /** In an attribute value a value is its text (an object or list as core writes it); an unquoted one before `/>` gets a space. */
     out += (attribute === null ? toMarkup(value) : attributeValue(attribute[1]!, value) + (attribute[2] !== undefined && strings[i]!.startsWith('/>') ? ' ' : '')) + strings[i]!;
   }
@@ -188,7 +241,11 @@ const judge = (parent: Node, strict: boolean): number => {
         }
         const value = attribute.value.replace(SENTINELS, '');
         /** Every URL name checked item by item (`;`-separated): a superset of the whole-URL check, so it over-refuses only. */
-        if (URL_SINK.test(attribute.name) && SCRIPT_URL_ITEM.test(value)) element.removeAttribute(attribute.name);
+        if (URL_SINK.test(attribute.name) && SCRIPT_URL_ITEM.test(value)) {
+          /** Development: core's words (`script-url`), once per tag, name and refused value. */
+          if (__DEV__) warnOnce('static', `<${name}>`, 'script-url', __DEV__ && (() => SHARED.scriptUrl(attribute.name)), `<${name}> ${attribute.name} ${value}`);
+          element.removeAttribute(attribute.name);
+        }
         /** `setAttribute`, not `attribute.value =`: the server's DOM hands out copies of its attributes (a browser's are live). */
         else element.setAttribute(attribute.name, value);
       }

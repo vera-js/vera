@@ -54,6 +54,7 @@ each value landed is judged from what the parser built — never guessed from th
 - A `javascript:` URL in a URL-bearing attribute (`href`, `src`, `action`, `formaction`, `xlink:href`, `data`, and an
   animation's `to`, `from`, `by`, `values`) is removed. **Every one of them is checked item by item** — as
   `@verajs/core` checks an animation's `values` — so `href="a;javascript:…"` is removed here where core keeps it.
+  Development says so in core's words (`script-url`).
 - In a `<style>` or a JSON data block (`<script type="application/json">`, any type ending in `json`) a value is TEXT,
   written so that it can never end the element, even if the page's markup is later saved and parsed again.
 - An event-handler attribute (`onclick="…"`) or `srcdoc` holding a value is not written, as `@verajs/core` leaves it
@@ -62,6 +63,15 @@ each value landed is judged from what the parser built — never guessed from th
   SVG one too), `<iframe>`, `<noscript>`, `<template>` or the obsolete raw-text elements — and a value the HTML parser
   would drop (the second occurrence of a duplicated attribute): every value written must land. Data shaped like a template
   (JSON) is text, never markup. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
+
+**Development says core's warnings in core's words** where a value renders as it does in core but is probably a
+mistake: a boolean child that renders as a word (`boolean-child`; not in a `<style>` or `<script>`, where core is silent
+too) and an attribute's whole value that is not text (`attribute-value`). Each is said once — a boolean per template,
+hole and value (a list of a thousand cards says it once), an attribute value per tag, name and kind, a removed URL per
+tag, name and value — and a value static already names (`static-needs-renderer`) is never named twice. Production
+carries none of the warnings. Two development-only costs of checking: a custom iterable child (not a one-shot generator)
+is iterated once more to check its items, and a non-text value in a URL attribute is converted to text once more — so
+an iterable or a `toString` with side effects runs one extra time in development, never in production.
 
 **Behavior comes from `@verajs/directives`** (or from moving the component to `@verajs/lite` or `@verajs/core`, which
 bind events and properties). A static page with the directives engine (`@verajs/directives/standalone`, for a page

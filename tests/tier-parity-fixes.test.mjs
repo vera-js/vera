@@ -235,3 +235,75 @@ test('static: a template whose value the parser drops (a duplicated attribute) i
   /** CONTROL: the value in the FIRST occurrence lands (the parser drops the static second): rendered, nothing refused. */
   assert.equal(viaStatic(['<b title=', ' title="x">t</b>'], ['kept']).querySelector('b').getAttribute('title'), 'kept');
 });
+
+/**
+ * **Static says core's development diagnostics** (2026-11-19, as lite does), from the same shared checks and prose: a
+ * boolean child (`boolean-child`), a whole attribute value that is not text (`attribute-value`) and a script URL it
+ * removes (`script-url`) — each where core says it, with a CONTROL value neither says anything for, production silent.
+ * Each case has its own call site, and its own attribute name or URL: every one is said once (below).
+ */
+test('static says core\'s development diagnostics for the same mistakes, with the same codes; a control says nothing; production says nothing', async () => {
+  const cases = [
+    ['boolean-child', ['<p>', '</p>'], [false], [0]],
+    ['boolean-child', ['<title>', '</title>'], [true], ['text']],
+    ['attribute-value', ['<p data-sa-1=', '>x</p>'], [[1, 2]], ['1 2']],
+    ['attribute-value', ['<p data-sa-2="', '">x</p>'], [new Date(0)], [new URL('https://x.test/')]],
+    ['script-url', ['<a href=', '>x</a>'], ['javascript:void(1)'], ['https://x.test/']],
+    ['script-url', ['<svg><a href="', '">x</a></svg>'], ['javascript:void(2)'], ['#top']],
+  ];
+  for (const [code, pieces, values, control] of cases) {
+    const where = `${code} in ${pieces.join('${…}')}`;
+    const fromStatic = await codes(async () => viaStatic(pieces, values));
+    const fromCore = await codes(async () => viaCore(pieces, values));
+    const quiet = await codes(async () => viaStatic(pieces, control));
+    const quietCore = await codes(async () => viaCore(pieces, control));
+    assert.deepEqual([...quiet, ...quietCore], [], `${where}: the control value says nothing on either`);
+    if (isProduction) {
+      assert.deepEqual(fromStatic, [], `${where}: production says nothing`);
+      continue;
+    }
+    assert.ok(fromCore.includes(code), `CONTROL: core says ${where}: ${fromCore.join(' | ')}`);
+    assert.deepEqual(fromStatic, [code], `static says ${where}, once: ${fromStatic.join(' | ')}`);
+  }
+});
+
+/**
+ * **Said once, and never twice for one value** (2026-11-19). Static draws once, so a value is said once per call site,
+ * hole and value (a boolean), per tag, name and kind (an attribute value: core's key) or per tag, name and refused URL —
+ * a list of a thousand cards says it once, and a different value still speaks. Where static already names a value
+ * (`static-needs-renderer`: a function in an attribute) nothing else is said, where core says nothing (`?name`, a value
+ * beside other text, `<style>`) neither does static, and a script URL in an array is `script-url` alone, as in core.
+ */
+test('static: each warning is said once per site and value, never twice for one value, and not where core is silent', { skip: isProduction && 'development diagnostics' }, async () => {
+  const card = literal(['<li>', '</li>']);
+  const cards = [];
+  for (let i = 0; i < 1000; i++) cards.push(staticTier.html(card, false));
+  const many = await codes(async () => viaStatic(['<ul>', '</ul>'], [[...cards, staticTier.html(card, true)]]));
+  assert.deepEqual(many, ['boolean-child', 'boolean-child'], `a thousand false cards say it once, the true one once: ${many.join(' | ')}`);
+  const listed = await codes(async () => viaStatic(['<p>', '</p>'], [new Set([false, false, true])]));
+  assert.deepEqual(listed, ['boolean-child', 'boolean-child'], `the items of a Set: ${listed.join(' | ')}`);
+  /** The same tag, name and kind again is quiet; another kind on it still speaks (core's key). */
+  const kinds = await codes(async () => {
+    viaStatic(['<p data-sa-3=', '>x</p>'], [{}]);
+    viaStatic(['<p data-sa-3=', '>x</p>'], [{}]);
+    viaStatic(['<p data-sa-3=', '>x</p>'], [[1]]);
+  });
+  assert.deepEqual(kinds, ['attribute-value', 'attribute-value'], kinds.join(' | '));
+  const urls = await codes(async () => {
+    for (let i = 0; i < 3; i++) viaStatic(['<a href=', '>x</a>'], ['javascript:void(3)']);
+    viaStatic(['<a href=', '>x</a>'], ['javascript:void(4)']);
+  });
+  assert.deepEqual(urls, ['script-url', 'script-url'], urls.join(' | '));
+  /** One value, one warning — and the same silence as core's. */
+  for (const [pieces, values, said] of [
+    [['<p data-sa-fn=', '>x</p>'], [() => 1], ['static-needs-renderer']],
+    [['<p ?hidden=', '>x</p>'], [{}], []],
+    [['<p data-sa-4="a ', '">x</p>'], [[1, 2]], []],
+    [['<style>', '</style>'], [false], []],
+    [['<a href=', '>x</a>'], [['javascript:void(5)']], ['script-url']],
+  ]) {
+    const fromStatic = await codes(async () => viaStatic(pieces, values));
+    assert.deepEqual(fromStatic, said, `${pieces.join('${…}')}: ${fromStatic.join(' | ')}`);
+    if (said[0] !== 'static-needs-renderer') assert.deepEqual(await codes(async () => viaCore(pieces, values)), said, `CONTROL: core says the same for ${pieces.join('${…}')}`);
+  }
+});
