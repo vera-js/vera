@@ -133,12 +133,24 @@ const render = ({ define, html }, strings, child) => {
 };
 
 /**
+ * **An error thrown INSIDE jsdom's HTML parser is the environment's, not the tier's** (2026-11-19, a rotated-seed find):
+ * parse5 7.2.0 (jsdom 25.0.1) throws "Cannot read properties of undefined (reading 'namespaceURI')" on
+ * `<table><math><td><annotation-xml encoding="text/html"><select></table>`, in a `<template>`, a `<div>` and a whole
+ * document, where Chromium 151, Firefox 153 and WebKit 26.5 all parse it (BROWSER-LEDGER, Test environments). No engine
+ * throws on `innerHTML`, so such a case cannot judge a tier: it is counted apart (`envCrash`), held under 1% of the corpus,
+ * and pinned by a control that fails once jsdom parses the shape — then this allowance goes.
+ */
+const MINIMAL_PARSER_CRASH = '<table><math><td><annotation-xml encoding="text/html"><select></table>';
+const inJsdomParser = (error) => /[\\/]parse5[\\/]/.test(String(error?.stack ?? ''));
+
+/**
  * One tier over the corpus: its counts, or the FIRST problem — a value written as markup, or an error that is not a coded
  * refusal (a tier that crashed is not a tier that refused). `anyErrorRefuses` is the old rule, kept only for the control.
  */
 const fuzz = (tier, { anyErrorRefuses = false, compose = false, spoil = false, seeds = SEEDS } = {}) => {
   let rendered = 0;
   let refused = 0;
+  let envCrash = 0;
   for (const seed of seeds) {
     const pick = random(seed);
     for (let n = 0; n < PER_SEED; n++) {
@@ -154,6 +166,10 @@ const fuzz = (tier, { anyErrorRefuses = false, compose = false, spoil = false, s
         return { problem: `seed ${seed} #${n}: TIMED OUT after ${CASE_LIMIT_MS} ms (a hang) from ${JSON.stringify(parent)}${child ? ` with child ${JSON.stringify(child)}` : ''}` };
       const { root, error } = run.value;
       if (error !== undefined) {
+        if (!anyErrorRefuses && inJsdomParser(error)) {
+          envCrash++;
+          continue;
+        }
         if (!anyErrorRefuses && !TIER_REFUSALS.has(codeOf(error)))
           return { problem: `seed ${seed} #${n}: an error that is no coded refusal (${String(error.message).slice(0, 120)}) from ${JSON.stringify(parent)}${child ? ` with child ${JSON.stringify(child)}` : ''}` };
         refused++;
@@ -164,7 +180,7 @@ const fuzz = (tier, { anyErrorRefuses = false, compose = false, spoil = false, s
       if (found !== null) return { problem: `seed ${seed} #${n}: ${found} from ${JSON.stringify(parent)}${child ? ` with child ${JSON.stringify(child)}` : ''}` };
     }
   }
-  return { rendered, refused };
+  return { rendered, refused, envCrash };
 };
 
 /**
@@ -233,14 +249,30 @@ for (const [name, tier] of [['lite', lite], ['static', staticTier]])
     const kind = compose ? 'composed' : 'plain';
     test(`${name} ${kind}: no value is ever written as markup, and every refusal is coded, over ${SEEDS.length} seeds × ${PER_SEED} templates`, () => {
       unexpected.length = 0;
-      const { problem, rendered, refused } = fuzz(tier, { compose });
+      const { problem, rendered, refused, envCrash } = fuzz(tier, { compose });
       assert.equal(problem, undefined, problem);
+      assert.ok(envCrash * 100 < rendered + refused + envCrash, `${envCrash} cases crashed jsdom's own parser — 1% or more of the corpus: the allowance is hiding something`);
+      if (envCrash > 0) console.log(`${name} ${kind}: ${envCrash} case(s) set aside — jsdom's parser threw (see MINIMAL_PARSER_CRASH)`);
       assert.deepEqual(unexpected, [], 'jsdom reported an error the fuzz did not expect');
       console.log(`${name} ${kind}: ${rendered} rendered, ${refused} refused (${share(rendered, refused)}%)`);
       const floor = FLOOR[name][kind];
       assert.ok(share(rendered, refused) >= floor, `CONTROL: ${share(rendered, refused)}% rendered (${rendered} of ${rendered + refused}), under the ${floor}% floor: the corpus no longer reaches rendered output`);
     });
   }
+
+test("CONTROL: jsdom's parser still throws on the minimal shape (remove the allowance when it does not), and a tier's case that hits it is classified as the environment's", () => {
+  let bare;
+  try {
+    document.createElement('template').innerHTML = MINIMAL_PARSER_CRASH;
+  } catch (error) {
+    bare = error;
+  }
+  assert.ok(bare !== undefined, 'jsdom parses the minimal shape now: remove the envCrash allowance and MINIMAL_PARSER_CRASH');
+  assert.ok(inJsdomParser(bare), `the bare parser's error is recognized by its stack: ${bare.stack}`);
+  const { error } = render(staticTier, [MINIMAL_PARSER_CRASH]);
+  assert.ok(error !== undefined && inJsdomParser(error), `static's case is the environment's: ${error?.stack ?? 'no error'}`);
+  assert.equal(inJsdomParser(new TypeError("Cannot read properties of undefined (reading 'namespaceURI')")), false, 'the same MESSAGE thrown elsewhere is not excused');
+});
 
 test("CONTROL: a spoiled corpus (every template ending in an unfinished tag) falls under lite's floors, so the floors can fire", () => {
   for (const compose of [false, true]) {

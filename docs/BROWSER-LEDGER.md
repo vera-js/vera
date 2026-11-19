@@ -76,6 +76,15 @@ from another machine, or after that is undone, has a variable changed.
   (the positive control). Playwright, headless. Consequence: a value bound into an SVG script hole is CODE on the client
   in two of three engines, so a refusal that holds only in development, resting on the entry above, does not cover the
   SVG case; and on the server an SVG script's hole runs on load like any served script. (2026-11-18)
+- **jsdom's HTML parser THROWS on a table holding MathML with an HTML annotation and a `<select>`**, where every engine
+  parses it. `<table><math><td><annotation-xml encoding="text/html"><select></table>` makes jsdom 25.0.1 (parse5 7.2.0)
+  throw `TypeError: Cannot read properties of undefined (reading 'namespaceURI')` from inside parse5's open-element stack,
+  in a `<template>`, a `<div>` and a whole-document parse alike; Chromium 151, Firefox 153 and WebKit 26.5 (Playwright,
+  headless, a parse only) all give `<math><td><annotation-xml encoding="text/html"><select></select></annotation-xml></td>
+  </math><table></table>`. No engine throws on `innerHTML`, so a jsdom suite sees an uncoded crash that is jsdom's.
+  Consequence: the small tiers' placement fuzz counts an error thrown inside parse5 apart from the tier's (held under 1%
+  of the corpus), with a control that fails once jsdom parses the shape. Found by a rotated CI seed through
+  `@verajs/static` (2026-11-19).
 - **jsdom fosters text out of a table to the WRONG side: after the table, where every engine puts it before.** Text
   written directly inside `<table>` is foster-parented. Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless,
   a parse only) insert it immediately BEFORE the table, in a `<template>` and in a `<div>` alike: `<!--m--><table>c</table>`
