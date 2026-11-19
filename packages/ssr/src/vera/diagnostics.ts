@@ -35,7 +35,7 @@ export const PROSE: Record<string, Prose> = {
     'Close the tag inside the template.',
   ],
   'ssr-template-in-text': () => [
-    'a template cannot render inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`) — its content is text.',
+    'a template cannot render inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`, or never-shown content: `<noscript>`, `<iframe>`) — its content is text.',
     'Render a string there; a list of strings is joined.',
   ],
   'ssr-nesting-depth': (max) => [

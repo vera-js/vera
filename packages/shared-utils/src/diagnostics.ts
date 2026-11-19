@@ -32,7 +32,7 @@ export const tagCalled: Prose = (tag, received, example) => [
  * `<textarea>` the renderer places it, as it always has, and says so in development only. A list there is joined.
  */
 export const templateInText: Prose = () => [
-  'a template inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`) is never shown as markup — its content is text.',
+  'a template inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`, or never-shown content: `<noscript>`, `<iframe>`) is never shown as markup — its content is text.',
   'Render a string there; a list of strings is joined.',
 ];
 /** A template that ends inside a tag: the renderer refuses it in development, the lite tier in every build. */

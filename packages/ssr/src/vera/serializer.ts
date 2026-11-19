@@ -627,7 +627,13 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     parts.push(tagState.comment !== '' && !inert ? part + ' ' : taker ? part + '\n' : part);
     if (tagState.foreign) depths[kinds.length] = tagState.foreign;
-    if (tagState.textTag) texts[kinds.length] = true;
+    /**
+     * Inside `<noscript>` too, at any depth (2026-11-18): the client reads a noscript's content as raw text (Firefox, and
+     * the renderer's scanner everywhere) and writes its values as encoded text, so a template there cannot be placed —
+     * refused here as in a text-only element (`ssr-template-in-text`), one rule on both sides. Values stay escaped, and
+     * an attribute value stays quoted.
+     */
+    if (tagState.textTag || tagState.opens.some((open) => open.name === 'noscript')) texts[kinds.length] = true;
     /** A binding inside a comment is dropped, as the client drops it — never written into the comment. */
     kinds.push(inert || tagState.comment ? DROPPED : TEXT);
     names.push('');

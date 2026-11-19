@@ -79,6 +79,7 @@ const CLAIMS = new Map([
   ['packages/lite/README.md#c765eb013f', 'tier-needs-core'],
   ['packages/static/README.md#09b2d38f04', 'pinned by tests/static.test.mjs: the item-by-item URL row — `href="a;javascript:…"` removed'],
   ['packages/static/README.md#057802d34c', 'static-needs-renderer'], // a function value renders nothing; tests/static.test.mjs' development row // @verajs/lite: an option or a value only core handles — development names it
+  ['packages/ssr/README.md#23dc7b1cfe', 'ssr-template-in-text'], // **A template in an HTML `<title>` or `<textarea>` is refused here** (`ssr-template-in-text`), while core's renderer places it and warns
   ['packages/ssr/README.md#22e66ee19b', 'pinned by tests/ssr-coded-diagnostics.test.mjs: every code ssr raises has its entry, each line ending on its code'], // **What ssr says, and how.** Every line ends with its code
   ['packages/ssr/README.md#616e1b6d69', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the same key twice is one line, a second key a second; outside text arrives JSON-quoted'], // Two rules make it safe on a server
   ['packages/ssr/README.md#12068394f6', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the refused javascript: value is never printed; a forged template warns once per component'], // A refused `javascript:` URL is reported without its value at all
@@ -209,9 +210,11 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#40e8320f1f', 'spread-unsafe-name'], // **A key that cannot be written into markup is skipped**, with a warning in development.
   ['packages/renderer/README.md#5a81e4d78c', 'upgrade-clobber'], // Elements that never call `init()` keep the development warning and the `declare` advice in
   ['packages/renderer/README.md#f8471d54c4', 'forged-template'], // Data shaped like a template (an API field an attacker turned into `{"strings": [...]}`, a 
-  ['packages/renderer/README.md#9716e1f324', 'pinned by tests/api-misuse-sweep.test.mjs: a catalog of a dozen messages — every refusal it lists is thrown by the sweep, every warning has its own coded claim'], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
+  ['packages/renderer/README.md#058e6441eb', 'pinned by tests/api-misuse-sweep.test.mjs: a catalog of a dozen messages — every refusal it lists is thrown by the sweep, every warning has its own coded claim'], // **Development tells you; production pays nothing.** Misuse the renderer can see in a templ
+  ['packages/renderer/README.md#a077650d77', 'template-in-text'], // In an HTML `<title>` or `<textarea>` the renderer places a template, as it always has, and development warns that it is never shown there
   ['packages/renderer/README.md#5ae4ff86c0', 'tag-key'], // `key` never reaches the component: `@verajs/jsx` consumes it into `keyed(…)` for both spel
   ['packages/renderer/README.md#57d42dee7e', 'not a promise: a size'], // <!--size:tag.gzip-->2.19 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the f
+  ['llms.txt#631b1b94ea', 'template-in-text'], // A template in a style or JSON block is REFUSED (`template-in-text` / `ssr-template-in-text`); in an HTML `<title>`/`<textarea>` the renderer places it with a development warning
   ['llms.txt#464a79271c', 'built-in-host-unwired'], // A BUILT-IN element given to `init` … never released when removed (development warns).
   ['packages/renderer/README.md#ff3b8e7750', 'native-host-unsupported'], // elements that cannot hold a shadow root — `ul`, `li`, `table`, `button` …
   ['packages/renderer/README.md#0e3f427925', 'native-host-slot-attribute'], // a DIRECT child carrying a `slot` attribute … renders nowhere … — development says so

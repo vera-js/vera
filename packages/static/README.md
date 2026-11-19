@@ -55,7 +55,7 @@ each value landed is judged from what the parser built — never guessed from th
   out, and development says so in core's words (`handler-attribute`, `srcdoc-attribute`).
 - **Refused**, coded `static-hole`, in every build: a value in a tag or attribute NAME, or inside any other `<script>` (an
   SVG one too), `<iframe>`, `<noscript>`, `<template>` or the obsolete raw-text elements. Data shaped like a template
-  (JSON) is text, never markup.
+  (JSON) is text, never markup. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 
 **Behavior comes from `@verajs/directives`** (or from moving the component to `@verajs/lite` or `@verajs/core`, which
 bind events and properties). A static page with the directives engine (`@verajs/directives/standalone`, for a page

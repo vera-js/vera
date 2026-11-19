@@ -6,7 +6,7 @@ wire.
 | Package | gzipped | A render | For |
 | --- | ---: | --- | --- |
 | `@verajs/lite` | <!--size:lite.gzip-->4.10 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small sites |
-| `@verajs/core` + `@verajs/renderer` | <!--size:core.gzip-->8.05 KB<!--/size:core.gzip--> + <!--size:renderer.gzip-->6.08 KB<!--/size:renderer.gzip--> | patches in place, keyed lists, hydration | everything else |
+| `@verajs/core` + `@verajs/renderer` | <!--size:core.gzip-->8.05 KB<!--/size:core.gzip--> + <!--size:renderer.gzip-->6.26 KB<!--/size:renderer.gzip--> | patches in place, keyed lists, hydration | everything else |
 
 <!-- recipe -->
 ```js
@@ -66,7 +66,7 @@ document.body.append(document.createElement('dot-row'));
 
 **The HTML parser judges every template, once.** A hole the parser would move or drop (a `<div>` inside `<select>`, a
 duplicate attribute, a hole inside a comment, `<noscript>`, `<iframe>` or `<template>`) is refused
-(`tier-hole-position`), and so is a template that ends inside a tag (`unfinished-tag`). A binding's name is checked
+(`tier-hole-position`), and so is a template that ends inside a tag (`unfinished-tag`). An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`). A binding's name is checked
 against the parser's, which lowercases only ASCII, so a `.prop` or event name with a non-ASCII capital letter is refused
 (`@verajs/core` binds it).
 

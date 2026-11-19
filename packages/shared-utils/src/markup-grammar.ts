@@ -190,6 +190,14 @@ export const closedRawText = (text: string, json: boolean) =>
   json ? text.replace(/</g, '\\u003c') : text.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
+ * **A value as inert text in ANY position** — every ASCII non-word character as a character reference (`<` `&#60;`,
+ * a space `&#32;`, `=` `&#61;`), everything else as it is: the encoding `@verajs/static` writes every value with, and the
+ * renderer writes a never-shown element's values with. Read as raw text it holds no `<`; read as markup it decodes to
+ * the same characters and cannot end a tag, a quoted or unquoted attribute value, or the element.
+ */
+export const encodeText = (text: string) => text.replace(/[^\w\u0080-\uffff]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/**
  * **The properties that replace an element's whole content** — a binding to one owns the element's children, so it
  * cannot share the element with content of its own (markup, or a child binding the write would strand: a later commit
  * into it then throws on a missing parent). Development refuses the pair in the template scanner and in `spread` alike.

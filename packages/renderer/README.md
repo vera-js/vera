@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->6.08 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->6.26 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -1290,8 +1290,7 @@ as it does in React. Render a field, not a raw API object.)
 obviously wrong call, is caught in development: a template that cannot work as written throws there (a name
 expression, below; a value in TAG position, `<${x}>`, which needs a tag value from `@verajs/renderer/tag`;
 `renderInto` without a container; `keyed` without a template; a template ending inside a tag; a binding beside or
-inside an element in an SVG/MathML `<title>` or `<style>`, which this renderer reads as text, or inside the obsolete
-`<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>`, which the parser does), and a mistake that still renders
+inside an element in an SVG/MathML `<title>` or `<style>`, which this renderer reads as text), and a mistake that still renders
 but not as meant is a `[vera]` warning (a self-closed `<div />`, a boolean child, a value that cannot
 listen, `@clik`, a binding on an element the parser drops, content in the wrong namespace, a repeated key) — said
 once where the mistake is in the template's source, and each time it happens where it is in a value (a boolean
@@ -1347,9 +1346,22 @@ adopts a served text equal to that, and rewrites one that differs.
 
 **A value in a text-only element is text, the same on every tier and the server** — a `<style>`, a JSON block, an HTML
 `<title>` or `<textarea>`: nothing for `null`/`undefined`, a list its items' text (nested lists flattened), anything
-else `String(value)`, and a **template refused** (`template-in-text`; the server's `ssr-template-in-text`) — its markup
-is not text, so `<style>${rules.map(…)}</style>` joins the rules and `<textarea>${html`…`}</textarea>` throws. An SVG
-`<title>` is markup (an integration point), so a template there renders, as the server renders it.
+else `String(value)`. A **template** in a `<style>` or a JSON block is **refused** (`template-in-text`; the server's
+`ssr-template-in-text`) — its markup is not text, so `<style>${rules.map(…)}</style>` joins the rules. In an HTML
+`<title>` or `<textarea>` the renderer places a template, as it always has, and development warns that it is never
+shown there (`template-in-text`); **the server refuses it** (`ssr-template-in-text`). That is a recorded difference: such
+a template is a mistake either way, and the server cannot write elements a browser would keep there (it reads that
+content back as text). An SVG `<title>` is markup (an integration point), so a template there renders, as the server
+renders it.
+
+**A value inside an element whose content is never shown is text that can never become markup** — an `<iframe>`, a
+`<noscript>`, and the obsolete `<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>`. The renderer writes each value
+there fully encoded (every ASCII character but a letter, digit or `_` as a character reference), so a page saved from
+the DOM and parsed again, with scripting on or off, holds no value that ends the element or adds an attribute; an
+analytics pixel's URL in a `<noscript><img src=${…}>` reads back intact. A template there is refused
+(`template-in-text`). The server writes these values escaped as text, so its bytes differ from the client's, and
+hydration rewrites that text rather than adopting it. `@verajs/lite` and `@verajs/static` refuse a value there.
+
 
 **`.textContent` into a `<style>` or `<script>` is the platform's, not a template hole.** A browser serializes such an
 element's text exactly as it is, so a user value written there with `.textContent=${value}` (or any DOM write) becomes

@@ -41,6 +41,13 @@ export const SELECT_INDEX = 14;
  */
 export const RAW_STYLE = 15;
 export const RAW_JSON = 16;
+/**
+ * **An element whose content is never shown** (`<iframe>`, `<noscript>`, `<xmp>`, `<noembed>`, `<noframes>`,
+ * `<plaintext>`): its statics and its values composed as text, each VALUE fully encoded (every ASCII non-word character
+ * as a character reference), so a page saved from the DOM and parsed again — with scripting on (raw text) or off
+ * (markup) — holds no value that can end the element or add an attribute.
+ */
+export const RAW_ENCODED = 17;
 
 
 /** A child part's mode: what its range currently holds. */

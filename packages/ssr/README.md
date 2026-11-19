@@ -487,6 +487,13 @@ markup itself is served byte for byte as it was written.
   `</style\v`) is refused on the server (`tier-hole-position`): lite parses its template with this DOM, which declines
   markup it cannot reproduce exactly. Core's components serve it, written as every side writes a style's text
   (`<\/stylex`). Safe; such text is rare.
+- **A template in an HTML `<title>` or `<textarea>` is refused here** (`ssr-template-in-text`), while core's renderer
+  places it and warns in development that it is never shown there. Such a template is a mistake either way, and this
+  server cannot write elements a browser would keep there: it reads that content back as text. Render a string.
+- **A value inside `<iframe>`, `<noscript>` or an obsolete raw-text element is served escaped as text**, while core's
+  renderer writes it fully encoded (every ASCII non-word character as a character reference), so the bytes differ and
+  hydration rewrites that text. Both are inert after a save and reload; a template inside a `<noscript>` is refused
+  here as one inside a text-only element is.
 - **What a render creates leaves every store when its render ends.** Its components are reactive DURING the render
   (a write in a setup or a router's first navigation re-renders before the markup is written), and nothing they read
   keeps them alive afterwards. Module-scope state — a store, a `computed` — belongs to the process and stays live; a

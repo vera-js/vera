@@ -248,7 +248,7 @@
     {
       "code": "template-in-text",
       "params": [],
-      "message": "a template inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`) is never shown as markup — its content is text.",
+      "message": "a template inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`, or never-shown content: `<noscript>`, `<iframe>`) is never shown as markup — its content is text.",
       "fix": "Render a string there; a list of strings is joined."
     },
     {

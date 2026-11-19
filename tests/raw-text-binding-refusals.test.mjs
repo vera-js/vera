@@ -3,7 +3,8 @@
  *
  * Inside `<svg>`/`<math>`, a `<title>` or `<style>` is a foreign element whose content the browser reads as markup,
  * while the renderer reads it as raw text and rebuilds that text around its bindings — destroying any element inside
- * it. And `<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>` are text to the parser whole, which the scanner does
+ * it. (`<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>` were refused here too until 2026-11-18; they render their
+ * values as encoded text now — tests/never-shown.test.mjs.) Formerly: the obsolete four are text to the parser whole, which the scanner did
  * not list, so a binding there never rendered (the old symptom: a misleading "the parser DROPPED the element"
  * warning and a marker left in the page). Their legitimate neighbors — text bound directly in an SVG `<title>`, an
  * element there with no binding, an attribute on the `<title>` itself, static obsolete content — are untouched.
@@ -38,10 +39,6 @@ const REFUSED = {
   'svg title: binding inside an element': () => html`<svg><title><tspan>${'x'}</tspan></title></svg>`,
   'svg style: binding inside an element': () => html`<svg><style><a href=${'x'}></a></style></svg>`,
   'an svg template': () => svg`<title><tspan>${'x'}</tspan></title>`,
-  xmp: () => html`<xmp>${'x'}</xmp>`,
-  noembed: () => html`<noembed>${'x'}</noembed>`,
-  noframes: () => html`<noframes>${'x'}</noframes>`,
-  plaintext: () => html`<plaintext>${'x'}`,
 };
 const ALLOWED = {
   'svg title: text only': [() => html`<svg><title>${'Revenue'}</title></svg>`, '<svg><title>Revenue</title></svg>'],
@@ -49,21 +46,22 @@ const ALLOWED = {
   'svg title: an element, no binding': [() => html`<svg><title>a <tspan>y</tspan></title></svg>`, '<svg><title>a <tspan>y</tspan></title></svg>'],
   'svg title: an attribute on the title itself': [() => html`<svg><title class=${'c'}>t</title></svg>`, '<svg><title class="c">t</title></svg>'],
   'xmp: static': [() => html`<xmp>static</xmp>`, '<xmp>static</xmp>'],
+  /** The obsolete raw-text four render their values as encoded text since 2026-11-18 (tests/never-shown.test.mjs). */
+  'xmp: a value, encoded': [() => html`<xmp>${'a<b'}</xmp>`, '<xmp>a&#60;b</xmp>'],
   'html title': [() => html`<title>${'x'}</title>`, '<title>x</title>'],
 };
 
-test('the two shapes are refused in development, naming the fix; production renders them as it always did', () => {
+test('the foreign-raw-text shapes are refused in development, naming the fix; production renders them as it always did', () => {
   for (const [label, make] of Object.entries(REFUSED)) {
     const out = render(make());
     if (isProduction) assert.ok(!out.startsWith('THREW'), `${label}: production pays nothing`);
-    else assert.match(out, /^THREW renderer: a binding inside <(title|style|xmp|noembed|noframes|plaintext)>/, `${label}: ${out}`);
+    else assert.match(out, /^THREW renderer: a binding inside <(title|style)>/, `${label}: ${out}`);
   }
 });
 
 test('the messages say what to do instead', () => {
   if (isProduction) return;
   assert.match(render(REFUSED['svg title: binding inside an element']()), /Bind text directly in the <title>/);
-  assert.match(render(REFUSED.xmp()), /Use <pre>/);
 });
 
 test('their legitimate neighbors render exactly as before', () => {

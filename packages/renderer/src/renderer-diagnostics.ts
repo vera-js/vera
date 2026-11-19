@@ -43,10 +43,6 @@ export const PROSE: Record<string, Prose> = {
     'a value in a <script> is code — on a page the server rendered it runs — so a script hole is refused, except in a JSON data block (its type ends in `json`, with no character reference).',
     'Give the script a JSON type (`type="application/json"` or `application/ld+json`) for state or JSON-LD, or pass the value another way.',
   ],
-  'obsolete-raw-text': (tag) => [
-    `a binding inside <${tag}> is never rendered — the parser reads its content as text whole, and <${tag}> is obsolete.`,
-    'Use <pre> for preformatted text.',
-  ],
   'inert-binding': (position) => [
     `the value at position ${position} sits inside a nested <template>'s content — inert markup that is never rendered — so it is ignored (and the server ignores it too).`,
     'Render into the live tree instead.',

@@ -99,7 +99,11 @@ test("the renderer's regexes agree, read from its source", () => {
 
   const rawTags = /const RAW_TEXT_TAGS = \/\^\(\?:([a-z|]+)\)\$\/i;/.exec(source);
   assert.ok(rawTags, 'RAW_TEXT_TAGS is still a single anchored alternation');
-  assert.deepEqual(rawTags[1].split('|').sort(), [...RAW_TEXT].sort(), 'RAW_TEXT_TAGS');
+  /**
+   * The shared list plus the four obsolete elements the parser reads as text whole (2026-11-19: their values render as
+   * encoded text, so the scanner must find them; the shared list feeds jsx and cms, which treat them as any element).
+   */
+  assert.deepEqual(rawTags[1].split('|').sort(), [...RAW_TEXT, 'xmp', 'noembed', 'noframes', 'plaintext'].sort(), 'RAW_TEXT_TAGS');
 });
 
 test('the consolidation held — no package that CAN import keeps a private copy', () => {

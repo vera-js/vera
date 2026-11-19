@@ -36,6 +36,7 @@ import {
   dataBlock,
   JSON_BLOCK,
   closedRawText,
+  encodeText,
   diagnostic,
   dispatch,
   hasWarned,
@@ -50,7 +51,7 @@ import { PROSE } from './renderer-diagnostics.js';
 import type { Untracked, PropertyHost } from '@verajs/shared-utils';
 
 import type { InstanceHook, TemplateResult } from './types.js';
-import { PROTOCOL, IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, RAW_STYLE, RAW_JSON, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
+import { PROTOCOL, IGNORED, CHILD, SOLE, ATTR, PROPERTY, BOOLEAN, EVENT, REF, SELECT_REF, ADOPT, LIVE, SELECT, LIVE_CUSTOM, REFUSED, SELECT_INDEX, RAW_STYLE, RAW_JSON, RAW_ENCODED, EMPTY, TEXT, TEMPLATE, LIST, NODE } from './kinds.js';
 
 export type { TemplateResult } from './types.js';
 
@@ -117,7 +118,12 @@ const SINGLE_QUOTE_END = /'/g;
  * writes a text marker and construction turns it into an anchor. `noscript` because Firefox parses it
  * as raw text in a template while Chromium and WebKit do not — listed, it is right in both.
  */
-const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
+const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript|xmp|noembed|noframes|plaintext)$/i;
+/**
+ * The HTML elements whose content is never shown — their holes render as encoded text (`RAW_ENCODED`). `tagName` is
+ * upper case exactly for an HTML element. (`xmp` shows its text, as text: encoded, a value reads the same.)
+ */
+const NEVER_SHOWN = /^(?:IFRAME|NOSCRIPT|XMP|NOEMBED|NOFRAMES|PLAINTEXT)$/;
 /**
  * The 14 void elements — a start tag with no content and no end tag. Read only by the development tag-shape pass
  * (`<div />` is an open tag; `</br>` is another `<br>`), so production drops it. A regex rather than shared-utils'
@@ -142,8 +148,6 @@ const UPGRADED = {};
  * the SCAN, so development and production parsed one template differently.
  */
 const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
-/** The obsolete elements a parser reads as text whole, which the scanner does not list (production pays nothing for them). */
-const OBSOLETE_RAW = /^(?:xmp|noembed|noframes|plaintext)$/i;
 const tagShape = (strings: TemplateStringsArray, type: number): [string, string][] | undefined => {
   const markup = strings.join('');
   /** Where each binding sits in `markup`, so a refusal can ask whether one falls inside an element's content. */
@@ -164,19 +168,16 @@ const tagShape = (strings: TemplateStringsArray, type: number): [string, string]
       else if (!selfClosed) foreign++;
       continue;
     }
-    if (!closing && (RAW_TEXT_TAGS.test(tag) || OBSOLETE_RAW.test(tag))) {
+    if (!closing && RAW_TEXT_TAGS.test(tag)) {
       const end = markup.toLowerCase().indexOf(`</${tag}`, SHAPE.lastIndex);
       const stop = end === -1 ? markup.length : end;
       /**
-       * Two shapes that silently lose a binding, refused. Inside `<svg>`/`<math>` a `<title>` or `<style>` is a
-       * foreign element whose content the browser reads as MARKUP, while the renderer reads it as raw text and
-       * rebuilds that text around its bindings — destroying any element inside it. And the obsolete raw-text
-       * elements are text to the parser whole, which the scanner does not know, so a binding there never renders.
+       * A shape that silently loses a binding, refused: inside `<svg>`/`<math>` a `<title>` or `<style>` is a foreign
+       * element whose content the browser reads as MARKUP, while the renderer reads it as raw text and rebuilds that
+       * text around its bindings — destroying any element inside it.
        */
       if (foreign > 0 && RAW_TEXT_TAGS.test(tag) && bound(SHAPE.lastIndex, stop) && /<[a-zA-Z]/.test(markup.slice(SHAPE.lastIndex, stop)))
         throw new Error(misuse('renderer', 'foreign-raw-text', __DEV__ && PROSE['foreign-raw-text'](tag)));
-      if (foreign === 0 && OBSOLETE_RAW.test(tag) && bound(SHAPE.lastIndex, stop))
-        throw new Error(misuse('renderer', 'obsolete-raw-text', __DEV__ && PROSE['obsolete-raw-text'](tag)));
       SHAPE.lastIndex = stop;
     }
     if (foreign > 0) continue;
@@ -315,8 +316,9 @@ class Template {
               /**
                * The end tag needs the tokenizer's boundary after its name (whitespace, `/`, `>`): `</stylex>` ends
                * nothing. Or the string's end: `</style${x}` is a tag-name position (refused in development).
+               * `<plaintext>` never ends: everything after it is its text, as the parser reads it.
                */
-              rawEnd = new RegExp(`</${match[2]}(?=[\\t\\n\\f\\r />]|$)`, 'gi');
+              rawEnd = /^plaintext$/i.test(match[2]) ? /(?!)/g : new RegExp(`</${match[2]}(?=[\\t\\n\\f\\r />]|$)`, 'gi');
               if (__DEV__) {
                 rawOpen = [i, match.index];
                 rawName = match[2].toLowerCase();
@@ -521,8 +523,14 @@ class Template {
                 ? 2
                 : 3;
       }
-      /** A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. */
-      if (RAW_TEXT_TAGS.test(el.localName) && el.textContent!.includes(MARKER)) {
+      /**
+       * A raw-text element's markers arrived as characters: rebuild its content with anchors in their place. A
+       * never-shown element is read as its MARKUP when the parser built elements in it (Chromium and WebKit parse a
+       * template's `<noscript>` as markup, so a value written in an attribute there sits in a real attribute) and as
+       * its text otherwise — the same source either way, written back as text.
+       */
+      const source = RAW_TEXT_TAGS.test(el.localName) ? (NEVER_SHOWN.test(el.tagName) && el.firstElementChild !== null ? el.innerHTML : el.textContent!) : '';
+      if (source.includes(MARKER)) {
         /**
          * **A script hole is refused in EVERY build unless the script is an HTML JSON data block** (Brian, 2026-11-18).
          * A template's HTML script never runs on the live page, but a page saved from the DOM and served again (an
@@ -535,16 +543,17 @@ class Template {
          */
         if (el.tagName === 'script' || (el.tagName === 'SCRIPT' && (!JSON_BLOCK.test(el.getAttribute('type') ?? '') || nodes.includes(el))))
           throw new Error(misuse('renderer', 'script-hole', __DEV__ && PROSE['script-hole']()));
-        const pieces = el.textContent!.split(MARKER);
+        const pieces = source.split(MARKER);
         el.textContent = '';
         /**
-         * An HTML style or JSON block (the script check above let only that script through): its first value owns the
-         * element's whole text (`RAW_STYLE`/`RAW_JSON`), its statics the even pieces; the values after it are consumed.
+         * An HTML style, JSON block (the script check above let only that script through) or never-shown element: its first
+         * value owns the element's whole text (`RAW_*`), its statics the even pieces; the values after it are consumed.
          */
-        if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') {
+        const raw = el.tagName === 'STYLE' ? RAW_STYLE : el.tagName === 'SCRIPT' ? RAW_JSON : NEVER_SHOWN.test(el.tagName) ? RAW_ENCODED : 0;
+        if (raw !== 0) {
           const first = +pieces[1]!;
           nodes[first] = el;
-          kinds[first] = el.tagName === 'STYLE' ? RAW_STYLE : RAW_JSON;
+          kinds[first] = raw;
           /** One value and no static text (`<style>${css}</style>`): no statics, so an unchanged value returns at once. */
           statics[first] = pieces.length === 3 && pieces[0] === '' && pieces[2] === '' ? null : pieces.filter((_, p) => p % 2 === 0);
           for (let p = 3; p < pieces.length; p += 2) kinds[+pieces[p]!] = IGNORED;
@@ -681,7 +690,7 @@ const getTemplate = (result: TemplateResult) => {
 const toText = (value: unknown) => (value == null ? '' : `${value}`);
 
 /**
- * **A value in a `<style>` or JSON block, as text** — the server's rule: nothing for `null`/`undefined`, a list its items'
+ * **A value in a `<style>`, JSON block or never-shown element, as text** — the server's rule: nothing for `null`/`undefined`, a list its items'
  * text (nested lists flattened by the same rule), a template refused, anything else `String`. Cold: reached only when
  * such a text changes. One function, nothing single-use beside it (the minifier would paste it in as an IIFE).
  */
@@ -954,13 +963,14 @@ const commit = (template: Template, bindings: unknown[], i: number, kind: number
       if (parts === null) {
         if (values[i] === committed) return;
         text = textOf((bindings[slot + 1] = values[i]));
+        if (kind === RAW_ENCODED) text = encodeText(text);
       } else {
         text = parts[0]!;
-        for (let p = 1; p < parts.length; p++) text += textOf(values[i + p - 1]) + parts[p];
+        for (let p = 1; p < parts.length; p++) text += (kind === RAW_ENCODED ? encodeText(textOf(values[i + p - 1])) : textOf(values[i + p - 1])) + parts[p];
         if (text === committed) return;
         bindings[slot + 1] = text;
       }
-      (node as Element).textContent = /*@__NOINLINE__*/ closedRawText(text, kind === RAW_JSON);
+      (node as Element).textContent = kind === RAW_ENCODED ? text : /*@__NOINLINE__*/ closedRawText(text, kind === RAW_JSON);
     }
     return;
   }

@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->12.6 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->12.8 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -422,7 +422,7 @@ document.body.append(document.createElement('lite-counter'));
   an async setup. Importing one from lite fails when the module loads.
 - **The parser judges every template once:** a hole it would move or drop (a `<div>` in `<select>`, a duplicate
   attribute, a hole in a comment, `<noscript>`, `<iframe>` or `<template>`) is refused, coded `tier-hole-position`; a
-  template ending inside a tag, `unfinished-tag`.
+  template ending inside a tag, `unfinished-tag`. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 - **The same refusals as `@verajs/core`, said the same way in development:** a `javascript:` URL in a URL-bearing
   attribute or property (the attribute removed), a bound inline-handler attribute (`onclick=${…}`: bind `@click=${…}` or
   `onClick=${…}`), a bound `srcdoc` attribute (trusted markup goes in through `.srcdoc=${trusted}`), and `.__proto__`.
@@ -443,7 +443,7 @@ document.body.append(document.createElement('lite-counter'));
   attribute values a value is text; a `javascript:` URL in a URL attribute is removed (every URL name checked item by
   item); an event-handler or `srcdoc` attribute holding a value is not written; in `<style>` or a JSON data block a value
   is text that cannot end the element. Refused (`static-hole`): a value in a tag or attribute name, or inside another
-  `<script>` (SVG too), `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element.
+  `<script>` (SVG too), `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 - **Behavior** comes from `@verajs/directives` (`/standalone` on a page with no other vera): the engine watches the
   document, so it enhances what static writes after load; a shadow root is the engine's once the page calls
   `activate(element.shadowRoot)`.
@@ -836,7 +836,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->6.08 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->6.26 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts (lit-html templates also work,
 being structurally identical).
 
@@ -895,8 +895,14 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   written with `<` as `\u003c`, a style's with `</style` as `<\/style` — on the composed text, by the server and
   the client alike, byte for byte (hydration adopts it): neither can end its element if the page is saved and parsed again.
 - A value in a text-only element (`<style>`, a JSON block, HTML `<title>`/`<textarea>`) is TEXT on every tier and the
-  server: a list is its items' text joined (`<style>${rules.map(…)}</style>`), and a template there is REFUSED
-  (`template-in-text` / `ssr-template-in-text`).
+  server: a list is its items' text joined (`<style>${rules.map(…)}</style>`). A template in a style or JSON block is
+  REFUSED (`template-in-text` / `ssr-template-in-text`); in an HTML `<title>`/`<textarea>` the renderer places it with a
+  development warning and the SERVER refuses it (a recorded difference — render a string there).
+- A value inside `<iframe>`, `<noscript>` or the obsolete `<xmp>`/`<noembed>`/`<noframes>`/`<plaintext>` is written by the
+  renderer FULLY ENCODED (every ASCII non-word character as `&#N;`), so it can never end the element or add an
+  attribute, even after a save and reload with scripting on or off; a template there is refused (`template-in-text`).
+  The server's bytes differ (escaped text); hydration rewrites them. `@verajs/lite` and `@verajs/static` refuse a value
+  there: set an iframe through its attributes, and put a `<noscript>` in the served page.
 - Child-position values match lit exactly: only `null`/`undefined` are empty. `false` and `0`
   RENDER, so `${cond && 'x'}` puts the word `false` on the page — write `${cond ? 'x' : null}`.
   `@verajs/ssr` serializes them the same way, so server and client agree.

@@ -44,6 +44,7 @@ import {
   LIVE,
   NODE,
   PROPERTY,
+  RAW_ENCODED,
   RAW_JSON,
   RAW_STYLE,
   REF,
@@ -435,7 +436,7 @@ const commitBinding = (into: Adoption, i: number, kind: number, live: Element) =
      * base's commit stores it — and otherwise left to the base's commit, which rewrites it.
      */
     if (kind !== ATTR) {
-      if (text !== undefined && live.textContent === /*@__NOINLINE__*/ closedRawText(text ?? '', kind === RAW_JSON)) {
+      if (text !== undefined && kind !== RAW_ENCODED && live.textContent === /*@__NOINLINE__*/ closedRawText(text ?? '', kind === RAW_JSON)) {
         /** As the base's commit stores it: a lone value itself, a composed text otherwise. */
         bindings[slot + 1] = parts === null ? raw : text;
         return;

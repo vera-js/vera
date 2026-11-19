@@ -16,7 +16,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 | | Claim | Strength |
 | --- | --- | --- |
-| [Size](size.md) | <!--size:app.kb-->12.6 KB<!--/size:app.kb--> for a working app — above Lit and Preact + signals, about 8x under React | **Strong** — measured |
+| [Size](size.md) | <!--size:app.kb-->12.8 KB<!--/size:app.kb--> for a working app — above Lit and Preact + signals, about 8x under React | **Strong** — measured |
 | [Zero dependencies](zero-dependencies.md) | No third-party runtime deps in any published package | **Strong** — measured, but shared |
 | [Buildless](buildless.md) | Works in CodePen with no toolchain at all | **Strong** — architectural |
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
@@ -28,7 +28,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 ## The one-line pitch
 
-> A <!--size:app.kb-->12.6 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no
+> A <!--size:app.kb-->12.8 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no
 > dependencies, no dependency arrays — and the only one that gives you batched *and* per-change
 > effects.
 
@@ -42,7 +42,7 @@ Being wrong once in public costs more than every correct claim gains.
   update ceiling is Vue/React-class. See [performance.md](performance.md).
 - **Not core's standalone size.** Core ships no renderer, so `@verajs/core` on its own cannot put
   anything on screen. The only honest app number is core **plus** a renderer:
-  <!--size:app.kb-->12.6 KB<!--/size:app.kb-->.
+  <!--size:app.kb-->12.8 KB<!--/size:app.kb-->.
 - **Not "production ready".** One maintainer and pre-1.0. Say "early" plainly. The testing is not
   the reason: the jsdom suite, the browser layer on Chromium, Firefox and WebKit, and CI are all
   real and all run on every commit. Being early is about the number of people who have used this,
@@ -52,9 +52,9 @@ Being wrong once in public costs more than every correct claim gains.
   holding it across a router, an SSR renderer and a JSX compiler rather than a micro-library.
 - **Not "smallest".** <!--size:app.smaller.count-->5<!--/size:app.smaller.count--> of the measured tools are smaller:
   <!--size:app.smaller.names-->Van.js, Solid, Lit, Preact + signals and petite-vue<!--/size:app.smaller.names--> (Solid if you
-  accept its compiler). VeraJS is **<!--size:app.over.lit.kb-->6.9 KB<!--/size:app.over.lit.kb--> above Lit** and
-  <!--size:app.over.preact.kb-->6.7 KB<!--/size:app.over.preact.kb--> above Preact + signals, and about
-  <!--size:app.react.ratio-->4.7<!--/size:app.react.ratio-->x under React. Say *that*, name the smaller ones yourself, and
+  accept its compiler). VeraJS is **<!--size:app.over.lit.kb-->7.1 KB<!--/size:app.over.lit.kb--> above Lit** and
+  <!--size:app.over.preact.kb-->6.9 KB<!--/size:app.over.preact.kb--> above Preact + signals, and about
+  <!--size:app.react.ratio-->4.6<!--/size:app.react.ratio-->x under React. Say *that*, name the smaller ones yourself, and
   quote the measured figure rather than a remembered one; this claim has been wrong in both directions, which is why
   every figure in this sentence is now generated from the measured table.
 

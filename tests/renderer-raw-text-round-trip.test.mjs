@@ -322,3 +322,26 @@ test('a template in a <textarea> or <title> renders its elements, and developmen
   if (isProduction) assert.deepEqual(lines, [], 'production says nothing');
   else assert.equal(lines.length, 2, `once per element name (textarea, title): ${lines.join(' | ')}`);
 });
+
+/**
+ * **The recorded server/client difference: the server REFUSES a template in an HTML `<title>`/`<textarea>`** (Brian,
+ * 2026-11-19: kept, documented in the renderer's and `@verajs/ssr`'s READMEs). The client places it (above); the server
+ * cannot write elements a browser would keep there — it reads that content back as text — and such a template is a
+ * mistake either way. Pinned so a change to either side is a decision, not drift. The control: a string there serves.
+ */
+test('the server refuses a template in a <textarea> or <title> (ssr-template-in-text) where the client places it; a string serves', () => {
+  const out = JSON.parse(execFileSync(process.execPath, [...process.execArgv, '--input-type=module', '-e', `
+import { serializeTemplate } from '@verajs/ssr';
+const literal = (p) => Object.assign([...p], { raw: [...p] });
+const t = (s, ...v) => ({ strings: literal(s), values: v });
+const run = (f) => { try { return { html: f() }; } catch (e) { return { error: String(e.message) }; } };
+process.stdout.write(JSON.stringify({
+  textarea: run(() => serializeTemplate(t(['<textarea>', '</textarea>'], t(['<b>x</b>'])))),
+  title: run(() => serializeTemplate(t(['<title>', '</title>'], t(['<b>t</b>'])))),
+  control: run(() => serializeTemplate(t(['<textarea>', '</textarea>'], 'a<b'))),
+}));
+`], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: process.env }));
+  /** The server's own textarea bytes: a leading newline (the parser drops one) and `<` as a reference. */
+  assert.match(String(out.control.html), /^<textarea>\n?a&(?:lt|#60);b<\/textarea>$/, `CONTROL: a string serves: ${JSON.stringify(out.control)}`);
+  for (const key of ['textarea', 'title']) assert.match(String(out[key].error), /ssr-template-in-text/, `${key}: ${JSON.stringify(out[key])}`);
+});

@@ -95,14 +95,6 @@
       "fix": "It renders *into* something — `renderInto(html`…`, document.body)`."
     },
     {
-      "code": "obsolete-raw-text",
-      "params": [
-        "tag"
-      ],
-      "message": "a binding inside <{tag}> is never rendered — the parser reads its content as text whole, and <{tag}> is obsolete.",
-      "fix": "Use <pre> for preformatted text."
-    },
-    {
       "code": "ref-threw",
       "params": [],
       "message": "threw; its error is printed beside this line, and the render continued without it.",

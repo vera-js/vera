@@ -38,8 +38,8 @@ const RAWTEXT = new Set(['style', 'script']);
  * saw open at foreign depth 0, and every other doubt resolves to escaping. Reading raw text as markup over-escapes —
  * a visible difference, never an injection; reading markup as raw text writes a value's `<img onerror>` into the
  * page. So the set has to hold everything the parser treats as raw: the first three are the client's `RAW_TEXT_TAGS`;
- * `xmp`, `noembed`, `noframes` and `plaintext` are obsolete and the client does not list them, but the browser
- * still parses them as raw text — without them, `<xmp><style>${x}</style></xmp>` wrote `x` raw inside what the
+ * `xmp`, `noembed`, `noframes` and `plaintext` are obsolete (the client's scanner lists them too since 2026-11-19, as
+ * never-shown content), and the browser still parses them as raw text — without them, `<xmp><style>${x}</style></xmp>` wrote `x` raw inside what the
  * browser reads as one run of text, and `</xmp>` in the value closed it. `plaintext` never closes at all; ending it
  * at `</plaintext` here only ever resumes escaping too early, which writes `<style>` content raw into text the
  * browser shows verbatim — still text.
