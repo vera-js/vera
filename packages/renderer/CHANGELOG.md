@@ -1,5 +1,44 @@
 # @verajs/renderer
 
+## 0.3.1
+
+### Patch Changes
+
+- 5dcf229: A value inside an element whose content is never shown as markup (`<iframe>`, `<noscript>`, and the obsolete `<xmp>`,
+  `<noembed>`, `<noframes>`, `<plaintext>`) renders as text, and stays text after the page is saved from the DOM and
+  parsed again. Such an element's content is written back verbatim, so a value holding `</noscript><img onerror=…>` was
+  inert on the live page and became markup once the page was saved (`outerHTML`, an editor's publish) and served again,
+  with scripting on or off. The renderer now writes each value there fully encoded: every ASCII character other than a
+  letter, digit or `_` as a character reference, which no parse can turn into a tag or an attribute. The obsolete four
+  are no longer refused. A template in any of these elements is refused (`template-in-text`), as in a `<style>`; on the
+  server, a template inside a `<noscript>` is refused too (`ssr-template-in-text`), where it used to render. The served
+  bytes of a value there are unchanged (escaped as text) and differ from the client's; hydration rewrites that text
+  rather than adopting it.
+- 63ac5ee: A value in a `<style>` or a JSON data block stays text after the page is saved from the DOM and parsed again. A
+  browser writes such an element's text verbatim, so a value holding `</style><img onerror=…>` was inert on the live page
+  and became markup once the page was saved (an editor's publish, `outerHTML`) and served again. The renderer and the
+  server now write the same bytes: the element's statics and values composed together (a closer can form across a hole),
+  a data block's every `<` as `\u003c` and a style's every `</style` as `<\/style` — the same JSON and the same CSS.
+  Hydration adopts a served text equal to that and rewrites one that differs (the hydration hand-off's protocol is now 2:
+  a renderer and a hydration from different releases decline cleanly). Upgrade `@verajs/renderer` and `@verajs/ssr`
+  together: an older server writes these elements' text the old way, and the client then rewrites each one instead of
+  adopting it. A value in a style or data block is text by one
+  rule on both sides: nothing for `null`/`undefined`, a list its items' text joined, a template refused
+  (`template-in-text`, `ssr-template-in-text`). A template placed in an HTML `<title>` or `<textarea>` still renders, and
+  development now says it is never shown there. The renderer's raw-text scan ends a `<style>` only at a real end tag
+  (`</stylex>` had ended it early and lost the binding). On the server, a style hole no longer re-reads the whole document
+  written so far.
+- c167f64: A value enters a `<script>` only as a JSON data block: a script whose `type`, as written, ends in `json`
+  (`application/json`, `application/ld+json`) with no character reference. `@verajs/ssr` refuses any other script hole
+  in every build (`ssr-script-hole`), and writes a data block's value with `<` as `\u003c`, which JSON reads back
+  unchanged; the renderer refuses the same shapes (`script-hole`), in every build (below). The
+  start tag judged is the one that opened the script, read by the tokenizer.
+- 63ac5ee: A value in a `<script>` is refused in every build unless the script is an HTML JSON data block: the renderer now judges
+  it after the parse in production too (`script-hole`), since a saved page runs a template's script. A value in an SVG
+  `<script>` is refused even with a JSON type, because an SVG script runs from a template in Chromium and WebKit. A
+  script with a content hole may carry no binding of its own (`?type`, `.type`, `!type`, a spread), which could change
+  its type after it was judged.
+
 ## 0.3.0
 
 ### Minor Changes
