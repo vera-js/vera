@@ -9,7 +9,9 @@ and became markup once the page was saved (an editor's publish, `outerHTML`) and
 server now write the same bytes: the element's statics and values composed together (a closer can form across a hole),
 a data block's every `<` as `\u003c` and a style's every `</style` as `<\/style` — the same JSON and the same CSS.
 Hydration adopts a served text equal to that and rewrites one that differs (the hydration hand-off's protocol is now 2:
-a renderer and a hydration from different releases decline cleanly). A value in a style or data block is text by one
+a renderer and a hydration from different releases decline cleanly). Upgrade `@verajs/renderer` and `@verajs/ssr`
+together: an older server writes these elements' text the old way, and the client then rewrites each one instead of
+adopting it. A value in a style or data block is text by one
 rule on both sides: nothing for `null`/`undefined`, a list its items' text joined, a template refused
 (`template-in-text`, `ssr-template-in-text`). A template placed in an HTML `<title>` or `<textarea>` still renders, and
 development now says it is never shown there. The renderer's raw-text scan ends a `<style>` only at a real end tag
