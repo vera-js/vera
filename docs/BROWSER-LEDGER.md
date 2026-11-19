@@ -359,6 +359,13 @@ from another machine, or after that is undone, has a variable changed.
 
 ## The engines' compilers
 
+- **V8's instruction counts under cachegrind are not always identical run to run on an allocation-heavy operation**,
+  even under node's `--predictable --single-threaded`: on a stub DOM, one framework bundle's 1000-row `swap` read a slope
+  of 918 724 and then 944 520 instructions per operation at the same N (2.7% apart, byte-identical bundle), and a lone
+  run had shown a false +2.54% between two builds. The same instrument repeated within about 0.01% on lighter or
+  string-only work (a 1000-row `select` re-render, the SSR serializer's page render: an A/A of −0.002%). Consequence: a
+  counter delta on a GC-heavy operation is read only from REPEATED pairs (both arms, the repeat agreeing), never from
+  one run. (Node 26 V8 under valgrind cachegrind, x86-64 under Rosetta in a Linux VM, 2026-11-18.)
 - **Firefox penalizes the SIZE of core's `initWith` where V8 did not: a loop that never runs cost component creation.**
   Adding an `=== false` check (and an argument) to the `'init'`-insert loop inside `initWith` — on a page with no
   `'init'` insert, so the loop never ran — cost Firefox create20 +2.4% (6/6 sessions; Chrome −2.3%). One change undone per
