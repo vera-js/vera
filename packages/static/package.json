@@ -1,7 +1,9 @@
 {
   "name": "@verajs/static",
   "version": "0.0.0",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "VeraJS's static tier: web components with define and html, rendered once into markup. Under 1 KB, no reactivity, safe values. No build step required.",
   "license": "MIT",
   "engines": {

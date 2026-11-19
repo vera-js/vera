@@ -1,7 +1,9 @@
 {
   "name": "@verajs/lite",
   "version": "0.0.0",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "VeraJS's small tier: web components with define, signal and html, and a renderer that patches the values that changed in place. No build step required.",
   "license": "MIT",
   "engines": {
