@@ -17,15 +17,20 @@ import { mkdtempSync, writeFileSync, symlinkSync, rmSync, readdirSync, readFileS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { packageDirs } from '../scripts/packages.mjs';
 import { fsPath } from '../scripts/fs-path.mjs';
 
 const repo = fsPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 
-/** A throwaway project that can resolve this repo's node_modules, so the workspace links apply. */
+/**
+ * A throwaway project that can resolve this repo's node_modules, so the workspace links apply. The link is a
+ * `'junction'`: Node ignores the type outside Windows, and on Windows a `'dir'` symlink needs Developer Mode (EPERM,
+ * 12 rows red on the Windows machine until 2026-11-21) while a junction needs no rights.
+ */
 const project = (files) => {
   const dir = mkdtempSync(join(tmpdir(), 'vera-config-'));
-  symlinkSync(join(repo, 'node_modules'), join(dir, 'node_modules'), 'dir');
+  symlinkSync(join(repo, 'node_modules'), join(dir, 'node_modules'), 'junction');
   for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
   return dir;
 };
@@ -38,8 +43,15 @@ const run = (cmd, args, cwd) => {
   }
 };
 
+/**
+ * A project tool, started as its JavaScript entry under this Node: `node_modules/.bin/*` are shell scripts (and `.cmd`
+ * files on Windows) that execFile cannot start there. On macOS and Linux the `.bin` link points at these same files.
+ */
+const TOOLS = { eslint: 'node_modules/eslint/bin/eslint.js', tsc: 'node_modules/typescript/bin/tsc' };
+const tool = (name, args) => [process.execPath, [join(repo, TOOLS[name]), ...args]];
+
 const ESLINT_CONFIG = `
-import tsParser from '${repo}/node_modules/@typescript-eslint/parser/dist/index.js';
+import tsParser from '${pathToFileURL(join(repo, 'node_modules/@typescript-eslint/parser/dist/index.js')).href}';
 import vera from '@verajs/eslint-config';
 export default [
   { files: ['**/*.ts'], languageOptions: { parser: tsParser } },
@@ -49,10 +61,22 @@ export default [
 
 const lint = (source) => {
   const dir = project({ 'eslint.config.mjs': ESLINT_CONFIG, 'subject.ts': source });
-  const { out } = run(join(repo, 'node_modules/.bin/eslint'),
-    ['--no-config-lookup', '-c', 'eslint.config.mjs', 'subject.ts'], dir);
+  const { code, out } = run(...tool('eslint', ['--no-config-lookup', '-c', 'eslint.config.mjs', '-f', 'json', 'subject.ts']), dir);
   rmSync(dir, { recursive: true, force: true });
-  return out;
+  /**
+   * CONTROL: only a real lint run answers JSON with a result for subject.ts. An exit code cannot tell: eslint's "found
+   * problems" is 1, and so is Node's "Cannot find module" — on that, every "accepted" row would pass with no linter run
+   * at all (shown 2026-11-21 by pointing the tool at a missing file).
+   */
+  let results;
+  try {
+    results = JSON.parse(out);
+  } catch {
+    throw new Error(`eslint did not lint (exit ${code}):\n${out}`);
+  }
+  const subject = results.find((result) => result.filePath.endsWith('subject.ts'));
+  if (!subject) throw new Error(`eslint linted no subject.ts:\n${out}`);
+  return subject.messages.map((message) => `${message.ruleId}: ${message.message}`).join('\n');
 };
 
 test('eslint-config: flags a plain class field on a custom element', () => {
@@ -112,7 +136,7 @@ test('tsconfig: `extends` resolves by bare specifier', () => {
     'tsconfig.json': JSON.stringify({ extends: '@verajs/tsconfig', include: ['subject.ts'] }),
     'subject.ts': 'export const a = 1;',
   });
-  const { code, out } = run(join(repo, 'node_modules/.bin/tsc'), ['--showConfig', '-p', 'tsconfig.json'], dir);
+  const { code, out } = run(...tool('tsc', ['--showConfig', '-p', 'tsconfig.json']), dir);
   rmSync(dir, { recursive: true, force: true });
   assert.equal(code, 0, out);
   const resolved = JSON.parse(out).compilerOptions;
@@ -129,7 +153,7 @@ test('tsconfig: a field declaration emits nothing under it', () => {
     }),
     'subject.ts': 'export class Card extends HTMLElement { user?: string; }',
   });
-  const { code, out } = run(join(repo, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.json'], dir);
+  const { code, out } = run(...tool('tsc', ['-p', 'tsconfig.json']), dir);
   assert.equal(code, 0, out);
   const emitted = execFileSync('cat', [join(dir, 'out/subject.js')], { encoding: 'utf8' });
   rmSync(dir, { recursive: true, force: true });
