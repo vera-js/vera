@@ -670,16 +670,44 @@ through GitHub private security advisories (`SECURITY.md`), never a public issue
 commit* is itself a disclosure, so the fix is developed in the advisory's private fork and released
 before the advisory is published.
 
-Set up on a new machine:
+**Setting up on any machine (Brian, 2026-11-19).** The portal is its OWN git repository that lives inside this
+tree's folder: not a submodule, not a subtree, nothing in this repo records it. This repo's `.gitignore` ignores
+`/internal/`, so nothing in it is ever committed here, and the portal commits and pushes on its own:
 
 ```sh
 git clone https://github.com/vera-js/vera.git && cd vera
-git clone https://github.com/vera-js/internal.git internal   # gitignored here
+git clone https://github.com/vera-js/internal.git internal     # the portal: its own repo, branch master
+git remote add archive https://github.com/vera-js/vera-archive.git   # where WIP and probe branches push
+npm ci
+npx playwright install chromium firefox webkit   # the browser suites' engines; nothing in npm ci installs them
+
+git status --short --ignored internal    # `!! internal/`: ignored here, as it must be
+git -C internal remote -v                # origin is vera-js/internal, never vera-js/vera
 ```
 
-**`vera-js/vera-archive` (private) holds retired packages** — a snapshot copy at each one's
-moment of retirement, reference only; nothing builds, publishes, or imports from it. Motion is
-its first resident (2026-09-06).
+- **Two repos, two cycles.** Run `git -C internal …` (or `cd internal`) for the portal, and commit and push it every
+  pass: pushing it publishes nothing, and it is the copy that survives a lost machine. This repo's branches stay
+  local, or push to `archive`, until Brian's go puts a commit on `main`. Make a branch private from birth with
+  `git config branch.<name>.pushRemote archive` when it is created; never set `remote.pushDefault archive`, which
+  would send the release loop's `git push --follow-tags` (commit and tags) to the archive, where nothing publishes
+  and nothing reports it. Branch from `origin/main` after a fetch, never from a local `main` or from `archive/main`
+  (a stale copy).
+- `bench/` is not a workspace member: `cd bench && npm install` before any comparative benchmark.
+- **Never `git add -f internal`, and never `git submodule add`.** Either would put the private portal's content, or a
+  pointer to it, into the public history, which is permanent.
+- **Before any public push, check the range for private pointers**, commit messages and non-source files included
+  (`tests/no-private-pointers.test.mjs` reads only package source comments):
+  `git log -p origin/main..HEAD | grep -nE '\binternal/(docs|archive|tools)|\.probe/|\bvera-[0-9a-f]{2}\b'`. Hits in
+  this section and the repositories table above are expected; read every other one. A public file never points into
+  the portal: it is a dead link for everyone but Brian, and history is permanent.
+- **More than one machine on the repo:** read `internal/docs/TWO-MACHINES.md` first: who owns which packages,
+  branch naming, the per-machine status files that carry messages between machines, the shared and generated files,
+  and who releases.
+
+**`vera-js/vera-archive` (private) holds retired packages and every non-landing branch.** It holds a snapshot copy of
+each retired package at its retirement (motion first, 2026-09-06) and every WIP, probe and saved branch: the
+2026-10-22 batch under `vera-branches/<name>`, later ones under their own names (public `vera-js/vera` holds only
+`main` and `next`). Its `main` is a stale copy. Reference only: nothing builds, publishes or imports from it.
 
 **`vera-js/vera-private` is archived** — the frozen full history of the work before the public repo
 became primary. Read-only, never cloned into this tree, never pushed to again.
