@@ -17,6 +17,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+/** Each child's script goes in on stdin, not `-e`: Windows caps a command line at 32,767 characters (ENAMETOOLONG). */
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import { load, isProduction } from './dist.mjs';
@@ -158,7 +159,7 @@ process.stdout.write(JSON.stringify(cases.map(([strings, values, spreadKey]) =>
     values: spreadKey === null ? values : [spread({ [spreadKey]: values[0] })] }))));
 `;
 const served = JSON.parse(
-  execFileSync(process.execPath, ['--input-type=module', '-e', serverScript], { cwd: new URL('..', import.meta.url), encoding: 'utf8' })
+  execFileSync(process.execPath, ['--input-type=module'], { input: serverScript, cwd: new URL('..', import.meta.url), encoding: 'utf8' })
 );
 
 /* ── client ──────────────────────────────────────────────────────────────────────────────────── */
@@ -273,7 +274,7 @@ process.stdout.write(JSON.stringify([
   serializeTemplate(T(['<a href="', '">x</a>'], [turncoat()])),
   serializeTemplate(T(['<a ', '>x</a>'], [spread({ href: turncoat() })])),
 ]));`;
-  const out = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: new URL('..', import.meta.url), encoding: 'utf8' }));
+  const out = JSON.parse(execFileSync(process.execPath, ['--input-type=module'], { input: script, cwd: new URL('..', import.meta.url), encoding: 'utf8' }));
   for (const markup of out) {
     const parsed = document.createElement('div');
     parsed.innerHTML = markup;
@@ -344,7 +345,7 @@ test('an animation value bound through an svg`` template is refused, client and 
 import { serializeTemplate } from '@verajs/ssr';
 process.stdout.write(serializeTemplate({ _$litType$: 2, strings: Object.freeze(Object.assign(${JSON.stringify(strings)}, { raw: ${JSON.stringify(strings)} })), values: ['javascript:alert(1)'] }));
 `;
-  const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+  const out = execFileSync(process.execPath, ['--input-type=module'], { input: script, cwd: new URL('..', import.meta.url), encoding: 'utf8' });
   assert.match(out, /<set attributeName="href"/, 'CONTROL: the server rendered the element');
   assert.doesNotMatch(out, /javascript/i);
 });
