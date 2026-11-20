@@ -133,3 +133,34 @@ test('the client (every build): a hole in a foreign <script> never reaches the D
     [console.error, console.warn] = saved;
   }
 });
+
+/**
+ * **The server's shortcut for the written form answers exactly what `dataBlock` answers** (2026-11-20). `compile` judges
+ * `<script type="…">` — nothing else in the tag, no `"` in the type — without `dataBlock`'s match (`writtenDataBlock`),
+ * so the rule has a second address there; this row holds the two together through a real render, so a rule tightened
+ * in the twin and not in the shortcut turns red. Planted red by making the shortcut answer `true` for every such tag.
+ */
+test("a script hole in the written `<script type=\"…\">` form is served exactly when dataBlock says it is a data block", async () => {
+  const { dataBlock } = await import(new URL('packages/ssr/dist/vera/escaping.js', root));
+  const { serializeTemplate } = await import('@verajs/ssr');
+  const { html } = await import('@verajs/core');
+  const types = ['application/json', 'application/ld+json', 'importmap', 'module', 'text/javascript', ' json ', 'JSON', 'x&amp;json', '', 'a>b json', 'json\t', 'speculationrules', 'text/json;x=1', 'Application/JSON '];
+  let served = 0;
+  let refused = 0;
+  for (const type of types) {
+    const tag = `<script type="${type}">`;
+    const strings = Object.assign([tag, '</script>'], { raw: [tag, '</script>'] });
+    let ok;
+    try {
+      serializeTemplate(html(strings, '1'));
+      ok = true;
+    } catch (error) {
+      assert.match(String(error), /ssr-script-hole/, `${tag}: refused with its code`);
+      ok = false;
+    }
+    assert.equal(ok, dataBlock(tag), `${tag}: the server ${ok ? 'served' : 'refused'} it, dataBlock says ${dataBlock(tag)}`);
+    if (ok) served++;
+    else refused++;
+  }
+  assert.ok(served > 2 && refused > 2, `CONTROL: both answers seen (${served} served, ${refused} refused)`);
+});
