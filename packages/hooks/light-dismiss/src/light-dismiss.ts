@@ -18,10 +18,19 @@
  */
 import type { DismissController, LifecycleElement } from './types.js';
 
-/** The platform's stacked close-request primitive, feature-detected once. Typed locally: it is
- *  newer than the lib.dom this repo pins. */
+/** The platform's stacked close-request primitive. Typed locally: it is newer than the lib.dom this repo pins. */
 type CloseWatcherLike = { onclose: (() => void) | null; destroy: () => void };
-const CLOSE_WATCHER = (globalThis as { CloseWatcher?: new () => CloseWatcherLike }).CloseWatcher;
+/**
+ * **The element's own window, read at each activation** (Phase 0 item 5, 2026-11-21): its document takes the listeners
+ * and its `CloseWatcher` (feature-detected there) takes Escape. Both were the module's: `CloseWatcher` from `globalThis`
+ * at load, listeners on the global `document`. So an element in an iframe or a popped-out window was never dismissed by
+ * a press or an Escape in its own window (`tests/browser/light-dismiss-realm.test.js`). Read at activation, not at
+ * creation, because an element can be adopted into another document between two opens.
+ */
+interface RealmWindow extends Window {
+  CloseWatcher?: new () => CloseWatcherLike;
+  KeyboardEvent: typeof KeyboardEvent;
+}
 
 /**
  * @param element The component the dismissable region belongs to.
@@ -60,12 +69,15 @@ export const lightDismiss = (element: LifecycleElement, onDismiss: (event?: Keyb
    * keys (sendKeys) and jsdom exercises the fallback.
    */
   let watcher: CloseWatcherLike | null = null;
+  /** The document the listeners went on at activation, so deactivation removes them from that one. */
+  let doc: Document | null = null;
 
   const deactivate = () => {
     if (!active) return;
     active = false;
-    document.removeEventListener('pointerdown', onPointerDown, true);
-    document.removeEventListener('keydown', onKeyDown, true);
+    doc?.removeEventListener('pointerdown', onPointerDown, true);
+    doc?.removeEventListener('keydown', onKeyDown, true);
+    doc = null;
     watcher?.destroy();
     watcher = null;
   };
@@ -73,15 +85,18 @@ export const lightDismiss = (element: LifecycleElement, onDismiss: (event?: Keyb
   const activate = () => {
     if (active) return;
     active = true;
+    doc = element.ownerDocument;
+    const view = doc.defaultView as RealmWindow | null;
     /** Capture phase, so a stopPropagation() inside unrelated UI cannot hold the region open. */
-    document.addEventListener('pointerdown', onPointerDown, true);
-    if (CLOSE_WATCHER) {
-      watcher = new CLOSE_WATCHER();
+    doc.addEventListener('pointerdown', onPointerDown, true);
+    if (view?.CloseWatcher) {
+      watcher = new view.CloseWatcher();
       /** The close request carries no KeyboardEvent; a shaped one keeps the callback's contract
-       *  (an event means "keyboard-like dismissal, refocus the trigger"). */
-      watcher.onclose = () => onDismiss(new KeyboardEvent('keydown', { key: 'Escape' }));
+       *  (an event means "keyboard-like dismissal, refocus the trigger"), made by the same window. */
+      const Keyboard = view.KeyboardEvent;
+      watcher.onclose = () => onDismiss(new Keyboard('keydown', { key: 'Escape' }));
     } else {
-      document.addEventListener('keydown', onKeyDown, true);
+      doc.addEventListener('keydown', onKeyDown, true);
     }
     /**
      * Registered at ACTIVATE, into the element's cleanup set - not once at creation: a re-init
