@@ -749,6 +749,20 @@ from another machine, or after that is undone, has a variable changed.
   0.004 M). The cost is not linear in the number of truncations: the copy that paid it truncated fewer times (5040
   over 12 renders) than one that did not (6300). Mechanism open; not yet timed. Consequence: a shrinking length store
   in a hot loop is measured against a pop loop before it is kept.
+- **A fresh `[]` that a hot function later fills with objects deopts that function's optimized code on EVERY call
+  that brings a new one.** Node 24.18.0 (V8 13.6.233.17-node.50), `--trace-opt --trace-deopt`, 2026-11-20. An `[]`
+  literal is born with small-integer elements and changes kind at its first push of an object. `@verajs/ssr`'s tag
+  scanner pushes open-element entries onto the `opens` array each scan's fresh state carries, and its optimized code
+  learns the kind it saw. Every render's fresh `opens` then arrived in the other kind. On a 50 KB `.innerHTML` value
+  that meant "wrong map" deopts on renders 2 and 7 (at `opens.length === 0`) and a "not a Smi" one on render 3, each
+  discarding the optimized scan. Each recompile came later than the one before, so full TurboFan landed on render 40
+  (and 45 once the scanner had grown). With every fresh `opens` copied from an empty array that already holds objects,
+  all three deopts are gone and full TurboFan lands on render 38. The first 100 renders took 64.7 ms against 82.3
+  (0.3.0, which had the same deopts: 78.8; 8 fresh processes each, medians), and renders 101 on were unchanged. The
+  same run showed the cost hides as TurboFan COMPILE time: a bigger function's longer compiles stretch every window the
+  deopts open, and jitless timing is equal. Consequence: an array a hot function fills with objects is created already
+  holding that kind, never as a fresh `[]` per call. `tests/ssr-scan-elements-kind.test.mjs` pins the scanner's state,
+  asked of V8 with `--allow-natives-syntax`.
 - **A one-time instruction count can carry a garbage-collection STEP that no single change owns.** Node 26 V8 under
   valgrind cachegrind (as above), 2026-11-19, with Node 24.18 `--trace-gc` for comparison. Removing five compile-time
   checks from `@verajs/ssr` one at a time saved 1.57 M instructions of a template's first render in total; removing
