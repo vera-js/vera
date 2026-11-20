@@ -35,8 +35,9 @@ const { selectSurface } = await import('../packages/components/select/src/select
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
 test('the committed manifest matches the declared surfaces (the generator refuses drift)', () => {
-  const script = fileURLToPath(new URL('../packages/components/select/scripts/generate-manifest.mjs', import.meta.url));
-  const result = spawnSync(process.execPath, [script, '--check'], { encoding: 'utf8' });
+  const script = fileURLToPath(new URL('../scripts/generate-cem.mjs', import.meta.url));
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const result = spawnSync(process.execPath, [script, 'packages/components/select', '--check'], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 

@@ -43,8 +43,8 @@
   "customElements": "custom-elements.json",
   "scripts": {
     "build": "wireit",
-    "manifest": "node scripts/generate-manifest.mjs",
-    "manifest:check": "node scripts/generate-manifest.mjs --check"
+    "manifest": "node ../../../scripts/generate-cem.mjs packages/components/select",
+    "manifest:check": "node ../../../scripts/generate-cem.mjs packages/components/select --check"
   },
   "wireit": {
     "build": {

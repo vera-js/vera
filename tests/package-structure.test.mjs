@@ -148,6 +148,9 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
     say('side-effects', `sideEffects is ${JSON.stringify(manifest.sideEffects)}, not exactly the registering entry's two builds ${JSON.stringify(builds)} (false drops the registration in production)`);
   if (!(manifest.files ?? []).includes('dist')) say('files', "files does not ship dist");
   if (component && typeof manifest.customElements !== 'string') say('custom-elements', 'no customElements manifest named');
+  /** A manifest is generated from the surfaces (`scripts/generate-cem.mjs`), so naming one with no surface declares a file nothing writes. */
+  if (typeof manifest.customElements === 'string' && !Object.keys(files).some((file) => typeof files[file] === 'string' && /^src\/(?:.+\/)?surface\.ts$/.test(file)))
+    say('no-surface', `customElements names ${manifest.customElements}, but no src/**/surface.ts declares a surface for scripts/generate-cem.mjs to generate it from`);
 
   /** The registries, parsed where they are data. */
   if (manifest.scripts?.build !== undefined && !regs.build.includes(`./${dir}:build`)) say('build-edge', `root package.json's build does not depend on ./${dir}:build`);
@@ -283,6 +286,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
       'src/index.ts': "import { define } from '@verajs/core';\nimport { options, setup } from './element.js';\nexport const defineAs = (tag) => define({ ...options, tag }, setup);",
       'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nexport const options = { tag: 'vera-zz-plant' };\nexport const setup = () => listbox;",
       'src/register.ts': "import { define } from '@verajs/core';\nimport { options, setup } from './element.js';\nif (!customElements.get(options.tag)) define(options, setup);\nelse if (__DEV__) warn('defined-twice');",
+      'src/zz-plant/surface.ts': "export const zzPlantSurface = { tag: 'vera-zz-plant', description: 'A plant.' } as const;",
     },
   };
   const registered = {
@@ -318,6 +322,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['sideEffects missing a build', withManifest({ sideEffects: [min] }), registered],
     ['files without dist', withManifest({ files: ['src'] }), registered],
     ['no customElements', withManifest({ customElements: undefined }), registered],
+    ['a customElements manifest with no surface to generate it from', withFiles({ 'src/zz-plant/surface.ts': undefined }), registered],
     ['no build edge', good, { ...registered, build: [] }],
     ['a tsconfig path into another dir', good, { ...registered, paths: { [own]: ['./packages/components/other/src/index.ts'] } }],
     ['no dist entry', good, { ...registered, dist: '' }],
