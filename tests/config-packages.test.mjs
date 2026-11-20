@@ -17,6 +17,7 @@ import { mkdtempSync, writeFileSync, symlinkSync, rmSync, readdirSync, readFileS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const repo = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 
@@ -147,8 +148,8 @@ test('tsconfig: a field declaration emits nothing under it', () => {
  */
 test('every changeset names a publishable package and a valid bump', () => {
   const publishable = new Set();
-  for (const pkg of readdirSync('packages')) {
-    const manifest = `packages/${pkg}/package.json`;
+  for (const dir of packageDirs()) {
+    const manifest = `${dir}/package.json`;
     if (!existsSync(manifest)) continue;
     const parsed = JSON.parse(readFileSync(manifest, 'utf8'));
     if (!parsed.private && parsed.name) publishable.add(parsed.name);

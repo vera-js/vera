@@ -44,6 +44,7 @@ import { readFileSync, existsSync, globSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const key of [
@@ -54,7 +55,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const manifests = globSync('packages/*/package.json', { cwd: root });
+const manifests = packageFiles('package.json');
 
 /** Every `exports` target, and every entry whose development and production builds are distinct. */
 const targets = [];

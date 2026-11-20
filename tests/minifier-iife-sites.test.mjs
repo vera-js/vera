@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { iifes } from './iife-count.mjs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const PINS = {
@@ -76,8 +77,8 @@ const PINS = {
   'packages/ui/dist/vera-ui.min.js': 3,
 };
 
-const bundles = readdirSync(join(root, 'packages'), { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) => {
-  const dir = `packages/${d.name}/dist`;
+const bundles = packageDirs().flatMap((pkg) => {
+  const dir = `${pkg}/dist`;
   return existsSync(join(root, dir)) ? readdirSync(join(root, dir)).filter((f) => f.endsWith('.min.js')).map((f) => `${dir}/${f}`) : [];
 });
 

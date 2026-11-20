@@ -15,8 +15,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { ENTRY, NO_PRODUCTION_BUILD } from './dist.mjs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
@@ -30,8 +31,8 @@ const NOT_A_MODULE_SURFACE = {
 };
 
 const declared = [];
-for (const entry of readdirSync(`${root}packages`)) {
-  const file = `${root}packages/${entry}/package.json`;
+for (const dir of packageDirs()) {
+  const file = `${root}${dir}/package.json`;
   if (!existsSync(file)) continue;
   const pkg = JSON.parse(readFileSync(file, 'utf8'));
   if (pkg.private) continue;

@@ -29,12 +29,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (file) => readFileSync(root + file, 'utf8');
 
 /** The recipes suite's set: what a reader copies from. */
-const FILES = ['README.md', 'llms.txt', ...globSync('packages/*/README.md', { cwd: root }).sort()];
+const FILES = ['README.md', 'llms.txt', ...packageFiles('README.md').sort()];
 
 /**
  * A promise of a message. Deliberately BROAD: an anchored first version (subject + verb) found 47 sentences and missed
@@ -266,7 +267,7 @@ const CLAIMS = new Map([
 ]);
 
 const codes = new Set(
-  globSync('packages/*/diagnostics.json', { cwd: root }).flatMap((file) => JSON.parse(read(file)).entries.map((entry) => entry.code))
+  packageFiles('diagnostics.json').flatMap((file) => JSON.parse(read(file)).entries.map((entry) => entry.code))
 );
 /** The motion spec's fixtures count: `motion-spec-corpus` asserts every code they list, in order. */
 const testSources = [

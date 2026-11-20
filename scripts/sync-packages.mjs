@@ -4,10 +4,10 @@
  * historically. Run in CI (`npm run check`); exits nonzero listing violations.
  */
 import { readFileSync } from 'node:fs';
-import { globSync } from 'node:fs';
+import { packageFiles } from './packages.mjs';
 
 const problems = [];
-const packages = globSync('packages/*/package.json');
+const packages = packageFiles('package.json');
 for (const path of packages) {
   const p = JSON.parse(readFileSync(path, 'utf8'));
   const w = p.wireit;

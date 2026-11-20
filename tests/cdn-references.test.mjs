@@ -37,15 +37,16 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync, existsSync, globSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 /** Package name -> its directory and manifest. Built from the manifests, never listed here. */
 const packages = new Map();
-for (const manifest of globSync('packages/*/package.json', { cwd: root })) {
+for (const manifest of packageFiles('package.json')) {
   const json = JSON.parse(readFileSync(join(root, manifest), 'utf8'));
   packages.set(json.name, { dir: manifest.replace(/\/package\.json$/, ''), json });
 }

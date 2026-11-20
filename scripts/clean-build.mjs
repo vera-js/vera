@@ -4,7 +4,7 @@
  *   node scripts/clean-build.mjs            build from nothing
  *   node scripts/clean-build.mjs --check    only ask whether a build is running in this tree
  *
- * `npm run build` is cached by wireit, and wireit keeps its state in `packages/*\/.wireit` as well as the root: deleting
+ * `npm run build` is cached by wireit, and wireit keeps its state in each package's `.wireit` as well as the root: deleting
  * every `dist/` alone reports "Ran 0 scripts and skipped 26" and rebuilds nothing. A cached local build cannot see an
  * undeclared build edge — a package whose build needs another's output and does not say so passes here and fails on CI
  * (it hid `packages/ssr`'s missing dependency for months; three more were found on 2026-10-09). So this clears both
@@ -20,6 +20,7 @@
 import { execSync, spawnSync } from 'node:child_process';
 import { globSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from './packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -48,7 +49,8 @@ if (process.argv.includes('--check')) {
   process.exit(0);
 }
 
-const cleared = globSync(['.wireit', 'packages/*/.wireit', 'packages/*/*/.wireit', 'packages/*/dist'], { cwd: root });
+/** Every package's own cache and output, at any depth (`packages.mjs`), plus a cache one level inside a package. */
+const cleared = [...globSync('.wireit', { cwd: root }), ...packageFiles('.wireit'), ...packageFiles('*/.wireit'), ...packageFiles('dist')];
 for (const path of cleared) rmSync(root + path, { recursive: true, force: true });
 console.log(`cleared ${cleared.length} build directories`);
 

@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
@@ -180,10 +181,10 @@ test('every published bundle is covered by one rule or the other', () => {
   const covered = new Set([...Object.values(PROD), ...Object.values(EXTERNAL_CORE)]);
   const missing = [];
   let examined = 0;
-  for (const pkg of readdirSync('packages')) {
-    const dir = `packages/${pkg}/dist`;
+  for (const pkg of packageDirs()) {
+    const dir = `${pkg}/dist`;
     if (!existsSync(dir)) continue;
-    if (JSON.parse(readFileSync(`packages/${pkg}/package.json`, 'utf8')).private) continue;
+    if (JSON.parse(readFileSync(`${pkg}/package.json`, 'utf8')).private) continue;
     for (const file of readdirSync(dir))
       if (file.endsWith('.min.js')) {
         examined++;

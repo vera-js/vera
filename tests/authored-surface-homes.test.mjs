@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -54,8 +55,8 @@ test('every event the framework dispatches is on the manifest — names are API'
       }
     }
   };
-  for (const pkg of readdirSync(new URL('../packages', import.meta.url))) {
-    try { walk(`packages/${pkg}/src`); } catch { /* no src */ }
+  for (const dir of packageDirs()) {
+    try { walk(`${dir}/src`); } catch { /* no src */ }
   }
   const spec = new Set(SPEC);
   const undocumented = [...found].filter((e) => !spec.has(e));

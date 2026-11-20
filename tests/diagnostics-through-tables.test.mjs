@@ -14,6 +14,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DIRECTIVES, TABLES as LISTED, proseOf } from '../scripts/diagnostic-tables.mjs';
+import { packageFiles } from '../scripts/packages.mjs';
 
 /** Every package's tables, directives' included (published by sync-diagnostics with its payloads, so listed apart). */
 const TABLES = [...LISTED, DIRECTIVES];
@@ -187,13 +188,14 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  */
 
 test('every package that prints or throws is on the code system', () => {
-  const printing = globSync('packages/*/src', { cwd: root })
-    .map((dir) => dir.split('/')[1])
-    .filter((name) =>
-      globSync(`packages/${name}/src/**/*.ts`, { cwd: root }).some((file) =>
+  /** A package's name is its directory's last segment, at any depth (`packages/components/select` → `select`). */
+  const printing = packageFiles('src')
+    .filter((src) =>
+      globSync(`${src}/**/*.ts`, { cwd: root }).some((file) =>
         /console\.(?:warn|error)\(|throw new \w*Error\(/.test(readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''))
       )
-    );
+    )
+    .map((src) => src.split('/').at(-2));
   assert.ok(printing.length >= 10, `CONTROL: ${printing.length} packages print`);
   const migrated = new Set(MIGRATED.map(([name]) => name));
   assert.deepEqual(printing.filter((name) => !migrated.has(name)), [], 'a package prints or throws uncoded — migrate it onto its table');

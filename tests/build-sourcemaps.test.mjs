@@ -28,6 +28,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
@@ -40,8 +41,8 @@ const walk = (dir) => {
     else if (entry.name.endsWith('.js.map')) maps.push(full);
   }
 };
-for (const pkg of readdirSync(join(root, 'packages'))) {
-  const dist = join(root, 'packages', pkg, 'dist');
+for (const dir of packageDirs()) {
+  const dist = join(root, dir, 'dist');
   if (existsSync(dist)) walk(dist);
 }
 

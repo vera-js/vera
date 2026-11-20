@@ -14,13 +14,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-const packages = globSync('packages/*/package.json', { cwd: root })
+const packages = packageFiles('package.json')
   .map((file) => JSON.parse(readFileSync(join(root, file), 'utf8')))
   .filter((manifest) => !manifest.private)
   .sort((a, b) => a.name.localeCompare(b.name));
@@ -83,7 +84,7 @@ test('the document names every published package, and counts them right', () => 
  * `static` reached their first release without one (2026-11-19); every other published package had it.
  */
 test('every published package ships the LICENSE its manifest names', () => {
-  const dirs = globSync('packages/*/package.json', { cwd: root })
+  const dirs = packageFiles('package.json')
     .filter((file) => !JSON.parse(readFileSync(join(root, file), 'utf8')).private)
     .map((file) => file.replace(/\/package\.json$/, ''));
   assert.ok(dirs.length >= 7, `the scan is broken, not the list: it found ${dirs.length} published packages`);

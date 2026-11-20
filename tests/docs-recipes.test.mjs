@@ -217,11 +217,12 @@ test('the multi-module CDN snippet hands the router core\u2019s registry', () =>
  */
 import { globSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
 
 const repoRoot = new URL('..', import.meta.url).pathname;
-const readmes = ['README.md', ...globSync('packages/*/README.md').sort()];
+const readmes = ['README.md', ...packageFiles('README.md').sort()];
 /**
  * **`llms.txt` is executed here too, and it was not.**
  *
@@ -287,7 +288,7 @@ test('no recipe marker sits outside the files that execute them', () => {
     ...globSync('*.md', { cwd: repoRoot }),
     ...globSync('*.txt', { cwd: repoRoot }),
     ...globSync('docs/**/*.md', { cwd: repoRoot }),
-    ...globSync('packages/*/README.md', { cwd: repoRoot }),
+    ...packageFiles('README.md'),
     ...globSync('examples/**/*.md', { cwd: repoRoot }),
   ];
 

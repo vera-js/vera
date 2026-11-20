@@ -9,15 +9,16 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, globSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 /** Every words bundle: each MODE=node build, and each production bundle of an entry built with `words: true`. */
 const WORDS = [
-  ...globSync('packages/*/dist/node/*.js', { cwd: root }),
+  ...packageFiles('dist/node/*.js'),
   'packages/cms/dist/vera-cms-publish.min.js',
   'packages/cms/dist/vera-cms-node.min.js',
   'packages/cms/dist/vera-cms-cli.min.js',
@@ -61,7 +62,7 @@ const shippedLines = (mappings) => {
 const PROSE_ONLY = /__DEV__\s*&&\s*(?:PROSE\[|SHARED\.|andProse\b)/;
 
 test('CONTROL: the list covers every `words: true` entry, and every bundle on it exists', () => {
-  const declared = globSync('packages/*/rollup.config.js', { cwd: root })
+  const declared = packageFiles('rollup.config.js')
     .reduce((sum, file) => sum + (readFileSync(root + file, 'utf8').match(/\bwords: true\b/g) ?? []).length, 0);
   const listed = WORDS.filter((file) => !file.includes('/dist/node/')).length;
   assert.equal(listed, declared, `${declared} entries declare words: true; ${listed} are listed here`);
