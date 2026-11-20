@@ -155,6 +155,8 @@ type Plan = {
   readonly decodedLeads: string[];
   /** Sparse: set for each COMPONENT_PROP slot only. */
   readonly urls: Array<boolean | undefined>;
+  /** Per slot (dense, 0 for every slot that is no style hole): when a style value may skip `styleHole` — see `compile`. */
+  readonly styleTails: number[];
 };
 
 /** No plan at all — every field absent, which is how `serializeTemplate` tells a forgery from a template. */
@@ -746,11 +748,27 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
    * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
    */
+  /**
+   * **When a style value cannot take part in a closer formed across its hole** — read off the final statics, once
+   * (2026-11-19). `styleHole` neutralizes a `</style` that overlaps the value in the window of the 6 characters written
+   * before it, the value and the next static's first 6; it starts with its `</`, so with `p` the window position of its
+   * `<`, an overlapping one has `p` in [start − 6, stop − 1] (start/stop: where the value begins and ends). `styleHole`
+   * reads those 6 characters from the static before the hole whenever it has 6, and from `out` only when it is shorter.
+   * So when that static has 6 or more characters and no `<` in its last 6, `p` ≥ start, and a crossing closer needs its
+   * `</` at (p, p + 1) inside the value, or the value ending in `<` (p = stop − 1) with the next static starting with
+   * `/`. 1: the static is such; 2: and the next static starts with `/`; 0: neither (or no style hole). Dense, so the
+   * render reads a number at every slot.
+   */
+  const styleTails = Array.from(kinds, (_, i) => {
+    const before = parts[i]!;
+    if (raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6) return 0;
+    return parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1;
+  });
   const plan: Plan = {
     parts, kinds, names, strip, owners, raws,
     depths: Array.from(kinds, (_, i) => depths[i] ?? 0),
     texts: Array.from(kinds, (_, i) => texts[i] === true),
-    elementPositions, elements, groups, leads, decodedLeads, urls,
+    elementPositions, elements, groups, leads, decodedLeads, urls, styleTails,
   };
   if (depth === 0) plans.set(strings, plan);
   else {
@@ -781,7 +799,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
    * `strings` is any value here, a forgery's included: the cast only names the key the maps hold, and `WeakMap#get`
    * answers `undefined` for a key it could never hold, which sends a forgery on to `compile`'s refusal.
    */
-  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls } =
+  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls, styleTails } =
     (depth === 0 ? plans.get(strings as TemplateStringsArray) : foreignPlans.get(strings as TemplateStringsArray)?.get(depth)) ??
     compile(strings, depth) ??
     FORGED;
@@ -897,7 +915,21 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * `<title>` and `<textarea>` are RCDATA, not RAWTEXT — references *are* decoded there — so
          * they keep ordinary escaping, which is what the client produces for them too.
          */
-        else if (raws[i] === 'style') out = styleHole(out, escapeRawText(rawTextOf(value), 'style'), part, parts[i + 1]!);
+        else if (raws[i] === 'style') {
+          /**
+           * **The value written as it is, when nothing can cross its hole** (`styleTails`, `compile`): no `</` in it,
+           * and it does not end in `<` before a static starting with `/`. Then `escapeRawText` has nothing to replace
+           * (its pattern starts `</`), and `styleHole` finds no closer (the `<` of any overlapping one would be in the
+           * value) and answers `out + value` — so this is that answer, without either call. Anything else takes the two
+           * calls, unchanged. `rawTextOf` answers a string.
+           */
+          const text = rawTextOf(value);
+          const tail = styleTails[i]!;
+          out =
+            tail !== 0 && text.indexOf('</') === -1 && (tail === 1 || text.charCodeAt(text.length - 1) !== 60)
+              ? out + text
+              : styleHole(out, escapeRawText(text, 'style'), part, parts[i + 1]!);
+        }
         else if (raws[i]) out += escapeRawText(rawTextOf(value), raws[i]);
         else out += serializeValue(value, false, depths[i], texts[i]);
         break;
