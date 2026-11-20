@@ -724,6 +724,31 @@ from another machine, or after that is undone, has a variable changed.
   entry above, where a per-row array's backing size moved later work by more than its own cost. Consequence:
   compile-time or first-render work is not "free at steady state" because it runs once; a change to it is timed at
   steady state too, and an equal instruction count does not clear a wall-time difference.
+  Follow-up, 2026-11-19: tier traces of the first render (`--trace-opt`, three fresh processes per copy) on Node 24.18
+  show the tokenizer's scan compiled by Maglev once and by TurboFan never, in every copy, with the check and without it;
+  under Node 26 V8 (cachegrind, below) 0.3.1's rescan does send the scan to TurboFan in the first render and the copy
+  without it does not. So "the check drives the scan to TurboFan early" holds on Node 26 and is NOT what Node 24.18,
+  the engine that timed the 3%, shows; the mechanism stays open there.
+- **Shrinking an array with `array.length = n` cost V8 far more than popping it to the same length.** Node 26 V8 under
+  valgrind cachegrind (x86-64 under Rosetta in a Linux VM, `--predictable --single-threaded`), 2026-11-19. In
+  `@verajs/ssr`'s tokenizer, closing an element truncates its stack of open elements to the matching entry; on a 50 KB
+  tag-dense value with SVG and MathML scripts in every chunk, replacing `opens.length = at` with
+  `while (opens.length > at) opens.pop()` (the same entries left in the same array, no holes) removed 0.19 M
+  instructions per scan, about 2.3% of the scan, in two window pairs that agreed within 0.01 M (byte-identical A/A
+  0.004 M). The cost is not linear in the number of truncations: the copy that paid it truncated fewer times (5040
+  over 12 renders) than one that did not (6300). Mechanism open; not yet timed. Consequence: a shrinking length store
+  in a hot loop is measured against a pop loop before it is kept.
+- **A one-time instruction count can carry a garbage-collection STEP that no single change owns.** Node 26 V8 under
+  valgrind cachegrind (as above), 2026-11-19, with Node 24.18 `--trace-gc` for comparison. Removing five compile-time
+  checks from `@verajs/ssr` one at a time saved 1.57 M instructions of a template's first render in total; removing
+  them together saved 6.55 M. The gap held with no optimizing compiler at all (`--max-opt=0`: 1.26 M against 6.17 M)
+  and was no skipped lazy compile (function events differed by one small helper). `--trace-gc` showed it: the full
+  build ran one more young-generation scavenge after the first render than the build without all five, and the joint
+  saving was 1.90 M at half size, 6.62 M at the measured size and 1.59 M at double: a step at one size, one heap
+  threshold. On Node 24.18 every build, 0.3.0 included, took that scavenge at the measured size, so there
+  was no step between builds there. Consequence: one-time counts are not additive across changes. A joint reading that
+  disagrees with the sum of its parts is checked with `--trace-gc` and a size sweep before it is credited to code, and a
+  saving that is a threshold is counted only if it holds on every engine timed.
 
 ## Test environments
 
