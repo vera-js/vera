@@ -77,7 +77,11 @@ test('cms-build-reserved-name and cms-build-schema: the build names what it refu
   }
 });
 
-test("an entry FILE named with a forged line cannot forge one in the CLI's output", () => {
+/**
+ * Windows file names cannot hold a newline or a control character (NTFS refuses them), so there the attack this row
+ * models cannot be set up at all, and the row skips with that reason.
+ */
+test("an entry FILE named with a forged line cannot forge one in the CLI's output", { skip: process.platform === 'win32' && 'NTFS refuses a newline or control character in a file name' }, () => {
   const root = mkdtempSync(join(tmpdir(), 'vera-cms-cli-'));
   try {
     const posts = join(root, 'content', 'posts');
