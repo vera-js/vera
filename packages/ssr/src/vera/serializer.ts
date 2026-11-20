@@ -279,36 +279,36 @@ const takesNewline = (text: string, before: ScanStart | ScanResult): boolean => 
   );
 };
 
-/** A scan state to run `scanTag` from without touching the original (`scanTag` mutates `opens`). */
-const copyScan = (state: ScanStart | ScanResult): ScanStart | ScanResult => ({ ...state, opens: [...state.opens] });
-
 /**
- * **The start tag that OPENED the script hole `hole` sits in, as written** (a hole inside the tag as `\uFFFF`), read by
- * THIS tokenizer, never searched for: the LAST static up to the hole that opens a script still open at its end, the
- * `>` that opens it (`rawFrom`: where that static's last raw content began), and where that tag began — in that static
- * (`tagAt`) or in the earlier one it was left open in. Cold: once per script hole, once per template (`compile`).
+ * **The start tag that OPENED each hole's script, as written** (a hole inside the tag as `\uFFFF`), read by THIS
+ * tokenizer, never searched for — one entry per hole, dense: for hole `h`, the tag of the LAST static up to `h` that
+ * opens a script still open at its end (`''` for none). That static's `>` is where its last raw content began
+ * (`rawFrom`), and the tag began in that static (`tagAt`: nothing after the `>` is a tag, so the last tag begun there is
+ * the script's) or in the earlier static it was left open in (`open`). ONE scan of the statics gives every hole's tag;
+ * the function it replaced scanned from the template's start once per script hole, twice per static (2026-11-19). Cold:
+ * `compile` asks it once per template, and only when a hole is in a script. Exported for its differential test only.
  *
  * The last script, never the first (2026-11-19): a static that closed one script and opened another
- * (`</script><script>`) kept the earlier script's tag, and the shortest prefix that turned `rawTag` found a static's
- * FIRST script, so a hole in a code script after a JSON data block was judged by the data block's tag and served.
+ * (`</script><script>`) kept the earlier script's tag, and a prefix search found a static's FIRST script, so a hole in a
+ * code script after a JSON data block was judged by the data block's tag and served.
  */
-const openingTag = (strings: readonly string[], hole: number, depth: number): string => {
+export const openingTags = (strings: readonly string[], depth: number): string[] => {
+  const tags: string[] = [];
   let state: ScanStart | ScanResult = freshScan(depth);
   let open: [number, number] = [0, 0];
   let found = '';
-  for (let j = 0; j <= hole; j++) {
+  for (let j = 0; j < strings.length - 1; j++) {
     const text = strings[j]!;
-    const after = scanTag(text, copyScan(state));
-    if (after.rawTag === 'script' && after.rawFrom !== -1) {
-      const end = after.rawFrom;
-      const before = scanTag(text.slice(0, end - 1), copyScan(state));
-      const [from, at] = before.tagAt >= 0 ? [j, before.tagAt] : open;
+    state = scanTag(text, state);
+    if (state.rawTag === 'script' && state.rawFrom !== -1) {
+      const end = state.rawFrom;
+      const [from, at] = state.tagAt >= 0 ? [j, state.tagAt] : open;
       found = from === j ? text.slice(at, end) : strings[from]!.slice(at) + '\uFFFF' + strings.slice(from + 1, j).map((t) => `${t}\uFFFF`).join('') + text.slice(0, end);
     }
-    if (after.inTag && after.tagAt >= 0) open = [j, after.tagAt];
-    state = after;
+    if (state.inTag && state.tagAt >= 0) open = [j, state.tagAt];
+    tags.push(found);
   }
-  return found;
+  return tags;
 };
 
 const compile = (strings: unknown, depth: number): Plan | null => {
@@ -707,17 +707,18 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
   /**
    * A value in a `<script>` is code — on a served page it runs — so a script hole is refused (`ssr-script-hole`, every
-   * build) unless the script is a JSON data block, judged on the start tag that OPENED it (`openingTag`: this tokenizer's
+   * build) unless the script is a JSON data block, judged on the start tag that OPENED it (`openingTags`: this tokenizer's
    * own reading, never a search back, so a `<script…>` inside a script's text or a quoted value is never taken for it).
    * A data block's values are written with `<` as `\u003c` (`escapeRawText`'s `json`). Once per template, here.
    */
+  const tags = raws.indexOf('script') === -1 ? null : openingTags(strings, depth);
   for (let i = 0; i < raws.length; i++) {
     if (raws[i] === 'script') {
       /**
        * A start tag holding a hole is no data block either (2026-11-18): a binding there — `?type=${false}`, a spread,
        * `.type` — changes the type after it was judged, and the script is then served (or saved) as code.
        */
-      const tag = openingTag(strings, i, depth);
+      const tag = tags![i]!;
       if (!dataBlock(tag) || tag.includes('\uFFFF')) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
       raws[i] = 'json';
     }

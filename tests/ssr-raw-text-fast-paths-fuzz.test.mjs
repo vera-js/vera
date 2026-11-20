@@ -7,7 +7,8 @@
  * FOR BYTE what 0.3.1's slow path writes from the same compiled statics. That slow path (`styleHole` and the style
  * escape) is kept here verbatim. Both must equal the composed text with every `</style` neutralized, the rule the
  * pipeline states, computed independently. The named rows are the four shapes the fast path must refuse, each a closer
- * the value takes part in, plus the short-static and empty-value cases.
+ * the value takes part in, plus the short-static and empty-value cases. Below them, the compile-time half: the start tag
+ * a script hole is judged by, read in one scan (`openingTags`), against the per-hole function it replaced.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -169,3 +170,144 @@ for (const [name, draw, expected] of ROWS)
   test(`style fast path refuses: ${name}`, () => {
     assert.equal(serializeTemplate(draw()), expected, `style fast path: ${name} — the closer must be neutralized`);
   });
+
+/* ── the opening tag of a script hole: one scan against the per-hole rescans ─────────────────────────────────────── */
+
+/**
+ * **`openingTags` against the function it replaced** (2026-11-19). `compile` judges a script hole by the start tag that
+ * opened its script (`dataBlock`; a hole inside that tag refuses it). It took the tag from a scan of every static from
+ * the template's start, repeated per script hole; one scan now gives every hole's. Kept here verbatim is the per-hole
+ * function as fixed in the same release (the LAST script a static opens, by `rawFrom`), and the tag string must be
+ * EXACTLY its answer at every hole of every template, in a script or not. The corpus: tags left open across holes (the
+ * `￿` joins, several holes in one tag), quoted `>` in values, comments, `<script` inside style and textarea text and
+ * inside attribute values, SVG and MathML scripts, mixed case, a literal `￿`, and scripts closed and reopened.
+ */
+const { openingTags } = await import(new URL('../packages/ssr/dist/vera/serializer.js', import.meta.url));
+const { scanTag, freshScan } = await import(new URL('../packages/ssr/dist/vera/tokenizer.js', import.meta.url));
+
+const copyScan = (state) => ({ ...state, opens: [...state.opens] });
+/** 0.3.1's `openingTag`, as fixed on 2026-11-19 (`serializer.ts`), verbatim but for its types. */
+const openingTag = (strings, hole, depth) => {
+  let state = freshScan(depth);
+  let open = [0, 0];
+  let found = '';
+  for (let j = 0; j <= hole; j++) {
+    const text = strings[j];
+    const after = scanTag(text, copyScan(state));
+    if (after.rawTag === 'script' && after.rawFrom !== -1) {
+      const end = after.rawFrom;
+      const before = scanTag(text.slice(0, end - 1), copyScan(state));
+      const [from, at] = before.tagAt >= 0 ? [j, before.tagAt] : open;
+      found = from === j ? text.slice(at, end) : strings[from].slice(at) + '￿' + strings.slice(from + 1, j).map((t) => `${t}￿`).join('') + text.slice(0, end);
+    }
+    if (after.inTag && after.tagAt >= 0) open = [j, after.tagAt];
+    state = after;
+  }
+  return found;
+};
+
+const SCRIPT_TOKENS = [
+  '<script>', '<SCRIPT>', '<script type="application/json">', "<script type='application/ld+json'>", '<script type=application/json>',
+  '<Script Type="module">', '<script ', '<script', ' type=', ' type="application/json"', 'application/json', ' data-x=">"', " data-y='>'", '>', '/>',
+  '</script>', '</SCRIPT >', '</scripts>', '<style>', '</style>', '<textarea>', '</textarea>', '<!--', '-->', '<!-- <script type=application/json> -->',
+  '<p title="<script type=application/json>">', '<p title="', '">', '"', "'", ' ', 'x', '{}', '<svg>', '</svg>', '<math>', '</math>',
+  '<svg><script>', '<math><mi>', '</mi>', '<foreignObject>', '￿', '=',
+];
+/** The start tags a script can be opened with (some left open, so a hole can fall inside one). */
+const SCRIPT_OPENS = SCRIPT_TOKENS.filter((token) => /^<script/i.test(token));
+const pick = (random, list) => list[Math.floor(random() * list.length)];
+const drawStatics = (random, tokens, count, length) =>
+  Array.from({ length: count }, () => {
+    let text = '';
+    const n = Math.floor(random() * length);
+    for (let i = 0; i < n; i++) text += tokens[Math.floor(random() * tokens.length)];
+    return text;
+  });
+
+test("openingTags: the tag at every hole is exactly the per-hole function's", () => {
+  let holes = 0;
+  let scriptHoles = 0;
+  let joined = 0;
+  let twoScripts = 0;
+  for (const seed of SEEDS) {
+    const random = lcg(seed ^ 0x5eed);
+    for (let c = 0; c < CASES_PER_SEED; c++) {
+      const strings = drawStatics(random, SCRIPT_TOKENS, 2 + Math.floor(random() * 5), 5);
+      /**
+       * Half the templates always hold two scripts, a hole in each — the shape the per-hole function judged wrongly
+       * before its fix (2026-11-19): one script opened in a static, closed in a later one, and another opened after it,
+       * in that static (`</script><script>`) or the next. The rest are drawn freely.
+       */
+      if (random() < 0.5) {
+        strings[0] += pick(random, SCRIPT_OPENS);
+        const reopen = random() < 0.5 || strings.length < 3 ? 1 : 2;
+        strings[1] = pick(random, ['', 'x', '{}']) + '</script>' + strings[1].slice(0, Math.floor(random() * 4)) + (reopen === 1 ? pick(random, SCRIPT_OPENS) : '');
+        if (reopen === 2) strings[2] = pick(random, ['', '<!-- -->', '<p>']) + pick(random, SCRIPT_OPENS) + strings[2];
+      }
+      const depth = random() < 0.15 ? 1 : 0;
+      const tags = openingTags(strings, depth);
+      assert.equal(tags.length, strings.length - 1, `openingTags: one tag per hole (${JSON.stringify(strings)})`);
+      let state = freshScan(depth);
+      const seen = new Set();
+      for (let h = 0; h < strings.length - 1; h++) {
+        const expected = openingTag(strings, h, depth);
+        assert.equal(tags[h], expected, `openingTags: the tag at hole ${h} differs from the per-hole function's (seed ${seed} case ${c}, depth ${depth}): ${JSON.stringify(strings)}`);
+        holes++;
+        state = scanTag(strings[h], state);
+        if (state.rawTag === 'script') {
+          scriptHoles++;
+          if (expected.includes('￿')) joined++;
+          seen.add(expected);
+        }
+      }
+      if (seen.size > 1) twoScripts++;
+    }
+  }
+  console.log(`openingTags: ${holes} holes compared, ${scriptHoles} in a script, ${joined} of those in a script whose tag held a hole, ${twoScripts} templates with holes in two different scripts`);
+  assert.ok(scriptHoles >= 2000, `the corpus is broken, not openingTags: ${scriptHoles} script holes`);
+  assert.ok(joined >= 200, `the corpus leaves too few tags open across a hole to test the joins: ${joined}`);
+  assert.ok(twoScripts >= 200, `the corpus has too few templates with two scripts to test which one is judged: ${twoScripts}`);
+});
+
+/**
+ * **What a hole boundary does to the scan** (the property `openingTags` and `compile` share). Both carry `scanTag`'s state
+ * static by static, and neither assumes it equals one scan of the concatenation — it does not, by design: a hole is a
+ * token boundary (a `<!` and a `--` in two statics are no comment, a raw closer split by a hole ends nothing, an
+ * `encoding` is read whole within one static). Where a split falls just after a `>`, the carried scan IS the whole
+ * one, every carried field but `encoding`, and that too unless the split falls inside an attribute value. Held here, so
+ * a change to the tokenizer that makes a boundary matter somewhere new is seen.
+ */
+const FIELDS = ['inTag', 'phase', 'inValue', 'quote', 'rawTag', 'tagName', 'attrName', 'closing', 'inert', 'comment', 'textTag', 'foreign', 'attrRaw'];
+test('scanTag: carried across splits after a `>`, the state is the whole text\'s', () => {
+  let compared = 0;
+  let inValue = 0;
+  let anywhere = 0;
+  for (const seed of SEEDS) {
+    const random = lcg(seed ^ 0xc4a7);
+    for (let c = 0; c < CASES_PER_SEED; c++) {
+      const text = drawStatics(random, [...SCRIPT_TOKENS, ' encoding="a>b"', '<annotation-xml encoding=text/html>', '<noscript>', '</noscript>'], 1, 14)[0];
+      const whole = scanTag(text, freshScan(0));
+      const cuts = [...text.matchAll(/>/g)].map((m) => m.index + 1).filter(() => random() < 0.5);
+      let state = freshScan(0);
+      let from = 0;
+      let cutInValue = false;
+      for (const cut of [...cuts, text.length]) {
+        state = scanTag(text.slice(from, cut), state);
+        if (cut < text.length && state.inValue) cutInValue = true;
+        from = cut;
+      }
+      const label = `seed ${seed} case ${c}: ${JSON.stringify(text)} cut at ${cuts}`;
+      for (const field of FIELDS) assert.equal(state[field], whole[field], `scanTag: ${field} differs carried across splits after a \`>\` (${label})`);
+      assert.deepEqual(state.opens, whole.opens, `scanTag: opens differ carried across splits after a \`>\` (${label})`);
+      if (cutInValue) inValue++;
+      else assert.equal(state.encoding, whole.encoding, `scanTag: encoding differs carried across splits after a \`>\` outside any value (${label})`);
+      if (cuts.length > 0) compared++;
+      /** Information only: an arbitrary split, the boundary a hole is. */
+      const at = Math.floor(random() * (text.length + 1));
+      const split = scanTag(text.slice(at), scanTag(text.slice(0, at), freshScan(0)));
+      if (FIELDS.some((field) => split[field] !== whole[field])) anywhere++;
+    }
+  }
+  console.log(`scanTag: ${compared} texts split after a \`>\` (${inValue} with a split inside a value); a split anywhere changed the state of ${anywhere}`);
+  assert.ok(compared >= 5000, `the corpus is broken, not the property: ${compared} texts split`);
+});
