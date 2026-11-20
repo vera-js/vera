@@ -8,10 +8,14 @@
  * - scope and name from the directory; private and 0.x until launch; a LICENSE;
  * - closed `^` peers on core, renderer and styles (D7), and for a component on another component (D8); a hook peers on
  *   the framework only; runtime dependencies only on hooks, at closed `^` ranges;
- * - the `.` entry is the registering one and the only side effect (`sideEffects` lists exactly its two builds), its
- *   three conditions resolve into `dist`, `files` ships `dist`, a component names its `customElements` manifest;
+ * - a component's `.` entry (built from `src/register.ts`) is the registering one and its only side effect
+ *   (`sideEffects` lists exactly its two builds); its `./element` entry (built from `src/index.ts`) exports the options
+ *   and setup with no side effect, so a user can define it under their own tag today (the unregistered CLASS waits for
+ *   F1); a hook has no side effect at all (`sideEffects: false`); every entry's three conditions resolve into `dist`,
+ *   `files` ships `dist`, a component names its `customElements` manifest;
  * - only `src/register.ts` registers, behind the `customElements.get` guard (R3), through core's `define` (Brian,
- *   2026-11-20); every other source file only exports, so importing the package's index registers nothing;
+ *   2026-11-20), and warns `defined-twice` in development when it stands down; importing any entry except `.`
+ *   registers nothing;
  * - no entry re-exports another package's API, directly or in two steps (R5).
  *
  * The rules are one pure function, so the suite proves itself on synthetic packages, each missing exactly one thing
@@ -71,12 +75,16 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
     else if (!/^\^\d/.test(range)) problems.push(`dependency ${dependency} has range ${range}, not a closed ^ range`);
   }
 
-  /** The `.` entry: three conditions into dist, and its two builds are exactly the side effects. */
+  /** The entries: three conditions into dist; a component's `.` builds are exactly the side effects, a hook has none. */
+  for (const entry of component ? ['.', './element'] : ['.']) {
+    const target = manifest.exports?.[entry];
+    if (!target || !['types', 'development', 'default'].every((condition) => String(target[condition] ?? '').startsWith('./dist/')))
+      problems.push(`exports['${entry}'] does not resolve types, development and default into ./dist`);
+  }
   const dot = manifest.exports?.['.'];
-  const builds = dot && typeof dot === 'object' ? [dot.development, dot.default] : [];
-  if (!dot || !['types', 'development', 'default'].every((condition) => String(dot[condition] ?? '').startsWith('./dist/')))
-    problems.push("exports['.'] does not resolve types, development and default into ./dist");
-  if (!Array.isArray(manifest.sideEffects) || JSON.stringify([...manifest.sideEffects].sort()) !== JSON.stringify([...builds].sort()))
+  const builds = component && dot && typeof dot === 'object' ? [dot.development, dot.default] : [];
+  if (!component && manifest.sideEffects !== false) problems.push(`sideEffects is ${JSON.stringify(manifest.sideEffects)}: a hook registers nothing, so false`);
+  if (component && (!Array.isArray(manifest.sideEffects) || JSON.stringify([...manifest.sideEffects].sort()) !== JSON.stringify([...builds].sort())))
     problems.push(`sideEffects is ${JSON.stringify(manifest.sideEffects)}, not exactly the registering entry's two builds ${JSON.stringify(builds)} (false drops the registration in production)`);
   if (!(manifest.files ?? []).includes('dist')) problems.push("files does not ship dist");
   if (component && typeof manifest.customElements !== 'string') problems.push('no customElements manifest named');
@@ -112,6 +120,7 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
     else {
       const body = code(register);
       if (!/customElements\.get\(/.test(body)) problems.push('src/register.ts registers without guarding a taken tag (R3)');
+      else if (!/['"]defined-twice['"]/.test(body)) problems.push('src/register.ts stands down silently: development warns defined-twice (R3)');
       const viaDefine = /import\s+\{[^}]*\bdefine\b[^}]*\}\s+from\s+['"]@verajs\/core['"]/.test(body) && /(?<![.\w])define\(/.test(body);
       if (!viaDefine && !(own in REGISTERS_WITHOUT_DEFINE)) problems.push("src/register.ts does not register through core's define (Brian, 2026-11-20)");
     }
@@ -153,7 +162,10 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     dir,
     manifest: {
       name: own, version: '0.0.0', private: true, scripts: { build: 'wireit' },
-      exports: { '.': { types: './dist/development/vera-zz-plant.d.ts', development: dev, default: min } },
+      exports: {
+        '.': { types: './dist/development/vera-zz-plant.d.ts', development: dev, default: min },
+        './element': { types: './dist/development/vera-zz-plant-element.d.ts', development: './dist/development/vera-zz-plant-element.js', default: './dist/vera-zz-plant-element.min.js' },
+      },
       sideEffects: [dev, min], files: ['dist', 'custom-elements.json'], customElements: 'custom-elements.json',
       peerDependencies: { '@verajs/core': '^0.4.1' }, dependencies: { '@vera-hooks/listbox': '^0.0.0' },
     },
@@ -161,7 +173,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
       LICENSE: true, 'README.md': '<!-- recipe -->',
       'src/index.ts': "export { options, setup } from './element.js';",
       'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nexport const options = { tag: 'vera-zz-plant' };\nexport const setup = () => listbox;",
-      'src/register.ts': "import { define } from '@verajs/core';\nimport { options, setup } from './element.js';\nif (!customElements.get(options.tag)) define(options, setup);",
+      'src/register.ts': "import { define } from '@verajs/core';\nimport { options, setup } from './element.js';\nif (!customElements.get(options.tag)) define(options, setup);\nelse if (__DEV__) warn('defined-twice');",
     },
   };
   const registered = {
@@ -169,7 +181,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     docsImports: `'${own}'`, docsRecipes: `'${own}'`, sizes: `dist: '${dir}/dist/vera-zz-plant.min.js'`,
   };
   assert.deepEqual(problemsOf(good, registered), [], 'CONTROL: the complete plant passes');
-  const hook = { ...good, dir: 'packages/hooks/zz-plant', manifest: { ...good.manifest, name: '@vera-hooks/zz-plant', customElements: undefined }, files: { LICENSE: true, 'src/index.ts': 'export const zz = 1;' } };
+  const hook = { ...good, dir: 'packages/hooks/zz-plant', manifest: { ...good.manifest, name: '@vera-hooks/zz-plant', customElements: undefined, sideEffects: false, exports: { '.': good.manifest.exports['.'] } }, files: { LICENSE: true, 'src/index.ts': 'export const zz = 1;' } };
   const hookRegs = { ...registered, build: ['./packages/hooks/zz-plant:build'], paths: { '@vera-hooks/zz-plant': ['./packages/hooks/zz-plant/src/index.ts'] }, dist: "['hooks/zz-plant', 'vera-zz-plant']", docsImports: "'@vera-hooks/zz-plant'" };
   assert.deepEqual(problemsOf(hook, hookRegs), [], 'CONTROL: the complete hook passes');
   const withManifest = (change) => ({ ...good, manifest: { ...good.manifest, ...change } });
@@ -184,7 +196,10 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['a non-hook dependency', withManifest({ dependencies: { 'left-pad': '^1.3.0' } }), registered],
     ['an open dependency range', withManifest({ dependencies: { '@vera-hooks/listbox': '*' } }), registered],
     ['no LICENSE', withFiles({ LICENSE: undefined }), registered],
-    ['exports outside dist', withManifest({ exports: { '.': { types: './src/index.ts', development: dev, default: min } } }), registered],
+    ['exports outside dist', withManifest({ exports: { ...good.manifest.exports, '.': { types: './src/index.ts', development: dev, default: min } } }), registered],
+    ['no ./element entry', withManifest({ exports: { '.': good.manifest.exports['.'] } }), registered],
+    ['a hook with side effects', { ...hook, manifest: { ...hook.manifest, sideEffects: ['./dist/x.js'] } }, hookRegs],
+    ['a silent stand-down', withFiles({ 'src/register.ts': "import { define } from '@verajs/core';\nif (!customElements.get('vera-zz-plant')) define(options, setup);" }), registered],
     ['sideEffects false', withManifest({ sideEffects: false }), registered],
     ['sideEffects missing a build', withManifest({ sideEffects: [min] }), registered],
     ['files without dist', withManifest({ files: ['src'] }), registered],
@@ -201,7 +216,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['an element that calls define', withFiles({ 'src/element.ts': "import { define } from '@verajs/core';\nexport const Plant = define({ tag: 'vera-zz-plant' }, () => {});" }), registered],
     ['no register.ts', withFiles({ 'src/register.ts': undefined }), registered],
     ['an unguarded register.ts', withFiles({ 'src/register.ts': "import { define } from '@verajs/core';\ndefine(options, setup);" }), registered],
-    ['a register.ts on customElements.define', withFiles({ 'src/register.ts': "if (!customElements.get('vera-zz-plant')) customElements.define('vera-zz-plant', X);" }), registered],
+    ['a register.ts on customElements.define', withFiles({ 'src/register.ts': "if (!customElements.get('vera-zz-plant')) customElements.define('vera-zz-plant', X);\nelse warn('defined-twice');" }), registered],
   ];
   /** Each plant trips exactly one rule; "once published" also trips the private rule, so two. */
   for (const [what, pkg, r, expected = 1] of plants) {
