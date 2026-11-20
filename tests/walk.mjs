@@ -15,7 +15,7 @@
  * a vanished entry as an entry that was not there, which is the truth by the time we look.
  */
 import { readdirSync, statSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 /** Directories no check in this repo ever wants: dependencies, build output, VCS, another repo. */
 export const IGNORED = ['node_modules', 'dist', '.git', 'internal', 'coverage'];
@@ -26,7 +26,9 @@ export const IGNORED = ['node_modules', 'dist', '.git', 'internal', 'coverage'];
  * @param {string} root Directory to walk
  * @param {RegExp} pattern Tested against each entry's basename
  * @param {{ ignore?: string[], skipDotDirs?: boolean }} [options]
- * @returns {string[]} Absolute paths
+ * @returns {string[]} Absolute paths, with `/` on every platform: callers match them against `/`-written keys
+ *   (`/bench/dom/vue/`, allow-lists), which a Windows `\` path never matched (2026-11-21), and Node's file APIs take
+ *   `/` on Windows too
  */
 export const walkFiles = (root, pattern, options = {}) => {
   const ignore = options.ignore ?? IGNORED;
@@ -43,7 +45,7 @@ export const walkFiles = (root, pattern, options = {}) => {
     for (const entry of entries) {
       if (ignore.includes(entry)) continue;
       if (skipDotDirs && entry.startsWith('.')) continue;
-      const full = join(dir, entry);
+      const full = join(dir, entry).split(sep).join('/');
       let isDirectory;
       try {
         isDirectory = statSync(full).isDirectory();
