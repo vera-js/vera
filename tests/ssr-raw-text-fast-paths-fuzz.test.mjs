@@ -312,3 +312,23 @@ test('scanTag: carried across splits after a `>`, the state is the whole text\'s
   console.log(`scanTag: ${compared} texts split after a \`>\` (${inValue} with a split inside a value); a split anywhere changed the state of ${anywhere}`);
   assert.ok(compared >= 5000, `the corpus is broken, not the property: ${compared} texts split`);
 });
+
+/**
+ * **A JSON data block's value, with and without a `<`** (2026-11-19): the exact output, whatever form the escape takes
+ * (`rawTextOf` answers a string as itself). Every `<` is written `\u003c`, a value without one as it is, and a
+ * value that is no string as its text.
+ */
+const JSON_ROWS = [
+  ['no `<`', '{"a":1}', '{"a":1}'],
+  ['a `<`', '{"a":"</script><b>"}', '{"a":"\\u003c/script>\\u003cb>"}'],
+  ['only `<`', '<<', '\\u003c\\u003c'],
+  ['empty', '', ''],
+  ['a number', 5, '5'],
+  ['an object whose text holds a `<`', { toString: () => '"<!--"' }, '"\\u003c!--"'],
+  ['an array', ['[1,', '"<"]'], '[1,"\\u003c"]'],
+];
+for (const [name, value, written] of JSON_ROWS)
+  test(`JSON data block value: ${name}`, () => {
+    const page = serializeTemplate(html`<script type="application/json">${value}</script>`);
+    assert.equal(page, `<script type="application/json">${written}</script>`, `JSON data block value: ${name} — written wrong`);
+  });
