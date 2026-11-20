@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
@@ -292,21 +292,49 @@ const takesNewline = (text: string, before: ScanStart | ScanResult): boolean => 
  * (`</script><script>`) kept the earlier script's tag, and a prefix search found a static's FIRST script, so a hole in a
  * code script after a JSON data block was judged by the data block's tag and served.
  */
+/**
+ * The written form nearly every data block has, `<script type="…">` with nothing else in the tag and no `"` in the type,
+ * answered directly — `dataBlock`'s own answer for that shape (its first attribute is that `type`), without its match,
+ * which was a tenth of what 0.3.2's compile cost over 0.3.0's (2026-11-20). `undefined` for any other shape, which
+ * `dataBlock` reads. Kept here, not in `dataBlock`, which stays the exact twin of the client's.
+ */
+const writtenDataBlock = (tag: string): boolean | undefined => {
+  if (!tag.startsWith('<script type="') || !tag.endsWith('">') || tag.indexOf('"', 14) !== tag.length - 2) return undefined;
+  const type = tag.slice(14, -2);
+  return !type.includes('&') && JSON_BLOCK.test(type);
+};
+
+/** Where the last start tag left open across statics began (`from`, `at`), and the tag found so far (`found`). */
+type OpeningTrack = { from: number; at: number; found: string };
+
+/**
+ * One static's step of the reading above, after `scanTag` has read static `j` into `state`: the tag hole `j` is judged
+ * by. `openingTags` takes it over a fresh scan; `compile` takes it in its OWN scan of the statics (2026-11-20), which
+ * reads them from the same start in the same order, so a template with a script hole is no longer scanned twice — the
+ * second scan was a third of what 0.3.2's compile cost over 0.3.0's.
+ */
+const openingStep = (strings: readonly string[], j: number, state: ScanResult, track: OpeningTrack): string => {
+  const text = strings[j]!;
+  if (state.rawTag === 'script' && state.rawFrom !== -1) {
+    const end = state.rawFrom;
+    const from = state.tagAt >= 0 ? j : track.from;
+    const at = state.tagAt >= 0 ? state.tagAt : track.at;
+    track.found = from === j ? text.slice(at, end) : strings[from]!.slice(at) + '\uFFFF' + strings.slice(from + 1, j).map((t) => `${t}\uFFFF`).join('') + text.slice(0, end);
+  }
+  if (state.inTag && state.tagAt >= 0) {
+    track.from = j;
+    track.at = state.tagAt;
+  }
+  return track.found;
+};
+
 export const openingTags = (strings: readonly string[], depth: number): string[] => {
   const tags: string[] = [];
+  const track: OpeningTrack = { from: 0, at: 0, found: '' };
   let state: ScanStart | ScanResult = freshScan(depth);
-  let open: [number, number] = [0, 0];
-  let found = '';
   for (let j = 0; j < strings.length - 1; j++) {
-    const text = strings[j]!;
-    state = scanTag(text, state);
-    if (state.rawTag === 'script' && state.rawFrom !== -1) {
-      const end = state.rawFrom;
-      const [from, at] = state.tagAt >= 0 ? [j, state.tagAt] : open;
-      found = from === j ? text.slice(at, end) : strings[from]!.slice(at) + '\uFFFF' + strings.slice(from + 1, j).map((t) => `${t}\uFFFF`).join('') + text.slice(0, end);
-    }
-    if (state.inTag && state.tagAt >= 0) open = [j, state.tagAt];
-    tags.push(found);
+    state = scanTag(strings[j]!, state);
+    tags.push(openingStep(strings, j, state, track));
   }
   return tags;
 };
@@ -349,6 +377,9 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * which asks `closerAt` where that content ends in the static after.
    */
   const rawFroms: number[] = [];
+  /** Per hole, the start tag its script was opened by (`openingStep`), read in this function's own scan. */
+  const openings: string[] = [];
+  const opening: OpeningTrack = { from: 0, at: 0, found: '' };
   /** Per child binding (sparse): the foreign-content depth it sits at, which a template rendered there starts from. */
   const depths: Array<number | undefined> = [];
   /** Per child binding (sparse): whether it sits in a text-only element, where a template is refused (see `serializeValue`). */
@@ -425,6 +456,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     }
     tagState = scanTag(strings[i], tagState);
     rawFroms[i] = tagState.rawFrom;
+    openings.push(openingStep(strings, i, tagState, opening));
     if (taker && (tagState.foreign !== 0 || tagState.inert !== 0)) taker = false;
     /**
      * A hole in the content of an SVG `<script>` (or a MathML element of that name) is code too: refused as an HTML
@@ -707,19 +739,18 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
   /**
    * A value in a `<script>` is code — on a served page it runs — so a script hole is refused (`ssr-script-hole`, every
-   * build) unless the script is a JSON data block, judged on the start tag that OPENED it (`openingTags`: this tokenizer's
+   * build) unless the script is a JSON data block, judged on the start tag that OPENED it (`openingStep`, in the scan above: this tokenizer's
    * own reading, never a search back, so a `<script…>` inside a script's text or a quoted value is never taken for it).
    * A data block's values are written with `<` as `\u003c` (`escapeRawText`'s `json`). Once per template, here.
    */
-  const tags = raws.indexOf('script') === -1 ? null : openingTags(strings, depth);
   for (let i = 0; i < raws.length; i++) {
     if (raws[i] === 'script') {
       /**
        * A start tag holding a hole is no data block either (2026-11-18): a binding there — `?type=${false}`, a spread,
        * `.type` — changes the type after it was judged, and the script is then served (or saved) as code.
        */
-      const tag = tags![i]!;
-      if (!dataBlock(tag) || tag.includes('\uFFFF')) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
+      const tag = openings[i]!;
+      if (!(writtenDataBlock(tag) ?? dataBlock(tag)) || tag.includes('\uFFFF')) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
       raws[i] = 'json';
     }
     /**
@@ -738,10 +769,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       const until = closerAt(strings[i + 1]!, 0, json ? 'script' : 'style');
       const before = parts[i]!;
       const cut = from === -1 ? 0 : before.length - (strings[i]!.length - from);
-      parts[i] = before.slice(0, cut) + closedRawText(before.slice(cut), json);
+      /** Text with no `<` is its own closed form (`closedRawText` changes only a `<`), so it is left as it is. */
+      if (before.indexOf('<', cut) !== -1) parts[i] = before.slice(0, cut) + closedRawText(before.slice(cut), json);
       const after = parts[i + 1]!;
       const stop = until === -1 ? after.length : until;
-      parts[i + 1] = closedRawText(after.slice(0, stop), json) + after.slice(stop);
+      const lt = after.indexOf('<');
+      if (lt !== -1 && lt < stop) parts[i + 1] = closedRawText(after.slice(0, stop), json) + after.slice(stop);
     }
   }
 
@@ -760,11 +793,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * `/`. 1: the static is such; 2: and the next static starts with `/`; 0: neither (or no style hole). Dense, so the
    * render reads a number at every slot.
    */
-  const styleTails = Array.from(kinds, (_, i) => {
+  const styleTails: number[] = [];
+  for (let i = 0; i < kinds.length; i++) {
     const before = parts[i]!;
-    if (raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6) return 0;
-    return parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1;
-  });
+    styleTails.push(raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6 ? 0 : parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1);
+  }
   const plan: Plan = {
     parts, kinds, names, strip, owners, raws,
     depths: Array.from(kinds, (_, i) => depths[i] ?? 0),
