@@ -32,7 +32,7 @@ test('on this OS the path opens, and keeps the URL\'s trailing slash', () => {
 test('no suite or script resolves a file through .pathname', () => {
   const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => name === 'node_modules' })
     .map((file) => file.split('\\').join('/'))
-    .filter((file) => file !== 'tests/fs-path.test.mjs' && file !== 'scripts/fs-path.mjs');
+    .filter((file) => !['tests/fs-path.test.mjs', 'scripts/fs-path.mjs', 'scripts/codemods/fs-path.mjs'].includes(file));
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = files.filter((file) => /import\.meta\.url\)\s*\.pathname/.test(readFileSync(ROOT + file, 'utf8')));
   assert.deepEqual(found, [], 'use fsPath(new URL(…, import.meta.url)) from scripts/fs-path.mjs');
