@@ -52,3 +52,13 @@ export type Placed = {
   /** Set when `squeeze` capped the layer: the most it may measure along the side's axis. */
   max?: number;
 };
+
+/** The controller `anchor()` hands back. */
+export type Anchored = {
+  /** Starts placing: call it right after the layer is shown. */
+  open: () => void;
+  /** Stops placing and removes what it wrote, leaving the layer where the page's CSS puts it. */
+  close: () => void;
+  /** Closes for good: every style and attribute it touched is back as it was. */
+  release: () => void;
+};
