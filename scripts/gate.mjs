@@ -58,7 +58,7 @@ const steps = [
   ['motion fixture', 'node', ['--conditions', 'development', 'scripts/build-motion-fixture.mjs', '--check']],
   /**
    * Every component's surface contract: each custom-elements.json must match its declared surfaces
-   * (`src/**/surface.ts`), for every package that declares `customElements` — a component API change
+   * (every `surface.ts` under `src/`), for every package that declares `customElements` — a component API change
    * without its manifest diff refuses here, which is what makes the manifest a gate rather than a
    * promise. The runtime half (rendered DOM matches the declaration) lives in each component's
    * surface suite (tests/select-surface.test.mjs).
