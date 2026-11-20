@@ -118,7 +118,8 @@ test('the CLI builds, checks clean, refuses drift with the file named, and rejec
   writeFileSync(join(root, 'content', 'posts', 'hello.md'), '---\nuuid: 018f-aaaa\ntitle: Drifted\n---\nHi.');
   const refused = run(['--check'], root);
   assert.equal(refused.code, 1);
-  assert.match(refused.output, /"_manifests\/posts\.json" is stale/);
+  /** The file named as the CLI prints a path: the platform's own, JSON-quoted (so a Windows `\` arrives doubled). */
+  assert.ok(refused.output.includes(`${JSON.stringify(join('_manifests', 'posts.json'))} is stale`), refused.output);
   assert.match(refused.output, /Rebuild and commit/);
 
   const unknown = run(['--frobnicate'], root);
