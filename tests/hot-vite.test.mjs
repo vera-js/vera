@@ -7,10 +7,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const { hotVite, swappable } = await import(join(root, 'packages/hot/dist/development/vera-hot-vite.js'));
+const { hotVite, swappable } = await import(pathToFileURL(join(root, 'packages/hot/dist/development/vera-hot-vite.js')).href);
 
 test('a module CALLING define is swappable — both forms — and lookalikes are not', () => {
   assert.equal(swappable(`define('x-a', () => () => 1);`), true, 'define(');

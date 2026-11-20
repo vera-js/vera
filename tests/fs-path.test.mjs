@@ -101,3 +101,30 @@ test('the hand-built detector fires on each shape (planted)', () => {
   assert.ok(!handBuilt("pathToFileURL(process.cwd() + '/')"), 'the conversion itself passes');
   assert.ok(!handBuilt("assert.ok(href.startsWith('file:///'))"), 'a file URL checked, not built, passes');
 });
+
+/**
+ * **No module is imported by a file PATH** (2026-11-21): an import specifier is a URL, and a Windows path (`C:\…`, or
+ * `C:/…`) reads as the URL scheme `c:` (ERR_UNSUPPORTED_ESM_URL_SCHEME). `import(join(…))`, `import(fileURLToPath(…))`
+ * and a root path spliced into a child's `import('${root}…')` failed jsx-coded-errors, hot-vite and
+ * renderer-template-shape there. Import the URL: `new URL(…, import.meta.url).href`, or `pathToFileURL(path).href`.
+ */
+const PATH_IMPORT = /\bimport\(\s*(?:join|resolve|fileURLToPath|fsPath)\(|\bimport\(\s*'\$\{root\}/;
+
+test('no suite or script imports a module by a file path', () => {
+  const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
+    .map((file) => file.split(BACKSLASH).join('/'))
+    .filter((file) => file !== 'tests/fs-path.test.mjs');
+  assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
+  const found = [];
+  for (const file of files)
+    readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
+      if (PATH_IMPORT.test(line) && !comment(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  assert.deepEqual(found, [], 'import the URL, not the path');
+});
+
+test('the path-import detector fires on each shape (planted)', () => {
+  for (const planted of ["await import(join(root, 'x.js'))", 'await import(fileURLToPath(url))', "await import('${" + "root}packages/core/x.js')"])
+    assert.ok(PATH_IMPORT.test(planted), `the detector misses: ${planted}`);
+  assert.ok(!PATH_IMPORT.test('await import(pathToFileURL(join(root, "x.js")).href)'), 'the URL passes');
+});

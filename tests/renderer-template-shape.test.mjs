@@ -13,12 +13,14 @@ import { isProduction } from './dist.mjs';
 import { fsPath } from '../scripts/fs-path.mjs';
 
 const root = fsPath(new URL('..', import.meta.url));
+/** The child imports by URL: a Windows path is not an import specifier (ERR_UNSUPPORTED_ESM_URL_SCHEME). */
+const rootUrl = new URL('..', import.meta.url).href;
 const script = `
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><body></body>');
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'Text', 'Comment', 'HTMLTemplateElement']) globalThis[k] = dom.window[k];
-const core = await import('${root}packages/core/dist/${isProduction ? 'vera.min.js' : 'development/vera.js'}');
-const R = await import('${root}packages/renderer/dist/${isProduction ? 'vera-renderer.min.js' : 'development/vera-renderer.js'}');
+const core = await import('${rootUrl}packages/core/dist/${isProduction ? 'vera.min.js' : 'development/vera.js'}');
+const R = await import('${rootUrl}packages/renderer/dist/${isProduction ? 'vera-renderer.min.js' : 'development/vera-renderer.js'}');
 core.wire([R.renderer]);
 const getTemplate = core.inserts.$H[2];
 const shapes = {

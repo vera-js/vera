@@ -8,7 +8,6 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { isProduction, load } from './dist.mjs';
 
 const { transformJsx } = await load('jsx');
@@ -56,8 +55,8 @@ test('jsx-uncontrolled: a controlled value with nothing keeping it in step is wa
  * unminified development file cost 1–1.5% cold). A third program, so pinned by itself, in every run.
  */
 test('the node build (the `node` export condition) refuses with the sentence and the code', async () => {
-  const file = fileURLToPath(new URL('../packages/jsx/dist/node/vera-jsx.js', import.meta.url));
-  const { transformJsx: compile } = await import(file);
+  /** Imported by its URL: a Windows path (`C:\…`) is not an import specifier (ERR_UNSUPPORTED_ESM_URL_SCHEME). */
+  const { transformJsx: compile } = await import(new URL('../packages/jsx/dist/node/vera-jsx.js', import.meta.url).href);
   let message = '';
   try {
     compile('const a = <p>y</b>;', 'app.tsx');
