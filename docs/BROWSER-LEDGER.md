@@ -37,6 +37,17 @@ from another machine, or after that is undone, has a variable changed.
   MathML element. Consequence: a template hole inside CDATA in those elements is refused by `@verajs/lite` in Chromium
   (its marker is a comment's text) and filled as TEXT in Firefox and WebKit — safe in all three, never markup, but
   the verdict differs by engine; `tests/browser/lite.test.js` pins each engine's reading. (2026-11-18)
+- **A breakout tag inside nested foreign content pops every foreign element it leaves, so a later end tag for one of
+  them closes nothing, and a following `<style>` is foreign.** DOMParser, parse-only, Playwright's Chromium
+  151.0.7922.34, Firefox 153.0 and WebKit 26.5 (headless), 2026-11-20, on four shapes: after `<svg><p><math></svg>` and
+  `<div><svg><g><p><math></svg>` a `<style>` is MathML, after `<math><p><svg></math>` and `<div><math><b><svg></math>`
+  it is SVG; all three engines agree with parse5 on every shape. The `<p>` (or `<b>`) breaks out of the outer foreign
+  element and pops it, the inner one opens inside the HTML element, and the outer one's end tag then finds nothing to
+  close. Consequence: such a `<style>` holds markup, not raw text, so the server must escape a value there as text; a
+  tokenizer that kept the popped element on its stack would treat the `<style>` as raw text and write the value
+  unescaped. A planted stack that kept one extra entry made all four shapes write a value as markup on every engine.
+  The row `a breakout pops every foreign element it leaves, so a later end tag for one of them closes nothing` in
+  `tests/ssr-tokenizer-states.test.mjs` pins it.
 - **A `<style>`'s or `<script>`'s text is serialized verbatim, so a value written into one as text becomes markup after
   a round trip.** Chromium 151, Firefox 153 and WebKit 26.5 (Playwright, headless), and jsdom: an element's text set to
   `</style><img src=x onerror=…>` is inert in the live DOM, and `outerHTML` writes it back unescaped (the HTML
