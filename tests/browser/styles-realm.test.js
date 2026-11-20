@@ -1,5 +1,5 @@
 /**
- * **`static styles` in the window the component is in** — CODE-PRINCIPLES #2 and `@verajs/ui`'s rule
+ * **`static styles` in the window the component is in** — CODE-PRINCIPLES #2 and `@vera-components/select`'s rule
  * that every component works in a popped-out window.
  *
  * Found while rebuilding `@verajs/styles` (2026-09-28) by reading it against the principle, not by

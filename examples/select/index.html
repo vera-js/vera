@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>vera-select</title>
+    <!--
+      The CDN shape, exactly: production bundles through an importmap, no build. @vera-components/select and
+      @vera-hooks/listbox keep core (and each other) external in every build — the map is what resolves
+      them, and it is why one page holds exactly one core, one store registry, one renderer.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
+          "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
+          "@verajs/renderer/slots": "/packages/renderer/dist/vera-renderer-slots.min.js",
+          "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
+          "@vera-hooks/light-dismiss": "/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js",
+          "@vera-hooks/listbox": "/packages/hooks/listbox/dist/vera-listbox.min.js",
+          "@vera-components/select": "/packages/components/select/dist/vera-select.min.js"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page-bg: #fafafa;
+        --page-card: #ffffff;
+        --page-border: #e4e4e7;
+        --page-fg: #18181b;
+        --page-muted: #71717a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page-bg: #101012;
+          --page-card: #18181b;
+          --page-border: #2a2a2e;
+          --page-fg: #fafafa;
+          --page-muted: #a1a1aa;
+        }
+      }
+      body {
+        margin: 0 auto;
+        max-width: 60rem;
+        padding: 2.5rem 1.5rem 5rem;
+        background: var(--page-bg);
+        color: var(--page-fg);
+        font: 14px/1.5 system-ui, sans-serif;
+      }
+      h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+      .sub { color: var(--page-muted); margin: 0 0 2rem; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; }
+      section {
+        padding: 1.25rem;
+        background: var(--page-card);
+        border: 1px solid var(--page-border);
+        border-radius: 10px;
+      }
+      section h2 { margin: 0 0 0.25rem; font-size: 0.95rem; }
+      section p { margin: 0 0 0.9rem; color: var(--page-muted); font-size: 0.8rem; }
+      output {
+        display: block;
+        margin-top: 0.75rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.75rem;
+        color: var(--page-muted);
+        min-height: 1.2em;
+      }
+      code { font-size: 0.78em; }
+
+      /* ── the theming demos, in page CSS on purpose — this is the consumer's side ─────────── */
+
+      /* Dark pages retheme by token; the component follows with no selector at all. */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --vera-surface: #1f1f23;
+          --vera-border: #3f3f46;
+          --vera-fg: #fafafa;
+          --vera-fg-muted: #a1a1aa;
+        }
+      }
+
+      /* Section 3: retheme one instance by tokens. */
+      .tokened { --vera-accent: #0d9488; --vera-radius: 999px; }
+
+      /* Section 4: reach an internal part from the page. Works because ::part crosses the boundary. */
+      .parted::part(trigger) { border-style: dashed; border-width: 2px; }
+      .parted::part(option) { text-transform: uppercase; letter-spacing: 0.04em; }
+
+      /* Section 6: the slotted trigger is OUR markup on the page — plain page CSS styles it. */
+      .fancy-trigger {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 0;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #7c3aed, #db2777);
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      .fancy-trigger[data-state='open'] { outline: 3px solid #db277755; }
+      /* The slotted value is OURS to render — the component only stamps data-label on it. */
+      .fancy-trigger [slot='value']:not([data-label=''])::after { content: ': ' attr(data-label); font-weight: 600; }
+
+      /* Section 5 (light mode): plain selectors reach the parts — no shadow in the way. */
+      .light-styled [part='trigger'] { border-color: #0d9488; }
+    </style>
+  </head>
+  <body>
+    <h1>&lt;vera-select&gt;</h1>
+    <p class="sub">
+      @vera-components/select's first component, served as production bundles through an importmap — the CDN shape, no build.
+      Open DevTools and poke; every internal node is a named <code>part</code>.
+    </p>
+
+    <div class="grid">
+      <section>
+        <h2>Default</h2>
+        <p>Shadow DOM, built-in markup, zero configuration. Keyboard: focus, <code>↓</code>, arrows, Enter, Escape.</p>
+        <vera-select id="basic" placeholder="Pick a flavor…"></vera-select>
+        <output id="basic-out"></output>
+      </section>
+
+      <section>
+        <h2>HTML-authored (zero JS)</h2>
+        <p>This card has <em>no script wiring at all</em> — the options are light-DOM
+           <code>&lt;option&gt;</code>/<code>&lt;optgroup&gt;</code>/<code>&lt;vera-option&gt;</code> markup,
+           <code>selected</code> seeds the value and the reset default. View source.</p>
+        <vera-select placeholder="Authored in HTML…" aria-label="HTML authored">
+          <optgroup label="Classics">
+            <option value="vanilla" selected>Vanilla</option>
+            <option value="chocolate" data-description="the safe pick">Chocolate</option>
+          </optgroup>
+          <vera-option value="pistachio">
+            <span slot="icon">🥜</span> Pistachio
+            <span slot="description">polarizing, correctly</span>
+          </vera-option>
+        </vera-select>
+      </section>
+
+      <section>
+        <h2>Multi + search</h2>
+        <p><code>multi searchable</code> — the menu stays open and toggles; typing filters; disabled rows are
+           skipped. Search is opt-in: a plain select has no search line.</p>
+        <vera-select id="multi" multi searchable search-placeholder="Filter flavors…" placeholder="Pick several…"></vera-select>
+        <output id="multi-out"></output>
+      </section>
+
+      <section>
+        <h2>Creatable</h2>
+        <p><code>creatable</code> — a search matching nothing offers a create row; the cancelable
+           <code>create</code> event lets the page mint its own ids.</p>
+        <vera-select id="creatable" creatable placeholder="Pick or invent…"></vera-select>
+        <output id="creatable-out"></output>
+      </section>
+
+      <section>
+        <h2>Remote (async typeahead)</h2>
+        <p><code>remote</code> — no client filtering; the debounced <code>filter</code> event asks the page,
+           which fetches (fake 400ms here), sets <code>.options</code>, and clears <code>loading</code>.</p>
+        <vera-select id="remote" remote debounce="200" placeholder="Server-backed…"
+          search-placeholder="Search the server…" empty-message="The server found nothing"></vera-select>
+        <output id="remote-out"></output>
+      </section>
+
+      <section>
+        <h2>Themed by token</h2>
+        <p>Page CSS: <code>.tokened { --vera-accent: teal; --vera-radius: 999px }</code> — no selectors into the component.</p>
+        <vera-select id="tokened" class="tokened" placeholder="Same component…"></vera-select>
+      </section>
+
+      <section>
+        <h2>Styled by ::part()</h2>
+        <p><code>.parted::part(trigger)</code> and <code>::part(option)</code> — the page reaches through the shadow boundary.</p>
+        <vera-select id="parted" class="parted" placeholder="Dashed on purpose…"></vera-select>
+      </section>
+
+      <section class="light-styled">
+        <h2>Light DOM</h2>
+        <p>Same component, <code>light</code> attribute: no shadow root, parts addressable as plain
+           <code>[part='trigger']</code> selectors.</p>
+        <vera-select id="light" light placeholder="No shadow here…"></vera-select>
+      </section>
+
+      <section>
+        <h2>Your markup, slotted</h2>
+        <p>This trigger is the page's own <code>&lt;button&gt;</code>, styled by the page's own CSS.
+           The component wires the behavior onto it — click, keyboard, ARIA — and reports state back
+           as attributes: <code>data-state="open"</code> while open, <code>data-label</code> carrying
+           the chosen label. It never rewrites your markup. Pick something and watch the label appear:
+           that text is the page's CSS rendering <code>content: attr(data-label)</code> (in this
+           page's stylesheet above). Slot it and you own it.</p>
+        <vera-select id="slotted">
+          <button class="fancy-trigger" slot="trigger">
+            <span slot="value">Pick loudly…</span>
+          </button>
+        </vera-select>
+        <output id="slotted-out"></output>
+      </section>
+
+      <section>
+        <h2>Form-associated</h2>
+        <p>A real form control via ElementInternals: named by the <code>&lt;label for&gt;</code>, required,
+           submits, resets, appears in FormData.</p>
+        <form id="form">
+          <label for="formed" style="display:block; margin-bottom:0.4rem">Flavor (required)</label>
+          <vera-select name="flavor" id="formed" required placeholder="Pick one to submit…"></vera-select>
+          <p style="display:flex; gap:0.5rem; margin:0.75rem 0 0">
+            <button type="submit">Read FormData</button>
+            <button type="reset">Reset</button>
+          </p>
+        </form>
+        <output id="form-out"></output>
+      </section>
+    </div>
+
+    <script type="module">
+      import { wire } from '@verajs/core';
+      import { renderer } from '@verajs/renderer';
+      import { styles } from '@verajs/styles';
+      wire([renderer, styles]);
+      await import('@vera-components/select');
+
+      /**
+       * Icons, descriptions and groups ride the option itself (wp-omni's design, ported):
+       * icons render aria-hidden — decorative by contract — and a plain string renders as text,
+       * so an emoji is safe and data can never inject. Consecutive same-group rows cluster
+       * inside one labeled role="group".
+       */
+      const FLAVORS = [
+        { label: 'Vanilla', value: 'vanilla', group: 'Classics', iconBefore: '🍦', description: 'the safe pick' },
+        { label: 'Strawberry', value: 'strawberry', group: 'Classics', iconBefore: '🍓' },
+        { label: 'Chocolate', value: 'chocolate', group: 'Classics', iconBefore: '🍫' },
+        { label: 'Pistachio', value: 'pistachio', group: 'Modern', iconBefore: '🥜', description: 'polarizing, correctly' },
+        { label: 'Durian (sold out)', value: 'durian', group: 'Modern', iconBefore: '🫣', disabled: true },
+        { label: 'Matcha', value: 'matcha', group: 'Modern', iconBefore: '🍵' },
+      ];
+
+      const show = (id, out) => {
+        const element = document.getElementById(id);
+        element.options = FLAVORS;
+        if (out)
+          element.addEventListener('change', (event) => {
+            document.getElementById(out).textContent = JSON.stringify(event.detail.value);
+          });
+      };
+
+      show('basic', 'basic-out');
+      show('multi', 'multi-out');
+      show('creatable', 'creatable-out');
+      show('tokened');
+      show('parted');
+      show('light');
+      show('slotted', 'slotted-out');
+      show('formed');
+
+      /** The remote seam: the page owns filtering — fetch on `filter`, set .options, drop loading. */
+      const remote = document.getElementById('remote');
+      remote.options = FLAVORS;
+      remote.addEventListener('change', (event) => {
+        document.getElementById('remote-out').textContent = JSON.stringify(event.detail.value);
+      });
+      remote.addEventListener('filter', (event) => {
+        remote.setAttribute('loading', '');
+        remote.options = [];
+        setTimeout(() => {
+          const query = event.detail.query.trim().toLowerCase();
+          const hits = FLAVORS.filter((flavor) => flavor.label.toLowerCase().includes(query));
+          remote.options = hits.slice(0, 3);
+          remote.setAttribute('overflow-message', hits.length > 3 ? `${hits.length - 3} more on the "server"` : '');
+          if (!(hits.length > 3)) remote.removeAttribute('overflow-message');
+          remote.removeAttribute('loading');
+        }, 400);
+      });
+
+      document.getElementById('form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = event.target;
+        if (!form.checkValidity()) {
+          document.getElementById('form-out').textContent = 'invalid: the required select is empty';
+          return;
+        }
+        const data = new FormData(form);
+        document.getElementById('form-out').textContent = `FormData: flavor=${JSON.stringify(data.get('flavor'))}`;
+      });
+      document.getElementById('form').addEventListener('reset', () => {
+        /** Read the REAL FormData after the reset lands — the proof, not a label. A cleared
+         *  single-mode select submits no entry at all, so .get() answers null. */
+        setTimeout(() => {
+          const data = new FormData(document.getElementById('form'));
+          document.getElementById('form-out').textContent =
+            `after reset — FormData: flavor=${JSON.stringify(data.get('flavor'))} (no entry: the control cleared)`;
+        }, 0);
+      });
+    </script>
+  </body>
+</html>

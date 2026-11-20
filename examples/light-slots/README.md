@@ -34,13 +34,13 @@ What to look at, in order:
    to the default slot, which is why the toggle crosses it. (The first version moved the badge
    between two named slots, so the assignment the counter watches never changed and the advertised
    counter sat frozen; the browser suite now clicks this button and requires the number to move.)
-6. **Section 6 — `<vera-select light>`.** `@verajs/ui`'s select declares four slots; in light mode
+6. **Section 6 — `<vera-select light>`.** `@vera-components/select`'s select declares four slots; in light mode
    they are inert unless the app wires the module. This page does, so the slotted trigger is
    captured, positioned and wired with the same ARIA and handlers the built-in one gets. The page
    prints the check rather than claiming it: `slotted()` and a plain `document.querySelector` return
    the same node, because in light mode it never left the page's tree.
 
-The same component **without** the wiring is [`../ui-select/`](../ui-select/), which is why that
+The same component **without** the wiring is [`../select/`](../select/), which is why that
 page's light section slots nothing — worth opening both.
 
 Server-rendered slots are a separate story with its own round trip: the working demonstration is

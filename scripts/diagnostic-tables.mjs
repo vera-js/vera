@@ -47,7 +47,7 @@ const LISTED = [
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },
-  { name: 'ui', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'components/select', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'router', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'hot', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'lite', tables: ['src/diagnostics.ts'], sources: SOURCES },

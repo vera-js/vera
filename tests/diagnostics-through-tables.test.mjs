@@ -32,7 +32,7 @@ const MIGRATED = [
   ['shared-utils', '../renderer/dist/vera-renderer.min.js'],
   ['router', 'dist/vera-router.min.js'],
   ['inserts', '../core/dist/vera.min.js'],
-  ['ui', 'dist/*.min.js'],
+  ['components/select', 'dist/*.min.js'],
   ['hot', 'dist/*.min.js'],
   ['lite', 'dist/vera-lite.min.js'],
   ['static', 'dist/vera-static.min.js'],
@@ -188,14 +188,17 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  */
 
 test('every package that prints or throws is on the code system', () => {
-  /** A package's name is its directory's last segment, at any depth (`packages/components/select` → `select`). */
+  /**
+   * A package's name is its path under `packages/` (`packages/components/select` → `components/select`), as MIGRATED
+   * names it. The last segment alone (this read `select`) never matched a nested package's row (2026-11-21).
+   */
   const printing = packageFiles('src')
     .filter((src) =>
       globSync(`${src}/**/*.ts`, { cwd: root }).some((file) =>
         /console\.(?:warn|error)\(|throw new \w*Error\(/.test(readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''))
       )
     )
-    .map((src) => src.split('/').at(-2));
+    .map((src) => src.slice('packages/'.length, -'/src'.length));
   assert.ok(printing.length >= 10, `CONTROL: ${printing.length} packages print`);
   const migrated = new Set(MIGRATED.map(([name]) => name));
   assert.deepEqual(printing.filter((name) => !migrated.has(name)), [], 'a package prints or throws uncoded — migrate it onto its table');

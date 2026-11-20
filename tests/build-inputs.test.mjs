@@ -11,13 +11,14 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));
 /** Which wireit step writes which bundles, by the step's `output` glob. */
 const MODES = { development: { dir: 'dist/development', map: /\.js\.map$/, output: /^dist\/development\/\*\.js$/ }, production: { dir: 'dist', map: /\.min\.js\.map$/, output: /^dist\/\*\.min\.js$/ } };
 
 const rows = [];
-for (const dir of readdirSync(ROOT)) {
+for (const dir of packageDirs().map((path) => path.slice('packages/'.length))) {
   const manifest = join(ROOT, dir, 'package.json');
   if (!existsSync(manifest)) continue;
   const wireit = JSON.parse(readFileSync(manifest, 'utf8')).wireit;
@@ -43,6 +44,6 @@ test('the floor: built bundles with source maps were found for the packages that
 
 for (const r of rows)
   test(`${r.dir} ${r.step}: lists the source of every package its ${r.mode} bundles inline`, () => {
-    const missing = r.inlined.filter((n) => !r.files.some((glob) => glob.startsWith(`../${n}/src/`)));
+    const missing = r.inlined.filter((n) => !r.files.some((glob) => new RegExp(`^(?:\\.\\./)+${n}/src/`).test(glob)));
     assert.deepEqual(missing, [], `${r.dir}'s ${r.step} inlines ${missing.join(', ')} but does not list ../<pkg>/src/** in its wireit files: an incremental build would go stale`);
   });

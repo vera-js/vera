@@ -23,8 +23,9 @@
           "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
           "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
           "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
-          "@verajs/hooks": "/packages/hooks/dist/vera-hooks.min.js",
-          "@verajs/ui": "/packages/ui/dist/vera-ui.min.js"
+          "@vera-hooks/light-dismiss": "/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js",
+          "@vera-hooks/listbox": "/packages/hooks/listbox/dist/vera-listbox.min.js",
+          "@vera-components/select": "/packages/components/select/dist/vera-select.min.js"
         }
       }
     </script>
@@ -167,10 +168,10 @@ wire([renderer, slots, styles]);</pre>
 
     <h2>6 — a real component: <code>&lt;vera-select light&gt;</code></h2>
     <p>
-      <code>@verajs/ui</code>'s select declares four slots. In light mode they are inert unless this
+      <code>@vera-components/select</code>'s select declares four slots. In light mode they are inert unless this
       page wires the module — which it does, so the slotted trigger below is captured, positioned and
       wired with the same ARIA and handlers the built-in one gets. The
-      <a href="/examples/ui-select/">ui-select example</a> is the same component <em>without</em> the
+      <a href="/examples/select/">select example</a> is the same component <em>without</em> the
       wiring, which is why its light section slots nothing.
     </p>
     <vera-select light aria-label="Flavor">
@@ -195,9 +196,9 @@ wire([renderer, slots, styles]);</pre>
       wire([renderer, slots, styles]);
 
       /**
-       * **`@verajs/ui` is imported DYNAMICALLY, and that is not a style choice.**
+       * **`@vera-components/select` is imported DYNAMICALLY, and that is not a style choice.**
        *
-       * A static `import '@verajs/ui'` is hoisted above every statement in this module, including
+       * A static `import '@vera-components/select'` is hoisted above every statement in this module, including
        * the `wire()` call above it. The select would be defined — and any `<vera-select>` already
        * in the page upgraded and rendered — before a 'slot' insert existed. A template resolves
        * that seam once, at construction, and is interned for the life of the page, so the element
@@ -207,7 +208,7 @@ wire([renderer, slots, styles]);</pre>
        * This page was written with the static import first and did exactly that. The same hoisting
        * trap is why `examples/cdn-js` loads its components through `import()`.
        */
-      await import('@verajs/ui');
+      await import('@vera-components/select');
 
       class InfoCard extends HTMLElement {
         /**

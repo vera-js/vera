@@ -149,7 +149,7 @@ test('wire refuses a non-finite priority the same way — nothing wired, in both
  * **Removal runs cleanups in priority order — after a re-run too**. Each hook keeps its latest
  * cleanup ON itself, as React keeps an effect's `destroy`; they used to sit in one Set on the element, where a re-run
  * moved its cleanup to the END — so after the layout effect re-ran, the effect's cleanup ran first (measured
- * 2026-10-11, both builds). Then the cleanups other packages register in `_$c$` (`useDismiss`, ui's select), in
+ * 2026-10-11, both builds). Then the cleanups other packages register in `_$c$` (`lightDismiss`, select's element), in
  * registration order — a third party's cleanup still sees what core's cleanups did.
  */
 test('removal runs every cleanup in priority order, even after a re-run, then the other packages’ cleanups', async () => {
@@ -161,7 +161,7 @@ test('removal runs every cleanup in priority order, even after a re-run, then th
   customElements.define(tag, class extends HTMLElement {
     connectedCallback() {
       core.init(this, (host) => {
-        /** A third party's removal cleanup, registered the way `useDismiss` does — it reads what core's cleanup wrote. */
+        /** A third party's removal cleanup, registered the way `lightDismiss` does — it reads what core's cleanup wrote. */
         (host._$c$ ??= new Set()).add(() => order.push(`third party (saw closed: ${seen.closed})`));
         core.effect(() => { state.width; layoutRuns++; return () => order.push('layout cleanup'); }, { timing: 'layout' });
         core.effect(() => () => { seen.closed = true; order.push('effect cleanup'); });

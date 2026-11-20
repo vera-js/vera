@@ -1,6 +1,6 @@
 /**
  * **A component belongs to the window its element is in** — CODE-PRINCIPLES §3, and the rule every
- * component in `@verajs/ui` is held to: it must work in a popped-out window.
+ * component in `@vera-components/select` is held to: it must work in a popped-out window.
  *
  * Reported from a real app on core 0.3.1 / renderer 0.2.2, and reproduced on three engines: an element
  * moved into a same-origin iframe was redrawn on the OPENER's `requestAnimationFrame` (one opener

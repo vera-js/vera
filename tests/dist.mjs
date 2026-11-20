@@ -39,6 +39,10 @@ const NODE_BUILDS = new Set(['jsx', 'cms/content']);
 
 /** Bundle name -> the `filename` its package.json declares. */
 export const ENTRY = {
+  'vera-components/select': ['components/select', 'vera-select'],
+  'vera-components/select/elements': ['components/select', 'vera-select-elements'],
+  'vera-hooks/listbox': ['hooks/listbox', 'vera-listbox'],
+  'vera-hooks/light-dismiss': ['hooks/light-dismiss', 'vera-light-dismiss'],
   'cms/content': ['cms', 'vera-cms-content'],
   'cms/publish': ['cms', 'vera-cms-publish'],
   'cms/node': ['cms', 'vera-cms-node'],
@@ -82,12 +86,9 @@ export const ENTRY = {
   'directives/sensors': ['directives', 'vera-directives-sensors'],
   'directives/expressions': ['directives', 'vera-directives-expressions'],
   'store/collections': ['store', 'vera-store-collections'],
-  hooks: ['hooks', 'vera-hooks'],
   hot: ['hot', 'vera-hot'],
   /** The Vite adapter: Node-side tooling (the `node` export condition), built like every entry. */
   'hot/vite': ['hot', 'vera-hot-vite'],
-  ui: ['ui', 'vera-ui'],
-  'ui/elements': ['ui', 'vera-ui-elements'],
 };
 
 /**

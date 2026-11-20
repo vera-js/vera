@@ -42,7 +42,10 @@ const PINS = {
   'packages/directives/dist/vera-directives-sensors.min.js': 3,
   'packages/directives/dist/vera-directives-standalone.min.js': 26,
   'packages/directives/dist/vera-directives.min.js': 83,
-  'packages/hooks/dist/vera-hooks.min.js': 3,
+  'packages/components/select/dist/vera-select-elements.min.js': 2,
+  'packages/components/select/dist/vera-select.min.js': 3,
+  'packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js': 0,
+  'packages/hooks/listbox/dist/vera-listbox.min.js': 3,
   'packages/hot/dist/vera-hot-vite.min.js': 0,
   'packages/hot/dist/vera-hot.min.js': 2,
   'packages/inserts/dist/vera-inserts.min.js': 0,
@@ -73,8 +76,6 @@ const PINS = {
   'packages/store/dist/vera-store-resource.min.js': 0,
   'packages/store/dist/vera-store.min.js': 1,
   'packages/styles/dist/vera-styles.min.js': 1,
-  'packages/ui/dist/vera-ui-elements.min.js': 2,
-  'packages/ui/dist/vera-ui.min.js': 3,
 };
 
 const bundles = packageDirs().flatMap((pkg) => {
@@ -107,10 +108,10 @@ test('no production bundle grew an inlined single-use function (each count exact
  * **No doc comment ships in a production bundle** (2026-10-24): terser keeps any comment that carries an annotation, so
  * a why-comment that SPELLED the no-inline mark beside the call it explains shipped whole — three lines of prose, 240 B
  * gzip, in `vera-renderer.min.js`. Pinned like the IIFEs, exact: the only ones today are a CSS comment inside a style
- * string in `ui` (string content terser cannot strip — real bytes, logged for the ui pass).
+ * string in `components/select` (string content terser cannot strip — real bytes, logged for the ui pass).
  */
 const DOC = /\/\*\*/g;
-const DOC_PINS = { 'packages/ui/dist/vera-ui-elements.min.js': 1, 'packages/ui/dist/vera-ui.min.js': 1 };
+const DOC_PINS = { 'packages/components/select/dist/vera-select-elements.min.js': 1, 'packages/components/select/dist/vera-select.min.js': 1 };
 test('no doc comment survives into a production bundle (each count exactly as pinned)', () => {
   assert.ok(('x /** y */ z'.match(DOC) ?? []).length === 1, 'CONTROL: the pattern sees a doc comment');
   const off = bundles

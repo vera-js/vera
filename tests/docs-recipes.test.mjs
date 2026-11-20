@@ -32,6 +32,9 @@ const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const blocks = [...README.matchAll(/```(\w+)\n([\s\S]*?)```/g)].map(([, lang, body]) => ({ lang, body }));
 
 const PACKAGES = {
+  '@vera-components/select': 'vera-components/select',
+  '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
+  '@vera-hooks/listbox': 'vera-hooks/listbox',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -251,6 +254,7 @@ const recipes = recipeSources.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/components/select/README.md': 1, // the move into packages/components (2026-11-21) gave select its first recipe
   /** Newly runnable: the runner had no `MutationObserver` and executed recipes as `data:` URLs, so
    * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
    * quick start is executed rather than merely printed. */

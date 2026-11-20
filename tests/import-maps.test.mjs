@@ -67,7 +67,7 @@ const specifiersReachableFrom = (page, text, map = {}) => {
     const bare = new Set();
     /** `\s*`, not a literal space: production bundles are minified — `from"@verajs/core"` — and
      *  the spaced pattern read every dist file as importing nothing. That held this test blind
-     *  while a page loaded `@verajs/ui`, whose bundle keeps five workspace deps external, with a
+     *  while a page loaded `@vera-components/select`, whose bundle keeps five workspace deps external, with a
      *  map covering three: the page died on load and this guard passed. */
     for (const [, specifier] of source.matchAll(/from\s*['"](@verajs\/[a-z/-]+)['"]/g)) bare.add(specifier);
     /** `import '@verajs/x'` and `import './y.js'` — a side-effect import resolves through the map too. */
@@ -82,7 +82,7 @@ const specifiersReachableFrom = (page, text, map = {}) => {
        * FOLLOW the map into the bundle. A production bundle is a module like any other: what it
        * keeps external resolves against the SAME map as the page's own imports, so its bare
        * specifiers are part of the graph this function promises to walk. Stopping at the page's
-       * own level is how `@verajs/ui`'s externals went unchecked.
+       * own level is how `@vera-components/select`'s externals went unchecked.
        */
       const target = map[specifier];
       if (typeof target === 'string' && target.startsWith('/')) {

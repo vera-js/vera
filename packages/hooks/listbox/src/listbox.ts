@@ -1,0 +1,452 @@
+/**
+ * The select behavior — state, keyboard model, ARIA, selection and dismissal, with no markup and
+ * no styles. `@vera-components/select`'s `<vera-select>` is one consumer; anyone building their own select UI
+ * on this gets the same keyboard contract without re-deriving it subtly wrong.
+ *
+ * The division of labor is one rule: **the host's template renders and binds the host's own
+ * nodes; the controller imperatively syncs nodes the user supplied** (via `attach`, re-called on
+ * `slotchange`). Both kinds of trigger run the same handlers — the template binds them, `attach`
+ * addEventListener's them — so slotted and default markup cannot drift.
+ *
+ * Everything here is a `createStore` store, so a host template that reads `select.state` re-renders
+ * on exactly the changes it read — no subscription plumbing.
+ */
+import { createStore, effect } from '@verajs/core';
+import { lightDismiss } from '@vera-hooks/light-dismiss';
+import type { LifecycleElement } from '@vera-hooks/light-dismiss';
+import type { AssignedParts, SelectConfig, SelectOption } from './types.js';
+
+/**
+ * The name a host component annotates its controller field with — `ReturnType` rather than a
+ * hand-written interface, deliberately: a restated shape is the twin CODE-PRINCIPLES §1 forbids,
+ * and here it would be a twin of the one thing in this package that changes most. Adding a member
+ * to the returned object publishes it; there is no second list to remember.
+ *
+ * The cost of that choice, stated rather than discovered: every member of the returned object is
+ * public API for life, so a helper that is not meant to be one stays a local and is not returned.
+ */
+export type SelectController = ReturnType<typeof listbox>;
+
+export const listbox = (element: LifecycleElement, config: SelectConfig = {}) => {
+  const state = createStore({
+    open: false,
+    /** Index into `matches`, not into `options` — the keyboard walks what is visible. */
+    active: 0,
+    search: '',
+    options: [] as SelectOption[],
+    value: [] as SelectOption[],
+  });
+
+  let assigned: AssignedParts = {};
+  /** See `SelectConfig.ids` — the id of the listbox this controller's ARIA must point at. */
+  const listboxId = () => `${config.ids?.() ?? ''}listbox`;
+  const multi = () => config.multi?.() === true;
+  const disabled = () => config.disabled?.() === true;
+
+  /** matches() is consulted several times per keystroke (rows, count, step, activate, render) —
+   *  memoized per (options identity, search, remote) so the filter runs once per real change. */
+  let memo: { options: SelectOption[]; search: string; remote: boolean; result: SelectOption[] } | null = null;
+  const matches = (): SelectOption[] => {
+    const remote = config.remote?.() === true;
+    if (memo && memo.options === state.options && memo.search === state.search && memo.remote === remote)
+      return memo.result;
+    const needle = state.search.trim().toLowerCase();
+    const result = remote
+      ? [...state.options]
+      : needle
+        ? state.options.filter((option) => option.label.toLowerCase().includes(needle))
+        : [...state.options];
+    memo = { options: state.options, search: state.search, remote, result };
+    return result;
+  };
+
+  /**
+   * The one write path for options — active is tracked BY IDENTITY across the change: the
+   * highlighted option keeps the highlight if it survives (a remote refresh reordering results
+   * must not silently move it), and vanishes to the top if it does not.
+   */
+  const setOptions = (next: SelectOption[]) => {
+    const previous = matches()[state.active];
+    state.options = next;
+    memo = null;
+    /**
+     * A selection made before its option existed carries a PLACEHOLDER label (the value string
+     * itself — a value set before options, or a remote pick whose option later leaves the list).
+     * When the real option now appears, adopt it so the label upgrades from the raw value to the
+     * real text; keep the cached object when it does not (remote-safe — the label cache is the
+     * whole point there). Same by-identity idea as the active tracking below.
+     */
+    if (state.value.length) {
+      let upgraded = false;
+      const merged = state.value.map((entry) => {
+        const real = next.find((option) => option.value === entry.value);
+        if (real && real !== entry) upgraded = true;
+        return real ?? entry;
+      });
+      if (upgraded) {
+        state.value = merged;
+        syncAssigned();
+      }
+    }
+    if (previous) {
+      const index = matches().findIndex((option) => option.value === previous.value);
+      state.active = index === -1 ? firstEnabled() : index;
+    } else {
+      state.active = firstEnabled();
+    }
+  };
+
+  /** The create row's label — non-empty only when creatable, searched, and not an existing label. */
+  const createLabel = (): string => {
+    if (config.creatable?.() !== true) return '';
+    const label = state.search.trim();
+    if (!label) return '';
+    return state.options.some((option) => option.label.toLowerCase() === label.toLowerCase()) ? '' : label;
+  };
+
+  /** The keyboard walks matches plus, when offered, the create row at the end. */
+  const rowCount = () => matches().length + (createLabel() ? 1 : 0);
+
+  const chosen = (option: SelectOption) => state.value.some((entry) => entry.value === option.value);
+
+  /**
+   * "A disabled row never takes the highlight" is an INVARIANT, not a per-handler courtesy — it
+   * held at the arrow/hover/open doors while End, a remote refresh's fallback and a filter reset
+   * all landed the tint on disabled rows Enter refuses (measured). Every door that places the
+   * highlight absolutely goes through these two; the create row counts as walkable at both ends.
+   */
+  const firstEnabled = (): number => {
+    const index = matches().findIndex((option) => !option.disabled);
+    return index !== -1 ? index : createLabel() ? matches().length : -1;
+  };
+  const lastEnabled = (): number => {
+    if (createLabel()) return matches().length;
+    const rows = matches();
+    for (let i = rows.length - 1; i >= 0; i--) if (!rows[i]?.disabled) return i;
+    return -1;
+  };
+
+  const close = (refocus = true) => {
+    if (!state.open) return;
+    if (config.canToggle?.('closed') === false) return;
+    state.open = false;
+    state.search = '';
+    state.active = 0;
+    dismiss.deactivate();
+    syncAssigned();
+    config.onToggle?.('closed');
+    if (refocus) ((assigned.trigger ?? assigned.fallbackTrigger) as HTMLElement | undefined)?.focus?.();
+  };
+
+  /**
+   * `highlight` is the caller's input modality. A keyboard open (Enter/ArrowDown/typeahead) needs
+   * a starting row — selected option first, else the first enabled one, per the APG combobox — but
+   * a POINTER open highlighting row 0 reads as a phantom hover (Brian saw it and called it one).
+   * A real selection is highlighted regardless: that tint is information, not focus theater.
+   */
+  const open = (highlight = true) => {
+    if (state.open || disabled()) return;
+    if (config.canToggle?.('open') === false) return;
+    state.open = true;
+    pointerAt = null;
+    const selected = matches().findIndex((option) => !option.disabled && chosen(option));
+    state.active = selected !== -1 ? selected : highlight ? firstEnabled() : -1;
+    dismiss.activate();
+    syncAssigned();
+    config.onToggle?.('open');
+  };
+
+  const dismiss = lightDismiss(element, (event) => {
+    /** Escape refocuses the trigger (the user is keyboard-driving); an outside press must not steal focus. */
+    close(event !== undefined);
+  });
+
+  const commit = (value: SelectOption[]) => {
+    state.value = value;
+    syncAssigned();
+    config.onChange?.([...value]);
+  };
+
+  /** Back to nothing chosen — one commit, so `onChange` fires once, as a pick does. */
+  const clear = () => {
+    if (state.value.length) commit([]);
+  };
+
+  const pick = (option: SelectOption | undefined) => {
+    if (!option || option.disabled) return;
+    if (multi()) {
+      commit(chosen(option) ? state.value.filter((entry) => entry.value !== option.value) : [...state.value, option]);
+    } else {
+      commit([option]);
+      close();
+    }
+  };
+
+  /** Step the active row, skipping disabled options; wraps in both directions. The create row
+   *  (index `matches().length`) is walkable and never disabled. */
+  const step = (delta: number) => {
+    const count = rowCount();
+    if (count === 0) return;
+    const rows = matches();
+    /** From the cleared state (-1): ArrowDown starts at the top, ArrowUp at the bottom. */
+    let next = state.active < 0 ? (delta > 0 ? -1 : 0) : state.active;
+    for (let i = 0; i < count; i++) {
+      next = (next + delta + count) % count;
+      if (next >= rows.length || !rows[next]?.disabled) break;
+    }
+    state.active = next;
+  };
+
+  /** Activate row `index`: a real row picks; the create row hands the label to the host. */
+  const activate = (index: number) => {
+    const rows = matches();
+    if (index === rows.length && createLabel()) config.onCreate?.(createLabel());
+    else pick(rows[index]);
+  };
+
+  // ── the handlers — bound by the host template on its own nodes, attached here on assigned ones ─
+
+  const onTriggerClick = () => {
+    if (disabled()) return;
+    if (state.open) close();
+    else open(false);
+  };
+
+  /**
+   * Typeahead, as the APG select-only combobox prescribes: printable characters accumulate for
+   * half a second and the active row jumps to the next enabled label with that prefix, wrapping,
+   * starting after the current row so repeated presses of one letter cycle its matches.
+   */
+  let typed = '';
+  let typedAt = 0;
+  /** A warm buffer means the user is mid-typeahead — Space is then a CHARACTER ("New York"),
+   *  exactly the native <select> rule; cold, it acts (open closed, select open). */
+  const typedWarm = () => typed !== '' && Date.now() - typedAt < 500;
+  const typeahead = (character: string) => {
+    const now = Date.now();
+    typed = (now - typedAt < 500 ? typed : '') + character.toLowerCase();
+    typedAt = now;
+    if (!state.open) open();
+    const rows = matches();
+    /**
+     * A buffer of ONE repeated character cycles that letter's matches, per APG — otherwise
+     * accumulating `cc` would search for a `cc`-prefix (nothing) and freeze on the first match.
+     * A genuine multi-character prefix (`ch`) refines in place. So the needle is the single
+     * letter when the buffer is all one character, the whole buffer otherwise; the search starts
+     * at the NEXT row for a single/repeated letter (to advance the cycle) and at the CURRENT row
+     * for a real prefix (to narrow without moving off it).
+     */
+    const repeated = [...typed].every((c) => c === typed[0]);
+    const needle = repeated ? typed[0] : typed;
+    for (let offset = repeated ? 1 : 0; offset <= rows.length; offset++) {
+      const index = (state.active + offset) % rows.length;
+      const row = rows[index];
+      if (row && !row.disabled && row.label.toLowerCase().startsWith(needle)) {
+        state.active = index;
+        return;
+      }
+    }
+  };
+
+  const onTriggerKeydown = (event: KeyboardEvent) => {
+    if (disabled()) return;
+    /** Clearable: Delete clears everything; Backspace too in single mode (multi keeps its chips gesture, below). */
+    if (config.clearable?.() && state.value.length && (event.key === 'Delete' || (event.key === 'Backspace' && !multi()))) {
+      event.preventDefault();
+      clear();
+      return;
+    }
+    /** The chips pattern: Backspace on the trigger removes the most recent pill in multi mode. */
+    if (event.key === 'Backspace' && multi() && state.value.length) {
+      event.preventDefault();
+      pick(state.value[state.value.length - 1]);
+      return;
+    }
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key !== ' ' || typedWarm())) {
+      event.preventDefault();
+      typeahead(event.key);
+      return;
+    }
+    if (state.open) {
+      /** No search line means focus stays on the trigger — it must drive the open menu too. */
+      onMenuKeydown(event);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      open();
+    }
+  };
+
+  /** Space must keep typing where text is being typed — the search input, or anything editable. */
+  const typesText = (event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    return target != null && (target.localName === 'input' || target.localName === 'textarea' || target.isContentEditable === true);
+  };
+
+  /** One keydown for the open menu — arrows, Enter, Space, Tab. Escape belongs to `lightDismiss`. */
+  const onMenuKeydown = (event: KeyboardEvent) => {
+    if (event.key === ' ' && !typesText(event)) {
+      /** Space selects like click and Enter — ARIA and native parity. Always consumed while the
+       *  menu is open (even with no active row), or the browser scrolls the page underneath it. */
+      event.preventDefault();
+      activate(state.active);
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      step(event.key === 'ArrowDown' ? 1 : -1);
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      state.active = event.key === 'Home' ? firstEnabled() : lastEnabled();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      activate(state.active);
+    } else if (event.key === 'Tab') {
+      close(false);
+    }
+  };
+
+  const onSearchInput = (event: Event) => {
+    state.search = (event.target as HTMLInputElement).value;
+    state.active = firstEnabled();
+    config.onSearch?.(state.search);
+  };
+
+  /** Delegated: one listener on the list, rows addressed by `data-index` — never per-row handlers. */
+  const onListClick = (event: Event) => {
+    const row = (event.target as Element).closest?.('[data-index]');
+    if (row) activate(Number((row as HTMLElement).dataset['index']));
+  };
+
+  /**
+   * The highlight is not sticky: when the pointer leaves the list it clears (-1 = no active row),
+   * exactly as a CSS :hover would — the last-hovered row keeping the tint forever read as a
+   * broken hover state, because visually it is one. Keyboard travel brings it straight back.
+   */
+  const onListLeave = () => {
+    state.active = -1;
+  };
+
+  /**
+   * Hover requires the pointer to have MOVED inside this open session. Engines re-dispatch
+   * boundary/move events when content appears or scrolls under a PARKED cursor (measured:
+   * Firefox synthesized a hover for the row under the resting mouse the instant a
+   * keyboard-opened menu appeared beneath it, stealing the keyboard's starting highlight;
+   * the same mechanism makes arrow-key scrolling fight the cursor). The first event after
+   * open primes the coordinates and is ignored; only a real coordinate change highlights —
+   * a moving mouse streams events, so priming is imperceptible.
+   */
+  let pointerAt: { x: number; y: number } | null = null;
+  const onListHover = (event: Event) => {
+    const { clientX: x, clientY: y } = event as PointerEvent;
+    const moved = pointerAt !== null && (pointerAt.x !== x || pointerAt.y !== y);
+    pointerAt = { x, y };
+    if (!moved) return;
+    const row = (event.target as Element).closest?.('[data-index]');
+    if (!row) return;
+    const index = Number((row as HTMLElement).dataset['index']);
+    /** A disabled row never takes the highlight — hovering one showed the active tint while
+     *  Enter refused, a mixed signal native selects do not send. */
+    if (matches()[index]?.disabled) return;
+    state.active = index;
+  };
+
+  // ── assigned markup ────────────────────────────────────────────────────────────────────────────
+
+  /** The stamp map for the search line — same single-source rule as the trigger's. */
+  const searchStamps = (activeId: string | null): Record<string, string> => ({
+    'aria-controls': listboxId(),
+    'aria-autocomplete': 'list',
+    ...(state.open && activeId ? { 'aria-activedescendant': activeId } : {}),
+  });
+
+  /**
+   * No listeners here, deliberately: a slotted input's input/keydown events retarget through the
+   * slot and bubble into the menu's own delegated handlers — the platform already delivers them,
+   * and a second listener double-fires (measured: Enter picked, closed, reset the filter, then
+   * the bubbled Enter picked again from the unfiltered list). Wiring is ARIA only.
+   */
+  const wireSearch = (search: Element) => {
+    search.setAttribute('aria-controls', listboxId());
+    search.setAttribute('aria-autocomplete', 'list');
+  };
+
+  /**
+   * Wired-once, tracked per NODE across its whole life — not against the previous assignment.
+   * Re-slotting a node away and back (A -> B -> A) passed the "different from last" check and
+   * wired A twice; duplicate click listeners toggled twice per click and the menu never opened.
+   */
+  const wired = new WeakSet<Element>();
+  const wireTrigger = (trigger: Element) => {
+    if (wired.has(trigger)) return;
+    wired.add(trigger);
+    trigger.addEventListener('click', onTriggerClick);
+    trigger.addEventListener('keydown', onTriggerKeydown as EventListener);
+    trigger.setAttribute('role', 'combobox');
+    trigger.setAttribute('aria-haspopup', 'listbox');
+  };
+
+  /**
+   * Reflect state onto assigned nodes. The host template does this reactively for its own markup;
+   * this is the same knowledge applied imperatively to markup we do not render. Runs from the
+   * effect below on state changes, and from `attach` directly — a swapped-in node must be stamped
+   * now, not on the next state change.
+   */
+  /**
+   * THE STAMP MAP — the single source for every state attribute a trigger carries. The host's
+   * template spreads exactly this object onto its own trigger; `syncAssigned` applies the same
+   * object imperatively to a slotted one. One definition, two consumers, drift impossible — the
+   * previous shape wrote the knowledge twice, the house's most-repeated defect class.
+   */
+  const triggerStamps = (): Record<string, string> => ({
+    'aria-expanded': String(state.open),
+    'aria-disabled': String(disabled()),
+    'data-state': state.open ? 'open' : 'closed',
+  });
+
+  const syncAssigned = () => {
+    if (assigned.trigger)
+      for (const [name, value] of Object.entries(triggerStamps())) assigned.trigger.setAttribute(name, value);
+    /** A slotted value node is stamped, never rewritten: you slot it, you own its children (§5). */
+    if (assigned.value)
+      assigned.value.setAttribute('data-label', state.value.map((option) => option.label).join(', '));
+  };
+
+  /**
+   * Hand over the user-supplied nodes (and nothing else — the template owns its own). Re-callable:
+   * the host calls it again on `slotchange`, and previously assigned nodes that vanished from the
+   * document take their listeners with them.
+   */
+  const attach = (parts: AssignedParts) => {
+    if (parts.trigger && parts.trigger !== assigned.trigger) wireTrigger(parts.trigger);
+    if (parts.search && parts.search !== assigned.search) wireSearch(parts.search);
+    assigned = { ...parts };
+    syncAssigned();
+  };
+
+  /**
+   * Registered before the host's `render()` — hooks registered after it are ignored. The reads
+   * inside `syncAssigned` (open, value) are what subscribe this effect to the store.
+   */
+  effect(syncAssigned, { owner: element });
+
+  return {
+    state,
+    matches,
+    createLabel,
+    rowCount,
+    chosen,
+    open,
+    close,
+    pick,
+    clear,
+    activate,
+    step,
+    attach,
+    setOptions,
+    triggerStamps,
+    searchStamps,
+    /** For hosts that write `state` directly (a value property setter): restamp assigned nodes. */
+    sync: syncAssigned,
+    handlers: { onTriggerClick, onTriggerKeydown, onMenuKeydown, onSearchInput, onListClick, onListHover, onListLeave },
+  };
+};

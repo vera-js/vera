@@ -1,0 +1,83 @@
+/** The vocabulary of the `listbox` controller. */
+
+/** One choosable row. `value` is the identity; two options must never share one. */
+export type SelectOption = {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  /**
+   * One sentence rendered under the label, smaller and dimmer — what picking this does. Inside
+   * the option's accessible name on purpose: a listbox has no aria-describedby path, and a
+   * description worth showing is worth announcing. (wp-omni's design, ported contract-for-contract.)
+   */
+  description?: string;
+  /**
+   * The heading this option sits under. Consecutive options sharing a group render inside one
+   * labeled `role="group"` — a real group, never a heading faked as a disabled option, which a
+   * screen reader would announce as a selectable choice.
+   */
+  group?: string;
+  /**
+   * Decorative content before/after the label — a Vera template (`html\`<svg…>\``) or a plain
+   * string rendered as text (an emoji, a dot). DECORATIVE BY CONTRACT: rendered `aria-hidden`,
+   * so an icon can never be the only carrier of meaning. Author-supplied markup only — a string
+   * from data renders as text, so content can never inject.
+   */
+  iconBefore?: unknown;
+  iconAfter?: unknown;
+};
+
+/** What `listbox` needs from its host component — functions, so attribute changes stay live. */
+export type SelectConfig = {
+  /**
+   * The host's id prefix, for the ARIA the controller stamps onto markup it does not render.
+   * `aria-controls` is an ID REFERENCE, and a light-DOM host's ids share the page document with
+   * every other component's — so two hosts both stamping `aria-controls="listbox"` sent the second
+   * one's search input at the FIRST one's listbox. Defaults to no prefix, which is what a host with
+   * a shadow root (its own id scope) can afford.
+   */
+  ids?: () => string;
+  /** Multi mode: picking toggles membership and the menu stays open. Default single. */
+  multi?: () => boolean;
+  /** Disabled: every gesture, key and typeahead no-ops; open() refuses. */
+  disabled?: () => boolean;
+  /** Creatable: a search string matching no option offers a create row. */
+  creatable?: () => boolean;
+  /** Remote filtering: `matches()` returns options untouched — the host owns narrowing them. */
+  remote?: () => boolean;
+  /**
+   * Clearable: Delete on the trigger clears the whole selection (and Backspace too in single mode — in multi it keeps
+   * removing the last pill). The host renders its own clear control and calls `clear()`.
+   */
+  clearable?: () => boolean;
+  /** Called after every committed change with the new selection. */
+  onChange?: (value: SelectOption[]) => void;
+  /** Called when the create row is activated, with the searched label. The host decides what a
+   *  created option looks like (and whether creation is async) — the controller only navigates. */
+  onCreate?: (label: string) => void;
+  /** Called on every search edit with the query — the host's seam for remote typeahead. */
+  onSearch?: (query: string) => void;
+  /**
+   * Called before open/close with the intended state; returning false vetoes it — the host's
+   * cancelable `beforetoggle` seam. `onToggle` reports the settled state after.
+   */
+  canToggle?: (next: 'open' | 'closed') => boolean;
+  onToggle?: (next: 'open' | 'closed') => void;
+};
+
+/**
+ * User-supplied ("assigned") nodes the controller must wire imperatively. The host's own template
+ * binds its own nodes reactively; only markup the user slotted in arrives here — that split is the
+ * controller's one rule (template renders ours, controller syncs theirs). `fallbackTrigger` is the
+ * exception: the host's own trigger, handed over so close-with-refocus has somewhere to land when
+ * nothing is slotted — the controller never stamps it (the template does).
+ */
+export type AssignedParts = {
+  trigger?: Element | undefined;
+  value?: Element | undefined;
+  /** A slotted search input — stamped with combobox ARIA only. Its input/keydown events already
+   *  bubble through the slot into the menu's delegated handlers; adding listeners here
+   *  double-fired every one of them (measured). */
+  search?: Element | undefined;
+  fallbackTrigger?: Element | undefined;
+};

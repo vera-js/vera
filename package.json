@@ -41,7 +41,6 @@
         "./packages/autoloader:build",
         "./packages/cms:build",
         "./packages/directives:build",
-        "./packages/hooks:build",
         "./packages/hot:build",
         "./packages/core:build",
         "./packages/inserts:build",
@@ -52,7 +51,9 @@
         "./packages/renderer:build",
         "./packages/router:build",
         "./packages/static:build",
-        "./packages/ui:build",
+        "./packages/hooks/light-dismiss:build",
+        "./packages/hooks/listbox:build",
+        "./packages/components/select:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",
@@ -80,7 +81,7 @@
       "service": true
     },
     "dev:select": {
-      "command": "node examples/ui-select/serve.js",
+      "command": "node examples/select/serve.js",
       "dependencies": [
         "build"
       ],

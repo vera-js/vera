@@ -26,6 +26,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 
 /** Bare specifier -> the bundle name `tests/dist.mjs` resolves. */
 const PACKAGES = {
+  '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
+  '@vera-hooks/listbox': 'vera-hooks/listbox',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -57,11 +59,10 @@ const PACKAGES = {
   /** Unpublished (`private: true` until its audits land), but its READMEs and the autoloader's
    *  lazy-directive recipe are in this repository and a reader will act on them. */
   '@verajs/directives': 'directives',
-  '@verajs/hooks': 'hooks',
   '@verajs/hot': 'hot',
   '@verajs/hot/vite': 'hot/vite',
-  '@verajs/ui': 'ui',
-  '@verajs/ui/elements': 'ui/elements',
+  '@vera-components/select': 'vera-components/select',
+  '@vera-components/select/elements': 'vera-components/select/elements',
   '@verajs/cms/content': 'cms/content',
   '@verajs/cms/publish': 'cms/publish',
 };

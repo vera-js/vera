@@ -43,6 +43,21 @@ const WALKS = [
  */
 const code = (text) => text.replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/^\s*\/\/.*$/gm, '');
 
+/**
+ * **The two-step walk: a variable bound to the packages directory itself, then listed** (found 2026-11-21, moving select:
+ * `const root = new URL('../packages/', import.meta.url)` … `readdirSync(root)` in four suites, which no one-line shape
+ * sees). Only a LISTING of that variable counts: reading `${ROOT}${name}` for a named package is not a walk. Returns the
+ * offending lines.
+ */
+const PACKAGES_ROOT = /(?:const|let|var)\s+(\w+)\s*=.*['"`](?:\.\.?\/)?packages\/?['"`]\s*(?:,\s*import\.meta\.url\s*)?\)/;
+const twoStepWalks = (text) => {
+  const lines = code(text).split('\n');
+  const roots = lines.map((line) => PACKAGES_ROOT.exec(line)?.[1]).filter(Boolean);
+  if (roots.length === 0) return [];
+  const listing = new RegExp(`\\b(?:readdir(?:Sync)?|globSync|glob)\\(\\s*(?:${roots.join('|')})\\s*[,)]`);
+  return lines.map((line, i) => [line, i]).filter(([line]) => listing.test(line)).map(([line, i]) => `${i + 1}: ${line.trim().slice(0, 120)}`);
+};
+
 test('no script or test walks packages/* by hand', () => {
   const files = globSync(['scripts/**/*.mjs', 'tests/**/*.mjs', 'tests/**/*.js', 'bench/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
     .map((file) => file.split('\\').join('/'))
@@ -54,6 +69,7 @@ test('no script or test walks packages/* by hand', () => {
     lines.forEach((line, i) => {
       if (WALKS.some((walk) => walk.test(line))) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 120)}`);
     });
+    for (const hit of twoStepWalks(readFileSync(ROOT + file, 'utf8'))) found.push(`${file}:${hit}`);
   }
   assert.deepEqual(found, [], 'walk the packages with packageDirs() or packageFiles() from scripts/packages.mjs');
 });
@@ -81,4 +97,14 @@ test('the walk detector fires on each shape it refuses (planted)', () => {
   ];
   for (const line of planted) assert.ok(WALKS.some((walk) => walk.test(line)), `the detector misses: ${line}`);
   assert.ok(!WALKS.some((walk) => walk.test("packageFiles('README.md')")), 'the helper itself is not a walk');
+  /** The two-step shapes, from the four suites that had them; and the named read that must pass. */
+  const twoStep = [
+    "const root = new URL('../packages/', import.meta.url).pathname;\nfor (const pkg of readdirSync(root)) {",
+    "const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));\nfor (const dir of readdirSync(ROOT)) {",
+    "const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));\nconst packages = readdirSync(ROOT).filter(Boolean);",
+    "const dir = join(here, '..', 'packages');\nconst all = globSync(dir, {});",
+  ];
+  for (const text of twoStep) assert.equal(twoStepWalks(text).length, 1, `the two-step detector misses: ${text}`);
+  assert.deepEqual(twoStepWalks("const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));\nconst text = readFileSync(`${ROOT}${name}/src/x.ts`);"), [], 'a named read is not a walk');
+  assert.deepEqual(twoStepWalks("const dir = join(root, 'packages', pkg);\nreaddirSync(dir);"), [], 'one named package, listed, is not a walk of the packages');
 });

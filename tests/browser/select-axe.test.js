@@ -1,0 +1,254 @@
+/**
+ * The accessibility claims, audited rather than asserted: axe-core over every interesting state
+ * of <vera-select>, on all three engines. Zero violations is the gate — a finding here is a bug
+ * with the same standing as a thrown exception. axe walks shadow trees natively.
+ *
+ * Loaded as a script tag: axe ships UMD, and the dev server serves node_modules as-is.
+ */
+import { expect } from '@esm-bundle/chai';
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { styles } from '@verajs/styles';
+import '@vera-components/select';
+
+wire([renderer, styles]);
+
+const frame = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+await new Promise((resolve, reject) => {
+  const script = document.createElement('script');
+  script.src = '/node_modules/axe-core/axe.min.js';
+  script.onload = resolve;
+  script.onerror = reject;
+  document.head.appendChild(script);
+});
+
+const OPTIONS = [
+  { label: 'Alpha', value: 'a' },
+  { label: 'Beta', value: 'b', description: 'the second one' },
+  { label: 'Gamma', value: 'g', disabled: true, group: 'Late' },
+];
+
+/**
+ * One helper for every state. The `settle` before measuring is load-bearing: the menu's opacity
+ * transition is 140ms, and axe composites text through an in-flight opacity — measuring one frame
+ * after open reads a washed-out effective foreground and reports FALSE color-contrast violations
+ * (found while auditing barren/creatable states; the old inline cases measured mid-fade and were
+ * one slow frame from flaking). `open`/`type`/`value` drive the interaction; `element.shadowRoot ??
+ * element` covers light mode, where the parts live in the light DOM.
+ */
+const SETTLE_MS = 250;
+/**
+ * **Wait until nothing is animating, and keep checking — do not sample once and hope.**
+ *
+ * The menu opens and closes on a transition, and axe's color-contrast rule reads COMPUTED color,
+ * so auditing while a pill is still interpolating measures a half-faded color and reports a
+ * violation that exists in neither end state. Green on its own, red inside the full three-browser
+ * gate, green again next run — the worst way for a check to behave, because it teaches you to
+ * re-run rather than to look.
+ *
+ * A fixed sleep failed that way first. **Awaiting `document.getAnimations()` once failed the same
+ * way**, for a subtler reason worth keeping: a transition that has not STARTED yet is not in that
+ * list, so the wait found nothing to wait for and returned straight into the animation it was
+ * meant to outlast. Style flushes on a frame; the audit was one frame early.
+ *
+ * So: give the frame, then ask, and repeat until a frame passes with nothing running. Bounded on
+ * both axes, so a looping animation (a spinner) cannot hang the suite.
+ */
+const rounds = 8;
+/**
+ * **A third way it failed, and the reason `settle` takes a root.**
+ *
+ * `document.getAnimations()` does not report animations running inside a SHADOW TREE on WebKit, and
+ * this component's menu lives in one — so the wait found nothing to wait for and returned straight
+ * into the fade it was meant to outlast, which is the same failure the paragraph above describes
+ * with a different cause. It cost a false color-contrast violation on Linux WebKit while Chromium,
+ * Firefox and macOS WebKit stayed green. `ShadowRoot.getAnimations()` reports them, so ask both.
+ */
+const settle = async (root) => {
+  await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+  for (let round = 0; round < rounds; round++) {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const running = [...(document.getAnimations?.() ?? []), ...(root?.getAnimations?.() ?? [])];
+    if (running.length === 0) return;
+    await Promise.all(
+      running.map((animation) =>
+        Promise.race([
+          animation.finished.catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, SETTLE_MS * 4)),
+        ])
+      )
+    );
+  }
+};
+
+/**
+ * **Wait for the menu's fade to REST, measuring the quantity axe will measure.**
+ *
+ * `settle()` above is the general guard and it is not sufficient here, for a reason that only shows
+ * up on one engine: it waits on `document.getAnimations()`, and WebKit does not report animations
+ * running inside a SHADOW TREE there. The menu lives in one. So on WebKit the wait found nothing to
+ * wait for, returned into the fade, and axe composited the option text through an in-flight opacity
+ * — reporting `#818189` on white at 3.86:1 for text that is `#71717a` at 8.6:1 once it rests. The
+ * numbers gave it away: #71717a over white at ~89% alpha is exactly #818189.
+ *
+ * That is the false positive this file's header already warns about, arriving past the fixed
+ * `SETTLE_MS` sleep that was guarding against it — 250 ms is enough for a 140 ms transition only
+ * while the runner is not loaded enough to start it late. This polls the resting value instead,
+ * which is the only formulation that does not depend on how busy the machine is.
+ */
+const rested = async (root) => {
+  const menu = root.querySelector('[part="menu"]');
+  if (menu === null) return;
+  for (let i = 0; i < 200; i++) {
+    if (Number(getComputedStyle(menu).opacity) === 1) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
+const audit = async (name, { setup, value, open = false, type } = {}) => {
+  const element = document.createElement('vera-select');
+  element.setAttribute('aria-label', 'Flavor');
+  setup?.(element);
+  document.body.appendChild(element);
+  element.options = OPTIONS;
+  if (value !== undefined) element.value = value;
+  await frame();
+  const root = element.shadowRoot ?? element;
+  if (open) {
+    root.querySelector('[part="trigger"]').click();
+    await settle(root);
+    await rested(root);
+  }
+  if (type !== undefined) {
+    const search = root.querySelector('[part="search"]');
+    search.value = type;
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle(root);
+  }
+  const results = await window.axe.run(element, { resultTypes: ['violations'] });
+  /**
+   * The message names the offending NODE and the numbers behind the rule, not just the rule.
+   *
+   * It used to report `color-contrast: Elements must meet minimum color contrast ratio thresholds`
+   * and nothing else, which is the rule's generic help text and identifies neither the element nor
+   * the ratio. When exactly that fired on Linux WebKit in CI — while Chromium, Firefox and macOS
+   * WebKit all passed — there was no way to tell a real contrast miss from an engine difference in
+   * how the colors resolve, and nothing to reproduce from. A failure that cannot be acted on is a
+   * failure that gets muted.
+   */
+  const summary = results.violations
+    .map((violation) => {
+      const where = violation.nodes
+        .map((node) => {
+          const target = Array.isArray(node.target) ? node.target.join(' ') : String(node.target);
+          const why = [...(node.any ?? []), ...(node.all ?? []), ...(node.none ?? [])]
+            .map((check) => `${check.message}${check.data ? ` ${JSON.stringify(check.data)}` : ''}`)
+            .join(' | ');
+          return `${target} → ${why}`;
+        })
+        .join('\n      ');
+      return `${violation.id}: ${violation.help}\n      ${where}`;
+    })
+    .join('; ');
+  expect(results.violations, `${name} — ${summary}`).to.have.length(0);
+  element.remove();
+};
+
+it('axe: closed, default', () => audit('closed'));
+
+it('axe: open with groups, description, disabled row', () => audit('open', { open: true }));
+
+it('axe: multi with pills, menu open', () =>
+  audit('multi pills', {
+    setup: (el) => {
+      el.setAttribute('multi', '');
+      el.setAttribute('searchable', '');
+    },
+    value: ['a', 'b'],
+    open: true,
+  }));
+
+it('axe: disabled', () => audit('disabled', { setup: (el) => el.setAttribute('disabled', '') }));
+
+it('axe: light mode open', () => audit('light', { setup: (el) => el.setAttribute('light', ''), open: true }));
+
+it('axe: loading, menu open', () =>
+  audit('loading', {
+    setup: (el) => {
+      el.setAttribute('searchable', '');
+      el.setAttribute('loading', '');
+    },
+    open: true,
+  }));
+
+it('axe: empty message on a barren search', () =>
+  audit('barren', { setup: (el) => el.setAttribute('searchable', ''), open: true, type: 'zzzzz' }));
+
+it('axe: creatable with the create row highlighted', () =>
+  audit('creatable', { setup: (el) => el.setAttribute('creatable', ''), open: true, type: 'Gamma2' }));
+
+it('axe: a selected row that is also the active row (checkmark on the highlight tint)', () =>
+  audit('selected+active', { value: 'a', open: true }));
+
+/**
+ * Dark mode is consumer-set tokens (the sheet ships light fallbacks). The derived
+ * --vera-accent-strong mixes toward --vera-fg, so it must stay above the contrast floor when a
+ * consumer flips surface/fg dark and uses a light accent - a plain darken regressed this to
+ * 3.7:1. The highlighted create row is the state that exercises accent-on-tint text.
+ */
+it('axe: dark tokens - highlighted create row keeps contrast', () =>
+  audit('dark creatable', {
+    setup: (el) => {
+      el.setAttribute('creatable', '');
+      el.style.setProperty('--vera-surface', '#1a1a1e');
+      el.style.setProperty('--vera-fg', '#fafafa');
+      el.style.setProperty('--vera-fg-muted', '#a1a1aa');
+      el.style.setProperty('--vera-accent', '#a78bfa');
+      el.style.setProperty('--vera-border', '#3f3f46');
+    },
+    open: true,
+    type: 'Gamma2',
+  }));
+
+/**
+ * **TWO light-mode selects, audited together.** Every audit above mounts ONE element, and one
+ * instance is exactly what cannot show an id collision: a shadow root scopes ids, a light host's
+ * land in the page document beside every other component's, and both instances were writing
+ * `id="listbox"` and `id="opt-0"`. The second one's `aria-controls` and `aria-activedescendant`
+ * then resolved to the FIRST one's listbox and options — a reader sent to another widget, with
+ * every single-instance audit green.
+ *
+ * axe has the rule for this (`duplicate-id-aria`), so the guard costs one test: run it over a
+ * container holding both, with both menus open so their listboxes and option rows are rendered.
+ */
+it('axe: TWO light-mode selects on one page, both open', async () => {
+  const holder = document.createElement('div');
+  document.body.appendChild(holder);
+  const made = [];
+  for (let index = 0; index < 2; index++) {
+    const element = document.createElement('vera-select');
+    element.setAttribute('light', '');
+    element.setAttribute('aria-label', `Flavor ${index}`);
+    holder.appendChild(element);
+    element.options = OPTIONS;
+    made.push(element);
+  }
+  await frame();
+  for (const element of made) {
+    element.querySelector('[part="trigger"]').click();
+    await settle();
+  }
+  expect(made[1].querySelectorAll('[role="option"]').length).to.be.greaterThan(0,
+    'CONTROL: the second select really rendered its own options');
+
+  /** No id may appear twice anywhere in the document, which is the collision itself. */
+  const ids = [...document.querySelectorAll('[id]')].map((node) => node.id);
+  const duplicated = [...new Set(ids.filter((id, at) => ids.indexOf(id) !== at))];
+  expect(duplicated, `duplicate ids across instances: ${duplicated.join(', ')}`).to.have.length(0);
+
+  const results = await window.axe.run(holder, { resultTypes: ['violations'] });
+  const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
+  expect(results.violations, `two light selects — ${summary}`).to.have.length(0);
+  holder.remove();
+});

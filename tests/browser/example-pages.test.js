@@ -5,7 +5,7 @@ import { expect } from '@esm-bundle/chai';
  * describing a working demo.**
  *
  * `examples/light-slots/` died resolving a bundle external its import map did not declare;
- * `examples/ui-select/` died the same way through a dynamic import the map guard could not yet see;
+ * `examples/select/` died the same way through a dynamic import the map guard could not yet see;
  * and light-slots' centrepiece counter was frozen by design even once the page loaded. Every one of
  * those shipped, because examples are pages only humans open, and humans had not. The import-map
  * guard now covers the load-time half mechanically; this file is the behavioral half: each page is
@@ -73,8 +73,8 @@ it('light-slots: renders both modes, and the advertised counter actually counts'
     'the slotted trigger is inside the select');
 });
 
-it('ui-select: ten selects upgrade, the unwired-light card operates, the slotted card reports back', async () => {
-  const { doc, win } = await openPage('/examples/ui-select/index.html');
+it('select: ten selects upgrade, the unwired-light card operates, the slotted card reports back', async () => {
+  const { doc, win } = await openPage('/examples/select/index.html');
 
   /** Dead-page detector: every select upgrades (shadow root, or light-mode parts). */
   await until(() => {

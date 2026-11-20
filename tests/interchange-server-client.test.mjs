@@ -7,7 +7,7 @@
  *
  * NOT covered here (the claim is exactly this wide): shadow DOM and `renderer({ shadow })` as the default (jsdom's
  * innerHTML does not parse declarative shadow DOM — the browser suite's row, owed after the heat hold); the router's
- * navigation half; `@verajs/directives`, `@verajs/motion`, `@verajs/cms`, `@verajs/ui` (out of scope until after the
+ * navigation half; `@verajs/directives`, `@verajs/motion`, `@verajs/cms`, `@vera-components/select` (out of scope until after the
  * release); `@scope` in a real engine (jsdom has none, so its one `no-scope` warning is the one engine line allowed here).
  */
 import { test } from 'node:test';

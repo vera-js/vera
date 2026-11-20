@@ -77,11 +77,21 @@ const withoutFunctionBodies = (text) => {
 const registersAtImport = (body) => /\bcustomElements\.define\(|(?<![.\w])define\(/.test(withoutFunctionBodies(body));
 
 /**
- * Components that register without core's `define` today, each with its reason; an entry is removed by the change that
- * fixes it.
+ * **The one exemption mechanism, and it expires itself** (d7, 2026-11-21). Select moved into this layout in Phase 0
+ * with its code unchanged (a pure move, proven by its suites passing unchanged), so it breaks the rules its Phase 1
+ * rewrite exists to meet. Each row names a rule by its stable code, the reason, and the rewrite step that removes it;
+ * the suite asserts every exempted rule STILL fires, so the day a step fixes one, the gate is red until its row goes.
+ * The table reads as the rewrite's to-do list.
  */
-const REGISTERS_WITHOUT_DEFINE = {
-  '@vera-components/select': 'form-associated, and core\'s define gains formAssociated only with F3; moves onto define in its Phase 1 rewrite',
+const UNTIL_REWRITE = {
+  '@vera-components/select': {
+    'registers-without-define': "form-associated, and core's define gains formAssociated only with F3 — Phase 1: select moves onto define",
+    'no-element-entry': 'it ships ./elements (the VeraSelect class) — Phase 1: ./element with defineAs replaces it',
+    'side-effects': 'sideEffects lists ./src/index.ts, and . is built from index.ts (which imports register.ts) — Phase 1: . from register.ts',
+    slot: 'shadow DOM by default, so it renders <slot>s — Phase 1: the light-only rewrite',
+    'r5-reexport': "elements.ts re-exports listbox's SelectOption type — Phase 1: select declares its own option type",
+    'no-package-suite': 'the generated suite assumes defineAs and ./element, which select does not have yet; its select-* suites hold it meanwhile — Phase 1: the package suite',
+  },
 };
 
 /**
@@ -96,63 +106,70 @@ const REGISTERS_WITHOUT_DEFINE = {
  */
 export const problemsOf = ({ dir, manifest, files }, regs) => {
   const problems = [];
+  /** Each problem carries its rule's stable code first (`[slot] …`), which an exemption names (d7, 2026-11-21). */
+  const say = (code, message) => problems.push(`[${code}] ${message}`);
   const [, kind, name] = dir.split('/');
   const component = kind === 'components';
   const own = `${component ? '@vera-components' : '@vera-hooks'}/${name}`;
   const short = dir.slice('packages/'.length);
-  if (manifest.name !== own) problems.push(`name is ${manifest.name}, not ${own} (the scope and name follow the directory)`);
-  if (manifest.private !== true) problems.push('not private: every package stays private until launch');
-  if (!/^0\./.test(String(manifest.version))) problems.push(`version ${manifest.version} is not 0.x (1.0.0 is the launch)`);
-  if (!files.LICENSE) problems.push('no LICENSE');
+  if (manifest.name !== own) say('name', `name is ${manifest.name}, not ${own} (the scope and name follow the directory)`);
+  if (manifest.private !== true) say('private', 'not private: every package stays private until launch');
+  if (!/^0\./.test(String(manifest.version))) say('version', `version ${manifest.version} is not 0.x (1.0.0 is the launch)`);
+  if (!files.LICENSE) say('license', 'no LICENSE');
 
   for (const [peer, range] of Object.entries(manifest.peerDependencies ?? {})) {
     if (!FRAMEWORK_PEER.test(peer) && !(component && COMPONENT_PEER.test(peer)))
-      problems.push(`peer ${peer} is not one a ${component ? 'component' : 'hook'} may have (DESIGN §3.1, D8)`);
-    else if (!/^\^\d/.test(range)) problems.push(`peer ${peer} has range ${range}, not a closed ^ range (D7)`);
+      say('peer-kind', `peer ${peer} is not one a ${component ? 'component' : 'hook'} may have (DESIGN §3.1, D8)`);
+    else if (!/^\^\d/.test(range)) say('peer-range', `peer ${peer} has range ${range}, not a closed ^ range (D7)`);
   }
   for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
-    if (!dependency.startsWith('@vera-hooks/')) problems.push(`runtime dependency ${dependency}: only hooks are dependencies (DESIGN §3.1)`);
-    else if (!/^\^\d/.test(range)) problems.push(`dependency ${dependency} has range ${range}, not a closed ^ range`);
+    if (!dependency.startsWith('@vera-hooks/')) say('dependency-kind', `runtime dependency ${dependency}: only hooks are dependencies (DESIGN §3.1)`);
+    else if (!/^\^\d/.test(range)) say('dependency-range', `dependency ${dependency} has range ${range}, not a closed ^ range`);
   }
 
   /** The entries: three conditions into dist; a component's `.` builds are exactly the side effects, a hook has none. */
   for (const entry of component ? ['.', './element'] : ['.']) {
     const target = manifest.exports?.[entry];
     if (!target || !['types', 'development', 'default'].every((condition) => String(target[condition] ?? '').startsWith('./dist/')))
-      problems.push(`exports['${entry}'] does not resolve types, development and default into ./dist`);
+      say(entry === './element' ? 'no-element-entry' : 'exports', `exports['${entry}'] does not resolve types, development and default into ./dist`);
   }
   const dot = manifest.exports?.['.'];
   const builds = component && dot && typeof dot === 'object' ? [dot.development, dot.default] : [];
-  if (!component && manifest.sideEffects !== false) problems.push(`sideEffects is ${JSON.stringify(manifest.sideEffects)}: a hook registers nothing, so false`);
+  if (!component && manifest.sideEffects !== false) say('side-effects', `sideEffects is ${JSON.stringify(manifest.sideEffects)}: a hook registers nothing, so false`);
   if (component && (!Array.isArray(manifest.sideEffects) || JSON.stringify([...manifest.sideEffects].sort()) !== JSON.stringify([...builds].sort())))
-    problems.push(`sideEffects is ${JSON.stringify(manifest.sideEffects)}, not exactly the registering entry's two builds ${JSON.stringify(builds)} (false drops the registration in production)`);
-  if (!(manifest.files ?? []).includes('dist')) problems.push("files does not ship dist");
-  if (component && typeof manifest.customElements !== 'string') problems.push('no customElements manifest named');
+    say('side-effects', `sideEffects is ${JSON.stringify(manifest.sideEffects)}, not exactly the registering entry's two builds ${JSON.stringify(builds)} (false drops the registration in production)`);
+  if (!(manifest.files ?? []).includes('dist')) say('files', "files does not ship dist");
+  if (component && typeof manifest.customElements !== 'string') say('custom-elements', 'no customElements manifest named');
 
   /** The registries, parsed where they are data. */
-  if (manifest.scripts?.build !== undefined && !regs.build.includes(`./${dir}:build`)) problems.push(`root package.json's build does not depend on ./${dir}:build`);
-  if (!(regs.paths[own] ?? []).some((target) => target.startsWith(`./${dir}/src/`))) problems.push(`tsconfig.json paths do not map ${own} into ./${dir}/src`);
-  if (!regs.dist.includes(`['${short}',`)) problems.push(`tests/dist.mjs ENTRY has no ['${short}', …] entry`);
-  if (!regs.docsImports.includes(`'${own}'`)) problems.push(`tests/docs-imports.test.mjs does not resolve '${own}'`);
+  if (manifest.scripts?.build !== undefined && !regs.build.includes(`./${dir}:build`)) say('build-edge', `root package.json's build does not depend on ./${dir}:build`);
+  if (!(regs.paths[own] ?? []).some((target) => target.startsWith(`./${dir}/src/`))) say('tsconfig-path', `tsconfig.json paths do not map ${own} into ./${dir}/src`);
+  if (!regs.dist.includes(`['${short}',`)) say('dist-entry', `tests/dist.mjs ENTRY has no ['${short}', …] entry`);
+  if (!regs.docsImports.includes(`'${own}'`)) say('docs-imports', `tests/docs-imports.test.mjs does not resolve '${own}'`);
   if (typeof files['README.md'] === 'string' && files['README.md'].includes('<!-- recipe -->') && !regs.docsRecipes.includes(`'${own}'`))
-    problems.push(`README has a recipe, and tests/docs-recipes.test.mjs PACKAGES does not map '${own}'`);
+    say('docs-recipes', `README has a recipe, and tests/docs-recipes.test.mjs PACKAGES does not map '${own}'`);
   /** The size entries feed the public README's size table, so a package joins them when it is published, not before. */
-  if (manifest.private !== true && !regs.sizes.includes(`dist: '${dir}/dist/`)) problems.push(`scripts/size-modules.mjs has no entry for ${dir}/dist`);
+  if (manifest.private !== true && !regs.sizes.includes(`dist: '${dir}/dist/`)) say('size-entry', `scripts/size-modules.mjs has no entry for ${dir}/dist`);
 
   /** Sources: only register.ts registers; nothing re-exports another package. */
   const sources = Object.entries(files).filter(([file, text]) => file.startsWith('src/') && typeof text === 'string');
-  if (!sources.some(([file]) => file === 'src/index.ts')) problems.push('no src/index.ts');
+  if (!sources.some(([file]) => file === 'src/index.ts')) say('no-index', 'no src/index.ts');
   for (const [file, text] of sources) {
     const body = code(text);
     if (file !== 'src/register.ts' && registersAtImport(body))
-      problems.push(`${file} registers at import: only src/register.ts may (a define inside an exported function, like defineAs, runs only when called)`);
-    if (/export\s+(?:\*|\{[^}]*\})\s+from\s+['"]@(?:verajs|vera-components|vera-hooks)\//.test(body)) problems.push(`${file} re-exports another package (R5)`);
-    /** The two-step form: a binding imported from another package, then exported. */
+      say('registers-at-import', `${file} registers at import: only src/register.ts may (a define inside an exported function, like defineAs, runs only when called)`);
+    /**
+     * Types are API too: `export type { X } from` and `export type * from` are re-exports (the type-only form went
+     * unseen until select's exemption, which expects this rule to fire, said it did not; 2026-11-21).
+     */
+    if (/export\s+(?:type\s+)?(?:\*(?:\s+as\s+\w+)?|\{[^}]*\})\s+from\s+['"]@(?:verajs|vera-components|vera-hooks)\//.test(body)) say('r5-reexport', `${file} re-exports another package (R5)`);
+    /** The two-step form: a binding imported from another package, then exported (a `type` modifier changes nothing). */
+    const bare = (binding) => binding.trim().replace(/^type\s+/, '');
     const foreign = new Set();
-    for (const match of body.matchAll(/import\s+\{([^}]*)\}\s+from\s+(['"][^'"]+['"])/g))
-      if (PACKAGE.test(match[2])) for (const binding of match[1].split(',')) foreign.add(binding.trim().split(/\s+as\s+/).pop());
-    for (const match of body.matchAll(/export\s+\{([^}]*)\}(?!\s*from)/g))
-      for (const binding of match[1].split(',')) if (foreign.has(binding.trim().split(/\s+as\s+/)[0])) problems.push(`${file} re-exports ${binding.trim()} from another package in two steps (R5)`);
+    for (const match of body.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+(['"][^'"]+['"])/g))
+      if (PACKAGE.test(match[2])) for (const binding of match[1].split(',')) foreign.add(bare(binding).split(/\s+as\s+/).pop());
+    for (const match of body.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}(?!\s*from)/g))
+      for (const binding of match[1].split(',')) if (foreign.has(bare(binding).split(/\s+as\s+/)[0])) say('r5-reexport', `${file} re-exports ${binding.trim()} from another package in two steps (R5)`);
   }
   /**
    * **Peers and dependencies are exactly what `src/` imports, both ways** (d7, 2026-11-20): a peer nothing imports makes
@@ -166,28 +183,28 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
   const peers = Object.keys(manifest.peerDependencies ?? {});
   const dependencies = Object.keys(manifest.dependencies ?? {});
   for (const peer of peers)
-    if ((FRAMEWORK_PEER.test(peer) || (component && COMPONENT_PEER.test(peer))) && !imported.has(peer)) problems.push(`peer ${peer} is not imported by src/`);
+    if ((FRAMEWORK_PEER.test(peer) || (component && COMPONENT_PEER.test(peer))) && !imported.has(peer)) say('unimported-peer', `peer ${peer} is not imported by src/`);
   for (const dependency of dependencies)
-    if (dependency.startsWith('@vera-hooks/') && !imported.has(dependency)) problems.push(`dependency ${dependency} is not imported by src/`);
+    if (dependency.startsWith('@vera-hooks/') && !imported.has(dependency)) say('unimported-dependency', `dependency ${dependency} is not imported by src/`);
   for (const specifier of imported)
-    if (!peers.includes(specifier) && !dependencies.includes(specifier)) problems.push(`src/ imports ${specifier}, which is neither a peer nor a dependency`);
+    if (!peers.includes(specifier) && !dependencies.includes(specifier)) say('undeclared-import', `src/ imports ${specifier}, which is neither a peer nor a dependency`);
 
   /** Its own suite, and for a component the README recipe the docs suite runs (d7, 2026-11-20). */
   const suite = `${component ? '' : 'hook-'}${name}-package.test.mjs`;
-  if (!regs.tests.includes(suite)) problems.push(`no tests/${suite}`);
-  if (component && !(typeof files['README.md'] === 'string' && files['README.md'].includes('<!-- recipe -->'))) problems.push('README has no recipe');
+  if (!regs.tests.includes(suite)) say('no-package-suite', `no tests/${suite}`);
+  if (component && !(typeof files['README.md'] === 'string' && files['README.md'].includes('<!-- recipe -->'))) say('no-recipe', 'README has no recipe');
 
   if (component) {
     /** Light DOM: a `<slot>` does nothing without a shadow root, so a component that renders one teaches the wrong thing. */
-    for (const [file, text] of sources) if (/<slot\b/.test(code(text))) problems.push(`${file} renders a <slot>: components render in light DOM`);
+    for (const [file, text] of sources) if (/<slot\b/.test(code(text))) say('slot', `${file} renders a <slot>: components render in light DOM`);
     const register = files['src/register.ts'];
-    if (typeof register !== 'string') problems.push('no src/register.ts');
+    if (typeof register !== 'string') say('no-register', 'no src/register.ts');
     else {
       const body = code(register);
-      if (!/customElements\.get\(/.test(body)) problems.push('src/register.ts registers without guarding a taken tag (R3)');
-      else if (!/['"]defined-twice['"]/.test(body)) problems.push('src/register.ts stands down silently: development warns defined-twice (R3)');
+      if (!/customElements\.get\(/.test(body)) say('r3-guard', 'src/register.ts registers without guarding a taken tag (R3)');
+      else if (!/['"]defined-twice['"]/.test(body)) say('r3-silent', 'src/register.ts stands down silently: development warns defined-twice (R3)');
       const viaDefine = /import\s+\{[^}]*\bdefine\b[^}]*\}\s+from\s+['"]@verajs\/core['"]/.test(body) && /(?<![.\w])define\(/.test(body);
-      if (!viaDefine && !(own in REGISTERS_WITHOUT_DEFINE)) problems.push("src/register.ts does not register through core's define (Brian, 2026-11-20)");
+      if (!viaDefine) say('registers-without-define', "src/register.ts does not register through core's define (Brian, 2026-11-20)");
     }
   }
   return problems;
@@ -214,10 +231,28 @@ const filesOf = (dir) => {
   return files;
 };
 
+/** The code a problem leads with. */
+const codeOf = (problem) => /^\[([a-z0-9-]+)\]/.exec(problem)?.[1];
+
 for (const dir of nested)
   test(`${dir} is complete and shaped as the design says`, () => {
-    assert.deepEqual(problemsOf({ dir, manifest: JSON.parse(read(`${dir}/package.json`)), files: filesOf(dir) }, regs), []);
+    const manifest = JSON.parse(read(`${dir}/package.json`));
+    const exempt = UNTIL_REWRITE[manifest.name] ?? {};
+    const problems = problemsOf({ dir, manifest, files: filesOf(dir) }, regs);
+    assert.deepEqual(problems.filter((problem) => !(codeOf(problem) in exempt)), []);
+    /** An exemption whose rule no longer fires has outlived its reason: delete its row. */
+    const fired = new Set(problems.map(codeOf));
+    assert.deepEqual(Object.keys(exempt).filter((code) => !fired.has(code)), [], `${manifest.name}: these rules pass now, so their UNTIL_REWRITE rows go`);
   });
+
+test('every UNTIL_REWRITE row names a package that exists and a code a rule uses (CONTROL)', () => {
+  const names = new Set(nested.map((dir) => JSON.parse(read(`${dir}/package.json`)).name));
+  const source = read('tests/package-structure.test.mjs');
+  for (const [name, rows] of Object.entries(UNTIL_REWRITE)) {
+    assert.ok(names.has(name), `${name} is not a package`);
+    for (const code of Object.keys(rows)) assert.ok(source.includes(`say('${code}'`) || source.includes(`'${code}' :`) || source.includes(`? '${code}'`), `${code} is no rule's code`);
+  }
+});
 
 test('the rules find each missing thing (planted, on synthetic packages)', () => {
   const dir = 'packages/components/zz-plant';
@@ -277,7 +312,12 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['no docs-imports entry', good, { ...registered, docsImports: '' }],
     ['no recipes entry', good, { ...registered, docsRecipes: '' }],
     ['no size entry, once published', withManifest({ private: false }), { ...registered, sizes: '' }, 2],
-    ['an index re-exporting a hook', withFiles({ 'src/index.ts': "export { listbox } from '@vera-hooks/listbox';" }), registered],
+    /** The type-only forms (select's own shape, 2026-11-21). */
+    ['a type re-export', withFiles({ 'src/index.ts': "export type { SelectOption } from '@vera-hooks/listbox';" }), registered],
+    ['a type-star re-export', withFiles({ 'src/index.ts': "export type * from '@vera-hooks/listbox';" }), registered],
+    ['a two-step type re-export', withFiles({ 'src/index.ts': "import type { SelectOption } from '@vera-hooks/listbox';\nexport type { SelectOption };" }), registered],
+    ['a two-step re-export through an inline type modifier', withFiles({ 'src/index.ts': "import { type SelectOption } from '@vera-hooks/listbox';\nexport { type SelectOption };" }), registered],
+    ['an index re-exporting a hook',withFiles({ 'src/index.ts': "export { listbox } from '@vera-hooks/listbox';" }), registered],
     ['a two-step re-export', withFiles({ 'src/index.ts': "import { listbox } from '@vera-hooks/listbox';\nexport { listbox };" }), registered],
     ['an index that registers', withFiles({ 'src/index.ts': "customElements.define('zz-plant', X);" }), registered],
     ['an index that defines at import', withFiles({ 'src/index.ts': "import { define } from '@verajs/core';\nexport const Plant = define({ tag: 'vera-zz-plant' }, () => () => null);" }), registered],
