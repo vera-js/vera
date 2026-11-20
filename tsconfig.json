@@ -51,6 +51,12 @@
       "@vera-hooks/anchor": [
         "./packages/hooks/anchor/src/index.ts"
       ],
+      "@vera-components/icon": [
+        "./packages/components/icon/src/register.ts"
+      ],
+      "@vera-components/icon/element": [
+        "./packages/components/icon/src/index.ts"
+      ],
       "@vera-components/select": [
         "./packages/components/select/src/index.ts"
       ],

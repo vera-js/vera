@@ -42,6 +42,7 @@ const MIGRATED = [
   ['components/select', 'dist/*.min.js'],
   ['hooks/labeled', 'dist/*.min.js'],
   ['hooks/anchor', 'dist/*.min.js'],
+  ['components/icon', 'dist/*.min.js'],
   ['hot', 'dist/*.min.js'],
   ['lite', 'dist/vera-lite.min.js'],
   ['static', 'dist/vera-static.min.js'],
