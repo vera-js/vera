@@ -19,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { isProduction } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const script = (coreSpecifier) => `
 import { JSDOM } from 'jsdom';
@@ -41,7 +42,7 @@ process.stdout.write(JSON.stringify(said));
 
 const run = () => {
   /** Inside the repo, so the probe can resolve `jsdom` — a system temp dir cannot. */
-  const dir = mkdtempSync(new URL('./.nowire-', import.meta.url).pathname);
+  const dir = mkdtempSync(fsPath(new URL('./.nowire-', import.meta.url)));
   try {
     const core = new URL(
       `../packages/core/dist/${isProduction ? 'vera.min.js' : 'development/vera.js'}`,
@@ -51,7 +52,7 @@ const run = () => {
     writeFileSync(file, script(core));
     const out = execFileSync(process.execPath, [file], {
       encoding: 'utf8',
-      cwd: new URL('..', import.meta.url).pathname,
+      cwd: fsPath(new URL('..', import.meta.url)),
     });
     return JSON.parse(out);
   } finally {

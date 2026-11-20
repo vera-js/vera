@@ -16,8 +16,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 const scripts = JSON.parse(readFileSync(`${root}package.json`, 'utf8')).scripts;
 const gateSource = readFileSync(`${root}scripts/gate.mjs`, 'utf8');
 const ci = readFileSync(`${root}.github/workflows/ci.yml`, 'utf8');

@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { walkFiles, readIfPresent } from './walk.mjs';
 import { JSDOM } from 'jsdom';
 import { distUrl, isProduction, NO_PRODUCTION_BUILD } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'Event', 'CustomEvent', 'MouseEvent', 'PopStateEvent', 'NodeFilter', 'Comment', 'Text', 'MutationObserver', 'ShadowRoot', 'Document', 'location', 'history', 'performance'])
@@ -68,7 +69,7 @@ const SOURCE_PACKAGES = {
   '@verajs/ssr': '../packages/ssr/dist/vera/index.js',
 };
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 const docs = [];
 /** `internal/` is a separate private repo cloned in here, and is not documentation of this one. */
 docs.push(

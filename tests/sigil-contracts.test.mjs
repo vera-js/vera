@@ -16,8 +16,9 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { transformSync } from 'esbuild';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('../packages/', import.meta.url).pathname;
+const root = fsPath(new URL('../packages/', import.meta.url));
 const walk = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : []));
 const writes = new Map();

@@ -18,6 +18,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { distUrl, isProduction, NO_PRODUCTION_BUILD } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /** The renderer builds two `TreeWalker`s at import time, so it needs a DOM before it is loaded. */
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
@@ -100,7 +101,7 @@ const walk = (dir) => {
     else if (/\.(md|txt)$/.test(entry) && !/CHANGELOG/i.test(entry)) docs.push(full);
   }
 };
-walk(new URL('..', import.meta.url).pathname);
+walk(fsPath(new URL('..', import.meta.url)));
 
 test('every documented @verajs import names a real export', () => {
   assert.ok(docs.length > 10, `expected to find the docs, found ${docs.length}`);

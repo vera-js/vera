@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const root = new URL('../', import.meta.url);
 const source = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -43,7 +44,7 @@ test('the rule, on start tags as written: the first type, read in attribute orde
 const fixture = new URL('./fixtures/ssr/script-holes-ssr.js', import.meta.url);
 /** The server's answer per shape, from a child process (`script-holes-serve.mjs`): what it served, or its refusal. */
 const served = JSON.parse(
-  execFileSync(process.execPath, [...process.execArgv, new URL('./fixtures/ssr/script-holes-serve.mjs', import.meta.url).pathname], { encoding: 'utf8', env: process.env }),
+  execFileSync(process.execPath, [...process.execArgv, fsPath(new URL('./fixtures/ssr/script-holes-serve.mjs', import.meta.url))], { encoding: 'utf8', env: process.env }),
 );
 const dom = new JSDOM('<!doctype html><body></body>');
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CSSStyleSheet'])

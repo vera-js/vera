@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const PAGE = `<!doctype html><html><head><title>t</title></head><body>
 <div id="a" data-vd-motion="fade-up">hello</div>
@@ -23,10 +24,10 @@ test('the CLI emits first-frame CSS into static HTML through the real pipeline',
   const file = join(dir, 'page.html');
   writeFileSync(file, PAGE);
 
-  const bin = new URL('../packages/motion/bin/motion-emit.mjs', import.meta.url).pathname;
+  const bin = fsPath(new URL('../packages/motion/bin/motion-emit.mjs', import.meta.url));
   const out = execFileSync(process.execPath, ['--conditions', 'development', bin, file], {
     encoding: 'utf8',
-    cwd: new URL('..', import.meta.url).pathname,
+    cwd: fsPath(new URL('..', import.meta.url)),
   });
   assert.match(out, /2 element\(s\) across 1 page\(s\)/, 'the preset and the scrub emitted; the tick is honestly JS-first');
 
@@ -42,7 +43,7 @@ test('the CLI emits first-frame CSS into static HTML through the real pipeline',
   /** Idempotence with the CONTROL built in: the first run changed the file (asserted above), so
    *  a byte-identical second run is convergence, not a pass that never ran. */
   execFileSync(process.execPath, ['--conditions', 'development', bin, file], {
-    encoding: 'utf8', cwd: new URL('..', import.meta.url).pathname,
+    encoding: 'utf8', cwd: fsPath(new URL('..', import.meta.url)),
   });
   assert.equal(readFileSync(file, 'utf8'), html, 'a second run converges byte-for-byte');
 });

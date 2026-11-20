@@ -9,6 +9,7 @@ import { renderToString, serializeTemplate } from '@verajs/ssr';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const { html } = await import('@verajs/core');
 const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
@@ -588,7 +589,7 @@ for (const [what, file, message] of [
  * another request's path**. That is a page answered with someone else's data.
  */
 {
-  const dir = mkdtempSync(new URL('./.location-', import.meta.url).pathname);
+  const dir = mkdtempSync(fsPath(new URL('./.location-', import.meta.url)));
   try {
     /** Three distinct modules, so each request's `await import()` genuinely yields. */
     const paths = ['/alpha', '/beta', '/gamma'];
@@ -658,7 +659,7 @@ export default customElements.get('parts-ssr');
  * whichever request happened to finish last.
  */
 {
-  const dir = mkdtempSync(new URL('./.title-', import.meta.url).pathname);
+  const dir = mkdtempSync(fsPath(new URL('./.title-', import.meta.url)));
   try {
     writeFileSync(
       `${dir}/titled.js`,
@@ -733,7 +734,7 @@ export default customElements.get('doomed-ssr');
  * belonging to earlier requests, and the map grew without bound.
  */
 {
-  const dir = mkdtempSync(new URL('./.hoist-', import.meta.url).pathname);
+  const dir = mkdtempSync(fsPath(new URL('./.hoist-', import.meta.url)));
   try {
     writeFileSync(
       `${dir}/grow.js`,
@@ -807,7 +808,7 @@ console.log('ssr request isolation ok — concurrency, per-page styles, attribut
   const attempt = (script) => {
     try {
       execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
-        cwd: new URL('..', import.meta.url).pathname,
+        cwd: fsPath(new URL('..', import.meta.url)),
         stdio: 'pipe',
       });
       return null;

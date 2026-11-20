@@ -11,11 +11,12 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { load } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const { checkManifests, buildManifests } = await load('cms/node');
 const { parseContent, serializeHtml, createReader } = await load('cms/content');
 
-const SITE = new URL('../examples/cms-site/', import.meta.url).pathname;
+const SITE = fsPath(new URL('../examples/cms-site/', import.meta.url));
 const options = { content: join(SITE, 'content'), out: join(SITE, '_manifests') };
 
 test('the committed manifests are exactly what the content produces', () => {

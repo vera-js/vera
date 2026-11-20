@@ -12,6 +12,7 @@ import { renderToString } from '@verajs/ssr';
 import { execFileSync } from 'node:child_process';
 import { FORGED_CASES, readCase } from './fixtures/forged-cases.mjs';
 import { SOURCES, signature } from './fixtures/lite-namespace-sources.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const FIXTURE = new URL('./fixtures/ssr/lite-ssr.js', import.meta.url);
 /** The served markup as a browser's parser reads it: the host element. */
@@ -100,7 +101,7 @@ test('forged templates: ssr and lite on the server agree with the rule on every 
  * is SVG on the client, and served as markup with no `<svg>` around it a browser parses it as HTML — markup cannot carry a
  * namespace without its root, for core's server as for lite's. It compares the namespace aside.
  */
-const clientSide = () => JSON.parse(execFileSync(process.execPath, [...process.execArgv, new URL('./fixtures/lite-namespaces-client.mjs', import.meta.url).pathname], { encoding: 'utf8' }));
+const clientSide = () => JSON.parse(execFileSync(process.execPath, [...process.execArgv, fsPath(new URL('./fixtures/lite-namespaces-client.mjs', import.meta.url))], { encoding: 'utf8' }));
 const NS_FIXTURE = new URL('./fixtures/ssr/lite-namespaces-ssr.js', import.meta.url);
 const ROOTLESS = new Set(['a top-level svg fragment']);
 const BREAKOUT = new Set(['html breaking out of svg content']);

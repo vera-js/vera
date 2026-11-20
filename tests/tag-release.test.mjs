@@ -16,8 +16,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const SCRIPT = new URL('../scripts/tag-release.mjs', import.meta.url).pathname;
+const SCRIPT = fsPath(new URL('../scripts/tag-release.mjs', import.meta.url));
 
 /** A throwaway repo with one publishable package and one private one. */
 const repo = (version = '1.0.0') => {

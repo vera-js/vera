@@ -14,9 +14,10 @@
  */
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const server = spawn(process.execPath, [new URL('../examples/ssr-node/server-native.mjs', import.meta.url).pathname], {
-  cwd: new URL('..', import.meta.url).pathname,
+const server = spawn(process.execPath, [fsPath(new URL('../examples/ssr-node/server-native.mjs', import.meta.url))], {
+  cwd: fsPath(new URL('..', import.meta.url)),
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let output = '';

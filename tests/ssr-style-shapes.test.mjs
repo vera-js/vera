@@ -11,11 +11,12 @@ import { renderToString } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const { wireApp } = await import('../examples/kitchen-sink/wiring.js');
 wireApp(null);
 
-const dir = mkdtempSync(new URL('./.styles-', import.meta.url).pathname);
+const dir = mkdtempSync(fsPath(new URL('./.styles-', import.meta.url)));
 let results;
 try {
   writeFileSync(

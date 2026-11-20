@@ -19,9 +19,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { renderToString } from '@verajs/ssr';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /** Inside the repo: a fixture imports `@verajs/core` by bare specifier and a temp dir cannot resolve it. */
-const dir = mkdtempSync(new URL('./.range-', import.meta.url).pathname);
+const dir = mkdtempSync(fsPath(new URL('./.range-', import.meta.url)));
 let n = 0;
 const render = async (body, options) => {
   const tag = `rng-${++n}`;

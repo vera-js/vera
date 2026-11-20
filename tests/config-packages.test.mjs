@@ -17,8 +17,9 @@ import { mkdtempSync, writeFileSync, symlinkSync, rmSync, readdirSync, readFileS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const repo = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
+const repo = fsPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 
 /** A throwaway project that can resolve this repo's node_modules, so the workspace links apply. */
 const project = (files) => {

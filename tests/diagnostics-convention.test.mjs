@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { walkFiles, readIfPresent as readRaw } from './walk.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /**
  * A `'%s'` first argument only stops the console from reading the message as a format string (a subject with `%c3` in
@@ -25,7 +26,7 @@ import { walkFiles, readIfPresent as readRaw } from './walk.mjs';
  */
 const readIfPresent = (file) => readRaw(file)?.replace(/console\.(warn|error)\(\s*'%s',\s*/g, 'console.$1(');
 
-const root = new URL('../packages', import.meta.url).pathname;
+const root = fsPath(new URL('../packages', import.meta.url));
 
 const sources = [];
 sources.push(
@@ -244,7 +245,7 @@ test('the prefix reaches the built artifacts', () => {
     'packages/renderer/dist/development/vera-renderer-spread.js',
     'packages/autoloader/dist/development/vera-autoloader.js',
   ]) {
-    const text = readFileSync(new URL(`../${bundle}`, import.meta.url).pathname, 'utf8');
+    const text = readFileSync(fsPath(new URL(`../${bundle}`, import.meta.url)), 'utf8');
     assert.match(text, /\[vera\]/, `${bundle} carries no [vera] diagnostic`);
   }
 });

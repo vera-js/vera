@@ -19,8 +19,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { walkFiles, readIfPresent } from './walk.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 const versions = {};
 for (const entry of readdirSync(join(root, 'packages'))) {

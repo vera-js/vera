@@ -24,6 +24,7 @@ import test from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closingParen, topLevelArgs } from './source-calls.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 
 /** The engine's table and each pack's own (one per pack entry, so a pack's development bundle carries only its prose),
@@ -69,7 +70,7 @@ const raised = new Map();
 /** Three roots since the package cut: the engine, the motion engine (@verajs/motion — its codes
  *  flow through the same reject/PROSE table), and the shared value grammar. */
 const ROOTS = ['../packages/directives/src', '../packages/motion/src', '../packages/shared-utils/src'];
-for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).pathname))) {
+for (const path of ROOTS.flatMap((root) => files(fsPath(new URL(root, import.meta.url))))) {
   const text = readFileSync(path, 'utf8');
   const rel = path.slice(path.indexOf('packages/') + 'packages/'.length);
   const seen = new Set();

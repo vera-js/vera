@@ -27,6 +27,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { relative } from 'node:path';
 import { walkFiles, readIfPresent } from './walk.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /** Name -> what to use instead, so the failure carries the fix rather than just the complaint. */
 const REMOVED = {
@@ -223,7 +224,7 @@ const RETIRED_RULES = {
  */
 const HISTORICAL = /\b(was|were|used to|no longer|removed|replaced|previously|renamed|gone)\b/i;
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 const docs = [];
 /**
  * **Example source and fixture markup count as documentation**, because that is what they are for:
