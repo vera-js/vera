@@ -172,6 +172,24 @@ for (const [name, draw, expected] of ROWS)
     assert.equal(serializeTemplate(draw()), expected, `style fast path: ${name} — the closer must be neutralized`);
   });
 
+/**
+ * **A raw-text static beside a JSON block's or a style's hole is written closed, and one with no `<` comes out as it
+ * was** (2026-11-19). A static closer in any case (`</STYLEx` ends nothing, and is written `<\/STYLEx`) and a bare `<`
+ * in a JSON block's static, before or after its hole, are still written closed.
+ */
+const ESCAPED_LT = String.fromCharCode(92, 117, 48, 48, 51, 99);
+const CLOSED_STATIC_ROWS = [
+  ['a style closer in mixed case, in the static before the hole', () => html`<style>p{}</STYLEx>${'v'}</style>`, '<style>p{}<\\/STYLEx>v</style>'],
+  ['a style closer in mixed case, in the static after the hole', () => html`<style>${'v'}/*</StYlE-*/</style>`, '<style>v/*<\\/StYlE-*/</style>'],
+  ["a `<` in a JSON block's static before the hole", () => html`<script type="application/json">"<${'x'}"</script>`, `<script type="application/json">"${ESCAPED_LT}x"</script>`],
+  ["a `<` in a JSON block's static after the hole", () => html`<script type="application/json">"${'x'}<"</script>`, `<script type="application/json">"x${ESCAPED_LT}"</script>`],
+  ["no `<` in a style's statics", () => html`<style>a{}${'v'}b{}</style>`, '<style>a{}vb{}</style>'],
+];
+for (const [name, draw, expected] of CLOSED_STATIC_ROWS)
+  test(`raw-text statics: ${name}`, () => {
+    assert.equal(serializeTemplate(draw()), expected, `raw-text statics: ${name} — written closed, exactly`);
+  });
+
 /* ── the opening tag of a script hole: one scan against the per-hole rescans ─────────────────────────────────────── */
 
 /**
