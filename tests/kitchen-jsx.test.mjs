@@ -15,6 +15,7 @@
  * that reaches a reader is compared exactly.
  */
 import { load } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 const { transformJsx } = await load('jsx');
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
@@ -38,11 +39,11 @@ const twins = readdirSync(jsxDir).filter((name) => name.endsWith('.jsx'));
  * closes the other. (The gap is the omni engine's, found by turning this audit's own
  * "which direction did this close?" question on the floors it had just written.)
  */
-assert.ok(twins.length >= 3, `only ${twins.length} JSX twin(s) found in ${jsxDir.pathname} — the walk found nothing to compare`);
+assert.ok(twins.length >= 3, `only ${twins.length} JSX twin(s) found in ${fsPath(jsxDir)} — the walk found nothing to compare`);
 assert.ok(twins.includes('sink-basics.jsx'), `the walk found ${twins.length} file(s) but not sink-basics.jsx — it is reading the wrong directory`);
 
 /** Compiled beside the originals, so their relative imports and tag names resolve identically. */
-const dir = mkdtempSync(new URL('./examples/kitchen-sink/.jsx-', root).pathname);
+const dir = mkdtempSync(fsPath(new URL('./examples/kitchen-sink/.jsx-', root)));
 let jsx;
 let original;
 try {
@@ -81,7 +82,7 @@ process.stdout.write(JSON.stringify(out));
           '-e',
           script,
         ],
-        { cwd: new URL('.', root).pathname, encoding: 'utf8' }
+        { cwd: fsPath(new URL('.', root)), encoding: 'utf8' }
       )
     );
   };

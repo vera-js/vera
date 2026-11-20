@@ -1,7 +1,7 @@
 /**
- * **`fsPath` reads the same as `.pathname` on macOS and Linux, and works on Windows; nothing goes back to `.pathname`.**
+ * **`fsPath` reads the same as `.pathname` on macOS and Linux, and works on Windows; no file URL goes back to `.pathname`.**
  *
- * The suites resolved files with `fsPath(new URL(…, import.meta.url))`, which is a path only on POSIX: on Windows it
+ * The suites resolved files with `new URL(…, import.meta.url).pathname`, which is a path only on POSIX: on Windows it
  * is `/c:/…`, and forty suites failed at load on the Windows workstation (2026-11-20). They now use
  * `scripts/fs-path.mjs`. The change must not move a single byte on the laptop or CI, so the first test holds the
  * POSIX conversion equal to `.pathname` for the shapes the suites use, run on any OS (Node's `windows: false`).
@@ -9,34 +9,64 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fsPath } from '../scripts/fs-path.mjs';
 
 const ROOT = fsPath(new URL('..', import.meta.url));
+const BACKSLASH = String.fromCharCode(92);
 
 test('on POSIX the conversion is byte-identical to .pathname, for every shape the suites use', () => {
   const base = 'file:///Users/omni/dev/vera/tests/x.test.mjs';
   for (const relative of ['..', '../', '../..', '../../', '.', './', '../packages', '../packages/', './fixtures/ssr/a.mjs', '../examples/cms-site/', './.casing-']) {
     const url = new URL(relative, base);
-    assert.equal(fileURLToPath(url, { windows: false }).replaceAll('\\', '/'), url.pathname, relative);
+    assert.equal(fileURLToPath(url, { windows: false }).replaceAll(BACKSLASH, '/'), url.pathname, relative);
   }
+  /** Pinned to exactly those shapes: a checkout path with a space DIFFERS (the real path, where .pathname kept %20). */
+  const spaced = new URL('..', 'file:///Users/omni/my%20dev/vera/tests/x.test.mjs');
+  assert.notEqual(fileURLToPath(spaced, { windows: false }), spaced.pathname);
+  assert.equal(fileURLToPath(spaced, { windows: false }), '/Users/omni/my dev/vera/');
 });
 
 test('on this OS the path opens, and keeps the URL\'s trailing slash', () => {
-  const root = fsPath(new URL('..', import.meta.url));
-  assert.ok(root.endsWith('/'), `a directory URL keeps its trailing slash: ${root}`);
-  assert.ok(!root.includes('\\'), 'forward slashes only');
-  assert.ok(readFileSync(`${root}package.json`, 'utf8').includes('"workspaces"'), 'the root opens through a string join');
+  assert.ok(ROOT.endsWith('/'), `a directory URL keeps its trailing slash: ${ROOT}`);
+  assert.ok(!ROOT.includes(BACKSLASH), 'forward slashes only');
+  assert.ok(readFileSync(`${ROOT}package.json`, 'utf8').includes('"workspaces"'), 'the root opens through a string join');
 });
 
-test('no suite or script resolves a file through .pathname', () => {
-  const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => name === 'node_modules' })
-    .map((file) => file.split('\\').join('/'))
-    .filter((file) => !['tests/fs-path.test.mjs', 'scripts/fs-path.mjs', 'scripts/codemods/fs-path.mjs'].includes(file));
+/**
+ * Where `.pathname` is a WEB URL's path, not a file's: a page's `location`, a request's `url`, the browser suites (which
+ * run in a page and open no files), and the files below, each with its reason. Anything else reading `.pathname` is a
+ * file URL used as a path, which is the Windows break (found split from its URL too: `cwd: root.pathname`, d7).
+ */
+const WEB_URL = /\b(?:location|url|l)\.pathname\b/;
+const ALLOWED = {
+  'tests/fs-path.test.mjs': 'this suite, which names the shape',
+  'scripts/fs-path.mjs': 'its doc comment names the shape',
+  'scripts/codemods/fs-path.mjs': 'the codemod that rewrites the shape',
+  'tests/autoloader-audit-regressions.test.mjs': 'asserts the path of https URLs',
+  'tests/cms-refusal-cases.mjs': 'reads a request URL',
+};
+const comment = (line) => /^\s*(?:\*|\/\/|\/\*)/.test(line);
+const reads = (line) => /\.pathname\b/.test(line) && !WEB_URL.test(line) && !comment(line);
+
+test('no suite or script reads a file URL through .pathname', () => {
+  const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
+    .map((file) => file.split(BACKSLASH).join('/'))
+    .filter((file) => !(file in ALLOWED) && !file.startsWith('tests/browser/'));
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
-  const found = files.filter((file) => /import\.meta\.url\)\s*\.pathname/.test(readFileSync(ROOT + file, 'utf8')));
-  assert.deepEqual(found, [], 'use fsPath(new URL(…, import.meta.url)) from scripts/fs-path.mjs');
-  /** Built in two pieces, so the codemod (which rewrites the old shape wherever it finds it) cannot rewrite the plant. */
-  const planted = "new URL('..', import.meta.url)" + '.pathname';
-  assert.ok(/import\.meta\.url\)\s*\.pathname/.test(planted), 'the detector fires on the old shape');
+  const found = [];
+  for (const file of files)
+    readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
+      if (reads(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  assert.deepEqual(found, [], 'use fsPath(url) from scripts/fs-path.mjs for a file URL');
+});
+
+test('the detector fires on each file-URL shape, and passes a web URL (planted)', () => {
+  /** Built in pieces, so the codemod (which rewrites the old shape wherever it finds it) cannot rewrite the plants. */
+  for (const planted of ["new URL('..', import.meta.url)" + '.pathname', 'cwd: root' + '.pathname,', "cwd: new URL('./scripts/', root)" + '.pathname,'])
+    assert.ok(reads(planted), `the detector misses: ${planted}`);
+  assert.ok(!reads('assert.equal(window.location.pathname, "/x")'), 'a page location is a web URL');
+  assert.ok(!reads(' * a comment about .pathname'), 'a comment is not code');
 });

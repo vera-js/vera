@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
+import { fsPath } from './fs-path.mjs';
 
 const root = new URL('../', import.meta.url);
 const baselinePath = new URL('./bench/metrics-baseline.json', root);
@@ -91,7 +92,7 @@ process.stdout.write(JSON.stringify(out));
 
 const speed = JSON.parse(
   execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', speedScript], {
-    cwd: new URL('./scripts/', root).pathname,
+    cwd: fsPath(new URL('./scripts/', root)),
     encoding: 'utf8',
   })
 );
@@ -107,7 +108,7 @@ const speed = JSON.parse(
  */
 const stamp = () => {
   try {
-    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root.pathname, encoding: 'utf8' }).trim();
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: fsPath(root), encoding: 'utf8' }).trim();
   } catch {
     /** A tarball or a detached checkout with no git. The date alone still beats nothing. */
     return 'unknown';

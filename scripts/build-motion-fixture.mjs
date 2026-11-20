@@ -15,6 +15,7 @@
  */
 import { writeFileSync, readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
+import { fsPath } from './fs-path.mjs';
 
 const dom = new JSDOM('<!doctype html><head></head><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element',
@@ -103,5 +104,5 @@ if (check) {
   console.log('motion fixture matches the pipeline.');
 } else {
   writeFileSync(target, contents);
-  console.log(`wrote ${target.pathname} (${report.rendered} rendered, ${report.rules} rules)`);
+  console.log(`wrote ${fsPath(target)} (${report.rendered} rendered, ${report.rules} rules)`);
 }

@@ -13,9 +13,10 @@
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const root = new URL('../', import.meta.url);
-const at = (path) => new URL(path, root).pathname;
+const at = (path) => fsPath(new URL(path, root));
 
 let pass = 0;
 const failures = [];
