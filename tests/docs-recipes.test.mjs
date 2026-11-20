@@ -25,6 +25,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { distUrl, isProduction } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
@@ -228,7 +229,7 @@ import { packageFiles } from '../scripts/packages.mjs';
 
 const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
 
-const repoRoot = new URL('..', import.meta.url).pathname;
+const repoRoot = fsPath(new URL('..', import.meta.url));
 const readmes = ['README.md', ...packageFiles('README.md').sort()];
 /**
  * **`llms.txt` is executed here too, and it was not.**
@@ -322,7 +323,7 @@ test('the marked recipes are exactly the ones we expect', () => {
   }
 });
 
-const RUNNER = new URL('./run-recipe.mjs', import.meta.url).pathname;
+const RUNNER = fsPath(new URL('./run-recipe.mjs', import.meta.url));
 
 for (const { path, body, index } of recipes) {
   /**

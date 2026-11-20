@@ -25,8 +25,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('../', import.meta.url).pathname;
+const root = fsPath(new URL('../', import.meta.url));
 
 /** Reads a corpus out of the filesystem rather than stating one. */
 const DISCOVERS = /readdirSync\(|globSync\(|\bglob\(/;

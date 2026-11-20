@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
 import { FORGED_CASES, readCase } from './fixtures/forged-cases.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
@@ -1006,7 +1007,7 @@ const retention = () => JSON.parse(execFileSync(process.execPath, [...(isProduct
   await settle();
   await gc();
   process.stdout.write(JSON.stringify({ alive: v8.queryObjects(Class, { format: 'count' }), droppedDied: dropped.deref() === undefined, keptRedrawn: [...keep.children].filter((el) => el.textContent === 'y').length }));
-`], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' }));
+`], { cwd: fsPath(new URL('..', import.meta.url)), encoding: 'utf8' }));
 
 test('lite: a removed component leaves nothing in a module signal (gc, both controls)', () => {
   const { alive, droppedDied, keptRedrawn } = retention();

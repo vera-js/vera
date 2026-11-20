@@ -17,8 +17,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { packageDirs } from '../scripts/packages.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 const published = new Set();
 for (const dir of packageDirs()) {

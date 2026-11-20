@@ -19,8 +19,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
 import { packageFiles } from '../scripts/packages.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 /** What this repo publishes, and therefore what a reader will act on. */
 const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { cwd: root }), ...packageFiles('README.md')];

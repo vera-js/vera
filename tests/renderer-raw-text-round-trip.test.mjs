@@ -23,6 +23,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
 
 import { IMG, SHAPES, literal } from './fixtures/raw-text-shapes.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 
 /** The server's bytes per shape, from a child process (`@verajs/ssr` installs DOM globals jsdom's would fight). */
@@ -254,7 +255,7 @@ test('an update rewrites the text only when the composed text changed', () => {
  */
 test('on the server, a lite component and a core component with the same source serve the same raw text, equal to the client\'s', () => {
   const pairs = JSON.parse(
-    execFileSync(process.execPath, [...process.execArgv, new URL('./fixtures/ssr/raw-text-parity-serve.mjs', import.meta.url).pathname], {
+    execFileSync(process.execPath, [...process.execArgv, fsPath(new URL('./fixtures/ssr/raw-text-parity-serve.mjs', import.meta.url))], {
       encoding: 'utf8',
       env: process.env,
     }),

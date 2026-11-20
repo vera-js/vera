@@ -12,6 +12,7 @@
 import { renderToString, serializeTemplate } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const { html } = await import('@verajs/core');
 
@@ -21,7 +22,7 @@ const check = (name, condition, extra = '') => (condition ? pass++ : failures.pu
 
 /* ── a ten-level component chain ────────────────────────────────────────────────────────────── */
 {
-  const dir = mkdtempSync(new URL('./.scale-', import.meta.url).pathname);
+  const dir = mkdtempSync(fsPath(new URL('./.scale-', import.meta.url)));
   try {
     const DEPTH = 10;
     writeFileSync(

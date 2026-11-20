@@ -14,8 +14,9 @@
 import { renderToString } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const dir = mkdtempSync(new URL('./.inserts-', import.meta.url).pathname);
+const dir = mkdtempSync(fsPath(new URL('./.inserts-', import.meta.url)));
 let markup;
 let observed;
 try {

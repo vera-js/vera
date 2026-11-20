@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { distUrl, load } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /** Through dist.mjs — the artifact under test, never a bare resolve. */
 const { transformJsx } = await load('jsx');
@@ -94,7 +95,7 @@ process.stdout.write('ok');
       : []
   );
   const out = execFileSync(process.execPath, [...inherited, '--import', setup, '--input-type=module', '-e', script], {
-    cwd: new URL('..', import.meta.url).pathname,
+    cwd: fsPath(new URL('..', import.meta.url)),
     encoding: 'utf8',
   });
   assert.equal(out, 'ok');

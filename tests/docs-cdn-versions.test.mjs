@@ -20,8 +20,9 @@ import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { walkFiles, readIfPresent } from './walk.mjs';
 import { packageDirs } from '../scripts/packages.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 const versions = {};
 for (const dir of packageDirs()) {

@@ -20,9 +20,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { isProduction } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const measure = (mode) =>
-  JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--expose-gc', '--no-warnings', new URL('./fixtures/ssr-release/measure.mjs', import.meta.url).pathname, mode], { encoding: 'utf8' }));
+  JSON.parse(execFileSync(process.execPath, [...(isProduction ? [] : ['--conditions', 'development']), '--expose-gc', '--no-warnings', fsPath(new URL('./fixtures/ssr-release/measure.mjs', import.meta.url)), mode], { encoding: 'utf8' }));
 
 const controls = (r) => assert.ok(r.kept && r.droppedDied, `CONTROLS: the kept object lived and the dropped one died (${JSON.stringify(r)})`);
 

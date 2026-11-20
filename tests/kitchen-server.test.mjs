@@ -16,6 +16,7 @@
  */
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /**
  * The server binds a port the OS picks (`PORT=0`) and prints it: two runs at once — the dev and production suites in
@@ -31,8 +32,8 @@ try {
   process.exit(0);
 }
 
-const server = spawn(process.execPath, [new URL('../examples/kitchen-sink/server.mjs', import.meta.url).pathname], {
-  cwd: new URL('..', import.meta.url).pathname,
+const server = spawn(process.execPath, [fsPath(new URL('../examples/kitchen-sink/server.mjs', import.meta.url))], {
+  cwd: fsPath(new URL('..', import.meta.url)),
   env: { ...process.env, PORT: '0' },
   stdio: 'pipe',
 });

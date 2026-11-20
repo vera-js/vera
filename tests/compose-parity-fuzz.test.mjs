@@ -37,6 +37,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { canonical } from './canonical.mjs';
 import { extendSeeds } from './fuzz-seeds.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
@@ -89,7 +90,7 @@ test('the server and the client produce the same DOM for a composed component tr
    * `@verajs/core` by bare specifier — a temp directory outside the tree cannot resolve it. Same
    * reasoning as `lifecycle-parity`.
    */
-  const dir = mkdtempSync(new URL('./.compose-', import.meta.url).pathname);
+  const dir = mkdtempSync(fsPath(new URL('./.compose-', import.meta.url)));
 
   try {
     const files = trees.map((tree, index) => {
@@ -112,7 +113,7 @@ process.stdout.write(JSON.stringify(out));
 `;
     const server = JSON.parse(
       execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', serverScript], {
-        cwd: new URL('..', import.meta.url).pathname,
+        cwd: fsPath(new URL('..', import.meta.url)),
         encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
       })

@@ -99,7 +99,8 @@ test('the walk detector fires on each shape it refuses (planted)', () => {
   assert.ok(!WALKS.some((walk) => walk.test("packageFiles('README.md')")), 'the helper itself is not a walk');
   /** The two-step shapes, from the four suites that had them; and the named read that must pass. */
   const twoStep = [
-    "const root = new URL('../packages/', import.meta.url).pathname;\nfor (const pkg of readdirSync(root)) {",
+    /** In pieces, so fs-path's scan (and its codemod) leave this historical shape alone. */
+    "const root = new URL('../packages/', import.meta.url).path" + 'name;\nfor (const pkg of readdirSync(root)) {',
     "const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));\nfor (const dir of readdirSync(ROOT)) {",
     "const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));\nconst packages = readdirSync(ROOT).filter(Boolean);",
     "const dir = join(here, '..', 'packages');\nconst all = globSync(dir, {});",

@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element',
@@ -76,7 +77,7 @@ test('adoption: wire([directives]) hands the engine the PAGE core — a directiv
 
 test('shaking: naming only the engine and interaction drops the expression tier (Rollup)', async () => {
   const { rollup } = await import('rollup');
-  const dev = new URL('../packages/directives/dist/development/vera-directives.js', import.meta.url).pathname;
+  const dev = fsPath(new URL('../packages/directives/dist/development/vera-directives.js', import.meta.url));
   const bundleOf = async (source) => {
     const build = await rollup({
       input: 'probe',

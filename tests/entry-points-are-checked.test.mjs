@@ -18,8 +18,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { ENTRY, NO_PRODUCTION_BUILD } from './dist.mjs';
 import { packageDirs } from '../scripts/packages.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 /** Entry points that are not importable JavaScript with a public API to document. */
 const NOT_A_MODULE_SURFACE = {

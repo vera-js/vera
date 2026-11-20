@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { canonical } from './canonical.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 /**
  * `statics` are class members, `body` is the `connectedCallback`. Both sides compile the *same*
@@ -629,7 +630,7 @@ const tagOf = (name) => `lp-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase().re
  * Inside the repo, because `renderToString` takes a module URL and that module imports
  * `@verajs/core` by bare specifier — a temp directory outside the tree cannot resolve it.
  */
-const dir = mkdtempSync(new URL('./.lifecycle-', import.meta.url).pathname);
+const dir = mkdtempSync(fsPath(new URL('./.lifecycle-', import.meta.url)));
 let server;
 try {
   const files = {};

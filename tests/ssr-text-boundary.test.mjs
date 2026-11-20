@@ -40,8 +40,9 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 import { CASES } from './fixtures/ssr/text-boundary-cases.js';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 /**
  * **Two characters cannot survive a server round trip at all, for two different reasons.**

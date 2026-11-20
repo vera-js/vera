@@ -28,8 +28,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { relative } from 'node:path';
 import { walkFiles, readIfPresent } from './walk.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fsPath(new URL('..', import.meta.url));
 
 /**
  * A renderer entry, however it is spelled: bare specifier, dist path, or `load()` key.

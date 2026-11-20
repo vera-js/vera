@@ -11,6 +11,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { load, distUrl } from './dist.mjs';
+import { fsPath } from '../scripts/fs-path.mjs';
 
 const { buildManifests, checkManifests } = await load('cms/node');
 
@@ -96,7 +97,7 @@ test('a rebuild over unchanged content is byte-identical — no environment leak
 
 // ── the CLI, as the process a user runs ─────────────────────────────────────────────────────────
 
-const CLI = new URL(distUrl('cms/node').replace('vera-cms-node', 'vera-cms-cli')).pathname;
+const CLI = fsPath(new URL(distUrl('cms/node').replace('vera-cms-node', 'vera-cms-cli')));
 const run = (args, cwd) => {
   /** `spawnSync`, because warnings land on stderr and a passing run has those too. */
   const result = spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8' });
