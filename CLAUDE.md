@@ -350,9 +350,9 @@ code, so they are not re-litigated.
 - **The local gate is never a clean build, so it cannot see a missing build dependency.** `wireit`
   keeps its state in `packages/*/.wireit`, not only at the root: deleting every `dist/` and running
   `npm run build` reports **"Ran 0 scripts and skipped 26"** and rebuilds nothing. To reproduce what
-  CI does, clear both —
-  `find . -maxdepth 3 -name .wireit -type d -not -path "*/node_modules/*" -exec rm -rf {} +` and
-  `rm -rf packages/*/dist`. This hid a real defect for months: `packages/ssr:build` declared no
+  CI does, run `node scripts/clean-build.mjs`, which clears both at every package depth (nested
+  `packages/components/*` and `packages/hooks/*` included) and then builds; a hand-written
+  `find -maxdepth` or `packages/*/dist` misses the nested packages (Brian approved, 2026-11-20). This hid a real defect for months: `packages/ssr:build` declared no
   dependencies and its `tsc` needs core's and styles' **built** declarations, because
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
@@ -480,23 +480,23 @@ rest of this file.
   outstanding.
 - Collaboration is the point. Prefer a short check-in over an impressive unilateral result.
 
-### Context limits — no session or agent past 300k tokens (Brian, 2026-11-19)
+### Context limits — no session or agent past 500k tokens (Brian, 2026-11-19; raised from 300k, 2026-11-20)
 
 - **Auto-compaction is set at user level**, in `~/.claude/settings.json`: `"autoCompactEnabled": true` and
-  `"env": { "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "300000" }` (a plain token count; a bare `300` is 300 tokens). Never set
+  `"env": { "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "500000" }` (a plain token count; a bare `300` is 300 tokens). Never set
   `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (it only lowers the threshold) or `DISABLE_AUTO_COMPACT`, and never turn
   `autoCompactEnabled` off. Settings reach sessions started after a change; check a new one with `/context`. A custom
-  subagent in `.claude/agents/*.md` carries `autoCompactWindow: 300000` in its frontmatter.
+  subagent in `.claude/agents/*.md` carries `autoCompactWindow: 500000` in its frontmatter.
 - **Context = the last API turn's `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`** (output does
   not count): the status line's `context_window`, or the last `"usage"` entry in a transcript under
   `~/.claude/projects/<project>/` (a subagent's is `<sessionId>/subagents/agent-<agentId>.jsonl`). Read only a
   transcript's tail, never the file; a missing field is "unknown", never 0. Measure before spawning an agent, at every
   checkpoint (a commit, a test run, a phase's end), and at least every 30 minutes while agents run.
-- **Thresholds.** Under 200k: normal. 200–250k: no new large reads, finish the step (an agent writes its handoff).
-  250–300k: at its first checkpoint past 250k the main session writes its handoff and asks Brian for `/compact` (a
+- **Thresholds.** Under 400k: normal. 400–450k: no new large reads, finish the step (an agent writes its handoff).
+  450–500k: at its first checkpoint past 450k the main session writes its handoff and asks Brian for `/compact` (a
   session cannot compact itself), then REFRESHES the handoff at every checkpoint until the compaction, so
-  auto-compaction at 300k (the backstop, wherever it lands) finds it at most one step behind — 250k and not later,
-  because a step can add 20–50k between checkpoints; an agent is respawned there. Over 300k: the same, now, at a safe
+  auto-compaction at 500k (the backstop, wherever it lands) finds it at most one step behind — 50k below it and not later,
+  because a step can add 20–50k between checkpoints; an agent is respawned there. Over 500k: the same, now, at a safe
   point — between steps, never mid-commit, mid-test-run, mid-write or mid-push.
 - **Respawning is the only reset for an agent.** At a safe point it writes a handoff with no line cap: the essentials
   first in a few lines (goal, what is done with shas and branch, the exact next step, the files to read, open
