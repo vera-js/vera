@@ -107,7 +107,12 @@ test('every documented @verajs import names a real export', () => {
   const problems = [];
   for (const file of docs) {
     const text = readFileSync(file, 'utf8');
-    for (const [, names, specifier] of text.matchAll(/import \{([^}]+)\} from '(@verajs\/[^']+)'/g)) {
+    /** A bare `import '…'` (a component's registering entry) names no export, but its package must exist. */
+    for (const [, specifier] of text.matchAll(/import '(@(?:verajs|vera-components|vera-hooks)\/[^']+)'/g))
+      if (!exportsOf[specifier] && !(specifier in PACKAGES) && !SOURCE_PACKAGES.includes(specifier))
+        problems.push(`${file}: no such package "${specifier}"`);
+    /** The three scopes: the framework's, and the components' and hooks' (2026-11-21). */
+    for (const [, names, specifier] of text.matchAll(/import \{([^}]+)\} from '(@(?:verajs|vera-components|vera-hooks)\/[^']+)'/g)) {
       const module = exportsOf[specifier];
       /** An unknown specifier is itself a finding — a documented package that does not exist. */
       if (!module) {

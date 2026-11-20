@@ -7,7 +7,10 @@
  * `packages/components/*` and `packages/hooks/*` to them, plus the design's rules (`DESIGN.md` §2–§3):
  * - scope and name from the directory; private and 0.x until launch; a LICENSE;
  * - closed `^` peers on core, renderer and styles (D7), and for a component on another component (D8); a hook peers on
- *   the framework only; runtime dependencies only on hooks, at closed `^` ranges;
+ *   the framework only; runtime dependencies only on hooks, at closed `^` ranges; and the peers and dependencies are
+ *   exactly what `src/` imports, both ways (the inlined `shared-*` aside);
+ * - its own suite, `tests/<name>-package.test.mjs` (a hook's: `tests/hook-<name>-package.test.mjs`), and for a
+ *   component a README `<!-- recipe -->`; a component renders no `<slot>` (light DOM, where one does nothing);
  * - a component's `.` entry (built from `src/register.ts`) is the registering one and its only side effect
  *   (`sideEffects` lists exactly its two builds); its `./element` entry (built from `src/index.ts`) exports the options
  *   and setup with no side effect, so a user can define it under their own tag today (the unregistered CLASS waits for
@@ -23,7 +26,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, globSync, readFileSync } from 'node:fs';
+import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs';
 import { ROOT, packageDirs } from '../scripts/packages.mjs';
 
 /** The `.mjs` registries a new package must appear in, read as code with comments stripped. */
@@ -151,7 +154,32 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
     for (const match of body.matchAll(/export\s+\{([^}]*)\}(?!\s*from)/g))
       for (const binding of match[1].split(',')) if (foreign.has(binding.trim().split(/\s+as\s+/)[0])) problems.push(`${file} re-exports ${binding.trim()} from another package in two steps (R5)`);
   }
+  /**
+   * **Peers and dependencies are exactly what `src/` imports, both ways** (d7, 2026-11-20): a peer nothing imports makes
+   * every app install it, and an import with no peer resolves by luck. The private workspace packages (shared-*) are
+   * inlined, so they are neither.
+   */
+  const imported = new Set();
+  for (const [, text] of sources)
+    for (const match of code(text).matchAll(/(?:\bfrom|\bimport)\s*\(?\s*['"](@(?:verajs|vera-components|vera-hooks|codemirror)\/[a-z0-9-]+)/g))
+      if (!/^@verajs\/shared-/.test(match[1])) imported.add(match[1]);
+  const peers = Object.keys(manifest.peerDependencies ?? {});
+  const dependencies = Object.keys(manifest.dependencies ?? {});
+  for (const peer of peers)
+    if ((FRAMEWORK_PEER.test(peer) || (component && COMPONENT_PEER.test(peer))) && !imported.has(peer)) problems.push(`peer ${peer} is not imported by src/`);
+  for (const dependency of dependencies)
+    if (dependency.startsWith('@vera-hooks/') && !imported.has(dependency)) problems.push(`dependency ${dependency} is not imported by src/`);
+  for (const specifier of imported)
+    if (!peers.includes(specifier) && !dependencies.includes(specifier)) problems.push(`src/ imports ${specifier}, which is neither a peer nor a dependency`);
+
+  /** Its own suite, and for a component the README recipe the docs suite runs (d7, 2026-11-20). */
+  const suite = `${component ? '' : 'hook-'}${name}-package.test.mjs`;
+  if (!regs.tests.includes(suite)) problems.push(`no tests/${suite}`);
+  if (component && !(typeof files['README.md'] === 'string' && files['README.md'].includes('<!-- recipe -->'))) problems.push('README has no recipe');
+
   if (component) {
+    /** Light DOM: a `<slot>` does nothing without a shadow root, so a component that renders one teaches the wrong thing. */
+    for (const [file, text] of sources) if (/<slot\b/.test(code(text))) problems.push(`${file} renders a <slot>: components render in light DOM`);
     const register = files['src/register.ts'];
     if (typeof register !== 'string') problems.push('no src/register.ts');
     else {
@@ -172,6 +200,7 @@ const rootManifest = JSON.parse(read('package.json'));
 const regs = {
   build: rootManifest.wireit?.build?.dependencies ?? [],
   paths: tsconfig.compilerOptions?.paths ?? {},
+  tests: readdirSync(ROOT + 'tests'),
   ...Object.fromEntries(Object.entries(REGISTRIES).map(([key, file]) => [key, code(read(file))])),
 };
 const nested = packageDirs().filter((dir) => /^packages\/(?:components|hooks)\/[^/]+$/.test(dir));
@@ -216,9 +245,10 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
   const registered = {
     build: [`./${dir}:build`], paths: { [own]: [`./${dir}/src/register.ts`] }, dist: "['components/zz-plant', 'vera-zz-plant']",
     docsImports: `'${own}'`, docsRecipes: `'${own}'`, sizes: `dist: '${dir}/dist/vera-zz-plant.min.js'`,
+    tests: ['zz-plant-package.test.mjs', 'hook-zz-plant-package.test.mjs'],
   };
   assert.deepEqual(problemsOf(good, registered), [], 'CONTROL: the complete plant passes');
-  const hook = { ...good, dir: 'packages/hooks/zz-plant', manifest: { ...good.manifest, name: '@vera-hooks/zz-plant', customElements: undefined, sideEffects: false, exports: { '.': good.manifest.exports['.'] } }, files: { LICENSE: true, 'src/index.ts': 'export const zz = 1;' } };
+  const hook = { ...good, dir: 'packages/hooks/zz-plant', manifest: { ...good.manifest, name: '@vera-hooks/zz-plant', customElements: undefined, peerDependencies: undefined, dependencies: undefined, sideEffects: false, exports: { '.': good.manifest.exports['.'] } }, files: { LICENSE: true, 'src/index.ts': 'export const zz = 1;' } };
   const hookRegs = { ...registered, build: ['./packages/hooks/zz-plant:build'], paths: { '@vera-hooks/zz-plant': ['./packages/hooks/zz-plant/src/index.ts'] }, dist: "['hooks/zz-plant', 'vera-zz-plant']", docsImports: "'@vera-hooks/zz-plant'" };
   assert.deepEqual(problemsOf(hook, hookRegs), [], 'CONTROL: the complete hook passes');
   const withManifest = (change) => ({ ...good, manifest: { ...good.manifest, ...change } });
@@ -228,9 +258,9 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['not private', withManifest({ private: false }), registered],
     ['version 1.x', withManifest({ version: '1.0.0' }), registered],
     ['an open peer', withManifest({ peerDependencies: { '@verajs/core': '>=0.4.1' } }), registered],
-    ['a foreign peer', withManifest({ peerDependencies: { react: '^19.0.0' } }), registered],
+    ['a foreign peer', withManifest({ peerDependencies: { '@verajs/core': '^0.4.1', react: '^19.0.0' } }), registered],
     ['a hook peering on a component', { ...hook, manifest: { ...hook.manifest, peerDependencies: { '@vera-components/button': '^0.1.0' } } }, hookRegs],
-    ['a non-hook dependency', withManifest({ dependencies: { 'left-pad': '^1.3.0' } }), registered],
+    ['a non-hook dependency', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.0.0', 'left-pad': '^1.3.0' } }), registered],
     ['an open dependency range', withManifest({ dependencies: { '@vera-hooks/listbox': '*' } }), registered],
     ['no LICENSE', withFiles({ LICENSE: undefined }), registered],
     ['exports outside dist', withManifest({ exports: { ...good.manifest.exports, '.': { types: './src/index.ts', development: dev, default: min } } }), registered],
@@ -259,10 +289,24 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     /** And the shapes that define only when CALLED pass: a function block, and a method. */
     ['a define inside a function block', withFiles({ 'src/index.ts': "export function defineAs(tag) {\n  if (tag) {\n    return define({ ...options, tag }, setup);\n  }\n}" }), registered, 0],
     ['a define inside a method', withFiles({ 'src/index.ts': "export const api = {\n  defineAs(tag) { return define({ ...options, tag }, setup); },\n};" }), registered, 0],
-    ['an element that calls define', withFiles({ 'src/element.ts': "import { define } from '@verajs/core';\nexport const Plant = define({ tag: 'vera-zz-plant' }, () => {});" }), registered],
+    ['an element that calls define', withFiles({ 'src/element.ts': "import { define } from '@verajs/core';\nimport { listbox } from '@vera-hooks/listbox';\nexport const Plant = define({ tag: 'vera-zz-plant' }, listbox);" }), registered],
     ['no register.ts', withFiles({ 'src/register.ts': undefined }), registered],
     ['an unguarded register.ts', withFiles({ 'src/register.ts': "import { define } from '@verajs/core';\ndefine(options, setup);" }), registered],
     ['a register.ts on customElements.define', withFiles({ 'src/register.ts': "if (!customElements.get('vera-zz-plant')) customElements.define('vera-zz-plant', X);\nelse warn('defined-twice');" }), registered],
+    /** d7's attack on the scaffold (2026-11-20). */
+    ['a <slot> in the element', withFiles({ 'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nexport const setup = () => () => html`<slot></slot>`;" }), registered],
+    ['a peer src/ never imports', withManifest({ peerDependencies: { '@verajs/core': '^0.4.1', '@verajs/styles': '^0.4.0' } }), registered],
+    ['an import with no peer', withFiles({ 'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nimport { css } from '@verajs/styles';\nexport const setup = () => listbox;" }), registered],
+    ['a type-only import with no peer', withFiles({ 'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nimport type { Css } from '@verajs/styles';\nexport const setup = () => listbox;" }), registered],
+    ['a hook import with no dependency', withManifest({ dependencies: undefined }), registered],
+    ['a dependency src/ never imports', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.0.0', '@vera-hooks/anchor': '^0.0.0' } }), registered],
+    ['a hook with a peer it never imports', { ...hook, manifest: { ...hook.manifest, peerDependencies: { '@verajs/core': '^0.4.1' } } }, hookRegs],
+    ['no suite', good, { ...registered, tests: ['hook-zz-plant-package.test.mjs'] }],
+    ['a hook with no suite', hook, { ...hookRegs, tests: ['zz-plant-package.test.mjs'] }],
+    ['a component with no recipe', withFiles({ 'README.md': '# no recipe here' }), { ...registered }],
+    /** What the import rule must NOT count: shared-* is inlined, and a comment is not an import. */
+    ['a shared-utils import', withFiles({ 'src/diagnostics.ts': "import { diagnostic } from '@verajs/shared-utils';" }), registered, 0],
+    ['an import inside a comment', withFiles({ 'src/diagnostics.ts': "// import { css } from '@verajs/styles';" }), registered, 0],
   ];
   /** Each plant trips exactly one rule; "once published" also trips the private rule, so two. */
   for (const [what, pkg, r, expected = 1] of plants) {

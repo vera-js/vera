@@ -85,14 +85,18 @@ const resolveImports = (code, generation) =>
    * `[a-z/-]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too — and hyphenated ones
    * (`native-elements`, `hydrate-slots`): `[a-z/]` left the first recipe importing one bare (2026-10-21).
    */
-  code.replace(/from ['"](@verajs\/[a-z/-]+)['"]/g, (whole, spec) => {
+  /**
+   * The three scopes, and the bare `import '…'` form too: a component's recipe imports its registering entry for its
+   * side effect, and left bare it resolved nothing from the recipe's temporary directory (2026-11-21).
+   */
+  code.replace(/\b(from|import) ['"](@(?:verajs|vera-components|vera-hooks)\/[a-z0-9/-]+)['"]/g, (whole, keyword, spec) => {
     /**
      * An unmapped specifier used to be left bare, which a `data:` module cannot resolve — so a new
      * entry appearing in a recipe failed with `ERR_UNSUPPORTED_RESOLVE_REQUEST` and a base64 blob,
      * naming neither the file nor the missing map entry. Saying it plainly costs one line.
      */
     if (!PACKAGES[spec]) throw new Error(`tests/docs-recipes: add "${spec}" to PACKAGES to run a recipe that imports it`);
-    return `from '${distUrl(PACKAGES[spec], generation === null ? '' : `?recipe=${generation}`)}'`;
+    return `${keyword} '${distUrl(PACKAGES[spec], generation === null ? '' : `?recipe=${generation}`)}'`;
   });
 
 let generation = 0;

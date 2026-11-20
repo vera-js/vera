@@ -28,11 +28,16 @@ const own = `${component ? '@vera-components' : '@vera-hooks'}/${name}`;
 const filename = `vera-${name}`;
 const tag = `vera-${name}`;
 if (existsSync(ROOT + dir)) throw new Error(`${dir} already exists`);
+/** A hook's suite is `tests/hook-<name>-package.test.mjs`, so a component named `hook-…` would collide with it. */
+if (component && name.startsWith('hook-')) throw new Error('a component name never starts with hook- (that prefix names hook suites in tests/)');
 
 const version = (pkg) => JSON.parse(readFileSync(`${ROOT}packages/${pkg}/package.json`, 'utf8')).version;
-const peers = component
-  ? { '@verajs/core': `^${version('core')}`, '@verajs/renderer': `^${version('renderer')}`, '@verajs/styles': `^${version('styles')}` }
-  : { '@verajs/core': `^${version('core')}` };
+/**
+ * **The peers are exactly the framework packages `src/` imports** (d7, 2026-11-20; package-structure holds both
+ * directions): the component template imports core and nothing else, and a hook imports nothing yet. A package that
+ * later imports the renderer or styles adds the peer in the same change.
+ */
+const peers = component ? { '@verajs/core': `^${version('core')}` } : {};
 const external = Object.keys(peers);
 
 /** One build entry's three conditions. */
@@ -56,7 +61,7 @@ const manifest = {
   types: exports['.'].types,
   exports,
   sideEffects: component ? [exports['.'].development, exports['.'].default] : false,
-  peerDependencies: peers,
+  ...(component ? { peerDependencies: peers } : {}),
   files: component ? ['dist', 'custom-elements.json'] : ['dist'],
   ...(component ? { customElements: 'custom-elements.json' } : {}),
   scripts: { build: 'wireit' },
@@ -98,8 +103,12 @@ import { html } from '@verajs/core';
 /** The tag and the element's declared options, handed to core's \`define\` by \`register.ts\`. */
 export const options = { tag: '${tag}' } as const;
 
-/** The setup: runs once per element; returns its render. */
-export const setup = () => () => html\`<slot></slot>\`;
+/**
+ * The setup: runs once per element; returns its render. Components render in light DOM, where a \`<slot>\` does
+ * nothing (package-structure refuses one): the render is the component's own parts, and children the user wrote are
+ * the user's, read where they are and never moved.
+ */
+export const setup = () => () => html\`<span data-vera-part="root"></span>\`;
 `,
       'src/register.ts': `/**
  * **The \`.\` entry: registers <${tag}>.** The guard runs before core's \`define\` (R3): a tag another copy already holds
@@ -142,9 +151,144 @@ export const PROSE: Record<string, Prose> = {
     }
   : { 'src/index.ts': `/** **${own}: a headless hook.** Re-exports only. */\nexport {};\n` };
 
+/** A component's README carries one recipe, which `tests/docs-recipes.test.mjs` runs (and its count is pinned there). */
+const recipe = `
+<!-- recipe -->
+\`\`\`js
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import '${own}';
+
+wire([renderer]);
+document.body.innerHTML = '<${tag}></${tag}>';
+\`\`\`
+`;
 const readme = `# ${own}
 
 ${component ? `\`<${tag}>\`: a Vera component.` : `\`${name}\`: a headless Vera hook.`} Private until launch.
+${component ? recipe : ''}`;
+
+/**
+ * **Its own suite, at \`tests/\` (the root glob runs it in both builds).** Each scenario runs in its own process, so each
+ * starts with an empty registry; the parent asserts on what the child reports.
+ */
+const testFile = `tests/${component ? '' : 'hook-'}${name}-package.test.mjs`;
+const GLOBALS = "['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent', 'MutationObserver']";
+const componentSuite = `/**
+ * **${own}: its two entries, as a page and a server meet them** (written by \`scripts/new-package.mjs\`). \`.\` registers
+ * <${tag}> once however many copies load, and development says so once; \`./element\` registers nothing at import, and
+ * its \`defineAs\` registers under the caller's tag; a server importing \`.\` through \`@verajs/ssr\` renders it.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { distUrl, isProduction, load } from './dist.mjs';
+
+const TAG = '${tag}';
+const SCENARIO = process.env.VERA_PACKAGE_SCENARIO;
+
+if (SCENARIO === 'ssr') {
+  const { renderToString } = await import('@verajs/ssr');
+  const { html } = await renderToString(distUrl('${own.slice(1)}'), { tag: TAG });
+  process.stdout.write(JSON.stringify({ html }));
+} else if (SCENARIO) {
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/', pretendToBeVisual: true });
+  for (const key of ${GLOBALS}) globalThis[key] = dom.window[key];
+  const said = [];
+  console.warn = (...args) => said.push(String(args[0]));
+  console.error = (...args) => said.push(String(args[0]));
+  const { flush, wire } = await load('core');
+  wire([(await load('renderer')).renderer]);
+  const out = { said };
+  if (SCENARIO === 'twice') {
+    const a = await load('${own.slice(1)}', '?copy=a');
+    const b = await load('${own.slice(1)}', '?copy=b');
+    out.one = typeof a.element === 'function' && a.element === b.element && a.element === customElements.get(TAG);
+  } else if (SCENARIO === 'element') {
+    out.exports = Object.keys(await load('${own.slice(1)}/element')).sort();
+    out.untouched = customElements.get(TAG) === undefined;
+  } else if (SCENARIO === 'define-as') {
+    const { defineAs } = await load('${own.slice(1)}/element');
+    const Class = defineAs('my-${name}');
+    out.registered = typeof Class === 'function' && customElements.get('my-${name}') === Class;
+    out.untouched = customElements.get(TAG) === undefined;
+    const element = document.createElement('my-${name}');
+    document.body.append(element);
+    flush();
+    await Promise.resolve();
+    out.rendered = element.querySelector('[data-vera-part="root"]') !== null;
+  }
+  process.stdout.write(JSON.stringify(out));
+} else {
+  const run = (scenario) => {
+    const result = spawnSync(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url)], {
+      encoding: 'utf8',
+      env: { ...process.env, VERA_PACKAGE_SCENARIO: scenario },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+
+  test('two copies of "." register one class, and development says defined-twice once', () => {
+    const { one, said } = run('twice');
+    assert.equal(one, true, 'both copies export the registered class');
+    const lines = said.filter((line) => line.includes('defined-twice'));
+    assert.equal(lines.length, isProduction ? 0 : 1, said.join(' | '));
+    assert.deepEqual(said.filter((line) => !line.includes('defined-twice')), [], 'nothing else is said');
+    if (!isProduction) assert.match(lines[0], /^\\[vera\\] /);
+  });
+
+  test('"./element" registers nothing at import, and exports only defineAs', () => {
+    const { exports, untouched, said } = run('element');
+    assert.deepEqual(exports, ['defineAs']);
+    assert.equal(untouched, true, \`<\${TAG}> stays free\`);
+    assert.deepEqual(said, []);
+  });
+
+  test('defineAs registers under the caller\\'s tag, and the element renders its part', () => {
+    const { registered, untouched, rendered, said } = run('define-as');
+    assert.equal(registered, true, 'the returned class serves the tag');
+    assert.equal(untouched, true, \`<\${TAG}> stays free\`);
+    assert.equal(rendered, true, 'the root part is in the element');
+    assert.deepEqual(said, []);
+  });
+
+  test('a server imports "." through @verajs/ssr and renders the element', () => {
+    const { html } = run('ssr');
+    assert.ok(html.includes(\`<\${TAG}\`), html);
+    assert.ok(html.includes('data-vera-part="root"'), html);
+  });
+}
+`;
+const hookSuite = `/**
+ * **${own}: importing it changes nothing** (written by \`scripts/new-package.mjs\`): a hook registers no element and
+ * says nothing at import. Its behavior suites join it in tests/ as the hook grows.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { load } from './dist.mjs';
+
+test('importing ${own} registers nothing and says nothing', async () => {
+  const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/' });
+  for (const key of ${GLOBALS}) globalThis[key] = dom.window[key];
+  const said = [];
+  const { warn, error } = console;
+  console.warn = console.error = (...args) => said.push(String(args[0]));
+  const define = customElements.define;
+  let defined = 0;
+  customElements.define = (...args) => (defined++, define.apply(customElements, args));
+  try {
+    await load('${own.slice(1)}');
+  } finally {
+    Object.assign(console, { warn, error });
+    customElements.define = define;
+  }
+  assert.equal(defined, 0, 'no element is registered');
+  assert.deepEqual(said, []);
+});
 `;
 
 /** Insert \`line\` after (or before) the first line matching \`anchor\` in \`file\`; refuse when the anchor is missing. */
@@ -158,6 +302,7 @@ const insert = (file, anchor, line, where = 'after') => {
   writeFileSync(ROOT + file, lines.join('\n'));
 };
 
+if (existsSync(ROOT + testFile)) throw new Error(`${testFile} already exists`);
 mkdirSync(`${ROOT}${dir}/src`, { recursive: true });
 writeFileSync(`${ROOT}${dir}/package.json`, JSON.stringify(manifest, null, 2) + '\n');
 writeFileSync(`${ROOT}${dir}/rollup.config.js`, rollup);
@@ -165,6 +310,7 @@ writeFileSync(`${ROOT}${dir}/tsconfig.json`, JSON.stringify(tsconfig, null, 2) +
 writeFileSync(`${ROOT}${dir}/README.md`, readme);
 writeFileSync(`${ROOT}${dir}/LICENSE`, readFileSync(`${ROOT}LICENSE`, 'utf8'));
 for (const [file, text] of Object.entries(sources)) writeFileSync(`${ROOT}${dir}/${file}`, text);
+writeFileSync(ROOT + testFile, component ? componentSuite : hookSuite);
 
 const target = component ? 'register.ts' : 'index.ts';
 insert('package.json', '"./packages/shared-types:build",', `        "./${dir}:build",`, 'before');
@@ -172,6 +318,7 @@ insert('tsconfig.json', '"paths": {', `      "${own}": [\n        "./${dir}/src/
 insert('tests/dist.mjs', 'export const ENTRY = {', `  '${own.slice(1)}': ['${short}', '${filename}'],${component ? `\n  '${own.slice(1)}/element': ['${short}', '${filename}-element'],` : ''}`);
 insert('tests/docs-imports.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
 insert('tests/docs-recipes.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
+if (component) insert('tests/docs-recipes.test.mjs', 'const EXPECTED_RECIPES = {', `  '${dir}/README.md': 1,`);
 if (component) insert('scripts/diagnostic-tables.mjs', "{ name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },", `  { name: '${short}', tables: ['src/diagnostics.ts'], sources: SOURCES },`, 'before');
 
-console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build and node --test tests/package-structure.test.mjs`);
+console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build, node --test --conditions development ${testFile} and tests/package-structure.test.mjs`);
