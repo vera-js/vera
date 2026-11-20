@@ -443,7 +443,7 @@ rest of this file.
   module scope: you): `signal`, `computed`, `effect`, `resource`, `portal` — in the field's established term where one
   exists (`computed`, as TC39's `Signal.Computed`). (4) **No `use*` prefix, anywhere**: in React it signals call-order
   rules, and a Vera setup runs once and has none. Headless behaviors are nouns too when they return (`lightDismiss`,
-  `listbox` — the `@verajs/hooks` renames, done when `ui` returns to scope).
+  `listbox`), each its own package under `@vera-hooks` (Brian, 2026-11-20).
 - **What a wireable module LOOKS like follows from whether it has options** (surveyed 2026-09-07;
   the rule was already in force unwritten, and a new module should not have to re-derive it):
   **no options → a bare descriptor** (`renderer`, `styles`, `collections`, `slots` — plain objects;
