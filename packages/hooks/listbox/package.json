@@ -1,6 +1,6 @@
 {
   "name": "@vera-hooks/listbox",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "listbox: a headless Vera hook.",
   "license": "MIT",
@@ -29,7 +29,7 @@
     "@verajs/core": "^0.4.1"
   },
   "dependencies": {
-    "@vera-hooks/light-dismiss": "^0.0.0"
+    "@vera-hooks/light-dismiss": "^0.1.0"
   },
   "files": [
     "dist"

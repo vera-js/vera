@@ -48,7 +48,7 @@ const step = (mode, output, extra = {}) => ({ command: 'npx rollup -c', ...(mode
 const exports = component ? { '.': entry(filename), './element': entry(`${filename}-element`) } : { '.': entry(filename) };
 const manifest = {
   name: own,
-  version: '0.0.0',
+  version: '0.1.0',
   private: true,
   description: component ? `<${tag}>: a Vera component.` : `${name}: a headless Vera hook.`,
   license: 'MIT',

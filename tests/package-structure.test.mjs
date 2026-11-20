@@ -115,16 +115,24 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
   if (manifest.name !== own) say('name', `name is ${manifest.name}, not ${own} (the scope and name follow the directory)`);
   if (manifest.private !== true) say('private', 'not private: every package stays private until launch');
   if (!/^0\./.test(String(manifest.version))) say('version', `version ${manifest.version} is not 0.x (1.0.0 is the launch)`);
+  /**
+   * **0.0.x is an exact pin** (d7, 2026-11-21): a caret on 0.0.x allows only that patch (`^0.0.0` is `>=0.0.0 <0.0.1`), so
+   * every patch of a hook would force a bump of everything depending on it, the cascade D7 and D8 exist to prevent.
+   * Packages are born at 0.1.0, where `^0.1.0` takes every patch and only a minor (the breaking boundary) cascades.
+   */
+  else if (/^0\.0\./.test(String(manifest.version))) say('version-pinned', `version ${manifest.version} is 0.0.x, where every caret range is an exact pin: start at 0.1.0`);
   if (!files.LICENSE) say('license', 'no LICENSE');
 
   for (const [peer, range] of Object.entries(manifest.peerDependencies ?? {})) {
     if (!FRAMEWORK_PEER.test(peer) && !(component && COMPONENT_PEER.test(peer)))
       say('peer-kind', `peer ${peer} is not one a ${component ? 'component' : 'hook'} may have (DESIGN §3.1, D8)`);
     else if (!/^\^\d/.test(range)) say('peer-range', `peer ${peer} has range ${range}, not a closed ^ range (D7)`);
+    else if (/^\^0\.0\./.test(range)) say('range-pinned', `peer ${peer} has range ${range}: a caret on 0.0.x is an exact pin`);
   }
   for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
     if (!dependency.startsWith('@vera-hooks/')) say('dependency-kind', `runtime dependency ${dependency}: only hooks are dependencies (DESIGN §3.1)`);
     else if (!/^\^\d/.test(range)) say('dependency-range', `dependency ${dependency} has range ${range}, not a closed ^ range`);
+    else if (/^\^0\.0\./.test(range)) say('range-pinned', `dependency ${dependency} has range ${range}: a caret on 0.0.x is an exact pin`);
   }
 
   /** The entries: three conditions into dist; a component's `.` builds are exactly the side effects, a hook has none. */
@@ -262,13 +270,13 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
   const good = {
     dir,
     manifest: {
-      name: own, version: '0.0.0', private: true, scripts: { build: 'wireit' },
+      name: own, version: '0.1.0', private: true, scripts: { build: 'wireit' },
       exports: {
         '.': { types: './dist/development/vera-zz-plant.d.ts', development: dev, default: min },
         './element': { types: './dist/development/vera-zz-plant-element.d.ts', development: './dist/development/vera-zz-plant-element.js', default: './dist/vera-zz-plant-element.min.js' },
       },
       sideEffects: [dev, min], files: ['dist', 'custom-elements.json'], customElements: 'custom-elements.json',
-      peerDependencies: { '@verajs/core': '^0.4.1' }, dependencies: { '@vera-hooks/listbox': '^0.0.0' },
+      peerDependencies: { '@verajs/core': '^0.4.1' }, dependencies: { '@vera-hooks/listbox': '^0.1.0' },
     },
     files: {
       LICENSE: true, 'README.md': '<!-- recipe -->',
@@ -292,10 +300,14 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['a wrong name', withManifest({ name: '@verajs/zz-plant' }), registered],
     ['not private', withManifest({ private: false }), registered],
     ['version 1.x', withManifest({ version: '1.0.0' }), registered],
+    /** The 0.0.x pin (d7, 2026-11-21). */
+    ['a 0.0.x version', withManifest({ version: '0.0.0' }), registered],
+    ['a caret dependency on 0.0.x', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.0.3' } }), registered],
+    ['a caret peer on 0.0.x', withManifest({ peerDependencies: { '@verajs/core': '^0.0.9' } }), registered],
     ['an open peer', withManifest({ peerDependencies: { '@verajs/core': '>=0.4.1' } }), registered],
     ['a foreign peer', withManifest({ peerDependencies: { '@verajs/core': '^0.4.1', react: '^19.0.0' } }), registered],
     ['a hook peering on a component', { ...hook, manifest: { ...hook.manifest, peerDependencies: { '@vera-components/button': '^0.1.0' } } }, hookRegs],
-    ['a non-hook dependency', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.0.0', 'left-pad': '^1.3.0' } }), registered],
+    ['a non-hook dependency', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.1.0', 'left-pad': '^1.3.0' } }), registered],
     ['an open dependency range', withManifest({ dependencies: { '@vera-hooks/listbox': '*' } }), registered],
     ['no LICENSE', withFiles({ LICENSE: undefined }), registered],
     ['exports outside dist', withManifest({ exports: { ...good.manifest.exports, '.': { types: './src/index.ts', development: dev, default: min } } }), registered],
@@ -339,7 +351,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['an import with no peer', withFiles({ 'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nimport { css } from '@verajs/styles';\nexport const setup = () => listbox;" }), registered],
     ['a type-only import with no peer', withFiles({ 'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nimport type { Css } from '@verajs/styles';\nexport const setup = () => listbox;" }), registered],
     ['a hook import with no dependency', withManifest({ dependencies: undefined }), registered],
-    ['a dependency src/ never imports', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.0.0', '@vera-hooks/anchor': '^0.0.0' } }), registered],
+    ['a dependency src/ never imports', withManifest({ dependencies: { '@vera-hooks/listbox': '^0.1.0', '@vera-hooks/anchor': '^0.1.0' } }), registered],
     ['a hook with a peer it never imports', { ...hook, manifest: { ...hook.manifest, peerDependencies: { '@verajs/core': '^0.4.1' } } }, hookRegs],
     ['no suite', good, { ...registered, tests: ['hook-zz-plant-package.test.mjs'] }],
     ['a hook with no suite', hook, { ...hookRegs, tests: ['zz-plant-package.test.mjs'] }],

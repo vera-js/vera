@@ -1,6 +1,6 @@
 {
   "name": "@vera-components/select",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "VeraJS components: styled, accessible, form-associated custom elements over @vera-hooks/listbox — shadow DOM by default, light by attribute, restylable without a fight.",
   "license": "MIT",
@@ -34,7 +34,7 @@
     "@verajs/renderer": "^0.3.1"
   },
   "dependencies": {
-    "@vera-hooks/listbox": "^0.0.0"
+    "@vera-hooks/listbox": "^0.1.0"
   },
   "files": [
     "dist",
