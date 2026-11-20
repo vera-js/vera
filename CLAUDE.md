@@ -1,5 +1,15 @@
 # CLAUDE.md — VeraJS
 
+> ## ⚠️ READ YOUR MACHINE'S WORK LEDGER FIRST — EVERY SESSION, EVERY RESTART, AFTER EVERY COMPACTION ⚠️
+>
+> **All work lives in file-based ledgers, one per machine, in the private portal: `internal/docs/ledgers/`** (Brian,
+> 2026-11-20). `node internal/scripts/ledger.mjs whoami` names this machine's (`WORK-LEDGER-<id8>.md`); the README
+> there lists every machine's. Every item being done, planned, blocked or waiting is on its board with a status, an
+> owner, a next step and its notes. **Change an item's status in the SAME step it changes; rewrite its notes the moment
+> they go stale; push the internal repo after every edit.** Work that is not in a ledger is not tracked. Other
+> machines' ledgers are readable and read-only, unless this machine takes that queue over. If you have lost context (a
+> compaction, a crash, a new session), open your machine's ledger before doing anything else, then the handoff it names.
+
 Operational conventions and project parameters. Records decisions that are **not** derivable from the
 code, so they are not re-litigated.
 
