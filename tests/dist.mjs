@@ -27,6 +27,8 @@
  *   npm run test:all               # both
  *   npm run test:node-builds       # the node builds: jsx's compiler, cms's content (VERA_DIST=node)
  */
+import { realpathSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 export const isProduction = process.env.VERA_DIST === 'production';
 /**
  * **`VERA_DIST=node`: each entry's NODE build where it has one (jsx's compiler, cms's content), everything else development** — the pairing a Vite or Node user
@@ -104,14 +106,22 @@ export const NO_PRODUCTION_BUILD = new Set(['renderer/profiler']);
  */
 const UNBUILT = {};
 
+/**
+ * This file's own URL, in the path's CANONICAL case on Windows. Node keys a module by its exact URL, and Windows paths
+ * are case-insensitive: started from `c:\…` (VS Code, Git Bash), `import.meta.url` is `file:///c:/…` while a bundle's
+ * bare `@verajs/core` resolves through `node_modules` to `file:///C:/…`, two cores (`tests/dist-drive-case.test.mjs`).
+ * `realpathSync.native` answers the file system's own spelling. Elsewhere the URL is left exactly as it was.
+ */
+const HERE = process.platform === 'win32' ? pathToFileURL(realpathSync.native(fileURLToPath(import.meta.url))).href : import.meta.url;
+
 /** Absolute URL of a built bundle. `query` forces a fresh module instance (`?copy=a`). */
 export const distUrl = (name, query = '') => {
-  if (UNBUILT[name] !== undefined) return new URL(`../packages/${UNBUILT[name]}${query}`, import.meta.url).href;
+  if (UNBUILT[name] !== undefined) return new URL(`../packages/${UNBUILT[name]}${query}`, HERE).href;
   const entry = ENTRY[name];
   if (entry === undefined) throw new Error(`tests/dist.mjs: unknown bundle "${name}"`);
   const [pkg, file] = entry;
   const path = isProduction ? `${file}.min.js` : isNodeBuild && NODE_BUILDS.has(name) ? `node/${file}.js` : `development/${file}.js`;
-  return new URL(`../packages/${pkg}/dist/${path}${query}`, import.meta.url).href;
+  return new URL(`../packages/${pkg}/dist/${path}${query}`, HERE).href;
 };
 
 /**

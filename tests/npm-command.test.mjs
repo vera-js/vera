@@ -45,3 +45,14 @@ test('buildProcesses finds a build in this tree and ignores one in another (plan
   assert.ok(found.some((row) => row.startsWith(`${here.pid} `)), `the in-tree plant (${here.pid}) is missed:\n${found.join('\n')}`);
   assert.ok(!found.some((row) => row.startsWith(`${elsewhere.pid} `)), 'a build in another tree is not this tree’s');
 });
+
+test('test-batch sets leading NAME=value arguments in the command environment, in any shell', () => {
+  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'VERA_PROBE=yes', 'node', '-e', "process.exit(process.env.VERA_PROBE === 'yes' ? 0 : 3)"], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(run.status, 0, `the variable did not arrive (exit ${run.status}) ${run.stderr}`);
+});
+
+test('test-batch starts a project tool from node_modules/.bin', () => {
+  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'tsc', '--version'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /Version \d+\./);
+});
