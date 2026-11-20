@@ -91,7 +91,8 @@ const chunkOf = (random, empty) => {
 const valueOf = (random) => {
   const r = random();
   if (r < 0.15) return '';
-  if (r < 0.2) return [null, undefined, 0, 1.5][Math.floor(random() * 4)];
+  /** Not strings: the fast path skips the escape's own `${…}`, so `rawTextOf` must answer the string every value writes. */
+  if (r < 0.2) return [null, undefined, 0, 1.5, { toString: () => 'a</style' }, { toString: () => 'a<' }][Math.floor(random() * 6)];
   if (r < 0.28) return [chunkOf(random, 0.3), chunkOf(random, 0.3)];
   let value = '';
   const n = Math.floor(random() * 4);

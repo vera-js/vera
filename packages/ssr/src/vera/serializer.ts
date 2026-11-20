@@ -1522,6 +1522,8 @@ const refuseTemplateInText = (): never => {
  * `a,b` (commas between CSS rules) and a template as `[object Object]`.
  */
 const rawTextOf = (value: unknown): string => {
+  /** A string first: it is most values, and its text is itself (exactly what the template literal below gives it). */
+  if (typeof value === 'string') return value;
   if (value == null) return '';
   if (Array.isArray(value)) {
     let out = '';
