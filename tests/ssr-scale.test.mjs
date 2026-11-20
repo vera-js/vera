@@ -10,6 +10,7 @@
  * is fast. `bench/ssr.mjs` and `npm run metrics` own the numbers.
  */
 import { renderToString, serializeTemplate } from '@verajs/ssr';
+import { pathToFileURL } from 'node:url';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { fsPath } from '../scripts/fs-path.mjs';
@@ -44,7 +45,7 @@ ${Array.from({ length: DEPTH }, (_, index) => {
 export default customElements.get('nest-1');
 `
     );
-    const { html: markup } = await renderToString(new URL(`file://${dir}/nest.js`), { tag: 'nest-1' });
+    const { html: markup } = await renderToString(pathToFileURL(`${dir}/nest.js`), { tag: 'nest-1' });
     const levels = [...markup.matchAll(/data-level="(\d+)"/g)].map(([, level]) => Number(level));
     check('a ten-level component chain renders every level', levels.join(',') === '1,2,3,4,5,6,7,8,9,10', levels.join(','));
   } finally {

@@ -37,6 +37,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 import { CASES } from './fixtures/ssr/text-boundary-cases.js';
@@ -67,7 +68,7 @@ const serverMarkup = execFileSync(
     'development',
     '-e',
     `import('@verajs/ssr').then(async ({ renderToString }) => {
-       const { html } = await renderToString(new URL('./tests/fixtures/ssr/text-boundary.js', 'file://${root}'), { tag: 't-text' });
+       const { html } = await renderToString(new URL('./tests/fixtures/ssr/text-boundary.js', ${JSON.stringify(pathToFileURL(root).href)}), { tag: 't-text' });
        process.stdout.write(html);
      })`,
   ],
@@ -148,7 +149,7 @@ const rawtextMarkup = execFileSync(
     'development',
     '-e',
     `import('@verajs/ssr').then(async ({ renderToString }) => {
-       const { html } = await renderToString(new URL('./tests/fixtures/ssr/rawtext-cr.js', 'file://${root}'), { tag: 't-rawtext' });
+       const { html } = await renderToString(new URL('./tests/fixtures/ssr/rawtext-cr.js', ${JSON.stringify(pathToFileURL(root).href)}), { tag: 't-rawtext' });
        process.stdout.write(html);
      })`,
   ],

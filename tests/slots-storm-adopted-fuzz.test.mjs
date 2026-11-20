@@ -24,7 +24,7 @@ const serverHtml = execFileSync(process.execPath, ['--conditions', 'development'
   import { wire } from '@verajs/core';
   const { slots } = await import('@verajs/renderer/slots');
   wire([slots]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-card-ssr.js', 'file://' + process.cwd() + '/'), { children: '<u slot="header">H0</u>' })).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-card-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { children: '<u slot="header">H0</u>' })).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 
 const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });

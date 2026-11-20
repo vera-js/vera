@@ -14,7 +14,7 @@ import { load } from './dist.mjs';
 
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr';
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/automatic-list-ssr.js', 'file://' + process.cwd() + '/'), { tag: 'automatic-list-ssr' })).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/automatic-list-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: 'automatic-list-ssr' })).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 
 const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });

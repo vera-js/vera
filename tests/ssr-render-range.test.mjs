@@ -16,6 +16,7 @@
  *   the render goes into the shadow root.
  */
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { renderToString } from '@verajs/ssr';
@@ -33,7 +34,7 @@ const render = async (body, options) => {
       `class C extends HTMLElement {\n  connectedCallback() {${body}}\n}\n` +
       `customElements.define('${tag}', C);\nexport default C;\n`
   );
-  return (await renderToString(new URL(`file://${file}`), options)).html;
+  return (await renderToString(pathToFileURL(file), options)).html;
 };
 
 test.after(() => rmSync(dir, { recursive: true, force: true }));

@@ -15,7 +15,7 @@ import { distUrl, isProduction, load } from './dist.mjs';
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr';
   const t0 = performance.now();
-  const r = await renderToString(new URL('./tests/fixtures/ssr/until-ssr.js', 'file://' + process.cwd() + '/'), { tag: 'until-ssr' });
+  const r = await renderToString(new URL('./tests/fixtures/ssr/until-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: 'until-ssr' });
   await new Promise((r) => setTimeout(r, 50));
   process.stdout.write(JSON.stringify({ html: r.html, ms: performance.now() - t0 }));
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 20000 });

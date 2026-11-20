@@ -329,7 +329,7 @@ test('a server whose id counter has advanced still hydrates cleanly', async () =
     const { styles } = await import('@verajs/styles');
     const { slots } = await import('@verajs/renderer/slots');
     wire([styles, slots]);
-    const page = () => renderToString(new URL('file://' + process.cwd() + '/tests/fixtures/ssr/select-ssr.js'), {
+    const page = () => renderToString(process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/tests/fixtures/ssr/select-ssr.js'), {
       tag: 'vera-select', attributes: { light: '', 'aria-label': 'Flavor' },
       children: '<option value="a">Alpha</option>' });
     await page(); await page();

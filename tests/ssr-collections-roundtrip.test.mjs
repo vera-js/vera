@@ -17,7 +17,7 @@ const serverHtml = execFileSync(process.execPath, ['--conditions', 'development'
   import { wire } from '@verajs/core';
   const { collections } = await import('@verajs/store/collections');
   wire([collections]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/map-driven-ssr.js', 'file://' + process.cwd() + '/'))).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/map-driven-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')))).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 
 const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });

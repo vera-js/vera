@@ -23,7 +23,7 @@ const server = JSON.parse(execFileSync(process.execPath, [...conditions, '--inpu
   const said = [];
   for (const level of ['warn', 'error']) console[level] = (...a) => said.push(level + ' ' + a.join(' '));
   const { renderToString } = await import('@verajs/ssr');
-  const out = await renderToString(new URL('./tests/fixtures/interchange/app.js', 'file://' + process.cwd() + '/'), { tag: 'ia-app' });
+  const out = await renderToString(new URL('./tests/fixtures/interchange/app.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: 'ia-app' });
   process.stdout.write(JSON.stringify({ html: out.html, styles: out.styles, said, core: import.meta.resolve('@verajs/core') }));
 `], { cwd: root, encoding: 'utf8', env: { ...process.env } }));
 const build = (path) => (path.endsWith('.min.js') ? 'production' : path.includes('/development/') ? 'development' : `unknown: ${path}`);

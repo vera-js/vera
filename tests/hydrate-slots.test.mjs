@@ -21,7 +21,7 @@ const server = (children, fixture = 'slot-card-ssr', awaited = false, attributes
     import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots');
     wire([slots]);
-    const out = (await ${entry}(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)}${attributes ? `, attributes: ${JSON.stringify(attributes)}` : ''} })).html;
+    const out = (await ${entry}(new URL('./tests/fixtures/ssr/${fixture}.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { children: ${JSON.stringify(children)}${attributes ? `, attributes: ${JSON.stringify(attributes)}` : ''} })).html;
     process.stdout.write(out);
   `;
   return execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {

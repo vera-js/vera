@@ -15,7 +15,7 @@ import { printed } from './console-args.mjs';
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
   const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-placed-ssr.js', 'file://' + process.cwd() + '/'))).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-placed-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')))).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 
 const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
@@ -138,7 +138,7 @@ test('the statement is STRICT: a light child the outer template does not place i
 const runServed = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
   const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-run-ssr.js', 'file://' + process.cwd() + '/'))).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-run-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')))).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 const runOuter = (items) => html`<p>outer</p><slot-run-inner>${items.map((x) => html`<i slot=${x === 'b' ? 't' : ''}>${x}</i>`)}</slot-run-inner>`;
 const runInner = () => html`<div class="box"><slot name="t">T</slot><slot>FB</slot></div>`;
@@ -174,7 +174,7 @@ test('(a) a literal marker pair in the inner\'s own template, the outer first: t
   const literal = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
     import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-    process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-placed-literal-ssr.js', 'file://' + process.cwd() + '/'))).html);
+    process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-placed-literal-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')))).html);
   `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
   assert.match(literal, /<div><!--\[--><p>own<\/p><!--\]--><!--\[--><i>I<\/i><!--\]--><\/div>/, `CONTROL: a literal pair beside the real range: ${literal}`);
   const [host] = page(literal);
@@ -260,7 +260,7 @@ for (const order of ['outer first (statement)', 'inner first (live record)'])
 const labelServed = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
   const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-label-ssr.js', 'file://' + process.cwd() + '/'))).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-label-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')))).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 const labelOuter = (label, name) => html`<slot-label-btn>${label}</slot-label-btn><slot-label-btn>Hi ${name}!</slot-label-btn>`;
 const labelInner = () => html`<button class="btn"><slot>no label</slot></button>`;
@@ -301,7 +301,7 @@ for (const order of ['outer first (statement)', 'inner first (live record)'])
 const shapesServed = (tag) => execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
   const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-run-shapes-ssr.js', 'file://' + process.cwd() + '/'), { tag: '${tag}' })).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-run-shapes-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: '${tag}' })).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 const { keyed } = await load('renderer/keyed');
 const keyedOuter = (items) => html`<p>outer</p><slot-run-inner>${items.map((x) => keyed(x, html`<i slot=${x === 'b' ? 't' : ''}>${x}</i>`))}</slot-run-inner>`;

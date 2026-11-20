@@ -34,7 +34,7 @@ const SHAPES = ${JSON.stringify(SHAPES)};
 const strings = (${strings.toString()});
 const out = {};
 for (const [name, template] of Object.entries(rows(html))) out[name] = serializeTemplate(template);
-const page = await renderToString(new URL('./tests/fixtures/ssr/comment-ends-ssr.js', 'file://' + process.cwd() + '/'));
+const page = await renderToString(new URL('./tests/fixtures/ssr/comment-ends-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')));
 process.stdout.write(JSON.stringify({ out, page: page.html }));
 `;
 const served = JSON.parse(

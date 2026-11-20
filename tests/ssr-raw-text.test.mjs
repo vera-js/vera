@@ -13,6 +13,7 @@
  * keep ordinary escaping, and this file pins that difference in both directions.
  */
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,7 +36,7 @@ const component = (body) => {
       `}\n` +
       `customElements.define('c-${Math.abs(body.length)}-${process.hrtime.bigint()}', C);\n`
   );
-  return new URL(`file://${file}`);
+  return pathToFileURL(file);
 };
 
 test.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -144,7 +145,7 @@ test('a tag whose name merely starts with "template" does not extend the skip', 
       `}\n` +
       `customElements.define('tpl-host', Host);\n`
   );
-  const { html } = await renderToString(new URL(`file://${file}`));
+  const { html } = await renderToString(pathToFileURL(file));
   assert.match(html, /<i>RENDERED<\/i>/, 'the component AFTER the template still rendered');
   assert.match(html, /<templates>/, 'and the stray tag is left exactly as written');
 });

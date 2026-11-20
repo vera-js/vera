@@ -13,7 +13,7 @@ import { isProduction, load } from './dist.mjs';
 const served = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
   const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-card-ssr.js', 'file://' + process.cwd() + '/'), { children: '<h2 slot="header">H</h2>body' })).html);
+  process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/slot-card-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { children: '<h2 slot="header">H</h2>body' })).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 
 const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });

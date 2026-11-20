@@ -6,6 +6,7 @@
  * `@verajs/renderer`.
  */
 import { renderToString, serializeTemplate } from '@verajs/ssr';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -607,7 +608,7 @@ export default customElements.get('loc${i}-ssr');
 
     const rendered = await Promise.all(
       paths.map(async (path, i) => {
-        const { html: markup } = await renderToString(new URL(`file://${dir}/loc${i}.js`), { location: path });
+        const { html: markup } = await renderToString(pathToFileURL(`${dir}/loc${i}.js`), { location: path });
         return markup.match(/<p>([^<]*)<\/p>/)?.[1];
       })
     );
@@ -615,7 +616,7 @@ export default customElements.get('loc${i}-ssr');
 
     /** And the process global is left exactly as it was found. */
     const before = globalThis.location.pathname;
-    await renderToString(new URL(`file://${dir}/loc0.js`), { location: '/somewhere/else' });
+    await renderToString(pathToFileURL(`${dir}/loc0.js`), { location: '/somewhere/else' });
     assert.equal(globalThis.location.pathname, before, 'the render did not restore the shared location');
 
     /**
@@ -636,7 +637,7 @@ customElements.define('parts-ssr', class extends HTMLElement {
 export default customElements.get('parts-ssr');
 `
     );
-    const partsUrl = new URL(`file://${dir}/parts.js`);
+    const partsUrl = pathToFileURL(`${dir}/parts.js`);
     const read = async (location) =>
       (await renderToString(partsUrl, { location })).html.match(/<p>([^<]*)<\/p>/)?.[1];
 
@@ -675,7 +676,7 @@ customElements.define('titled-ssr', class extends HTMLElement {
 export default customElements.get('titled-ssr');
 `
     );
-    const url = new URL(`file://${dir}/titled.js`);
+    const url = pathToFileURL(`${dir}/titled.js`);
     await renderToString(url, { attributes: { 'page-title': 'warm' } });
 
     const before = globalThis.document.title;
@@ -710,7 +711,7 @@ export default customElements.get('doomed-ssr');
     const titleBefore = globalThis.document.title;
     const pathBefore = globalThis.location.pathname;
     await assert.rejects(
-      () => renderToString(new URL(`file://${dir}/doomed.js`), { location: '/doomed' }),
+      () => renderToString(pathToFileURL(`${dir}/doomed.js`), { location: '/doomed' }),
       /threw while rendering/
     );
     assert.equal(globalThis.document.title, titleBefore, 'a failed render leaked its title');
@@ -753,7 +754,7 @@ customElements.define('grow-ssr', class extends HTMLElement {
 export default customElements.get('grow-ssr');
 `
     );
-    const url = new URL(`file://${dir}/grow.js`);
+    const url = pathToFileURL(`${dir}/grow.js`);
     const rules = [];
     for (let i = 0; i < 12; i++) {
       const { styles } = await renderToString(url);

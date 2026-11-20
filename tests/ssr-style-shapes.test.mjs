@@ -8,6 +8,7 @@
  * ship a component with half its CSS and look perfectly fine doing it.
  */
 import { renderToString } from '@verajs/ssr';
+import { pathToFileURL } from 'node:url';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -53,7 +54,7 @@ export default customElements.get('shape-result');
     'shape-none',
     'shape-hostile',
   ]) {
-    const { html: markup } = await renderToString(new URL(`file://${dir}/shapes.js`), { tag });
+    const { html: markup } = await renderToString(pathToFileURL(`${dir}/shapes.js`), { tag });
     results[tag] = [...markup.matchAll(/<style data-vm-sheet="styles">([\s\S]*?)<\/style>/g)].map(([, css]) =>
       css.replace(/\s+/g, ' ').trim()
     );

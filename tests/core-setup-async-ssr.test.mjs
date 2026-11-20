@@ -14,7 +14,7 @@ const serve = (entry, tag, options = {}) => JSON.parse(execFileSync(process.exec
   const said = [];
   for (const level of ['warn', 'error']) console[level] = (...a) => said.push(a.join(' '));
   const ssr = await import('@verajs/ssr');
-  const url = new URL('./tests/fixtures/ssr/async-setup-ssr.js', 'file://' + process.cwd() + '/');
+  const url = new URL('./tests/fixtures/ssr/async-setup-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/'));
   let html = null, threw = null;
   try { html = (await ssr[${JSON.stringify(entry)}](url, { tag: ${JSON.stringify(tag)}, ...${JSON.stringify(options)} })).html; } catch (error) { threw = error.message; }
   process.stdout.write(JSON.stringify({ html, threw, said }));

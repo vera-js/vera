@@ -70,3 +70,34 @@ test('the detector fires on each file-URL shape, and passes a web URL (planted)'
   assert.ok(!reads('assert.equal(window.location.pathname, "/x")'), 'a page location is a web URL');
   assert.ok(!reads(' * a comment about .pathname'), 'a comment is not code');
 });
+
+/**
+ * **No file URL is built by hand** (2026-11-21). `'file://' + path` and `` `file://${path}` `` are URLs only for a
+ * POSIX path with nothing to escape. On Windows a backslashed path spliced into a generated script's source becomes
+ * escapes (`\v`, `\t`), and 57 rows of the slots parity and hydration suites failed with "Invalid URL"; a space or `%`
+ * in any path breaks them everywhere. `pathToFileURL(path)` is the conversion (`process.getBuiltinModule('node:url')`
+ * inside a generated child script, which has no import of its own).
+ */
+const HAND_BUILT = /(['"`])file:\/\/\1\s*\+|(['"`])file:\/\/\$\{/;
+const handBuilt = (line) => HAND_BUILT.test(line) && !comment(line);
+
+test('no suite or script builds a file URL by hand', () => {
+  const files = globSync(['tests/**/*.mjs', 'tests/**/*.js', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
+    .map((file) => file.split(BACKSLASH).join('/'))
+    .filter((file) => file !== 'tests/fs-path.test.mjs' && !file.startsWith('tests/browser/'));
+  assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
+  const found = [];
+  for (const file of files)
+    readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
+      if (handBuilt(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  assert.deepEqual(found, [], 'use pathToFileURL(path) from node:url');
+});
+
+test('the hand-built detector fires on each shape (planted)', () => {
+  const q = "'";
+  for (const planted of [`new URL(${q}file://${q} + process.cwd() + '/')`, 'new URL(`file://${' + 'dir}/x.js`)', `new URL(${q}file://\${file}${q})`, '"file://" + join(a, b)'])
+    assert.ok(handBuilt(planted), `the detector misses: ${planted}`);
+  assert.ok(!handBuilt("pathToFileURL(process.cwd() + '/')"), 'the conversion itself passes');
+  assert.ok(!handBuilt("assert.ok(href.startsWith('file:///'))"), 'a file URL checked, not built, passes');
+});

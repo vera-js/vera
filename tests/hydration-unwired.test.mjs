@@ -21,7 +21,7 @@ const serve = (fixture, children) =>
   execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
     import { renderToString } from '@verajs/ssr'; import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots'); wire([slots]);
-    process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html);
+    process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/${fixture}.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { children: ${JSON.stringify(children)} })).html);
   `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });

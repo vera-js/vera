@@ -15,6 +15,7 @@
  * that reaches a reader is compared exactly.
  */
 import { load } from './dist.mjs';
+import { pathToFileURL } from 'node:url';
 import { fsPath } from '../scripts/fs-path.mjs';
 const { transformJsx } = await load('jsx');
 import { execFileSync } from 'node:child_process';
@@ -87,7 +88,7 @@ process.stdout.write(JSON.stringify(out));
     );
   };
 
-  jsx = renderIn(`file://${dir}/`);
+  jsx = renderIn(pathToFileURL(`${dir}/`).href);
   original = renderIn(new URL('./examples/kitchen-sink/components/', root).href);
 } finally {
   rmSync(dir, { recursive: true, force: true });

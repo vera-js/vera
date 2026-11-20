@@ -138,7 +138,7 @@ test('on a server, the shared wire([renderer({ shadow })]) declines its render i
     const { renderer } = await import('@verajs/renderer');
     wire([renderer({ shadow: 'open' })]);
     wire([renderer]);
-    const { html: page } = await renderToString(new URL('./tests/fixtures/ssr/default-shadow-ssr.js', 'file://' + process.cwd() + '/'), { tag: 'sd-card' });
+    const { html: page } = await renderToString(new URL('./tests/fixtures/ssr/default-shadow-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: 'sd-card' });
     process.stdout.write(JSON.stringify({ page, declines: said.filter((l) => l.includes('renderer-on-server')).length }));
   `);
   assert.match(out.page, /<sd-card><template shadowrootmode="open"><p>served<\/p><\/template><\/sd-card>/, `the default reached the server: ${out.page}`);
@@ -162,7 +162,7 @@ test("a render insert that is not vera's renderer still displaces the server's â
     const dir = mkdtempSync(join(tmpdir(), 'vera-default-'));
     writeFileSync(join(dir, 'c.js'), "customElements.define('sd-late', class extends HTMLElement {});");
     let message = '';
-    try { await renderToString(new URL('file://' + join(dir, 'c.js')), { tag: 'sd-late' }); } catch (error) { message = error.message; }
+    try { await renderToString(process.getBuiltinModule('node:url').pathToFileURL(join(dir, 'c.js')), { tag: 'sd-late' }); } catch (error) { message = error.message; }
     process.stdout.write(JSON.stringify({ message }));
   `);
   assert.match(out.message, /ssr-renderer-replaced/, `refused: ${out.message}`);

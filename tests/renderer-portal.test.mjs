@@ -15,7 +15,7 @@ const served = execFileSync(process.execPath, ['--conditions', 'development', '-
   import { renderToString } from '@verajs/ssr';
   const warned = [];
   console.warn = (...a) => warned.push(a.map(String).join(' '));
-  const r = await renderToString(new URL('./tests/fixtures/ssr/portal-ssr.js', 'file://' + process.cwd() + '/'), { tag: 'portal-ssr' });
+  const r = await renderToString(new URL('./tests/fixtures/ssr/portal-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: 'portal-ssr' });
   process.stdout.write(JSON.stringify({ html: r.html, runs: globalThis.__portalRuns, warned }));
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 

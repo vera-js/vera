@@ -12,6 +12,7 @@
  * well as documented.
  */
 import { renderToString } from '@verajs/ssr';
+import { pathToFileURL } from 'node:url';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { fsPath } from '../scripts/fs-path.mjs';
@@ -44,7 +45,7 @@ customElements.define('insert-probe', class extends HTMLElement {
 export default customElements.get('insert-probe');
 `
   );
-  const url = new URL(`file://${dir}/probe.js`);
+  const url = pathToFileURL(`${dir}/probe.js`);
   ({ html: markup } = await renderToString(url));
   ({ observed } = await import(url.href));
 } finally {

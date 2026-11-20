@@ -19,6 +19,7 @@
  * writes to itself (`classList`, `dataset`, `setAttribute`) is covered as well as one that draws.
  */
 import { load } from './dist.mjs';
+import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
@@ -650,7 +651,7 @@ const attempt = async (name, url, options) => {
 ${Object.entries(ALL)
   .map(
     ([name, spec]) =>
-      `await attempt(${JSON.stringify(name)}, ${JSON.stringify(`file://${files[name]}`)}, ${JSON.stringify({
+      `await attempt(${JSON.stringify(name)}, ${JSON.stringify(pathToFileURL(files[name]).href)}, ${JSON.stringify({
         attributes: spec.attributes ?? {},
         children: spec.children ?? '',
       })});`

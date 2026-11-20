@@ -18,6 +18,7 @@
  * this red until it comes off the list.
  */
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,7 +68,7 @@ const serve = (name, tag, source, state, children, extra = '') => {
   const script =
     `import { renderToString } from '@verajs/ssr';\nimport { wire } from '@verajs/core';\n` +
     `const { slots } = await import('@verajs/renderer/slots'); wire([slots]);\n` +
-    `process.stdout.write((await renderToString(new URL('file://${file}'), { tag: '${tag}', children: ${JSON.stringify(children)} })).html);`;
+    `process.stdout.write((await renderToString(new URL(${JSON.stringify(pathToFileURL(file).href)}), { tag: '${tag}', children: ${JSON.stringify(children)} })).html);`;
   return execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
     cwd: process.cwd(),
     encoding: 'utf8',

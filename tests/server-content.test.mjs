@@ -46,7 +46,7 @@ const afterComments = COMMENTS.flatMap((c) => [
   serializeTemplate(tpl('div', 'innerHTML', c + '<script>globalThis.__ran = 1<\\/script>')),
   serializeTemplate(tpl('div', 'innerHTML', c + '<template shadowrootmode="open"><b>s</b></template>')),
 ]);
-const page = (await renderToString(new URL('./tests/fixtures/ssr/content-ssr.js', 'file://' + process.cwd() + '/'))).html;
+const page = (await renderToString(new URL('./tests/fixtures/ssr/content-ssr.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')))).html;
 process.stdout.write(JSON.stringify({ out, conv, page, scripts, afterComments }));
 `;
 const served = JSON.parse(

@@ -27,6 +27,7 @@
  * is ignored.
  */
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { renderToString } from '@verajs/ssr';
@@ -42,7 +43,7 @@ const render = async (body, options) => {
     file,
     `class C extends HTMLElement {\n  static observedAttributes = ['user-id'];\n  attributeChangedCallback(name, previous, value) { this.seen = (this.seen ?? '') + name + '=' + value + ';'; }\n  connectedCallback() {${body}}\n}\ncustomElements.define('${tag}', C);\nexport default C;\n`
   );
-  return (await renderToString(new URL(`file://${file}`), options)).html;
+  return (await renderToString(pathToFileURL(file), options)).html;
 };
 
 test.after(() => rmSync(dir, { recursive: true, force: true }));

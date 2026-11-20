@@ -17,7 +17,7 @@ const server = (children, fixture) => {
     import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots');
     wire([slots]);
-    const out = (await renderToString(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html;
+    const out = (await renderToString(new URL('./tests/fixtures/ssr/${fixture}.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { children: ${JSON.stringify(children)} })).html;
     process.stdout.write(out);
   `;
   return execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {

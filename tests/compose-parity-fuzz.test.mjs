@@ -31,6 +31,7 @@
  * Recorded so they are not repeated as if they had meant something.
  */
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -105,7 +106,7 @@ const out = {};
 ${trees
   .map(
     (tree, index) =>
-      `try { out[${JSON.stringify(tree.name)}] = (await renderToString(${JSON.stringify(`file://${files[index]}`)}, { tag: ${JSON.stringify(tree.root)} })).html; }` +
+      `try { out[${JSON.stringify(tree.name)}] = (await renderToString(${JSON.stringify(pathToFileURL(files[index]).href)}, { tag: ${JSON.stringify(tree.root)} })).html; }` +
       ` catch (error) { out[${JSON.stringify(tree.name)}] = { threw: String(error.message).slice(0, 140) }; }`
   )
   .join('\n')}
@@ -142,7 +143,7 @@ process.stdout.write(JSON.stringify(out));
         continue;
       }
 
-      await import(`file://${files[index]}`);
+      await import(pathToFileURL(files[index]).href);
       const element = D.createElement(tree.root);
       host.appendChild(element);
       /** Three frames: nested components each schedule their own, one level at a time. */

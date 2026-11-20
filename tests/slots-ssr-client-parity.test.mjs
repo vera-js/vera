@@ -17,6 +17,7 @@
  * a module from a URL and a shape has to be a real file.
  */
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -102,7 +103,7 @@ const server = (tag, template, children, shadow = false) => {
     `import { wire } from '@verajs/core';\n` +
     `const { slots } = await import('@verajs/renderer/slots');\n` +
     `wire([slots]);\n` +
-    `const out = await renderToString(new URL('file://${file}'), { children: ${JSON.stringify(children)} });\n` +
+    `const out = await renderToString(new URL(${JSON.stringify(pathToFileURL(file).href)}), { children: ${JSON.stringify(children)} });\n` +
     `process.stdout.write(out.html);\n`;
   const html = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
     cwd: process.cwd(),
