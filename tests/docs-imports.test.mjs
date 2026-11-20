@@ -32,6 +32,7 @@ const PACKAGES = {
   '@vera-hooks/labeled': 'vera-hooks/labeled',
   '@vera-hooks/roving-focus': 'vera-hooks/roving-focus',
   '@vera-hooks/announce': 'vera-hooks/announce',
+  '@vera-hooks/anchor': 'vera-hooks/anchor',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',

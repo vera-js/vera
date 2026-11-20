@@ -42,6 +42,9 @@
       "@vera-hooks/announce": [
         "./packages/hooks/announce/src/index.ts"
       ],
+      "@vera-hooks/anchor": [
+        "./packages/hooks/anchor/src/index.ts"
+      ],
       "@vera-components/select": [
         "./packages/components/select/src/index.ts"
       ],

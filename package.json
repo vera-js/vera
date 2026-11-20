@@ -57,6 +57,7 @@
         "./packages/hooks/labeled:build",
         "./packages/hooks/roving-focus:build",
         "./packages/hooks/announce:build",
+        "./packages/hooks/anchor:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",
