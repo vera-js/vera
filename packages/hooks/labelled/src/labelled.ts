@@ -23,6 +23,11 @@ import type { LabelledParts, LabelledWiring } from './types.js';
  */
 const uid: { n: number } = ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.uid')] ??= { n: 0 }) as { n: number };
 
+/**
+ * The three element fields below are keyed by `Symbol.for`, SHARED ACROSS COPIES ON PURPOSE (not the per-copy `Symbol()`
+ * CLAUDE.md asks of a cache): two copies of the library wiring one control must agree on who owns it, which id they gave
+ * it, and whether it was already warned about, or each copy would wire, number and warn on its own.
+ */
 /** On a wired control: its owner's host and release, so a nearer caller can take over and a farther one stands aside. */
 const OWNER = Symbol.for('vera.labelled');
 /** On an element this hook gave an id: that id, so a re-wire (a takeover, a second wiring) gives it the same one back. */
@@ -103,8 +108,12 @@ export const labelled = (control: Element, parts: LabelledParts): LabelledWiring
   const { host } = parts;
   const owner = marked[OWNER];
   if (owner) {
-    /** The NEARER caller owns it: a caller whose host is inside the owner's takes over, any other stands aside. */
-    if (owner.host === host || !within(owner.host, host)) return INERT;
+    /**
+     * The NEARER caller owns it: a caller whose host is inside the owner's takes over, a farther one stands aside. The
+     * SAME host wiring again (a component whose setup re-ran, on a reconnect, without releasing) replaces its own wiring:
+     * latest wins, so the handle it holds now is the live one.
+     */
+    if (!within(owner.host, host)) return INERT;
     owner.release();
   }
 
@@ -174,10 +183,15 @@ export const labelled = (control: Element, parts: LabelledParts): LabelledWiring
     return null;
   };
 
-  const controlId = idOf(control);
   const { label, hint, count } = parts;
   if (label && reachable(label, 'label')) {
-    if (labelable(control)) write(label, 'for', controlId);
+    /**
+     * The control gets an id only here, where `for` needs one: nothing else references the control, and an id written
+     * for nothing is a DOM write and a counter number that shift every later id between a server's wiring order and a
+     * client's. `labelable` is read NOW: a form-associated custom element wired before its upgrade is not yet labelable,
+     * so it is named through `aria-labelledby` and stays so after upgrading (the caller wires after `whenDefined`).
+     */
+    if (labelable(control)) write(label, 'for', idOf(control));
     else {
       const token = tokenOf(label, 'label');
       if (token !== null) addTokens('aria-labelledby', [token]);

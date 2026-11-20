@@ -78,12 +78,20 @@ const CASES = {
   'wrapping label names the control': (doc) => {
     const label = el(doc, 'label');
     const input = el(doc, 'input');
+    const hint = el(doc, 'p');
     label.append(doc.createTextNode('A'), input);
-    doc.body.append(label);
-    labelled(input, { host: doc.body });
-    return [label, input];
+    doc.body.append(label, hint);
+    labelled(input, { host: doc.body, hint });
+    return [label, input, hint];
   },
 };
+
+/** `twice`: the first case rendered as two consecutive server renders of one page, for the determinism row. */
+if (process.argv[3] === 'twice') {
+  const [run] = Object.values(CASES);
+  process.stdout.write(JSON.stringify([snap(run(make())), snap(run(make()))]));
+  process.exit(0);
+}
 
 const out = {};
 for (const [name, run] of Object.entries(CASES)) {

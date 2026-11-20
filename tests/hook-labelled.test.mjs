@@ -126,6 +126,44 @@ test('an error the page already described stays described when the hook stops sh
   assert.equal(input.getAttribute('aria-describedby'), 'e1');
 });
 
+test('the control gets an id only where label[for] needs one', () => {
+  const doc = page('<label>A</label><div role="combobox" tabindex="0"></div><input class="bare" aria-label="B"><p class="hint">h</p>');
+  labelled(doc.querySelector('[role]'), { host: doc.body, label: doc.querySelector('label') });
+  labelled(doc.querySelector('.bare'), { host: doc.body, hint: doc.querySelector('.hint') });
+  assert.equal(doc.querySelector('[role]').hasAttribute('id'), false, 'named through aria-labelledby: nothing references the control');
+  assert.equal(doc.querySelector('.bare').hasAttribute('id'), false, 'no label at all');
+  assert.ok(doc.querySelector('.hint').id, 'CONTROL: the hint, which is referenced, got one');
+});
+
+test('the same host wiring again replaces its own wiring: the newest handle is the live one', () => {
+  const doc = page('<label>A</label><input><p class="e">e</p>');
+  const q = (s) => doc.querySelector(s);
+  const first = labelled(q('input'), { host: doc.body, label: q('label'), errors: [q('.e')] });
+  const second = labelled(q('input'), { host: doc.body, label: q('label'), errors: [q('.e')] });
+  second.show(q('.e'));
+  assert.equal(q('input').getAttribute('aria-invalid'), 'true', 'the second handle shows');
+  first.release();
+  assert.equal(q('input').getAttribute('aria-invalid'), 'true', 'the replaced handle owns nothing any more');
+  second.release();
+  assert.equal(q('input').hasAttribute('aria-invalid'), false);
+  assert.equal(q('label').hasAttribute('for'), false);
+});
+
+test('a form-associated element wired BEFORE its upgrade is named through aria-labelledby, and stays so (caller order)', () => {
+  const doc = page('<label>A</label><x-face tabindex="0"></x-face>');
+  const face = doc.querySelector('x-face');
+  labelled(face, { host: doc.body, label: doc.querySelector('label') });
+  window.customElements.define('x-face', class extends window.HTMLElement { static formAssociated = true; });
+  assert.ok(face.getAttribute('aria-labelledby'), 'not labelable when wired');
+  assert.equal(doc.querySelector('label').hasAttribute('for'), false);
+  const after = doc.createElement('x-face');
+  doc.body.append(after);
+  const label2 = doc.createElement('label');
+  doc.body.append(label2);
+  labelled(after, { host: doc.body, label: label2 });
+  assert.equal(label2.getAttribute('for'), after.id, 'CONTROL: wired after its upgrade, it is labelable');
+});
+
 test('an id already on an element is kept, and no number is taken for it (a server render hydrates unchanged)', () => {
   const doc = page('<label id="server-l">A</label><input id="server-c"><p id="server-h">h</p>');
   const input = doc.querySelector('input');
