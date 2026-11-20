@@ -2,7 +2,11 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import { dts } from 'rollup-plugin-dts';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/** Every workspace package lives at some depth under here (`packages/core`, `packages/components/select`). */
+const PACKAGES = join(dirname(fileURLToPath(import.meta.url)), 'packages');
 
 /**
  * @param manglePropsRegex Opt-in property mangling for the production build. Terser mangles locals
@@ -142,16 +146,19 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
        *
        * The tail after the leading `../`s is right; only the climb is wrong. So it is rebuilt from
        * the package this build is running in: `src/…` for the package's own files and `<pkg>/src/…`
-       * for a workspace dependency that was inlined. A path that resolves to nothing is left exactly
-       * as Rollup produced it rather than replaced with a different guess.
+       * for a workspace dependency that was inlined, looked up under `packages/` itself as well, so a
+       * nested package (`packages/components/select`) finds `shared-utils` (CI, 2026-11-21). A path
+       * that resolves to nothing is left exactly as Rollup produced it rather than replaced with a
+       * different guess. Rollup's paths use the platform's separator (backslashes on Windows, where
+       * this matched nothing until 2026-11-21), and a map's `sources` are URLs, so they get `/`.
        */
       sourcemapPathTransform: (relativePath, sourcemapPath) => {
-        const tail = relativePath.replace(/^(\.\.\/)+/, '');
-        for (const base of [process.cwd(), dirname(process.cwd())]) {
+        const tail = relativePath.replace(/^(\.\.[\\/])+/, '');
+        for (const base of [process.cwd(), dirname(process.cwd()), PACKAGES]) {
           const absolute = resolve(base, tail);
-          if (existsSync(absolute)) return relative(dirname(sourcemapPath), absolute);
+          if (existsSync(absolute)) return relative(dirname(sourcemapPath), absolute).split(sep).join('/');
         }
-        return relativePath;
+        return relativePath.split(sep).join('/');
       },
     },
     external: !minified ? (dependencies ?? []) : (options.alwaysExternal ?? []),
