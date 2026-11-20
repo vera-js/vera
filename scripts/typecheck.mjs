@@ -17,8 +17,8 @@
  * exists because the `.mjs` suites test built JavaScript and so cannot see the `.d.ts` layer at
  * all. `ref` shipped returning `{ value: T } | { value: { value: T } }` for exactly that long.
  */
-import { globSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { packageFiles } from './packages.mjs';
 
 /**
  * `tests/consumer` is last and is **not** a duplicate of the root pass. The root config aliases every
@@ -28,7 +28,7 @@ import { execFileSync } from 'node:child_process';
  * requires a build, because there is nothing to resolve to otherwise.
  */
 const configs = [
-  ...globSync('packages/*/tsconfig.json').sort(),
+  ...packageFiles('tsconfig.json'),
   'tsconfig.json',
   'tests/consumer/tsconfig.json',
   /**

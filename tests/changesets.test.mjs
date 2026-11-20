@@ -16,12 +16,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
 const published = new Set();
-for (const entry of readdirSync(`${root}packages`)) {
-  const manifest = `${root}packages/${entry}/package.json`;
+for (const dir of packageDirs()) {
+  const manifest = `${root}${dir}/package.json`;
   if (!existsSync(manifest)) continue;
   const pkg = JSON.parse(readFileSync(manifest, 'utf8'));
   if (!pkg.private) published.add(pkg.name);

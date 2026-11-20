@@ -45,6 +45,7 @@ export default [
        */
       'bench/.cache/**',
       'packages/*/types/**',
+      'packages/{components,hooks}/*/types/**',
     ],
   },
   { files: ['**/*.{js,mjs,cjs,ts}'] },
@@ -71,7 +72,7 @@ export default [
 
   /** Library and example sources run in a browser. */
   {
-    files: ['packages/*/src/**/*.{js,ts}', 'examples/**/*.{js,ts}'],
+    files: ['packages/*/src/**/*.{js,ts}', 'packages/{components,hooks}/*/src/**/*.{js,ts}', 'examples/**/*.{js,ts}'],
     languageOptions: { globals: { ...globals.browser, __DEV__: 'readonly' } },
     /**
      * The VeraJS rules come from our own published config, so the package is exercised by every
@@ -158,11 +159,14 @@ export default [
       'scripts/**/*.{js,mjs}',
       // Per-package tooling (the ui manifest generator) — Node programs like the root scripts.
       'packages/*/scripts/**/*.{js,mjs}',
+      'packages/{components,hooks}/*/scripts/**/*.{js,mjs}',
       // Published CLIs (vera-motion-emit) — Node programs that SHIP, same globals either way.
       'packages/*/bin/**/*.{js,mjs}',
+      'packages/{components,hooks}/*/bin/**/*.{js,mjs}',
       'bench/**/*.{js,mjs}',
       'tests/**/*.{js,mjs}',
       'packages/*/rollup.config.js',
+      'packages/{components,hooks}/*/rollup.config.js',
       'packages/ssr/**/*.{js,mjs,ts}',
       'examples/**/serve.js',
       'examples/**/server*.{js,mjs}',

@@ -14,6 +14,7 @@
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from './packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const LINK = /!?\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
@@ -47,7 +48,7 @@ if (process.argv.includes('--self-check')) {
 
 const files = [
   ...globSync('README.md', { cwd: root }),
-  ...globSync('packages/*/README.md', { cwd: root }),
+  ...packageFiles('README.md'),
   ...globSync('docs/**/*.md', { cwd: root }),
   ...globSync('llms.txt', { cwd: root }),
 ];

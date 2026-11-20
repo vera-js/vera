@@ -16,8 +16,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { comments } from './source-comments.mjs';
+import { packageFiles } from '../scripts/packages.mjs';
 
 /** Each package's detached doc comments today (2026-11-12): lower a pin when its package clears some, never raise one. */
 const PINS = {
@@ -53,8 +54,9 @@ test('CONTROL: a planted detached doc is found, after a regex and a template too
 test('no package has more detached doc comments than its pin, and none has fewer (lower the pin)', () => {
   const counts = {};
   const where = [];
-  for (const file of globSync('packages/*/src/**/*.ts')) {
-    const pkg = file.split('/')[1];
+  for (const file of packageFiles('src/**/*.ts')) {
+    /** The package's name is its directory's last segment, at any depth (`packages/components/select/src/…` → `select`). */
+    const pkg = file.slice(0, file.indexOf('/src/')).split('/').at(-1);
     for (const line of detached(readFileSync(file, 'utf8'))) {
       counts[pkg] = (counts[pkg] ?? 0) + 1;
       where.push(`${file}:${line}`);

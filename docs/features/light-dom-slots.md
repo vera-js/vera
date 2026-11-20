@@ -182,6 +182,6 @@ production bundles: one component rendered in both modes side by side, fallback 
 `::slotted()` contrast above shown as two cards rather than asserted, `@slotchange` on a live
 re-slot, and `<vera-select light>` with a slotted trigger.
 
-Its neighbor [`examples/ui-select/`](../../examples/ui-select/) is the same component with the
+Its neighbor [`examples/select/`](../../examples/select/) is the same component with the
 module **not** wired, which is a supported configuration and looks exactly as this page's caveats
 describe. Opening both is the fastest way to see what the wiring buys.

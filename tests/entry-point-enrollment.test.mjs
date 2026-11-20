@@ -22,6 +22,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -30,8 +31,8 @@ const has = (path) => existsSync(new URL(path, root));
 /** Every public entry point, from the packages themselves — the only list that cannot go stale. */
 const entryPoints = () => {
   const found = [];
-  for (const directory of readdirSync(new URL('packages/', root))) {
-    const manifest = `packages/${directory}/package.json`;
+  for (const directory of packageDirs()) {
+    const manifest = `${directory}/package.json`;
     if (!has(manifest)) continue;
     const json = JSON.parse(read(manifest));
     if (json.private) continue;
@@ -201,9 +202,9 @@ test('every document that carries a size claim is one the sync script reads', ()
   };
   walk('docs/');
   for (const file of ['README.md', 'llms.txt']) if (has(file) && read(file).includes('<!--size:')) carrying.push(file);
-  for (const directory of readdirSync(new URL('packages/', root)))
-    if (has(`packages/${directory}/README.md`) && read(`packages/${directory}/README.md`).includes('<!--size:'))
-      carrying.push(`packages/${directory}/README.md`);
+  for (const directory of packageDirs())
+    if (has(`${directory}/README.md`) && read(`${directory}/README.md`).includes('<!--size:'))
+      carrying.push(`${directory}/README.md`);
 
   assert.ok(carrying.length >= 4, `only ${carrying.length} documents carry a claim — the scan is broken`);
   const unchecked = carrying.filter((file) => !targets.has(file));

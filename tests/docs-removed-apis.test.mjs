@@ -130,6 +130,14 @@ const REMOVED = {
   'mount()': 'a setup returning nothing — init(this, () => { useEffect(…); })',
   'init(this, { mode': "init({ host: this, shadow: 'open' }, setup)",
   'shadowProps': "init({ host, shadow }, setup) — the options travel with the host",
+  /** The components layout (Phase 0's move, 2026-11-21): ui and hooks became one package per component and per hook,
+   *  and the hooks lost the `use` prefix (CLAUDE.md's naming convention). Keyed on the SCOPED specifiers. */
+  '@verajs/ui': '@vera-components/select (and @vera-components/select/elements)',
+  '@verajs/hooks': '@vera-hooks/listbox and @vera-hooks/light-dismiss',
+  useSelect: "@vera-hooks/listbox's listbox",
+  useDismiss: "@vera-hooks/light-dismiss's lightDismiss",
+  'ui-defined-twice': 'defined-twice',
+  'ui-select-duplicate': 'select-duplicate',
 };
 
 /**

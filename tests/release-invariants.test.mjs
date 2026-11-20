@@ -15,15 +15,17 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { globSync, readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { packageFiles } from '../scripts/packages.mjs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (path) => readFileSync(join(root, path), 'utf8');
 
-const manifests = globSync('packages/*/package.json', { cwd: root })
+const manifests = packageFiles('package.json')
   .map((file) => ({ file, json: JSON.parse(read(file)) }))
   .sort((a, b) => a.json.name.localeCompare(b.json.name));
 const published = manifests.filter((m) => !m.json.private);
@@ -166,11 +168,11 @@ test('neither llms.txt nor README.md claims a package is on npm when it is not',
    * then caught offline, deterministically, by the tree itself.
    */
   const publishable = new Set(
-    readdirSync(new URL('../packages', import.meta.url)).filter((name) => {
-      const manifest = new URL(`../packages/${name}/package.json`, import.meta.url);
-      if (!existsSync(manifest)) return false;
-      return JSON.parse(readFileSync(manifest, 'utf8')).private !== true;
-    })
+    /** The short names of the publishable `@verajs/*` packages, read from each manifest's own name at any depth. */
+    packageDirs()
+      .map((dir) => JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), 'utf8')))
+      .filter((json) => json.private !== true && json.name.startsWith('@verajs/'))
+      .map((json) => json.name.slice('@verajs/'.length))
   );
   assert.ok(publishable.size >= 5, `only ${publishable.size} publishable packages found — the scan is broken, not the docs`);
 

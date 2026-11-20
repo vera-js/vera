@@ -1,0 +1,13 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": [
+    "src/**/*",
+    "../../core/src/**/*",
+    "../../renderer/src/**/*",
+    "../../styles/src/**/*",
+    "../../inserts/src/**/*",
+    "../../shared-utils/src/**/*",
+    "../../shared-types/src/**/*",
+    "../../hooks/*/src/**/*"
+  ]
+}

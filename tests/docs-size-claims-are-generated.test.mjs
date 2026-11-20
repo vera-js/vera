@@ -18,11 +18,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
 /** What this repo publishes, and therefore what a reader will act on. */
-const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { cwd: root }), ...globSync('packages/*/README.md', { cwd: root })];
+const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { cwd: root }), ...packageFiles('README.md')];
 
 /**
  * Figures that are **deltas**, not module sizes, so no bundle can generate them. Each is the cost of

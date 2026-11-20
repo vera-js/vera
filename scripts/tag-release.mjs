@@ -8,8 +8,9 @@
  * locally rather than by CI so that .github/workflows/release.yml can stay `contents: read` — see
  * docs/RELEASING.md. Existing tags are left alone, so re-running is safe.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { packageDirs } from './packages.mjs';
 
 const check = process.argv.includes('--check');
 const force = process.argv.includes('--force');
@@ -46,8 +47,8 @@ if (!check) {
 }
 
 const packages = [];
-for (const dir of readdirSync('packages')) {
-  const manifest = JSON.parse(readFileSync(`packages/${dir}/package.json`, 'utf8'));
+for (const dir of packageDirs()) {
+  const manifest = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8'));
   if (manifest.private) continue;
   packages.push({ dir, name: manifest.name, version: manifest.version });
 }
@@ -86,7 +87,7 @@ for (const { dir, name, version } of packages) {
     let tagged;
     try {
       tagged = JSON.parse(
-        execSync(`git show ${JSON.stringify(`${tag}^{commit}:packages/${dir}/package.json`)}`, {
+        execSync(`git show ${JSON.stringify(`${tag}^{commit}:${dir}/package.json`)}`, {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'ignore'],
         })

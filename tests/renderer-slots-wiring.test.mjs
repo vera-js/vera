@@ -5,7 +5,7 @@
  * renders. Miss either and the picture is identical and baffling: the slot shows its fallback while
  * any content the host was given for it sits beside the component as stray markup, with nothing
  * said. The conditional phrasing is load-bearing — a component that consumes its own children and
- * also declares slots (`@verajs/ui`'s select) warns with nothing stray on the page at all, and the
+ * also declares slots (`@vera-components/select`'s select) warns with nothing stray on the page at all, and the
  * message must not send that reader hunting for markup that is not there.
  *
  * 1. Never wired at all.

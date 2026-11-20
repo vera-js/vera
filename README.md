@@ -116,7 +116,7 @@ wire([renderer, slots]);            // the whole setup
 
 **The same component template works in either mode** — the only difference is whether it attaches a
 shadow root — so one component can offer both and let its user pick (`<vera-select light>` in
-`examples/ui-select/` is the worked example). And in light mode the distributed nodes stay
+`examples/select/` is the worked example). And in light mode the distributed nodes stay
 ordinary page nodes: your stylesheet reaches them, `querySelector` finds them, devtools shows them
 where you expect.
 

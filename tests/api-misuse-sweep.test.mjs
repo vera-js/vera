@@ -14,11 +14,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
-import { globSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calls } from './source-calls.mjs';
 import { buildSync } from 'esbuild';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -250,7 +251,7 @@ test('every by-name guard in the source is exercised above', async () => {
   assert.ok(LIST_LINES.size >= 10, `CONTROL: tests/cms-list-lines exercises ${LIST_LINES.size} list codes`);
   const guards = new Set();
   const codes = new Set();
-  for (const file of globSync('packages/*/src/**/*.{ts,js}', { cwd: root })) {
+  for (const file of packageFiles('src/**/*.{ts,js}')) {
     if (file.endsWith('.d.ts')) continue;
     const text = readFileSync(join(root, file), 'utf8');
     for (const match of text.matchAll(/`([a-zA-Z]+): expected /g)) guards.add(match[1]);

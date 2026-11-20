@@ -26,6 +26,8 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 
 /** Bare specifier -> the bundle name `tests/dist.mjs` resolves. */
 const PACKAGES = {
+  '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
+  '@vera-hooks/listbox': 'vera-hooks/listbox',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -57,11 +59,10 @@ const PACKAGES = {
   /** Unpublished (`private: true` until its audits land), but its READMEs and the autoloader's
    *  lazy-directive recipe are in this repository and a reader will act on them. */
   '@verajs/directives': 'directives',
-  '@verajs/hooks': 'hooks',
   '@verajs/hot': 'hot',
   '@verajs/hot/vite': 'hot/vite',
-  '@verajs/ui': 'ui',
-  '@verajs/ui/elements': 'ui/elements',
+  '@vera-components/select': 'vera-components/select',
+  '@vera-components/select/elements': 'vera-components/select/elements',
   '@verajs/cms/content': 'cms/content',
   '@verajs/cms/publish': 'cms/publish',
 };
@@ -107,7 +108,12 @@ test('every documented @verajs import names a real export', () => {
   const problems = [];
   for (const file of docs) {
     const text = readFileSync(file, 'utf8');
-    for (const [, names, specifier] of text.matchAll(/import \{([^}]+)\} from '(@verajs\/[^']+)'/g)) {
+    /** A bare `import '…'` (a component's registering entry) names no export, but its package must exist. */
+    for (const [, specifier] of text.matchAll(/import '(@(?:verajs|vera-components|vera-hooks)\/[^']+)'/g))
+      if (!exportsOf[specifier] && !(specifier in PACKAGES) && !SOURCE_PACKAGES.includes(specifier))
+        problems.push(`${file}: no such package "${specifier}"`);
+    /** The three scopes: the framework's, and the components' and hooks' (2026-11-21). */
+    for (const [, names, specifier] of text.matchAll(/import \{([^}]+)\} from '(@(?:verajs|vera-components|vera-hooks)\/[^']+)'/g)) {
       const module = exportsOf[specifier];
       /** An unknown specifier is itself a finding — a documented package that does not exist. */
       if (!module) {

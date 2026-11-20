@@ -11,13 +11,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 /** Every specifier whose exports entry carries a `node` condition: `@verajs/jsx`, `@verajs/jsx/…`. */
 const withNode = [];
 let manifests = 0;
-for (const file of globSync('packages/*/package.json', { cwd: root })) {
+for (const file of packageFiles('package.json')) {
   manifests++;
   const { name, exports } = JSON.parse(readFileSync(root + file, 'utf8'));
   if (!exports || typeof exports !== 'object') continue;

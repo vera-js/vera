@@ -16,8 +16,11 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { transformSync } from 'esbuild';
+import { ROOT, packageDirs } from '../scripts/packages.mjs';
 
-const root = new URL('../packages/', import.meta.url).pathname;
+/** Every package, nested ones included, by its path under `packages/` (`core`, `hooks/light-dismiss`). */
+const PACKAGES = packageDirs().map((dir) => dir.slice('packages/'.length));
+const root = `${ROOT}packages/`;
 const walk = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : []));
 const writes = new Map();
@@ -29,7 +32,7 @@ const add = (map, name, pkg) => (map.get(name) ?? map.set(name, new Set()).get(n
 const SIGIL = '_\\$[A-Za-z]+\\$';
 const WRITE = new RegExp(`\\.(${SIGIL})\\s*(?:=(?!=)|\\?\\?=)|[{,]\\s*(${SIGIL})\\s*:|\\[['"](${SIGIL})['"]\\]\\s*(?:=(?!=)|:)`, 'g');
 const READ = new RegExp(`\\.(${SIGIL})|\\[['"](${SIGIL})['"]\\]`, 'g');
-for (const pkg of readdirSync(root)) {
+for (const pkg of PACKAGES) {
   if (!existsSync(join(root, pkg, 'src'))) continue;
   for (const file of walk(join(root, pkg, 'src'))) {
     const code = emitted(file);
@@ -45,7 +48,7 @@ for (const pkg of readdirSync(root)) {
  */
 const RETIRED = ['_gen', '_hooks', '_hookPriorities', '_root', '_cleanups', '_removed', '_doc', '_moved', '_setup'];
 const retired = [];
-for (const pkg of readdirSync(root)) {
+for (const pkg of PACKAGES) {
   if (!existsSync(join(root, pkg, 'src'))) continue;
   for (const file of walk(join(root, pkg, 'src'))) {
     const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -99,11 +102,11 @@ const SHARED = {
    */
   _$r$: ['core', 'lite', 'static'],
   /**
-   * The release-on-unmount Set for OTHER packages' cleanups — @verajs/hooks' useDismiss, ui's select — created by the
+   * The release-on-unmount Set for OTHER packages' cleanups — @vera-hooks/light-dismiss' lightDismiss, select's element — created by the
    * first one through `??=`. Core only READS and drains it at removal: its own effects keep their cleanups on their hooks
    * (2026-10-11), so core no longer writes it.
    */
-  _$c$: ['hooks', 'ui'],
+  _$c$: ['components/select', 'hooks/light-dismiss'],
   /**
    * The template-result protocol (lit's interop name): core's tags, `@verajs/lite`'s and `@verajs/static`'s own tags and
    * the renderer's `tag()` build the same shape. Lite's and static's are copies of core's on purpose — shared, core's

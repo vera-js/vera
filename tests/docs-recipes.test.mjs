@@ -32,6 +32,9 @@ const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const blocks = [...README.matchAll(/```(\w+)\n([\s\S]*?)```/g)].map(([, lang, body]) => ({ lang, body }));
 
 const PACKAGES = {
+  '@vera-components/select': 'vera-components/select',
+  '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
+  '@vera-hooks/listbox': 'vera-hooks/listbox',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -85,14 +88,18 @@ const resolveImports = (code, generation) =>
    * `[a-z/-]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too — and hyphenated ones
    * (`native-elements`, `hydrate-slots`): `[a-z/]` left the first recipe importing one bare (2026-10-21).
    */
-  code.replace(/from ['"](@verajs\/[a-z/-]+)['"]/g, (whole, spec) => {
+  /**
+   * The three scopes, and the bare `import '…'` form too: a component's recipe imports its registering entry for its
+   * side effect, and left bare it resolved nothing from the recipe's temporary directory (2026-11-21).
+   */
+  code.replace(/\b(from|import) ['"](@(?:verajs|vera-components|vera-hooks)\/[a-z0-9/-]+)['"]/g, (whole, keyword, spec) => {
     /**
      * An unmapped specifier used to be left bare, which a `data:` module cannot resolve — so a new
      * entry appearing in a recipe failed with `ERR_UNSUPPORTED_RESOLVE_REQUEST` and a base64 blob,
      * naming neither the file nor the missing map entry. Saying it plainly costs one line.
      */
     if (!PACKAGES[spec]) throw new Error(`tests/docs-recipes: add "${spec}" to PACKAGES to run a recipe that imports it`);
-    return `from '${distUrl(PACKAGES[spec], generation === null ? '' : `?recipe=${generation}`)}'`;
+    return `${keyword} '${distUrl(PACKAGES[spec], generation === null ? '' : `?recipe=${generation}`)}'`;
   });
 
 let generation = 0;
@@ -217,11 +224,12 @@ test('the multi-module CDN snippet hands the router core\u2019s registry', () =>
  */
 import { globSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
 
 const repoRoot = new URL('..', import.meta.url).pathname;
-const readmes = ['README.md', ...globSync('packages/*/README.md').sort()];
+const readmes = ['README.md', ...packageFiles('README.md').sort()];
 /**
  * **`llms.txt` is executed here too, and it was not.**
  *
@@ -246,6 +254,7 @@ const recipes = recipeSources.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/components/select/README.md': 1, // the move into packages/components (2026-11-21) gave select its first recipe
   /** Newly runnable: the runner had no `MutationObserver` and executed recipes as `data:` URLs, so
    * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
    * quick start is executed rather than merely printed. */
@@ -287,7 +296,7 @@ test('no recipe marker sits outside the files that execute them', () => {
     ...globSync('*.md', { cwd: repoRoot }),
     ...globSync('*.txt', { cwd: repoRoot }),
     ...globSync('docs/**/*.md', { cwd: repoRoot }),
-    ...globSync('packages/*/README.md', { cwd: repoRoot }),
+    ...packageFiles('README.md'),
     ...globSync('examples/**/*.md', { cwd: repoRoot }),
   ];
 

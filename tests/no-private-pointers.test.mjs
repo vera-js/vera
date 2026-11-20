@@ -11,8 +11,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { comments } from './source-comments.mjs';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const POINTER = /\b[BCDGQRT]\d{1,2}[a-z]?\b(?![-.]\d)|\bvera-[0-9a-f]{2}\b|\.probe\/|\binternal\/|\bDESIGN-[A-Z]|\bOption \([a-z]\)|\bPROBE \(|\bStep \d+ \(/g;
 /** The real words the pattern also matches: Unicode's C0 and C1 control sets. File, then the exact comment line. */
@@ -44,7 +45,7 @@ test('CONTROL: planted pointers are found, after a regex and a template too; cod
 
 test('no package source comment holds a private pointer', () => {
   const hits = [];
-  const files = globSync('packages/*/src/**/*.ts');
+  const files = packageFiles('src/**/*.ts');
   let read = 0;
   for (const file of files) {
     const text = readFileSync(file, 'utf8');

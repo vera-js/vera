@@ -1,8 +1,8 @@
 /**
- * The behavior controllers, against the built artifacts on a minimal host — no @verajs/ui
+ * The behavior controllers, against the built artifacts on a minimal host — no @vera-components/select
  * involved, because the whole point of the layer is that someone can build their own select on
  * it. Dismissal contracts and the keyboard model's edges live here; the styled element's suite
- * (`ui-select`) exercises the same controller through real markup.
+ * (`select`) exercises the same controller through real markup.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -21,7 +21,8 @@ for (const key of [
 }
 
 const { init } = await load('core');
-const { useDismiss, useSelect } = await load('hooks');
+const { lightDismiss } = await load('vera-hooks/light-dismiss');
+const { listbox } = await load('vera-hooks/listbox');
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
 /** A bare init()'d host — enough lifecycle for the hooks, no renderer needed. */
@@ -38,12 +39,12 @@ const OPTIONS = [
   { label: 'Gamma', value: 'g', disabled: true },
 ];
 
-// ── useDismiss ──────────────────────────────────────────────────────────────────────────────────
+// ── lightDismiss ──────────────────────────────────────────────────────────────────────────────────
 
-test('useDismiss: outside pointerdown dismisses, inside does not, Escape passes its event', () => {
+test('lightDismiss: outside pointerdown dismisses, inside does not, Escape passes its event', () => {
   const element = host();
   const calls = [];
-  const dismiss = useDismiss(element, (event) => calls.push(event ? 'escape' : 'outside'));
+  const dismiss = lightDismiss(element, (event) => calls.push(event ? 'escape' : 'outside'));
 
   dom.window.document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }));
   assert.deepEqual(calls, [], 'inert until activated');
@@ -69,7 +70,7 @@ test('useDismiss: outside pointerdown dismisses, inside does not, Escape passes 
  * host, so a naive `element.contains(event.target)` calls the element's own clicks outside and
  * dismisses on them. `composedPath()` still carries the real path.
  */
-test('useDismiss: own presses through a shadow boundary are not outside', () => {
+test('lightDismiss: own presses through a shadow boundary are not outside', () => {
   const wrapper = dom.window.document.createElement('div');
   dom.window.document.body.append(wrapper);
   const root = wrapper.attachShadow({ mode: 'open' });
@@ -79,7 +80,7 @@ test('useDismiss: own presses through a shadow boundary are not outside', () => 
   root.append(element);
 
   const calls = [];
-  useDismiss(element, () => calls.push('dismiss')).activate();
+  lightDismiss(element, () => calls.push('dismiss')).activate();
 
   innerButton.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true, composed: true }));
   assert.deepEqual(calls, [], 'a press on the element, retargeted by the boundary, is still inside');
@@ -89,10 +90,10 @@ test('useDismiss: own presses through a shadow boundary are not outside', () => 
   wrapper.remove();
 });
 
-test('useDismiss: unmount releases the document listeners through the _cleanups contract', () => {
+test('lightDismiss: unmount releases the document listeners through the _cleanups contract', () => {
   const element = host();
   const calls = [];
-  useDismiss(element, () => calls.push('dismiss')).activate();
+  lightDismiss(element, () => calls.push('dismiss')).activate();
 
   /** init() drains _cleanups on disconnect — the release-on-unmount contract. */
   element.remove();
@@ -101,12 +102,12 @@ test('useDismiss: unmount releases the document listeners through the _cleanups 
   assert.deepEqual(calls, [], 'a removed component strands no document listener');
 });
 
-// ── useSelect ───────────────────────────────────────────────────────────────────────────────────
+// ── listbox ───────────────────────────────────────────────────────────────────────────────────
 
 test('single mode: pick commits, reports, and closes; disabled options never pick', () => {
   const element = host();
   const seen = [];
-  const select = useSelect(element, { onChange: (value) => seen.push(value.map((o) => o.value)) });
+  const select = listbox(element, { onChange: (value) => seen.push(value.map((o) => o.value)) });
   select.state.options = OPTIONS;
 
   select.open();
@@ -121,7 +122,7 @@ test('single mode: pick commits, reports, and closes; disabled options never pic
 
 test('multi mode: pick toggles membership and the menu stays open', () => {
   const element = host();
-  const select = useSelect(element, { multi: () => true });
+  const select = listbox(element, { multi: () => true });
   select.state.options = OPTIONS;
   select.open();
 
@@ -136,7 +137,7 @@ test('multi mode: pick toggles membership and the menu stays open', () => {
 
 test('the keyboard walk wraps and skips disabled rows in both directions', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.state.options = OPTIONS; // Gamma (index 2) is disabled
 
   select.step(1);
@@ -149,7 +150,7 @@ test('the keyboard walk wraps and skips disabled rows in both directions', () =>
 
 test('search narrows matches and Escape-driven dismissal clears it', async () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.state.options = OPTIONS;
   select.open();
   select.state.search = 'bet';
@@ -157,13 +158,13 @@ test('search narrows matches and Escape-driven dismissal clears it', async () =>
 
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
   await frame();
-  assert.equal(select.state.open, false, 'Escape closed through useDismiss');
+  assert.equal(select.state.open, false, 'Escape closed through lightDismiss');
   assert.equal(select.state.search, '', 'closing resets the filter');
 });
 
 test('re-slotting a trigger away and back never double-wires it', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.state.options = OPTIONS;
   const a = dom.window.document.createElement('button');
   const b = dom.window.document.createElement('button');
@@ -176,7 +177,7 @@ test('re-slotting a trigger away and back never double-wires it', () => {
 
 test('a disabled row never takes the hover highlight', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.state.options = OPTIONS; // Gamma (index 2) disabled
   select.state.active = 0;
   const row = dom.window.document.createElement('div');
@@ -194,7 +195,7 @@ test('a disabled row never takes the hover highlight', () => {
 
 test('attach stamps an assigned trigger immediately — not on the next state change', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.state.options = OPTIONS;
   select.state.value = [OPTIONS[0]];
 
@@ -216,7 +217,7 @@ test('attach stamps an assigned trigger immediately — not on the next state ch
 
 test('AUDIT — a pointer open highlights nothing; keyboard opens highlight selected-or-first', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.setOptions(OPTIONS);
 
   select.handlers.onTriggerClick();
@@ -234,7 +235,7 @@ test('AUDIT — a pointer open highlights nothing; keyboard opens highlight sele
 
 test('AUDIT — the highlight clears when the pointer leaves the list; travel re-enters sanely', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.setOptions(OPTIONS);
   select.open();
   select.handlers.onListLeave();
@@ -251,7 +252,7 @@ test('AUDIT — the highlight clears when the pointer leaves the list; travel re
 
 test('AUDIT — Space selects the active option like Enter; warm typeahead keeps it a character', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.setOptions(OPTIONS);
   select.open();
   const space = new dom.window.KeyboardEvent('keydown', { key: ' ', cancelable: true });
@@ -270,7 +271,7 @@ test('AUDIT — Space selects the active option like Enter; warm typeahead keeps
 
 test('AUDIT — Space inside the search input types; Space with no active row only guards the page', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.setOptions(OPTIONS);
   select.open();
   const input = dom.window.document.createElement('input');
@@ -291,7 +292,7 @@ test('AUDIT — Space inside the search input types; Space with no active row on
 
 test('AUDIT — the disabled-highlight invariant holds at EVERY door: Home, End, refresh, filter', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   const EDGED = [
     { label: 'Gate', value: 'g', disabled: true },
     { label: 'Alpha', value: 'a' },
@@ -322,7 +323,7 @@ test('AUDIT — the disabled-highlight invariant holds at EVERY door: Home, End,
 test('AUDIT — End reaches the create row; activate there creates', () => {
   const element = host();
   let made = '';
-  const select = useSelect(element, { creatable: () => true, onCreate: (label) => (made = label) });
+  const select = listbox(element, { creatable: () => true, onCreate: (label) => (made = label) });
   select.setOptions([{ label: 'Alpha', value: 'a' }]);
   select.open();
   select.state.search = 'delta';
@@ -333,7 +334,7 @@ test('AUDIT — End reaches the create row; activate there creates', () => {
 
 test('AUDIT — a selection made before its option existed upgrades its label when options arrive', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.state.value = [{ label: 'b', value: 'b' }]; // placeholder label = raw value (pre-options)
   select.setOptions([{ label: 'Alpha', value: 'a' }, { label: 'Beta', value: 'b' }]);
   assert.equal(select.state.value[0].label, 'Beta', 'placeholder label upgraded to the real one');
@@ -342,7 +343,7 @@ test('AUDIT — a selection made before its option existed upgrades its label wh
 
 test('AUDIT — a selection whose option is absent from the new set keeps its cached label (remote)', () => {
   const element = host();
-  const select = useSelect(element, { remote: () => true });
+  const select = listbox(element, { remote: () => true });
   select.setOptions([{ label: 'Server B', value: 'b' }]);
   select.state.value = [{ label: 'Server B', value: 'b' }];
   select.setOptions([{ label: 'Other', value: 'z' }]); // b gone from the list
@@ -351,7 +352,7 @@ test('AUDIT — a selection whose option is absent from the new set keeps its ca
 
 test('AUDIT — repeated-letter typeahead cycles; a genuine prefix refines in place', () => {
   const element = host();
-  const select = useSelect(element, {});
+  const select = listbox(element, {});
   select.setOptions([{ label: 'Apple', value: 'a' }, { label: 'Cranberry', value: 'cr' }, { label: 'Cherry', value: 'ch' }]);
   select.open();
   const type = (ch) => select.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: ch, cancelable: true }));
@@ -362,7 +363,7 @@ test('AUDIT — repeated-letter typeahead cycles; a genuine prefix refines in pl
 
   // a real prefix narrows without cycling
   const el2 = host();
-  const s2 = useSelect(el2, {});
+  const s2 = listbox(el2, {});
   s2.setOptions([{ label: 'Cranberry', value: 'cr' }, { label: 'Cherry', value: 'ch' }]);
   s2.open();
   const t2 = (ch) => s2.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: ch, cancelable: true }));
@@ -371,7 +372,7 @@ test('AUDIT — repeated-letter typeahead cycles; a genuine prefix refines in pl
 
   // repeated cycling skips a disabled match
   const el3 = host();
-  const s3 = useSelect(el3, {});
+  const s3 = listbox(el3, {});
   s3.setOptions([{ label: 'Cat', value: '1' }, { label: 'Cab', value: '2', disabled: true }, { label: 'Car', value: '3' }]);
   s3.open();
   const t3 = (ch) => s3.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: ch, cancelable: true }));

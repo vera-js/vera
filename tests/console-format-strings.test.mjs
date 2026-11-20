@@ -12,10 +12,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -69,7 +70,7 @@ test('every multi-argument console call passes %s first, or starts with a plain 
   const unsafe = [];
   const exempted = new Map();
   let multi = 0;
-  for (const file of globSync('packages/*/src/**/*.ts', { cwd: root })) {
+  for (const file of packageFiles('src/**/*.ts')) {
     const text = readFileSync(root + file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/^\s*\/\/.*$/gm, '');
     for (const match of text.matchAll(/console\.(?:log|info|warn|error|debug)\(/g)) {
       const end = closing(text, match.index + match[0].length);

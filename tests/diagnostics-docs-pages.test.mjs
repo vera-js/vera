@@ -7,11 +7,12 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const tables = globSync('packages/*/diagnostics.json', { cwd: root }).map((file) => [file, JSON.parse(readFileSync(root + file, 'utf8'))]);
+const tables = packageFiles('diagnostics.json').map((file) => [file, JSON.parse(readFileSync(root + file, 'utf8'))]);
 
 test('every diagnostics.json names the one docs address', () => {
   assert.ok(tables.length >= 5, `CONTROL: found ${tables.length} tables`);

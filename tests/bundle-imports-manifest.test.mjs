@@ -13,6 +13,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { init, parse } from 'es-module-lexer';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));
 await init;
@@ -23,13 +24,13 @@ const KNOWN_UNDECLARED = {};
 const bundles = (dir, pattern) => (existsSync(dir) ? readdirSync(dir).filter((f) => pattern.test(f)).map((f) => join(dir, f)) : []);
 /** The `@verajs` packages a bundle imports (static and dynamic), by package name. */
 const veraImports = (file) =>
-  parse(readFileSync(file, 'utf8'))[0].map((i) => i.n).filter((n) => n?.startsWith('@verajs/')).map((n) => n.split('/').slice(0, 2).join('/'));
+  parse(readFileSync(file, 'utf8'))[0].map((i) => i.n).filter((n) => /^@(?:verajs|vera-components|vera-hooks)\//.test(n ?? '')).map((n) => n.split('/').slice(0, 2).join('/'));
 
-const packages = readdirSync(ROOT).filter((dir) => existsSync(join(ROOT, dir, 'package.json'))).map((dir) => {
+const packages = packageDirs().map((path) => path.slice('packages/'.length)).map((dir) => {
   const manifest = JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8'));
   const dev = bundles(join(ROOT, dir, 'dist/development'), /\.js$/);
   const prod = bundles(join(ROOT, dir, 'dist'), /\.min\.js$/);
-  const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})].filter((n) => n.startsWith('@verajs/')));
+  const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})].filter((n) => /^@(?:verajs|vera-components|vera-hooks)\//.test(n)));
   const own = (files) => new Set(files.flatMap(veraImports).filter((n) => n !== manifest.name));
   return { dir, name: manifest.name, declared, dev, prod, devImports: own(dev), prodImports: own(prod) };
 }).filter((p) => p.dev.length + p.prod.length > 0);

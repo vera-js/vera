@@ -16,15 +16,16 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { walkFiles, readIfPresent } from './walk.mjs';
+import { packageDirs } from '../scripts/packages.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
 const versions = {};
-for (const entry of readdirSync(join(root, 'packages'))) {
-  const file = join(root, 'packages', entry, 'package.json');
+for (const dir of packageDirs()) {
+  const file = join(root, dir, 'package.json');
   try {
     const pkg = JSON.parse(readFileSync(file, 'utf8'));
     if (!pkg.private) versions[pkg.name] = pkg.version;

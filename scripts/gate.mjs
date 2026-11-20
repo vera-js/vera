@@ -56,12 +56,12 @@ const steps = [
    *  server emits. Needs the development condition like every fixture script. */
   ['motion fixture', 'node', ['--conditions', 'development', 'scripts/build-motion-fixture.mjs', '--check']],
   /**
-   * @verajs/ui's surface contract: custom-elements.json must match the declared surfaces
+   * @vera-components/select's surface contract: custom-elements.json must match the declared surfaces
    * (`src/x/surface.ts`) — a component API change without its manifest diff refuses here, which
    * is what makes the manifest a gate rather than a promise. The runtime half (rendered DOM
    * matches the declaration) lives in tests/ui-surface.test.mjs.
    */
-  ['ui manifest', 'node', ['packages/ui/scripts/generate-manifest.mjs', '--check']],
+  ['ui manifest', 'node', ['packages/components/select/scripts/generate-manifest.mjs', '--check']],
   ['node (development)', 'npm', ['test']],
   ['node (production)', 'npm', ['run', 'test:prod']],
   /** The NODE builds — what Node and Vite load through a `node` export condition (minified, __DEV__ true): jsx's

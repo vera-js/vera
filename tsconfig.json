@@ -30,6 +30,18 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-components/select": [
+        "./packages/components/select/src/index.ts"
+      ],
+      "@vera-components/select/elements": [
+        "./packages/components/select/src/elements.ts"
+      ],
+      "@vera-hooks/listbox": [
+        "./packages/hooks/listbox/src/index.ts"
+      ],
+      "@vera-hooks/light-dismiss": [
+        "./packages/hooks/light-dismiss/src/index.ts"
+      ],
       "@verajs/autoloader": [
         "./packages/autoloader/src/index.ts"
       ],
@@ -54,9 +66,6 @@
       "@verajs/motion/internal": [
         "./packages/motion/src/internal-entry.ts"
       ],
-      "@verajs/hooks": [
-        "./packages/hooks/src/index.ts"
-      ],
       "@verajs/hot": [
         "./packages/hot/src/index.ts"
       ],
@@ -65,12 +74,6 @@
       ],
       "@verajs/static": [
         "./packages/static/src/index.ts"
-      ],
-      "@verajs/ui": [
-        "./packages/ui/src/index.ts"
-      ],
-      "@verajs/ui/elements": [
-        "./packages/ui/src/elements.ts"
       ],
       "@verajs/renderer": [
         "./packages/renderer/src/index.ts"
