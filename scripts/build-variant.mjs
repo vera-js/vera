@@ -12,6 +12,7 @@
  * back exactly as it was, so the build cache still describes it. Restoring the SOURCE is the caller's.
  */
 import { execFileSync, execSync } from 'node:child_process';
+import { npmCommand } from './npm.mjs';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -48,7 +49,7 @@ const { prod, dev } = bundles();
 const saved = new Map(files().map((f) => [f, readFileSync(join(dist, f))]));
 const before = { prod: hashes(prod), dev: hashes(dev) };
 
-const build = (mode) => execFileSync('npx', ['rollup', '-c', '--silent'], { cwd: dir, env: { ...process.env, ...(mode ? { MODE: mode } : {}) }, stdio: 'pipe' });
+const build = (mode) => execFileSync(...npmCommand('npx', ['rollup', '-c', '--silent']), { cwd: dir, env: { ...process.env, ...(mode ? { MODE: mode } : {}) }, stdio: 'pipe' });
 /** Held until dist is put back and checked, so a refusal or a failed build still proves the restore. */
 let failure;
 try {

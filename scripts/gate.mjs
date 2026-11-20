@@ -12,6 +12,7 @@
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { npmCommand } from './npm.mjs';
 import { join } from 'node:path';
 import { heavyBatch } from './heavy-batch.mjs';
 
@@ -110,7 +111,9 @@ for (const [name, command, args] of steps) {
    * (1.05 MB) got the step KILLED mid-run, and its log simply stopped, with no summary and no cause. A spawn error is
    * printed as the step's first line, so a killed or unstartable step names why.
    */
-  const run = spawnSync(command, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  /** npm and npx through `npmCommand`, which Windows needs (`scripts/npm.mjs`); everything else as named. */
+  const [file, argv] = command === 'npm' || command === 'npx' ? npmCommand(command, args) : [command, args];
+  const run = spawnSync(file, argv, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   if (run.status === 0) {
     console.log('✓');
     continue;

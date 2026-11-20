@@ -14,6 +14,7 @@
  * bytecode and fail there; they pass in the plain suite. Those two failures are expected here, any other is not.
  */
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { npmCommand } from './npm.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -68,7 +69,7 @@ if (process.argv.includes('--self-check')) {
 heavyBatch('coverage-floor')();
 const dir = mkdtempSync(join(tmpdir(), 'vera-coverage-floor-'));
 try {
-  const run = spawnSync('npm', ['run', 'test:prod'], { cwd: root, env: { ...process.env, NODE_V8_COVERAGE: dir }, encoding: 'utf8', maxBuffer: 1 << 28 });
+  const run = spawnSync(...npmCommand('npm', ['run', 'test:prod']), { cwd: root, env: { ...process.env, NODE_V8_COVERAGE: dir }, encoding: 'utf8', maxBuffer: 1 << 28 });
   const failing = [...(run.stdout ?? '').matchAll(/^test at tests\/([^:]+):/gm)].map((m) => m[1]);
   const unexpected = [...new Set(failing)].filter((f) => !COVERAGE_ONLY_FAILURES.includes(f) && f !== 'ssr-parse-differential.test.mjs');
   const text = readFileSync(BUNDLE, 'utf8');

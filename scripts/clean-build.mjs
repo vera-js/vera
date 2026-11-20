@@ -17,27 +17,15 @@
  * neither is a build in ANOTHER tree (a worktree, the main checkout): wireit's lock is per tree, so only a process whose
  * working directory is inside this one counts (2026-10-09).
  */
-import { execSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { globSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { buildProcesses } from './build-processes.mjs';
+import { npmCommand } from './npm.mjs';
 import { packageFiles } from './packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-
-/** A process's working directory, or null once it has gone. */
-const cwdOf = (pid) => {
-  try {
-    return execSync(`lsof -a -p ${pid} -d cwd -Fn`, { encoding: 'utf8' }).split('\n').find((line) => line.startsWith('n'))?.slice(1) ?? null;
-  } catch {
-    return null;
-  }
-};
-const inTree = (dir) => dir !== null && (dir + '/').startsWith(root);
-const builds = execSync('ps -Ao pid,lstart,command', { encoding: 'utf8' })
-  .split('\n')
-  .slice(1)
-  .filter((row) => /\b(wireit|rollup)\b/.test(row) && !/\.vscode|extensions\/|clean-build\.mjs/.test(row))
-  .filter((row) => inTree(cwdOf(row.trim().split(/\s+/)[0])));
+const builds = buildProcesses(root);
 if (builds.length) {
   console.error('A wireit or rollup process is alive — another build, or one a killed build orphaned:\n');
   console.error(builds.map((row) => `  ${row.trim().slice(0, 160)}`).join('\n'));
@@ -55,6 +43,6 @@ for (const path of cleared) rmSync(root + path, { recursive: true, force: true }
 console.log(`cleared ${cleared.length} build directories`);
 
 const started = Date.now();
-const build = spawnSync('npm', ['run', 'build'], { cwd: root, stdio: 'inherit' });
+const build = spawnSync(...npmCommand('npm', ['run', 'build']), { cwd: root, stdio: 'inherit' });
 console.log(`clean build: exit ${build.status}, ${((Date.now() - started) / 1000).toFixed(0)} s`);
 process.exit(build.status ?? 1);

@@ -18,6 +18,7 @@
  * all. `ref` shipped returning `{ value: T } | { value: { value: T } }` for exactly that long.
  */
 import { execFileSync } from 'node:child_process';
+import { npmCommand } from './npm.mjs';
 import { packageFiles } from './packages.mjs';
 
 /**
@@ -50,7 +51,7 @@ for (const config of configs) {
           ? 'consumer TSX (shipped .d.ts + JSX namespace)'
         : config.split('/')[1];
   try {
-    execFileSync('npx', ['tsc', '--noEmit', '-p', config], { encoding: 'utf8', stdio: 'pipe' });
+    execFileSync(...npmCommand('npx', ['tsc', '--noEmit', '-p', config]), { encoding: 'utf8', stdio: 'pipe' });
     console.log(`  ✓ ${pkg}`);
   } catch (error) {
     failed++;
