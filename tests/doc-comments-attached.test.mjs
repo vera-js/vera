@@ -22,8 +22,8 @@ import { packageFiles } from '../scripts/packages.mjs';
 
 /** Each package's detached doc comments today (2026-11-12): lower a pin when its package clears some, never raise one. */
 const PINS = {
-  core: 0, autoloader: 6, cms: 3, directives: 10, hooks: 1, inserts: 4, jsx: 11, motion: 42, renderer: 33, router: 11,
-  'shared-utils': 6, ssr: 36, store: 3, styles: 1, ui: 3,
+  core: 0, autoloader: 6, cms: 3, directives: 10, listbox: 1, inserts: 4, jsx: 11, motion: 42, renderer: 33, router: 11,
+  'shared-utils': 6, ssr: 36, store: 3, styles: 1, select: 3,
 };
 
 /** The line of every detached doc comment in `text`. */
@@ -65,7 +65,7 @@ test('no package has more detached doc comments than its pin, and none has fewer
   for (const pkg of new Set([...Object.keys(PINS), ...Object.keys(counts)])) {
     const count = counts[pkg] ?? 0;
     const pin = PINS[pkg] ?? 0;
-    const list = where.filter((w) => w.startsWith(`packages/${pkg}/`)).join('\n  ');
+    const list = where.filter((w) => w.slice(0, w.indexOf('/src/')).split('/').at(-1) === pkg).join('\n  ');
     assert.ok(count <= pin, `${pkg}: ${count} detached doc comment(s), above its pin of ${pin}:\n  ${list}`);
     assert.ok(count >= pin, `${pkg}: ${count} detached doc comment(s), below its pin of ${pin}: lower the pin in PINS`);
   }

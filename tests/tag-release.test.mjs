@@ -27,6 +27,7 @@ const repo = (version = '1.0.0') => {
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'Test');
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ private: true, workspaces: ['packages/*'] }));
   mkdirSync(join(dir, 'packages/thing'), { recursive: true });
   mkdirSync(join(dir, 'packages/secret'), { recursive: true });
   writeFileSync(join(dir, 'packages/thing/package.json'), JSON.stringify({ name: '@x/thing', version }));

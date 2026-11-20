@@ -10,6 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { sep } from 'node:path';
 import { packageDirs } from './packages.mjs';
 
 const check = process.argv.includes('--check');
@@ -47,7 +48,8 @@ if (!check) {
 }
 
 const packages = [];
-for (const dir of packageDirs()) {
+/** The packages of the repository being tagged — the working directory's — never this script's own checkout. */
+for (const dir of packageDirs(process.cwd() + sep)) {
   const manifest = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8'));
   if (manifest.private) continue;
   packages.push({ dir, name: manifest.name, version: manifest.version });
