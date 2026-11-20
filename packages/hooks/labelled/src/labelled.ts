@@ -80,10 +80,16 @@ const taken = (root: Node, id: string): boolean => {
   return scope.id === id || scope.querySelector?.(`[id="${id}"]`) != null;
 };
 
-/** Whether a control has an accessible name by one of the shapes this hook can see. The rest are never judged. */
-const named = (control: Element): boolean =>
+/**
+ * Whether a control has an accessible name by one of the shapes this hook can see. The rest are never judged.
+ *
+ * A `label[for]` is found by comparing each label's `for` with the id, not through `control.labels`: the server's DOM has
+ * no `labels`, and it warned about every labelled control rendered there (a jsdom/ssr differential, 2026-11-20). One
+ * comparison also needs no selector escaping for a hostile id.
+ */
+const named = (control: Element, root: Node): boolean =>
   ['aria-label', 'aria-labelledby', 'title'].some((name) => control.hasAttribute(name)) ||
-  ((control as HTMLInputElement).labels?.length ?? 0) > 0 ||
+  (labelable(control) && control.id !== '' && [...((root as ParentNode).querySelectorAll?.('label[for]') ?? [])].some((label) => label.getAttribute('for') === control.id)) ||
   control.closest('label') !== null ||
   (control.localName === 'button' && (control.textContent ?? '').trim() !== '');
 
@@ -195,7 +201,7 @@ export const labelled = (control: Element, parts: LabelledParts): LabelledWiring
       if (token !== null) errors.set(error, token);
     }
 
-  if (__DEV__ && !named(control) && !marked[WARNED]) {
+  if (__DEV__ && !named(control, root) && !marked[WARNED]) {
     marked[WARNED] = true;
     console.warn(diagnostic('labelled', subject, 'labelled-unnamed', __DEV__ && PROSE['labelled-unnamed']()));
   }
