@@ -23,7 +23,7 @@ export interface ComponentElement extends HTMLElement {
    */
   _$g$?: number;
   /**
-   * Cleanups OTHER packages register for removal (`@verajs/hooks`' `useDismiss`, ui's select — created with `??=`), run
+   * Cleanups OTHER packages register for removal (`@vera-hooks/light-dismiss`' `lightDismiss`, `@vera-components/select` — created with `??=`), run
    * after the hooks' own, in registration order (see `init`'s `retireGeneration`). Core's effects keep theirs on the hook.
    */
   _$c$?: Set<HookCleanup>;

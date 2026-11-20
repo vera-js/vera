@@ -369,7 +369,7 @@ const resume = (element: Moving, timer: ReturnType<typeof setTimeout>) => {
 /**
  * **Retires a generation — the ONE place, for a removal and for a re-init alike.** Everything a generation owns ends
  * here, in one fixed order: its hooks leave every store they joined and run their last cleanups, in priority order
- * (`retire`); then the cleanups OTHER packages registered in `_$c$` (`@verajs/hooks`' `useDismiss`, ui's select) run in
+ * (`retire`); then the cleanups OTHER packages registered in `_$c$` (`@vera-hooks/light-dismiss`' `lightDismiss`, `@vera-components/select`) run in
  * the order they were registered. Each through `runCleanup`, so one that throws is reported and the rest still run. A
  * re-init that only replaced the hook lists would drop the first generation's cleanups, so an interval or listener
  * outlived its hooks (found 2026-10-10).
