@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-cem-fixture.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-cem-fixture",
+          "name": "VeraCemFixture",
+          "description": "A fixture element exported twice.",
+          "attributes": [],
+          "members": [],
+          "events": [],
+          "slots": [],
+          "cssParts": [],
+          "cssProperties": [],
+          "vera-states": [],
+          "vera-custom-states": []
+        }
+      ]
+    }
+  ]
+}

@@ -40,3 +40,10 @@ test('a committed manifest that disagrees with its surface is refused, naming th
   assert.equal(result.status, 1);
   assert.match(result.stderr, /out of date with the declared surfaces in: tests\/fixtures\/cem\/stale\./);
 });
+
+test('one surface exported under two names, or re-exported by another surface.ts, is one module', () => {
+  /** The fixture's committed manifest declares ONE module; a generator that counted names would write two and refuse. */
+  const result = run('tests/fixtures/cem/twice', '--check');
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, /Warning/, 'the fixture loads as a module, as every package does');
+});

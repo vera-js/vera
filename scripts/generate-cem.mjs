@@ -71,24 +71,29 @@ const manifestOf = async (dir) => {
   const files = globSync('src/**/surface.ts', { cwd: `${ROOT}${dir}` })
     .map((file) => file.split(sep).join('/'))
     .sort();
-  const surfaces = [];
+  /**
+   * By identity, across every file: one surface exported under two names (`export default xSurface` beside its named
+   * export) or re-exported by another surface.ts is one element, and would otherwise be two modules that generate and
+   * --check agree on.
+   */
+  const surfaces = new Set();
   for (const file of files) {
     const exports = await import(pathToFileURL(`${ROOT}${dir}/${file}`).href);
     for (const value of Object.values(exports))
       if (value && typeof value === 'object' && typeof value.tag === 'string') {
         if (typeof value.description !== 'string' || value.description.trim() === '')
           throw new Error(`${dir}/${file}: <${value.tag}> has an empty description; write what it is before its manifest is generated`);
-        surfaces.push(value);
+        surfaces.add(value);
       }
   }
-  if (surfaces.length === 0)
+  if (surfaces.size === 0)
     throw new Error(`${dir} declares customElements but exports no surface from src/**/surface.ts; declare one, or stop declaring the manifest`);
   const manifest = {
     schemaVersion: '1.0.0',
     readme: '',
-    modules: surfaces.map((surface) => moduleOf(`dist/development/${pkg.filename}.js`, surface)),
+    modules: [...surfaces].map((surface) => moduleOf(`dist/development/${pkg.filename}.js`, surface)),
   };
-  return { target: `${dir}/${pkg.customElements}`, text: `${JSON.stringify(manifest, null, 2)}\n`, count: surfaces.length };
+  return { target: `${dir}/${pkg.customElements}`, text: `${JSON.stringify(manifest, null, 2)}\n`, count: surfaces.size };
 };
 
 const check = process.argv.includes('--check');
