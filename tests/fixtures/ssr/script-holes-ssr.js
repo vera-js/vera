@@ -42,5 +42,17 @@ export const SHAPES = [
   ['a JSON block, .type bound', () => html`<script type="application/json" .type=${'text/javascript'}>${'zq()'}</script>`, false],
   ['a JSON block, !type bound', () => html`<script type="application/json" !type=${'text/javascript'}>${'zq()'}</script>`, false],
   ['a JSON block, a spread', () => html`<script type="application/json" ${spread({ type: 'text/javascript' })}>${'zq()'}</script>`, false],
+  /**
+   * The script judged is the one the hole is IN (2026-11-19): the server judged the FIRST script a static opened, and
+   * kept it while a later static closed it and opened another (`</script><script>`), so a code script after a data block
+   * was served with its value. The client's checks read the element the hole is in.
+   */
+  ['a data block, then a code script (one static)', () => html`<script type="application/json">{}</script><script>${'zq()'}</script>`, false],
+  ['a data block hole, then a code script hole (</script><script> in one static)', () => html`<script type="application/json">${'1'}</script><script>${'zq()'}</script>`, false],
+  ['a data block, a comment holding <script, then a code script', () => html`<script type="application/json">{}</script><!-- <script type="application/json"> --><script>${'zq()'}</script>`, false],
+  ['a data block, then a module script', () => html`<script type="application/json">{}</script><script type="module">${'zq()'}</script>`, false],
+  ['a data block, then an svg script', () => html`<script type="application/json">{}</script><svg><script>${'zq()'}</script></svg>`, false],
+  ['a code script, then a data block (one static)', () => html`<script>go()</script><script type="application/json">${'1'}</script>`, true],
+  ['two data blocks, a hole in each', () => html`<script type="application/json">${'1'}</script><script type="application/ld+json">${'2'}</script>`, true],
 ];
 SHAPES.forEach(([, draw], i) => define(`sh-${i}`, () => draw));

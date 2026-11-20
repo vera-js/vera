@@ -282,9 +282,13 @@ const copyScan = (state: ScanStart | ScanResult): ScanStart | ScanResult => ({ .
 
 /**
  * **The start tag that OPENED the script hole `hole` sits in, as written** (a hole inside the tag as `\uFFFF`), read by
- * THIS tokenizer, never searched for: the static in which `rawTag` turns `script`, the `>` that turns it (the shortest
- * prefix of that static whose scan does), and where that tag began — in that static (`tagAt`) or in the earlier one it
- * was left open in. Cold: once per script hole, once per template (`compile`).
+ * THIS tokenizer, never searched for: the LAST static up to the hole that opens a script still open at its end, the
+ * `>` that opens it (`rawFrom`: where that static's last raw content began), and where that tag began — in that static
+ * (`tagAt`) or in the earlier one it was left open in. Cold: once per script hole, once per template (`compile`).
+ *
+ * The last script, never the first (2026-11-19): a static that closed one script and opened another
+ * (`</script><script>`) kept the earlier script's tag, and the shortest prefix that turned `rawTag` found a static's
+ * FIRST script, so a hole in a code script after a JSON data block was judged by the data block's tag and served.
  */
 const openingTag = (strings: readonly string[], hole: number, depth: number): string => {
   let state: ScanStart | ScanResult = freshScan(depth);
@@ -293,9 +297,8 @@ const openingTag = (strings: readonly string[], hole: number, depth: number): st
   for (let j = 0; j <= hole; j++) {
     const text = strings[j]!;
     const after = scanTag(text, copyScan(state));
-    if (state.rawTag !== 'script' && after.rawTag === 'script') {
-      let end = 1;
-      while (scanTag(text.slice(0, end), copyScan(state)).rawTag !== 'script') end++;
+    if (after.rawTag === 'script' && after.rawFrom !== -1) {
+      const end = after.rawFrom;
       const before = scanTag(text.slice(0, end - 1), copyScan(state));
       const [from, at] = before.tagAt >= 0 ? [j, before.tagAt] : open;
       found = from === j ? text.slice(at, end) : strings[from]!.slice(at) + '\uFFFF' + strings.slice(from + 1, j).map((t) => `${t}\uFFFF`).join('') + text.slice(0, end);
