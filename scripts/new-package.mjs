@@ -11,70 +11,79 @@
  * `npm install` (a new workspace needs its links; check `find node_modules -maxdepth 2 -type l` first, CLAUDE.md).
  *
  * A component registers through core's `define` (Brian, 2026-11-20): `src/element.ts` holds the options and the setup
- * and never calls `define`; `src/register.ts` is the `.` entry, guards a taken tag (R3) and warns `defined-twice` in
- * development; `src/index.ts` is the `./element` entry, `defineAs(tag)`, with no side effect at import.
+ * and never calls `define`; `src/register.ts` is the `.` entry, leaves a tag another copy holds to that copy and warns
+ * `defined-twice` in development; `src/index.ts` is the `./element` entry, `defineAs(tag)`, with no side effect at
+ * import.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { ROOT } from './packages.mjs';
 
-const [kind, name] = process.argv.slice(2);
-if (!['component', 'hook'].includes(kind) || !/^[a-z][a-z0-9-]*$/.test(name ?? ''))
-  throw new Error('usage: node scripts/new-package.mjs <component|hook> <name>   (name: lowercase, digits, hyphens)');
-
-const component = kind === 'component';
-const dir = `packages/${component ? 'components' : 'hooks'}/${name}`;
-const short = dir.slice('packages/'.length);
-const own = `${component ? '@vera-components' : '@vera-hooks'}/${name}`;
-const filename = `vera-${name}`;
-const tag = `vera-${name}`;
-if (existsSync(ROOT + dir)) throw new Error(`${dir} already exists`);
-/** A hook's suite is `tests/hook-<name>-package.test.mjs`, so a component named `hook-…` would collide with it. */
-if (component && name.startsWith('hook-')) throw new Error('a component name never starts with hook- (that prefix names hook suites in tests/)');
-
-const version = (pkg) => JSON.parse(readFileSync(`${ROOT}packages/${pkg}/package.json`, 'utf8')).version;
 /**
- * **The peers are exactly the framework packages `src/` imports** (d7, 2026-11-20; package-structure holds both
- * directions): the component template imports core and nothing else, and a hook imports nothing yet. A package that
- * later imports the renderer or styles adds the peer in the same change.
+ * **A package's own files, as text: pure.** It reads and writes nothing, so a test can hold what the script would write
+ * without writing it (`tests/new-package-output.test.mjs`); the command below writes the files and registers the
+ * package.
+ *
+ * @param {'component' | 'hook'} kind What to make
+ * @param {string} name Lowercase, digits and hyphens
+ * @param {string} coreVersion `@verajs/core`'s version, for a component's peer range
+ * @return The package's directory, name, tag, suite path, `.` entry source, and every file it writes, keyed by path
+ *   from the repository root
  */
-const peers = component ? { '@verajs/core': `^${version('core')}` } : {};
-const external = Object.keys(peers);
+export const scaffold = (kind, name, coreVersion) => {
+  if (!['component', 'hook'].includes(kind) || !/^[a-z][a-z0-9-]*$/.test(name ?? ''))
+    throw new Error('usage: node scripts/new-package.mjs <component|hook> <name>   (name: lowercase, digits, hyphens)');
+  const component = kind === 'component';
+  const dir = `packages/${component ? 'components' : 'hooks'}/${name}`;
+  const short = dir.slice('packages/'.length);
+  const own = `${component ? '@vera-components' : '@vera-hooks'}/${name}`;
+  const filename = `vera-${name}`;
+  const tag = `vera-${name}`;
+  /** A hook's suite is `tests/hook-<name>-package.test.mjs`, so a component named `hook-…` would collide with it. */
+  if (component && name.startsWith('hook-')) throw new Error('a component name never starts with hook- (that prefix names hook suites in tests/)');
 
-/** One build entry's three conditions. */
-const entry = (file) => ({ types: `./dist/development/${file}.d.ts`, development: `./dist/development/${file}.js`, default: `./dist/${file}.min.js` });
-const files = ['src/**/*{.js,.ts}', '../../shared-types/src/**/*{.js,.ts}', '../../shared-utils/src/**/*{.js,.ts}', 'tsconfig.json', '../../../tsconfig.json', 'rollup.config.js', '../../../defaultRollupConfig.js'];
-const step = (mode, output, extra = {}) => ({ command: 'npx rollup -c', ...(mode === 'types' ? {} : { clean: 'if-file-deleted' }), env: { MODE: mode }, files, output, ...extra });
+  /**
+   * **The peers are exactly the framework packages `src/` imports** (package-structure holds both directions): the component template imports core and nothing else, and a hook imports nothing yet. A package that
+   * later imports the renderer or styles adds the peer in the same change.
+   */
+  const peers = component ? { '@verajs/core': `^${coreVersion}` } : {};
+  const external = Object.keys(peers);
 
-const exports = component ? { '.': entry(filename), './element': entry(`${filename}-element`) } : { '.': entry(filename) };
-const manifest = {
-  name: own,
-  version: '0.1.0',
-  private: true,
-  description: component ? `<${tag}>: a Vera component.` : `${name}: a headless Vera hook.`,
-  license: 'MIT',
-  engines: { node: '>=20' },
-  repository: { type: 'git', url: 'git+https://github.com/vera-js/vera.git', directory: dir },
-  author: 'Brian Grider <hello@verajs.com>',
-  homepage: 'https://verajs.dev',
-  type: 'module',
-  main: exports['.'].default,
-  types: exports['.'].types,
-  exports,
-  sideEffects: component ? [exports['.'].development, exports['.'].default] : false,
-  ...(component ? { peerDependencies: peers } : {}),
-  files: component ? ['dist', 'custom-elements.json'] : ['dist'],
-  ...(component ? { customElements: 'custom-elements.json' } : {}),
-  scripts: { build: 'wireit' },
-  wireit: {
-    build: { dependencies: ['build:development', 'build:production', 'build:types'] },
-    'build:development': step('dev', ['dist/development/*.js', 'dist/development/*.js.map']),
-    'build:production': step('prod', ['dist/*.min.js', 'dist/*.min.js.map']),
-    'build:types': step('types', ['dist/development/*.d.ts', 'dist/development/*.d.ts.map']),
-  },
-  filename,
-};
+  /** One build entry's three conditions. */
+  const entry = (file) => ({ types: `./dist/development/${file}.d.ts`, development: `./dist/development/${file}.js`, default: `./dist/${file}.min.js` });
+  const files = ['src/**/*{.js,.ts}', '../../shared-types/src/**/*{.js,.ts}', '../../shared-utils/src/**/*{.js,.ts}', 'tsconfig.json', '../../../tsconfig.json', 'rollup.config.js', '../../../defaultRollupConfig.js'];
+  const step = (mode, output, extra = {}) => ({ command: 'npx rollup -c', ...(mode === 'types' ? {} : { clean: 'if-file-deleted' }), env: { MODE: mode }, files, output, ...extra });
 
-const rollup = `import { defaultRollupConfig } from '../../../defaultRollupConfig.js';
+  const exports = component ? { '.': entry(filename), './element': entry(`${filename}-element`) } : { '.': entry(filename) };
+  const manifest = {
+    name: own,
+    version: '0.1.0',
+    private: true,
+    description: component ? `<${tag}>: a Vera component.` : `${name}: a headless Vera hook.`,
+    license: 'MIT',
+    engines: { node: '>=20' },
+    repository: { type: 'git', url: 'git+https://github.com/vera-js/vera.git', directory: dir },
+    author: 'Brian Grider <hello@verajs.com>',
+    homepage: 'https://verajs.dev',
+    type: 'module',
+    main: exports['.'].default,
+    types: exports['.'].types,
+    exports,
+    sideEffects: component ? [exports['.'].development, exports['.'].default] : false,
+    ...(component ? { peerDependencies: peers } : {}),
+    files: component ? ['dist', 'custom-elements.json'] : ['dist'],
+    ...(component ? { customElements: 'custom-elements.json' } : {}),
+    scripts: { build: 'wireit' },
+    wireit: {
+      build: { dependencies: ['build:development', 'build:production', 'build:types'] },
+      'build:development': step('dev', ['dist/development/*.js', 'dist/development/*.js.map']),
+      'build:production': step('prod', ['dist/*.min.js', 'dist/*.min.js.map']),
+      'build:types': step('types', ['dist/development/*.d.ts', 'dist/development/*.d.ts.map']),
+    },
+    filename,
+  };
+
+  const rollup = `import { defaultRollupConfig } from '../../../defaultRollupConfig.js';
 import pkg from './package.json' with { type: 'json' };
 
 /** The framework stays external: its registry and stores must be the app's own (two copies would split them). */
@@ -83,20 +92,20 @@ const mangle = /^_[a-z]/;
 
 export default [
 ${component
-  ? `  /** \`.\` registers (\`src/register.ts\`); \`./element\` is the options and setup with no side effect (\`src/index.ts\`). */
+    ? `  /** \`.\` registers (\`src/register.ts\`); \`./element\` is the options and setup with no side effect (\`src/index.ts\`). */
   defaultRollupConfig(pkg.filename, external, mangle, { input: 'src/register.ts', alwaysExternal: external }),
   defaultRollupConfig(\`\${pkg.filename}-element\`, external, mangle, { input: 'src/index.ts', alwaysExternal: external }),`
-  : `  defaultRollupConfig(pkg.filename, external, mangle, { input: 'src/index.ts', alwaysExternal: external }),`}
+    : `  defaultRollupConfig(pkg.filename, external, mangle, { input: 'src/index.ts', alwaysExternal: external }),`}
 ];
 `;
 
-const tsconfig = { extends: '../../../tsconfig.json', include: ['src/**/*', '../../core/src/**/*', '../../renderer/src/**/*', '../../styles/src/**/*', '../../inserts/src/**/*', '../../shared-utils/src/**/*', '../../shared-types/src/**/*', '../../hooks/*/src/**/*'] };
+  const tsconfig = { extends: '../../../tsconfig.json', include: ['src/**/*', '../../core/src/**/*', '../../renderer/src/**/*', '../../styles/src/**/*', '../../inserts/src/**/*', '../../shared-utils/src/**/*', '../../shared-types/src/**/*', '../../hooks/*/src/**/*'] };
 
-const sources = component
-  ? {
-      'src/element.ts': `/**
+  const sources = component
+    ? {
+        'src/element.ts': `/**
  * **<${tag}>: its options and its setup.** Never calls \`define\`: \`register.ts\` does, so importing the \`./element\`
- * entry registers nothing (d7, 2026-11-20).
+ * entry registers nothing.
  */
 import { html } from '@verajs/core';
 
@@ -110,8 +119,8 @@ export const options = { tag: '${tag}' } as const;
  */
 export const setup = () => () => html\`<span data-vera-part="root"></span>\`;
 `,
-      'src/register.ts': `/**
- * **The \`.\` entry: registers <${tag}>.** The guard runs before core's \`define\` (R3): a tag another copy already holds
+        'src/register.ts': `/**
+ * **The \`.\` entry: registers <${tag}>.** The guard runs before core's \`define\`: a tag another copy already holds
  * is left to it, with a development warning, so two copies on one page never throw the app down.
  */
 import { define } from '@verajs/core';
@@ -126,10 +135,10 @@ else if (__DEV__ && typeof console !== 'undefined')
 /** The class that serves the tag: the registered one, so \`instanceof\` tells the truth under a stand-down and under hot. */
 export const element = customElements.get(options.tag);
 `,
-      'src/index.ts': `/**
+        'src/index.ts': `/**
  * **The \`./element\` entry: <${tag}> under a tag of your own, with no side effect at import.** \`defineAs\` is its whole
- * surface (a tag in, the registered class out), so the options and the setup stay private and can change freely (d7,
- * 2026-11-20). The unregistered class joins it once core's \`define\` can build without registering (F1).
+ * surface (a tag in, the registered class out), so the options and the setup stay private and can change freely. The
+ * unregistered class joins it once core's \`define\` can build a class without registering it.
  */
 import { define } from '@verajs/core';
 import { options, setup } from './element.js';
@@ -137,7 +146,7 @@ import { options, setup } from './element.js';
 /** Registers the element under \`tag\` and returns the class that serves it. */
 export const defineAs = (tag: string) => define({ ...options, tag }, setup);
 `,
-      'src/diagnostics.ts': `/** **${own}'s diagnostics: DEVELOPMENT ONLY prose.** */
+        'src/diagnostics.ts': `/** **${own}'s diagnostics: DEVELOPMENT ONLY prose.** */
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
@@ -148,11 +157,11 @@ export const PROSE: Record<string, Prose> = {
   ],
 };
 `,
-    }
-  : { 'src/index.ts': `/** **${own}: a headless hook.** Re-exports only. */\nexport {};\n` };
+      }
+    : { 'src/index.ts': `/** **${own}: a headless hook.** Re-exports only. */\nexport {};\n` };
 
-/** A component's README carries one recipe, which `tests/docs-recipes.test.mjs` runs (and its count is pinned there). */
-const recipe = `
+  /** A component's README carries one recipe, which `tests/docs-recipes.test.mjs` runs (and its count is pinned there). */
+  const recipe = `
 <!-- recipe -->
 \`\`\`js
 import { wire } from '@verajs/core';
@@ -163,18 +172,18 @@ wire([renderer]);
 document.body.innerHTML = '<${tag}></${tag}>';
 \`\`\`
 `;
-const readme = `# ${own}
+  const readme = `# ${own}
 
 ${component ? `\`<${tag}>\`: a Vera component.` : `\`${name}\`: a headless Vera hook.`} Private until launch.
 ${component ? recipe : ''}`;
 
-/**
- * **Its own suite, at \`tests/\` (the root glob runs it in both builds).** Each scenario runs in its own process, so each
- * starts with an empty registry; the parent asserts on what the child reports.
- */
-const testFile = `tests/${component ? '' : 'hook-'}${name}-package.test.mjs`;
-const GLOBALS = "['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent', 'MutationObserver']";
-const componentSuite = `/**
+  /**
+   * **Its own suite, at \`tests/\` (the root glob runs it in both builds).** Each scenario runs in its own process, so each
+   * starts with an empty registry; the parent asserts on what the child reports.
+   */
+  const testFile = `tests/${component ? '' : 'hook-'}${name}-package.test.mjs`;
+  const GLOBALS = "['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent', 'MutationObserver']";
+  const componentSuite = `/**
  * **${own}: its two entries, as a page and a server meet them** (written by \`scripts/new-package.mjs\`). \`.\` registers
  * <${tag}> once however many copies load, and development says so once; \`./element\` registers nothing at import, and
  * its \`defineAs\` registers under the caller's tag; a server importing \`.\` through \`@verajs/ssr\` renders it.
@@ -262,7 +271,7 @@ if (SCENARIO === 'ssr') {
   });
 }
 `;
-const hookSuite = `/**
+  const hookSuite = `/**
  * **${own}: importing it changes nothing** (written by \`scripts/new-package.mjs\`): a hook registers no element and
  * says nothing at import. Its behavior suites join it in tests/ as the hook grows.
  */
@@ -291,34 +300,47 @@ test('importing ${own} registers nothing and says nothing', async () => {
 });
 `;
 
-/** Insert \`line\` after (or before) the first line matching \`anchor\` in \`file\`; refuse when the anchor is missing. */
-const insert = (file, anchor, line, where = 'after') => {
-  const text = readFileSync(ROOT + file, 'utf8');
-  if (text.includes(line.trim())) return;
-  const lines = text.split('\n');
-  const at = lines.findIndex((candidate) => candidate.includes(anchor));
-  if (at < 0) throw new Error(`${file}: its anchor ${JSON.stringify(anchor)} is gone — register ${own} there by hand, then fix this script`);
-  lines.splice(where === 'after' ? at + 1 : at, 0, line);
-  writeFileSync(ROOT + file, lines.join('\n'));
+  const target = component ? 'register.ts' : 'index.ts';
+  const written = {
+    [`${dir}/package.json`]: JSON.stringify(manifest, null, 2) + '\n',
+    [`${dir}/rollup.config.js`]: rollup,
+    [`${dir}/tsconfig.json`]: JSON.stringify(tsconfig, null, 2) + '\n',
+    [`${dir}/README.md`]: readme,
+    ...Object.fromEntries(Object.entries(sources).map(([path, text]) => [`${dir}/${path}`, text])),
+    [testFile]: component ? componentSuite : hookSuite,
+  };
+  return { component, dir, short, own, filename, tag, testFile, target, written };
 };
 
-if (existsSync(ROOT + testFile)) throw new Error(`${testFile} already exists`);
-mkdirSync(`${ROOT}${dir}/src`, { recursive: true });
-writeFileSync(`${ROOT}${dir}/package.json`, JSON.stringify(manifest, null, 2) + '\n');
-writeFileSync(`${ROOT}${dir}/rollup.config.js`, rollup);
-writeFileSync(`${ROOT}${dir}/tsconfig.json`, JSON.stringify(tsconfig, null, 2) + '\n');
-writeFileSync(`${ROOT}${dir}/README.md`, readme);
-writeFileSync(`${ROOT}${dir}/LICENSE`, readFileSync(`${ROOT}LICENSE`, 'utf8'));
-for (const [file, text] of Object.entries(sources)) writeFileSync(`${ROOT}${dir}/${file}`, text);
-writeFileSync(ROOT + testFile, component ? componentSuite : hookSuite);
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const [kind, name] = process.argv.slice(2);
+  const coreVersion = JSON.parse(readFileSync(`${ROOT}packages/core/package.json`, 'utf8')).version;
+  const { component, dir, short, own, filename, testFile, target, written } = scaffold(kind, name, coreVersion);
+  if (existsSync(ROOT + dir)) throw new Error(`${dir} already exists`);
+  if (existsSync(ROOT + testFile)) throw new Error(`${testFile} already exists`);
 
-const target = component ? 'register.ts' : 'index.ts';
-insert('package.json', '"./packages/shared-types:build",', `        "./${dir}:build",`, 'before');
-insert('tsconfig.json', '"paths": {', `      "${own}": [\n        "./${dir}/src/${target}"\n      ],${component ? `\n      "${own}/element": [\n        "./${dir}/src/index.ts"\n      ],` : ''}`);
-insert('tests/dist.mjs', 'export const ENTRY = {', `  '${own.slice(1)}': ['${short}', '${filename}'],${component ? `\n  '${own.slice(1)}/element': ['${short}', '${filename}-element'],` : ''}`);
-insert('tests/docs-imports.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
-insert('tests/docs-recipes.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
-if (component) insert('tests/docs-recipes.test.mjs', 'const EXPECTED_RECIPES = {', `  '${dir}/README.md': 1,`);
-if (component) insert('scripts/diagnostic-tables.mjs', "{ name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },", `  { name: '${short}', tables: ['src/diagnostics.ts'], sources: SOURCES },`, 'before');
+  /** Insert \`line\` after (or before) the first line matching \`anchor\` in \`file\`; refuse when the anchor is missing. */
+  const insert = (file, anchor, line, where = 'after') => {
+    const text = readFileSync(ROOT + file, 'utf8');
+    if (text.includes(line.trim())) return;
+    const lines = text.split('\n');
+    const at = lines.findIndex((candidate) => candidate.includes(anchor));
+    if (at < 0) throw new Error(`${file}: its anchor ${JSON.stringify(anchor)} is gone — register ${own} there by hand, then fix this script`);
+    lines.splice(where === 'after' ? at + 1 : at, 0, line);
+    writeFileSync(ROOT + file, lines.join('\n'));
+  };
 
-console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build, node --test --conditions development ${testFile} and tests/package-structure.test.mjs`);
+  mkdirSync(`${ROOT}${dir}/src`, { recursive: true });
+  for (const [file, text] of Object.entries(written)) writeFileSync(ROOT + file, text);
+  writeFileSync(`${ROOT}${dir}/LICENSE`, readFileSync(`${ROOT}LICENSE`, 'utf8'));
+
+  insert('package.json', '"./packages/shared-types:build",', `        "./${dir}:build",`, 'before');
+  insert('tsconfig.json', '"paths": {', `      "${own}": [\n        "./${dir}/src/${target}"\n      ],${component ? `\n      "${own}/element": [\n        "./${dir}/src/index.ts"\n      ],` : ''}`);
+  insert('tests/dist.mjs', 'export const ENTRY = {', `  '${own.slice(1)}': ['${short}', '${filename}'],${component ? `\n  '${own.slice(1)}/element': ['${short}', '${filename}-element'],` : ''}`);
+  insert('tests/docs-imports.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
+  insert('tests/docs-recipes.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
+  if (component) insert('tests/docs-recipes.test.mjs', 'const EXPECTED_RECIPES = {', `  '${dir}/README.md': 1,`);
+  if (component) insert('scripts/diagnostic-tables.mjs', "{ name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },", `  { name: '${short}', tables: ['src/diagnostics.ts'], sources: SOURCES },`, 'before');
+
+  console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build, node --test --conditions development ${testFile} and tests/package-structure.test.mjs`);
+}
