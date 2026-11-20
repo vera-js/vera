@@ -9,6 +9,7 @@
  */
 import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
+import { sep } from 'node:path';
 
 const dom = new JSDOM('<body></body>', { url: 'http://localhost/' });
 const { window } = dom;
@@ -32,6 +33,12 @@ const { autoloader } = await load('autoloader');
 const tick = () => new Promise((r) => setTimeout(r, 40));
 let pass = 0, fail = 0;
 const check = (n, c, extra = '') => { c ? pass++ : (fail++, console.log('FAIL:', n, extra)); };
+
+/**
+ * Whether a printed message names the file a load attempted. Development prints the URL; production folds the prose away,
+ * so its only path is the one in Node's own import error, which writes it the platform's way (`\` on Windows).
+ */
+const namesFile = (message, fragment) => message.includes(fragment) || message.includes(fragment.split('/').join(sep));
 
 const errs = [];
 const oe = console.error;
@@ -125,7 +132,7 @@ clearHosts();
   await tick();
   /** Asserted on the attempt, so the case needs no fixture of its own. */
   check('autoload() finds a marked host it was never handed',
-    errs.some((m) => m.includes('/alt/swept-widget.js')), errs.join(' '));
+    errs.some((m) => namesFile(m, '/alt/swept-widget.js')), errs.join(' '));
   void app;
 }
 
@@ -224,7 +231,7 @@ clearHosts();
     const message = errs.join(' ');
     const expected = dir === 'components/' ? `/components/${tag}.js` : `/autoloader/${tag}.js`;
     check(`${label}: resolves inside the entry directory`,
-      !message.includes('refused') && message.includes(expected), message);
+      !message.includes('refused') && namesFile(message, expected), message);
   }
 }
 
@@ -236,7 +243,7 @@ clearHosts();
   const app = host('<nested-widget></nested-widget>');
   autoloader(rootDir, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` })(app);
   await tick();
-  check('resolve builds the URL', errs.join(' ').includes('/components/nested-widget/nested-widget.js'),
+  check('resolve builds the URL', namesFile(errs.join(' '), '/components/nested-widget/nested-widget.js'),
     errs.join(' '));
 
   for (const [label, resolveFn] of [
