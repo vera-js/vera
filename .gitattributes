@@ -1,0 +1,6 @@
+# Every text file is checked out with LF line endings on every machine, whatever core.autocrlf says (Brian, 2026-11-19).
+# Git for Windows defaults to autocrlf=true and checked the whole tree out as CRLF; the generated-file --check steps
+# and the size measurements compare bytes, so a CRLF checkout fails them for no real difference. Binary files are
+# detected by content and left alone. A file that must keep CRLF bytes (a parser fixture, say) gets its own `-text` line
+# here, or it is silently normalized to LF on commit.
+* text=auto eol=lf
