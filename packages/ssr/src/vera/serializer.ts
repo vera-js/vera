@@ -7,7 +7,7 @@ import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
 import type { ScanResult, ScanStart, SsrTemplate } from './types.js';
-import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, scanTag } from './tokenizer.js';
+import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
 
 /** Module-local, because serializeValue (the hottest function here) reads it: an imported binding is a live one, which
  *  V8 reaches less directly (CLAUDE.md, measured on the tokenizer's constants). */
@@ -345,10 +345,10 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   /** Which RAWTEXT element each binding sits inside, `''` when none. See `RAWTEXT`. */
   const raws: string[] = [];
   /**
-   * Per static, the raw-content bounds its scan reported (`rawFrom`, `rawUntil`) — read only for a JSON block or an
-   * HTML style, below.
+   * Per static, where raw content last began in it (`rawFrom`) — read only for a JSON block or an HTML style, below,
+   * which asks `closerAt` where that content ends in the static after.
    */
-  const rawBounds: Array<[number, number]> = [];
+  const rawFroms: number[] = [];
   /** Per child binding (sparse): the foreign-content depth it sits at, which a template rendered there starts from. */
   const depths: Array<number | undefined> = [];
   /** Per child binding (sparse): whether it sits in a text-only element, where a template is refused (see `serializeValue`). */
@@ -424,7 +424,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       if (maybe) taker = takesNewline(text, tagState);
     }
     tagState = scanTag(strings[i], tagState);
-    rawBounds[i] = [tagState.rawFrom, tagState.rawUntil];
+    rawFroms[i] = tagState.rawFrom;
     if (taker && (tagState.foreign !== 0 || tagState.inert !== 0)) taker = false;
     /**
      * A hole in the content of an SVG `<script>` (or a MathML element of that name) is code too: refused as an HTML
@@ -699,7 +699,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * that never started a tag name, as in `a < b`, is text. The client refuses the same templates in development.
    */
   const end = scanTag(strings[strings.length - 1], tagState);
-  rawBounds[strings.length - 1] = [end.rawFrom, end.rawUntil];
+  rawFroms[strings.length - 1] = end.rawFrom;
   if (end.inValue || (end.inTag && end.tagName))
     throw own(new Error(ssrMisuse('ssr-unfinished-tag', PROSE['ssr-unfinished-tag']!())));
   const closers = closersOf(end);
@@ -734,8 +734,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     if (raws[i] === 'json' || raws[i] === 'style') {
       const json = raws[i] === 'json';
-      const [from] = rawBounds[i]!;
-      const [, until] = rawBounds[i + 1]!;
+      const from = rawFroms[i]!;
+      const until = closerAt(strings[i + 1]!, 0, json ? 'script' : 'style');
       const before = parts[i]!;
       const cut = from === -1 ? 0 : before.length - (strings[i]!.length - from);
       parts[i] = before.slice(0, cut) + closedRawText(before.slice(cut), json);

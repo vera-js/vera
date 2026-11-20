@@ -145,6 +145,26 @@ const breakOut = (opens: Open[]): number => {
 };
 
 /**
+ * Where the end tag that closes raw or escaped text named `name` begins in `text`, searching from `from`: the first
+ * `</name` followed by whitespace, `/`, `>` or the end of the text — so `</scripts` ends nothing, and `</name` at the
+ * very end counts as an end (a hole right after it is refused as a tag-name hole) — or `-1` when none does. One rule
+ * in one place: `scanTag` reads it for `<style>`, `<script>` and the text-only elements (`<title>`, `<textarea>`, …),
+ * and `compile` for the static after a JSON block's or a style's hole. That end used to be carried in every scan's
+ * answer (`rawUntil`), which cost the `.innerHTML` scan about 0.5% per render, counted (2026-11-19; the store and the
+ * answer's extra field together), and was read only there. A search from a fresh start is exact because the rule is
+ * STATELESS: `indexOf('</')`, a lowercase name compare and `endsName`, with no escape state carried from one static
+ * to the next. If the tokenizer ever learns script-data escape states, a search from a fresh start stops being exact.
+ */
+const closerAt = (text: string, from: number, name: string): number => {
+  const length = text.length;
+  for (let at = text.indexOf('</', from); at !== -1; at = text.indexOf('</', at + 2)) {
+    const after = at + 2 + name.length;
+    if (text.slice(at + 2, after).toLowerCase() === name && (after >= length || endsName(text[after]))) return at;
+  }
+  return -1;
+};
+
+/**
  * `edits`, when given, collects the positions `fortify` rewrites — a start tag's name end where it is `script`, and
  * a `<template>` start tag's `shadowroot`/`shadowrootmode` attribute names. They are reported from THIS scan, so the
  * `.innerHTML` scan and the template scan cannot disagree about what is a tag: they are one scan. `tags`, when given,
@@ -163,11 +183,10 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   let nameFrom = -1;
   let tagAt = -1;
   /**
-   * Where, in THIS text, raw content last BEGAN (after its element's start tag) and first ENDED (its end tag's `<`) —
-   * `-1` for none: the bounds of a raw element's content inside the static around a hole (`compile`, a JSON block).
+   * Where, in THIS text, raw content last BEGAN (after its element's start tag) — `-1` for none: where a raw element's
+   * content starts inside the static before a hole (`compile`). Where it ends in the static after is `closerAt`'s.
    */
   let rawFrom = -1;
-  let rawUntil = -1;
   let selfClosing = false;
   /** Where the value that opened in THIS text starts — `-1` when none did — so an `encoding` can be read whole. */
   let valueFrom = -1;
@@ -182,21 +201,15 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
      */
     if (rawTag !== '' || textTag !== '') {
       const name = rawTag || textTag;
-      const at = text.indexOf('</', i);
+      const at = closerAt(text, i, name);
       if (at === -1) break;
-      const after = at + 2 + name.length;
-      if (text.slice(at + 2, after).toLowerCase() !== name || (after < length && !endsName(text[after]))) {
-        i = at + 1;
-        continue;
-      }
-      if (rawTag !== '' && rawUntil === -1) rawUntil = at;
       rawTag = '';
       textTag = '';
       phase = TAG_NAME;
       tagName = name;
       closing = true;
       tagAt = at;
-      i = after - 1;
+      i = at + 1 + name.length;
       continue;
     }
     /**
@@ -510,7 +523,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   }
   /** A name still being read at the end carries on into the next text (a hole there is refused — see `nameHole`). */
   if (phase === ATTRIBUTE_NAME) attrRaw = nameFrom === -1 ? attrRaw + text : text.slice(nameFrom);
-  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, opened, attrStart, valueStart, nameAt, tagAt, rawFrom, rawUntil };
+  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, opened, attrStart, valueStart, nameAt, tagAt, rawFrom };
 };
 
 
@@ -533,3 +546,4 @@ export const PHASE_END_TAG_OPEN = END_TAG_OPEN;
 export const PHASE_TAG_NAME = TAG_NAME;
 export const isTokenizerSpace = isSpace;
 export const INERT_EDIT = EDIT_INERT;
+export const rawTextCloserAt = closerAt;

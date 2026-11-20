@@ -103,8 +103,6 @@ export interface ScanResult extends ScanState {
   readonly tagAt: number;
   /** Where, in THIS text, raw content last began (after its element's start tag) — `-1` for none. */
   readonly rawFrom: number;
-  /** Where, in THIS text, raw content first ended (its end tag's `<`) — `-1` for none. */
-  readonly rawUntil: number;
 }
 
 /**
