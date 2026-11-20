@@ -124,6 +124,6 @@
     "wireit": "^0.14.13"
   },
   "allowScripts": {
-    "esbuild@0.21.5": true
+    "esbuild": false
   }
 }
