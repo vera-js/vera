@@ -36,6 +36,43 @@ const FRAMEWORK_PEER = /^@verajs\/(?:core|renderer|styles)$/;
 const COMPONENT_PEER = /^@vera-components\/[a-z0-9-]+$|^@codemirror\/[a-z0-9-]+$/;
 const PACKAGE = /['"](@(?:verajs|vera-components|vera-hooks)\/[^'"]+)['"]/;
 
+const CONTROL_FLOW = new Set(['if', 'for', 'while', 'switch', 'catch', 'with']);
+
+/**
+ * The module with every function body removed: a brace block opened right after `=>`, or after `name(…)` where `name`
+ * is not a control-flow keyword (a function, a method, `function name(…)`), and a one-line arrow's expression body.
+ * What is left runs at import (d7's sturdier rule, 2026-11-20: an indented `define(` inside a top-level `if` block is
+ * still import-time).
+ */
+const withoutFunctionBodies = (text) => {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '{') {
+      const head = out.trimEnd();
+      let opensFunction = head.endsWith('=>');
+      if (!opensFunction && head.endsWith(')')) {
+        let depth = 0, j = head.length - 1;
+        for (; j >= 0; j--) { if (head[j] === ')') depth++; else if (head[j] === '(' && --depth === 0) break; }
+        const name = /([A-Za-z_$][\w$]*)\s*$/.exec(head.slice(0, j))?.[1];
+        opensFunction = name !== undefined && !CONTROL_FLOW.has(name);
+      }
+      if (opensFunction) {
+        let depth = 0;
+        for (; i < text.length; i++) { if (text[i] === '{') depth++; else if (text[i] === '}' && --depth === 0) break; }
+        out += '{}';
+        continue;
+      }
+    }
+    out += ch;
+  }
+  /** A one-line arrow's expression body (`(tag) => define(…)`) runs when called, not at import. */
+  return out.replace(/=>\s*(?!\{)[^;\n]*/g, '=> 0');
+};
+
+/** Whether a module registers when it is IMPORTED: a `define(` or `customElements.define(` outside every function body. */
+const registersAtImport = (body) => /\bcustomElements\.define\(|(?<![.\w])define\(/.test(withoutFunctionBodies(body));
+
 /**
  * Components that register without core's `define` today, each with its reason; an entry is removed by the change that
  * fixes it.
@@ -104,8 +141,8 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
   if (!sources.some(([file]) => file === 'src/index.ts')) problems.push('no src/index.ts');
   for (const [file, text] of sources) {
     const body = code(text);
-    if (file !== 'src/register.ts' && /\bcustomElements\.define\(|(?<![.\w])define\(/.test(body))
-      problems.push(`${file} registers: only src/register.ts may (importing the index must define nothing)`);
+    if (file !== 'src/register.ts' && registersAtImport(body))
+      problems.push(`${file} registers at import: only src/register.ts may (a define inside an exported function, like defineAs, runs only when called)`);
     if (/export\s+(?:\*|\{[^}]*\})\s+from\s+['"]@(?:verajs|vera-components|vera-hooks)\//.test(body)) problems.push(`${file} re-exports another package (R5)`);
     /** The two-step form: a binding imported from another package, then exported. */
     const foreign = new Set();
@@ -171,7 +208,7 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     },
     files: {
       LICENSE: true, 'README.md': '<!-- recipe -->',
-      'src/index.ts': "export { options, setup } from './element.js';",
+      'src/index.ts': "import { define } from '@verajs/core';\nimport { options, setup } from './element.js';\nexport const defineAs = (tag) => define({ ...options, tag }, setup);",
       'src/element.ts': "import { listbox } from '@vera-hooks/listbox';\nexport const options = { tag: 'vera-zz-plant' };\nexport const setup = () => listbox;",
       'src/register.ts': "import { define } from '@verajs/core';\nimport { options, setup } from './element.js';\nif (!customElements.get(options.tag)) define(options, setup);\nelse if (__DEV__) warn('defined-twice');",
     },
@@ -213,6 +250,15 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
     ['an index re-exporting a hook', withFiles({ 'src/index.ts': "export { listbox } from '@vera-hooks/listbox';" }), registered],
     ['a two-step re-export', withFiles({ 'src/index.ts': "import { listbox } from '@vera-hooks/listbox';\nexport { listbox };" }), registered],
     ['an index that registers', withFiles({ 'src/index.ts': "customElements.define('zz-plant', X);" }), registered],
+    ['an index that defines at import', withFiles({ 'src/index.ts': "import { define } from '@verajs/core';\nexport const Plant = define({ tag: 'vera-zz-plant' }, () => () => null);" }), registered],
+    /** register.ts's own shape copied into an index, and two more top-level forms (d7). */
+    ['an index with a guarded top-level define', withFiles({ 'src/index.ts': "if (!customElements.get(t)) define(options, setup);" }), registered],
+    ['an index with x && define', withFiles({ 'src/index.ts': "ready && define(options, setup);" }), registered],
+    ['an index with void define', withFiles({ 'src/index.ts': "void define(options, setup);" }), registered],
+    ['an index with define indented in a top-level if block', withFiles({ 'src/index.ts': "if (!customElements.get(t)) {\n  define(options, setup);\n}" }), registered],
+    /** And the shapes that define only when CALLED pass: a function block, and a method. */
+    ['a define inside a function block', withFiles({ 'src/index.ts': "export function defineAs(tag) {\n  if (tag) {\n    return define({ ...options, tag }, setup);\n  }\n}" }), registered, 0],
+    ['a define inside a method', withFiles({ 'src/index.ts': "export const api = {\n  defineAs(tag) { return define({ ...options, tag }, setup); },\n};" }), registered, 0],
     ['an element that calls define', withFiles({ 'src/element.ts': "import { define } from '@verajs/core';\nexport const Plant = define({ tag: 'vera-zz-plant' }, () => {});" }), registered],
     ['no register.ts', withFiles({ 'src/register.ts': undefined }), registered],
     ['an unguarded register.ts', withFiles({ 'src/register.ts': "import { define } from '@verajs/core';\ndefine(options, setup);" }), registered],
