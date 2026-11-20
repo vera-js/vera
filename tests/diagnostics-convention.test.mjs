@@ -15,9 +15,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { relative as relativeNative, sep } from 'node:path';
 import { walkFiles, readIfPresent as readRaw } from './walk.mjs';
 import { fsPath } from '../scripts/fs-path.mjs';
+
+/** A path relative to the root with `/`, as every allow-list key here is written (Windows answers `\`, and no key matched). */
+const relative = (from, to) => relativeNative(from, to).split(sep).join('/');
 
 /**
  * A `'%s'` first argument only stops the console from reading the message as a format string (a subject with `%c3` in
