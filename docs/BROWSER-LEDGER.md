@@ -724,6 +724,17 @@ from another machine, or after that is undone, has a variable changed.
   was no step between builds there. Consequence: one-time counts are not additive across changes. A joint reading that
   disagrees with the sum of its parts is checked with `--trace-gc` and a size sweep before it is credited to code, and a
   saving that is a threshold is counted only if it holds on every engine timed.
+- **What V8 inlines into a hot function varies from run to run, and `--predictable` makes it fixed but different.**
+  Node 24.18, 2026-11-20: the functions `--trace-turbo-inlining` reports inlined into `@verajs/ssr`'s
+  `serializeTemplate` are the union over that function's optimizations in a run (about seven), and how many it gets
+  depends on tier-up timing. Two builds with the same `serializeTemplate` code each gave two different sets in four
+  fresh processes (`escapeHtml` and `serializeValue` alone, or those plus `escapeRawText` and `rawTextOf`), so a
+  one-run comparison of two builds said they differed when they did not. Under `--predictable --single-threaded`
+  (recompilation runs synchronously) both builds gave one identical set 4 of 4 times, with four optimizations, but a
+  different set: `removeAttribute` and `stripAttribute` were inlined, `escapeRawText` and `rawTextOf` were not.
+  Consequence: an inlining check that gates a decision reads the deterministic mode, runs the base twice as its own
+  control, and reports the default mode over several runs without gating on it. It also reads V8's "cannot consider
+  … for inlining" reasons, which hold in either mode, so it still sees a function pushed out by size.
 
 ## Test environments
 
