@@ -35,10 +35,15 @@ let pass = 0, fail = 0;
 const check = (n, c, extra = '') => { c ? pass++ : (fail++, console.log('FAIL:', n, extra)); };
 
 /**
- * Whether a printed message names the file a load attempted. Development prints the URL; production folds the prose away,
- * so its only path is the one in Node's own import error, which writes it the platform's way (`\` on Windows).
+ * Whether a printed message names the file a load attempted, each build by its own source. Development: the PROSE's
+ * own shape, `from <file URL>.` (Node's import error, printed beside it, holds the path too, and must not carry the
+ * row). Production folds the prose away, so its only path is Node's error, which writes it the platform's way (`\` on
+ * Windows).
  */
-const namesFile = (message, fragment) => message.includes(fragment) || message.includes(fragment.split('/').join(sep));
+const namesFile = (message, fragment) =>
+  isProduction
+    ? message.includes(fragment.split('/').join(sep))
+    : new RegExp(`from file:\\S*${fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.(\\s|$)`).test(message);
 
 const errs = [];
 const oe = console.error;
