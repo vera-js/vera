@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
+import { basename } from 'node:path';
 import { ROOT, packageDirs, packageFiles } from '../scripts/packages.mjs';
 
 test('the helper finds the packages npm links, at every depth the workspaces name', () => {
@@ -27,11 +28,11 @@ test('the helper finds the packages npm links, at every depth the workspaces nam
 
 /** A hand-written walk over the packages directory: a glob starting `packages/*`, or a listing of `packages` itself. */
 const WALKS = [
-  /globSync\([^)]*['"`]packages\/\*/,
-  /readdirSync\([^)]*['"`/]packages['"`/]?\s*[,)]/,
-  /readdirSync\(\s*new URL\(\s*['"`](?:\.\.\/)?packages\/?['"`]/,
-  /readdirSync\(\s*`\$\{root\}packages`/,
-  /readdirSync\(\s*join\(\s*root,\s*['"`]packages['"`]\s*\)/,
+  /glob(?:Sync)?\([^)]*['"`]packages\/\*/,
+  /readdir(?:Sync)?\([^)]*['"`/]packages['"`/]?\s*[,)]/,
+  /readdir(?:Sync)?\(\s*new URL\(\s*['"`](?:\.\.\/)?packages\/?['"`]/,
+  /readdir(?:Sync)?\(\s*`\$\{root\}packages`/,
+  /readdir(?:Sync)?\(\s*join\(\s*root,\s*['"`]packages['"`]\s*\)/,
 ];
 
 /**
@@ -43,7 +44,7 @@ const WALKS = [
 const code = (text) => text.replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/^\s*\/\/.*$/gm, '');
 
 test('no script or test walks packages/* by hand', () => {
-  const files = globSync(['scripts/**/*.mjs', 'tests/**/*.mjs', 'tests/**/*.js', 'bench/*.mjs'], { cwd: ROOT, exclude: (name) => name === 'node_modules' })
+  const files = globSync(['scripts/**/*.mjs', 'tests/**/*.mjs', 'tests/**/*.js', 'bench/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
     .map((file) => file.split('\\').join('/'))
     .filter((file) => file !== 'scripts/packages.mjs' && file !== 'tests/package-dirs.test.mjs');
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
@@ -57,6 +58,14 @@ test('no script or test walks packages/* by hand', () => {
   assert.deepEqual(found, [], 'walk the packages with packageDirs() or packageFiles() from scripts/packages.mjs');
 });
 
+test('eslint.config.js gives every one-level package glob its nested twin, so components are linted like packages', () => {
+  const config = readFileSync(ROOT + 'eslint.config.js', 'utf8');
+  const single = [...config.matchAll(/'packages\/\*\/([^']+)'/g)].map((m) => m[1]);
+  assert.ok(single.length >= 4, `CONTROL: only ${single.length} one-level globs found in eslint.config.js`);
+  const missing = single.filter((rest) => !config.includes(`'packages/{components,hooks}/*/${rest}'`));
+  assert.deepEqual(missing, [], 'add packages/{components,hooks}/*/… beside each — a component outside these globs gets none of the custom-element rules');
+});
+
 test('the walk detector fires on each shape it refuses (planted)', () => {
   const planted = [
     "globSync('packages/*/README.md', { cwd: root })",
@@ -65,6 +74,10 @@ test('the walk detector fires on each shape it refuses (planted)', () => {
     "readdirSync(new URL('../packages', import.meta.url))",
     "readdirSync(`${root}packages`)",
     "readdirSync(join(root, 'packages'))",
+    /** The async forms (none in the tree on 2026-11-20; d7 asked that the next one be caught). */
+    "for (const pkg of await readdir('packages')) {",
+    "await fs.promises.readdir(join(root, 'packages'))",
+    "for await (const file of glob('packages/*/README.md')) {",
   ];
   for (const line of planted) assert.ok(WALKS.some((walk) => walk.test(line)), `the detector misses: ${line}`);
   assert.ok(!WALKS.some((walk) => walk.test("packageFiles('README.md')")), 'the helper itself is not a walk');
