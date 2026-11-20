@@ -139,7 +139,8 @@ const breakOut = (opens: Open[]): number => {
   while (at >= 0 && (opens[at].space === 'svg' || opens[at].space === 'math')) at--;
   if (!(at >= 0 ? opens[at].space === 'html' : opens.length > 0 && opens[0].foreign === 0)) return -1;
   const depth = opens[at + 1].foreign;
-  opens.length = at + 1;
+  /** Popped, as an end tag's close is (see `scanTag`): `at` starts below `opens.length`, so `at + 1` is at most the length and the loop removes exactly the entries a length store would. */
+  while (opens.length > at + 1) opens.pop();
   return depth;
 };
 
@@ -432,7 +433,14 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         foreign = opens[at].foreign;
         /** How deep inside nested `<template>` content this is: what it was before the closed element opened. */
         inert = opens[at].inert;
-        opens.length = at;
+        /**
+         * Popped, not cut with a length store (2026-11-19): shrinking the array by `opens.length = at` cost the `.innerHTML`
+         * scan 2.2% per render, counted (instructions, a 50 KB value holding an SVG and a MathML `<script>` per chunk —
+         * each a tracked element its end tag closes), and the pops cost nothing there. Exact: `closeTo` answers `-1` or an
+         * index below `opens.length`, and this runs only when it is not `-1`, so the loop removes exactly the entries the
+         * store dropped and leaves the same array.
+         */
+        while (opens.length > at) opens.pop();
       }
     } else if (!selfClosed) {
       /**
