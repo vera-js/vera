@@ -798,10 +798,17 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     const before = parts[i]!;
     styleTails.push(raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6 ? 0 : parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1);
   }
+  /** Built in a loop, not `Array.from` with a callback: once per template, a callback per binding (2026-11-20). */
+  const denseDepths: number[] = [];
+  const denseTexts: boolean[] = [];
+  for (let i = 0; i < kinds.length; i++) {
+    denseDepths.push(depths[i] ?? 0);
+    denseTexts.push(texts[i] === true);
+  }
   const plan: Plan = {
     parts, kinds, names, strip, owners, raws,
-    depths: Array.from(kinds, (_, i) => depths[i] ?? 0),
-    texts: Array.from(kinds, (_, i) => texts[i] === true),
+    depths: denseDepths,
+    texts: denseTexts,
     elementPositions, elements, groups, leads, decodedLeads, urls, styleTails,
   };
   if (depth === 0) plans.set(strings, plan);
