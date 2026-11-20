@@ -120,6 +120,31 @@ from another machine, or after that is undone, has a variable changed.
 - **A part that receives the same value skips its DOM write** (attribute `value === committed`; text writes only on
   change), so a re-render that changes nothing costs dispatch, not DOM. (renderer.ts; measured 2026-10-18)
 
+## CSS and the cascade
+
+- **A layer-order statement a script prepends to `<head>` orders layers the page's sheets already declared, and adopted
+  sheets join that order.** Playwright Chromium 151, Firefox 153 and WebKit 26.5 (headless; computed style, not timing),
+  2026-11-19, two independent probes. A page whose sheet declares `@layer theme, base, components, utilities` (Tailwind
+  v4's names), then a script prepends `<style>@layer theme, base, vera, components, utilities;</style>` and adopts a
+  constructable sheet with `@layer vera { :where(button) {…} }`: the `vera` rule beats `base` and a `utilities` class
+  beats `vera`, on all three, whether the statement lands during parse or after the page has styled, and before or
+  after the adoption. Control: without the statement the adopted `vera` layer is declared LAST (adopted sheets come
+  after every document sheet), so it outranks `utilities` and the class loses, on all three. Consequence: a component
+  library can sit between a utility framework's base and utilities layers with no user setup, by writing one line into
+  the document. (Probes not committed: `order-csp.mjs`, `order-late.mjs` and the peer session's own.)
+- **CSP `style-src 'self'` refuses a script-inserted `<style>`; constructable sheets are not refused.** Chromium 151,
+  Firefox 153 and WebKit 26.5 (headless), 2026-11-19. Under that policy the prepended layer-order `<style>` above is
+  blocked (a CSP error is logged) while `adoptedStyleSheets` still applies, so the page renders and only the ORDER is
+  lost: utility classes on component parts silently lose again. Consequence: the order line needs the page's nonce, or
+  the server writes it, or the page carries it itself; development warns when it is missing.
+- **Chromium only: a `<link>` to a layer-order sheet, prepended during parse while an adopted sheet is pending, leaves
+  EXISTING elements on the old cascade.** Chromium 151 (headless), 2026-11-19; Firefox 153 and WebKit 26.5 correct. The
+  linked sheet loads and is first in `document.styleSheets`, yet elements already in the page keep the order they had
+  (the utility class still loses); an element created afterwards gets the new order, and toggling another sheet's
+  `disabled` does not refresh the old ones. The same `<link>` inserted after `load`, before or after adoption, is
+  correct on all three, and an inline `<style>` was correct in every timing tried. Not bisected; looks like a missed
+  style invalidation. Consequence: the layer-order line is never delivered by an automatically inserted `<link>`.
+
 ## Rendering, frames and timing
 
 - **Headless browsers are not real compositors.** Playwright's `firefox.launch()` / `webkit.launch()` are headless by
