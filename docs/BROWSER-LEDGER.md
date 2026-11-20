@@ -710,6 +710,21 @@ from another machine, or after that is undone, has a variable changed.
   installed Chrome, version not recorded by the race harness, Playwright 1.62.1; the narrow races Chrome-only; 2026-11-06
   and 11-07.)
 
+- **One-time work in a template's compile step moved V8's STEADY wall time ~3–4% with equal instructions, equal GC time
+  and identical strings.** Node 24.18.0 (V8 13.6, arm64, Node mode, fresh process per sample), 2026-11-20. `@verajs/ssr`
+  0.3.1 checks each `<script>` hole's opening tag at compile time (a prefix rescan, run once per template in the first
+  render). A copy of 0.3.1 with only that compile-time check removed (an investigation copy, never shipped) renders the
+  same output with the same per-render code, yet read 2.95% faster at steady state (median of 12 fresh processes, after
+  2000 warm-up renders; byte-identical A/A 0.06%) on a page with ~150 `<style>` holes and ~150 JSON data-block holes per
+  render, and 2.56% on a second page of that shape; on pages with a handful of such holes (6 and 1) or none the two
+  tied. Under single-threaded cachegrind the two copies' per-render instruction counts agreed within 0.02% at every N;
+  `--trace-gc` over the steady window showed the same GC time (~11 ms of a ~950 ms window, one mark-compact each, ~100
+  scavenges); `%DebugPrint` showed every compiled template part in the same representation in both. The mechanism is
+  open (heap layout and code locality were not examined). The second instance of this class here: the 2026-11-17 Chrome
+  entry above, where a per-row array's backing size moved later work by more than its own cost. Consequence:
+  compile-time or first-render work is not "free at steady state" because it runs once; a change to it is timed at
+  steady state too, and an equal instruction count does not clear a wall-time difference.
+
 ## Test environments
 
 - **Inspecting a cross-realm DOM object (an iframe's `ShadowRoot`) in a chai failure message never finishes**, so a
