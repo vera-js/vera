@@ -312,7 +312,8 @@ test('importing ${own} registers nothing and says nothing', async () => {
   return { component, dir, short, own, filename, tag, testFile, target, written };
 };
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** The command, only when this file was started: `argv[1]` is absent under `node -e`, a REPL or a script over stdin. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [kind, name] = process.argv.slice(2);
   const coreVersion = JSON.parse(readFileSync(`${ROOT}packages/core/package.json`, 'utf8')).version;
   const { component, dir, short, own, filename, testFile, target, written } = scaffold(kind, name, coreVersion);

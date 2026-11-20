@@ -18,14 +18,14 @@ import { packageFiles } from '../scripts/packages.mjs';
 
 /**
  * File, then the exact comment line. Two kinds, each read before it was let in: the real words the pattern also matches
- * (Unicode's C0 and C1 control sets), and two pointers in packages the components machine does not change, each kept
- * only until the ledger entry that removes it lands. **An entry whose line is gone fails the suite**, so a fixed line
- * cannot leave a dead allowance behind to excuse the same text silently if it returns.
+ * (Unicode's C0 and C1 control sets), and two labels in motion's and static's comments, each allowed until it is
+ * reworded there. **An entry whose line is gone fails the suite**, so a fixed line cannot leave a dead allowance behind
+ * to excuse the same text silently if it returns.
  */
 const ALLOWED = new Set([
-  /** The laptop's to remove (LAPTOP-LEDGER F8): an audit label in motion's source. */
+  /** Motion's comment carries an audit label; allowed until it is reworded in motion. */
   'packages/motion/src/url.ts| * This is the fix for audit S1. The old parser handed an attribute value',
-  /** The laptop's to remove (LAPTOP-LEDGER F8): a register label in static's source. */
+  /** Static's comment carries a register label; allowed until it is reworded in static. */
   'packages/static/src/render.ts|   * **Every value written must land** (2026-11-19, S4, the tier suites): the parser DROPS some markup outright — a',
   "packages/shared-utils/src/markup-grammar.ts| * matters: leading C0 controls and spaces are stripped, ASCII tab, LF and CR are removed anywhere, and",
   "packages/ssr/src/vera/escaping.ts| * URL Standard's parser reads a scheme: leading C0 controls and spaces stripped, ASCII tab, LF and CR",

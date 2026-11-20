@@ -51,3 +51,10 @@ test('the command still runs when started directly, and importing the script run
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /usage: node scripts\/new-package\.mjs <component\|hook> <name>/);
 });
+
+test('importing the script where nothing set argv[1] (a script over stdin) runs nothing and throws nothing', () => {
+  const script = `const m = await import(${JSON.stringify(new URL('../scripts/new-package.mjs', import.meta.url).href)});\nprocess.stdout.write(typeof m.scaffold);\n`;
+  const result = spawnSync(process.execPath, ['--input-type=module'], { input: script, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'function');
+});
