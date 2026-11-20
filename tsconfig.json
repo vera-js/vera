@@ -30,6 +30,9 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-hooks/labelled": [
+        "./packages/hooks/labelled/src/index.ts"
+      ],
       "@vera-components/select": [
         "./packages/components/select/src/index.ts"
       ],

@@ -36,6 +36,7 @@ const PACKAGES = {
   '@vera-components/select': 'vera-components/select',
   '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
   '@vera-hooks/listbox': 'vera-hooks/listbox',
+  '@vera-hooks/labelled': 'vera-hooks/labelled',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',

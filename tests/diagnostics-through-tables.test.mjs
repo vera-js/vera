@@ -38,6 +38,7 @@ const MIGRATED = [
   ['router', 'dist/vera-router.min.js'],
   ['inserts', '../core/dist/vera.min.js'],
   ['components/select', 'dist/*.min.js'],
+  ['hooks/labelled', 'dist/*.min.js'],
   ['hot', 'dist/*.min.js'],
   ['lite', 'dist/vera-lite.min.js'],
   ['static', 'dist/vera-static.min.js'],
