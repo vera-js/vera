@@ -22,7 +22,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { closingParen, topLevelArgs } from './source-calls.mjs';
 import { fsPath } from '../scripts/fs-path.mjs';
 
@@ -44,7 +44,8 @@ const PROSE = { ...DIRECTIVES, ...MOTION };
 /** Every `.ts` under the package, so a new pack cannot quietly sit outside the check. */
 const files = (dir, into = []) => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
+    /** With `/` on every platform: the owner checks below match `/`-written package paths. */
+    const path = join(dir, entry.name).split(sep).join('/');
     if (entry.isDirectory()) files(path, into);
     else if (path.endsWith('.ts')) into.push(path);
   }

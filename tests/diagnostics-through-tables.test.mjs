@@ -11,7 +11,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
+
+/** A glob's matches with `/` on every platform (Windows answers `\`): the allow-lists here are written with `/`. */
+const glob = (pattern, options) => globSync(pattern, options).map((file) => file.split(sep).join('/'));
 import { fileURLToPath } from 'node:url';
 import { DIRECTIVES, TABLES as LISTED, proseOf } from '../scripts/diagnostic-tables.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
@@ -98,7 +101,7 @@ for (const [name] of MIGRATED) {
 
 for (const [name, bundle] of MIGRATED) {
   test(`${name}: no inline message — every throw and warning goes through its table`, () => {
-    const files = globSync(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((file) => !file.endsWith('diagnostics.ts'));
+    const files = glob(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((file) => !file.endsWith('diagnostics.ts'));
     assert.ok(files.length > 0, 'CONTROL: the package has sources');
     const inline = [];
     for (const file of files) {
@@ -126,7 +129,7 @@ for (const [name, bundle] of MIGRATED) {
     const entries = [];
     for (const [owner, files] of [[name, tables], ['shared-utils', ['src/diagnostics.ts']]])
       for (const file of files) entries.push(...Object.entries(proseOf(await import(new URL(`../packages/${owner}/${file}`, import.meta.url).href))));
-    const bundles = [bundle].flat().flatMap((one) => globSync(join('packages', name, one), { cwd: root }));
+    const bundles = [bundle].flat().flatMap((one) => glob(join('packages', name, one), { cwd: root }));
     assert.ok(bundles.length > 0, `CONTROL: ${bundle} matched a bundle`);
     const min = bundles.map((file) => readFileSync(join(root, file), 'utf8')).join('\n');
     assert.ok(entries.length > 0, 'CONTROL: the table has entries');
@@ -165,7 +168,7 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
   const lines = [];
   const malformed = [];
   for (const [name] of MIGRATED)
-    for (const file of globSync(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((path) => !path.endsWith('diagnostics.ts'))) {
+    for (const file of glob(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((path) => !path.endsWith('diagnostics.ts'))) {
       const text = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
       for (const match of text.matchAll(/[`'"](?:\[vera\] |[a-zA-Z]+: )([a-z][a-z0-9-]*)([^`'"]?)/g)) {
         if (!known.has(match[1])) continue;
