@@ -339,6 +339,23 @@ test('a breakout tag leaves foreign content exactly where the parser does', () =
   assert.ok(!injected(nested) && !nested.includes(PAYLOAD), nested);
 });
 
+/**
+ * **A breakout pops EVERY foreign element it leaves**, the outermost `<svg>` or `<math>` included. One left on the scan's
+ * open elements is invisible until its own end tag: inside the `<math>` opened after the breakout, `</svg>` closes
+ * nothing for the parser, but the scan would find the stale `<svg>`, pop the `<math>` with it, and read the next
+ * `<style>` as HTML raw text while the browser builds a MathML one, so an untrusted value's `<img>` breaks out and runs.
+ * Found 2026-11-20: a plant keeping one more entry at breakOut's pop turned no row red. Both of breakOut's paths: from
+ * the template's root (no HTML element open) and to an HTML element the template opened.
+ */
+test('a breakout pops every foreign element it leaves, so a later end tag for one of them closes nothing', () => {
+  for (const lead of ['<svg><p><math></svg>', '<math><p><svg></math>', '<div><svg><g><p><math></svg>', '<div><math><b><svg></math>']) {
+    const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
+    assert.ok(!injected(served), `${lead}: a foreign element the breakout left was closed by a later end tag — ${served}`);
+    assert.equal(styleParent(served), 'foreign', `the oracle agrees about ${lead}`);
+    assert.ok(!served.includes(PAYLOAD), `${lead}: ${served}`);
+  }
+});
+
 /** `<svg><template>` is an SVG element, its content live markup — only an HTML `<template>`'s content is inert. */
 test('a binding inside an SVG <template> is live; inside an HTML one it is dropped', () => {
   assert.equal(serializeTemplate(template(['<svg><template><text>', '</text></template></svg>'], 'v')), '<svg><template><text>v</text></template></svg>');
