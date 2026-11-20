@@ -531,8 +531,22 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
 export const closersOf = (end: ScanState): string =>
   (end.comment || (end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '')) +
   end.opens.reduceRight((closing, open) => closing + `</${open.name}>`, '');
-/** A scan state at foreign depth `depth` and nothing else open — its own `opens`, since `scanTag` mutates it. */
-export const freshScan = (depth: number): ScanStart => ({ inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens: [], attrRaw: '', encoding: '' });
+/**
+ * **The empty `opens` every fresh scan copies — already an array of OBJECTS to V8** (2026-11-20). An `[]` literal starts
+ * as an array of small integers and changes kind at its first push of an entry, so each fresh scan's `opens` reached
+ * `scanTag` in a different kind from the one its optimized code had learned: two "wrong map" deopts and a "not a Smi"
+ * one over the first seven renders of a 50 KB `.innerHTML` value, each throwing the optimized scan away, and every
+ * recompile after them came later. Copied from an empty array already holding objects (its one entry removed at
+ * load), every `opens` has the same kind from birth: the deopts are gone and the first 100 renders of that value took
+ * 64.7 ms against 82.3 (0.3.0: 78.8; 8 fresh processes, medians), the renders after them unchanged. A module-level
+ * constant (Brian, 2026-11-20): built once at load and never written after — `freshScan` hands out copies, and
+ * `scanTag` mutates only those.
+ */
+const NO_OPENS: Open[] = [{ name: '', foreign: 0, inert: 0, space: '' }];
+NO_OPENS.pop();
+
+/** A scan state at foreign depth `depth` and nothing else open — its own `opens` (a copy of `NO_OPENS`), since `scanTag` mutates it. */
+export const freshScan = (depth: number): ScanStart => ({ inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens: NO_OPENS.slice(), attrRaw: '', encoding: '' });
 
 /**
  * What the template compiler reads of this module besides the scan itself — exported as SEPARATE bindings. The scan
