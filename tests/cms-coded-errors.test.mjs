@@ -67,7 +67,8 @@ test('cms-build-reserved-name and cms-build-schema: the build names what it refu
     writeFileSync(join(content, 'schema.json'), '{nope');
     assert.throws(() => buildManifests({ content, out: join(root, 'out') }), (error) => {
       assert.ok(error.message.endsWith('(cms-build-schema)'), error.message);
-      assert.ok(error.message.includes(join(content, 'schema.json')), 'the owner\'s own path, whole');
+      /** Quoted as the message prints every path (JSON, so a Windows path's `\` arrives doubled), whole. */
+      assert.ok(error.message.includes(JSON.stringify(join(content, 'schema.json'))), 'the owner\'s own path, whole');
       assert.ok(error.message.includes('(cms-schema-json)'), 'and the schema\'s own refusal carried as it is — its code kept');
       assert.ok(error.cause?.message.endsWith('(cms-schema-json)'), 'its cause');
       return true;
