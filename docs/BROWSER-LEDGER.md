@@ -17,6 +17,14 @@ from another machine, or after that is undone, has a variable changed.
 
 ## The DOM and the HTML parser
 
+- **A control's `labels`, once read, misses a `for` set afterwards in Firefox.** Playwright Firefox 153 (headless):
+  read `input.labels` (0), then set a label's `for` to the input's id, and the list stays empty: the same live
+  NodeList object, a fresh read, a forced layout and rewriting the input's `id` all still answer 0, while the label works
+  (a click focuses the input). Read fresh, never read before the `for` was set, it answers 1. Chromium 151 and WebKit 26.5
+  update the list as the spec's live NodeList (1). Consequence: no code decides "is this control labelled" from
+  `labels`, which a caller may have read earlier; `@vera-hooks/labelled` compares each `label[for]` with the control's
+  id (which also works on the server DOM, which has no `labels`), and `tests/browser/labelled.test.js` pins each
+  engine's rule. (2026-11-20)
 - **The HTML parser foster-parents `<slot>` and custom elements out of table markup.** All engines. A `<slot>` or a
   `<my-row>` written inside `<table><tbody>` is moved out of the table when a template is parsed, so the slot and
   everything distributed into it land outside the table. Consequence: documented as a light-DOM slots limitation that
