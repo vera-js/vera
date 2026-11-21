@@ -167,6 +167,12 @@ from another machine, or after that is undone, has a variable changed.
   tag name" in WebKit). Consequence: a retry that re-imports the failed
   URL works on two engines and never on Chromium, so `retry()` still has to ask with a URL the engine has not seen. (Playwright
   1.65.1, macOS 27.2.1 on Apple silicon, headless, 2026-11-21.)
+- **A capture `scroll` listener on the window never hears a scroller inside a shadow root; only that shadow root does.**
+  `scroll` is not composed, so it does not cross the shadow boundary even in the capture phase. Identical in Chromium
+  151.0.7922.34, Firefox 153.0 and WebKit 26.5 (Playwright 1.62.1 builds, headless; a correctness check). Consequence:
+  code that follows a target's scroll position (anchored placement) adds one capture listener per root up the target's
+  shadow chain, plus the window, never the window alone. (2026-11-20; `tests/browser/anchor-measured.test.js`, "follows
+  a scroller inside a user's shadow root")
 
 ## CSS and the cascade
 
@@ -254,6 +260,12 @@ from another machine, or after that is undone, has a variable changed.
   remove (data, className, clone, insert alone) held their A/A within ~3%. Consequence: a removal cost from one Chrome
   instance is not a cost; it needs several fresh instances, and an A/A per instance. (Chrome 157 headed, a copy with a
   temporary profile, macOS; 2026-11-12; the stub-DOM validation's Chrome page.)
+- **`ResizeObserver` always sends one initial callback, a frame after `observe()`, whether or not anything resized.**
+  Identical in Chromium 151.0.7922.34, Firefox 153.0 and WebKit 26.5 (Playwright 1.62.1 builds, headless). Consequence:
+  the callback is a repair path in its own right, and in a test it can repair the very state a row meant to observe: an
+  anchor row that scrolled before the initial callback passed was green against a planted bug, because the callback
+  re-placed the layer. A row measuring a listener other than the observer waits the initial callback out first.
+  (2026-11-20; `tests/browser/anchor-measured.test.js`)
 
 ## Process and garbage
 
@@ -438,6 +450,27 @@ from another machine, or after that is undone, has a variable changed.
   callback is engine work per instance. Consequence: never add one speculatively. (Mode not recorded; 2026-10-02)
 - **Custom element upgrade, shadow DOM, `adoptedStyleSheets` and `@scope` are emulated or absent under jsdom.**
   Consequence: browser suites on all three engines are the release gate; jsdom is the regression net. (standing)
+- **Chrome's autofill reaches a native input inside a custom element host, light DOM or a form-associated host's
+  shadow root alike; a form-associated host with no input gets nothing.** Installed Chrome 157, headed, Windows 11, 5
+  runs with a fresh profile each and the arm order rotated, filled through DevTools' `Autofill.trigger({ fieldId,
+  address })`: a bare input (the control), an input in an undefined host, one in a defined host whose setup inserts
+  sibling elements, and an `<input>` in a form-associated host's own shadow root all filled name, email and tel, matched
+  `:autofill`, and reached `FormData` (the last through `setFormValue`). A form-associated host whose field is
+  `contenteditable` with no input got nothing (`Field not found`: Chrome sees no field), and an `autocomplete=off`
+  control filled nothing. **And CDP key events (click, ArrowDown, Enter) never reach the autofill popup**, which is
+  browser UI, so a probe driving keys measures an empty popup on every arm. Consequence: what decides autofill is a real
+  `<input>`, not which element is the form participant; components that wrap the user's own input keep it, and a test of
+  autofill uses `Autofill.trigger`, never keys. It shows the filler reaches the field, not that the popup is OFFERED on
+  a real click: a manual sign-off row (a real click in Chrome, Safari, Firefox) stays required. (2026-11-20, a local
+  probe)
+- **`:user-invalid` never matches a form-associated custom element on Chromium and WebKit, and matches one too early on
+  Firefox.** Chromium 151.0.7922.34, Firefox 153.0 and WebKit 26.5 (Playwright 1.62.1 builds), headless (a correctness
+  check): a form-associated element that `setValidity()` marks invalid, before and after a submit, against a native
+  required input as the control, which matches only after the submit on all three. The element matches `:invalid` on
+  all three; `:user-invalid` stays false on Chromium and WebKit even after the submit, and is already true on Firefox
+  before any submit. Consequence: a composite control cannot style its error state with `:user-invalid`; it sets its
+  own `data-user-invalid` after the user's first commit, and the field's selector names both. (2026-11-20, a local
+  probe, re-run 2026-11-21 with the same answers)
 
 ## The engines' compilers
 
