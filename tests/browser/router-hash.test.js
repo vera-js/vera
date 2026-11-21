@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { initRouter, navigate, setRouterRenderer } from '../../packages/router/dist/development/vera-router.js';
+import { until } from './until.js';
 
 /**
  * Fragment navigation, in a real engine.
@@ -18,7 +19,20 @@ setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 
-const settle = () => new Promise((r) => setTimeout(r, 60));
+/**
+ * **The engine's `hashchange`, waited for**: a fragment move (`location.hash` assigned, or `location.replace` under
+ * `pushHash`) fires `popstate` then `hashchange`, both later; once `hashchange` has fired, both have reached the
+ * router's own listeners. Arm it BEFORE the move. A fixed 60 ms said nothing about an event a loaded machine fires late,
+ * and a re-render arriving after it would have been read as none.
+ */
+const hashMoved = () => {
+  let moved = false;
+  addEventListener('hashchange', () => (moved = true), { once: true });
+  return () => until(() => moved, "the engine's hashchange", 4000);
+};
+
+/** A macrotask: whatever the router's listeners started from that event has run its synchronous part and microtasks. */
+const task = () => new Promise((r) => setTimeout(r, 0));
 
 const makeApp = (routes, options = {}) => {
   const el = document.createElement('div');
@@ -39,8 +53,9 @@ it('assigning location.hash fires popstate as well as hashchange', async () => {
   const onPop = () => fired.push('popstate');
   window.addEventListener('hashchange', onHash);
   window.addEventListener('popstate', onPop);
+  const moved = hashMoved();
   location.hash = '#probe-' + Math.random().toString(36).slice(2);
-  await settle();
+  await moved();
   window.removeEventListener('hashchange', onHash);
   window.removeEventListener('popstate', onPop);
   location.hash = '';
@@ -58,12 +73,15 @@ it('a hash-only change keeps the route and updates the snapshot', async () => {
   const after = [];
   router.on('after-route', (to) => after.push([to.hash, to.trigger]));
 
+  /** `navigate` resolves after the route is applied (rendered, focused, after-route emitted). */
   await navigate('/bh-doc', 'navigate');
-  await settle();
   const rendersAfterRoute = renders;
+  expect(rendersAfterRoute, 'CONTROL: the route rendered').to.equal(1);
 
+  const moved = hashMoved();
   await navigate('/bh-doc#install', 'navigate');
-  await settle();
+  await moved();
+  await task();
 
   expect(router.currentRoute.path).to.equal('/bh-doc');
   expect(router.currentRoute.hash).to.equal('#install');
@@ -77,8 +95,10 @@ it('the fragment reaches the snapshot on a full navigation too', async () => {
   const router = makeApp([
     { path: '/bh-page', component: (params, to) => { renders++; seen = to; return '<p>p</p>'; } },
   ]);
+  const moved = hashMoved();
   await navigate('/bh-page#section', 'navigate');
-  await settle();
+  await moved();
+  await task();
   expect(seen.hash).to.equal('#section');
   expect(router.currentRoute.hash).to.equal('#section');
   expect(renders, 'one fragment navigation, one render').to.equal(1);

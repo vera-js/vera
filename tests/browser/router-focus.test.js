@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { initRouter, setRouterRenderer } from '../../packages/router/dist/development/vera-router.js';
+import { until } from './until.js';
 
 /**
  * `focusView` — focus moves into the newly routed view on user navigation.
@@ -17,7 +18,6 @@ setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 
-const settle = () => new Promise((r) => setTimeout(r, 40));
 
 const makeApp = (routes, options = {}) => {
   const el = document.createElement('div');
@@ -37,8 +37,22 @@ const clickTo = async (app, href) => {
       default behavior for ordinary links. Without this the page really navigates. */
   link.setAttribute('route', '');
   app.el.appendChild(link);
+  /**
+   * Waited for, not timed: the router moves focus synchronously just before it emits `after-route`, so once that has
+   * fired for this href, focus is wherever routing put it, or left it. A fixed 40 ms read a late route as one that did
+   * not steal focus.
+   */
+  let arrived = false;
+  const seen = (to) => {
+    if (to.path === href) arrived = true;
+  };
+  app.r.on('after-route', seen);
   link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  await settle();
+  try {
+    await until(() => arrived, `after-route for ${href}`, 4000);
+  } finally {
+    app.r.off('after-route', seen);
+  }
 };
 
 const startPath = location.pathname;

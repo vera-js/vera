@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { initRouter, navigate, setBasePath, setRouterRenderer } from '../../packages/router/dist/development/vera-router.js';
+import { until } from './until.js';
 
 /**
  * **Mounting the app at a subpath, in a real engine.**
@@ -24,7 +25,19 @@ setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
+/**
+ * **Routed, waited for**: `navigate` resolves after the route is applied (rendered, history written, `after-route`
+ * emitted), so a read after `await navigate(...)` needs no sleep; a navigation the ENGINE starts (a click, a traversal)
+ * is waited for through `after-route`. A fixed 60 ms after each read a slow route as the wrong one.
+ */
+const routed = (router, path) => {
+  let arrived = false;
+  const seen = (to) => {
+    if (to.path === path) arrived = true;
+  };
+  router.on('after-route', seen);
+  return () => until(() => arrived, `after-route for ${path}`, 4000).finally(() => router.off('after-route', seen));
+};
 
 let made = [];
 let hit = null;
@@ -52,7 +65,6 @@ const makeApp = () => {
 /** Always come from a different route: navigating to the one you are on is a no-op. */
 const reset = async () => {
   await navigate('/', 'replace');
-  await settle();
   hit = null;
 };
 
@@ -76,43 +88,38 @@ it('setBasePath writes the base to history and strips it back off', async () => 
   await reset();
 
   await navigate('/users', 'navigate');
-  await settle();
   expect(location.pathname, 'the real address bar carries the base').to.equal('/app/users');
   expect(hit, 'and the route table, written without it, still matched').to.equal('users');
 
   /** The round trip: what the engine reads back has to strip to the same route. */
   await navigate('/users/7', 'navigate');
-  await settle();
   expect(location.pathname).to.equal('/app/users/7');
   expect(hit).to.equal('one user');
 
   await navigate('/', 'navigate');
-  await settle();
   expect(location.pathname, "the app's own root is the base, no trailing slash").to.equal('/app');
   expect(hit).to.equal('home');
 });
 
 it('history traversal under a base routes to the stripped path', async () => {
-  makeApp();
+  const { router } = makeApp();
   setBasePath('/app');
   await reset();
   await navigate('/users', 'navigate');
-  await settle();
   await navigate('/users/7', 'navigate');
-  await settle();
 
   hit = null;
   /**
    * Wait for the EVENT, not for a duration. `history.back()` is asynchronous and how long it takes
    * is the engine's business — a fixed sleep passed in Chromium and WebKit and was short for
    * Firefox, which is the shape of flake this repository has been bitten by before (a recorded
-   * value sampled mid-transition). `popstate` fires after the URL has been updated, so it is the
-   * condition actually being waited for.
+   * value sampled mid-transition). The router routes from its own `popstate` listener, and `after-route` for the
+   * stripped path is the end of that, so it is the condition actually being waited for (a 60 ms timer after
+   * `popstate` was the same guess one step later).
    */
-  await new Promise((resolve) => {
-    addEventListener('popstate', () => setTimeout(resolve, 60), { once: true });
-    history.back();
-  });
+  const back = routed(router, '/users');
+  history.back();
+  await back();
   expect(location.pathname, 'the engine restored the mounted URL').to.equal('/app/users');
   expect(hit, 'and popstate routed to the route, not to the mounted path').to.equal('users');
 });
@@ -128,7 +135,6 @@ it('a link whose href carries the base is marked active on the stripped route', 
   el.appendChild(link);
 
   await navigate('/users', 'navigate');
-  await settle();
   expect(link.classList.contains('active'), 'the comparison crosses the base').to.equal(true);
   expect(link.getAttribute('aria-current')).to.equal('page');
 });
@@ -141,7 +147,7 @@ it('a link whose href carries the base is marked active on the stripped route', 
  * navigation assertion would fail with it.
  */
 it('a route-space href is diagnosed in development, once, and still navigates', async () => {
-  const { el } = makeApp();
+  const { el, router } = makeApp();
   setBasePath('/app');
   await reset();
 
@@ -156,18 +162,29 @@ it('a route-space href is diagnosed in development, once, and still navigates', 
     link.setAttribute('route', '');
     link.setAttribute('href', '/users');
     el.appendChild(link);
+    /** The warning is printed synchronously in the click handler, before it navigates: read at once after each click. */
+    const arrived = routed(router, '/users');
     link.click();
-    await settle();
+    await arrived();
+    expect(location.pathname, 'the click still navigates — the diagnosis is advice, not a refusal')
+      .to.equal('/app/users');
     link.click();
-    await settle();
+    expect(said.filter((line) => line.includes('points outside')).length, 'the second click of the same href added none').to.equal(1);
+    /** CONTROL: another route-space href warns at its own click, synchronously, so the read above could have seen one. */
+    const other = document.createElement('a');
+    other.setAttribute('route', '');
+    other.setAttribute('href', '/users/7');
+    el.appendChild(other);
+    const arrivedOther = routed(router, '/users/7');
+    other.click();
+    expect(said.filter((line) => line.includes('points outside')).length, 'CONTROL: a new href warns at once').to.equal(2);
+    await arrivedOther();
   } finally {
     console.warn = original;
   }
 
-  expect(location.pathname, 'the click still navigates — the diagnosis is advice, not a refusal')
-    .to.equal('/app/users');
   const warnings = said.filter((line) => line.includes('points outside'));
-  expect(warnings.length, 'exactly one warning for two clicks of the same href').to.equal(1);
+  expect(warnings.length, 'one warning for two clicks of the same href, one for the other').to.equal(2);
   expect(warnings[0]).to.include('[vera]');
   expect(warnings[0], 'and it names the href the author should have written').to.include('/app/users');
 });
