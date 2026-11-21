@@ -29,3 +29,17 @@ test('isServer is false without it (CONTROL: the same question, the same build)'
 test('isServer() is true when core was imported BEFORE @verajs/ssr (the import order a server can have)', () => {
   assert.equal(ask('', "await import('@verajs/ssr');"), 'true');
 });
+
+/**
+ * **Mixed versions** (packages install independently): `@verajs/renderer` 0.3.1 and earlier tell the server by the OLD
+ * global flag alone, so ssr still writes it — dropping the write makes an older renderer render as a browser.
+ */
+test('@verajs/ssr still writes the old flag an older renderer reads (__veraSsrShimmed)', () => {
+  const out = execFileSync(
+    process.execPath,
+    [...(isProduction ? [] : ['--conditions', 'development']), '--input-type=module', '-e', "await import('@verajs/ssr');\nconsole.log(JSON.stringify(globalThis.__veraSsrShimmed));"],
+    { encoding: 'utf8', env: { ...process.env } }
+  ).trim().split('\n').at(-1);
+  assert.equal(out, 'true');
+});
+

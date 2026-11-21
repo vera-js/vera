@@ -139,9 +139,8 @@ const REMOVED = {
   useDismiss: "@vera-hooks/light-dismiss's lightDismiss",
   'ui-defined-twice': 'defined-twice',
   'ui-select-duplicate': 'select-duplicate',
-  /** 2026-11-21: `isServer` became a function read when called (core 0.5.0), and ssr's two global flags became one. */
+  /** 2026-11-21: `isServer` became a function read when called (core 0.5.0). */
   'if (!isServer)': 'if (!isServer())',
-  __veraSsrShimmed: 'isServer() from @verajs/core',
 };
 
 /**

@@ -51,7 +51,7 @@ type GlobalScope = Record<string, unknown>;
  * The flags an install leaves on the global, so a second import installs nothing. `_$ssr$` is what `@verajs/core`'s
  * `isServer` reads (2026-11-20: a sigil, 21 B in core where this name cost 30).
  */
-type ShimmedGlobal = { _$ssr$?: boolean };
+type ShimmedGlobal = { _$ssr$?: boolean; __veraSsrShimmed?: boolean };
 
 /** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
 const RESERVED_NAMES = new Set([
@@ -324,6 +324,12 @@ export const LOCATION_PARTS = [
 export const installShims = () => {
   if ((globalThis as ShimmedGlobal)._$ssr$) return registry;
   (globalThis as ShimmedGlobal)._$ssr$ = true;
+  /**
+   * The old flag, still WRITTEN (never read here): `@verajs/renderer` 0.3.1 and earlier read only it to tell the server
+   * (its main, `until`, `portal` and `profiler` entries), and packages install independently — a new ssr beside an
+   * older renderer would otherwise render as a browser. Drop it once no supported renderer reads it.
+   */
+  (globalThis as ShimmedGlobal).__veraSsrShimmed = true;
 
   /**
    * Every assignment here is a deliberate lie: a shim is not an `HTMLElement`, and saying so is the
