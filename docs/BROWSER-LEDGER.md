@@ -824,6 +824,11 @@ from another machine, or after that is undone, has a variable changed.
   (2026-10-01)
 - **jsdom answered a NESTED host's child for `querySelector(':scope > …')`** on a page custom elements built.
   Consequence: probes read direct children with `[...el.children]`. (2026-10-02)
+- **jsdom matches `:dir(ltr)` on every element, inside a `dir="rtl"` subtree too**, so there an element matches both
+  `:dir(ltr)` and `:dir(rtl)`; `:dir(rtl)` itself is right (false under `dir="ltr"` and with no `dir` at all, the
+  controls). Consequence: code reads direction as `matches(':dir(rtl)')` only, never as `!matches(':dir(ltr)')`, and a
+  jsdom row cannot tell the two readings apart; `@vera-hooks/roving-focus` reads it that way, and its browser rows are
+  the oracle for right to left. (jsdom 25.0.1, Node; 2026-11-20)
 - **Linux WebKit exposes `PublicKeyCredential`, macOS WebKit does not**; a recorded DOM surface must not depend on it.
   (`tests/dom-surface.mjs`)
 - **Playwright WebKit stops being able to open a test page after a cumulative number of test files in ONE browser
