@@ -252,7 +252,7 @@ test('a hidden tab queues nothing: an announcement nobody is there to hear is st
   assert.equal(regions(doc).length, 0);
 });
 
-test('a tab hidden after the call drops what was waiting, and a later message after its return is said alone', () => {
+test('a tab hidden when the write comes drops what was waiting, and a later message after its return is said alone', () => {
   const { doc, run } = page('<p>x</p>');
   const p = doc.querySelector('p');
   announce(p, 'stale');

@@ -22,7 +22,7 @@ export interface Wanted {
  * version, and two copies on one page keep one region and one settle window between them.
  */
 export interface AnnounceRecord {
-  /** The shape's version: 2 (2 added `written`). A newer copy adds fields and raises it; an older copy reads the fields it knows. */
+  /** The shape's version: 1. A newer copy adds fields and raises it; an older copy reads the fields it knows. */
   v: number;
   /** The document's own regions, on `body`, by politeness. Re-created when a page emptied `body`. */
   regions: Partial<Record<Politeness, HTMLElement>>;
@@ -32,20 +32,15 @@ export interface AnnounceRecord {
   wanted: Map<string, Set<Element>>;
   /** The settle window's timer while one is open, else 0: exactly one copy decides a window. */
   window: number;
-  /** v1's keyed timers, kept for an older copy that still reads them; v2 queues instead (`queue`). */
-  pending: Map<string, number>;
+  /** The message last written under each key, so a keyed write replaces it and the region holds one node per key. */
+  written: Map<string, Element>;
   /**
-   * The message last written under each key, so a keyed write replaces it and the region holds one node per key (v2;
-   * absent from a record an older copy made, and added on first use).
+   * The messages waiting for their region, in call order, by politeness: one timer writes them all, so a message is
+   * never spoken before one asked for earlier (a first write waits longer than the next).
    */
-  written?: Map<string, Element>;
-  /**
-   * The messages waiting for their region, in call order, by politeness (v2): one timer writes them all, so a message
-   * is never spoken before one asked for earlier (a first write waits longer than the next).
-   */
-  queue?: Partial<Record<Politeness, Queued[]>>;
-  /** The timer that will write each politeness's queue, while one is armed, else 0 or absent (v2). */
-  flush?: Partial<Record<Politeness, number>>;
+  queue: Partial<Record<Politeness, Queued[]>>;
+  /** The timer that will write each politeness's queue while one is armed, else 0 or absent. */
+  flush: Partial<Record<Politeness, number>>;
 }
 
 /** One message waiting in a queue: its text, and its key when it has one. */

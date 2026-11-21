@@ -22,8 +22,9 @@ loading.release();                                         //   unless released 
   call, after every message asked for before it (the first into a new region waits a little longer, and the rest wait
   behind it), and the region speaks only what is added (`aria-relevant="additions"`), so two different messages in one
   moment are both said, and the same text twice is said twice. A `key` collapses announcements within that moment to
-  the last one, and a keyed message replaces that key's earlier one, so a count ticking while typing keeps one node. A
-  message is removed from the region a few seconds after it was added; a removal is not spoken.
+  the last one (moved to the back, so it follows the others), and a keyed message replaces that key's earlier one, so
+  a count ticking while typing keeps one node. A message is removed from the region a few seconds after it was added;
+  a removal is not spoken.
 - **Modals.** While a modal `<dialog>` is open everything outside it is inert, and a screen reader does not speak an
   inert region, so the hook speaks from a region inside the topmost open modal: the one holding focus (`showModal()`
   moves focus into the dialog it opens), else the last open one in the document. **Limit:** if focus has fallen to

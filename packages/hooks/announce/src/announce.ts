@@ -24,12 +24,11 @@ type Holder = Document & { [RECORD]?: AnnounceRecord };
 /** This document's record, made on first use. A newer copy's record is read as-is: its fields only ever grow. */
 const recordOf = (doc: Document): AnnounceRecord =>
   ((doc as Holder)[RECORD] ??= {
-    v: 2,
+    v: 1,
     regions: {},
     modals: new WeakMap(),
     wanted: new Map(),
     window: 0,
-    pending: new Map(),
     written: new Map(),
     queue: {},
     flush: {},
@@ -98,12 +97,12 @@ const regionFor = (doc: Document, record: AnnounceRecord, politeness: Politeness
  * modal may have closed since the call, or the page emptied `body`). A region made at this moment is not written at
  * once: the whole queue waits its first-write delay again, so order holds. A keyed message replaces its key's earlier
  * one (a count ticking while typing keeps one node, not one per tick); removing a node is not spoken
- * (`aria-relevant="additions"`), and each removal takes only its own node, never a newer one. A tab hidden since
- * the call drops the queue: nobody is there to hear it.
+ * (`aria-relevant="additions"`), and each removal takes only its own node, never a newer one. A tab hidden when the
+ * write comes drops the queue: nobody is there to hear it.
  */
 const flush = (doc: Document, win: Window, record: AnnounceRecord, politeness: Politeness): void => {
-  const flushes = (record.flush ??= {});
-  const queued = (record.queue ??= {})[politeness] ?? [];
+  const flushes = record.flush;
+  const queued = record.queue[politeness] ?? [];
   flushes[politeness] = 0;
   if (doc.visibilityState === 'hidden') {
     queued.length = 0;
@@ -119,21 +118,21 @@ const flush = (doc: Document, win: Window, record: AnnounceRecord, politeness: P
     message.textContent = text;
     region.append(message);
     if (key !== undefined) {
-      const written = (record.written ??= new Map());
+      const written = record.written;
       written.get(key)?.remove();
       written.set(key, message);
     }
     win.setTimeout(() => {
       message.remove();
-      if (key !== undefined && record.written?.get(key) === message) record.written.delete(key);
+      if (key !== undefined && record.written.get(key) === message) record.written.delete(key);
     }, KEEP_MS);
   }
 };
 
 /**
  * **Say `text` once, in `element`'s own document.** It joins its politeness's queue, written a task later from the
- * element's window, after every message asked for before it. A `key` replaces that key's message still waiting, so a
- * burst says its last. Nothing is said for an element whose document has no window (detached), and nothing is queued
+ * element's window, after every message asked for before it. A `key` replaces that key's message still waiting and moves
+ * it to the back, so a burst says its last, in the order of its latest call. Nothing is said for an element whose document has no window (detached), and nothing is queued
  * in a hidden tab: an announcement nobody is there to hear is stale by their return.
  */
 export const announce = (element: Element, text: string, options: AnnounceOptions = {}): void => {
@@ -144,14 +143,13 @@ export const announce = (element: Element, text: string, options: AnnounceOption
   const record = recordOf(doc);
   const [, fresh] = regionFor(doc, record, politeness);
   const key = options.key;
-  const queues = (record.queue ??= {});
-  const queued = (queues[politeness] ??= []);
+  const queued = (record.queue[politeness] ??= []);
   if (key !== undefined) {
     const earlier = queued.findIndex((entry) => entry.key === key);
     if (earlier !== -1) queued.splice(earlier, 1);
   }
   queued.push({ text: String(text), key });
-  const flushes = (record.flush ??= {});
+  const flushes = record.flush;
   if (!flushes[politeness])
     flushes[politeness] = win.setTimeout(() => flush(doc, win, record, politeness), fresh ? FIRST_WRITE_MS : WRITE_MS);
 };
