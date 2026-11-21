@@ -37,10 +37,18 @@ const helperOf = (node) => {
   if (params.length === 0) return ts.isNumericLiteral(delay) ? [node.name.text, delay] : null;
   return params.length === 1 && ts.isIdentifier(params[0].name) && delay.getText() === params[0].name.text ? [node.name.text, null] : null;
 };
-/** The delay of a statement that is exactly a fixed sleep, or null: `await new Promise((r) => setTimeout(r, N))`, or a
- *  call to a helper in `helpers` (`await settle(N)`, or `await settle()` for one that fixes its delay). */
-const sleepOf = (statement, helpers) => {
+/** A timer bound to a name, as `[name, delay]`: `const past = new Promise((r) => setTimeout(r, 300))`, awaited later. */
+const timerOf = (node) => {
+  if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer) return null;
+  const delay = timerDelay(node.initializer);
+  return delay && ts.isNumericLiteral(delay) ? [node.name.text, delay] : null;
+};
+/** The delay of a statement that is exactly a fixed sleep, or null: `await new Promise((r) => setTimeout(r, N))`, a call
+ *  to a helper in `helpers` (`await settle(N)`, or `await settle()` for one that fixes its delay), or `await past` for a
+ *  timer bound in `timers`. */
+const sleepOf = (statement, helpers, timers) => {
   const e = ts.isExpressionStatement(statement) && ts.isAwaitExpression(statement.expression) ? statement.expression.expression : null;
+  if (e && ts.isIdentifier(e) && timers.has(e.text)) return Number(timers.get(e.text).text);
   const name = e && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && helpers.has(e.expression.text) ? e.expression.text : null;
   const fixed = name ? helpers.get(name) : null;
   const delay = name === null ? timerDelay(e)
@@ -78,9 +86,12 @@ export const timedWaits = (text, name = 'x.js') => {
   const found = [];
   const line = (node) => file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
   const helpers = new Map();
+  const timers = new Map();
   const collect = (node) => {
     const helper = helperOf(node);
     if (helper) helpers.set(...helper);
+    const timer = timerOf(node);
+    if (timer) timers.set(...timer);
     ts.forEachChild(node, collect);
   };
   collect(file);
@@ -90,7 +101,7 @@ export const timedWaits = (text, name = 'x.js') => {
     const statements = ts.isBlock(node) || ts.isSourceFile(node) ? node.statements : null;
     if (statements)
       statements.forEach((s, i) => {
-        const delay = sleepOf(s, helpers);
+        const delay = sleepOf(s, helpers, timers);
         if (!(delay > 0)) return;
         /** Every later statement of the block, nested blocks included, up to the first wait for an event. */
         for (const next of statements.slice(i + 1)) {
@@ -137,6 +148,9 @@ test('the reader refuses each shape and passes a poll, a yield, an event and an 
   const fixed = 'const settle = () => new Promise((r) => setTimeout(r, 80));\n';
   assert.deepEqual(timedWaits(`${fixed}it('a', async () => {\nawait settle();\nexpect(a).to.equal(0);\n});`), ['3: a 80 ms sleep, then an expect']);
   assert.deepEqual(timedWaits(`const tick = () => new Promise((r) => setTimeout(r, 0));\nit('a', async () => {\nawait tick();\nexpect(a).to.equal(0);\n});`), [], 'a fixed zero-delay helper yields');
+  /** A timer bound to a name and awaited later, reported at the await. */
+  assert.deepEqual(timedWaits(`it('a', async () => {\nconst past = new Promise((r) => setTimeout(r, 300));\nwork();\nawait past;\nexpect(a).to.equal(0);\n});`), ['4: a 300 ms sleep, then an expect']);
+  assert.deepEqual(timedWaits(`it('a', async () => {\nconst ready = new Promise((r) => el.addEventListener('load', r));\nawait ready;\nexpect(a).to.equal(0);\n});`), [], 'a bound event promise is not a sleep');
   /** A frame is not an event wait: a sleep before it still reaches the expect after it. */
   assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(300)}\nawait frames(2);\ncheck(() => expect(a).to.equal(0));\n});`), ['2: a 300 ms sleep, then an expect']);
   assert.deepEqual(timedWaits('const until = async () => {};'), ['1: a local until']);
