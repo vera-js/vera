@@ -100,6 +100,41 @@ describe('anchor, measured path', () => {
   });
 
   /**
+   * **A host made by another window, then adopted, is followed like any other.** An adopted node keeps the prototype of
+   * the window that created it, so its shadow root is not `instanceof` this window's `ShadowRoot`; a walk up the
+   * target's roots that tested the class skipped it and never heard its scroller (`docs/BROWSER-LEDGER.md`, 2026-11-21:
+   * "A node made by another window's document and adopted keeps that window's prototype").
+   */
+  it('follows a scroller inside a shadow root whose host another window created and this document adopted', async () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    cleanup.push(() => frame.remove());
+    const host = frame.contentDocument.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    holder().append(host);
+    expect(host.ownerDocument === document && !(root instanceof ShadowRoot), 'CONTROL: the root is adopted and of the other window').to.equal(true);
+    const scroller = document.createElement('div');
+    scroller.style.cssText = 'position: relative; height: 120px; overflow: auto;';
+    const tall = document.createElement('div');
+    tall.style.height = '600px';
+    scroller.append(tall);
+    root.append(scroller);
+    const { target, layer } = fixture(tall, 10, 60);
+    cleanup.push(() => layer.remove());
+    const placed = anchor(layer, target);
+    placed.open();
+    /** The initial ResizeObserver callback passes first, as in the row above. */
+    await frames(3);
+    const before = layer.getBoundingClientRect().top;
+    scroller.scrollTop = 40;
+    await frames(3);
+    const after = layer.getBoundingClientRect().top;
+    near(before - after, 40, 'moved with the scroller');
+    near(after, target.getBoundingClientRect().bottom + 4, 'still attached');
+    placed.close();
+  });
+
+  /**
    * **A squeezed layer's own scroll stays where the user put it.** Its `scroll` reaches the capture listener like any
    * other, and a re-placement that took the caps off to measure let the content stop overflowing, so the browser
    * clamped `scrollTop` to 0 on every frame the user scrolled it.
