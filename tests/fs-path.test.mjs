@@ -269,6 +269,10 @@ test('comparable spells two spellings of one Windows path alike, and leaves a PO
   if (process.platform === 'win32') {
     assert.equal(comparable('c:\\projects\\vera\\tests\\x.mjs'), 'C:/projects/vera/tests/x.mjs', 'a lowercase drive and backslashes');
     assert.equal(comparable(lowered), comparable(native), 'the lowered checkout and the canonical one compare equal');
+    assert.equal(comparable('/c:/projects/vera/tests/x.mjs'), '/C:/projects/vera/tests/x.mjs', 'the path of a file URL, as a cut stack frame holds it');
+    /** The blind-queries strip, planted with the instrument's own shape: a frame with its file:// cut, lowercase drive. */
+    const cut = '/' + posix(lowered) + '/tests/ssr-directives.test.mjs:68';
+    assert.equal(comparable(cut).replace(comparable(native), '').replace(/^\/+/, ''), 'tests/ssr-directives.test.mjs:68');
     assert.notEqual(posix(lowered), posix(native), 'CONTROL: posix() alone leaves them different (the blind-queries false red)');
     /** The blind-queries strip, planted with a lowercase-drive frame against the canonical root. */
     const frame = posix(lowered) + '/tests/ssr-directives.test.mjs:68:5';

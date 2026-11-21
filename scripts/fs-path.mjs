@@ -26,13 +26,19 @@ export const posix = (path) => path.split(sep).join('/');
  * A path in the one spelling two paths are compared in: forward slashes, and on Windows an upper-case drive letter. The
  * drive letter keeps the launching shell's case (`c:\` from VS Code, `C:\` from Git Bash and from any realpath),
  * so two spellings of one file differ by it; a comparison of a root with a resolved path goes through this on both sides.
+ * It takes a path, either a platform path or the path part of a file URL (`/c:/projects/…`, what a stack frame holds once
+ * its `file://` is cut), not a URL.
  *
  * @param {string} path
  * @returns {string}
  */
 export const comparable = (path) => {
   const forward = posix(path);
-  return process.platform === 'win32' && /^[a-z]:/.test(forward) ? forward[0].toUpperCase() + forward.slice(1) : forward;
+  if (process.platform !== 'win32') return forward;
+  const drive = /^\/?[a-z]:/.exec(forward);
+  if (!drive) return forward;
+  const at = drive[0].length - 2;
+  return forward.slice(0, at) + forward[at].toUpperCase() + forward.slice(at + 1);
 };
 
 /**
@@ -49,7 +55,8 @@ export const fsPath = (url) => posix(fileURLToPath(url));
  * drive letter keeps the case of whatever launched the shell (VS Code starts one in `c:\…`, Git Bash's `/c/…` gives
  * `C:\…`), while a realpath, which every resolver takes through a workspace link, always answers the file system's
  * own `C:\…`. A tool that compares the two by case breaks only for some launchers: the browser step lost 65 Chromium
- * rows to it from a lowercase cwd. A no-op on macOS and Linux, and wherever the spelling is already canonical. The
+ * rows to it from a lowercase cwd. On macOS and Linux it changes the cwd only when the path holds a symlink, to its
+ * target (a checkout under /tmp moves to /private/tmp on macOS), which every resolver answers anyway. The
  * gate and test-batch, which every check runs under, call it first.
  */
 export const canonicalCwd = () => {
