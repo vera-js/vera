@@ -73,9 +73,9 @@ block is adopted by that shadow root (the document's sheets stop at the boundary
 root's own sheets (as in the document, where adopted sheets follow the page's), and kept when the root's component
 writes its own list again. A host that is not a Vera component and replaces its root's `adoptedStyleSheets` after its
 light children render drops their styles: spread the existing list (`[...root.adoptedStyleSheets, sheet]`). A move into another document hoists it again there. The root is read at setup, so a
-component moved into ANOTHER root after its first render keeps the styles of the first one. Server-rendered: a light
-component inside a shadow root is unstyled until hydration (its block goes to the page `styles`); an SSR-only page
-shows it unstyled.
+component moved into ANOTHER root after its first render keeps the styles of the first one. Server-rendered, the same
+holds: `@verajs/ssr` writes the block into each declarative shadow root the component renders in, so it is styled at
+first paint; a light child slotted into a shadow host is in the page's light DOM, so its block goes to the page.
 
 **`:host` works in light DOM.** Inside that `@scope` block the scoping root is the element, so `:host`
 is translated to `:scope` and `:host(.a)` to `:scope.a`. The same sheet styles the element in both

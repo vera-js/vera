@@ -511,7 +511,7 @@ wire([renderer, styles]);
 (`[base, compact && compactSheet]`). **Shadow DOM:** sheets adopted by the shadow root, strings as one
 `<style data-vm-sheet="styles">`, closed roots included; re-`init` safe, and a server-rendered `<style>`
 copy is dropped once every style is an adopted sheet. **Light DOM:** hoisted to the element's root (its document, or the shadow root it renders in) once per
-class per root (server-rendered, a light component inside a shadow root is unstyled until hydration), inside `@scope (tag-name) { … }`, with `:host` → `:scope` translated so one sheet works in both
+class per root (server-rendered too: the block is served inside each declarative shadow root it renders in), inside `@scope (tag-name) { … }`, with `:host` → `:scope` translated so one sheet works in both
 modes; `::slotted()` has no light-DOM equivalent (use a descendant selector); unscoped (and warned about
 in development) where `@scope` is unsupported. **Windows:** styles go into the element's OWN document
 with its own window's constructor — a component in a popped-out window or iframe is styled there; a

@@ -115,6 +115,12 @@ const OPS = [
   ['parsed values: RCDATA decoded, CR normalized', "el.innerHTML='<textarea>a &amp; b</textarea><p title=\"a\\r\\nb\">c\\rd</p>'; return JSON.stringify([el.children[0].value, el.children[1].getAttribute('title'), el.children[1].textContent]);"],
   /** Serialized and parsed BACK by the same side: the value survives, and nothing breaks out of the element. */
   ['a closer written into a textarea stays text', "const d = el.ownerDocument; const t = d.createElement('textarea'); t.textContent = '</textarea><b>x</b>'; const h = d.createElement('div'); h.append(t); const back = d.createElement('div'); back.innerHTML = h.innerHTML; return back.querySelectorAll('b').length + ':' + back.firstChild.value;"],
+  /**
+   * `document.contains` stops at a shadow boundary (2026-11-21): the server's light styles ask it first, and it answered
+   * `true` for every node. Attached first, so the real DOM's `false` is the boundary's, not a detached element's.
+   * Only the tags that can host a root; on the others both sides refuse `attachShadow`, which other ops pin.
+   */
+  ['document.contains stops at a shadow root', "if (!['div', 'span', 'my-widget'].includes(el.localName)) return 'no root'; const d = el.ownerDocument; d.body?.append(el); const r = el.attachShadow({ mode: 'open' }); const c = d.createElement('i'); r.append(c); const answer = String(d.contains(c)) + ':' + String(d.contains(el)); el.remove(); return answer;"],
   ['remove/once/dedupe listeners', "let hits=0; const f=()=>hits++; const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.addEventListener('x',f); el.addEventListener('x',f); el.dispatchEvent(new E('x')); el.removeEventListener('x',f); el.addEventListener('y',()=>hits+=10,{once:true}); el.dispatchEvent(new E('y')); el.dispatchEvent(new E('y')); return String(hits);"]
 ];;
 

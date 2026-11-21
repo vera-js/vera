@@ -672,8 +672,18 @@ export const installShims = () => {
      * for the same reason, since a server render is exactly the case where the tree *is* live. A
      * flat `false` contradicted that, and `if (!document.contains(el)) return;` is ordinary
      * defensive code that bailed out of a render that was in fact perfectly connected.
+     *
+     * **But not across a shadow boundary, as in every browser** (2026-11-21): a node whose root is a shadow root (by
+     * the structural test, node type 11 with a `host`) is in that root's tree, not the document's. The server
+     * renders each instance detached, and `getRootNode()` answers the declarative root it is served in (see
+     * `_enclosing`), so this is where a light component learns it sits in one: `@verajs/styles` asks
+     * `document.contains` first, and an answer of `true` for every node sent every light block to the page.
      */
-    contains: (node: { readonly isConnected?: boolean } | null | undefined) => node?.isConnected === true,
+    contains: (node: { readonly isConnected?: boolean; getRootNode?: () => { readonly nodeType?: number } } | null | undefined) => {
+      if (node?.isConnected !== true) return false;
+      const root = node.getRootNode?.();
+      return !(root !== undefined && root.nodeType === 11 && 'host' in root);
+    },
     /**
      * `importNode` CLONES — the spec's "import" is a copy into this document, never the node
      * itself. The identity it used to return was a lie with teeth: a caller mutates the "copy"

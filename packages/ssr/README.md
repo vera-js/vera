@@ -326,7 +326,10 @@ unsanitized. Everything else is checked:
   every style is a sheet the client can adopt, it removes that copy, so the rules never apply twice.
 - **Light DOM:** a component's `@scope (tag) { … }` block is returned in `styles` for the page shell,
   **only for the components this render touched**, and — with a shared `seen` — once across a page of
-  islands.
+  islands. An instance inside a served declarative shadow root gets the block in THAT root instead (the
+  page's sheets stop at the boundary), once per class per root and in every render (`seen` governs the
+  page's styles only); a light child slotted into a shadow host sits in the page's light DOM, so its block
+  is the page's.
 - **A tag's CSS is established once per process**: whichever render reaches it first sets it. That is
   what stops a per-class sheet being emitted once per instance; the consequence is that CSS varying
   per request is dropped, with a warning — once, naming the component. Put what varies in

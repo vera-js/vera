@@ -16,6 +16,7 @@ import { own, ssrMisuse } from './report.js';
 import { ATTRIBUTE_NAME } from './parse.js';
 import { freshScan, scanTag } from './tokenizer.js';
 import type { ScannedTag } from './types.js';
+import type { ShadowRootShim } from './nodes.js';
 
 
 /**
@@ -78,12 +79,15 @@ const MAX_DEPTH = 256;
  *
  * @param markup @param depth
  * @param emit renders one component tag — its open tag and contents; the scanner writes the close tag
+ * @param enclosing the shadow root `markup` is served in, or null for the page: handed to `emit` for each component
+ *   found, which records it on the instance (see `getRootNode` in `nodes.ts`)
  */
 
 export const renderComponentTags = (
   markup: string,
   depth: number,
-  emit: (name: string, attrs: string, depth: number, children?: string) => string
+  emit: (name: string, attrs: string, depth: number, children: string | undefined, enclosing: ShadowRootShim | null) => string,
+  enclosing: ShadowRootShim | null
 ): string => {
   if (depth > MAX_DEPTH)
     throw own(new Error(ssrMisuse('ssr-nesting-depth', PROSE['ssr-nesting-depth']!(String(MAX_DEPTH)))));
@@ -137,7 +141,7 @@ export const renderComponentTags = (
           close = j;
           break;
         }
-    out += emit(name, attrs, depth + 1, close === -1 ? undefined : markup.slice(tag.end, tags[close].at));
+    out += emit(name, attrs, depth + 1, close === -1 ? undefined : markup.slice(tag.end, tags[close].at), enclosing);
     if (close === -1) at = tag.end;
     else {
       /** The close tag is consumed with the children, so it is written back here — normalized, like the open tag the component just rewrote. */

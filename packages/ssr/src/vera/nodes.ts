@@ -458,6 +458,18 @@ const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
   },
 });
 
+/** `getRootNode`'s walk (see it there): up through parents, then the served root a detached instance records, then — composed — out through each root's host. */
+const rootOf = (node: ContainerShim, composed: boolean): ContainerShim => {
+  let root = node;
+  for (;;) {
+    while (root._parent) root = root._parent;
+    const enclosing = (root as ElementShim)._enclosing;
+    if (enclosing) root = enclosing;
+    else if (!composed || !root._host) return root;
+    else root = root._host;
+  }
+};
+
 const asCollection = <T>(list: T[]): CollectionShim<T> => {
   Object.setPrototypeOf(list, COLLECTION_PROTOTYPE);
   return list as CollectionShim<T>;
@@ -661,9 +673,7 @@ export class CharacterDataShim extends NodeBaseShim {
   }
   getRootNode(): CharacterDataShim | ContainerShim {
     if (!this._parent) return this;
-    let root = this._parent;
-    while (root._parent) root = root._parent;
-    return root;
+    return this._parent.getRootNode();
   }
   appendData(value: unknown): void {
     this.data = this._data + `${value}`;
@@ -1206,15 +1216,15 @@ export class ContainerShim extends NodeBaseShim {
   /**
    * The furthest ancestor, which is the shadow root for anything a component rendered into one —
    * unless `composed` is asked for, which keeps going out through the root's host as a browser does.
+   *
+   * **A component the server renders detached answers the root it is served in** (2026-11-21): every instance is
+   * rendered on its own, so its furthest ancestor is itself, and a light component inside a served shadow root put its
+   * styles in the page, which that root's content never sees. `buildInstance` records where the instance sits
+   * (`_enclosing`: the shadow root of the host whose template holds it, or the one its parent sits in), so the walk
+   * goes on from there exactly as it would through the parent a browser's tree has.
    */
   getRootNode(options?: { composed?: boolean }): ContainerShim {
-    if (!this._parent) return this;
-    let root = this._parent;
-    for (;;) {
-      while (root._parent) root = root._parent;
-      if (!options?.composed || !root._host) return root;
-      root = root._host;
-    }
+    return rootOf(this, options?.composed === true);
   }
   /** Needs layout, which a string does not have; a browser with no box returns nothing either. */
   elementFromPoint(): null {
@@ -1798,6 +1808,8 @@ export class ElementShim extends ContainerShim {
   declare _upgraded?: boolean;
   /** Set by `renderComponent` once this instance has rendered. */
   declare _rendered?: boolean;
+  /** For a component instance the server renders detached: the shadow root it is served in, else null (`getRootNode`). */
+  declare _enclosing?: ShadowRootShim | null;
   constructor(localName: string = '', namespaceURI: string = HTML_NS, made?: typeof MADE) {
     super();
     /**

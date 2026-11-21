@@ -38,7 +38,7 @@ import { decode as decodeEntities } from './parse.js';
 import { ATTRIBUTE, renderComponentTags } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
-import type { ElementShim } from './nodes.js';
+import type { ElementShim, ShadowRootShim } from './nodes.js';
 import { INLINE_HANDLER, thrownMessage } from './escaping.js';
 import { PROSE } from './diagnostics.js';
 import { isOwn, once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
@@ -210,7 +210,7 @@ const chain = <K extends keyof ServerChains>(name: K) =>
  * itself, carrying what the parent gave it; the marker must name this very tag. The markup's attributes
  * land on it too (values decoded: they were read back out of markup this module escaped).
  */
-const buildInstance = (tag: string, attrString: string): ComponentInstance => {
+const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShim | null): ComponentInstance => {
   /** A tag with no attributes — most of them — does no attribute work at all (`matchAll` copies its regex). */
   const attributes = attrString
     ? [...attrString.matchAll(ATTRIBUTE)].map(([, name, quoted, single, bare]): [string, string] => [
@@ -228,6 +228,12 @@ const buildInstance = (tag: string, attrString: string): ComponentInstance => {
    */
   if (element === pending) pendingInstances.delete(marker!);
   element.localName = tag;
+  /**
+   * Where the instance sits: the server renders each one detached, so this is what its `getRootNode()` answers (a
+   * light component inside a served shadow root puts its styles in that root). Written for every instance, null at
+   * the page, so all of them carry the field the same way.
+   */
+  element._enclosing = enclosing;
   if (attributes) for (const [name, value] of attributes) element.setAttribute(name, value);
   return element;
 };
@@ -299,8 +305,8 @@ const assemble = ({ open, root }: Pieces, shadow: string, light: string): Assemb
 });
 
 /** One component tag found by the synchronous scan. */
-const emit = (tag: string, attrString: string, depth: number, children: string | undefined): string => {
-  const { open, inner } = renderInstance(buildInstance(tag, attrString), tag, depth, undefined, children);
+const emit = (tag: string, attrString: string, depth: number, children: string | undefined, enclosing: ShadowRootShim | null): string => {
+  const { open, inner } = renderInstance(buildInstance(tag, attrString, enclosing), tag, depth, undefined, children);
   return open + inner;
 };
 
@@ -321,7 +327,8 @@ const renderInstance = (
   if (typeof pending?.then === 'function')
     throw own(new Error(ssrMisuse('ssr-async-connected', PROSE['ssr-async-connected']!(tag))));
   const pieces = finishInstance(element, tag, previousTag);
-  return assemble(pieces, renderComponentTags(pieces.shadow, depth, emit), renderComponentTags(pieces.light, depth, emit));
+  /** What its template renders sits in its shadow root; what it holds in light DOM sits where it does. */
+  return assemble(pieces, renderComponentTags(pieces.shadow, depth, emit, pieces.root), renderComponentTags(pieces.light, depth, emit, element._enclosing ?? null));
 };
 
 /**
@@ -332,12 +339,12 @@ const renderInstance = (
  */
 const PLACEHOLDER = `vera-async-${crypto.randomUUID()}`;
 const PLACEHOLDERS = new RegExp(`${PLACEHOLDER}(\\d+)_`, 'gu');
-const scanAsync = async (markup: string, depth: number): Promise<string> => {
+const scanAsync = async (markup: string, depth: number, enclosing: ShadowRootShim | null): Promise<string> => {
   const pending: Promise<string>[] = [];
-  const scanned = renderComponentTags(markup, depth, (tag: string, attrString: string, at: number, children?: string) => {
-    pending.push(renderInstanceAsync(buildInstance(tag, attrString), tag, at, undefined, children).then((r) => r.open + r.inner));
+  const scanned = renderComponentTags(markup, depth, (tag: string, attrString: string, at: number, children: string | undefined, root: ShadowRootShim | null) => {
+    pending.push(renderInstanceAsync(buildInstance(tag, attrString, root), tag, at, undefined, children).then((r) => r.open + r.inner));
     return `${PLACEHOLDER}${pending.length - 1}_`;
-  });
+  }, enclosing);
   if (!pending.length) return scanned;
   const parts = await Promise.all(pending);
   return scanned.replace(PLACEHOLDERS, (_: string, index: string) => parts[Number(index)]);
@@ -353,7 +360,7 @@ const renderInstanceAsync = async (
   const cut = await bounded(element.connectedCallback?.());
   if ((await flushFramesAsync(failed(tag))) || cut) timedOut.add(tag);
   const pieces = finishInstance(element, tag, previousTag);
-  return assemble(pieces, await scanAsync(pieces.shadow, depth), await scanAsync(pieces.light, depth));
+  return assemble(pieces, await scanAsync(pieces.shadow, depth, pieces.root), await scanAsync(pieces.light, depth, element._enclosing ?? null));
 };
 
 /* ── the entry points ────────────────────────────────────────────────────────────────────────── */
@@ -511,7 +518,7 @@ const renderModule = async (
    */
   serverTurnOf?.(1);
   try {
-    const element = buildInstance(tag, attrString);
+    const element = buildInstance(tag, attrString, null);
     const { open, inner } = isAsync
       ? await renderInstanceAsync(element, tag, 0, props, children)
       : renderInstance(element, tag, 0, props, children);
