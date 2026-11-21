@@ -42,6 +42,8 @@ readings and doing accurate tests quickly.".
 
 - **Brian decides what lands**: code on `main`, pushes, publishes, trades (a speed or size loss), new designs,
   restructures, new dependencies, new module-level state. Say the plan in a few lines and wait for his word on those.
+  A new component or hook package is not a new design: it lands on a green gate and the peer's packet review
+  (2026-11-21).
 - **Everything else needs no go** (tests, probes, races, drafts, private-branch commits; 2026-11-04). Say when a window
   opens on his screen. A reply that is not a plain yes gets "taking that as yes to X" before acting.
 - **Recommend and argue for it**, with the strongest counter-argument; never a neutral menu. Push back on a wrong premise
