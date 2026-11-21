@@ -33,6 +33,9 @@
       "@vera-hooks/labelled": [
         "./packages/hooks/labelled/src/index.ts"
       ],
+      "@vera-hooks/roving-focus": [
+        "./packages/hooks/roving-focus/src/index.ts"
+      ],
       "@vera-components/select": [
         "./packages/components/select/src/index.ts"
       ],

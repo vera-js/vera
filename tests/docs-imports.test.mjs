@@ -30,6 +30,7 @@ const PACKAGES = {
   '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
   '@vera-hooks/listbox': 'vera-hooks/listbox',
   '@vera-hooks/labelled': 'vera-hooks/labelled',
+  '@vera-hooks/roving-focus': 'vera-hooks/roving-focus',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',

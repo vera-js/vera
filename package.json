@@ -55,6 +55,7 @@
         "./packages/hooks/listbox:build",
         "./packages/components/select:build",
         "./packages/hooks/labelled:build",
+        "./packages/hooks/roving-focus:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",
