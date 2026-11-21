@@ -25,8 +25,9 @@ jobs:
       # The trust binding names vera-js/vera + release.yml, so this file's
       # NAME is load-bearing. Renaming it breaks publishing for all packages.
       id-token: write
-    # A green CI run took 16–21 minutes on 2026-11-21 (ten runs); the wait gives up at 45, well before this.
-    timeout-minutes: 60
+    # The wait below gives up after 60 minutes (CI's 40-minute cap plus the time its jobs sit queued), and the steps
+    # around it took up to ~5: 75 holds both, and tests/ci-timeouts.test.mjs keeps the three numbers in step.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,7 +37,7 @@ jobs:
       # **Publish only after CI SUCCEEDED on this commit** (2026-11-21): this job used to publish beside CI, so
       # @verajs/ssr 0.3.3 reached npm while CI was red. It stays a `push` job (the identity npm's trusted publisher
       # binding was made for) and waits for CI's newest run on the very commit it publishes, failing unless that run
-      # succeeded on every matrix version. Polled every 30 s for up to 45 minutes; every branch of the wait is proven
+      # succeeded on every matrix version. Polled every 30 s for up to 60 minutes; every branch of the wait is proven
       # offline by tests/wait-for-ci.test.mjs.
       - name: Wait for CI to pass on this commit
         env:

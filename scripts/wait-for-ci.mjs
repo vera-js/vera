@@ -58,12 +58,20 @@ const list = (repo, sha) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * **How long the wait lasts: 120 polls 30 s apart, 60 minutes**, longer than CI's cap (`ci.yml`'s `timeout-minutes`)
+ * plus the time its jobs sit queued, and shorter than this job's own cap (`release.yml`'s) less the steps around the
+ * wait. `tests/ci-timeouts.test.mjs` reads all three and holds those two margins, so a cap raised alone goes red.
+ */
+export const WAIT_ATTEMPTS = 120;
+export const WAIT_MS = 30000;
+
+/**
  * **Polls until CI's newest run on `sha` completes**: 0 when it succeeded, 1 otherwise or when it never finished.
  *
  * @param {{ repo: string, sha: string, attempts?: number, ms?: number, say?: (line: string) => void }} options
  * @returns {Promise<0 | 1>}
  */
-export const waitForCi = async ({ repo, sha, attempts = 90, ms = 30000, say = console.log }) => {
+export const waitForCi = async ({ repo, sha, attempts = WAIT_ATTEMPTS, ms = WAIT_MS, say = console.log }) => {
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const answer = list(repo, sha);
     const { verdict, line } = answer.error === undefined ? decide(answer.runs, sha) : { verdict: 'wait', line: `gh gave no answer: ${answer.error}` };
@@ -88,7 +96,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.error('wait-for-ci: GITHUB_REPOSITORY and GITHUB_SHA name the commit; both are set in a workflow run');
     process.exit(1);
   }
-  const attempts = Number(process.env.VERA_CI_WAIT_ATTEMPTS ?? 90);
-  const ms = Number(process.env.VERA_CI_WAIT_MS ?? 30000);
+  const attempts = Number(process.env.VERA_CI_WAIT_ATTEMPTS ?? WAIT_ATTEMPTS);
+  const ms = Number(process.env.VERA_CI_WAIT_MS ?? WAIT_MS);
   process.exit(await waitForCi({ repo, sha, attempts, ms }));
 }

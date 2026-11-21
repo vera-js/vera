@@ -15,9 +15,10 @@ jobs:
       matrix:
         node: [24, 26]
     # A hard cap (2026-11-15): a test file whose process never exits (a server left open) hung the job until it was
-    # canceled by hand. A green run took 8–11 minutes when this was set; by 2026-11-21 a green job took 13–21 minutes
-    # (ten runs), so 30 is about 1.4 times the slowest.
-    timeout-minutes: 30
+    # canceled by hand. A green run took 8–11 minutes when this was set; by 2026-11-21 a green job took up to ~25
+    # minutes (18 jobs of 15 runs, to 2026-11-21), so 40 is about 1.6 times the slowest. The release waits for this
+    # job (scripts/wait-for-ci.mjs), so its wait and release.yml's cap move with this one: tests/ci-timeouts.test.mjs.
+    timeout-minutes: 40
     # Seed rotation: every CI run walks fuzz seeds no run has walked before, ON TOP of the
     # standing arrays (additive — the regression net always runs first, and volume controls that
     # scale with SEEDS.length keep working). tests/fuzz-seeds.mjs derives the extras from the run

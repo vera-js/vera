@@ -68,7 +68,7 @@ credential anywhere.
 
 [`release.yml`](../.github/workflows/release.yml) runs on every push to `main`, **waits for CI to pass on that
 same commit** (`scripts/wait-for-ci.mjs`: CI's newest run on it, in its latest attempt; it publishes nothing if that run
-fails, a red rotated fuzz seed included, or has not finished within 45 minutes), and then executes
+fails, a red rotated fuzz seed included, or has not finished within 60 minutes), and then executes
 `changeset publish`, which publishes any package whose version is not yet on npm and **skips
 everything already published**. A push with no version change is a green no-op.
 
