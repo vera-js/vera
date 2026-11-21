@@ -71,8 +71,19 @@ const BOOLEAN_FORM_PROPERTIES = new Set(['checked', 'selected']);
 const FORM_ELEMENTS = new Set(['input', 'textarea', 'select', 'option']);
 
 
-/** The first character of a sigil binding's name — see `compile`. */
-const SIGILS = new Set(['.', '?', '@', '&', '!']);
+/**
+ * Whether a character code is the first of a sigil binding's name — `.`, `?`, `@`, `&` or `!` (see `compile`). Codes,
+ * not a Set of one-character strings: every hole that opens an attribute value asks, and the Set's lookup was the
+ * larger part of what asking cost a compile.
+ */
+const isSigil = (c: number): boolean => c === 46 || c === 63 || c === 64 || c === 38 || c === 33;
+/** Whether a name is an `onX` event binding's (`on`, then an ASCII capital), by codes for the same reason. */
+const isEventName = (name: string): boolean => {
+  /** The length first: a read past the end is `NaN` to the language and a deoptimization to V8 (measured). */
+  if (name.length < 3) return false;
+  const c = name.charCodeAt(2);
+  return name.charCodeAt(0) === 111 && name.charCodeAt(1) === 110 && c >= 65 && c <= 90;
+};
 /**
  * Where a sigil or event binding's name is cut from the static before it: at the one whitespace character before the
  * name, which the binding takes with it so a dropped binding leaves no residue (`compile` then trims one more space).
@@ -431,8 +442,9 @@ export const openingTags = (strings: readonly string[], depth: number): string[]
  * every page's first render, so a branch a valid template never takes — an error built in place, a forgery's warning,
  * a raw-text slot's closing — is paid for by every render that never reaches it: the first render's cost followed
  * `compile`'s bytecode size (fresh-process A/B with and without `--no-lazy`, 2026-11-21).
+ *
+ * This one is a misuse's error, its prose its `PROSE` entry unless given (a client twin's).
  */
-/** A misuse's error, its prose its `PROSE` entry unless given (a client twin's). */
 const refusal = (code: string, prose: Said = PROSE[code]!()): Error => own(new Error(ssrMisuse(code, prose)));
 /** Once per process per component (Brian, 2026-10-09); the forgery itself still renders as the object it is. */
 const forgedTemplate = (): null => {
@@ -672,7 +684,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * attribute path and emit an attribute named `!` — so every sigil is added here in the same pass it is added to
      * the renderer.
      */
-    if (first && SIGILS.has(tagState.attrRaw[0])) {
+    if (first && isSigil(tagState.attrRaw.charCodeAt(0))) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
       const before = part.slice(0, nameCut(strings[i], tagState.nameAt) - shift).replace(/ $/, '');
       record(before);
@@ -738,7 +750,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     openQuote = undefined;
 
     /** `onClick=${fn}` — the React-shaped event binding, named as the client names it: a client concern, dropped like `@`. */
-    if (first && /^on[A-Z]/.test(tagState.attrRaw)) {
+    if (first && isEventName(tagState.attrRaw)) {
       const before = part.slice(0, tagState.nameAt - shift).replace(/ $/, '');
       record(before);
       parts.push(before);
@@ -1290,8 +1302,8 @@ const SELECT_MARK = 'data-vm-select';
 const selection = (name: string, value: unknown): string | number => (name === 'value' ? `${value}` : (value as number) | 0);
 const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
 const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
-const OPTION_VALUE = /\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
-const SELECTED_ATTR = /(<option\b[^>]*?)\s+selected(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*))?/gi;
+/** An option's open tag, for clearing its `selected` (through `withoutAttribute`). */
+const OPTION_OPEN = /<option\b[^>]*>/gi;
 const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
 /**
@@ -1315,8 +1327,13 @@ const decodeRefs = (text: string): string =>
  * raw text, and it is not.
  */
 const optionValue = (attributes: string, text: string): string => {
-  const attribute = OPTION_VALUE.exec(attributes);
-  if (attribute) return decodeRefs(attribute[1] ?? attribute[2] ?? attribute[3]);
+  /** The first `value` the parser keeps, by its name: never `data-value`, nor `value=` inside another value. */
+  if (attributes.toLowerCase().includes('value')) {
+    const tag = `<option${attributes}`;
+    const spans = tagAttributes(tag, []);
+    for (let k = 0; k < spans.length; k += 6)
+      if (tag.slice(spans[k + 1], spans[k + 2]).toLowerCase() === 'value') return spans[k + 3] === -1 ? '' : decodeRefs(tag.slice(spans[k + 3], spans[k + 4]));
+  }
   return decodeRefs(text).replace(/[\t\n\f\r ]+/g, ' ').trim();
 };
 
@@ -1333,7 +1350,8 @@ const optionValue = (attributes: string, text: string): string => {
  * on the client, and marks nothing here.
  */
 const markSelected = (content: string, wanted: string | number): string => {
-  const cleared = content.replace(SELECTED_ATTR, '$1');
+  /** Most option lists carry no `selected` at all: a substring search settles that before any tag is read. */
+  const cleared = content.toLowerCase().includes('selected') ? content.replace(OPTION_OPEN, (open) => withoutAttribute(open, 'selected')) : content;
   OPTION.lastIndex = 0;
   let at = 0;
   for (let match = OPTION.exec(cleared); match; match = OPTION.exec(cleared)) {
@@ -1498,26 +1516,65 @@ const insertContent = (staticText: string, text: string, strip: string): string 
  * page and `b` in the browser — the same disagreement `foldSpread` was written to fix for spreads,
  * which is where this logic came from. It applies to anything that writes a name into the tag.
  */
+/** Whitespace as the HTML tokenizer reads it between attributes: tab, LF, FF, CR and space. */
+const tagSpace = (c: number): boolean => c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
+
 /**
- * One pattern per attribute name, built once. `new RegExp` per binding was 16% of a 100-row render.
+ * **An open tag's attributes, read as the parser reads them** (2026-11-21): the one reader behind every edit this
+ * serializer makes to markup it already wrote — removing a name before it is written again, an option's `value`, and
+ * its `selected`. For each attribute it pushes six offsets into `spans`: where its removal starts (the one whitespace
+ * before its name, when there is one), its name's start and end, its value's start and end (`-1` for none; inside the
+ * quotes), and its end. `tag` is `<name …`, closed or not.
+ *
+ * The patterns it replaced had no end to the name and did not see quotes, so they matched text the parser reads as
+ * a value: removing `id` matched ` id=b"` inside `title="a id=b"` and served the rest of a spread's value as live
+ * attributes (an `onfocus` handler, measured), removing `src` cut `srcset=` to `set=`, and an option's `value` was
+ * read from `data-value` or from a title holding `value=b`.
  */
-const removalPatterns = new Map<string, RegExp>();
-/**
- * The name is **escaped** before it becomes a pattern. A spread's keys are runtime data, and an
- * attribute name may legally contain regular-expression metacharacters — `a|b`, `a.b`, `a*` are all
- * names `setAttribute` accepts — so interpolating one raw built a pattern that matched something
- * else entirely. `a|b` compiled to an alternation and removed text nowhere near the attribute it
- * named.
- */
-const escapeForPattern = (name: string): string => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const removalPattern = (name: string): RegExp => {
-  let pattern = removalPatterns.get(name);
-  if (!pattern)
-    removalPatterns.set(
-      name,
-      (pattern = new RegExp(`\\s${escapeForPattern(name)}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i'))
-    );
-  return pattern;
+const tagAttributes = (tag: string, spans: number[]): number[] => {
+  const n = tag.length;
+  let i = 1;
+  let c = 0;
+  while (i < n && !tagSpace((c = tag.charCodeAt(i))) && c !== 47 && c !== 62) i++;
+  for (;;) {
+    /** A `/` not before `>` is read as a separator, as the parser reads it. */
+    while (i < n && (tagSpace((c = tag.charCodeAt(i))) || c === 47)) i++;
+    if (i >= n || c === 62) return spans;
+    const nameFrom = i;
+    /** The first character is part of the name whatever it is, `=` included: the parser's rule. */
+    i++;
+    while (i < n && !tagSpace((c = tag.charCodeAt(i))) && c !== 47 && c !== 62 && c !== 61) i++;
+    const nameTo = i;
+    let valueFrom = -1;
+    let valueTo = -1;
+    let j = i;
+    while (j < n && tagSpace(tag.charCodeAt(j))) j++;
+    if (j < n && tag.charCodeAt(j) === 61) {
+      j++;
+      while (j < n && tagSpace(tag.charCodeAt(j))) j++;
+      const quote = tag.charCodeAt(j);
+      if (quote === 34 || quote === 39) {
+        const close = tag.indexOf(tag[j]!, j + 1);
+        valueFrom = j + 1;
+        valueTo = close === -1 ? n : close;
+        i = close === -1 ? n : close + 1;
+      } else {
+        valueFrom = j;
+        while (j < n && !tagSpace((c = tag.charCodeAt(j))) && c !== 62) j++;
+        valueTo = i = j;
+      }
+    }
+    spans.push(nameFrom > 0 && tagSpace(tag.charCodeAt(nameFrom - 1)) ? nameFrom - 1 : nameFrom, nameFrom, nameTo, valueFrom, valueTo, i);
+  }
+};
+
+/** `tag` without any attribute named `name` (ASCII case-insensitive, as names are). Every copy goes: see `stripAttribute`. */
+const withoutAttribute = (tag: string, name: string): string => {
+  const spans = tagAttributes(tag, []);
+  const wanted = name.toLowerCase();
+  for (let k = spans.length - 6; k >= 0; k -= 6)
+    if (tag.slice(spans[k + 1], spans[k + 2]).toLowerCase() === wanted) tag = tag.slice(0, spans[k]) + tag.slice(spans[k + 5]);
+  return tag;
 };
 
 /**
@@ -1547,18 +1604,19 @@ const removalPattern = (name: string): RegExp => {
 export const UNSAFE_ATTRIBUTE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
 /**
- * Strips one attribute out of an open tag, and the one place that knows how.
+ * Strips an attribute out of an open tag, every copy of it, and the one place that knows how (through
+ * `tagAttributes`).
  *
- * `foldSpread` had its own copy of this pattern, character for character — so a fix to one was a
- * fix to one. It also rebuilt the pattern on every key of every spread, which is the per-render
- * work `tests/ssr-serializer-work.test.mjs` exists to refuse.
+ * `foldSpread` once had its own copy of this, character for character — so a fix to one was a fix
+ * to one. Every copy goes because the parser keeps the FIRST of a duplicate name and the client's
+ * write replaces the one it parsed, so an earlier copy left behind would be the one served.
  */
 const stripAttribute = (tag: string, name: string): string =>
   /**
-   * Almost no tag carries the name twice, and a substring search settles that far faster than a
-   * pattern match does. Case-insensitive to match the pattern it guards, which HTML requires.
+   * Almost no tag carries the name, and a substring search settles that far faster than reading the
+   * tag's attributes does. Case-insensitive, as names are.
    */
-  tag.toLowerCase().includes(name.toLowerCase()) ? tag.replace(removalPattern(name), '') : tag;
+  tag.toLowerCase().includes(name.toLowerCase()) ? withoutAttribute(tag, name) : tag;
 
 const removeAttribute = (out: string, name: string): string => {
   const tagStart = out.lastIndexOf('<');
