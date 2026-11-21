@@ -135,14 +135,6 @@
       "fix": "Name it the way the platform requires: `define('x-card', setup)` or `define({ tag: 'x-card' }, setup)`."
     },
     {
-      "code": "define-twice",
-      "params": [
-        "tag"
-      ],
-      "message": "<{tag}> is already defined; the platform refuses a second definition of a tag and throws next.",
-      "fix": "Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define."
-    },
-    {
       "code": "defined-twice",
       "params": [
         "pkg",
@@ -265,6 +257,14 @@
       ],
       "message": "expected a template literal and received {received}.",
       "fix": "It is a tagged template — write {tag}`{example}`, not {tag}('{example}')."
+    },
+    {
+      "code": "tag-defined-again",
+      "params": [
+        "tag"
+      ],
+      "message": "<{tag}> is already defined; the platform refuses a second definition of a tag and throws next.",
+      "fix": "Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define."
     },
     {
       "code": "tag-hole",
