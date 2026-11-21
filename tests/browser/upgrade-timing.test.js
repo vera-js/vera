@@ -181,7 +181,8 @@ it('an element removed before its first render neither throws nor renders', asyn
     defineLogging(tag, log);
     const element = document.createElement(tag);
     host.appendChild(element);
-    /** Synchronously, before the scheduled frame. */
+    /** The first render is synchronous, at connection (`init` commits it): one render, before any removal. */
+    expect(log.filter((line) => line.startsWith('render')), 'rendered at connection').to.deep.equal(['render 0']);
     element.remove();
     /**
      * The barrier: a CONTROL of the same tag connected now has its first render on the same scheduled pass, so once it
@@ -190,11 +191,12 @@ it('an element removed before its first render neither throws nor renders', asyn
      */
     const control = host.appendChild(document.createElement(tag));
     await until(() => textOf(control) === 'none:0', 'the control rendered', 4000);
+    control.bump();
+    await until(() => textOf(control) === 'none:1', 'the control rendered its own update', 4000);
     expect(problems, 'removing before the first render threw').to.deep.equal([]);
     expect(log).to.include('connected');
     expect(log).to.include('disconnected');
-    expect(log.filter((line) => line.startsWith('render')), 'one render, the control\'s').to.deep.equal(['render 0']);
-    expect(textOf(element), 'the removed element painted nothing').to.equal('');
+    expect(log.filter((line) => line.startsWith('render')), 'one render each at connection, then the control\'s update; none for the removed one').to.deep.equal(['render 0', 'render 0', 'render 1']);
   } finally {
     window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onError);
