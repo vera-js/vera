@@ -33,14 +33,16 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   let methods: M | undefined;
   let props: Record<string, unknown> | undefined;
   let attributes: readonly string[] | undefined;
+  let register: boolean | undefined;
   /** One test, and the tag (and `methods`, `props`, `attributes`) read back out (the smaller form: −1 `typeof`). */
   if (typeof target !== 'string')
-    ({ tag, methods, props, attributes, ...(options as object) } = (target ?? {}) as DefineOptions & {
+    ({ tag, methods, props, attributes, register, ...(options as object) } = (target ?? {}) as DefineOptions & {
       methods?: M;
       props?: Record<string, unknown>;
       attributes?: readonly string[];
     });
-  if (__DEV__) checkDefinition('core', tag, setup, methods, props, attributes, !!seams.$hot);
+  /** A class not registered here cannot be a second definition of its tag, so `register: false` is quiet as hot is. */
+  if (__DEV__) checkDefinition('core', tag, setup, methods, props, attributes, !!seams.$hot || register === false);
   /**
    * **Declared attributes** (Brian 2026-10-21: the platform way, `observedAttributes` — no MutationObserver):
    * each arrives as a PROP under its camel-cased name (`data-count` → `dataCount`), `string | null`, so attributes and
@@ -187,6 +189,8 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
         enumerable: true,
       });
   }
+  /** `register: false`: the built class itself, for the caller to register (which class `new` then constructs is theirs). */
+  if (register === false) return Class as unknown as DefinedClass<WithAttributes<P, A> & M>;
   customElements.define(tag, Class);
   /**
    * The REGISTERED class, not the local one (Brian 2026-10-22, +4 B gz): the same in every first define, and on a

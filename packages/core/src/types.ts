@@ -237,7 +237,14 @@ export interface InitOptions extends VeraInitOptions {
   persist?: number;
 }
 /** `define`'s options: the tag, then everything `init` takes but the host (one object per tag, shared by its instances). */
-export type DefineOptions = Omit<InitOptions, 'host'> & { tag: string };
+export type DefineOptions = Omit<InitOptions, 'host'> & {
+  tag: string;
+  /**
+   * `false`: build the class and return it WITHOUT registering it, for a caller that registers it itself (a scoped
+   * registry, a tag of the user's choosing: `customElements.define(myTag, Class)`). Default: registered under `tag`.
+   */
+  register?: boolean;
+};
 /** The class `define` returns: its instances are components carrying the methods. */
 export type DefinedClass<M> = { new (): ComponentElement & M; prototype: ComponentElement & M };
 /**

@@ -42,6 +42,32 @@ test('define(tag, setup) renders, and the class it returns is the registered one
   el.remove();
 });
 
+test('register: false builds the class and registers nothing; the caller registers it under its own tag, and it works', async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  let Built;
+  try {
+    Built = define({ tag: 'x-def-unreg', register: false }, () => () => html`<b>own tag</b>`);
+    /** A second build of the same tag is no second definition: nothing was registered, so nothing is said. */
+    define({ tag: 'x-def-unreg', register: false }, () => () => html`<b>again</b>`);
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(typeof Built, 'function', 'CONTROL: a class came back');
+  assert.equal(customElements.get('x-def-unreg'), undefined, 'nothing registered under the tag');
+  assert.deepEqual(said.filter((line) => line.includes('define-twice')), [], 'no define-twice for a class never registered');
+  customElements.define('x-def-mine', Built);
+  assert.equal(customElements.get('x-def-mine'), Built, 'the caller registered the very class define returned');
+  const el = document.createElement('x-def-mine');
+  document.body.append(el);
+  await settle();
+  assert.equal(el.textContent, 'own tag', 'and it renders under the caller\'s tag');
+  /** The option is define's own: it never reaches init's options. */
+  assert.equal(seen.some(([name, options]) => name === 'x-def-mine' && options && 'register' in options), false, 'register stays out of the init options');
+  el.remove();
+});
+
 test('removed then re-added: setup EXACTLY twice, teardown EXACTLY once per removal (the wrapper is the one teardown)', async () => {
   let setups = 0;
   let teardowns = 0;

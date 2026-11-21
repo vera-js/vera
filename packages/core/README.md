@@ -57,6 +57,8 @@ from inside the component reads `TapCounter`: engines print function names, and 
 component's code runs. The options are `init`'s (`shadow`, `foreignNodes`, any wired module's own key) plus
 `props`, `attributes` and `methods`, below. The string form passes no options at all. A tag is
 defined once: a second `define` of it throws, as the platform's `customElements.define` does.
+`register: false` builds the class and returns it unregistered, for code that registers it itself (a scoped
+registry, a tag the user picks): `customElements.define('my-tag', define({ tag: 'x-card', register: false }, setup))`.
 
 ## Smaller: `@verajs/lite`
 
