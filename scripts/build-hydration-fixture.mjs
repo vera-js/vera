@@ -81,7 +81,12 @@ const contents =
    */
   `export const DEFINE_ATTRS_HTML = ${JSON.stringify(
     await fixture('define-attrs-ssr.js', { attributes: { label: 'Hello', 'data-count': '3', tone: 'loud' } })
-  )};\n`;
+  )};\n` +
+  /**
+   * LIGHT components inside SHADOW components' declarative roots (and one in the page): the browser suite hydrates it
+   * and asserts each root ends with exactly one copy of the light block, adopted there, and the served nodes kept.
+   */
+  `export const STYLES_IN_ROOT_HTML = ${JSON.stringify(await fixture('styles-light-in-shadow.js'))};\n`;
 
 if (check) {
   let committed;

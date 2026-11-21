@@ -173,6 +173,17 @@ from another machine, or after that is undone, has a variable changed.
   code that follows a target's scroll position (anchored placement) adds one capture listener per root up the target's
   shadow chain, plus the window, never the window alone. (2026-11-20; `tests/browser/anchor-measured.test.js`, "follows
   a scroller inside a user's shadow root")
+- **A node made by another window's document and adopted keeps that window's prototype: `instanceof` the adopting
+  window's class is false, while its structure answers as a native node's.** A `<div>`, a `<canvas>` and a host with an
+  open shadow root, each made by a same-origin iframe's document and adopted into the top document: `ownerDocument` is
+  the top document (CONTROL), each is still `instanceof` the iframe's `HTMLElement` or `ShadowRoot` (CONTROL), and
+  `instanceof` the top window's class is FALSE; `nodeType`, `namespaceURI`, `localName` and a root's `host` (node type
+  11 with `host`) answer exactly as a native node's. Chromium 159.0.8154.6, Firefox 159.0 and WebKit 27.2 on macOS 27.2.1
+  (Apple silicon), and the shadow-root case also on Windows 11 in all three (Playwright 1.65.1, headless); jsdom
+  answers the same (Gecko, too, keeps the creating window's wrapper on adoption). Consequence: a package tells a DOM node by its structure (node type, namespace, name, `host`), never by `instanceof`
+  a DOM class, even the node's own window's (an adopted node's window is not its prototype's);
+  `tests/no-realm-instanceof.test.mjs` holds the packages to it and `tests/browser/adopted-realm.test.js` pins the
+  platform fact. (2026-11-21)
 
 ## CSS and the cascade
 
@@ -198,6 +209,14 @@ from another machine, or after that is undone, has a variable changed.
   `disabled` does not refresh the old ones. The same `<link>` inserted after `load`, before or after adoption, is
   correct on all three, and an inline `<style>` was correct in every timing tried. Not bisected; looks like a missed
   style invalidation. Consequence: the layer-order line is never delivered by an automatically inserted `<link>`.
+- **At equal specificity, a `@scope (tag)` rule beats an unscoped one by scope proximity, whatever the sheet order.**
+  An unscoped `.m { color }` and `@scope (x-prox) { .m { color } }` adopted into the same root, in both orders, in a
+  shadow root and in the document: the scoped rule wins all four (an unscoped declaration counts as infinitely far);
+  CONTROL: `.m.m` unscoped beats it in both orders, so both sheets apply. Chromium 159.0.8154.6, Firefox 159.0, WebKit
+  27.2 (Playwright 1.65.1, headless, macOS 27.2.1), computed style. Consequence: `@verajs/styles` puts a light
+  component's sheet after a root's own sheets, the document's order (adopted sheets follow the page's), and that order
+  decides nothing for this case; only a higher-specificity author rule overrides a component's default, and a deliberate
+  cascade position for defaults is the `@layer` design's question. `tests/browser/scope-proximity.test.js`. (2026-11-21)
 
 ## Rendering, frames and timing
 

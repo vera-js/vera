@@ -7,13 +7,23 @@
 import { expect } from '@esm-bundle/chai';
 import { html, wire, define } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { styles, css } from '../../packages/styles/dist/development/vera-styles.js';
+import { styles, css, applyStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
 wire([renderer, styles]);
 
 const RED = 'rgb(200, 0, 0)';
 define({ tag: 'x-root-light', styles: css`.mark { color: rgb(200, 0, 0); }` }, () => () => html`<b class="mark">x</b>`);
-const frame = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+/** A shadow component of ours with its own constructed sheet, rendering a light child into its root. */
+define({ tag: 'x-root-shell', shadow: 'open', styles: css`i { color: rgb(0, 0, 200); }` }, () => () => html`<i>s</i><x-root-light></x-root-light>`);
+const iframeReady = async () => {
+  const f = document.createElement('iframe');
+  document.body.append(f);
+  await new Promise((r) => (f.contentDocument?.readyState === 'complete' ? r() : f.addEventListener('load', r, { once: true })));
+  return f;
+};
+/** The light child's color inside `shell`'s root, read in the shell's own window. */
+const childColor = (shell) => shell.ownerDocument.defaultView.getComputedStyle(shell.shadowRoot.querySelector('x-root-light .mark')).color;
+const frame = (win = window) => new Promise((resolve) => win.requestAnimationFrame(() => setTimeout(resolve, 0)));
 const colorIn = (root) => getComputedStyle(root.querySelector('x-root-light .mark')).color;
 /** A shadow host in `doc`, its open root holding one light component, returned once it rendered. */
 const inShadow = async (doc, extraCss) => {
@@ -65,5 +75,45 @@ describe('styles: a light component in every root', () => {
     const { hostEl, root } = await inShadow(document, 'x-root-light b.mark.mark { color: rgb(0, 0, 200); }');
     expect(colorIn(root)).to.equal('rgb(0, 0, 200)');
     hostEl.remove();
+  });
+});
+
+describe("styles: a light child in our own shadow component's root", () => {
+  it("survives the shell writing its own list again (a theme switch through applyStyles)", async () => {
+    const shell = document.createElement('x-root-shell');
+    document.body.append(shell);
+    await frame();
+    expect(childColor(shell), 'CONTROL: styled after the first render').to.equal(RED);
+    applyStyles([css`i { color: rgb(0, 0, 200); }`, css`i { font-weight: 700; }`], shell);
+    await frame();
+    expect(childColor(shell), "the child's sheet is kept when the shell replaces its own").to.equal(RED);
+    shell.remove();
+  });
+
+  it('holds in another document and after returning (a move empties the root, the child re-hoists)', async () => {
+    const shell = document.createElement('x-root-shell');
+    document.body.append(shell);
+    await frame();
+    const home1 = childColor(shell);
+    const f = await iframeReady();
+    f.contentDocument.body.append(shell);
+    await frame(f.contentWindow);
+    const out = childColor(shell);
+    document.body.append(shell);
+    await frame();
+    const home2 = childColor(shell);
+    expect({ home1, out, home2 }).to.deep.equal({ home1: RED, out: RED, home2: RED });
+    shell.remove();
+    f.remove();
+  });
+
+  it("the shell's own sheets come first and the light defaults after, as in the document (adopted after the page's)", async () => {
+    const shell = document.createElement('x-root-shell');
+    document.body.append(shell);
+    await frame();
+    const texts = [...shell.shadowRoot.adoptedStyleSheets].map((sheet) => [...sheet.cssRules].map((rule) => rule.cssText).join(' '));
+    expect(texts.length, 'CONTROL: two sheets in the root').to.equal(2);
+    expect(texts[0].includes('rgb(0, 0, 200)') && texts[1].includes('@scope (x-root-light)'), texts.join(' | ')).to.equal(true);
+    shell.remove();
   });
 });
