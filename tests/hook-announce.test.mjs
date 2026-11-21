@@ -252,6 +252,32 @@ test('a hidden tab queues nothing: an announcement nobody is there to hear is st
   assert.equal(regions(doc).length, 0);
 });
 
+test('a tab hidden after the call drops what was waiting, and a later message after its return is said alone', () => {
+  const { doc, run } = page('<p>x</p>');
+  const p = doc.querySelector('p');
+  announce(p, 'stale');
+  Object.defineProperty(doc, 'visibilityState', { value: 'hidden', configurable: true });
+  run();
+  assert.deepEqual(said(doc), [], 'nothing written while hidden');
+  Object.defineProperty(doc, 'visibilityState', { value: 'visible', configurable: true });
+  announce(p, 'fresh');
+  run();
+  assert.deepEqual(said(doc), ['fresh'], 'the dropped message does not come back');
+});
+
+test('messages are said in call order across a first write and a key (review D1, by queue)', () => {
+  const { doc, advance } = page('<p>x</p>');
+  const p = doc.querySelector('p');
+  announce(p, 'one');
+  advance(10);
+  announce(p, 'count 3', { key: 'count' });
+  advance(10);
+  announce(p, 'two');
+  announce(p, 'count 2', { key: 'count' });
+  advance(1000);
+  assert.deepEqual(said(doc), ['one', 'two', 'count 2'], 'the key replaced its waiting message; the latest goes last');
+});
+
 test('a hostile string is text: no element is made from it', () => {
   const { doc, run } = page('<p>x</p>');
   const hostile = '<img src=x onerror="globalThis.ran=1"><script>globalThis.ran=1</script>';

@@ -32,11 +32,24 @@ export interface AnnounceRecord {
   wanted: Map<string, Set<Element>>;
   /** The settle window's timer while one is open, else 0: exactly one copy decides a window. */
   window: number;
-  /** Writes waiting for their window, by key: a later one with the same key replaces the earlier. */
+  /** v1's keyed timers, kept for an older copy that still reads them; v2 queues instead (`queue`). */
   pending: Map<string, number>;
   /**
    * The message last written under each key, so a keyed write replaces it and the region holds one node per key (v2;
    * absent from a record an older copy made, and added on first use).
    */
   written?: Map<string, Element>;
+  /**
+   * The messages waiting for their region, in call order, by politeness (v2): one timer writes them all, so a message
+   * is never spoken before one asked for earlier (a first write waits longer than the next).
+   */
+  queue?: Partial<Record<Politeness, Queued[]>>;
+  /** The timer that will write each politeness's queue, while one is armed, else 0 or absent (v2). */
+  flush?: Partial<Record<Politeness, number>>;
+}
+
+/** One message waiting in a queue: its text, and its key when it has one. */
+export interface Queued {
+  text: string;
+  key: string | undefined;
 }

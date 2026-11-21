@@ -18,11 +18,12 @@ loading.release();                                         //   unless released 
   `body` (a second, `assertive`, one only when asked) and keeps it for the document's life, so any number of
   components never stack regions. An iframe and a popped-out window each have their own. Two copies of this hook on
   one page share one region and one settle window (two regions would speak every announcement twice).
-- **Every message is heard.** Each one is added to the region as its own node a moment after the call, and the region
-  speaks only what is added (`aria-relevant="additions"`), so two different messages in one moment are both said, and
-  the same text twice is said twice. A `key` collapses announcements within that moment to the last one, and a keyed
-  message replaces that key's earlier one, so a count ticking while typing keeps one node. A message is removed from
-  the region a few seconds after it was added; a removal is not spoken.
+- **Every message is heard, in the order asked.** Each one is added to the region as its own node a moment after the
+  call, after every message asked for before it (the first into a new region waits a little longer, and the rest wait
+  behind it), and the region speaks only what is added (`aria-relevant="additions"`), so two different messages in one
+  moment are both said, and the same text twice is said twice. A `key` collapses announcements within that moment to
+  the last one, and a keyed message replaces that key's earlier one, so a count ticking while typing keeps one node. A
+  message is removed from the region a few seconds after it was added; a removal is not spoken.
 - **Modals.** While a modal `<dialog>` is open everything outside it is inert, and a screen reader does not speak an
   inert region, so the hook speaks from a region inside the topmost open modal: the one holding focus (`showModal()`
   moves focus into the dialog it opens), else the last open one in the document. **Limit:** if focus has fallen to
