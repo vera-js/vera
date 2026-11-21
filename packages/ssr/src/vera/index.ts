@@ -39,7 +39,7 @@ import { ATTRIBUTE, renderComponentTags } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
 import type { ElementShim } from './nodes.js';
-import { thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, thrownMessage } from './escaping.js';
 import { PROSE } from './diagnostics.js';
 import { isOwn, once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
 import type { SsrRenderOptions, SsrRenderResult, SsrTemplate } from './types.js';
@@ -397,6 +397,9 @@ const attributeMarkup = (attributes: string | Record<string, unknown>): string =
         .map(([name, value]) => {
           if (name === '' || BAD_ATTRIBUTE_NAME.test(name))
             throw own(new TypeError(ssrMisuse('ssr-attribute-name', PROSE['ssr-attribute-name']!(quoted(name)))));
+          /** A runtime value never becomes a handler: the one rule a template binding's `on…` name is refused by. */
+          if (INLINE_HANDLER.test(name))
+            throw own(new TypeError(ssrMisuse('ssr-attribute-handler', PROSE['ssr-attribute-handler']!(quoted(name)))));
           return ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
         })
         .join('');

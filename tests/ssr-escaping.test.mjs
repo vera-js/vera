@@ -15,7 +15,7 @@
  * markup for dangerous substrings asks the wrong question. The right one is what an HTML parser
  * concludes, which is what a browser will do.
  */
-import { renderToString } from '@verajs/ssr';
+import { renderToString, serializeTemplate } from '@verajs/ssr';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -164,6 +164,28 @@ test('the object form of `attributes` cannot invent a second attribute', async (
   const { html } = await renderToString(url, { attributes: { 'data-x': '1', 'xml:lang': 'en', '@click': 'no' } });
   assert.match(html, /data-x="1"/);
   assert.match(html, /xml:lang="en"/);
+});
+
+/**
+ * **An `on…` name in `attributes` is refused** (`ssr-attribute-handler`): its value would run as code on the served
+ * page, and a value bound into an `on…` attribute in a template is dropped for that reason — one rule for both. Before,
+ * `attributes: { onclick: 'alert(1)' }` served a live handler.
+ */
+test('the object form of `attributes` serves no event handler, as a template binding serves none', async () => {
+  const url = new URL('./fixtures/ssr/xss-ssr.js', import.meta.url);
+  for (const name of ['onclick', 'ONCLICK', 'onClick', 'onload', 'on-x']) {
+    await assert.rejects(
+      () => renderToString(url, { attributes: { [name]: 'alert(1)' } }),
+      (error) => error instanceof TypeError && error.message.endsWith('(ssr-attribute-handler)'),
+      `${name} was served`
+    );
+  }
+  /** The template side of the one rule: a value bound into `onclick` is dropped. */
+  const t = (strings, ...values) => ({ ['_$litType$']: 1, strings: Object.assign([...strings], { raw: [...strings] }), values });
+  assert.equal(serializeTemplate(t(['<b onclick=', '>x</b>'], 'alert(1)')), '<b>x</b>');
+  /** CONTROL: a hostile value in an ordinary attribute is still served, escaped. */
+  const { html } = await renderToString(url, { attributes: { title: '" onclick="alert(1)' } });
+  assert.ok(html.includes('title="&#34; onclick=&#34;alert(1)"'), html);
 });
 
 /**

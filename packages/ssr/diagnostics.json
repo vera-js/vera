@@ -10,6 +10,14 @@
       "fix": "Use renderToStringAsync, or load data first and pass it as attributes."
     },
     {
+      "code": "ssr-attribute-handler",
+      "params": [
+        "name"
+      ],
+      "message": "`attributes` cannot serve {name} — an on… attribute runs its value as code in the browser, and a value bound into one in a template is dropped for that reason.",
+      "fix": "Write the handler in the component — a static attribute in its template, or an @event binding."
+    },
+    {
       "code": "ssr-attribute-name",
       "params": [
         "name"

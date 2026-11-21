@@ -247,6 +247,8 @@ unsanitized. Everything else is checked:
 - **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
   whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
   every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
+  An `on…` name (`onclick`, `onClick`) is refused too (`ssr-attribute-handler`): its value would run as code, and
+  a value bound into one in a template is dropped for the same reason. Write the handler in the component.
 - **`.innerHTML` and `.textContent` render on the server**, so trusted markup bound the sanctioned way
   (`<div .innerHTML=${markup}>`) is in the served page rather than filled in after hydration. It is made to behave
   as an `innerHTML` assignment, not as parsed page markup: a `<script>` in it is served with an inert `type` (an
@@ -261,8 +263,9 @@ unsanitized. Everything else is checked:
 - **Data shaped like a template is text.** A value renders as markup only when its strings came from a tagged
   template literal; a `{"strings": [...]}` from `JSON.parse` — or a real template sent through JSON, or a
   hand-built `html([markup])` — is served as `[object Object]`, as the client renders it, and never throws.
-- **A `__proto__` key in `props` is skipped**, so handing the option a parsed request body cannot
-  replace the component's prototype.
+- **A `__proto__` key in `props` is skipped**, so the option cannot replace the component's prototype. Every
+  other key is assigned as the platform assigns `el.x = v`, so a key such as `constructor` or `connectedCallback`
+  shadows the class's own member: `props` is trusted data, never a request body passed wholesale.
 - **Every bound attribute value is served double-quoted, whatever quoting the template used.** A value
   shares its attribute with any statics and other holes around it — `title=pre${x}`, `title=${a}${b}`,
   `title = ${x}`, single or double quotes — and the server writes that whole attribute once, the way the

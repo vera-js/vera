@@ -62,6 +62,10 @@ export const PROSE: Record<string, Prose> = {
     `\`attributes\` cannot use ${name} as a name — an attribute name may not contain whitespace, a quote, "/", "=" or ">"; setAttribute refuses it in the browser too.`,
     'Give it a valid attribute name.',
   ],
+  'ssr-attribute-handler': (name) => [
+    `\`attributes\` cannot serve ${name} — an on… attribute runs its value as code in the browser, and a value bound into one in a template is dropped for that reason.`,
+    'Write the handler in the component — a static attribute in its template, or an @event binding.',
+  ],
   'ssr-option': (name, expected) => [`\`${name}\` must be ${expected}.`, 'Check the options passed to renderToString.'],
   'ssr-url-refused': (href, root) => [
     `refused ${href} — it resolves outside ${root}.`,
