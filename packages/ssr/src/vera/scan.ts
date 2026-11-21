@@ -29,7 +29,7 @@ import type { ShadowRootShim } from './nodes.js';
  * **The NAME charset comes from `parse.js`, which owns it.** This file kept its own `[\w:-]+`,
  * which is narrower than what a start tag may carry: `data-a.b="v"` split at the dot into
  * `data-a=""` and `b="v"`, so a nested component was rebuilt with attributes its author never
- * wrote and read `null` for the one they did — server-side only, silently (arc-2 run 2). The same
+ * wrote and read `null` for the one they did — server-side only, silently. The same
  * single-fact-two-copies shape this file's own tag walk had with the tokenizer, and the same fix.
  */
 export const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?`, 'g');

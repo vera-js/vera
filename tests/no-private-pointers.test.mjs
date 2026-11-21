@@ -2,8 +2,8 @@
  * **Public source names no private pointer** (R5, 2026-11-12). Source comments ship in every development bundle and in
  * the public repository, so a comment that points at private material, or at a label only a private tracker explains,
  * says nothing to its reader and something to a stranger: a register id (`D14b`, `R4`, `C10`), a session's name
- * (`vera-5a`), a private path (`.probe/`, `internal/`), a design-document name, or a tracker phrase ("Option (c)",
- * "PROBE (", "Step 2 ("). A comment states the fact instead; a ruling reads "Brian's ruling, <date>".
+ * (`vera-5a`), a private path (`.probe/`, `internal/`), a design-document name, a tracker phrase ("Option (c)",
+ * "PROBE (", "Step 2 ("), or an audit run's code (`arc-2 run 3`, `run-26`). A comment states the fact instead; a ruling reads "Brian's ruling, <date>".
  *
  * Every package is held at zero. A term the pattern also matches that is the real word is allowed by EXACT occurrence
  * (file and text), never by pattern, so a new occurrence of it is still read before it is allowed. The comments come
@@ -43,11 +43,12 @@ test('CONTROL: every form the pattern gained is found, and its near-misses are n
     ["an attribution with 's", "/** the guard (d7's find) */", ["(d7's find)"]],
     ['an attribution wrapped across lines', '/**\n * the guard (d7,\n * 2026-11-20).\n */', ['(d7,\n * 2026-11-20)']],
     ["a long session name with 's", "/** the guard (vera-js-73's find) */", ["(vera-js-73's find)"]],
+    ['an audit run, wrapped', '/**\n * server-side only (arc-2 run 3), found by the run-26 probe (run 25)\n */', ['arc-2 run 3', 'run-26', '(run 25)']],
   ];
   for (const [what, comment, tokens] of planted)
     assert.deepEqual(pointers(`${comment}\nconst a = 1;\n`).map((p) => p.token), tokens, what);
-  const near = "/** vera-js/vera, F12-2, S4.1, (be's way), (ab, 2026-11-20), (Brian, 2026-11-20) */\nconst a = 1;\n";
-  assert.deepEqual(pointers(near).map((p) => p.token), [], 'the repository slug, a range, a decimal, a word, no digit, a person');
+  const near = "/** vera-js/vera, F12-2, S4.1, (be's way), (ab, 2026-11-20), (Brian, 2026-11-20), run 2 renders, a dry-run, an arc */\nconst a = 1;\n";
+  assert.deepEqual(pointers(near).map((p) => p.token), [], 'the repository slug, a range, a decimal, a word, no digit, a person, the verb run, the word arc');
 });
 
 /** Every package source file's pointers against `allowed`: what is not allowed, and what is allowed but no longer there. */

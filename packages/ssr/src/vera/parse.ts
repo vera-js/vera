@@ -34,7 +34,7 @@ const ENTITY = /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|([a-zA-Z]+);)/g;
  * package can emit. `index.js` kept a lesser copy (decimal only, and `String.fromCharCode`, which
  * TRUNCATES above U+FFFF) that was safe only while `escapeHtml`'s table stayed decimal and BMP —
  * an invariant no test held. One decoder instead, so a change to what this package escapes cannot
- * silently outrun what it can decode (arc-2 run 3).
+ * silently outrun what it can decode.
  */
 export const decode = (text: string): string =>
   text.includes('&')
@@ -202,8 +202,7 @@ const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
  *
  * Exported because `index.js` scans the same grammar when it rebuilds a nested component from the
  * open tag this module wrote. It kept its own `[\w:-]+` copy, which split `data-a.b="v"` into
- * `data-a=""` and `b="v"` — the child then read the wrong attributes, server-side only (arc-2
- * run 2). Same fact, two spellings, one of them wrong: CODE-PRINCIPLES #5, and the same fix
+ * `data-a=""` and `b="v"` — the child then read the wrong attributes, server-side only. Same fact, two spellings, one of them wrong: CODE-PRINCIPLES #5, and the same fix
  * `RAW_TEXT_ELEMENTS` already got in this package.
  */
 export const ATTRIBUTE_NAME = "[^\\s/>=\"'<]+";
@@ -402,7 +401,7 @@ export const parseFragment = (
      * and an uncaught throw here takes the whole server render down, naming createElement rather
      * than the component. This file's contract is "match a real parser or decline (return null)";
      * a throw is neither. So a rejected name declines the fragment, landing on the same
-     * "could not be parsed" path a stray close tag does. Found by the run-26 adversarial probe.
+     * "could not be parsed" path a stray close tag does. Found by an adversarial probe.
      */
     let element: ElementShim;
     try {

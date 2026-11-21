@@ -9,7 +9,8 @@
  * - an attribution to a session: `(d7, 2026-11-20)`, `(d7's find)`, `(vera-js-73's find)`; the short name must hold a
  *   digit, so a parenthesized word (`(be's way)`) is not one;
  * - a private path (`.probe/`, `internal/`), a design document's name (`DESIGN-…`), or a tracker phrase (`Option (c)`,
- *   `PROBE (`, `Step 2 (`).
+ *   `PROBE (`, `Step 2 (`);
+ * - an audit run's code: `arc-2 run 3`, `run-26`, `(run 25)`.
  */
 import { comments } from './source-comments.mjs';
 
@@ -27,6 +28,10 @@ export const POINTER = new RegExp(
     String.raw`\bOption \([a-z]\)`,
     String.raw`\bPROBE \(`,
     String.raw`\bStep \d+ \(`,
+    /** An audit run's code: `arc-2 run 3`, `the run-26 probe`, `(run 25)`. */
+    String.raw`\barc-\d+(?: run \d+)?\b`,
+    String.raw`\brun-\d+\b`,
+    String.raw`\(run \d+\)`,
   ].join('|'),
   'g'
 );

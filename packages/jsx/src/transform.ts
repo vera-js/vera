@@ -708,7 +708,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * `<Foo.Bar/>` and the lowercase-namespace ones the ecosystem writes as `<motion.div/>` /
    * `<styled.button/>`. Before this, only the first character was tested: `<Foo.Bar/>` became the
    * call `Foo.Bar({…})` but `<motion.div/>` was silently emitted as the broken host tag
-   * `<motion.div>` — a wrong-answer-not-error hazard (run 25).
+   * `<motion.div>` — a wrong-answer-not-error hazard.
    */
   type ElementNode = Extract<JsxNode, { tag: string }>;
   const isComponentTag = (node: JsxNode): boolean =>
