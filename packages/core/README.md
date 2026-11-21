@@ -271,7 +271,7 @@ that too.
 | `signal(value, { deep: true })` | the same, with the contents tracked too — a value you both replace and mutate inside (what `ref` was) |
 | `computed(fn)` | a memoized derived value, read as `.value` — lazy, and linked only while something reads it |
 | `untrack(fn)` | read current state without subscribing to it |
-| `isServer` | `true` while `@verajs/ssr` renders, `false` in a browser — the guard for per-user state (storage, cookies, the viewport): `if (!isServer) …`. Not `typeof localStorage`: Node 26 servers have web storage |
+| `isServer()` | `true` while `@verajs/ssr` renders, `false` in a browser, whatever was imported first — the guard for per-user state (storage, cookies, the viewport): `if (!isServer()) …`. Not `typeof localStorage`: Node 26 servers have web storage |
 
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
 store, wire that, and mutating methods notify like any other write. Without it core says so the first

@@ -128,12 +128,12 @@ connectedCallback() {
 
 That serves the component's state from before the wait, which is exactly what the browser shows first, so hydrating
 changes nothing — and it takes no time and prints no warning. Skipping only the `await`
-(`if (!isServer) await …`) serves the state *after* it, which the browser then replaces with its own
+(`if (!isServer()) await …`) serves the state *after* it, which the browser then replaces with its own
 starting state: a visible flash. A stand-in class defined on the server does the same.
 
-**`isServer` from `@verajs/core` is the supported way to tell the server render from a browser**, here and for
-guarding client wiring and per-user state: `@verajs/ssr` sets its flag when it is imported, before anything imports
-core, and nothing sets it in a browser. `typeof window` cannot tell them apart, because the server provides a `window`,
+**`isServer()` from `@verajs/core` is the supported way to tell the server render from a browser**, here and for
+guarding client wiring and per-user state: `@verajs/ssr` sets its flag when it is imported, nothing sets it in a
+browser, and `isServer()` reads it when called — so it answers the same whichever module was imported first. `typeof window` cannot tell them apart, because the server provides a `window`,
 and `typeof localStorage` cannot either on Node 26 (see below). `globalThis.__veraSsrShimmed` is still set, for code
 that tests it today.
 
@@ -340,7 +340,7 @@ Importing `@verajs/ssr` installs a DOM on `globalThis`: `document`, `window`, `c
   test that server-renders and then hydrates) installs a client DOM and calls `renderInto` directly —
   `wire([renderer])` there registers no client render insert — or renders the server half in a separate
   process. The client renderer cannot draw into this DOM itself: it holds strings, not a tree. A renderer that is not vera's would displace the server's and is refused at render time; guard
-  its wiring (`if (!isServer)`, `isServer` from `@verajs/core`).
+  its wiring (`if (!isServer())`, `isServer` from `@verajs/core`).
 
 **It is complete, and checked twice.** Every member a real element, shadow root, document,
 `CSSStyleSheet`, `DOMTokenList` or window exposes in Chromium, Firefox and WebKit is either
@@ -400,7 +400,7 @@ dependency involved.
   components run against the process's globals, and Node 26 gives every process a working
   `sessionStorage`, shared by every request (`--localstorage-file` adds a `localStorage`). So
   `typeof localStorage === 'undefined'` is not a server test; guard per-user state with `isServer`
-  from `@verajs/core` (`if (!isServer) …`). A process with storage is told so once, in every build
+  from `@verajs/core` (`if (!isServer()) …`). A process with storage is told so once, in every build
   (`ssr-process-storage`).
 
 **Where it deliberately differs:**

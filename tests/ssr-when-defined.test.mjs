@@ -83,7 +83,7 @@ test('the warning names the nested component whose wait was cut, and the guard t
   const { warnings } = await warned('wait-outer');
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /^\[vera\] ssr: <wait-outer> — was served after its 80 ms `timeout` with a promise still pending in <wait-async> \(/);
-  assert.match(warnings[0], /`if \(isServer\) return;`, `isServer` from @verajs\/core/);
+  assert.match(warnings[0], /`if \(isServer\(\)\) return;`, `isServer` from @verajs\/core/);
   /** A timeout with no whenDefined wait names the component but prints no whenDefined fix. */
   /** Its own key: an earlier row already said wait-plain's warning, once per process. */
   const plain = await warned('wait-plain-again');
