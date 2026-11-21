@@ -305,6 +305,20 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
 };
 
 /**
+ * **A start tag's attribute name that changes how the scan goes on**, read out of the per-character loop (whose bytecode
+ * every character carries): a `<template>`'s `shadowroot`/`shadowrootmode`, recorded in `edits` for `fortify`, and a
+ * `<font>`'s `color`, `face` or `size`, answered `true` (see `FONT_BREAKOUT`). `scanTag` asks about a font only in
+ * foreign content, the one place its breakout acts (see `structural`); `foreign` holds still while a tag is read, so a
+ * font set from this reaches `structural`, which is where `scanTag` clears it.
+ */
+const attributeNamed = (name: string, tagName: string, at: number, edits: number[] | undefined): boolean => {
+  const lower = name.toLowerCase();
+  if (tagName === 'font') return FONT_BREAKOUT.has(lower);
+  if (edits !== undefined && (lower === 'shadowrootmode' || lower === 'shadowroot')) edits.push(at, EDIT_SHADOW_ROOT);
+  return false;
+};
+
+/**
  * `edits`, when given, collects the positions `fortify` rewrites — a start tag's name end where it is `script`, and
  * a `<template>` start tag's `shadowroot`/`shadowrootmode` attribute names. They are reported from THIS scan, so the
  * `.innerHTML` scan and the template scan cannot disagree about what is a tag: they are one scan. `tags`, when given,
@@ -418,7 +432,6 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       i = at;
       tagAt = at;
       phase = TAG_OPEN;
-      font = 0;
       continue;
     } else if (phase === TAG_OPEN) {
       if (character === '!') {
@@ -494,13 +507,14 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       /** A name runs to whitespace, `/`, `>` or `=` — a quote or `<` inside it is part of the name (`<b x">`). */
       if (!(isSpace(character) || character === '/' || character === '>' || character === '=')) continue;
       attrRaw = nameFrom === -1 ? attrRaw + text.slice(0, i) : text.slice(nameFrom, i);
-      if (font === 0 && nameFrom !== -1 && !closing && tagName === 'font' && FONT_BREAKOUT.has(attrRaw.toLowerCase())) {
+      /**
+       * The two start tags whose attribute NAMES matter here — see `attributeNamed`; every other tag skips the call, and
+       * so does a `<font>` outside foreign content, the only place its breakout acts (legacy `<font color>` markup in
+       * HTML pays one compare per attribute, not a call and a lowercase copy).
+       */
+      if (nameFrom !== -1 && !closing && (tagName === 'template' || (tagName === 'font' && foreign !== 0)) && attributeNamed(attrRaw, tagName, nameFrom, edits) && font === 0) {
         font = 1;
         fontFrom = nameFrom;
-      }
-      if (edits !== undefined && !closing && tagName === 'template' && nameFrom !== -1) {
-        const lower = attrRaw.toLowerCase();
-        if (lower === 'shadowrootmode' || lower === 'shadowroot') edits.push(nameFrom, EDIT_SHADOW_ROOT);
       }
       if (character === '=') value = true;
       else if (character === '>') {
@@ -565,6 +579,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     } else if (foreign === 0 && !closing && TEXT_ONLY.has(tagName)) textTag = tagName;
     else {
       const next = structural(opens, tagName, closing, selfClosing, encoding, font, foreign, inert);
+      font = 0;
       if (next === INTO_TEMPLATE) inert++;
       else if (next === INTO_SCRIPT) {
         rawTag = tagName;
