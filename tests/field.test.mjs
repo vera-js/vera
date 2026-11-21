@@ -162,3 +162,71 @@ test('after a failed submit the form\'s first invalid control in tree order gets
   assert.equal(document.activeElement?.id, 'bare2', 'the bare input before it keeps its native place');
   second.remove();
 });
+
+test('a field registered under the user\'s own tag (defineAs) still hears its control', async () => {
+  const { defineAs } = await load('vera-components/field/element');
+  defineAs('my-field');
+  const form = document.createElement('form');
+  form.innerHTML = '<my-field><label>A</label><input required><small data-vera-part="error">Required.</small></my-field>';
+  document.body.append(form);
+  await flush();
+  const input = form.querySelector('input');
+  type(input, 'x');
+  type(input, '');
+  blur(input);
+  assert.deepEqual(shown(form.querySelector('my-field')), ['Required.']);
+  form.remove();
+});
+
+test('a reset re-reads the count once the browser has restored the value', async () => {
+  const { host, field: f, control } = await field('<label>Bio</label><textarea maxlength="40"></textarea><span data-vera-part="count"></span>');
+  type(control, 'x'.repeat(30));
+  assert.equal(f.querySelector('[data-vera-part="count"]').textContent, '30 / 40', 'CONTROL: the count followed the typing');
+  host.reset();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(f.querySelector('[data-vera-part="count"]').textContent, '0 / 40');
+  host.remove();
+});
+
+test('an error the server rendered shown stands through connect, and clears on the first edit', async () => {
+  const { host, field: f, control } = await field('<label>Email</label><input type="email" value="taken@example.com"><small data-vera-part="error">That email is taken.</small>');
+  assert.deepEqual(shown(f), ['That email is taken.'], 'loading the script did not hide it');
+  assert.equal(control.getAttribute('aria-invalid'), 'true', 'and it is the control\'s error');
+  type(control, 'new@example.com');
+  assert.deepEqual(shown(f), [], 'the user edited: the ordinary rules apply');
+  host.remove();
+});
+
+test('the spoken count is the consumer\'s words: count-message and limit-message', async () => {
+  const { host, field: f, control } = await field('<label>Bio</label><textarea maxlength="10"></textarea><span data-vera-part="count"></span>');
+  f.setAttribute('count-message', 'noch {left} Zeichen');
+  type(control, 'x'.repeat(9));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const region = document.querySelector('[data-vera-announce="polite"]');
+  assert.ok(region, 'CONTROL: the count announced');
+  assert.match(region.textContent, /noch 1 Zeichen/);
+  host.remove();
+});
+
+test('a framework that replaces the control\'s wrapper is seen; the field re-wires the new control', async () => {
+  const { host, field: f } = await field('<label>A</label><div class="wrap"><input></div><small data-vera-part="hint">h</small>');
+  const wrap = f.querySelector('.wrap');
+  const fresh = document.createElement('div');
+  fresh.innerHTML = '<input>';
+  wrap.replaceWith(fresh);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(f.querySelector('label').htmlFor, fresh.querySelector('input').id);
+  host.remove();
+});
+
+test('a control removed and added back is wired again, and nothing is wired while it is gone', async () => {
+  const { host, field: f, control } = await field('<label>A</label><input><small data-vera-part="hint">h</small>');
+  control.remove();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(f.querySelector('label').hasAttribute('for'), false, 'released while gone');
+  const back = document.createElement('input');
+  f.append(back);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(f.querySelector('label').htmlFor, back.id, 'wired again when it returns');
+  host.remove();
+});
