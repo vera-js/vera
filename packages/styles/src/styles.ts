@@ -234,10 +234,6 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     console.warn(diagnostic('styles', `<${element.localName}>`, 'slotted-light', __DEV__ && PROSE['slotted-light']()));
   const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
   /**
-   * A sheet constructed per adoption, in the element's OWN window: a root adopts only a sheet its document constructed,
-   * so one sheet per class shared across documents would throw for a root in an iframe or a popped-out window.
-   */
-  /**
    * **The server's copy of this block in this shadow root** (`@verajs/ssr` serves it as `data-vm-sheet="light"`, with
    * this exact text), replaced by the adopted sheet in the same task, so the root never has a frame without the block
    * and never keeps two. Read once per class per root: the hoisted mark above returns before this for every later
@@ -249,6 +245,10 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     const candidates = (root as ShadowRoot).querySelectorAll('style[data-vm-sheet="light"]');
     for (let i = 0; i < candidates.length && served === null; i++) if (candidates[i].textContent === text) served = candidates[i];
   }
+  /**
+   * A sheet constructed per adoption, in the element's OWN window: a root adopts only a sheet its document constructed,
+   * so one sheet per class shared across documents would throw for a root in an iframe or a popped-out window.
+   */
   if (root.adoptedStyleSheets && view) {
     const sheet = new view.CSSStyleSheet();
     sheet.replaceSync(scoped);

@@ -1479,7 +1479,6 @@ export class ShadowRootShim extends ContainerShim {
    * A scan for elements has no business reading a raw-text element.
    */
   styleTags(): string {
-    const sheets = (this._adopted ?? []).map((sheet) => sheet.cssText ?? '');
     /**
      * **Text first, adopted sheets last — because that is the order the browser cascades them in.**
      *
@@ -1492,18 +1491,29 @@ export class ShadowRootShim extends ContainerShim {
      * legal shape this package serializes on purpose — had the string win on the server and lose in
      * the browser, so the page changed appearance as it hydrated, in the one direction nothing
      * compares: markup, node identity and property values all matched.
-     */
-    /**
+     *
      * **A light child's block is marked `light`** (2026-11-21): `@verajs/styles` hoists a light component's
      * `@scope (tag)` block into the shadow root that holds it, as a sheet carrying its `_$veraLight$` key (a protocol
      * member: a string, so every copy of the module sees it). The client's hoist replaces exactly that served block
      * with its adopted sheet, and the shell's own `data-vm-sheet="styles"` is never confused with it: one shared marker
      * left the client a second copy of every light block, and a shell could read a light block as its own.
+     *
+     * Plain loops, no array built: this runs once per served shadow root (101 times per render of a 100-row page),
+     * and the two maps, the spread and the mapped copy it replaced built four arrays per root for one string.
      */
-    const light = (this._adopted ?? []).map((sheet) => (sheet as unknown as Record<string, unknown>)[LIGHT_SHEET] === true);
-    return [...this._styles, ...sheets]
-      .map((css, i) => (css ? `<style data-vm-sheet="${light[i - this._styles.length] ? 'light' : 'styles'}">${escapeStyleText(css)}</style>` : ''))
-      .join('');
+    let tags = '';
+    const styles = this._styles;
+    for (let i = 0; i < styles.length; i++) if (styles[i]) tags += `<style data-vm-sheet="styles">${escapeStyleText(styles[i])}</style>`;
+    const adopted = this._adopted;
+    if (adopted !== undefined) {
+      for (let i = 0; i < adopted.length; i++) {
+        const sheet = adopted[i];
+        if (!sheet.cssText) continue;
+        const kind = (sheet as unknown as Record<string, unknown>)[LIGHT_SHEET] === true ? 'light' : 'styles';
+        tags += `<style data-vm-sheet="${kind}">${escapeStyleText(sheet.cssText)}</style>`;
+      }
+    }
+    return tags;
   }
 }
 

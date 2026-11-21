@@ -1346,12 +1346,19 @@ const optionText = (content: string, from: number): string => {
  * on the client, and marks nothing here.
  */
 const markSelected = (content: string, wanted: string | number): string => {
+  /**
+   * With no `selected` anywhere in the options there is nothing to clear, so the chosen option is the input plus one
+   * ` selected` and nothing after it is read (the old pattern's early return, on the parser's reading of the tag).
+   * Only a `selected` to clear walks every option and rebuilds the content.
+   */
+  const clear = content.toLowerCase().includes('selected');
+  const spans: number[] = [];
   let out = '';
   let last = 0;
   let index = 0;
   let marked = false;
   for (let start = nextTag(content, 'option', 0); start !== -1; start = nextTag(content, 'option', last)) {
-    const spans: number[] = [];
+    spans.length = 0;
     const end = readTag(content, start, spans);
     /** Where ` selected` goes: after the last attribute kept, or after the tag name. */
     let insertAt = start + 7;
@@ -1370,6 +1377,11 @@ const markSelected = (content: string, wanted: string | number): string => {
     }
     const chosen = !marked && (typeof wanted === 'number' ? index === wanted : (value ?? optionText(content, end)) === wanted);
     index++;
+    if (!clear) {
+      if (chosen) return `${content.slice(0, Math.max(start, insertAt))} selected>${content.slice(end)}`;
+      last = end;
+      continue;
+    }
     if (chosen) {
       marked = true;
       open += `${content.slice(from, Math.max(from, insertAt))} selected>`;
@@ -1377,7 +1389,7 @@ const markSelected = (content: string, wanted: string | number): string => {
     out += content.slice(last, start) + open;
     last = end;
   }
-  return out + content.slice(last);
+  return clear ? out + content.slice(last) : content;
 };
 
 /**
@@ -1624,9 +1636,18 @@ const isTagAt = (text: string, at: number, name: string): boolean => {
   return tagSpace(c) || c === 47 || c === 62;
 };
 
-/** The next `<name` tag at or after `from` (see `isTagAt`), or -1. */
+/**
+ * The next `<name` tag at or after `from` (see `isTagAt`), or -1. `name` is lowercase; the character after each `<` is
+ * folded A–Z and compared inline first, so a `<` that opens another tag costs no call (the select path's walk was most
+ * of its cost).
+ */
 const nextTag = (text: string, name: string, from: number): number => {
-  for (let at = text.indexOf('<', from); at !== -1; at = text.indexOf('<', at + 1)) if (isTagAt(text, at, name)) return at;
+  const first = name.charCodeAt(0);
+  for (let at = text.indexOf('<', from); at !== -1; at = text.indexOf('<', at + 1)) {
+    let c = text.charCodeAt(at + 1);
+    if (c >= 65 && c <= 90) c += 32;
+    if (c === first && isTagAt(text, at, name)) return at;
+  }
   return -1;
 };
 
