@@ -18,7 +18,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,8 +67,12 @@ test('CONTROL: a plain TypeScript watch program rebuilds when it changed just be
  * `ts.createWatchProgram` is a getter-only export.)
  */
 test('a build through defaultRollupConfig exits by itself, though its file changed mid-build', () => {
-  /** A throwaway package outside the tree: the rewrite and any kill mid-rewrite touch nothing tracked. */
-  const pkg = mkdtempSync(join(tmpdir(), 'build-exits-pkg-'));
+  /**
+   * A throwaway package outside the tree: the rewrite and any kill mid-rewrite touch nothing tracked. Its path is the
+   * real one, since the build reports realpaths: macOS's tmpdir `/var/folders/…` is a link to `/private/var/folders/…`,
+   * and the unresolved path failed the comparison below there (dev and prod, reproduced on a clean macOS worktree).
+   */
+  const pkg = realpathSync.native(mkdtempSync(join(tmpdir(), 'build-exits-pkg-')));
   const SOURCE = 'export const answer: number = 42;\n';
   mkdirSync(join(pkg, 'src'));
   writeFileSync(join(pkg, 'package.json'), '{ "name": "build-exits", "version": "0.0.0", "type": "module" }\n');
