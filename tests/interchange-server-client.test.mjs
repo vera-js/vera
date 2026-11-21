@@ -24,12 +24,7 @@ const server = JSON.parse(execFileSync(process.execPath, [...conditions, '--inpu
   for (const level of ['warn', 'error']) console[level] = (...a) => said.push(level + ' ' + a.join(' '));
   const { renderToString } = await import('@verajs/ssr');
   const out = await renderToString(new URL('./tests/fixtures/interchange/app.js', process.getBuiltinModule('node:url').pathToFileURL(process.cwd() + '/')), { tag: 'ia-app' });
-  /** Whether THIS process has working web storage, asked of the storage itself — the oracle the storage line is held to. */
-  let storage = false;
-  try { storage = typeof globalThis.sessionStorage?.getItem === 'function'; } catch {}
-  if (!storage && (process.env.NODE_OPTIONS ?? '').includes('--localstorage-file'))
-    try { storage = typeof globalThis.localStorage?.getItem === 'function'; } catch {}
-  process.stdout.write(JSON.stringify({ html: out.html, styles: out.styles, said, storage, core: import.meta.resolve('@verajs/core') }));
+  process.stdout.write(JSON.stringify({ html: out.html, styles: out.styles, said, core: import.meta.resolve('@verajs/core') }));
 `], { cwd: root, encoding: 'utf8', env: { ...process.env } }));
 const build = (path) => (path.endsWith('.min.js') ? 'production' : path.includes('/development/') ? 'development' : `unknown: ${path}`);
 
@@ -44,12 +39,12 @@ test('the server renders the shared module — its content in place, its effect 
   assert.match(page, /<ia-styled[^>]*><p>styled<\/p><\/ia-styled>/, 'the styled component');
   assert.match(server.styles, /rebeccapurple/, 'its styles reached the page styles');
   /**
-   * **And the storage line exactly when the process HAS storage** (Node 26 gives every process a `sessionStorage`): the
-   * one line that may join the decline, by its whole code, once — and absent without storage. Never silenced with
-   * `--no-experimental-webstorage`: this row is where the warning is seen.
+   * **The storage line may join the decline, by its whole code, at most once** (Node 26 gives every process a
+   * `sessionStorage`). Whether it is due is `tests/ssr-process-storage.test.mjs`'s question, held to a table per Node
+   * version; this row only keeps it from hiding anything else.
    */
   const storageLines = server.said.filter((line) => /\(ssr-process-storage\)$/.test(line));
-  assert.equal(storageLines.length, server.storage ? 1 : 0, `the storage line ${server.storage ? 'once, this process has storage' : 'absent, this process has none'}: ${server.said.join(' | ')}`);
+  assert.ok(storageLines.length <= 1, `the storage line at most once: ${server.said.join(' | ')}`);
   assert.deepEqual(server.said.filter((line) => !line.includes('renderer-on-server') && !storageLines.includes(line)), [], 'nothing but the decline and the storage line');
   assert.equal(server.said.length - storageLines.length, isProduction ? 0 : 1, 'the decline once in development, nothing in production');
 });

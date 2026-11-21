@@ -85,7 +85,7 @@ const { wire, inserts, flush } = await import('@verajs/core');
  */
 const working = (name: 'sessionStorage' | 'localStorage'): boolean => {
   try {
-    return typeof (globalThis as { [key: string]: { getItem?: unknown } | undefined })[name]?.getItem === 'function';
+    return typeof (globalThis as unknown as Record<typeof name, { getItem?: unknown } | undefined>)[name]?.getItem === 'function';
   } catch {
     return false;
   }
