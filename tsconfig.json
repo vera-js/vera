@@ -84,6 +84,12 @@
       "@verajs/renderer/spread": [
         "./packages/renderer/src/spread.ts"
       ],
+      "@verajs/renderer/keyed": [
+        "./packages/renderer/src/keyed.ts"
+      ],
+      "@verajs/renderer/slots": [
+        "./packages/renderer/src/slots.ts"
+      ],
       "@verajs/router": [
         "./packages/router/src/index.ts"
       ],
