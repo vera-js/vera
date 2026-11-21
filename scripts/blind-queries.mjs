@@ -10,6 +10,7 @@ import { mkdtempSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { posix } from './fs-path.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const instrument = join(root, 'scripts/blind-query-instrument.mjs');
@@ -45,10 +46,18 @@ if (control.length !== 1 || control[0].selector !== 'img')
 
 const suites = readdirSync(join(root, 'tests')).filter((name) => /^ssr-.*\.test\.mjs$/.test(name)).map((name) => `tests/${name}`);
 const records = run(['--test', '--conditions', 'development', ...suites]);
-const relative = (at) => at.replace(`${root}`, '').replace(/^\/+/, '');
-const unexpected = records.filter(({ at, selector }) => !ALLOWED.some(([file, allowed]) => relative(at).startsWith(file) && selector === allowed));
+/** Both sides in one form: on Windows `root` has backslashes and a recorded stack frame has forward slashes. */
+const relative = (at) => posix(at).replace(posix(root), '').replace(/^\/+/, '');
+const matches = ({ at, selector }, [file, allowed]) => relative(at).startsWith(file) && selector === allowed;
+const unexpected = records.filter((record) => !ALLOWED.some((entry) => matches(record, entry)));
 const unique = [...new Set(unexpected.map(({ at, query, selector }) => `${relative(at)}  ${query}('${selector}')`))];
 console.log(`blind queries: control recorded its one query; ${suites.length} SSR suites, ${records.length} records, ${unique.length} outside the allow-list`);
+/** An entry no record matches is stale, or its paths no longer compare (a form that differs by platform): refused. */
+const unmatched = ALLOWED.filter((entry) => !records.some((record) => matches(record, entry)));
+if (unmatched.length !== 0) {
+  console.error(`blind queries: allow-list entries no record matched (stale, or the paths did not compare):\n  ${unmatched.map(([file, selector]) => `${file}  '${selector}'`).join('\n  ')}`);
+  process.exit(1);
+}
 if (unique.length !== 0) {
   console.error(`a server suite queried where its content is not (a served shadow root parses as a <template>):\n  ${unique.join('\n  ')}\nQuery template content too, with a positive control first (CLAUDE.md).`);
   process.exit(1);
