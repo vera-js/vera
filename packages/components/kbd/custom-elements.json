@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-kbd.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-kbd",
+          "name": "VeraKbd",
+          "description": "Shows a keyboard shortcut in the reader's platform's spelling: keys=\"Mod+Shift+K\" renders as ⇧⌘K on Apple devices and Ctrl+Shift+K elsewhere, as nested <kbd> elements, with each symbol's word given to assistive technology.",
+          "attributes": [
+            {
+              "name": "keys",
+              "description": "The shortcut, as +-separated key names, case-insensitive: Mod (Command on Apple, Ctrl elsewhere), Ctrl, Alt, Shift, Meta, their aliases (Cmd, Command, Option, Control), named keys (Enter, Escape, Tab, Space, Backspace, Delete, the arrows, Home, End, PageUp, PageDown, the function keys, Plus for a literal +), or any other key as written. Modifiers are shown in the platform's order whatever order they are written in."
+            },
+            {
+              "name": "platform",
+              "description": "apple, windows or other, to force a spelling instead of the reader's. A server never renders apple's symbols: it renders words, and the client re-spells once."
+            }
+          ],
+          "members": [],
+          "events": [],
+          "slots": [],
+          "cssParts": [
+            {
+              "name": "combo",
+              "description": "The outer <kbd> holding the whole shortcut."
+            },
+            {
+              "name": "key",
+              "description": "One key's <kbd>. A symbol key carries data-vera-word, its word, spoken and never shown."
+            }
+          ],
+          "cssProperties": [],
+          "vera-states": [],
+          "vera-custom-states": []
+        }
+      ]
+    }
+  ]
+}

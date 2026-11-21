@@ -233,6 +233,19 @@ from another machine, or after that is undone, has a variable changed.
   decides nothing for this case; only a higher-specificity author rule overrides a component's default, and a deliberate
   cascade position for defaults is the `@layer` design's question. `tests/browser/scope-proximity.test.js`. (2026-11-21)
 
+- **CSS `content` alt text on EMPTY generated content (`::before { content: "" / attr(data-word) " " }`) is spoken
+  and never copied; the visible text beside it is what a copy holds.** The `content: <string> / <alt>` syntax parses on
+  all three (computed `"Z" / ""`), and `attr()` works inside the alt. For `<kbd>⇧</kbd>` with the symbol `aria-hidden`
+  and the word as that alt text, a selection holds "⇧⌘K" on all three, and a real copy then paste gave "⇧⌘K" on
+  Chromium and Firefox; the alternatives measured worse: a visually hidden word copied "⇧Shift⌘CommandK", and a symbol
+  from `content` with a visually hidden word copied "ShiftCommandK". Without a trailing `" "` in the alt the words run
+  together ("ShiftCommandK"). Chromium's own accessibility tree (CDP) gives the leaves "Shift ", "Command ", "K".
+  UNCONFIRMED: WebKit's clipboard (its headless control pasted nothing) and Firefox's and WebKit's engine accessibility
+  trees (read here only through Playwright's computed snapshot, "Shift Command K"). Consequence: `@vera-components/kbd`
+  speaks a symbol's word this way, and the element adopts the rule itself, so a page that strips component styles leaves
+  the symbols silent (its README says so). (Chromium 159.0.8154.6, Firefox 159.0, WebKit 27.2, Playwright 1.65.1,
+  Windows 11, headless, 2026-11-21; `tests/browser/kbd.test.js`.)
+
 ## Rendering, frames and timing
 
 - **Headless browsers are not real compositors.** Playwright's `firefox.launch()` / `webkit.launch()` are headless by

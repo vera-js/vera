@@ -35,6 +35,8 @@ const PACKAGES = {
   '@vera-hooks/anchor': 'vera-hooks/anchor',
   '@vera-components/field': 'vera-components/field',
   '@vera-components/icon': 'vera-components/icon',
+  '@vera-components/kbd': 'vera-components/kbd',
+  '@vera-components/kbd/element': 'vera-components/kbd/element',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',

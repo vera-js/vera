@@ -30,6 +30,12 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-components/kbd": [
+        "./packages/components/kbd/src/register.ts"
+      ],
+      "@vera-components/kbd/element": [
+        "./packages/components/kbd/src/index.ts"
+      ],
       "@vera-components/field": [
         "./packages/components/field/src/register.ts"
       ],

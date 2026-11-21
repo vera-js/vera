@@ -46,6 +46,8 @@ const PINS = {
   'packages/components/field/dist/vera-field.min.js': 11,
   'packages/components/icon/dist/vera-icon-element.min.js': 2,
   'packages/components/icon/dist/vera-icon.min.js': 2,
+  'packages/components/kbd/dist/vera-kbd-element.min.js': 4,
+  'packages/components/kbd/dist/vera-kbd.min.js': 6,
   'packages/components/select/dist/vera-select-elements.min.js': 2,
   'packages/components/select/dist/vera-select.min.js': 3,
   'packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js': 0,

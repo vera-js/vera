@@ -1,0 +1,19 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "kbd-no-keys",
+      "params": [],
+      "message": "has no keys, so it shows nothing.",
+      "fix": "Give it keys, such as keys=\"Mod+K\"."
+    },
+    {
+      "code": "kbd-unknown-platform",
+      "params": [
+        "given"
+      ],
+      "message": "has platform={given}, which is not apple, windows or other, so the reader's own platform is used.",
+      "fix": "Use one of the three, or remove platform to follow the reader."
+    }
+  ]
+}

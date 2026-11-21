@@ -42,6 +42,8 @@ const PACKAGES = {
   '@vera-hooks/anchor': 'vera-hooks/anchor',
   '@vera-components/field': 'vera-components/field',
   '@vera-components/icon': 'vera-components/icon',
+  '@vera-components/kbd': 'vera-components/kbd',
+  '@vera-components/kbd/element': 'vera-components/kbd/element',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -261,6 +263,7 @@ const recipes = recipeSources.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/components/kbd/README.md': 2,
   'packages/components/field/README.md': 1,
   'packages/components/icon/README.md': 1,
   'packages/components/select/README.md': 1, // the move into packages/components (2026-11-21) gave select its first recipe
