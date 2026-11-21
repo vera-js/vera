@@ -134,8 +134,8 @@ starting state: a visible flash. A stand-in class defined on the server does the
 **`isServer()` from `@verajs/core` is the supported way to tell the server render from a browser**, here and for
 guarding client wiring and per-user state: `@verajs/ssr` sets its flag when it is imported, nothing sets it in a
 browser, and `isServer()` reads it when called — so it answers the same whichever module was imported first. `typeof window` cannot tell them apart, because the server provides a `window`,
-and `typeof localStorage` cannot either on Node 26 (see below). `globalThis.__veraSsrShimmed` is still set, for code
-that tests it today.
+and `typeof localStorage` cannot either on Node 26 (see below). The old `globalThis.__veraSsrShimmed` flag is gone:
+test `isServer()`.
 
 ## What runs, and when
 

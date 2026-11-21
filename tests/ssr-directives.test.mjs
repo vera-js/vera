@@ -116,7 +116,7 @@ const { activate, settled, rejections } = await import('@verajs/directives');
  * reported and the element stays unrevealed for ever. jsdom has none of these natively, so removing
  * them restores the environment a browser actually presents and lets the degradation rule run.
  */
-delete globalThis.__veraSsrShimmed;
+delete globalThis._$ssr$;
 for (const k of ['IntersectionObserver', 'ResizeObserver', 'PerformanceObserver']) delete globalThis[k];
 
 const before = region.outerHTML;
@@ -171,7 +171,7 @@ assert.match(filtered.html, /<em[^>]*class="[^"]*revealed/,
     'MutationObserver', 'CSSStyleSheet', 'location', 'history']) globalThis[k] = dom2.window[k];
   globalThis.requestAnimationFrame = dom2.window.requestAnimationFrame.bind(dom2.window);
   globalThis.cancelAnimationFrame = dom2.window.cancelAnimationFrame.bind(dom2.window);
-  delete globalThis.__veraSsrShimmed;
+  delete globalThis._$ssr$;
   for (const k of ['IntersectionObserver', 'ResizeObserver', 'PerformanceObserver']) delete globalThis[k];
 
   const mount2 = dom2.window.document.getElementById('m');

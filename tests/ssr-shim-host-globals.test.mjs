@@ -29,7 +29,7 @@ import test from 'node:test';
 /**
  * Reached by relative path because the shim is internal — the package exports only its entry, and
  * this asserts a fact *about* the install. Importing it again is inert: `installShims()` returns
- * early on its own `__veraSsrShimmed` guard, so the globals under test are the ones the entry above
+ * early on its own `_$ssr$` guard, so the globals under test are the ones the entry above
  * installed.
  */
 import { LOCATION_PARTS } from '../packages/ssr/dist/vera/shim.js';

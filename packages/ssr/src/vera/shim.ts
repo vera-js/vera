@@ -51,7 +51,7 @@ type GlobalScope = Record<string, unknown>;
  * The flags an install leaves on the global, so a second import installs nothing. `_$ssr$` is what `@verajs/core`'s
  * `isServer` reads (2026-11-20: a sigil, 21 B in core where this name cost 30).
  */
-type ShimmedGlobal = { __veraSsrShimmed?: boolean; _$ssr$?: boolean };
+type ShimmedGlobal = { _$ssr$?: boolean };
 
 /** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
 const RESERVED_NAMES = new Set([
@@ -322,8 +322,7 @@ export const LOCATION_PARTS = [
 ] as const;
 
 export const installShims = () => {
-  if ((globalThis as ShimmedGlobal).__veraSsrShimmed) return registry;
-  (globalThis as ShimmedGlobal).__veraSsrShimmed = true;
+  if ((globalThis as ShimmedGlobal)._$ssr$) return registry;
   (globalThis as ShimmedGlobal)._$ssr$ = true;
 
   /**

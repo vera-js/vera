@@ -1,7 +1,7 @@
 /**
  * **ONE shared app module, imported unchanged by the server and the browser** (Brian, 2026-10-10: "component and build
  * code should work identically on the server and client, they should be interchangeable"). It wires every client module
- * an app would and defines real components — with NO `__veraSsrShimmed` guard anywhere. tests/interchange-server-client
+ * an app would and defines real components — with NO server guard anywhere. tests/interchange-server-client
  * renders it through @verajs/ssr in one process and hydrates the output in another; a module that needs a guard here is
  * a defect.
  */

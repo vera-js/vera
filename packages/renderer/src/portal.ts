@@ -20,7 +20,7 @@ type CommitAs = (root: Node, part: ChildPart, value: unknown) => void;
  * reads it the same way). A server turn runs a setup's effects, and with no client renderer there every request said
  * `portal-no-renderer` (measured 2026-10-22); a portal has nothing to draw there, and hydration nothing to adopt.
  */
-const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
+const onServer = (globalThis as { _$ssr$?: boolean })._$ssr$ === true;
 
 /**
  * **`portal(target, template)` — draws into ANOTHER element, from a component's setup** (2026-10-22, the API

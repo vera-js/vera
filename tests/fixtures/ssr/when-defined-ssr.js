@@ -44,7 +44,7 @@ const waiting = (guarded) =>
       init({ host: this, shadow: 'open' }, () => {
         return () => html`<p>${state.ready ? 'ready' : 'loading'}</p>`;
       });
-      if (guarded && globalThis.__veraSsrShimmed) return;
+      if (guarded && globalThis._$ssr$) return;
       await customElements.whenDefined('wd-never-defined');
       state.ready = true;
     }

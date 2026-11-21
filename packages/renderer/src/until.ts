@@ -25,7 +25,7 @@ import { PROSE } from './until-diagnostics.js';
  * client makes its own request), and an unhandled rejection ends a Node process by default, so one failed fetch during a
  * server render would take the server down. `@verajs/ssr` sets this public flag at import, before anything renders.
  */
-const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
+const onServer = (globalThis as { _$ssr$?: boolean })._$ssr$ === true;
 type Until = { promise: unknown; fallback: unknown };
 type State = { p: unknown; live: boolean };
 type Part = { _$commit$(value: unknown): void };

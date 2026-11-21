@@ -13,7 +13,7 @@ import { wireDirectives, directives, interactions, expressions } from '@verajs/d
  * this). DIRECTIVES is deliberately NOT guarded: the engine is runtime-aware, so one wiring is
  * correct in both places — it activates in a browser and evaluates once on a server.
  */
-if (!globalThis.__veraSsrShimmed) wire([renderer]);
+if (!globalThis._$ssr$) wire([renderer]);
 wire([directives]);
 wireDirectives([expressions, ...interactions]);
 

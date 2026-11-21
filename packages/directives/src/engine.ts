@@ -1333,7 +1333,7 @@ export const deactivate = (root: Document | ShadowRoot | Element) => {
  */
 
 /** The shim's own published marker — the same signal `boot()` already trusts. */
-const onServer = (): boolean => (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
+const onServer = (): boolean => (globalThis as { _$ssr$?: boolean })._$ssr$ === true;
 
 /**
  * Every directive NAME this process has rendered, unclaimed ones included — unclaimed is
@@ -1473,7 +1473,7 @@ let booted = false;
 const boot = () => {
   if (booted) return;
   /** Never under the SSR shim — the server renders once and flattens (the slots precedent). */
-  if (typeof document === 'undefined' || (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return;
+  if (typeof document === 'undefined' || (globalThis as { _$ssr$?: boolean })._$ssr$) return;
   booted = true;
   const go = () => activate(document);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go, { once: true });

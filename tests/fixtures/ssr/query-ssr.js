@@ -7,7 +7,7 @@ import { init, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { wireDirectives, directives, interactions, expressions, query, sensors } from '@verajs/directives';
 
-if (!globalThis.__veraSsrShimmed) wire([renderer]);
+if (!globalThis._$ssr$) wire([renderer]);
 wire([directives]);
 wireDirectives([expressions, ...interactions, query, sensors]);
 

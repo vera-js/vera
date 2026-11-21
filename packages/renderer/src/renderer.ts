@@ -2019,7 +2019,7 @@ const connectTo = (given: { get(name: never): unknown }) => {
  * Whether this process is a SERVER: `@verajs/ssr` sets this public flag at import. Read ONCE, as this module loads — a
  * server always imports ssr first, because this module reads `document` as it loads and only ssr's DOM provides one.
  */
-const onServer = (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
+const onServer = (globalThis as { _$ssr$?: boolean })._$ssr$ === true;
 
 type Registry = { get(name: never): unknown; $S?: unknown; $F?: unknown };
 /**
