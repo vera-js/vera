@@ -508,6 +508,37 @@ test('vera-option: a slotted child from ANOTHER realm (an iframe, a popped-out w
   element.remove();
 });
 
+test("vera-option: an icon from another realm renders in the select's own document, as a clone", async () => {
+  /**
+   * Another realm (a second JSDOM). Another DOCUMENT of this realm is no case: appending its node to the option adopts
+   * it into the option's document before select ever parses it. An adopted node keeps its realm's prototype, which is
+   * what parse-options' structural slot test exists for, so the realm is the case to pin.
+   */
+  const realm = new JSDOM('<!doctype html><body></body>').window.document;
+  const element = dom.window.document.createElement('vera-select');
+  element.innerHTML = '<vera-option value="pistachio">Pistachio</vera-option>';
+  const icon = realm.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('slot', 'icon');
+  icon.setAttribute('data-mark', 'nut');
+  const description = realm.createElement('span');
+  description.setAttribute('slot', 'description');
+  description.textContent = 'polarizing, correctly';
+  element.querySelector('vera-option').append(icon, description);
+  assert.equal(icon instanceof dom.window.Element, false, 'CONTROL: the icon really is from another realm, adopted');
+  dom.window.document.body.append(element);
+  await frame();
+  part(element, 'trigger').click();
+  await frame();
+  const [option] = element.options;
+  assert.equal(option.label, 'Pistachio', 'neither foreign child is label text');
+  assert.equal(option.description, 'polarizing, correctly');
+  const row = root(element).querySelector('[part="option-icon"] svg[data-mark="nut"]');
+  assert.ok(row, 'the foreign icon reached the row');
+  assert.equal(row.ownerDocument, dom.window.document, "the rendered clone belongs to the select's document");
+  assert.ok(element.querySelector('vera-option svg[data-mark="nut"]'), 'as a clone: the source keeps its node');
+  element.remove();
+});
+
 test('precedence: HTML seeds, property wins — and permanently retires the markup as source', async () => {
   const element = dom.window.document.createElement('vera-select');
   element.innerHTML = '<option value="from-html">From HTML</option>';
