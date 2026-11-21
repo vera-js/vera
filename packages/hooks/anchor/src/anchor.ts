@@ -19,8 +19,12 @@
 import { place } from './place.js';
 import type { Anchored, AnchorOptions, Rect } from './types.js';
 
-/** The inline properties this hook writes; `release()` restores each to what it found. */
-const WRITTEN = ['position', 'left', 'top', 'margin', 'max-height', 'max-width', 'min-width', 'min-height'] as const;
+/**
+ * The inline properties this hook writes; `release()` restores each to what it found. `right` and `bottom` are written
+ * `auto`: the UA gives a `[popover]` `inset: 0`, and with them left at 0 a fixed-size box is over-constrained, which a
+ * right-to-left document resolves by dropping `left` (the layer sat against the right edge).
+ */
+const WRITTEN = ['position', 'left', 'top', 'right', 'bottom', 'margin', 'max-height', 'max-width', 'min-width', 'min-height'] as const;
 
 export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptions = {}): Anchored => {
   let active = false;
@@ -48,16 +52,28 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
     frame = 0;
     if (!active || !view) return;
     if (!target.isConnected) return close();
-    /** The layer's natural size: our own caps come off before it is measured. */
-    for (const property of ['max-height', 'max-width', 'min-width', 'min-height']) layer.style.removeProperty(property);
+    /**
+     * The layer's natural size, measured with our caps LEFT ON: taking them off let a squeezed layer's content stop
+     * overflowing, and the browser clamped its scroll to the top. A capped axis reads its natural length as the
+     * scrolled content plus the borders (`scrollHeight` + `offsetHeight - clientHeight`), through the block's scale.
+     */
     const box = layer.getBoundingClientRect();
-    const rtl = view.getComputedStyle(target).direction === 'rtl';
-    const placed = place(target.getBoundingClientRect(), { width: box.width, height: box.height }, viewport(view), options, rtl);
+    const height = layer.style.getPropertyValue('max-height') ? (layer.scrollHeight + layer.offsetHeight - layer.clientHeight) * scaleY : box.height;
+    const width = layer.style.getPropertyValue('max-width') ? (layer.scrollWidth + layer.offsetWidth - layer.clientWidth) * scaleX : box.width;
+    /** The sheet's direction read: `:dir()`, in the floor, with no style object made per frame. */
+    const rtl = target.matches(':dir(rtl)');
+    const placed = place(target.getBoundingClientRect(), { width, height }, viewport(view), options, rtl);
     write('left', `${(placed.x - originX) / scaleX}px`);
     write('top', `${(placed.y - originY) / scaleY}px`);
     const vertical = placed.side === 'top' || placed.side === 'bottom';
+    /** A cap no longer needed comes off (a flip to the roomier side); one still needed is rewritten, never removed first. */
     if (placed.max !== undefined) write(vertical ? 'max-height' : 'max-width', `${placed.max / (vertical ? scaleY : scaleX)}px`);
-    if (options.size === 'match') write(vertical ? 'min-width' : 'min-height', `${vertical ? placed.width / scaleX : placed.height / scaleY}px`);
+    else layer.style.removeProperty(vertical ? 'max-height' : 'max-width');
+    layer.style.removeProperty(vertical ? 'max-width' : 'max-height');
+    if (options.size === 'match') {
+      write(vertical ? 'min-width' : 'min-height', `${vertical ? placed.width / scaleX : placed.height / scaleY}px`);
+      layer.style.removeProperty(vertical ? 'min-height' : 'min-width');
+    }
     layer.setAttribute('data-placement', placed.side);
   };
 
@@ -65,13 +81,22 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
   const schedule = () => {
     if (!frame && view) frame = view.requestAnimationFrame(update);
   };
+  /**
+   * A scroll is a reason to re-place unless it is the layer's own (a squeezed list the user scrolls), or inside it: that
+   * moves nothing the placement reads. The target of a `visualViewport` scroll is no node, so it always counts.
+   */
+  const onScroll = (event: Event) => {
+    const from = event.target as Node | null;
+    if (from !== null && typeof from.nodeType === 'number' && layer.contains(from)) return;
+    schedule();
+  };
 
   const close = () => {
     if (!active) return;
     active = false;
     if (frame && view) view.cancelAnimationFrame(frame);
     frame = 0;
-    for (const root of roots) root.removeEventListener('scroll', schedule, true);
+    for (const root of roots) root.removeEventListener('scroll', onScroll, true);
     view?.removeEventListener('resize', schedule);
     view?.visualViewport?.removeEventListener('resize', schedule);
     view?.visualViewport?.removeEventListener('scroll', schedule);
@@ -105,6 +130,8 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
     write('margin', '0');
     write('left', '0px');
     write('top', '0px');
+    write('right', 'auto');
+    write('bottom', 'auto');
     const origin = layer.getBoundingClientRect();
     originX = origin.left;
     originY = origin.top;
@@ -114,7 +141,7 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
     roots = [];
     for (let root = target.getRootNode(); root instanceof view.ShadowRoot; root = root.host.getRootNode()) roots.push(root);
     roots.push(view);
-    for (const root of roots) root.addEventListener('scroll', schedule, { capture: true, passive: true });
+    for (const root of roots) root.addEventListener('scroll', onScroll, { capture: true, passive: true });
     view.addEventListener('resize', schedule);
     view.visualViewport?.addEventListener('resize', schedule);
     view.visualViewport?.addEventListener('scroll', schedule);
