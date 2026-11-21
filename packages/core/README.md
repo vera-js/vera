@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->8.05 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->8.07 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -266,6 +266,7 @@ that too.
 | `signal(value, { deep: true })` | the same, with the contents tracked too — a value you both replace and mutate inside (what `ref` was) |
 | `computed(fn)` | a memoized derived value, read as `.value` — lazy, and linked only while something reads it |
 | `untrack(fn)` | read current state without subscribing to it |
+| `isServer` | `true` while `@verajs/ssr` renders, `false` in a browser — the guard for per-user state (storage, cookies, the viewport): `if (!isServer) …`. Not `typeof localStorage`: Node 26 servers have web storage |
 
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
 store, wire that, and mutating methods notify like any other write. Without it core says so the first

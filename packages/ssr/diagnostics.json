@@ -57,6 +57,12 @@
       "fix": "Check the options passed to renderToString."
     },
     {
+      "code": "ssr-process-storage",
+      "params": [],
+      "message": "this process has working web storage — Node 26 gives every process a sessionStorage shared by every request, and --localstorage-file adds a localStorage — and components render against the process's own globals: a `typeof sessionStorage` or `typeof localStorage` guard passes here, and a component can render one visitor's stored state into markup served to everyone.",
+      "fix": "Guard per-user state with `isServer` from @verajs/core (`if (!isServer) …`) rather than a `typeof` test of the storage. Said once per process, in every build."
+    },
+    {
       "code": "ssr-prop-refused",
       "params": [
         "tag",
@@ -79,7 +85,7 @@
       "code": "ssr-renderer-replaced",
       "params": [],
       "message": "the server renderer has been replaced — a renderer was wired that does not know @verajs/ssr is rendering, and every component would render empty.",
-      "fix": "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring (`if (!globalThis.__veraSsrShimmed)`)."
+      "fix": "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring with `isServer` from @verajs/core (`if (!isServer)`)."
     },
     {
       "code": "ssr-script-hole",
@@ -140,7 +146,7 @@
         "waitingOn"
       ],
       "message": "was served after its {timeout} ms `timeout` with a promise still pending in {pendingIn} (an async setup or connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then. Still waiting on customElements.whenDefined for {waitingOn}, which the server never defined.",
-      "fix": "If only the browser defines it, return before that wait on the server — `if (globalThis.__veraSsrShimmed) return;` — so the server serves what the component shows before the wait, as the browser does first. Raise `timeout` if the wait is real, or find the promise that never settles. Said once per component for the life of the process."
+      "fix": "If only the browser defines it, return before that wait on the server — `if (isServer) return;`, `isServer` from @verajs/core — so the server serves what the component shows before the wait, as the browser does first. Raise `timeout` if the wait is real, or find the promise that never settles. Said once per component for the life of the process."
     },
     {
       "code": "ssr-unfinished-tag",

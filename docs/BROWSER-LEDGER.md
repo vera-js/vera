@@ -788,6 +788,13 @@ from another machine, or after that is undone, has a variable changed.
 
 ## Test environments
 
+- **Node 26 gives every process a working, in-memory `sessionStorage`, with no flag** (a `Storage`; `setItem`/`getItem`
+  work, and it is one store for the whole process, so every request a server handles shares it). `localStorage` is an
+  own accessor that reads `undefined` and prints an ExperimentalWarning unless the process was started with
+  `--localstorage-file`; reading `sessionStorage` prints nothing. Node 24 has neither. Seen on Node 26.13.1 (macOS),
+  2026-11-20, `tests/ssr-dom-surface.test.mjs` red there until the runtime's own globals were told apart from the
+  shim's. Consequence: `typeof sessionStorage` does not mean "in a browser" on a server; `@verajs/ssr` warns once per
+  process that has storage, and components test `isServer` from `@verajs/core` instead.
 - **Inspecting a cross-realm DOM object (an iframe's `ShadowRoot`) in a chai failure message never finishes**, so a
   failing browser assertion reads as a suite TIMEOUT. Consequence: assert booleans for values from another document.
   (2026-10-01)

@@ -9,6 +9,7 @@ export { init } from './modules/init.js';
 export { define } from './modules/define.js';
 export { signal } from './modules/signal.js';
 export { untrack } from './modules/untrack.js';
+export { isServer } from './modules/isServer.js';
 export { computed } from './modules/computed.js';
 export { effect } from './hooks/effect.js';
 export { allowRenderLoop, flush, setRenderScheduler, microtask, frameBudget } from './modules/scheduler.js';

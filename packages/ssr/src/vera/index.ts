@@ -74,6 +74,18 @@ type Checked = keyof SsrRenderOptions | 'url';
 
 installShims();
 const { wire, inserts, flush } = await import('@verajs/core');
+// A process with working storage (no `process` in a worker, where this also renders) — Node 26 gives every process
+// an in-memory `sessionStorage`, shared by every request, and `--localstorage-file` adds a `localStorage` — hands it
+// to every component this renders, because they run against the process's own globals — so the `typeof localStorage`
+// guard components are taught passes here. Said once, at import, in every build (2026-11-20). `localStorage` is read
+// off the process's arguments, never by touching it: on Node 26 a read of it without the flag prints Node's own
+// ExperimentalWarning (`sessionStorage` does not).
+if (
+  typeof (globalThis as { sessionStorage?: unknown }).sessionStorage !== 'undefined' ||
+  (typeof process !== 'undefined' &&
+    [...process.execArgv, ...(process.env.NODE_OPTIONS ?? '').split(/\s+/)].some((arg) => arg.startsWith('--localstorage-file')))
+)
+  console.warn(ssrWarning('the server', 'ssr-process-storage', PROSE['ssr-process-storage']!()));
 setCoreFlush(flush);
 /** Core's server-render turn: what a render creates leaves every store when its turn ends. */
 const serverTurnOf = (inserts as unknown as { $ss?: (delta: number) => void }).$ss;

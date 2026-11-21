@@ -73,11 +73,15 @@ export const PROSE: Record<string, Prose> = {
   ],
   'ssr-renderer-replaced': () => [
     'the server renderer has been replaced — a renderer was wired that does not know @verajs/ssr is rendering, and every component would render empty.',
-    "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring (`if (!globalThis.__veraSsrShimmed)`).",
+    "Import @verajs/ssr BEFORE wiring the renderer: vera's renderer then declines on the server and keeps only its shadow default. A renderer that is not vera's: guard its wiring with `isServer` from @verajs/core (`if (!isServer)`).",
   ],
   'ssr-timeout': (timeout, pendingIn, waitingOn) => [
     `was served after its ${timeout} ms \`timeout\` with a promise still pending${pendingIn ? ` in ${pendingIn}` : ''} (an async setup or connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.${waitingOn ? ` Still waiting on customElements.whenDefined for ${waitingOn}, which the server never defined.` : ''}`,
-    `${waitingOn ? 'If only the browser defines it, return before that wait on the server — `if (globalThis.__veraSsrShimmed) return;` — so the server serves what the component shows before the wait, as the browser does first. ' : ''}Raise \`timeout\` if the wait is real, or find the promise that never settles. Said once per component for the life of the process.`,
+    `${waitingOn ? 'If only the browser defines it, return before that wait on the server — `if (isServer) return;`, `isServer` from @verajs/core — so the server serves what the component shows before the wait, as the browser does first. ' : ''}Raise \`timeout\` if the wait is real, or find the promise that never settles. Said once per component for the life of the process.`,
+  ],
+  'ssr-process-storage': () => [
+    "this process has working web storage — Node 26 gives every process a sessionStorage shared by every request, and --localstorage-file adds a localStorage — and components render against the process's own globals: a `typeof sessionStorage` or `typeof localStorage` guard passes here, and a component can render one visitor's stored state into markup served to everyone.",
+    'Guard per-user state with `isServer` from @verajs/core (`if (!isServer) …`) rather than a `typeof` test of the storage. Said once per process, in every build.',
   ],
   'ssr-static-write': (prop) => [
     `this render declared itself static, so its stores are not reactive and writing ${prop} would change nothing.`,

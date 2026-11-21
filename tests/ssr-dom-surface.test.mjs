@@ -19,7 +19,16 @@
 import '@verajs/ssr';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { SURFACES, OUT_OF_SCOPE, GLOBALS } from './dom-surface.mjs';
+/** The out-of-scope window names the bare runtime has on its own — the same Node and flags, nothing imported. */
+const RUNTIME_HAS = new Set(
+  JSON.parse(
+    execFileSync(process.execPath, [...process.execArgv.filter((arg) => !arg.startsWith('--test')), '--input-type=module', '-e',
+      `console.log(JSON.stringify(${JSON.stringify(Object.keys(OUT_OF_SCOPE.window))}.filter((n) => Object.getOwnPropertyNames(globalThis).includes(n))))`,
+    ], { encoding: 'utf8' })
+  )
+);
 
 const make = (tag = 'div') => globalThis.document.createElement(tag);
 
@@ -416,8 +425,12 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
       );
     else pass++;
 
-    /** And the other direction: something listed as impossible must not have quietly appeared. */
-    const contradicted = Object.keys(scoped).filter((name) => have.has(name));
+    /**
+     * And the other direction: something listed as impossible must not have quietly appeared. On the global, a name the
+     * bare RUNTIME has (asked of a fresh process with no ssr loaded) is the runtime's, not this DOM's: Node 26 brings
+     * `Temporal` and a working in-memory `sessionStorage` (2026-11-20; ssr warns about a process with storage).
+     */
+    const contradicted = Object.keys(scoped).filter((name) => have.has(name) && !(kind === 'window' && RUNTIME_HAS.has(name)));
     if (contradicted.length) failures.push(`${kind}: implemented but listed as out of scope: ${contradicted.join(', ')}`);
     else pass++;
   }

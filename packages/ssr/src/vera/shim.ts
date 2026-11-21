@@ -47,8 +47,11 @@ type WalkFilter = ((node: WalkNode) => unknown) | { acceptNode?: (node: WalkNode
 /** The global scope, written to by a name `typeof globalThis` does not declare. */
 type GlobalScope = Record<string, unknown>;
 
-/** The flag an install leaves on the global, so a second import installs nothing. */
-type ShimmedGlobal = { __veraSsrShimmed?: boolean };
+/**
+ * The flags an install leaves on the global, so a second import installs nothing. `_$ssr$` is what `@verajs/core`'s
+ * `isServer` reads (2026-11-20: a sigil, 21 B in core where this name cost 30).
+ */
+type ShimmedGlobal = { __veraSsrShimmed?: boolean; _$ssr$?: boolean };
 
 /** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
 const RESERVED_NAMES = new Set([
@@ -321,6 +324,7 @@ export const LOCATION_PARTS = [
 export const installShims = () => {
   if ((globalThis as ShimmedGlobal).__veraSsrShimmed) return registry;
   (globalThis as ShimmedGlobal).__veraSsrShimmed = true;
+  (globalThis as ShimmedGlobal)._$ssr$ = true;
 
   /**
    * Every assignment here is a deliberate lie: a shim is not an `HTMLElement`, and saying so is the
