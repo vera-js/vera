@@ -44,6 +44,7 @@ export const ENTRY = {
   'vera-hooks/labelled': ['hooks/labelled', 'vera-labelled'],
   'vera-hooks/roving-focus': ['hooks/roving-focus', 'vera-roving-focus'],
   'vera-hooks/roving-focus/internal': ['hooks/roving-focus', 'vera-roving-focus-internal'],
+  'vera-hooks/announce': ['hooks/announce', 'vera-announce'],
   'vera-components/select': ['components/select', 'vera-select'],
   'vera-components/select/elements': ['components/select', 'vera-select-elements'],
   'vera-hooks/listbox': ['hooks/listbox', 'vera-listbox'],

@@ -38,6 +38,7 @@ const PACKAGES = {
   '@vera-hooks/listbox': 'vera-hooks/listbox',
   '@vera-hooks/labelled': 'vera-hooks/labelled',
   '@vera-hooks/roving-focus': 'vera-hooks/roving-focus',
+  '@vera-hooks/announce': 'vera-hooks/announce',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
