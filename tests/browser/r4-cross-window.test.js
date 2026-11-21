@@ -21,9 +21,12 @@ import { styles, css } from '../../packages/styles/dist/development/vera-styles.
 import { resource } from '../../packages/store/dist/development/vera-store-resource.js';
 import { portal } from '../../packages/renderer/dist/development/vera-renderer-portal.js';
 import { multiWindow } from '../../packages/renderer/dist/development/vera-renderer-multi-window.js';
+import { until } from './until.js';
 
 wire([renderer, styles, nativeElements, multiWindow]);
 const frame = (win = window) => new Promise((r) => win.requestAnimationFrame(() => setTimeout(r, 0)));
+/** A home-window macrotask: a release multiWindow scheduled (`setTimeout(release, 0)` at a pagehide) before it has run. Not a time. */
+const task = () => new Promise((r) => setTimeout(r, 0));
 const iframe = async () => {
   const f = document.createElement('iframe');
   document.body.append(f);
@@ -221,10 +224,16 @@ describe('R4: cross-window moves keep the component', () => {
     document.body.append(el);
     await frame();
     el.remove();
+    /**
+     * The barrier: the pause set its 300 ms timer in THIS window at the removal; a timer of the same delay set after it
+     * fires after it (HTML runs a window's timers of equal or shorter delay in the order they were set), so once this one
+     * has fired, the pause's had too, unless the move cleared it. A fixed 600 ms guessed at that.
+     */
+    const past = new Promise((r) => setTimeout(r, 300));
     const f = await iframe();
     f.contentDocument.body.append(el);
     await frame();
-    await new Promise((r) => setTimeout(r, 600));
+    await past;
     s.n = 2;
     await frame(f.contentWindow);
     await frame();
@@ -245,8 +254,7 @@ describe('R4: cross-window moves keep the component', () => {
     if (w === null) this.skip();
     w.document.body.append(el);
     s.n = 2;
-    await new Promise((r) => setTimeout(r, 50));
-    const out = el.textContent === '2';
+    const out = await until(() => el.textContent === '2', 'the pop-out rendered n = 2', 4000);
     document.body.append(el);
     await frame();
     w.close();
@@ -257,14 +265,17 @@ describe('R4: cross-window moves keep the component', () => {
   it('moveBefore() keeps a component: no teardown, no second setup (Chromium, Firefox; WebKit has no moveBefore)', async function () {
     if (typeof Element.prototype.moveBefore !== 'function') this.skip();
     let setups = 0, cleanups = 0;
-    define('r4-mb', () => { setups++; effect(() => () => { cleanups++; }); return () => html`<i></i>`; });
+    const s = createStore({ n: 1 });
+    define('r4-mb', () => { setups++; effect(() => () => { cleanups++; }); return () => html`<i>${s.n}</i>`; });
     const a = document.createElement('div'), b = document.createElement('div');
     document.body.append(a, b);
     const el = document.createElement('r4-mb');
     a.append(el);
     await frame();
     b.moveBefore(el, null);
-    await frame();
+    /** A render after the move: any teardown the move had scheduled on the same scheduler has run by then. */
+    s.n = 2;
+    await until(() => el.textContent === '2', 'the moved component rendered n = 2', 4000);
     expect({ setups, cleanups, moved: el.parentNode === b }).to.deep.equal({ setups: 1, cleanups: 0, moved: true });
     el.remove();
     await frame();
@@ -301,8 +312,8 @@ describe('R4: cross-window moves keep the component', () => {
     const w = window.open('about:blank', 'r4pop2', 'width=300,height=200');
     if (w === null) this.skip();
     w.document.body.append(el);
-    await new Promise((r) => setTimeout(r, 50));
-    const out = w.document.body.querySelector('r4-pin') !== null && document.body.querySelector('r4-pin') === null;
+    await until(() => w.document.body.querySelector('r4-pin') !== null, 'the portal content in the pop-out', 4000);
+    const out = document.body.querySelector('r4-pin') === null;
     document.body.append(el);
     await frame();
     const home = document.body.querySelector('r4-pin') !== null;
@@ -341,10 +352,9 @@ describe('R4: cross-window moves keep the component', () => {
     define('r4-pdown', () => { portal(() => (s.out ? w.document.body : document.body), () => html`<r4-pdead></r4-pdead>`); });
     const el = document.createElement('r4-pdown');
     document.body.append(el);
-    await new Promise((r) => setTimeout(r, 50));
-    const wasOut = w.document.body.querySelector('r4-pdead') !== null;
+    const wasOut = await until(() => w.document.body.querySelector('r4-pdead') !== null, 'the portal content in the pop-out', 4000);
     w.close();
-    await new Promise((r) => setTimeout(r, 100));
+    await until(() => w.closed, 'the pop-out closed', 4000);
     s.out = false;
     await frame();
     const back = document.body.querySelector('r4-pdead') !== null;
@@ -354,7 +364,19 @@ describe('R4: cross-window moves keep the component', () => {
   });
 
   describe('multiWindow: a component left in a pop-out that CLOSES is released (R4 decision 4)', () => {
-    const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
+    /**
+     * **A write reached the scheduler**: a live HOME control reading the same store renders it, so a released component
+     * that still woke would have rendered in the same pass. A fixed 50 ms after the write read a late wake as none.
+     */
+    const homeControl = async (tag, s) => {
+      define(tag, () => () => html`<u>${s.n}</u>`);
+      const control = document.body.appendChild(document.createElement(tag));
+      await until(() => control.textContent === String(s.n), `the home control ${tag} rendered`, 4000);
+      return {
+        flushed: () => until(() => control.textContent === String(s.n), `the home control ${tag} rendered the write`, 4000),
+        remove: () => control.remove(),
+      };
+    };
     /**
      * Closes the pop-out and waits until `released()` reads true — never a fixed time (2026-11-19): CI's Linux Firefox
      * had not finished closing a pop-out 150 ms after `close()`, once in this row and once in the back/forward-cache row
@@ -363,10 +385,10 @@ describe('R4: cross-window moves keep the component', () => {
      */
     const closeAndAwait = async (w, released) => {
       w.close();
-      let waited = 0;
-      for (; !released() && waited < 2000; waited += 25) await settle(25);
-      await settle();
-      return waited >= 2000 ? 'the release never came within 2 s of close()' : `released after ${waited} ms, then`;
+      await until(released, 'the release, within 2 s of close()', 2000);
+      /** multiWindow releases from a home `setTimeout(…, 0)` per pagehide: a second release would have run by the next task. */
+      await task();
+      return 'released, then';
     };
     it('a panel left behind, and a child it built while out: each cleanup exactly once, and a later write wakes neither', async function () {
       const counts = { panelClean: 0, childClean: 0, panelRenders: 0, childRenders: 0 };
@@ -379,16 +401,17 @@ describe('R4: cross-window moves keep the component', () => {
       const w = window.open('about:blank', 'r4rel1', 'width=300,height=200');
       if (w === null) this.skip();
       w.document.body.append(el);
-      await settle(50);
+      await task();
       s.kid = true;
-      await settle(50);
-      const childThere = w.document.querySelector('r4-rel-kid')?.textContent === '1';
+      const childThere = await until(() => w.document.querySelector('r4-rel-kid')?.textContent === '1', 'the child built while out', 4000);
       /** The move in already ran the panel's cleanup once (a cross-window move re-runs its effects): the release adds ONE. */
       const panelBefore = counts.panelClean;
       const why = await closeAndAwait(w, () => counts.panelClean - panelBefore >= 1);
+      const control = await homeControl('r4-rel-ctl1', s);
       const before = { ...counts };
       s.n = 2;
-      await settle(50);
+      await control.flushed();
+      control.remove();
       expect({ childThere, panelReleased: counts.panelClean - panelBefore, childClean: counts.childClean, woke: counts.panelRenders !== before.panelRenders || counts.childRenders !== before.childRenders }, why)
         .to.deep.equal({ childThere: true, panelReleased: 1, childClean: 1, woke: false });
     });
@@ -403,12 +426,12 @@ describe('R4: cross-window moves keep the component', () => {
       const w = window.open('about:blank', 'r4rel2', 'width=300,height=200');
       if (w === null) this.skip();
       w.document.body.append(el);
-      await settle(50);
+      await task();
       w.addEventListener('pagehide', () => document.body.append(el));
       /** The close is done when its pagehide has moved the panel home. */
       const why = await closeAndAwait(w, () => el.ownerDocument === document);
       s.n = 2;
-      await settle(50);
+      await until(() => el.textContent === '2', 'the panel, home again, rendered n = 2', 4000);
       /** Effects re-run on each cross-window move (cleanup, then run): out and back is two cleanups, never a release. */
       expect({ home: el.ownerDocument === document, live: el.textContent === '2', setups }, why).to.deep.equal({ home: true, live: true, setups: 1 });
       el.remove();
@@ -423,10 +446,11 @@ describe('R4: cross-window moves keep the component', () => {
       const w = window.open('about:blank', 'r4rel3', 'width=300,height=200');
       if (w === null) this.skip();
       w.document.body.append(el);
-      await settle(50);
+      await task();
       const afterMove = cleans;
       w.dispatchEvent(new w.PageTransitionEvent('pagehide', { persisted: true }));
-      await settle();
+      /** A non-persisted pagehide schedules its release as a home `setTimeout(…, 0)`; this task runs after any such. */
+      await task();
       const kept = cleans === afterMove;
       const why = await closeAndAwait(w, () => cleans >= afterMove + 1);
       expect({ kept, releasedOnClose: cleans === afterMove + 1 }, why).to.deep.equal({ kept: true, releasedOnClose: true });
@@ -439,12 +463,13 @@ describe('R4: cross-window moves keep the component', () => {
       const w = window.open('about:blank', 'r4rel5', 'width=300,height=200');
       if (w === null) this.skip();
       w.document.body.append(document.createElement('r4-rel-direct'));
-      await settle(50);
-      const ran = renders === 1;
+      const ran = await until(() => renders === 1, 'the direct append rendered', 4000);
       const why = await closeAndAwait(w, () => cleans >= 1);
+      const control = await homeControl('r4-rel-ctl2', s);
       const before = renders;
       s.n = 2;
-      await settle(50);
+      await control.flushed();
+      control.remove();
       expect({ ran, cleans, woke: renders !== before }, why).to.deep.equal({ ran: true, cleans: 1, woke: false });
     });
 
@@ -457,13 +482,14 @@ describe('R4: cross-window moves keep the component', () => {
       define('r4-rel-powner', () => { portal(() => (s.out ? w.document.body : document.body), () => html`<r4-rel-pin></r4-rel-pin>`); });
       const el = document.createElement('r4-rel-powner');
       document.body.append(el);
-      await settle(50);
+      await until(() => w.document.body.querySelector('r4-rel-pin') !== null, 'the portal content in the pop-out', 4000);
       w.close();
-      await settle();
+      await until(() => w.closed, 'the pop-out closed', 4000);
+      await task();
       s.out = false;
-      await settle(50);
+      await until(() => document.body.querySelector('r4-rel-pin') !== null, 'the content back home', 4000);
       s.n = 3;
-      await settle(50);
+      await until(() => document.body.querySelector('r4-rel-pin')?.textContent === '3', 'the content home rendered n = 3', 4000);
       const pin = document.body.querySelector('r4-rel-pin');
       expect({ visible: pin !== null, live: pin?.textContent === '3' }).to.deep.equal({ visible: true, live: true });
       console.log(`[r4-rel-portal] inner setups: ${inner}`);
