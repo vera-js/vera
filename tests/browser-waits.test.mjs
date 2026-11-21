@@ -123,7 +123,12 @@ const files = execFileSync('git', ['ls-files', '--', 'tests/browser/*.js'], { en
  * with its reason: an entry that no longer names a refused sleep is stale and refused, so a pin cannot outlive its row.
  */
 const ALLOWED = [
-  // ['tests/browser/x.test.js', 12, 'await new Promise((r) => setTimeout(r, 300));', 'the reason'],
+  [
+    'tests/browser/r4-cross-window.test.js',
+    236,
+    'await past;',
+    "the barrier: the pause's own 300 ms timer is set in the same window at removal, and a window runs equal-or-shorter timers in the order they were set, so this fires after it unless the move cleared it",
+  ],
 ];
 
 test('no browser test defines its own until or sleeps a fixed time before an expect', () => {
