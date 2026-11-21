@@ -716,6 +716,10 @@ content while the children the host was given sit beside it as stray markup. Dev
 when it happens, but the rule is cheaper than the diagnostic: wire it in the same call as the
 renderer, `wire([renderer, slots])`.
 
+`slots` is an array of the modules behind it, which `wire` accepts nested: `slotDiscovery` — which claims each
+`<slot>` through `@verajs/renderer/elements` and captures a light host's children at `init`, before its first render —
+and the distribution itself. `slotDiscovery` is exported too; an app wires `slots`, which includes it.
+
 Given this markup:
 
 ```html
