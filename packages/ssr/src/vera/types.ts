@@ -89,7 +89,7 @@ export type ScanState = {
   /** The `encoding` of the tag being read, while one is — what makes an `annotation-xml` an integration point. */
   readonly encoding: string;
   readonly attrRaw: string;
-  /** The tag being read is a `<font>` that breaks out of foreign content: 0 not known, 1 a static `color`/`face`/`size` still being read, 2 it does. */
+  /** The tag being read is a `<font>` with a static `color`, `face` or `size` — one that breaks out of foreign content: 1, else 0. */
   readonly font: number;
 };
 /** A state before any static has been scanned: it carries none of the offsets a scan reports about its own text. */

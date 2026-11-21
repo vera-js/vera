@@ -200,7 +200,7 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
    * stops — and changes nothing — at `<noscript>` or anywhere the namespace is unknown, and at the template's own
    * root unless that root is HTML: a template that inherited its depth cannot know what is outside it.
    */
-  if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName) || (font === 2 && tagName === 'font'))) {
+  if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName) || font === 1)) {
     const depth = breakOut(opens);
     if (depth !== -1) {
       foreign = depth;
@@ -321,6 +321,8 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   let nameAt = 0;
   /** Where the attribute name being read began in THIS text — `-1` when it began in an earlier one. */
   let nameFrom = -1;
+  /** Where the name of the `<font>`'s `color`, `face` or `size` read in THIS text starts (see `font`). */
+  let fontFrom = -2;
   let tagAt = -1;
   /**
    * Where, in THIS text, raw content last BEGAN (after its element's start tag) — `-1` for none: where a raw element's
@@ -385,7 +387,6 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         const at = text.indexOf(quote, i);
         if (at === -1) break;
         if (attrName === 'encoding' && valueFrom !== -1 && encoding === '') encoding = text.slice(valueFrom, at);
-        if (font === 1) font = 2;
         i = at;
         inValue = false;
         quote = '';
@@ -397,10 +398,8 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       if (character === '>') {
         inValue = false;
         emit = true;
-        if (font === 1) font = 2;
       } else if (isSpace(character)) {
         inValue = false;
-        if (font === 1) font = 2;
         phase = BEFORE_ATTRIBUTE_NAME;
         continue;
       } else if (character === '/' && i === 0 && text[1] === '>') {
@@ -483,8 +482,6 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         phase = SELF_CLOSING;
         continue;
       }
-      /** A valueless `color` (`<font color>`) is whole once anything but its `=` follows it. */
-      if (font === 1 && !(character === '=' && phase === AFTER_ATTRIBUTE_NAME)) font = 2;
       if (character === '>') emit = true;
       /** `=` after a name opens its value; anywhere else — `<b =x>` — it is the first character of a NAME. */
       else if (character === '=' && phase === AFTER_ATTRIBUTE_NAME) value = true;
@@ -497,7 +494,10 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       /** A name runs to whitespace, `/`, `>` or `=` — a quote or `<` inside it is part of the name (`<b x">`). */
       if (!(isSpace(character) || character === '/' || character === '>' || character === '=')) continue;
       attrRaw = nameFrom === -1 ? attrRaw + text.slice(0, i) : text.slice(nameFrom, i);
-      if (font === 0 && tagName === 'font' && !closing && nameFrom !== -1 && FONT_BREAKOUT.has(attrRaw.toLowerCase())) font = 1;
+      if (font === 0 && nameFrom !== -1 && !closing && tagName === 'font' && FONT_BREAKOUT.has(attrRaw.toLowerCase())) {
+        font = 1;
+        fontFrom = nameFrom;
+      }
       if (edits !== undefined && !closing && tagName === 'template' && nameFrom !== -1) {
         const lower = attrRaw.toLowerCase();
         if (lower === 'shadowrootmode' || lower === 'shadowroot') edits.push(nameFrom, EDIT_SHADOW_ROOT);
@@ -505,7 +505,6 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       if (character === '=') value = true;
       else if (character === '>') {
         emit = true;
-        if (font === 1) font = 2;
       } else {
         phase = character === '/' ? SELF_CLOSING : AFTER_ATTRIBUTE_NAME;
         continue;
@@ -602,8 +601,11 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   }
   /** A name still being read at the end carries on into the next text (a hole there is refused — see `nameHole`). */
   if (phase === ATTRIBUTE_NAME) attrRaw = nameFrom === -1 ? attrRaw + text : text.slice(nameFrom);
-  /** A `color` still being read when this static ends has a hole in it: no longer certain, so the no-breakout reading. */
-  if (font === 1) font = 0;
+  /**
+   * A `color` this static ends inside — its value open, or an `=` still possible after its name — takes a hole: no
+   * longer certain, so the no-breakout reading. Any other is whole, and carries on with the tag into the next text.
+   */
+  if (font === 1 && nameFrom === fontFrom && (inValue || phase === AFTER_ATTRIBUTE_NAME)) font = 0;
   return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, font, opened, attrStart, valueStart, nameAt, tagAt, rawFrom };
 };
 
