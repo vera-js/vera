@@ -1,0 +1,4 @@
+---
+const { card } = Astro.props;
+---
+<article class="card"><h2>{card.title}</h2><p>{card.text}</p><ul>{card.tags.map((t) => <li>{t}</li>)}</ul></article>

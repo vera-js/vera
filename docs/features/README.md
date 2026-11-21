@@ -24,6 +24,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 | [Reactivity](reactivity.md) | Automatic tracking; no dep arrays, no property declarations | **Strong** — Solid-class DX without a compiler |
 | [Light-DOM slots](light-dom-slots.md) | One component works in shadow OR light DOM, with the platform's own `<slot>` semantics | **Strong** — measured against native, but Stencil's scoped mode does this too |
 | [Module system](module-system.md) | Genuinely independent modules; 4 extension points | **Medium** — real, but needs explaining |
+| [Static builds](static-builds.md) | A static site builds about 7× faster than `astro build` at 100 pages and about 3× faster at 1000 (about 1.3× per page) | **Strong** — measured with an A/A control, one machine, no client JS |
 | [Performance](performance.md) | Cross-framework table withdrawn 2026-10-18 (weakened competitors, headless Chromium, fastest-run statistic); being re-measured. Wins row creation, loses some updates | **Being re-measured** |
 
 ## The one-line pitch

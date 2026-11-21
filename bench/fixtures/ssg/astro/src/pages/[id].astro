@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+import { pages } from '../../../data.mjs';
+export function getStaticPaths() {
+  return pages(Number(process.env.PAGES)).map((page) => ({ params: { id: String(page.id) }, props: { page } }));
+}
+const { page } = Astro.props;
+---
+<Layout title={page.title} links={page.links}>{page.cards.map((c) => <Card card={c} />)}</Layout>

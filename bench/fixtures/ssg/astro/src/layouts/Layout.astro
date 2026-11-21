@@ -1,0 +1,4 @@
+---
+const { title, links } = Astro.props;
+---
+<html><head><meta charset="utf-8"><title>{title}</title></head><body><header><h1>{title}</h1><nav>{links.map((l) => <a href={l.href}>{l.label}</a>)}</nav></header><main><slot /></main><footer>© Example</footer></body></html>
