@@ -13,16 +13,23 @@ import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { html, wire, init } from '../../packages/core/dist/development/vera.js';
 import { css, styles } from '../../packages/styles/dist/development/vera-styles.js';
+import { until } from './until.js';
 
 wire([renderer, styles]);
 
 const openIframe = async () => {
   const iframe = document.createElement('iframe');
+  /** Listened for before the append: an engine may fire an empty iframe's load during it. */
+  const loaded = new Promise((resolve) => iframe.addEventListener('load', resolve, { once: true }));
   document.body.append(iframe);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await loaded;
   return iframe;
 };
-const settle = () => new Promise((resolve) => setTimeout(resolve, 80));
+/** The color a rendered paragraph computes in its own window, or null before it renders. */
+const colorIn = (root) => {
+  const p = root?.querySelector('p');
+  return p ? p.ownerDocument.defaultView.getComputedStyle(p).color : null;
+};
 
 customElements.define('x-realm-light-styled', class extends HTMLElement {
   static styles = css`p { color: rgb(1, 2, 3); }`;
@@ -46,11 +53,11 @@ it('a light-DOM component moved into another window is styled there, not in the 
   const iframe = await openIframe();
   const element = document.createElement('x-realm-light-styled');
   document.body.append(element);
-  await settle();
+  await until(() => colorIn(element) === 'rgb(1, 2, 3)', 'styled in the opener', 5000);
   expect(getComputedStyle(element.querySelector('p')).color).to.equal('rgb(1, 2, 3)', 'CONTROL: styled in the opener');
 
   iframe.contentDocument.body.append(element);
-  await settle();
+  await until(() => element.ownerDocument === iframe.contentDocument && colorIn(element) === 'rgb(1, 2, 3)', 'styled in the iframe', 5000);
   const paragraph = element.querySelector('p');
   expect(paragraph, 'CONTROL: it rendered in the iframe').to.not.equal(null);
   expect(iframe.contentWindow.getComputedStyle(paragraph).color).to.equal(
@@ -65,9 +72,9 @@ it('a shadow component in another window is styled, though that window cannot ad
   const iframe = await openIframe();
   const element = document.createElement('x-realm-shadow-styled');
   document.body.append(element);
-  await settle();
+  await until(() => colorIn(element.shadowRoot) === 'rgb(4, 5, 6)', 'styled in the opener', 5000);
   iframe.contentDocument.body.append(element);
-  await settle();
+  await until(() => element.ownerDocument === iframe.contentDocument && colorIn(element.shadowRoot) === 'rgb(4, 5, 6)', 'styled in the iframe', 5000);
   const paragraph = element.shadowRoot.querySelector('p');
   expect(paragraph, 'CONTROL: it rendered in the iframe').to.not.equal(null);
   expect(iframe.contentWindow.getComputedStyle(paragraph).color).to.equal(

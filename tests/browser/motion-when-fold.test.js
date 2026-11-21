@@ -10,6 +10,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { renderMotion } from '../../packages/motion/dist/development/vera-motion-ssr.js';
+import { until } from './until.js';
 
 const frame = () => new Promise((r) => requestAnimationFrame(r));
 
@@ -25,12 +26,13 @@ it('a folded gate behaves with NO wiring: server CSS + a class toggle = the tran
   expect(getComputedStyle(el).filter, 'base paints from server CSS alone').to.match(/opacity\(0\.2\)/);
 
   el.classList.add('lit');
-  await new Promise((r) => setTimeout(r, 400));
+  /** Waits for the end state rather than a time: a loaded machine starts the 250 ms transition late. */
+  await until(() => /opacity(0.9)/.test(getComputedStyle(el).filter), 'the lit end state', 5000);
   expect(getComputedStyle(el).filter, 'the class alone drove the transition — zero JS involved')
     .to.match(/opacity\(0\.9\)/);
 
   el.classList.remove('lit');
-  await new Promise((r) => setTimeout(r, 400));
+  await until(() => /opacity(0.2)/.test(getComputedStyle(el).filter), 'the unlit end state', 5000);
   expect(getComputedStyle(el).filter, 'and reverses the same way').to.match(/opacity\(0\.2\)/);
   host.remove();
 });
@@ -40,12 +42,17 @@ it(':where() keeps a wild gate at 0-2-0 — an ordinary three-class author rule 
   authored.textContent = '.a.b.c { filter: opacity(0.33); }';
   document.head.appendChild(authored);
   const host = document.createElement('div');
-  host.innerHTML = `<div id="wild" class="a b c" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 1' }, when: '#wild.a[data-k]', play: 0.1 }">x</div>`;
+  /** The sentinel: the same gate with no author rule against it, which must reach its active value. Once it has, the
+   *  wild gate has had the same time to win, so reading it then shows an absence rather than an early read. */
+  host.innerHTML = `<div id="wild" class="a b c" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 1' }, when: '#wild.a[data-k]', play: 0.1 }">x</div>` +
+    `<div id="tame" class="a" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 1' }, when: '#tame.a[data-k]', play: 0.1 }">x</div>`;
   document.body.appendChild(host);
   renderMotion(document, {});
   const el = host.querySelector('#wild');
+  const tame = host.querySelector('#tame');
   el.setAttribute('data-k', '');
-  await new Promise((r) => setTimeout(r, 250));
+  tame.setAttribute('data-k', '');
+  await until(() => /opacity(1)/.test(getComputedStyle(tame).filter), 'CONTROL: the unopposed twin gate reached its active value', 5000);
   /** Gate matches (#wild.a[data-k]) — if its specificity leaked through :where(), the active
    *  rule would be 1-2-1 + 0-2-0 and beat the author's 0-3-0. It must not. */
   expect(getComputedStyle(el).filter, 'the author rule wins — the gate carried ZERO specificity')

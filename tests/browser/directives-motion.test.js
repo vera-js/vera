@@ -187,7 +187,7 @@ it('ease composes with play: the ramp sweeps, so mid-play sits on the CURVE, not
     .to.be.below(linear - 0.05);
 
   await settle();
-  await new Promise((r) => setTimeout(r, 700));
+  await until(() => opacityOf(eased) === 1, 'the eased ramp landed on its end', 5000);
   expect(opacityOf(eased), 'and the ramp still lands on the authored end').to.equal(1);
 });
 
@@ -279,7 +279,8 @@ it('when+play delivers CLIENT-SIDE on a real sheet — the empty noJsRule never 
     "{ keyframes: { translate-y: '0% 0px, 100% 120px' }, when: '.on', play: 0.2 }");
   document.body.appendChild(el);
   await settled();
-  await new Promise((r) => setTimeout(r, 50));
+  /** The content-hash mark is set once delivery has finished, so it is the sentinel the survival read waits on. */
+  await until(() => (el.getAttribute('data-vm-motion') ?? '').length > 0, 'delivery marked the element', 5000);
   expect(el.getAttribute('data-vd-motion'), 'the directive survived delivery').to.not.equal(null);
   expect((el.getAttribute('data-vm-motion') ?? '').length, 'marked with a content hash').to.be.greaterThan(0);
   el.remove();

@@ -12,7 +12,8 @@ import { nativeElements } from '../../packages/renderer/dist/development/vera-re
 import { html, init, wire, createStore, flush } from '../../packages/core/dist/development/vera.js';
 
 wire([renderer, nativeElements]);
-const settle = async () => { flush(); await new Promise((resolve) => setTimeout(resolve, 20)); flush(); };
+/** flush() drives the scheduler; the zero-delay task between only orders the test behind connected and observer callbacks. */
+const settle = async () => { flush(); await new Promise((resolve) => setTimeout(resolve, 0)); flush(); };
 const frame = async () => {
   const f = document.createElement('iframe');
   document.body.append(f);

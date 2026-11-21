@@ -48,6 +48,23 @@ const isExpect = (statement) => {
   return ts.isIdentifier(e) && e.text === 'expect';
 };
 
+/** An expect anywhere inside `node`. */
+const asserts = (node) => isExpect(node) || (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'expect') || ts.forEachChild(node, asserts) === true;
+
+/** The waits that end a sleep's reach: until, ever, failedLoad and whenDefined by name, and a promise that is not a timer (an event). */
+const EVENT_WAITS = new Set(['until', 'ever', 'whenDefined', 'failedLoad']);
+const waitsForEvent = (statement, helpers) => {
+  const e = ts.isExpressionStatement(statement) && ts.isAwaitExpression(statement.expression) ? statement.expression.expression
+    : ts.isVariableStatement(statement) && statement.declarationList.declarations.length === 1 && statement.declarationList.declarations[0].initializer
+      && ts.isAwaitExpression(statement.declarationList.declarations[0].initializer) ? statement.declarationList.declarations[0].initializer.expression
+    : null;
+  if (!e) return false;
+  if (ts.isNewExpression(e)) return e.expression.getText() === 'Promise' && timerDelay(e) === null;
+  if (!ts.isCallExpression(e)) return false;
+  const callee = ts.isIdentifier(e.expression) ? e.expression.text : ts.isPropertyAccessExpression(e.expression) ? e.expression.name.text : null;
+  return callee !== null && EVENT_WAITS.has(callee) && !helpers.has(callee);
+};
+
 /** Each refused construct in `text`: `line: what`. */
 export const timedWaits = (text, name = 'x.js') => {
   const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
@@ -67,7 +84,12 @@ export const timedWaits = (text, name = 'x.js') => {
     if (statements)
       statements.forEach((s, i) => {
         const delay = sleepOf(s, helpers);
-        if (delay > 0 && statements[i + 1] && isExpect(statements[i + 1])) found.push(`${line(s)}: a ${delay} ms sleep, then an expect`);
+        if (!(delay > 0)) return;
+        /** Every later statement of the block, nested blocks included, up to the first wait for an event. */
+        for (const next of statements.slice(i + 1)) {
+          if (waitsForEvent(next, helpers)) return;
+          if (asserts(next)) return void found.push(`${line(s)}: a ${delay} ms sleep, then an expect`);
+        }
       });
     ts.forEachChild(node, visit);
   };
@@ -77,25 +99,45 @@ export const timedWaits = (text, name = 'x.js') => {
 
 const files = execFileSync('git', ['ls-files', '--', 'tests/browser/*.js'], { encoding: 'utf8' }).split('\n').filter(Boolean);
 
+/**
+ * **A deliberate timer, pinned.** A row whose claim is that time passed (a persist window, a debounce, a sentinel timer
+ * queued after the test's own) sleeps on purpose. Each is pinned by its file, its sleep's line and that line's exact text,
+ * with its reason: an entry that no longer names a refused sleep is stale and refused, so a pin cannot outlive its row.
+ */
+const ALLOWED = [
+  // ['tests/browser/x.test.js', 12, 'await new Promise((r) => setTimeout(r, 300));', 'the reason'],
+];
+
 test('no browser test defines its own until or sleeps a fixed time before an expect', () => {
   assert.ok(files.length >= 100 && files.includes('tests/browser/until.js'), `CONTROL: ${files.length} browser test files`);
-  const found = files.filter((f) => f !== 'tests/browser/until.js').flatMap((f) => timedWaits(readFileSync(f, 'utf8'), f).map((hit) => `${f}:${hit}`));
-  assert.deepEqual(found, [], 'wait with until() from ./until.js for the event, or for a sentinel shown to have fired');
+  const texts = new Map(files.map((f) => [f, readFileSync(f, 'utf8')]));
+  const hits = files.filter((f) => f !== 'tests/browser/until.js').flatMap((f) => timedWaits(texts.get(f), f).map((hit) => ({ f, at: Number(hit.split(':')[0]), hit })));
+  const pinned = ({ f, at }) => ALLOWED.some(([file, line, text]) => file === f && line === at && texts.get(f).split('\n')[at - 1].trim() === text);
+  const stale = ALLOWED.filter(([file, line, text]) => texts.get(file)?.split('\n')[line - 1]?.trim() !== text || !hits.some((h) => h.f === file && h.at === line));
+  assert.deepEqual(stale.map(([file, line]) => `${file}:${line}`), [], 'an ALLOWED pin no longer names a refused sleep at that line and text: update or delete it');
+  assert.deepEqual(hits.filter((h) => !pinned(h)).map(({ f, hit }) => `${f}:${hit}`), [], 'wait with until() from ./until.js for the event, or for a sentinel shown to have fired');
 });
 
-test('the reader refuses each shape and passes a poll, a yield and a frame (planted)', () => {
+test('the reader refuses each shape and passes a poll, a yield, an event and an until (planted)', () => {
   const sleep = (n) => `await new Promise((r) => setTimeout(r, ${n}));`;
-  assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(200)}\nexpect(window.n).to.equal(0);\n});`), ['2: a 200 ms sleep, then an expect']);
-  assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(120)}\nexpect(a, 'b').to.be.true;\n});`), ['2: a 120 ms sleep, then an expect']);
   const helper = 'const settle = (ms) => new Promise((r) => setTimeout(r, ms));\n';
+  /** The four refused shapes: directly before, later in the block, inside a nested block, through a helper. */
+  assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(200)}\nexpect(window.n).to.equal(0);\n});`), ['2: a 200 ms sleep, then an expect']);
+  assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(120)}\nconst v = read();\nexpect(v, 'b').to.be.true;\n});`), ['2: a 120 ms sleep, then an expect']);
+  assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(50)}\nfor (const x of xs) {\n  expect(x).to.equal(0);\n}\n});`), ['2: a 50 ms sleep, then an expect']);
   assert.deepEqual(timedWaits(`${helper}it('a', async () => {\nawait settle(700);\nexpect(a).to.equal(0);\n});`), ['3: a 700 ms sleep, then an expect']);
-  assert.deepEqual(timedWaits(`${helper}it('a', async () => {\nawait settle(0);\nexpect(a).to.equal(0);\n});`), [], 'a zero-delay helper call yields');
-  assert.deepEqual(timedWaits(`const read = (x) => compute(x);\nit('a', async () => {\nawait read(700);\nexpect(a).to.equal(0);\n});`), [], 'a call to a non-sleeping helper');
+  /** A frame is not an event wait: a sleep before it still reaches the expect after it. */
+  assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(300)}\nawait frames(2);\ncheck(() => expect(a).to.equal(0));\n});`), ['2: a 300 ms sleep, then an expect']);
   assert.deepEqual(timedWaits('const until = async () => {};'), ['1: a local until']);
   assert.deepEqual(timedWaits('async function until() {}'), ['1: a local until']);
   for (const near of [
     `it('a', async () => {\n${sleep(0)}\nexpect(a).to.equal(1);\n});`,
-    `it('a', async () => {\nawait until(() => a, 'a', 1000);\nexpect(a).to.equal(1);\n});`,
+    `${helper}it('a', async () => {\nawait settle(0);\nexpect(a).to.equal(0);\n});`,
+    `const read = (x) => compute(x);\nit('a', async () => {\nawait read(700);\nexpect(a).to.equal(0);\n});`,
+    `it('a', async () => {\n${sleep(100)}\nawait until(() => a, 'a', 1000);\nexpect(a).to.equal(1);\n});`,
+    `it('a', async () => {\n${sleep(100)}\nconst seen = await ever(() => a, 900);\nexpect(seen).to.equal(true);\n});`,
+    `it('a', async () => {\n${sleep(100)}\nawait new Promise((r) => el.addEventListener('load', r));\nexpect(a).to.equal(1);\n});`,
+    `it('a', async () => {\n${sleep(100)}\nawait customElements.whenDefined('x-a');\nexpect(a).to.equal(1);\n});`,
     `it('a', async () => {\nawait frames(2);\nexpect(a).to.equal(1);\n});`,
     `it('a', async () => {\nfor (;;) { if (a) break; ${sleep(10)} }\nexpect(a).to.equal(1);\n});`,
     `it('a', async () => {\n${sleep(50)}\nconst b = read();\n});`,

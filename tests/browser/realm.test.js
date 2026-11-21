@@ -15,6 +15,7 @@
 import { expect } from '@esm-bundle/chai';
 import { renderInto, renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { html, wire, init, effect, createStore } from '../../packages/core/dist/development/vera.js';
+import { until } from './until.js';
 
 wire([renderer]);
 
@@ -49,8 +50,10 @@ customElements.define('x-realm-loop', class extends HTMLElement {
 
 const openIframe = async () => {
   const iframe = document.createElement('iframe');
+  /** Listened for before the append: an engine may fire an empty iframe's load during it. */
+  const loaded = new Promise((resolve) => iframe.addEventListener('load', resolve, { once: true }));
   document.body.append(iframe);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await loaded;
   return iframe;
 };
 
@@ -69,16 +72,18 @@ it('a component moved into another window re-renders, and runs effects, never on
   const iframe = await openIframe();
   const element = document.createElement('x-realm-counter');
   document.body.append(element);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  /** A task boundary after each move, not a time: a flush is a microtask, so this orders the test behind it. */
+  await new Promise((resolve) => setTimeout(resolve, 0));
   iframe.contentDocument.body.append(element);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise((resolve) => setTimeout(resolve, 0));
   const effectsBefore = effects;
 
   const opener = spyFrames(window);
   const inner = spyFrames(iframe.contentWindow);
   try {
     store.count++;
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    /** The re-render is the sentinel: the opener's frame, if asked for, is asked for inside the flush that renders. */
+    await until(() => element.textContent.trim() === String(store.count) && effects > effectsBefore, 'the moved component re-rendered and re-ran its effect', 5000);
   } finally {
     opener.restore();
     inner.restore();
@@ -99,16 +104,17 @@ it('a component in another window waits for THAT window\'s frames when it must w
   /** Made where its tag is defined, then moved — as a popped-out window receives one. */
   const element = document.createElement('x-realm-loop');
   document.body.append(element);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  /** A task boundary after each move, not a time: a flush is a microtask, so this orders the test behind it. */
+  await new Promise((resolve) => setTimeout(resolve, 0));
   iframe.contentDocument.body.append(element);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   const opener = spyFrames(window);
   const inner = spyFrames(iframe.contentWindow);
   try {
     loop.until = 6;
     element._state.n = 1;
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await until(() => element.textContent.trim() === '6', 'the loop settled on the iframe's frames', 5000);
   } finally {
     opener.restore();
     inner.restore();

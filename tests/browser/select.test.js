@@ -13,6 +13,7 @@ import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { styles } from '@verajs/styles';
 import '@vera-components/select';
+import { until } from './until.js';
 
 wire([renderer, styles]);
 
@@ -568,7 +569,9 @@ it('in the light DOM, each menu opens under its OWN trigger, not the last one on
   for (const element of [one, two]) element.options = OPTIONS;
   await frame();
   one.open();
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  /** Read once the open fade has settled (the menu fully opaque), not at a time a loaded machine may not have reached. */
+  const opened = one.querySelector('[part="menu"]');
+  await until(() => opened.matches(':popover-open') && Number(getComputedStyle(opened).opacity) === 1, 'the first menu opened and settled', 5000);
   const trigger = one.querySelector('[part="trigger"]').getBoundingClientRect();
   const menu = one.querySelector('[part="menu"]').getBoundingClientRect();
   const other = two.querySelector('[part="trigger"]').getBoundingClientRect();

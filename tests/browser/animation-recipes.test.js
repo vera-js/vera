@@ -8,6 +8,7 @@
  * for `display`.
  */
 import { expect } from '@esm-bundle/chai';
+import { until } from './until.js';
 
 const engine = () =>
   /Firefox/.test(navigator.userAgent) ? 'firefox' : /Chrome/.test(navigator.userAgent) ? 'chromium' : 'webkit';
@@ -59,7 +60,7 @@ it('the documented ?hidden fade runs in every engine', async () => {
       }
       expect(mid, `${engine()}: opacity never took a value between 1 and 0 — it jumped`).to.be.a('number');
 
-      await settle(700);
+      await until(() => Number(getComputedStyle(element).opacity) === 0, 'the fade reached transparent', 5000);
       expect(Number(getComputedStyle(element).opacity)).to.equal(0);
       element.remove();
     }

@@ -8,6 +8,7 @@
 import { expect } from '@esm-bundle/chai';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { html, wire, init, effect, createStore } from '../../packages/core/dist/development/vera.js';
+import { until } from './until.js';
 
 wire([renderer]);
 
@@ -60,7 +61,9 @@ it('a held self-feeding loop still settles, through the timer, with no frame eve
     await Promise.resolve();
     expect(state.loop).to.equal(3, 'the effect ran twice in the flush, then its third run was held');
     expect(element.querySelector('b').textContent).to.equal('2', 'and the render too: its third run waits with it');
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    /** Polled on timers (until.js never asks for a frame), so the claim stays "no frame"; a loaded machine fires the
+     *  scheduler's fallback timer late, which a fixed 400 ms read as the held runs never returning. */
+    await until(() => element.querySelector('b').textContent === '6', 'the held runs came back on the timer', 5000);
     expect(element.querySelector('b').textContent).to.equal('6', 'the held runs came back on the timer');
   });
   expect(asked).to.be.at.least(1, 'CONTROL: it did ask for a frame — the timer is the fallback, not the path');

@@ -9,6 +9,23 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wireDirectives, motion, settled } from '../../packages/directives/dist/development/vera-directives.js';
+import { until } from './until.js';
+
+/**
+ * Samples progress every frame from now until it arrives within 0.05 of `target`, or for 5 s. A fixed frame count read
+ * "arrived" at a time a loaded machine had not reached; sampling every frame to arrival keeps the monotonic check over
+ * the whole travel.
+ */
+const chase = async (el, target) => {
+  const samples = [];
+  const deadline = performance.now() + 5000;
+  while (performance.now() < deadline) {
+    await frame();
+    samples.push(progressOf(el));
+    if (Math.abs(samples[samples.length - 1] - target) < 0.05) break;
+  }
+  return samples;
+};
 
 wireDirectives([motion({ inertia: 0 })]);
 
@@ -68,13 +85,9 @@ it('THE SMOOTHNESS PIN — under inertia, the chase travels monotonically to eac
    *  deferral): sampling during the chase never sees a backward step, and it arrives. */
   const el = await mount("{ keyframes: { opacity: '0% 0.2, 100% 1' }, pointer: 'x', inertia: 0.3 }");
   await move(0, 50);
-  await new Promise((r) => setTimeout(r, 500));
+  await until(() => progressOf(el) < 1e-3, 'it settled at the start before the sweep', 5000);
   window.dispatchEvent(new PointerEvent('pointermove', { clientX: window.innerWidth, clientY: 50 }));
-  const samples = [];
-  for (let i = 0; i < 30; i++) {
-    await frame();
-    samples.push(progressOf(el));
-  }
+  const samples = await chase(el, 1);
   const backsteps = samples.filter((v, i) => i > 0 && v < samples[i - 1] - 1e-6).length;
   expect(backsteps, `no backward step across the chase (${samples.map((s) => s.toFixed(2)).join(',')})`).to.equal(0);
   expect(samples[samples.length - 1], 'and it arrived').to.be.closeTo(1, 0.05);
@@ -89,13 +102,9 @@ it('THE SWEEP PIN — under play, the ramp travels monotonically to the pointer 
    *  requirement, restored with the composition. */
   const el = await mount("{ keyframes: { opacity: '0% 0.2, 100% 1' }, pointer: 'x', play: 0.25 }");
   await move(0, 50);
-  await new Promise((r) => setTimeout(r, 400));
+  await until(() => progressOf(el) < 1e-3, 'it settled at the start before the sweep', 5000);
   window.dispatchEvent(new PointerEvent('pointermove', { clientX: window.innerWidth, clientY: 50 }));
-  const samples = [];
-  for (let i = 0; i < 25; i++) {
-    await frame();
-    samples.push(progressOf(el));
-  }
+  const samples = await chase(el, 1);
   const backsteps = samples.filter((v, i) => i > 0 && v < samples[i - 1] - 1e-6).length;
   expect(backsteps, `no backward step across the sweep (${samples.map((s) => s.toFixed(2)).join(',')})`).to.equal(0);
   expect(samples[samples.length - 1], 'and it arrived').to.be.closeTo(1, 0.05);
