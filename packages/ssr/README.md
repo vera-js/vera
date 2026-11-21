@@ -256,7 +256,7 @@ unsanitized. Everything else is checked:
   does) — wherever the tokenizer reads a start tag, which the server finds with the same scanner it reads every
   template with. Whatever the markup leaves open is closed before the element's own end tag, and an unfinished tag
   at its end is dropped, as an assignment drops it, so it cannot reach the markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
-  `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, and for any `.textContent`, it is
+  `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, on or inside a `<select>`, and for any `.textContent`, it is
   escaped text. A `<script .textContent=${code}>` host is the one code-execution door this opens, and it is the
   author's: it runs on the served page as it runs on the client. `.innerText`, `.outerHTML` and `.outerText` stay
   client-only — the server serves the element's template content.
@@ -446,7 +446,9 @@ markup itself is served byte for byte as it was written.
   whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
   strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
 - **A `<style>` or `<script>` the server cannot place in HTML is served escaped.** Raw text is recognized
-  outside `<svg>`, `<math>` and `<noscript>`, inside their HTML integration points (`<svg><foreignObject>`,
+  outside `<svg>`, `<math>`, `<noscript>` and `<select>` (the select parser before customizable select, which jsdom
+  and older browsers run, reads a `<style>` there as markup; current engines read raw text), inside their HTML
+  integration points (`<svg><foreignObject>`,
   `<math><mi>`…) and after a breakout tag (`<svg><p>`), but the scanner does not track the remaining ways a browser
   re-enters HTML: `<font>` with a `color`, `face` or `size` attribute (it breaks out; here it never does), an end tag
   the parser ignores, an `svg` template rendered outside any `<svg>`, and a template rendered INTO a foreign position
@@ -454,14 +456,19 @@ markup itself is served byte for byte as it was written.
   SVG or MathML, so it recognizes no integration point (`html`<svg>${svg`<foreignObject><style>…`}</svg>``). There
   the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it. That is
   the safe direction of a misreading on purpose: the other one writes a value's markup into the page. Put the
-  stylesheet in the template that opens the foreign element, or outside it.
+  stylesheet in the template that opens the foreign element, or outside it. A `<script>` in such a template, or inside
+  `<noscript>`, takes no value at all (`ssr-script-hole`), JSON or not: where the server cannot tell an HTML or SVG
+  script, both of which run, from one that does not, a value there is code. A `<script>` or `<textarea>` straight
+  inside a `<select>` is read as anywhere in HTML: both parsers read its content as text.
 - **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
   the value with the element as its context; the served page is parsed with every real ancestor around it, so a
   few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),
   an `<a>` inside an `<a>`, table parts outside a table. Hydration re-assigns the value, so the client's DOM is
   right once the script runs; an inline handler in the markup (`onload`, `onerror`) therefore fires twice on an SSR
-  page, once from the served HTML and once from the assignment. Inside `<svg>`/`<math>` the server writes the
-  value as escaped text, the safe side of the same misreading, until hydration assigns it.
+  page, once from the served HTML and once from the assignment. Inside `<svg>`/`<math>`, and on or inside a
+  `<select>`, the server writes the value as escaped text, the safe side of the same misreading, until hydration
+  assigns it: a `<select .innerHTML=${options}>` shows no options until then, so render them as children
+  (`<select>${options}</select>`), which the server serves as options.
 - **An ordinary element a template leaves open nests differently.** The client parses each template on its own
   and closes what it left open at its end; the server concatenates. Whatever changes how the rest of the page
   PARSES is closed at the template's end on the server too — a comment, `<style>`/`<script>`, `<textarea>` and the

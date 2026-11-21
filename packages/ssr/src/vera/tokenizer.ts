@@ -68,7 +68,7 @@ const HTML_ENCODINGS = new Set(['text/html', 'application/xhtml+xml']);
  * scan does not track, so `font` never breaks out here — the safe side. `</p>` and `</br>` are the two end tags that do.
  */
 /** The elements that change how what follows them parses, when read in HTML — see the fast path in `scanTag`. */
-const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'template', ...RAWTEXT, ...TEXT_ONLY]);
+const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'select', 'template', ...RAWTEXT, ...TEXT_ONLY]);
 const BREAKOUT = new Set([
   'b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4',
   'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small',
@@ -477,12 +477,19 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         const own = space === 'html' || (tagName === 'svg' && top !== undefined && top.name === 'annotation-xml');
         opens.push({ name: tagName, foreign, inert, space: own ? tagName : space });
         foreign++;
-      } else if (tagName === 'noscript' && space !== 'svg' && space !== 'math') {
+      } else if ((tagName === 'noscript' || tagName === 'select') && space !== 'svg' && space !== 'math') {
         /**
          * Only where HTML rules read the tag (2026-11-19, a rotated-seed find): inside `<svg>`/`<math>` proper a
          * `<noscript>` is a foreign element like any (raw text exists only for HTML elements), so it is not tracked and a
          * breakout after it (`<svg><noscript><p>`) pops it with the foreign content, as the parser does. At an
          * integration point `space` is HTML, so it is tracked there — an HTML `<noscript>`, as `<template>` below.
+         *
+         * **`<select>` counts the same way** (2026-11-21): its content parses two ways. The select parser before
+         * customizable select (jsdom's, and older browsers') ignores a `<style>`, `<svg>`, `<math>` or `<noscript>` start
+         * tag inside it, so what follows is markup; current engines read that `<style>` as raw text. Read as raw text
+         * here, a value's `</select><img onerror>` was written raw and ran on the older parser. Scanned as markup,
+         * with no integration point inside and raw text only where both parsers read it (`<script>`, below), every
+         * other value is escaped: safe under both.
          */
         opens.push({ name: tagName, foreign, inert, space: '' });
         foreign++;
@@ -502,12 +509,28 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       } else if (reentry) {
         opens.push({ name: tagName, foreign, inert, space: 'math' });
         foreign = 1;
-      } else if ((space === 'svg' || space === 'math') && tagName === 'script') {
+      } else if ((tagName === 'script' || tagName === 'textarea') && top !== undefined && top.name === 'select' && top.foreign === 0) {
+        /**
+         * Straight inside a `<select>` opened in HTML, the two parsers agree on these two (2026-11-21; parse5 and
+         * Chromium 159, Firefox 159, WebKit 27.2): a `<script>` is raw text (the older select parser reads it by the
+         * head's rules), and a `<textarea>` is text (the older parser closes the select first). So they are read as at
+         * depth 0. Read as markup, the `<b` of `<script>if (a<b)` opened a tag in the source: a later hole in the
+         * select's text was refused, and a hole the scan placed inside that tag was served into the code.
+         */
+        if (tagName === 'script') {
+          rawTag = tagName;
+          rawFrom = i + 1;
+        } else textTag = tagName;
+      } else if (space !== 'html' && tagName === 'script') {
         /**
          * A `<script>` in SVG (or a MathML element of that name) is tracked so a hole inside it is refused (see
          * `compile`): its content is markup to the parser, so it is no raw text here, and an SVG script runs on a served
          * page — and from a template, in Chromium and WebKit (BROWSER-LEDGER, 2026-11-18). An HTML `<script>` is raw text
          * (`rawTag`, below) and never reaches `opens`, so every `script` there is a foreign one.
+         *
+         * So is one whose namespace is unknown (`space` is `''`: a template that inherited its depth, or inside
+         * `<noscript>`/`<select>`), 2026-11-21: `html\`<svg>${html\`<script>${v}</script>\`}</svg>\`` read the child's
+         * script as neither, wrote the hole as escaped text, which does nothing to code, and it ran in all three engines.
          */
         opens.push({ name: tagName, foreign, inert, space });
       } else if (foreign === 0 && RAWTEXT.has(tagName)) {
@@ -527,7 +550,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
 };
 
 
-/** The end-of-input closers a scan state owes: its open comment or raw-text or text-only element, then every element it opened that changes parsing (svg, math, noscript, template, an integration point), innermost first. Shared by `compile` and `fortify`. */
+/** The end-of-input closers a scan state owes: its open comment or raw-text or text-only element, then every element it opened that changes parsing (svg, math, noscript, select, template, an integration point), innermost first. Shared by `compile` and `fortify`. */
 export const closersOf = (end: ScanState): string =>
   (end.comment || (end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '')) +
   end.opens.reduceRight((closing, open) => closing + `</${open.name}>`, '');

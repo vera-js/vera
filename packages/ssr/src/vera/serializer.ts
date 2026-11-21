@@ -507,12 +507,16 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     tagState = scanTag(strings[i], tagState);
     rawFroms[i] = tagState.rawFrom;
     openings.push(openingStep(strings, i, tagState, opening));
-    if (taker && (tagState.foreign !== 0 || tagState.inert !== 0)) taker = false;
+    /** A `<textarea>` open at a foreign depth is one a select holds, read as HTML by both parsers (see `scanTag`): its line feed is taken. */
+    if (taker && ((tagState.foreign !== 0 && tagState.textTag !== 'textarea') || tagState.inert !== 0)) taker = false;
     /**
      * A hole in the content of an SVG `<script>` (or a MathML element of that name) is code too: refused as an HTML
      * script's is (`ssr-script-hole`, every build), JSON or not — a foreign script is no data block (2026-11-18).
+     * Inside a tag there too (2026-11-21): whether the script's content holds a tag at all depends on a namespace the
+     * scan may not know (in a select, or a template rendered inside `<svg>`), so a hole the scan places in an attribute
+     * of `<script>x=a<b c=${v}>` can sit in the source the browser runs.
      */
-    if (!tagState.inTag && hasOpen(tagState.opens, 'script'))
+    if (hasOpen(tagState.opens, 'script'))
       throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
     /**
      * **Every question about where this hole sits is answered by that scan** — whether it is inside a tag, which tag,
@@ -613,11 +617,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         /**
          * `.innerHTML`/`.textContent` on a plain element is the trusted-markup door (`@verajs/renderer`'s property
          * binding): the value is the element's content, written after the open tag. Its foreign depth is the host's
-         * INSIDE — the tag's depth, plus one when the host is itself `<svg>`/`<math>` — so a `<style>` in it is read
-         * the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above.
+         * INSIDE — the tag's depth, plus one when the host is itself `<svg>`/`<math>`/`<select>` — so a `<style>` in it
+         * is read the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above.
          */
         kinds.push(CONTENT);
-        depths[kinds.length - 1] = tagState.foreign + (owner === 'svg' || owner === 'math' ? 1 : 0);
+        depths[kinds.length - 1] = tagState.foreign + (owner === 'svg' || owner === 'math' || owner === 'select' ? 1 : 0);
       } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
         /**
          * `!name` is a **live** property, and still a property: the sigil only changes when the client re-writes it,
@@ -1296,7 +1300,7 @@ const INERT_TYPE = ' type="text/x-vera-inert"';
  * an inert thing inert — and `scanTag` errs that way wherever it is deliberately incomplete (see its foreign depth).
  *
  * Whatever the markup leaves open is closed, so it cannot reach the host's parent: its comment, raw-text element and
- * svg/math/noscript/template (`closersOf`). An UNFINISHED tag is dropped, as an assignment's parser drops it at the
+ * svg/math/noscript/select/template (`closersOf`). An UNFINISHED tag is dropped, as an assignment's parser drops it at the
  * end of input — served, it swallowed the page's next markup into its attributes. A `<` or `</` that never started a
  * tag is text, written escaped, so the host's own end tag cannot become the rest of it.
  */
