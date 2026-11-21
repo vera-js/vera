@@ -290,7 +290,7 @@ export const renderInto = (result: unknown, root: Element | ShadowRoot) => {
   template.innerHTML = markup;
   const parsed: Node = template.content ?? template;
   /**
-   * **Every value written must land** (2026-11-19, S4, the tier suites): the parser DROPS some markup outright — a
+   * **Every value written must land** (2026-11-19, found by the tier suites): the parser DROPS some markup outright — a
    * duplicated attribute's second occurrence, with the value static wrote there — and a value that vanished was never
    * judged. Lite refuses such a template; so does static: no span written may be missing. MORE may land than were
    * written — the parser clones a formatting element (`<a>`, `<font>`…) with its attributes when it reopens one, and a

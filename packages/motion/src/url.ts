@@ -8,7 +8,7 @@
 /**
  * Validates a url from an attribute.
  *
- * This is the fix for audit S1. The old parser handed an attribute value
+ * It exists because the old parser handed an attribute value
  * straight to `new Image().src`, so anyone who could edit a block could make
  * every visitor's browser issue arbitrary outbound requests — an exfiltration
  * and visitor-tracking vector, and a referrer leak.

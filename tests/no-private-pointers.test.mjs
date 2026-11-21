@@ -23,10 +23,6 @@ import { packageFiles } from '../scripts/packages.mjs';
  * to excuse the same text silently if it returns.
  */
 const ALLOWED = new Set([
-  /** Motion's comment carries an audit label; allowed until it is reworded in motion. */
-  'packages/motion/src/url.ts| * This is the fix for audit S1. The old parser handed an attribute value',
-  /** Static's comment carries a register label; allowed until it is reworded in static. */
-  'packages/static/src/render.ts|   * **Every value written must land** (2026-11-19, S4, the tier suites): the parser DROPS some markup outright — a',
   "packages/shared-utils/src/markup-grammar.ts| * matters: leading C0 controls and spaces are stripped, ASCII tab, LF and CR are removed anywhere, and",
   "packages/ssr/src/vera/escaping.ts| * URL Standard's parser reads a scheme: leading C0 controls and spaces stripped, ASCII tab, LF and CR",
   "packages/ssr/src/vera/escaping.ts| * The C1 numbers a parser reads as Windows-1252: `&#128;` is `€`, not U+0080. The HTML standard's table, by",
