@@ -44,7 +44,7 @@ the two Vera copies agree within 5%.
   before it writes a page. As the site grows, the gap closes toward the per-page ratio (about 1.3× here).
 - **The Vera arm ships no client JavaScript and runs no bundler.** If a Vera site hydrates components, its build adds
   a bundler step that this table does not count. Astro's number already includes Vite.
-- **Astro does more for you.** It gives you routing from the file tree, asset handling, image optimisation and
+- **Astro does more for you.** It gives you routing from the file tree, asset handling, image optimization and
   integrations. The Vera script does one thing: render pages and write them. Compare them as a renderer plus a loop
   against a site framework, not feature for feature.
 - **Two site sizes, one page shape, one machine.** Pages with heavier layouts, Markdown or many images were not
