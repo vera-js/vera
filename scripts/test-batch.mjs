@@ -14,7 +14,11 @@
  */
 import { spawnSync } from 'node:child_process';
 import { heavyBatch } from './heavy-batch.mjs';
+import { canonicalCwd } from './fs-path.mjs';
 import { npmCommand } from './npm.mjs';
+
+/** Every child inherits the canonical cwd, whichever shell launched this (scripts/fs-path.mjs). */
+canonicalCwd();
 
 const ASSIGNMENT = /^([A-Z_][A-Z0-9_]*)=(.*)$/s;
 const argv = process.argv.slice(2);

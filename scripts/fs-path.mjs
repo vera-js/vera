@@ -8,6 +8,7 @@
  * and Linux it is byte-identical to `.pathname` for every path without percent-encoded characters (and correct for the
  * ones with them, which `.pathname` leaves encoded). `tests/fs-path.test.mjs` holds both claims.
  */
+import { realpathSync } from 'node:fs';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,3 +30,16 @@ export const posix = (path) => path.split(sep).join('/');
  * @returns {string}
  */
 export const fsPath = (url) => posix(fileURLToPath(url));
+
+/**
+ * **Moves this process into its cwd's canonical spelling**, so every child it spawns inherits it. On Windows a cwd's
+ * drive letter keeps the case of whatever launched the shell (VS Code starts one in `c:…`, Git Bash's `/c/…` gives
+ * `C:…`), while a realpath, which every resolver takes through a workspace link, always answers the file system's
+ * own `C:…`. A tool that compares the two by case breaks only for some launchers: the browser step lost 65 Chromium
+ * rows to it from a lowercase cwd. A no-op on macOS and Linux, and wherever the spelling is already canonical. The
+ * gate and test-batch, which every check runs under, call it first.
+ */
+export const canonicalCwd = () => {
+  const canonical = realpathSync.native(process.cwd());
+  if (canonical !== process.cwd()) process.chdir(canonical);
+};

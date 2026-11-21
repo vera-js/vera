@@ -15,6 +15,10 @@ import { tmpdir } from 'node:os';
 import { npmCommand } from './npm.mjs';
 import { join } from 'node:path';
 import { heavyBatch } from './heavy-batch.mjs';
+import { canonicalCwd } from './fs-path.mjs';
+
+/** Every child inherits the canonical cwd, whichever shell launched this (scripts/fs-path.mjs). */
+canonicalCwd();
 
 const steps = [
   ['sync-packages', 'npm', ['run', 'check']],

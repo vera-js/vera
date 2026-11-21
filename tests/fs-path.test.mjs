@@ -8,7 +8,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync } from 'node:fs';
+import { globSync, readFileSync, realpathSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fsPath, posix } from '../scripts/fs-path.mjs';
@@ -230,4 +231,36 @@ test('every preload a script or suite passes in a template is a file URL', () =>
   assert.ok(PRELOAD.test(`\`--loader=${D}{join(root, 'l.mjs')}\``), 'CONTROL: a joined path is refused');
   assert.ok(!PRELOAD.test(`\`--import ${D}{pathToFileURL(instrument).href}\``), 'a file URL passes');
   assert.ok(!PRELOAD.test(`\`--import ${D}{setup.href}\``), "a URL's href passes");
+});
+
+/**
+ * **A Windows drive letter keeps the launching shell's case** (2026-11-20). VS Code starts a shell in `c:\…`, Git Bash's
+ * `/c/…` gives `C:\…`, and a realpath through a workspace link always answers `C:\…`. The browser runner compared its
+ * root (the cwd) with node-resolve's realpaths by case, so from a lowercase cwd 65 Chromium rows failed with "could not
+ * be converted to a browser path". Each row below starts a child in the lowercased spelling of this checkout; on macOS
+ * and Linux there is no drive letter, and the rows are skipped.
+ */
+const windows = process.platform === 'win32' ? false : 'a drive letter is Windows-only';
+const native = realpathSync.native(fileURLToPath(new URL('..', import.meta.url)));
+const lowered = native[0].toLowerCase() + native.slice(1);
+const fromLowered = (source) =>
+  JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', source], { cwd: lowered, encoding: 'utf8' }));
+
+test('canonicalCwd moves a lowercase-drive cwd to the canonical spelling', { skip: windows }, () => {
+  const { before, after } = fromLowered(
+    "const before = process.cwd(); const { canonicalCwd } = await import('./scripts/fs-path.mjs'); canonicalCwd();" +
+      ' console.log(JSON.stringify({ before, after: process.cwd() }));'
+  );
+  assert.equal(before, lowered, 'CONTROL: the child started in the lowercase spelling, so the condition is real');
+  assert.notEqual(before, native, 'CONTROL: and that spelling differs from the canonical one');
+  assert.equal(after, native, 'moved to the canonical spelling');
+});
+
+test('the browser runner roots itself at the canonical spelling, whatever the cwd', { skip: windows }, () => {
+  const { cwd, rootDir } = fromLowered(
+    "const { default: config } = await import('./web-test-runner.config.mjs');" +
+      ' console.log(JSON.stringify({ cwd: process.cwd(), rootDir: config.rootDir }));'
+  );
+  assert.equal(cwd, lowered, 'CONTROL: the config loaded from the lowercase spelling');
+  assert.equal(rootDir, native, 'rootDir is the canonical path, not the cwd');
 });
