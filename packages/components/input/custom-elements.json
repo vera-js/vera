@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-input.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-input",
+          "name": "VeraInput",
+          "description": "A text input in the user's own <input>: optional prefix and suffix, a clear button that keeps undo, a password reveal, a caps-lock hint and a loading mark, all options; the input stays the form participant.",
+          "attributes": [],
+          "members": [],
+          "events": [],
+          "slots": [],
+          "cssParts": [
+            {
+              "name": "root",
+              "description": "The element's one rendered part."
+            }
+          ],
+          "cssProperties": [],
+          "vera-states": [],
+          "vera-custom-states": []
+        }
+      ]
+    }
+  ]
+}

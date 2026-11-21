@@ -45,6 +45,7 @@ const PACKAGES = {
   '@vera-components/kbd': 'vera-components/kbd',
   '@vera-components/kbd/element': 'vera-components/kbd/element',
   '@vera-components/spinner': 'vera-components/spinner',
+  '@vera-components/input': 'vera-components/input',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -265,6 +266,7 @@ const recipes = recipeSources.flatMap((path) => {
  */
 const EXPECTED_RECIPES = {
   'packages/components/spinner/README.md': 1,
+  'packages/components/input/README.md': 1,
   'packages/components/kbd/README.md': 2,
   'packages/components/field/README.md': 1,
   'packages/components/icon/README.md': 1,

@@ -31,6 +31,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
  */
 const MIGRATED = [
   ['components/spinner', 'dist/*.min.js'],
+  ['components/input', 'dist/*.min.js'],
   ['components/kbd', 'dist/*.min.js'],
   ['components/field', 'dist/*.min.js'],
   ['hooks/roving-focus', 'dist/*.min.js'],

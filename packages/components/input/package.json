@@ -1,0 +1,116 @@
+{
+  "name": "@vera-components/input",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A text input in the user's own <input>: optional prefix and suffix, a clear button that keeps undo, a password reveal, a caps-lock hint and a loading mark, all options; the input stays the form participant.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/components/input"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./dist/vera-input.min.js",
+  "types": "./dist/development/vera-input.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-input.d.ts",
+      "development": "./dist/development/vera-input.js",
+      "default": "./dist/vera-input.min.js"
+    },
+    "./element": {
+      "types": "./dist/development/vera-input-element.d.ts",
+      "development": "./dist/development/vera-input-element.js",
+      "default": "./dist/vera-input-element.min.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/development/vera-input.js",
+    "./dist/vera-input.min.js"
+  ],
+  "peerDependencies": {
+    "@verajs/core": "^0.4.2"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-input"
+}

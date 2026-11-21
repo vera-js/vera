@@ -49,6 +49,7 @@ const LISTED = [
   { name: 'components/icon', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'components/kbd', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'components/spinner', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'components/input', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },

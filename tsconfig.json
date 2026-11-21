@@ -36,6 +36,12 @@
       "@vera-components/spinner/element": [
         "./packages/components/spinner/src/index.ts"
       ],
+      "@vera-components/input": [
+        "./packages/components/input/src/register.ts"
+      ],
+      "@vera-components/input/element": [
+        "./packages/components/input/src/index.ts"
+      ],
       "@vera-components/kbd": [
         "./packages/components/kbd/src/register.ts"
       ],
