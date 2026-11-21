@@ -1,0 +1,33 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "input-host-changed",
+      "params": [
+        "name"
+      ],
+      "message": "had {name} changed after it rendered its default input, which keeps the value it was made with.",
+      "fix": "Change the input itself (it is the source of truth once rendered), or write your own <input> inside."
+    },
+    {
+      "code": "input-no-name",
+      "params": [],
+      "message": "holds an input with no accessible name (no label, aria-label, aria-labelledby or title), so a screen reader announces only its type.",
+      "fix": "Put it in a <label>, give it a <label for>, or wrap it in <vera-field> with a <label>."
+    },
+    {
+      "code": "input-reveal-not-password",
+      "params": [
+        "type"
+      ],
+      "message": "has reveal on an input of type {type}, which shows its text already, so reveal does nothing.",
+      "fix": "Use reveal only with type=\"password\"."
+    },
+    {
+      "code": "input-size-on-host",
+      "params": [],
+      "message": "has a size attribute, which <vera-input> does not read (on <input> it means a width in characters).",
+      "fix": "Use scale=\"sm|md|lg\" for the size, or put size on the <input> itself."
+    }
+  ]
+}
