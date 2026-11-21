@@ -8,7 +8,7 @@
  * pre-allocated value buffers at build time, so a frame is an evaluate loop and
  * one style write per category (principle #4).
  */
-import { getElementSize, getWindowSize, displacementOf, normalisePosition } from './dom.js';
+import { getElementSize, getWindowSize, displacementOf, normalizePosition } from './dom.js';
 
 import { generateSimple, mergeBandsForWidth, inlineCssFor } from './generate.js';
 
@@ -138,7 +138,7 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
 
   const stagger = element.parsed.stagger;
   const offset = stagger
-    ? normalisePosition({ ...stagger, value: 0, unit: '' }, scrollWindow, win, root)
+    ? normalizePosition({ ...stagger, value: 0, unit: '' }, scrollWindow, win, root)
     : 0;
 
   /**
@@ -160,7 +160,7 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
   let highest = -Infinity;
   for (const animation of element.parsed.animations) {
     for (const k of mergeForWidth(animation, win.width)) {
-      const at = normalisePosition(k, scrollWindow, win, root) + offset;
+      const at = normalizePosition(k, scrollWindow, win, root) + offset;
       lowest = Math.min(lowest, at);
       highest = Math.max(highest, at);
     }

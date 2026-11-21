@@ -86,15 +86,10 @@ test('identifiers are read word by word, and the platform\'s ARIA names are its 
 
 /**
  * **Known, counted, and due to go**: spellings the identifier split found in package source on the day it was added,
- * each an internal name (motion's `normalisePosition`, exported from `dom.ts` to its own modules only, in no public
- * entry or doc). Counted exactly per file, so a new one fails above and a renamed one fails below until its entry
- * leaves this table.
+ * each an internal name, counted exactly per file, so a new one fails above and a renamed one fails below until its
+ * entry leaves this table. Empty since motion's position helper took the American spelling (2026-11-21).
  */
-const KNOWN = {
-  'packages/motion/src/dom.ts: "normalise"': 1,
-  'packages/motion/src/generate.ts: "normalise"': 2,
-  'packages/motion/src/runtime.ts: "normalise"': 3,
-};
+const KNOWN = {};
 
 test('no tracked file spells the British way', () => {
   const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));

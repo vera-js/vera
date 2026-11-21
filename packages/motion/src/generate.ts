@@ -24,7 +24,7 @@ import { composeTransform, composeFilter, format, sortForApply } from './apply.j
 
 import { contentHash, PROGRESS_PROPERTY, STAGGER_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 
-import { normalisePosition } from './dom.js';
+import { normalizePosition } from './dom.js';
 import type { Band, ElementMotion, Generated, GeneratedGroup, GeometryContext, ParsedElement, RawKeyframe } from './types.js';
 
 
@@ -490,7 +490,7 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
       .map((f) => f.positionUnit === '%' ? f : {
         ...f,
         position: Math.min(100, Math.max(0,
-          normalisePosition(f, geometry.scrollWindow, geometry.win, geometry.root) * 100)),
+          normalizePosition(f, geometry.scrollWindow, geometry.win, geometry.root) * 100)),
         positionUnit: '%' as const,
       })
       .slice()

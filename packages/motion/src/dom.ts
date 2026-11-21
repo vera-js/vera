@@ -467,7 +467,7 @@ export const getElementSize = (
  *
  * @param root the root font size in pixels, read once per rebuild for `rem`
  */
-export const normalisePosition = (
+export const normalizePosition = (
   keyframe: RawKeyframe,
   scrollWindow: number,
   win: WindowSize,
