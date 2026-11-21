@@ -210,6 +210,18 @@ test('a formAssociated change is a reload request', async () => {
   el.remove();
 });
 
+test("define's formAssociated reaches hot (the static is set before registering): a re-save without it is a reload request", async () => {
+  const Field = define({ tag: 'x-hot-dform', formAssociated: true }, () => () => html`<i>f</i>`);
+  assert.equal(Field.formAssociated, true, 'CONTROL: the registered class is form-associated');
+  const el = document.createElement('x-hot-dform');
+  document.body.append(el);
+  await settle();
+  reloads.length = 0;
+  define({ tag: 'x-hot-dform' }, () => () => html`<i>g</i>`);
+  assert.deepEqual(reloads, [{ tag: 'x-hot-dform', reason: 'formAssociated changed' }], 'hot recorded it as form at the first define');
+  el.remove();
+});
+
 test('one reload request per swap: two live elements of one tag ask once, and another tag asks for itself', async () => {
   customElements.define('x-hot-form2', class extends HTMLElement {});
   customElements.define('x-hot-form3', class extends HTMLElement {});

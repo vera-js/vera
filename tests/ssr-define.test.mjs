@@ -21,6 +21,13 @@ test('CONTROL: with no attributes the server renders the defaults (null renders 
   assert.match(html, /<b><\/b><i><\/i><u>plain<\/u>/, html);
 });
 
+test("define's formAssociated OPTION renders on the server: the static is set and attachInternals answers", async () => {
+  const { html } = await renderToString(new URL('./fixtures/ssr-define/form.mjs', import.meta.url));
+  assert.match(html, /<ssr-form[^>]*>/, `CONTROL: the element rendered: ${html}`);
+  assert.match(html, /<b>form function<\/b>/, `the setup ran and its internals have setFormValue: ${html}`);
+  assert.equal(customElements.get('ssr-form')?.formAssociated, true, 'the static, on the server too');
+});
+
 test("define's styles OPTION renders into the declarative shadow root on the server", async () => {
   const { html } = await renderToString(new URL('./fixtures/ssr-define/styled.mjs', import.meta.url));
   assert.match(html, /<template shadowrootmode="open">/, `CONTROL: a declarative shadow root: ${html}`);

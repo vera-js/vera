@@ -68,6 +68,18 @@ test('register: false builds the class and registers nothing; the caller registe
   el.remove();
 });
 
+test('formAssociated: true sets the static on that class only, and stays out of the init options', async () => {
+  const Field = define({ tag: 'x-def-form', formAssociated: true, shadow: 'open' }, () => () => html`<i>f</i>`);
+  const Plain = define({ tag: 'x-def-noform', shadow: 'open' }, () => () => html`<i>p</i>`);
+  assert.equal(Field.formAssociated, true);
+  assert.equal(Plain.formAssociated, undefined, 'CONTROL: a define without it is not form-associated');
+  const el = document.createElement('x-def-form');
+  document.body.append(el);
+  await settle();
+  assert.deepEqual(Object.keys(seen.find(([name]) => name === 'x-def-form')[1]), ['shadow'], 'init saw only shadow');
+  el.remove();
+});
+
 test('removed then re-added: setup EXACTLY twice, teardown EXACTLY once per removal (the wrapper is the one teardown)', async () => {
   let setups = 0;
   let teardowns = 0;

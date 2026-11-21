@@ -59,6 +59,9 @@ component's code runs. The options are `init`'s (`shadow`, `foreignNodes`, any w
 defined once: a second `define` of it throws, as the platform's `customElements.define` does.
 `register: false` builds the class and returns it unregistered, for code that registers it itself (a scoped
 registry, a tag the user picks): `customElements.define('my-tag', define({ tag: 'x-card', register: false }, setup))`.
+`formAssociated: true` makes a form-associated element: its form callbacks (`formResetCallback`, `formDisabledCallback`,
+`formStateRestoreCallback`) go in `methods`, and `attachInternals()` may be called once per element, so keep what it
+returns (a setup runs on every connect).
 
 ## Smaller: `@verajs/lite`
 
@@ -70,8 +73,8 @@ visitor are in its own README (`packages/lite/README.md`).
 ## Writing the class yourself
 
 `define` writes the custom element class for you. When you need the class itself — inheritance,
-`formAssociated`, `adoptedCallback`, a class you already have — write it and hand its setup to
-`init()` from `connectedCallback`:
+`adoptedCallback`, a class you already have — write it and hand its setup to `init()` from
+`connectedCallback`:
 
 <!-- recipe -->
 ```js

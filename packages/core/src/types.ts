@@ -241,9 +241,16 @@ export type DefineOptions = Omit<InitOptions, 'host'> & {
   tag: string;
   /**
    * `false`: build the class and return it WITHOUT registering it, for a caller that registers it itself (a scoped
-   * registry, a tag of the user's choosing: `customElements.define(myTag, Class)`). Default: registered under `tag`.
+   * registry, a tag of the user's choosing: `customElements.define(myTag, Class)`). Default: registered under `tag`,
+   * and `define` returns the REGISTERED class; with `false` it returns the built one, and `customElements.get(tag)` stays
+   * undefined until the caller registers it.
    */
   register?: boolean;
+  /**
+   * `true`: a form-associated element (`static formAssociated`), for a component a `<form>` submits, resets and disables.
+   * Its form callbacks go in `methods`; `attachInternals()` may be called once per element, so keep what it returns.
+   */
+  formAssociated?: boolean;
 };
 /** The class `define` returns: its instances are components carrying the methods. */
 export type DefinedClass<M> = { new (): ComponentElement & M; prototype: ComponentElement & M };

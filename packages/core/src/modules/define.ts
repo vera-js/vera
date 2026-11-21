@@ -34,9 +34,10 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   let props: Record<string, unknown> | undefined;
   let attributes: readonly string[] | undefined;
   let register: boolean | undefined;
+  let formAssociated: boolean | undefined;
   /** One test, and the tag (and `methods`, `props`, `attributes`) read back out (the smaller form: −1 `typeof`). */
   if (typeof target !== 'string')
-    ({ tag, methods, props, attributes, register, ...(options as object) } = (target ?? {}) as DefineOptions & {
+    ({ tag, methods, props, attributes, register, formAssociated, ...(options as object) } = (target ?? {}) as DefineOptions & {
       methods?: M;
       props?: Record<string, unknown>;
       attributes?: readonly string[];
@@ -189,6 +190,13 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
         enumerable: true,
       });
   }
+  /**
+   * **`formAssociated: true`**: the platform's static, set before the class is registered (it reads it there, once). The form
+   * callbacks (`formResetCallback`, `formDisabledCallback`, `formStateRestoreCallback`, `formAssociatedCallback`) are
+   * `methods`, which the platform reads off the prototype at the same moment. A class without it is unchanged: no callback
+   * and no static, so a non-form element's creation does no form work.
+   */
+  if (formAssociated) (Class as unknown as { formAssociated: boolean }).formAssociated = true;
   /** `register: false`: the built class itself, for the caller to register (which class `new` then constructs is theirs). */
   if (register === false) return Class as unknown as DefinedClass<WithAttributes<P, A> & M>;
   customElements.define(tag, Class);
