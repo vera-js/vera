@@ -195,7 +195,9 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
 /**
  * **Does this source print or throw?** Every spelling the language allows: `throw Error(` without `new` is legal and
  * common, and whitespace before the parenthesis is legal too, so a pattern written for one spelling passed the others.
- * Comments are blanked first (withoutComments, a parse), so a sentence about `console.warn` is not a call.
+ * Comments are blanked first, so a sentence about `console.warn` is not a call, and they are found by the shared PARSE
+ * (withoutComments, `source-comments.mjs`): a regex stripper took a `/*` inside a string for an opener and deleted the
+ * code up to the next doc comment's close, so a print there was invisible (router's diagnostics.ts holds such a string).
  */
 const PRINTS = /console\s*\.\s*(?:warn|error)\s*\(|throw\s+(?:new\s+)?\w*Error\s*\(/;
 const prints = (text) => PRINTS.test(withoutComments(text));
@@ -205,6 +207,9 @@ test('CONTROL: the printing detector sees every spelling of a print or a throw, 
     assert.equal(prints(`const a = 1;\nif (a) ${call};`), true, call);
   for (const near of ['// console.warn(x)', '/* throw new Error(x) */', 'console.warnings(x)', 'throwError(x)', 'console.log(x)', 'throw x', 'const e = new Error(x)'])
     assert.equal(prints(`const a = 1;\n${near};`), false, near);
+  /** Comment-like text inside a string, a template or a regex is code, never a comment: the print after it still counts. */
+  for (const opener of ["const s = '/*x';", 'const s = `/*${1}`;', 'const r = /\\/\\*/;', "const s = '// x';"])
+    assert.equal(prints(`${opener}\nconsole.warn(s);\n/** doc */\nexport const b = 2;`), true, opener);
 });
 
 test('every package that prints or throws is on the code system', () => {
