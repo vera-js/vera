@@ -287,7 +287,8 @@ test('a sigil binding with statics in its value is still the binding, and its va
     [['<input .value="&amp;', '">'], ['v'], '<input value="&#38;v">'],
     [['<input .value="', '-', '">'], ['a', null], '<input value="a-">'],
     [['<input type=checkbox .checked="', '', '">'], [0, ''], '<input type=checkbox checked="">'],
-    [['<p .innerHTML="&lt;i&gt;', '"></p>'], ['b'], '<p><i>b</i></p>'],
+    /** Trusted markup is served as written, as a lone hole's is; `<p><i>b</p>` parses to the client's `<p><i>b</i></p>`. */
+    [['<p .innerHTML="&lt;i&gt;', '"></p>'], ['b'], '<p><i>b</p>'],
     [['<p title=x title=', '>1</p>'], [null], '<p>1</p>'],
   ];
   const wrong = rows
@@ -407,8 +408,8 @@ test('a stray foreign end tag does not leave foreign content', () => {
  * **A breakout tag ends foreign content** — `<svg><p>` leaves SVG, so a `<style>` after it is an HTML style whose
  * content is raw text. This is the one rule that moves the scan from foreign toward HTML, the dangerous direction, so
  * each row is checked by both oracles: no injection, and raw exactly where the browser builds an HTML `<style>`. It
- * must never fire at an integration point, through `<noscript>`, or from a depth a parent gave, and `font` never
- * breaks out (it does in a browser only with `color`/`face`/`size`, which this scan does not track: escaped, safe).
+ * must never fire at an integration point, through `<noscript>`, or from a depth a parent gave. `<font>` breaks out
+ * only with a static `color`, `face` or `size` (its own rows below); a bare one stays foreign.
  */
 test('a breakout tag leaves foreign content exactly where the parser does', () => {
   const RAW = [
@@ -416,6 +417,7 @@ test('a breakout tag leaves foreign content exactly where the parser does', () =
     '<svg><foreignObject><div><svg><p>', '<math><annotation-xml><b>', '<svg><mi><b>', '<math><svg><g><span>',
     /** Breaks out to the `<desc>` point, so the `</math>` after it is an HTML end tag the parser ignores. */
     '<svg><desc><svg><math><p></math>',
+    '<svg><font color=red>',
   ];
   const ESCAPED = ['<svg><font>', '<svg><g><x-y>', '<svg><pre-x>', '<noscript><svg><p>'];
   for (const [lead, raw] of [...RAW.map((l) => [l, true]), ...ESCAPED.map((l) => [l, false])]) {
@@ -424,9 +426,6 @@ test('a breakout tag leaves foreign content exactly where the parser does', () =
     assert.equal(styleParent(served) === 'html', raw, `the oracle agrees about ${lead}`);
     assert.equal(served.includes(PAYLOAD), raw, `${lead}: ${served}`);
   }
-  /** The safe side, on purpose: the browser breaks out here and the server does not, so it over-escapes — never injects. */
-  const font = serializeTemplate(template(['<svg><font color=red><style>', '</style>'], PAYLOAD));
-  assert.ok(!injected(font) && !font.includes(PAYLOAD), font);
   /** A template that starts at its parent's foreign depth cannot know where a breakout lands: it stays foreign. */
   const nested = serializeTemplate(template(['<svg>', '</svg>'], template(['<p><style>', '</style>'], PAYLOAD)));
   assert.ok(!injected(nested) && !nested.includes(PAYLOAD), nested);

@@ -147,7 +147,7 @@ const servedAt = (tag, name) => (name !== '.value' ? '' : tag === 'input' ? 'val
 test('several holes in a sigil or event binding’s value: none lets a value make markup, and each inside the value is dropped or joined into a form control’s value', () => {
   let cases = 0;
   let inside = 0;
-  let joined = 0;
+  let intoValue = 0;
   const failures = [];
   for (const seed of SEEDS) {
     const random = lcg(seed ^ 0x5eed);
@@ -186,7 +186,7 @@ test('several holes in a sigil or event binding’s value: none lets a value mak
         if (locate(browserTree, sentinel) !== own) continue;
         inside++;
         if (server === 'absent') continue;
-        if (joinedAt !== '' && server.startsWith(joinedAt)) joined++;
+        if (joinedAt !== '' && server.startsWith(joinedAt)) intoValue++;
         else failures.push(`KEPT ${sentinel}: server ${server} — ${label} -> ${JSON.stringify(served)}`);
       }
     }
@@ -195,6 +195,9 @@ test('several holes in a sigil or event binding’s value: none lets a value mak
   /** The volume control: most cases must render, or the check above saw nothing. */
   assert.ok(cases > SEEDS.length * 400 * 0.5, `only ${cases} cases rendered`);
   assert.ok(inside > SEEDS.length * 100, `only ${inside} holes inside a binding's value`);
-  /** And the joined branch is exercised: a form control's value DID receive holes, so that allowance is not dead. */
-  assert.ok(joined > SEEDS.length * 5, `only ${joined} holes joined into a form control's value`);
+  /**
+   * And the joined branch is exercised: a form control's value DID receive holes, so that allowance is not dead. The
+   * base seeds join 30; over 60 seeds a seed joined 1 to 15 (6.5 on average), so one per seed is a floor, not a pin.
+   */
+  assert.ok(intoValue >= SEEDS.length, `only ${intoValue} holes joined into a form control's value`);
 });
