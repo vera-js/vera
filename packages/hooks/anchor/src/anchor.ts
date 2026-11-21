@@ -180,9 +180,14 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
       if (clipping !== null)
         console.warn(diagnostic('anchor', `<${layer.localName}>`, 'anchor-clipped', __DEV__ && PROSE['anchor-clipped'](`<${clipping.localName}>`)));
     }
-    /** Every root up the target's chain hears its own scrollers; the window hears the document's. */
+    /**
+     * Every root up the target's chain hears its own scrollers; the window hears the document's. A shadow root is told
+     * by its structure, not `instanceof view.ShadowRoot`: one made in another window and adopted keeps that window's
+     * prototype (tests/hook-anchor-realms.test.mjs).
+     */
     roots = [];
-    for (let root = target.getRootNode(); root instanceof view.ShadowRoot; root = root.host.getRootNode()) roots.push(root);
+    for (let root: Node = target.getRootNode(); root.nodeType === 11 && 'host' in root; root = (root as ShadowRoot).host.getRootNode())
+      roots.push(root);
     roots.push(view);
     for (const root of roots) root.addEventListener('scroll', onScroll, { capture: true, passive: true });
     view.addEventListener('resize', schedule);
