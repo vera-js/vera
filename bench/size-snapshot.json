@@ -19,8 +19,8 @@
       "gzip": 6409
     },
     "router": {
-      "raw": 10883,
-      "gzip": 4522
+      "raw": 10864,
+      "gzip": 4516
     },
     "autoloader": {
       "raw": 3947,
@@ -131,16 +131,16 @@
       "gzip": 3865
     },
     "directives-motion": {
-      "raw": 80946,
-      "gzip": 26551
+      "raw": 80927,
+      "gzip": 26584
     },
     "motion": {
-      "raw": 38097,
-      "gzip": 12604
+      "raw": 38061,
+      "gzip": 12626
     },
     "motion-ssr": {
-      "raw": 38560,
-      "gzip": 12496
+      "raw": 38524,
+      "gzip": 12505
     },
     "motion-client": {
       "raw": 8561,

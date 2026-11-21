@@ -126,7 +126,7 @@ describing the bytes honestly.)*
 | `@verajs/lite` | 4 270 B | the lite tier: `define`, `signal`, `html`, a renderer that patches in place |
 | `@verajs/static` | 1 746 B | the static tier: `define` and `html` rendered once into markup, values never code |
 | `@verajs/renderer` | 6 409 B | keyed template renderer, refs, `hold` |
-| `@verajs/router` | 4 522 B | nested routes, params, wildcards, redirects, scroll memory |
+| `@verajs/router` | 4 516 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 618 B | lazy component discovery |
 | `@verajs/styles` | 987 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 642 B | `${spread(props)}` — runtime-named bindings |
@@ -154,9 +154,9 @@ describing the bytes honestly.)*
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 3 165 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 865 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 26 551 B | the motion pack — presets, easings, paint, path, sequence, split |
-| `@verajs/motion/core` | 12 604 B | the motion engine — compiler + writer, no directives engine, no packs |
-| `@verajs/motion/ssr` | 12 496 B | renderMotion — mark a server document, emit its sheet |
+| `@verajs/directives/motion` | 26 584 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/motion/core` | 12 626 B | the motion engine — compiler + writer, no directives engine, no packs |
+| `@verajs/motion/ssr` | 12 505 B | renderMotion — mark a server document, emit its sheet |
 | `@verajs/motion/client` | 3 149 B | the reader — delivery, drive and functions, no compiler |
 <!--/size:table.permodule-->
 
