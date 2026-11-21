@@ -4,6 +4,7 @@ import { decode } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
+import type { Said } from './report.js';
 import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
@@ -425,6 +426,41 @@ export const openingTags = (strings: readonly string[], depth: number): string[]
   return tags;
 };
 
+/**
+ * **`compile`'s rare paths live out of line.** V8 compiles a function whole on its first call, and `compile` runs on
+ * every page's first render, so a branch a valid template never takes — an error built in place, a forgery's warning,
+ * a raw-text slot's closing — is paid for by every render that never reaches it: the first render's cost followed
+ * `compile`'s bytecode size (fresh-process A/B with and without `--no-lazy`, 2026-11-21).
+ */
+/** A misuse's error, its prose its `PROSE` entry unless given (a client twin's). */
+const refusal = (code: string, prose: Said = PROSE[code]!()): Error => own(new Error(ssrMisuse(code, prose)));
+/** Once per process per component (Brian, 2026-10-09); the forgery itself still renders as the object it is. */
+const forgedTemplate = (): null => {
+  const tag = currentRenderingTag();
+  if (once('forged-template', tag)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'forged-template', TWINS.forgedTemplate()));
+  return null;
+};
+/**
+ * **The author's static text of a JSON block or an HTML `<style>` is written closed too** (2026-11-18), so the
+ * served text is the COMPOSED text closed (`closedRawText`), byte for byte what a client writes: in a block every
+ * `<` as `\u003c` (a static `<` before a value, `"<${'/script>…'}"`, otherwise closed it early; in valid JSON a `<` is
+ * only ever inside a string, so it is lossless), in a style each `</style` as `<\/style` (a static `</stylex` ends
+ * nothing, and is written so all the same). A closer formed ACROSS a style hole is `styleHole`'s, per render. The
+ * content in the static before this hole (from where its raw text began, or all of it inside the element) and in the
+ * static after (up to its end tag). Raw text follows the tag edits, so it is the same text in the part. Idempotent,
+ * so a static between two holes of one element may be visited twice.
+ */
+const closeRawSlot = (parts: string[], strings: TemplateStringsArray, from: number, i: number, json: boolean): void => {
+  const until = closerAt(strings[i + 1]!, 0, json ? 'script' : 'style');
+  const before = parts[i]!;
+  const cut = from === -1 ? 0 : before.length - (strings[i]!.length - from);
+  /** Text with no `<` is its own closed form (`closedRawText` changes only a `<`), so it is left as it is. */
+  if (before.indexOf('<', cut) !== -1) parts[i] = before.slice(0, cut) + closedRawText(before.slice(cut), json);
+  const after = parts[i + 1]!;
+  const stop = until === -1 ? after.length : until;
+  const lt = after.indexOf('<');
+  if (lt !== -1 && lt < stop) parts[i + 1] = closedRawText(after.slice(0, stop), json) + after.slice(stop);
+};
 const compile = (strings: unknown, depth: number): Plan | null => {
   /**
    * **A template is a tagged template literal's, never data shaped like one.** Template detection is by shape (`strings`),
@@ -435,12 +471,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * `null` — the caller renders it as the ordinary object it is — and never a throw: the value is attacker-controlled
    * by definition, and a throw would trade the injection for the whole response.
    */
-  if (!isLiteral(strings)) {
-    /** Once per process per component (Brian, 2026-10-09); the forgery itself still renders as the object it is. */
-    const tag = currentRenderingTag();
-    if (once('forged-template', tag)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'forged-template', TWINS.forgedTemplate()));
-    return null;
-  }
+  if (!isLiteral(strings)) return forgedTemplate();
   const parts: string[] = [];
   const kinds: Kind[] = [];
   const names: string[] = [];
@@ -574,7 +605,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * of `<script>x=a<b c=${v}>` can sit in the source the browser runs.
      */
     if (hasOpen(tagState.opens, 'script'))
-      throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
+      throw refusal('ssr-script-hole');
     /**
      * **Every question about where this hole sits is answered by that scan** — whether it is inside a tag, which tag,
      * whether a new one opened, and whether the hole is a sigil binding. They used to be answered beside it, by tests
@@ -818,7 +849,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     const tagNameHole = tagState.phase === TAG_OPEN || tagState.phase === END_TAG_OPEN || tagState.phase === TAG_NAME;
     if (tagNameHole)
-      throw own(new Error(ssrMisuse('tag-hole', TWINS.tagHole())));
+      throw refusal('tag-hole', TWINS.tagHole());
     if (elementPosition && !tagNameHole && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
       nameHole(part, strings[i + 1]);
     elementPositions.push(elementPosition);
@@ -870,7 +901,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   const end = scanTag(strings[strings.length - 1], tagState);
   rawFroms[strings.length - 1] = end.rawFrom;
   if (end.inValue || (end.inTag && end.tagName))
-    throw own(new Error(ssrMisuse('ssr-unfinished-tag', PROSE['ssr-unfinished-tag']!())));
+    throw refusal('ssr-unfinished-tag');
   const closers = closersOf(end);
   if (closers) parts[parts.length - 1] += closers;
 
@@ -887,32 +918,10 @@ const compile = (strings: unknown, depth: number): Plan | null => {
        * `.type` — changes the type after it was judged, and the script is then served (or saved) as code.
        */
       const tag = openings[i]!;
-      if (!(writtenDataBlock(tag) ?? dataBlock(tag)) || tag.includes('\uFFFF')) throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
+      if (!(writtenDataBlock(tag) ?? dataBlock(tag)) || tag.includes('\uFFFF')) throw refusal('ssr-script-hole');
       raws[i] = 'json';
     }
-    /**
-     * **The author's static text of a JSON block or an HTML `<style>` is written closed too** (2026-11-18), so the
-     * served text is the COMPOSED text closed (`closedRawText`), byte for byte what a client writes: in a block every
-     * `<` as `\u003c` (a static `<` before a value, `"<${'/script>…'}"`, otherwise closed it early; in valid JSON a `<` is
-     * only ever inside a string, so it is lossless), in a style each `</style` as `<\/style` (a static `</stylex` ends
-     * nothing, and is written so all the same). A closer formed ACROSS a style hole is `styleHole`'s, per render. The
-     * content in the static before this hole (from where its raw text began, or all of it inside the element) and in the
-     * static after (up to its end tag). Raw text follows the tag edits, so it is the same text in the part. Idempotent,
-     * so a static between two holes of one element may be visited twice.
-     */
-    if (raws[i] === 'json' || raws[i] === 'style') {
-      const json = raws[i] === 'json';
-      const from = rawFroms[i]!;
-      const until = closerAt(strings[i + 1]!, 0, json ? 'script' : 'style');
-      const before = parts[i]!;
-      const cut = from === -1 ? 0 : before.length - (strings[i]!.length - from);
-      /** Text with no `<` is its own closed form (`closedRawText` changes only a `<`), so it is left as it is. */
-      if (before.indexOf('<', cut) !== -1) parts[i] = before.slice(0, cut) + closedRawText(before.slice(cut), json);
-      const after = parts[i + 1]!;
-      const stop = until === -1 ? after.length : until;
-      const lt = after.indexOf('<');
-      if (lt !== -1 && lt < stop) parts[i + 1] = closedRawText(after.slice(0, stop), json) + after.slice(stop);
-    }
+    if (raws[i] === 'json' || raws[i] === 'style') closeRawSlot(parts, strings, rawFroms[i]!, i, raws[i] === 'json');
   }
 
   /**

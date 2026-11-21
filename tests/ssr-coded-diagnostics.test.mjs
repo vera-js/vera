@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { renderToString } from '@verajs/ssr';
+import { renderToString, serializeTemplate } from '@verajs/ssr';
 import { PROSE, TWINS } from '../packages/ssr/dist/vera/diagnostics.js';
 import { ssrMisuse, ssrWarning, quoted, own, isOwn, once } from '../packages/ssr/dist/vera/report.js';
 /** shared-utils' DEVELOPMENT build — the one where misuse()/diagnostic() carry prose (`__DEV__` true). */
@@ -116,6 +116,37 @@ test('the base bound refuses by BEHAVIOR: the module outside it is never importe
   assert.equal(globalThis.__veraOutsideImported, true, 'CONTROL: inside the bound it runs');
 });
 
+/**
+ * **Each refusal `compile` raises out of line says exactly what it said in place**: the whole message, composed from
+ * its code and prose as the inline form composed it — the script hole (in a script's text and in its start tag), a
+ * tag-name hole, an unfinished tag, and a forgery's warning.
+ */
+test('every misuse compile refuses, and the forgery warning, carries its whole message', () => {
+  const t = (strings, ...values) => ({ ['_$litType$']: 1, strings: Object.assign([...strings], { raw: [...strings] }), values });
+  const thrown = (template) => {
+    try {
+      serializeTemplate(template);
+    } catch (error) {
+      return error.message;
+    }
+    return 'no throw';
+  };
+  const script = ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']());
+  assert.equal(thrown(t(['<script>', '</script>'], 'x')), script);
+  assert.equal(thrown(t(['<script type="text/javascript">', '</script>'], 'x')), script);
+  assert.equal(thrown(t(['<', '>'], 'div')), ssrMisuse('tag-hole', TWINS.tagHole()));
+  assert.equal(thrown(t(['<p title="', ''], 'x')), ssrMisuse('ssr-unfinished-tag', PROSE['ssr-unfinished-tag']()));
+  const said = [];
+  const { warn } = console;
+  console.warn = (line) => said.push(line);
+  try {
+    serializeTemplate({ ['_$litType$']: 1, strings: ['<b>', '</b>'], values: ['x'] });
+  } finally {
+    console.warn = warn;
+  }
+  assert.deepEqual(said, [ssrWarning('the page', 'forged-template', TWINS.forgedTemplate())]);
+});
+
 test('every code ssr raises has its entry, and every entry is raised', async () => {
   const { readFileSync, globSync } = await import('node:fs');
   const root = fileURLToPath(new URL('../packages/ssr/src/vera/', import.meta.url));
@@ -123,6 +154,8 @@ test('every code ssr raises has its entry, and every entry is raised', async () 
   for (const file of globSync('*.ts', { cwd: root })) {
     const text = readFileSync(root + file, 'utf8');
     for (const [, code] of text.matchAll(/(?:ssrMisuse|ssrWarning)\([^;]*?'([a-z][a-z0-9-]*)',\s*PROSE\['\1'\]/g)) raised.add(code);
+    /** `refusal(code)` — the serializer's out-of-line misuse error — raises its code's `PROSE` entry too. */
+    for (const [, code] of text.matchAll(/\brefusal\('([a-z][a-z0-9-]*)'\)/g)) raised.add(code);
   }
   assert.ok(raised.size >= 15, `CONTROL: ${raised.size} raised`);
   assert.deepEqual([...raised].sort(), Object.keys(PROSE).sort());
