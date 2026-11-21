@@ -61,7 +61,7 @@ test('a lock whose holder is gone is taken over, not waited on', () => {
 
 /**
  * **Two takers of one stale lock leave exactly one holder** (the race a plain rm-then-mkdir loses: both judge it stale,
- * one takes the fresh lock, the other deletes it on its old judgement). Each child holds for 600 ms and reports when it
+ * one takes the fresh lock, the other deletes it on its old judgment). Each child holds for 600 ms and reports when it
  * held; the two holds must not overlap.
  */
 test('two processes that find the same stale lock never hold it at once', async () => {
