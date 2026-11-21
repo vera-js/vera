@@ -6,6 +6,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Node 24 and Node 26 (2026-11-21): Node 26 gives every process a working `sessionStorage`, which changes what the
+    # server says (`ssr-process-storage`) — a row red only there went unseen while CI ran one version. Both run every
+    # Node-side step; the browser layer runs once, on 24, since the engines are the same binaries either way. Each
+    # version reports on its own (fail-fast off), so a red on one never hides the other.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26]
     # A hard cap (2026-11-15): a test file whose process never exits (a server left open) hung the job until it was
     # canceled by hand. A green run took 8–11 minutes when this was set, so 30 is about three times that.
     timeout-minutes: 30
@@ -38,7 +46,7 @@ jobs:
           fi
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: node scripts/sync-packages.mjs
@@ -119,4 +127,6 @@ jobs:
       # engine's custom-element and focus semantics. Every check passes on all three; the suite
       # itself takes ~8s, so the cost here is the browser download, not the run.
       - run: npx playwright install --with-deps chromium firefox webkit
+        if: matrix.node == 24
       - run: npm run test:browser:all
+        if: matrix.node == 24
