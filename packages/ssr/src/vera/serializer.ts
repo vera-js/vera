@@ -280,19 +280,6 @@ const takesNewline = (text: string, before: ScanStart | ScanResult): boolean => 
 };
 
 /**
- * **The start tag that OPENED each hole's script, as written** (a hole inside the tag as `\uFFFF`), read by THIS
- * tokenizer, never searched for — one entry per hole, dense: for hole `h`, the tag of the LAST static up to `h` that
- * opens a script still open at its end (`''` for none). That static's `>` is where its last raw content began
- * (`rawFrom`), and the tag began in that static (`tagAt`: nothing after the `>` is a tag, so the last tag begun there is
- * the script's) or in the earlier static it was left open in (`open`). ONE scan of the statics gives every hole's tag;
- * the function it replaced scanned from the template's start once per script hole, twice per static (2026-11-19). Cold:
- * `compile` asks it once per template, and only when a hole is in a script. Exported for its differential test only.
- *
- * The last script, never the first (2026-11-19): a static that closed one script and opened another
- * (`</script><script>`) kept the earlier script's tag, and a prefix search found a static's FIRST script, so a hole in a
- * code script after a JSON data block was judged by the data block's tag and served.
- */
-/**
  * The written form nearly every data block has, `<script type="…">` with nothing else in the tag and no `"` in the type,
  * answered directly — `dataBlock`'s own answer for that shape (its first attribute is that `type`), without its match,
  * which was a tenth of what 0.3.2's compile cost over 0.3.0's (2026-11-20). `undefined` for any other shape, which
@@ -328,6 +315,19 @@ const openingStep = (strings: readonly string[], j: number, state: ScanResult, t
   return track.found;
 };
 
+/**
+ * **The start tag that OPENED each hole's script, as written** (a hole inside the tag as `\uFFFF`), read by THIS
+ * tokenizer, never searched for — one entry per hole, dense: for hole `h`, the tag of the LAST static up to `h` that
+ * opens a script still open at its end (`''` for none). That static's `>` is where its last raw content began
+ * (`rawFrom`), and the tag began in that static (`tagAt`: nothing after the `>` is a tag, so the last tag begun there is
+ * the script's) or in the earlier static it was left open in (`open`). ONE scan of the statics gives every hole's tag;
+ * the function it replaced scanned from the template's start once per script hole, twice per static (2026-11-19). Cold:
+ * `compile` asks it once per template, and only when a hole is in a script. Exported for its differential test only.
+ *
+ * The last script, never the first (2026-11-19): a static that closed one script and opened another
+ * (`</script><script>`) kept the earlier script's tag, and a prefix search found a static's FIRST script, so a hole in a
+ * code script after a JSON data block was judged by the data block's tag and served.
+ */
 export const openingTags = (strings: readonly string[], depth: number): string[] => {
   const tags: string[] = [];
   const track: OpeningTrack = { from: 0, at: 0, found: '' };
@@ -779,10 +779,6 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   }
 
   /**
-   * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
-   * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
-   */
-  /**
    * **When a style value cannot take part in a closer formed across its hole** — read off the final statics, once
    * (2026-11-19). `styleHole` neutralizes a `</style` that overlaps the value in the window of the 6 characters written
    * before it, the value and the next static's first 6; it starts with its `</`, so with `p` the window position of its
@@ -798,7 +794,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     const before = parts[i]!;
     styleTails.push(raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6 ? 0 : parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1);
   }
-  /** Built in a loop, not `Array.from` with a callback: once per template, a callback per binding (2026-11-20). */
+  /**
+   * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
+   * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
+   * Built in a loop, not `Array.from` with a callback, which cost compile about a fifth of its time (2026-11-20).
+   */
   const denseDepths: number[] = [];
   const denseTexts: boolean[] = [];
   for (let i = 0; i < kinds.length; i++) {
