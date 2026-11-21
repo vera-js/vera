@@ -4,5 +4,6 @@
  */
 export type * from './types.js';
 export { define } from './define.js';
+export { isServer } from './isServer.js';
 export { signal } from './signal.js';
 export { html, mathml, svg } from './tags.js';

@@ -39,6 +39,9 @@ document.body.append(price);
 the component once, in a microtask, however many writes came first. A `signal` is the one store: shallow, read and
 written as `.value`, as in `@verajs/core`.
 
+**`isServer()`** is `true` while `@verajs/ssr` renders and `false` in a browser, as in `@verajs/core`: guard per-user
+state (storage, cookies, the viewport) with `if (!isServer()) …`, never `typeof localStorage` (a Node 26 server has one).
+
 **A render patches in place**, so focus, the caret, typed input and child components survive it. Lite binds text,
 attributes (whole or partial), `?bool`, `.prop`, `!live`, `@event` (or `onClick=${…}`, as in `@verajs/core`), nested
 templates and arrays (unkeyed: items are reused by position). The text of a `<title>`, `<textarea>` or `<style>` takes a value as TEXT, and so does a JSON data
