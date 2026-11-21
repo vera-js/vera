@@ -239,6 +239,15 @@ test('a label in a different root from the control is not wired', () => {
   if (!isProduction) assert.ok(said.some((m) => m.includes('labeled-cross-root')), said.join('\n'));
 });
 
+test('a part whose id holds whitespace is left out of the reference, and development says so by code', () => {
+  const doc = page('<label>A</label><input><p id="a b">h</p>');
+  const input = doc.querySelector('input');
+  const said = warnings(() => labeled(input, { host: doc.body, label: doc.querySelector('label'), hint: doc.querySelector('p') }));
+  assert.equal(doc.querySelector('p').id, 'a b', 'the id is the page\'s, kept');
+  assert.equal(input.hasAttribute('aria-describedby'), false, 'two tokens would reference two other elements');
+  if (!isProduction) assert.equal(said.filter((m) => m.includes('labeled-id-token')).length, 1, said.join('\n'));
+});
+
 test("inside a user's own shadow root, a label and control in that root are wired", () => {
   const doc = page('<div class="host"></div>');
   const root = doc.querySelector('.host').attachShadow({ mode: 'open' });

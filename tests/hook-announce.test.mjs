@@ -171,7 +171,7 @@ test('a key collapses announcements within one moment to the last', () => {
   assert.deepEqual(said(doc), ['1 character left']);
 });
 
-test('keyed writes 200 ms apart leave one node: each replaces its key's earlier message', () => {
+test("keyed writes 200 ms apart leave one node: each replaces its key's earlier message", () => {
   const { doc, advance } = page('<p>x</p>');
   const p = doc.querySelector('p');
   announce(p, 'other');
