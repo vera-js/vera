@@ -237,12 +237,25 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
    * A sheet constructed per adoption, in the element's OWN window: a root adopts only a sheet its document constructed,
    * so one sheet per class shared across documents would throw for a root in an iframe or a popped-out window.
    */
+  /**
+   * **The server's copy of this block in this shadow root** (`@verajs/ssr` serves it as `data-vm-sheet="light"`, with
+   * this exact text), replaced by the adopted sheet in the same task, so the root never has a frame without the block
+   * and never keeps two. Read once per class per root: the hoisted mark above returns before this for every later
+   * instance.
+   */
+  let served: Element | null = null;
+  if (root !== doc) {
+    const text = escapeStyleText(scoped);
+    const candidates = (root as ShadowRoot).querySelectorAll('style[data-vm-sheet="light"]');
+    for (let i = 0; i < candidates.length && served === null; i++) if (candidates[i].textContent === text) served = candidates[i];
+  }
   if (root.adoptedStyleSheets && view) {
     const sheet = new view.CSSStyleSheet();
     sheet.replaceSync(scoped);
     if (root !== doc) (sheet as unknown as Record<string, boolean>)[LIGHT] = (root as unknown as Record<string, boolean>)[LIGHT] = true;
     root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-  } else {
+    served?.remove();
+  } else if (served === null) {
     const styleElement = doc.createElement('style');
     styleElement.textContent = escapeStyleText(scoped);
     (root === doc ? doc.head : root).appendChild(styleElement);

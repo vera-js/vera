@@ -19,6 +19,9 @@ import { constructible, registry } from './registry.js';
 import { PROSE } from './diagnostics.js';
 import { once, ssrWarning } from './report.js';
 
+/** `@verajs/styles`' mark on a light child's sheet in a shadow root (see `styleTags`). */
+const LIGHT_SHEET = '_$veraLight$';
+
 /** A retained child: an element, a text node or a comment — the nodes a container keeps by reference. */
 type ChildShim = ElementShim | TextShim | CommentShim;
 
@@ -1490,9 +1493,16 @@ export class ShadowRootShim extends ContainerShim {
      * the browser, so the page changed appearance as it hydrated, in the one direction nothing
      * compares: markup, node identity and property values all matched.
      */
+    /**
+     * **A light child's block is marked `light`** (2026-11-21): `@verajs/styles` hoists a light component's
+     * `@scope (tag)` block into the shadow root that holds it, as a sheet carrying its `_$veraLight$` key (a protocol
+     * member: a string, so every copy of the module sees it). The client's hoist replaces exactly that served block
+     * with its adopted sheet, and the shell's own `data-vm-sheet="styles"` is never confused with it: one shared marker
+     * left the client a second copy of every light block, and a shell could read a light block as its own.
+     */
+    const light = (this._adopted ?? []).map((sheet) => (sheet as unknown as Record<string, unknown>)[LIGHT_SHEET] === true);
     return [...this._styles, ...sheets]
-      .filter(Boolean)
-      .map((css) => `<style data-vm-sheet="styles">${escapeStyleText(css)}</style>`)
+      .map((css, i) => (css ? `<style data-vm-sheet="${light[i - this._styles.length] ? 'light' : 'styles'}">${escapeStyleText(css)}</style>` : ''))
       .join('');
   }
 }

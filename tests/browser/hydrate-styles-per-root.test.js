@@ -4,8 +4,8 @@
  * defined, the LIGHT class first, so the light children upgrade inside the served roots before their shells hydrate
  * and the first shell (styled by a constructed sheet) writes its own list (the order that wiped a child's sheet before the shell kept the light ones). Each root
  * ends with exactly ONE copy of the light block, adopted there; the served nodes are the same nodes afterwards; every
- * instance is styled. (The server serves the block to the page `styles` today, not into the root: `@verajs/styles`'
- * README states it.)
+ * instance is styled. The server serves the block INTO each root, as `<style data-vm-sheet="light">`; the adopted
+ * sheet replaces exactly that served copy (a hoist that kept it read 2 copies per root: planted, red).
  */
 import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
@@ -35,6 +35,7 @@ describe('hydrating light components served inside shadow roots', () => {
     expect(!!shell.shadowRoot && !!shell2.shadowRoot, 'CONTROL: the declarative roots parsed').to.equal(true);
     const served = shell.shadowRoot.querySelector('ssr-root-light .mark');
     expect(!!served, 'CONTROL: the light child was served inside the root').to.equal(true);
+    expect(!!shell.shadowRoot.querySelector('style[data-vm-sheet="light"]'), 'CONTROL: its block was served inside the root').to.equal(true);
 
     define({ tag: 'ssr-root-light', styles: '.mark { color: rgb(200, 0, 0); }' }, () => () => html`<b class="mark">x</b>`);
     define({ tag: 'ssr-root-only', styles: '.only { color: rgb(0, 150, 0); }' }, () => () => html`<i class="only">o</i>`);
@@ -60,6 +61,7 @@ describe('hydrating light components served inside shadow roots', () => {
       only: copies(shell.shadowRoot, '@scope (ssr-root-only)'),
       shellOwn: copies(shell.shadowRoot, 'margin'),
     }).to.deep.equal({ shell: 1, shell2: 1, only: 1, shellOwn: 1 });
+    expect(shell.shadowRoot.querySelectorAll('style[data-vm-sheet="light"]').length + shell2.shadowRoot.querySelectorAll('style[data-vm-sheet="light"]').length, 'the served copies are the ones that went').to.equal(0);
     page.remove();
   });
 
