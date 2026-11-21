@@ -63,10 +63,10 @@ describe('labeled in a real engine', () => {
    * **The engines' rule, recorded (BROWSER-LEDGER, 2026-11-20 and 2026-11-21), keyed by engine and version** because it
    * moved: a control's `labels`, once read, was not updated in Firefox 153 (Playwright 1.62.1) when a label's `for` was
    * set to the control's id afterwards; Firefox 159 (Playwright 1.65.1), Chromium and WebKit update it, as the live NodeList
-   * the spec describes. Firefox 154–158 are unmeasured: `< 159` is the first version MEASURED live, not a known boundary,
-   * and this row only ever runs on the pinned builds. `labeled` compares each label's `for` either way (an older Firefox,
-   * and the server DOM, which has no `labels`). When a browser bump changes the answer, this row goes red: measure, then
-   * update the table and the ledger entry together.
+   * the spec describes. Firefox 154–158 are unmeasured: 159 is the first version MEASURED live (the key is `< 159`),
+   * not a known boundary, and this row only ever runs on the pinned builds. `labeled` compares each label's `for` either
+   * way (an older Firefox, and the server DOM, which has no `labels`). When a browser bump changes the answer, this row
+   * goes red: measure, then update the table and the ledger entry together.
    */
   it('ENGINE RULE: a labels list read before the for is set is live, except in Firefox 153', () => {
     expect(ENGINE, `user agent: ${navigator.userAgent}`).to.not.equal(null);
