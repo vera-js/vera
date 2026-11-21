@@ -12,13 +12,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { oneShotTypescript } from '../defaultRollupConfig.js';
 
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** The programs a watch program creates when one of its files changes just before it is closed. */
@@ -85,4 +86,22 @@ test('rollup watch mode keeps the real TypeScript, rebuilds included', () => {
   assert.notEqual(oneShotTypescript, ts, 'this run is not in watch mode, so it gets the one-shot copy');
   assert.equal(typeof oneShotTypescript.sys.setTimeout, 'undefined');
   assert.equal(oneShotTypescript.createWatchProgram, ts.createWatchProgram, 'everything else is the real TypeScript');
+});
+
+/**
+ * **The fix reaches every package because every package builds through defaultRollupConfig.** A package config that
+ * made its own @rollup/plugin-typescript would build with the plain TypeScript and could hang again, so each one must
+ * import the shared config and none may import the plugin itself.
+ */
+test('every package builds through defaultRollupConfig, and none creates the TypeScript plugin itself', () => {
+  const configs = globSync('packages/**/rollup.config.{js,mjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') });
+  assert.ok(configs.length >= 18, `CONTROL: ${configs.length} package configs read (ssr compiles with tsc and has none)`);
+  const shared = /from\s+['"](?:\.\.\/)+defaultRollupConfig\.js['"]/;
+  const own = /['"]@rollup\/plugin-typescript['"]/;
+  const bad = configs.filter((file) => {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    return !shared.test(text) || own.test(text);
+  });
+  assert.deepEqual(bad, [], 'build through defaultRollupConfig');
+  assert.ok(own.test("import typescript from '@rollup/plugin-typescript';") && !shared.test("import x from './other.js';"), 'CONTROL: both patterns fire (planted)');
 });
