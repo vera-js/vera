@@ -189,6 +189,12 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
           composite: false,
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
+          /**
+           * The root tsconfig allows `.ts` imports for examples/npm-ts (with `noEmit`, which only a type check can use),
+           * and the plugin emits, so every build carried TS5096. An options diagnostic makes TypeScript skip every
+           * semantic one, so no build reported a type error. No package source imports a `.ts` path.
+           */
+          allowImportingTsExtensions: false,
         },
       }),
       minified &&

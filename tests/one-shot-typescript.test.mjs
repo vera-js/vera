@@ -68,17 +68,20 @@ test('defaultRollupConfig hands @rollup/plugin-typescript the one-shot TypeScrip
   /** A package build runs in its package (the config reads the version from its package.json), so this one does too. */
   const before = process.cwd();
   let calls = 0;
+  const warnings = [];
   const real = oneShotTypescript.createWatchProgram;
   Object.defineProperty(oneShotTypescript, 'createWatchProgram', { configurable: true, value: (host) => (calls++, real(host)) });
   try {
     process.chdir(fileURLToPath(new URL('../packages/inserts/', import.meta.url)));
-    const bundle = await rollup({ ...defaultRollupConfig('one-shot-wiring', []), onwarn: () => {} });
+    const bundle = await rollup({ ...defaultRollupConfig('one-shot-wiring', []), onwarn: (warning) => warnings.push(String(warning.message)) });
     await bundle.close();
   } finally {
     process.chdir(before);
     delete oneShotTypescript.createWatchProgram;
   }
   assert.equal(calls, 1, 'the plugin built its program through the one-shot TypeScript');
+  /** An options diagnostic (TS5096 was every build's) makes TypeScript skip every type error, so none may appear. */
+  assert.deepEqual(warnings.filter((w) => /TS5\d{3}/.test(w)), [], 'no options diagnostic hides the type errors');
   assert.equal(oneShotTypescript.createWatchProgram, ts.createWatchProgram, 'the spy is gone');
 });
 
