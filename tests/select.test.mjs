@@ -490,6 +490,24 @@ test('vera-option: rich rows — icon cloned in (light DOM untouched), descripti
   element.remove();
 });
 
+test('vera-option: a slotted child from ANOTHER realm (an iframe, a popped-out window) is read by its slot, not as label text', async () => {
+  /** A second JSDOM is a second realm: its nodes are instances of ITS Element, never of this page's global one. */
+  const other = new JSDOM('<!doctype html><body></body>').window.document;
+  const element = dom.window.document.createElement('vera-select');
+  element.innerHTML = '<vera-option value="pistachio">Pistachio</vera-option>';
+  const foreign = other.createElement('span');
+  foreign.setAttribute('slot', 'description');
+  foreign.textContent = 'polarizing, correctly';
+  element.querySelector('vera-option').append(foreign);
+  assert.equal(foreign instanceof dom.window.Element, false, 'CONTROL: the child really is from another realm');
+  dom.window.document.body.append(element);
+  await frame();
+  const [option] = element.options;
+  assert.equal(option.label, 'Pistachio', 'the description is not pasted into the label');
+  assert.equal(option.description, 'polarizing, correctly');
+  element.remove();
+});
+
 test('precedence: HTML seeds, property wins — and permanently retires the markup as source', async () => {
   const element = dom.window.document.createElement('vera-select');
   element.innerHTML = '<option value="from-html">From HTML</option>';

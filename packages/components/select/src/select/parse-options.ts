@@ -48,7 +48,9 @@ const optionFrom = (node: Element, group: string | null): SelectOption | null =>
       /** Comments are not content: Comment.textContent is its data, and an authored
        *  <!-- note --> polluted the label (measured). Text and elements only. */
       if (child.nodeType !== 1 && child.nodeType !== 3) continue;
-      const slot = child instanceof Element ? child.getAttribute('slot') : null;
+      /** By structure, not `instanceof Element`: a child from another realm (an iframe, a popped-out window) is never
+       *  an instance of this module's global class, so its slot was ignored and its text pasted into the label. */
+      const slot = child.nodeType === 1 ? (child as Element).getAttribute('slot') : null;
       if (slot === 'icon') option.iconBefore = child.cloneNode(true);
       else if (slot === 'icon-after') option.iconAfter = child.cloneNode(true);
       else if (slot === 'description') option.description = child.textContent?.trim() ?? '';
