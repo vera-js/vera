@@ -3,6 +3,7 @@ import * as liteDev from '../../packages/lite/dist/development/vera-lite.js';
 import * as liteMin from '../../packages/lite/dist/vera-lite.min.js';
 import * as core from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { failedLoad } from './until.js';
 
 core.wire([renderer]);
 
@@ -91,7 +92,7 @@ for (const [name, { define, html, mathml, signal, svg }] of Object.entries(TIERS
     expect(el.querySelector('style').textContent).to.equal(`:host{--x:${attack('style').replace('</', '<\\/')}}`);
     expect(el.querySelector('script').textContent).to.equal(attack('script').replace(/</g, '\\u003c'));
     expect(el.querySelectorAll('img').length).to.equal(0);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await failedLoad();
     expect(window.zqRan).to.equal(0);
     el.remove();
   });
@@ -131,7 +132,7 @@ for (const [name, { define, html, mathml, signal, svg }] of Object.entries(TIERS
     expect(title.namespaceURI === SVG && title.textContent === attack('title')).to.equal(true);
     expect(el.querySelector('svg style').textContent).to.equal(`.a{--x:${attack('style')}}`);
     expect(el.querySelectorAll('img').length).to.equal(0);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await failedLoad();
     expect(window.zqRan).to.equal(0);
     el.remove();
   });

@@ -5,6 +5,7 @@ import * as coreMin from '../../packages/core/dist/vera.min.js';
 import { renderer as rendererMin, renderInto as renderIntoMin } from '../../packages/renderer/dist/vera-renderer.min.js';
 import * as lite from '../../packages/lite/dist/vera-lite.min.js';
 import * as staticTier from '../../packages/static/dist/vera-static.min.js';
+import { frames } from './until.js';
 
 coreDev.wire([rendererDev]);
 coreMin.wire([rendererMin]);
@@ -62,7 +63,12 @@ for (const [name, attempt] of Object.entries(TIERS))
     } catch {
       refused = true;
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    /**
+     * A script element runs as it is inserted, synchronously (the CONTROL reads its count on the next line), so a
+     * script any part of the attempt inserted has already run; a frame covers a render the tier deferred to one. A
+     * 50 ms sleep added nothing to either and read as a wait for something that could arrive late.
+     */
+    await frames(1);
     expect(refused, `${name}: refused`).to.equal(true);
     expect(window.svgHole, `${name}: the SVG script ran`).to.equal(0);
     host.remove();

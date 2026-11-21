@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import * as coreMin from '../../packages/core/dist/vera.min.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/vera-renderer.min.js';
-import { until } from './until.js';
+import { failedLoad, until } from './until.js';
 
 coreMin.wire([renderer]);
 
@@ -28,18 +28,9 @@ const SIDES = {
 /**
  * **Waited for, never timed** (2026-11-20): a fixed 200 ms was shorter than a loaded machine takes to fail the fetch, so
  * Firefox on Windows read the control's handler as not run, and the late event landed in the next row as "a handler
- * ran". The control waits for its own handler; each refusal row waits for a live SENTINEL with the same `src=x`, whose
+ * ran". The control waits for its own handler; each refusal row waits for a live SENTINEL (`failedLoad`) with the same `src=x`, whose
  * error comes from the same failed fetch, so by the time it fires a live planted handler would have fired too.
  */
-const sentinel = async () => {
-  window.sentinel = 0;
-  const img = document.body.appendChild(document.createElement('img'));
-  img.setAttribute('onerror', 'window.sentinel++');
-  img.src = 'x';
-  const fired = await until(() => window.sentinel === 1, "() => window.sentinel === 1", 5000);
-  img.remove();
-  return fired;
-};
 
 it('CONTROL: a handler parsed into this document runs, so a silence below means it was kept from running', async () => {
   window.neverShown = 0;
@@ -59,7 +50,7 @@ for (const [side, draw] of Object.entries(SIDES))
       expect(host.querySelectorAll('img').length === 0 || name === 'noscript attribute', `${name}: no img element: ${saved}`).to.equal(true);
       host.remove();
     }
-    expect(await sentinel(), 'the sentinel fired, so a live handler would have too').to.equal(true);
+    await failedLoad();
     expect(window.neverShown, 'a handler ran').to.equal(0);
   });
 

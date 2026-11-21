@@ -14,12 +14,21 @@ import { until } from './until.js';
  */
 
 const entry = new URL('./fixtures/autoloader/live/entry.js', import.meta.url).href;
-const autoload = autoloader(entry, '.');
+/**
+ * **What the autoloader asked for**, read through its own `resolve` option (the default's URLs): a row that says nothing
+ * loaded YET reads `asked` once the work that would have asked is done, instead of sleeping 300 ms and reading
+ * `customElements.get`, which proved nothing about a load a busy machine delivers late. The ask is synchronous in the
+ * scan; a scan follows a render or a mutation-observer delivery, both done by the next task.
+ */
+const asked = [];
+const autoload = autoloader(entry, '.', { resolve: (tag, dir) => (asked.push(tag), `${dir}/${tag}.js`) });
+
+/** A macrotask: every mutation-observer delivery and microtask queued before it has run. Not a time. */
+const task = () => new Promise((r) => setTimeout(r, 0));
 
 wire({ on: 'render', fn: renderer, priority: 50 });
 wire(autoload);
 
-const settle = () => new Promise((r) => setTimeout(r, 300));
 
 it('a real component renders a lazy child, and the child loads and upgrades', async () => {
   customElements.define(
@@ -67,8 +76,9 @@ it('a lazy child appearing on a later render is found too', async () => {
 
   const host = document.createElement('toggle-host');
   document.body.appendChild(host);
-  await settle();
-  expect(customElements.get('nested-grandchild'), 'nothing to find yet').to.equal(undefined);
+  await until(() => host.shadowRoot?.querySelector('div'), 'the first render', 4000);
+  await task();
+  expect(asked.includes('nested-grandchild'), 'nothing to find yet').to.equal(false);
 
   state.show = true;
   await until(() => customElements.get('nested-grandchild'), "() => customElements.get('nested-grandchild')", 4000);
@@ -92,9 +102,11 @@ it('marking a shadow host later reaches inside its shadow root', async () => {
   const inner = document.createElement('div');
   outer.appendChild(inner);
   inner.attachShadow({ mode: 'open' }).innerHTML = '<attr-late></attr-late>';
-  await settle();
-  expect(customElements.get('attr-late'), 'an observer cannot see into a shadow root')
-    .to.equal(undefined);
+  /** CONTROL: a tag in outer's light DOM, added after the shadow root was filled, is asked for in the same delivery. */
+  outer.append(document.createElement('ctl-outer'));
+  await task();
+  expect(asked.includes('ctl-outer'), 'CONTROL: the observer delivered').to.equal(true);
+  expect(asked.includes('attr-late'), 'an observer cannot see into a shadow root').to.equal(false);
 
   inner.setAttribute('data-autoload', '');
   await until(() => customElements.get('attr-late'), "() => customElements.get('attr-late')", 4000);
@@ -125,11 +137,11 @@ it('repointing data-autoload-dir after a failure tries the new location', async 
 it('lifting data-autoload-ignore lets an element load', async () => {
   const host = document.createElement('div');
   host.setAttribute('data-autoload', '');
-  host.innerHTML = '<ignored-then-not data-autoload-ignore></ignored-then-not>';
+  host.innerHTML = '<ignored-then-not data-autoload-ignore></ignored-then-not><ctl-ignored></ctl-ignored>';
   document.body.appendChild(host);
   autoload(host);
-  await settle();
-  expect(customElements.get('ignored-then-not'), 'opted out').to.equal(undefined);
+  expect(asked.includes('ctl-ignored'), 'CONTROL: the same scan asked for its sibling').to.equal(true);
+  expect(asked.includes('ignored-then-not'), 'opted out').to.equal(false);
 
   host.querySelector('ignored-then-not').removeAttribute('data-autoload-ignore');
   await until(() => customElements.get('ignored-then-not'), "() => customElements.get('ignored-then-not')", 4000);

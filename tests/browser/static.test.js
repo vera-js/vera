@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import * as staticDev from '../../packages/static/dist/development/vera-static.js';
 import * as staticMin from '../../packages/static/dist/vera-static.min.js';
 import { activate, settled, stateOf } from '../../packages/directives/dist/vera-directives-standalone.min.js';
+import { failedLoad } from './until.js';
 
 /**
  * **`@verajs/static` in real engines**, both builds (2026-11-18): the engine's own reading of what static writes — a
@@ -29,7 +30,7 @@ for (const [name, { define, html, svg, mathml }] of Object.entries(TIERS)) {
     expect(el.querySelector('circle').namespaceURI).to.equal('http://www.w3.org/2000/svg');
     expect(el.querySelector('circle').getAttribute('r'), 'no slash taken').to.equal('5');
     expect(el.querySelector('mi').namespaceURI).to.equal('http://www.w3.org/1998/Math/MathML');
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await failedLoad();
     expect(window.zqStatic).to.equal(0);
     el.remove();
   });

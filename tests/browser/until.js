@@ -62,3 +62,28 @@ export const frames = (count = 1) =>
     const step = (left) => (left === 0 ? resolve() : requestAnimationFrame(() => step(left - 1)));
     step(count);
   });
+
+/**
+ * **The barrier for "no handler ran"**: resolves once a LIVE `<img src=x onerror>` in `doc` has run its attribute
+ * handler, the same kind of handler a refused value would carry, its error coming from the same failed fetch of `x`. By
+ * then a live planted handler fetching the same `src` would have run too, so a count of zero read after it means
+ * something. A fixed sleep meant nothing: a loaded Firefox on Windows took longer than 200 ms to fail that fetch, read
+ * a control's handler as not run, and the late event landed in the next row (never-shown, 2026-11-20). Bounded at
+ * 5000 ms, past which it throws: a sentinel that never fired proves nothing, so the row fails rather than passes.
+ *
+ * @param {Document} doc the document whose parser and fetch the row is about (an iframe's, for a row in one)
+ */
+export const failedLoad = async (doc = document) => {
+  const win = doc.defaultView;
+  const key = `__failedLoad${Math.random().toString(36).slice(2)}`;
+  win[key] = 0;
+  const img = doc.body.appendChild(doc.createElement('img'));
+  img.setAttribute('onerror', `window.${key}++`);
+  img.src = 'x';
+  try {
+    await until(() => win[key] === 1, 'a live <img src=x onerror> sentinel to run its handler', 5000);
+  } finally {
+    img.remove();
+    delete win[key];
+  }
+};

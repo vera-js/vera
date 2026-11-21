@@ -20,8 +20,21 @@ const entry = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
  * Firefox roughly half the time when all three browsers ran together.
  */
 
-/** For asserting that nothing happens, where there is no positive signal to wait for. */
-const settle = () => new Promise((r) => setTimeout(r, 300));
+/**
+ * **What the autoloader asked for**, read through its own `resolve` option (same URLs as the default): a row that says
+ * nothing loaded reads `asked` at once, after the synchronous call that would have asked, instead of sleeping 300 ms
+ * and reading `customElements.get`. A fixed sleep proved nothing about a load a busy machine delivers late, and two of
+ * those tags (`skipped-widget`, `unscanned-widget`) have no module at all, so a wrong load would only have 404ed and
+ * the row could not fail. Each row also asks for a control in the same call, so an empty answer is never a recorder
+ * that saw nothing.
+ */
+const recorder = () => {
+  const asked = [];
+  return { asked, resolve: (tag, dir) => (asked.push(`${dir}/${tag}`), `${dir}/${tag}.js`) };
+};
+
+/** A macrotask: every mutation-observer delivery queued before it has run. Not a time. */
+const task = () => new Promise((r) => setTimeout(r, 0));
 
 const host = (html) => {
   const element = document.createElement('div');
@@ -79,21 +92,32 @@ it('data-autoload-dir moves one element to another directory inside the base', a
 });
 
 it('an element marked data-autoload-ignore is left alone', async () => {
-  const element = host('<skipped-widget data-autoload-ignore></skipped-widget>');
-  autoloader(entry, 'components')(element);
-  await settle();
-  expect(customElements.get('skipped-widget')).to.equal(undefined);
+  const { asked, resolve } = recorder();
+  const element = host('<skipped-widget data-autoload-ignore></skipped-widget><ctl-ignore></ctl-ignore>');
+  autoloader(entry, 'components', { resolve })(element);
+  expect(asked, 'the same scan asked for the control and not for the ignored element').to.deep.equal(['components/ctl-ignore']);
+  await until(() => customElements.get('ctl-ignore'), 'the control loaded', 4000);
   element.remove();
 });
 
 it('a host without the autoloader attribute is never watched', async () => {
+  const { asked, resolve } = recorder();
+  const autoload = autoloader(entry, 'components', { resolve });
   const element = document.createElement('div');
   element.innerHTML = '<unscanned-widget></unscanned-widget>';
   document.body.appendChild(element);
-  autoloader(entry, 'components')(element);
-  await settle();
-  expect(customElements.get('unscanned-widget')).to.equal(undefined);
+  autoload(element);
+  expect(asked, 'not scanned').to.deep.equal([]);
+  /** Not observed either: one observer serves every root, so the marked control's later record is delivered after the unmarked one's. */
+  const marked = host();
+  autoload(marked);
+  element.append(document.createElement('unscanned-late'));
+  marked.append(document.createElement('ctl-unscanned'));
+  await task();
+  expect(asked, 'only the control, in the marked host').to.deep.equal(['components/ctl-unscanned']);
+  await until(() => customElements.get('ctl-unscanned'), 'the control loaded', 4000);
   element.remove();
+  marked.remove();
 });
 
 /* ── the holes the rescan model could not close ──────────────────────────────────────────────── */
@@ -104,7 +128,7 @@ it('a host without the autoloader attribute is never watched', async () => {
 it('finds an element inserted after discovery was set up', async () => {
   const element = host();
   autoloader(entry, 'components')(element);
-  await settle();
+  await task();
   /** Nothing renders here — this is what any third-party widget or innerHTML call looks like. */
   element.innerHTML = '<late-arrival-widget></late-arrival-widget>';
   await until(() => customElements.get('late-arrival-widget'), "() => customElements.get('late-arrival-widget')", 4000);
@@ -115,7 +139,7 @@ it('finds an element inserted after discovery was set up', async () => {
 it('finds an element that arrives inside a whole subtree at once', async () => {
   const element = host();
   autoloader(entry, 'components')(element);
-  await settle();
+  await task();
   element.innerHTML = '<section><div><deep-arrival-widget></deep-arrival-widget></div></section>';
   await until(() => customElements.get('deep-arrival-widget'), "() => customElements.get('deep-arrival-widget')", 4000);
   expect(customElements.get('deep-arrival-widget'), 'a subtree arrives as one added node')
@@ -124,14 +148,15 @@ it('finds an element that arrives inside a whole subtree at once', async () => {
 });
 
 it('autoload() finds markup it was never handed, and only when asked', async () => {
+  const { asked, resolve } = recorder();
   const element = host('<static-widget></static-widget>');
-  const autoload = autoloader(entry, 'components');
-  await settle();
-  expect(customElements.get('static-widget'), 'creating an autoloader touches nothing')
-    .to.equal(undefined);
+  const autoload = autoloader(entry, 'components', { resolve });
+  await task();
+  expect(asked, 'creating an autoloader touches nothing').to.deep.equal([]);
 
-  /** No element passed: the whole page, right now. */
+  /** No element passed: the whole page, right now. The ask is synchronous, so it is also the control for the read above. */
   autoload();
+  expect(asked).to.deep.equal(['components/static-widget']);
   await until(() => customElements.get('static-widget'), "() => customElements.get('static-widget')", 4000);
   expect(customElements.get('static-widget'), 'static markup loads with no render involved')
     .to.be.a('function');
@@ -148,10 +173,12 @@ it('does not fetch a second directory for a tag already being loaded', async () 
   const failures = [];
   const original = console.error;
   console.error = (...args) => failures.push(args.join(' '));
+  const { asked, resolve } = recorder();
   const element = host('<dual-widget></dual-widget><dual-widget data-autoload-dir="alt"></dual-widget>');
-  autoloader(entry, 'components')(element);
+  autoloader(entry, 'components', { resolve })(element);
+  /** The only way to a duplicate define is a second import, and the scan that would ask for it is synchronous. */
+  expect(asked, 'one directory asked, the first').to.deep.equal(['components/dual-widget']);
   await until(() => customElements.get('dual-widget'), "() => customElements.get('dual-widget')", 4000);
-  await settle();
   console.error = original;
 
   expect(customElements.get('dual-widget')).to.be.a('function');
@@ -167,7 +194,7 @@ it('dispatches vera:autoload-error when a component never arrives', async () => 
   const seen = [];
   element.addEventListener('vera:autoload-error', (event) => seen.push(event.detail));
   autoloader(entry, 'components')(element);
-  await settle();
+  await task();
   element.innerHTML = '<never-shipped-widget></never-shipped-widget>';
   await until(() => seen.length > 0, "() => seen.length > 0", 4000);
   console.error = original;
@@ -210,8 +237,12 @@ it('url() is the URL the loader will ask for, and warming it works', async () =>
   const link = document.createElement('link');
   link.rel = 'modulepreload';
   link.href = href;
-  document.head.appendChild(link);
-  await settle();
+  /** The fetch has finished (its load event), so a preload that evaluated would have defined the tag by now. */
+  await new Promise((done, fail) => {
+    link.onload = done;
+    link.onerror = () => fail(new Error(`modulepreload of ${href} failed`));
+    document.head.appendChild(link);
+  });
   expect(customElements.get('preloaded-widget'), 'warming must not define it').to.equal(undefined);
 
   const element = host('<preloaded-widget></preloaded-widget>');
@@ -247,7 +278,7 @@ it('retry takes the element the error handed you, and tries it again', async () 
   const working = autoloader(entry, 'components');
   const other = host('<flaky-widget></flaky-widget>');
   working(other);
-  await settle();
+  await task();
   console.error = original;
 
   /** Without retry the tag stays memoized as failed on the first autoloader. */
@@ -269,12 +300,15 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
   const root = outsider.attachShadow({ mode: 'open' });
   root.innerHTML = '<shadowed-widget></shadowed-widget>';
 
-  const autoload = autoloader(entry, 'components');
+  const { asked, resolve } = recorder();
+  const autoload = autoloader(entry, 'components', { resolve });
   autoload(outsider);
-  await settle();
-  expect(customElements.get('shadowed-widget'), 'the host never opted in').to.equal(undefined);
+  await task();
+  expect(asked, 'the host never opted in').to.deep.equal([]);
 
+  /** The ask is synchronous, so it is also the control for the read above. */
   autoload(root);
+  expect(asked).to.deep.equal(['components/shadowed-widget']);
   await until(() => customElements.get('shadowed-widget'), "() => customElements.get('shadowed-widget')", 4000);
   expect(customElements.get('shadowed-widget'), 'handing over the root is the opt-in').to.be.a('function');
   outsider.remove();
