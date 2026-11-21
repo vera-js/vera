@@ -1,7 +1,7 @@
-/** The vocabulary of `labelled`. */
+/** The vocabulary of `labeled`. */
 
 /**
- * The parts `labelled` wires to a control. Every part is optional, and each is an element the caller already holds:
+ * The parts `labeled` wires to a control. Every part is optional, and each is an element the caller already holds:
  * the hook never creates, moves or writes text into one.
  */
 export type LabelledParts = {
@@ -21,7 +21,7 @@ export type LabelledParts = {
 };
 
 /**
- * What `labelled` hands back. A caller that does not own the control (a farther caller, see `LabelledParts.host`) gets
+ * What `labeled` hands back. A caller that does not own the control (a farther caller, see `LabelledParts.host`) gets
  * a handle that owns nothing: both calls do nothing.
  */
 export type LabelledWiring = {

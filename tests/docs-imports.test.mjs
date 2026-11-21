@@ -29,7 +29,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 const PACKAGES = {
   '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
   '@vera-hooks/listbox': 'vera-hooks/listbox',
-  '@vera-hooks/labelled': 'vera-hooks/labelled',
+  '@vera-hooks/labeled': 'vera-hooks/labeled',
   '@vera-hooks/roving-focus': 'vera-hooks/roving-focus',
   '@vera-hooks/announce': 'vera-hooks/announce',
   '@verajs/core': 'core',

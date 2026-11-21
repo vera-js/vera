@@ -54,7 +54,7 @@
         "./packages/hooks/light-dismiss:build",
         "./packages/hooks/listbox:build",
         "./packages/components/select:build",
-        "./packages/hooks/labelled:build",
+        "./packages/hooks/labeled:build",
         "./packages/hooks/roving-focus:build",
         "./packages/hooks/announce:build",
         "./packages/shared-types:build",

@@ -2,7 +2,7 @@
   "url": "https://verajs.dev/e/",
   "entries": [
     {
-      "code": "labelled-cross-root",
+      "code": "labeled-cross-root",
       "params": [
         "part"
       ],
@@ -10,18 +10,18 @@
       "fix": "Put the part and the control in the same root."
     },
     {
-      "code": "labelled-id-token",
+      "code": "labeled-id-token",
       "params": [
         "part"
       ],
       "message": "its {part}'s id holds whitespace, so it cannot be one token of aria-describedby or aria-labelledby, and was left out.",
-      "fix": "Give the part an id without spaces, or none and labelled will give it one."
+      "fix": "Give the part an id without spaces, or none and labeled will give it one."
     },
     {
-      "code": "labelled-unnamed",
+      "code": "labeled-unnamed",
       "params": [],
       "message": "the control has no accessible name after wiring: no label, no wrapping <label>, and no aria-label, aria-labelledby or title.",
-      "fix": "Hand labelled a label, or name the control yourself."
+      "fix": "Hand labeled a label, or name the control yourself."
     }
   ]
 }

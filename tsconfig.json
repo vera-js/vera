@@ -30,8 +30,8 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
-      "@vera-hooks/labelled": [
-        "./packages/hooks/labelled/src/index.ts"
+      "@vera-hooks/labeled": [
+        "./packages/hooks/labeled/src/index.ts"
       ],
       "@vera-hooks/roving-focus/internal": [
         "./packages/hooks/roving-focus/src/internal.ts"

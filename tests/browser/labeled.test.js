@@ -1,6 +1,6 @@
 /**
- * **What `labelled` writes, as the browser reads it**: the accessible name and description each engine computes, a
- * label click focusing its control, and axe-core over every state. The jsdom suites (`tests/hook-labelled*.test.mjs`)
+ * **What `labeled` writes, as the browser reads it**: the accessible name and description each engine computes, a
+ * label click focusing its control, and axe-core over every state. The jsdom suites (`tests/hook-labeled*.test.mjs`)
  * hold what the hook WRITES; only a real engine says what those writes MEAN, so these rows are the oracle for that half.
  *
  * Correctness only. These run headless, which is fine for what a page computes and wrong for anything timed: never
@@ -15,7 +15,7 @@
  * (`label`, `aria-input-field-name`), each with a control that axe reports the unwired case.
  */
 import { expect } from '@esm-bundle/chai';
-import { labelled } from '../../packages/hooks/labelled/dist/development/vera-labelled.js';
+import { labeled } from '../../packages/hooks/labeled/dist/development/vera-labeled.js';
 
 await new Promise((resolve, reject) => {
   const script = document.createElement('script');
@@ -42,17 +42,17 @@ const audit = async () => {
 };
 
 
-describe('labelled in a real engine', () => {
+describe('labeled in a real engine', () => {
   it('a label click focuses the wired control', () => {
     const q = mount('<label>Email</label><input>');
-    labelled(q('input'), { host: fixture, label: q('label') });
+    labeled(q('input'), { host: fixture, label: q('label') });
     q('label').click();
     expect(document.activeElement === q('input')).to.equal(true);
   });
 
   it('the engine associates the label with the control (control.labels)', () => {
     const q = mount('<label>Email</label><input class="wired"><input class="bare">');
-    labelled(q('.wired'), { host: fixture, label: q('label') });
+    labeled(q('.wired'), { host: fixture, label: q('label') });
     /** Read only AFTER wiring: Firefox never updates a `labels` list read before the `for` was set (the row below). */
     expect([...q('.wired').labels].includes(q('label'))).to.equal(true);
     expect(q('.bare').labels.length, 'CONTROL: the unwired input has no label').to.equal(0);
@@ -62,7 +62,7 @@ describe('labelled in a real engine', () => {
    * **The engines' rule, recorded (BROWSER-LEDGER, 2026-11-20):** a control's `labels`, once read, is not updated in
    * Firefox when a label's `for` is set to the control's id afterwards; Chromium and WebKit update it, as the live
    * NodeList the spec describes. The label still works in Firefox (a click focuses the control; the row above). So code
-   * must never decide "is this control labelled" from a `labels` it may have read earlier; `labelled` compares each
+   * must never decide "is this control labeled" from a `labels` it may have read earlier; `labeled` compares each
    * label's `for` instead. If this row fails on Firefox, the engine changed: update the ledger, not the assertion.
    */
   it('ENGINE RULE: a labels list read before the for is set is stale in Firefox only', () => {
@@ -79,13 +79,13 @@ describe('labelled in a real engine', () => {
     const q = mount('<label>Fruit</label><div role="combobox" tabindex="0" aria-expanded="false" aria-controls="lb"></div><div id="lb" role="listbox"></div>');
     /** CONTROL: unwired, axe reports the unnamed combobox. */
     expect((await audit()).some((line) => line.startsWith('aria-input-field-name:')), 'axe reports the unnamed combobox').to.equal(true);
-    labelled(q('[role="combobox"]'), { host: fixture, label: q('label') });
+    labeled(q('[role="combobox"]'), { host: fixture, label: q('label') });
     expect(await audit()).to.deep.equal([]);
   });
 
   it('axe finds nothing wired, with an error shown, and after release', async () => {
     const q = mount('<label>Name</label><input><p class="hint">Your full name</p><p class="error" hidden>Required</p>');
-    const wiring = labelled(q('input'), { host: fixture, label: q('label'), hint: q('.hint'), errors: [q('.error')] });
+    const wiring = labeled(q('input'), { host: fixture, label: q('label'), hint: q('.hint'), errors: [q('.error')] });
     expect(await audit(), 'wired').to.deep.equal([]);
     q('.error').hidden = false;
     wiring.show(q('.error'));

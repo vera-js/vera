@@ -1,5 +1,5 @@
 /**
- * **`labelled`: a control's name, description and error, through the platform's own id references.**
+ * **`labeled`: a control's name, description and error, through the platform's own id references.**
  *
  * The control is named by `label[for]` when it is labelable (a native control or a form-associated host), and by
  * `aria-labelledby` otherwise, because `for` names nothing else. Hint and count are always in `aria-describedby`; an
@@ -29,11 +29,11 @@ const uid: { n: number } = ((globalThis as Record<symbol, unknown>)[Symbol.for('
  * it, and whether it was already warned about, or each copy would wire, number and warn on its own.
  */
 /** On a wired control: its owner's host and release, so a nearer caller can take over and a farther one stands aside. */
-const OWNER = Symbol.for('vera.labelled');
+const OWNER = Symbol.for('vera.labeled');
 /** On an element this hook gave an id: that id, so a re-wire (a takeover, a second wiring) gives it the same one back. */
 const GIVEN = Symbol.for('vera.uid.given');
 /** On a control the unnamed warning was printed for, so it prints once per control. Development only. */
-const WARNED = Symbol.for('vera.labelled.warned');
+const WARNED = Symbol.for('vera.labeled.warned');
 
 type Owner = { host: Element; release: () => void };
 type Marked = Element & { [OWNER]?: Owner; [GIVEN]?: string; [WARNED]?: true };
@@ -89,7 +89,7 @@ const taken = (root: Node, id: string): boolean => {
  * Whether a control has an accessible name by one of the shapes this hook can see. The rest are never judged.
  *
  * A `label[for]` is found by comparing each label's `for` with the id, not through `control.labels`: the server's DOM has
- * no `labels`, and it warned about every labelled control rendered there (a jsdom/ssr differential, 2026-11-20). One
+ * no `labels`, and it warned about every labeled control rendered there (a jsdom/ssr differential, 2026-11-20). One
  * comparison also needs no selector escaping for a hostile id.
  */
 const named = (control: Element, root: Node): boolean =>
@@ -103,7 +103,7 @@ const named = (control: Element, root: Node): boolean =>
  * @param parts The calling component's host and the parts to wire; each is optional but `host`.
  * @return `show` and `release`, or a handle that owns nothing when a nearer caller already wired the control.
  */
-export const labelled = (control: Element, parts: LabelledParts): LabelledWiring => {
+export const labeled = (control: Element, parts: LabelledParts): LabelledWiring => {
   const marked = control as Marked;
   const { host } = parts;
   const owner = marked[OWNER];
@@ -172,14 +172,14 @@ export const labelled = (control: Element, parts: LabelledParts): LabelledWiring
   /** Whether `part` can be referenced from the control; development says why not when it cannot. */
   const reachable = (part: Element, what: string): boolean => {
     if (part.getRootNode() === root) return true;
-    if (__DEV__) console.warn(diagnostic('labelled', subject, 'labelled-cross-root', __DEV__ && PROSE['labelled-cross-root'](what)));
+    if (__DEV__) console.warn(diagnostic('labeled', subject, 'labeled-cross-root', __DEV__ && PROSE['labeled-cross-root'](what)));
     return false;
   };
   /** `part`'s id as one idref token, or null (development saying why) when its own id holds whitespace. */
   const tokenOf = (part: Element, what: string): string | null => {
     const id = idOf(part);
     if (!spaced(id)) return id;
-    if (__DEV__) console.warn(diagnostic('labelled', subject, 'labelled-id-token', __DEV__ && PROSE['labelled-id-token'](what)));
+    if (__DEV__) console.warn(diagnostic('labeled', subject, 'labeled-id-token', __DEV__ && PROSE['labeled-id-token'](what)));
     return null;
   };
 
@@ -217,7 +217,7 @@ export const labelled = (control: Element, parts: LabelledParts): LabelledWiring
 
   if (__DEV__ && !named(control, root) && !marked[WARNED]) {
     marked[WARNED] = true;
-    console.warn(diagnostic('labelled', subject, 'labelled-unnamed', __DEV__ && PROSE['labelled-unnamed']()));
+    console.warn(diagnostic('labeled', subject, 'labeled-unnamed', __DEV__ && PROSE['labeled-unnamed']()));
   }
 
   let shown: Element | null = null;

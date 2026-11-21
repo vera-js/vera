@@ -1,5 +1,5 @@
 /**
- * **`labelled` writes the same attributes, and says the same things, on the server's DOM as in a browser's.** The same
+ * **`labeled` writes the same attributes, and says the same things, on the server's DOM as in a browser's.** The same
  * calls run against jsdom and against `@verajs/ssr`'s DOM shim, each in its own process (the shim installs globals), and
  * the answers are compared case by case. A difference here is the worst kind: the server's markup carries ids and
  * references the client then hydrates, so a disagreement surfaces somewhere else entirely.
@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const FIXTURE = fileURLToPath(new URL('./fixtures/labelled-dom-cases.mjs', import.meta.url));
+const FIXTURE = fileURLToPath(new URL('./fixtures/labeled-dom-cases.mjs', import.meta.url));
 const answers = (dom, mode) => JSON.parse(execFileSync(process.execPath, [...process.execArgv, FIXTURE, dom, ...(mode ? [mode] : [])], { encoding: 'utf8' }));
 
 /**

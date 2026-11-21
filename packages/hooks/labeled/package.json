@@ -1,8 +1,8 @@
 {
-  "name": "@vera-hooks/labelled",
+  "name": "@vera-hooks/labeled",
   "version": "0.1.0",
   "private": true,
-  "description": "labelled: a headless Vera hook.",
+  "description": "labeled: a headless Vera hook.",
   "license": "MIT",
   "engines": {
     "node": ">=20"
@@ -10,18 +10,18 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",
-    "directory": "packages/hooks/labelled"
+    "directory": "packages/hooks/labeled"
   },
   "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "type": "module",
-  "main": "./dist/vera-labelled.min.js",
-  "types": "./dist/development/vera-labelled.d.ts",
+  "main": "./dist/vera-labeled.min.js",
+  "types": "./dist/development/vera-labeled.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/development/vera-labelled.d.ts",
-      "development": "./dist/development/vera-labelled.js",
-      "default": "./dist/vera-labelled.min.js"
+      "types": "./dist/development/vera-labeled.d.ts",
+      "development": "./dist/development/vera-labeled.js",
+      "default": "./dist/vera-labeled.min.js"
     }
   },
   "sideEffects": false,
@@ -99,5 +99,5 @@
       ]
     }
   },
-  "filename": "vera-labelled"
+  "filename": "vera-labeled"
 }

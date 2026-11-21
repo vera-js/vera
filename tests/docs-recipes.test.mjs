@@ -36,7 +36,7 @@ const PACKAGES = {
   '@vera-components/select': 'vera-components/select',
   '@vera-hooks/light-dismiss': 'vera-hooks/light-dismiss',
   '@vera-hooks/listbox': 'vera-hooks/listbox',
-  '@vera-hooks/labelled': 'vera-hooks/labelled',
+  '@vera-hooks/labeled': 'vera-hooks/labeled',
   '@vera-hooks/roving-focus': 'vera-hooks/roving-focus',
   '@vera-hooks/announce': 'vera-hooks/announce',
   '@verajs/core': 'core',

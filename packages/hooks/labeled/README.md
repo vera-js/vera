@@ -1,12 +1,12 @@
-# @vera-hooks/labelled
+# @vera-hooks/labeled
 
-`labelled`: wires a control to its label, hint, count and errors through the platform's own id references, and gives
+`labeled`: wires a control to its label, hint, count and errors through the platform's own id references, and gives
 back exactly what it found. Private until launch.
 
 ```js
-import { labelled } from '@vera-hooks/labelled';
+import { labeled } from '@vera-hooks/labeled';
 
-const wiring = labelled(input, { host: field, label, hint, count, errors: [required, tooLong] });
+const wiring = labeled(input, { host: field, label, hint, count, errors: [required, tooLong] });
 wiring.show(required); // described, and aria-invalid="true"
 wiring.show(null);     // no error shown
 wiring.release();      // every attribute back as it was found
@@ -27,7 +27,7 @@ wiring.release();      // every attribute back as it was found
   hydration) was not added by this call, so it stays.
 - **Wire a form-associated element after its upgrade** (`await customElements.whenDefined(tag)`): before it, the
   element is not labelable yet, so it is named through `aria-labelledby`, and stays so.
-- **Never decide "is this labelled" from `control.labels`.** Firefox keeps a `labels` list it has handed out stale when
+- **Never decide "is this labeled" from `control.labels`.** Firefox keeps a `labels` list it has handed out stale when
   a `for` is set afterwards, and a server DOM may not have `labels` at all. The hook compares each label's `for`.
 - **Development warns** (each code is in `diagnostics.json`): a part in a different root from the control is not wired
   (an id reference cannot cross a shadow boundary); an id with whitespace cannot be a token; a control left with no
