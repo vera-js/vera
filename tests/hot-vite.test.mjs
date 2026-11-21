@@ -30,6 +30,19 @@ test('only when its exports are components: nothing, what define returns, or a c
   assert.equal(swappable(`export function helper() {}\ndefine('x-card', () => () => 1);`), false, 'an exported function');
 });
 
+test('a comment opener inside a string or a template hides no export: the // of a URL, the /* of a glob', () => {
+  const card = `export const XCard = define('x-card', () => () => 1);`;
+  assert.equal(swappable(`const u = 'http://x'; export const helper = 1;\n${card}`), false, 'a URL in a string');
+  assert.equal(swappable(`const u = "http://x"; export const helper = 1;\n${card}`), false, 'a URL in a double-quoted string');
+  assert.equal(swappable(`const t = \`//\${1}\`; export const helper = 1;\n${card}`), false, 'a // in a template');
+  assert.equal(swappable(`const g = 'src/*.ts';\nexport const helper = 1;\n/* a note */\n${card}`), false, 'a glob in a string');
+  assert.equal(swappable(`const q = 'it\\'s // here'; export const helper = 1;\n${card}`), false, 'an escaped quote before the opener');
+  /** The controls: a real comment is still removed, the string around an opener is kept, and a plain card swaps. */
+  assert.equal(swappable(`/* export const nope = 1; */\n${card}`), true, 'an export inside a block comment');
+  assert.equal(swappable(`const u = 'http://x';\n${card}`), true, 'a URL with nothing hidden behind it');
+  assert.equal(swappable(card), true);
+});
+
 test('the plugin: development only, appends the accept to a swappable module and to nothing else', () => {
   const p = hotVite();
   assert.deepEqual([p.name, p.apply], ['vera-hot', 'serve']);

@@ -17,7 +17,15 @@
 type Plugin = { name: string; apply: 'serve'; transform: (code: string, id: string) => { code: string; map: null } | null };
 
 const SCRIPT = /\.(?:[cm]?[jt]sx?)$/;
-const COMMENTS = /\/\*[\s\S]*?\*\/|\/\/[^\n]*/g;
+/**
+ * Comments, and the strings and templates that may hold a comment opener, in ONE left-to-right pass: the first of them
+ * to start wins, so the `//` of a URL or the `/*` of a glob inside a string is consumed with its string and kept, never
+ * taken for a comment that deleted the code after it (an export hidden that way made a module swap in place when its
+ * update had to propagate). Strings are kept as written; only comments are removed. A `//` inside a regex literal is
+ * still read as a comment: telling a regex from a division needs a parse, and that only hides code on the same line.
+ */
+const COMMENTS = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g;
+const uncomment = (code: string): string => code.replace(COMMENTS, (match, quote: string | undefined) => (quote ? match : ''));
 /** A call to `define(` or `customElements.define(` — not a member call (`x.define`), not part of a longer name. */
 const DEFINE = /(?:^|[^\w$.])(?:customElements\s*\.\s*)?define\s*\(/;
 const EXPORT = /(?:^|[^\w$.])export\b/g;
@@ -26,7 +34,7 @@ const COMPONENT_EXPORT = /^export\s+(?:(?:const|let|var)\s+[\w$]+\s*=\s*(?:custo
 
 /** Whether a module's source is one a save may swap in place. */
 export const swappable = (code: string): boolean => {
-  const bare = code.replace(COMMENTS, '');
+  const bare = uncomment(code);
   if (!DEFINE.test(bare)) return false;
   for (const m of bare.matchAll(EXPORT)) {
     const at = m.index + m[0].indexOf('export');
