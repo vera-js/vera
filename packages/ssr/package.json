@@ -1,6 +1,6 @@
 {
   "name": "@verajs/ssr",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Vera-native server-side rendering. Node-only, plain ESM, zero dependencies.",
   "license": "MIT",
   "engines": {
