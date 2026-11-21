@@ -1,6 +1,6 @@
 /**
  * **<vera-icon>: its options and its setup.** Never calls `define`: `register.ts` does, so importing the `./element`
- * entry registers nothing (d7, 2026-11-20).
+ * entry registers nothing.
  *
  * The icon is either the user's own `<svg>` child, kept byte-identical, or a `src` rendered as `<svg><use href>` (no
  * markup is ever fetched or parsed: string → DOM is refused by construction). Its accessible role lives on the HOST, so
@@ -69,7 +69,13 @@ export const setup = (host: IconHost) => {
     }
     const verdict = vet(src, host.ownerDocument);
     if (verdict !== 'ok') {
-      if (__DEV__) console.warn(diagnostic('icon', `<vera-icon src="${src}">`, `icon-${verdict}`, __DEV__ && PROSE[`icon-${verdict}`]()));
+      // One call per code, each named literally, so the diagnostics table test can pair every raised code with its entry.
+      if (__DEV__) {
+        const subject = `<vera-icon src="${src}">`;
+        console.warn(verdict === 'scheme'
+          ? diagnostic('icon', subject, 'icon-scheme', __DEV__ && PROSE['icon-scheme']())
+          : diagnostic('icon', subject, 'icon-cross-origin', __DEV__ && PROSE['icon-cross-origin']()));
+      }
       return null;
     }
     return html`<svg data-vera-part="svg" aria-hidden="true" focusable="false"><use href=${src}></use></svg>`;
