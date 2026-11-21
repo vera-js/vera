@@ -457,3 +457,39 @@ test('the spoken count takes the language\'s plural form: count-message-<categor
   ear.stop();
   host.remove();
 });
+
+/**
+ * **The surface stays true**, as the scaffolded drift row asks, for a component that renders nothing: every part
+ * name and field attribute the source reads is declared (a scan of the source, with a floor), every declared part
+ * acts when written, and no attribute is observed that is not declared (none is: all are read when used).
+ */
+test('the declared surface is the one the field reads: parts and attributes, both ways', async () => {
+  const { fieldSurface } = await import('../packages/components/field/src/field/surface.ts');
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../packages/components/field/src/element.ts', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '');
+  const declaredParts = fieldSurface.parts.map((part) => part.name).sort();
+  const readParts = [...new Set([...source.matchAll(/data-vera-part="([a-z-]+)"|part\(field, '([a-z-]+)'\)/g)].map((m) => m[1] ?? m[2]))].sort();
+  assert.ok(readParts.length >= 4, `CONTROL: the scan found the parts the source reads: ${readParts.join(', ')}`);
+  assert.deepEqual(readParts, declaredParts, 'a part read and not declared, or declared and never read: change surface.ts with the element');
+  const declaredAttributes = fieldSurface.attributes.map((attribute) => attribute.name);
+  const readAttributes = [...new Set([...source.matchAll(/(?:field|found\[0\])\.(?:get|has)Attribute\('([a-z-]+)'\)/g)].map((m) => m[1]))];
+  assert.ok(readAttributes.length >= 3, `CONTROL: the scan found the field's attribute reads: ${readAttributes.join(', ')}`);
+  for (const name of readAttributes) assert.ok(declaredAttributes.includes(name), `${name} is read and not declared`);
+  if (source.includes('`count-message-${plural('))
+    for (const category of ['zero', 'one', 'two', 'few', 'many', 'other'])
+      assert.ok(declaredAttributes.includes(`count-message-${category}`), `count-message-${category} is read and not declared`);
+  const observed = customElements.get('vera-field').observedAttributes ?? [];
+  for (const name of observed) assert.ok(declaredAttributes.includes(name), `${name} is observed and not declared`);
+  /** Each declared part acts when written: the control is wired, the hint describes it, the count counts, an error shows. */
+  const { host, field: f } = await field('<label>Name</label><input id="decoy"><input data-vera-part="control" required maxlength="10"><small data-vera-part="hint">h</small><span data-vera-part="count"></span><small data-vera-part="error" data-when="valueMissing">Enter it.</small>');
+  const control = f.querySelector('[data-vera-part="control"]');
+  assert.equal(f.querySelector('label').htmlFor, control.id, 'control: the label names the marked control, not the first input');
+  assert.ok(control.getAttribute('aria-describedby').split(' ').includes(f.querySelector('[data-vera-part="hint"]').id), 'hint');
+  assert.equal(f.querySelector('[data-vera-part="count"]').textContent, '0 / 10', 'count');
+  type(control, '');
+  blur(control);
+  assert.deepEqual(shown(f), ['Enter it.'], 'error');
+  host.remove();
+});
