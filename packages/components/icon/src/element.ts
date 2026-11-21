@@ -8,7 +8,7 @@
  * `label` is set. Size, color and the RTL flip are the styles layer's (`scale`, `flip`), read by CSS alone.
  */
 import { effect, html } from '@verajs/core';
-import { diagnostic } from '@verajs/shared-utils';
+import { diagnostic, quoted } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
 /** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
@@ -25,19 +25,25 @@ interface IconHost extends HTMLElement {
  * scheme (`javascript:`, `data:`, `blob:`, and any to come) is refused (probe 2026-11-21: the platform already blocks
  * `data:` and cross-origin in `<use>`, and allows `blob:`; refusing it here is our rule, stricter and safe).
  *
+ * `src` resolves against the base URL, but is compared with the DOCUMENT's origin, which a `<base href>` does not
+ * change: a relative src under a base on another origin is cross-origin, and the platform would render nothing for it.
+ * The window's `location` gives that origin (an `about:blank` frame's inherited one included); a document with no
+ * window falls back to its own URL.
+ *
  * @param src The attribute's value
- * @param base The document the icon is in, for its base URL and origin
+ * @param doc The document the icon is in, for its base URL and origin
  * @returns `'ok'`, `'cross-origin'` or `'scheme'`
  */
-export const vet = (src: string, base: Document): 'ok' | 'cross-origin' | 'scheme' => {
+export const vet = (src: string, doc: Document): 'ok' | 'cross-origin' | 'scheme' => {
   let url: URL;
   try {
-    url = new URL(src, base.baseURI);
+    url = new URL(src, doc.baseURI);
   } catch {
     return 'scheme';
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'scheme';
-  return url.origin === new URL(base.baseURI).origin ? 'ok' : 'cross-origin';
+  const origin = doc.defaultView?.location?.origin ?? new URL(doc.URL).origin;
+  return url.origin === origin ? 'ok' : 'cross-origin';
 };
 
 /** The user's own `<svg>` child, if they wrote one (a direct child: a nested one belongs to whatever holds it). */
@@ -73,7 +79,8 @@ export const setup = (host: IconHost) => {
       // entry, and the prefix check reads a call only when diagnostic( is its first argument. The last arm is `never`:
       // a verdict `vet` gains later is refused by the type checker until it has its own call.
       if (__DEV__) {
-        const subject = `<vera-icon src="${src}">`;
+        /** The author's value, quoted and capped as every diagnostic quotes one, so a hostile src prints as data. */
+        const subject = `<vera-icon src=${quoted(src)}>`;
         if (verdict === 'scheme') console.warn(diagnostic('icon', subject, 'icon-scheme', __DEV__ && PROSE['icon-scheme']()));
         else if (verdict === 'cross-origin')
           console.warn(diagnostic('icon', subject, 'icon-cross-origin', __DEV__ && PROSE['icon-cross-origin']()));

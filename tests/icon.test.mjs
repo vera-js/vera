@@ -83,6 +83,43 @@ test('src allow-list: relative and same-origin render; every other scheme and or
     assert.equal(await rendered(src), false, `${src} is refused`);
 });
 
+/**
+ * **Same-origin means the DOCUMENT's origin, not the base URL's.** A relative src under `<base href>` on another
+ * origin resolves to that origin, and the platform renders `<use>` only from the page's own origin, so it would show
+ * nothing: it is refused, and development says icon-cross-origin. A `<base>` on the page's own origin still renders.
+ */
+test('a relative src under a <base> on another origin is refused as cross-origin; a same-origin <base> renders', async () => {
+  const base = document.createElement('base');
+  document.head.append(base);
+  try {
+    base.href = 'https://app.example/assets/';
+    const own = await mount('<vera-icon src="sprite.svg#a"></vera-icon>');
+    assert.equal(own.querySelector('use')?.getAttribute('href'), 'sprite.svg#a', 'CONTROL: a same-origin <base> renders the relative src');
+    assert.deepEqual(said, []);
+    base.href = 'https://cdn.example/';
+    const other = await mount('<vera-icon src="sprite.svg#a"></vera-icon>');
+    assert.equal(other.querySelector('use'), null, 'resolved to https://cdn.example/sprite.svg#a, another origin');
+    assert.deepEqual(codes(), isProduction ? [] : ['icon-cross-origin']);
+  } finally {
+    base.remove();
+  }
+});
+
+/** The README's promise: the child is looked for when the icon renders (connect, a src change), not observed. */
+test('a child <svg> added after the first render takes over at the next src change', async () => {
+  const icon = await mount('<vera-icon src="/sprite.svg#a"></vera-icon>');
+  assert.ok(icon.querySelector('svg[data-vera-part="svg"] > use'), 'CONTROL: src renders first');
+  const own = document.createElementNS(SVG, 'svg');
+  icon.append(own);
+  await settle();
+  assert.ok(icon.querySelector('svg[data-vera-part="svg"]'), 'not observed: the src icon stays until src changes');
+  icon.setAttribute('src', '/sprite.svg#b');
+  await settle();
+  assert.equal(icon.querySelector('svg[data-vera-part="svg"]'), null, 'at the src change the child wins');
+  assert.ok(own.isConnected && own.parentNode === icon, 'the child is kept');
+  assert.deepEqual(codes(), isProduction ? [] : ['icon-two-sources']);
+});
+
 test('development says why a src is not shown; production says nothing', async () => {
   await mount('<vera-icon src="javascript:alert(1)"></vera-icon>');
   assert.deepEqual(codes(), isProduction ? [] : ['icon-scheme']);

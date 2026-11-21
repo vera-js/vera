@@ -20,7 +20,8 @@ document.body.innerHTML = `
 - **`src`, a sprite reference** (`/icons.svg#check`, or `#check` for a sprite already in the page), rendered as
   `<svg><use href>`. Nothing is fetched or parsed: `<use>` references the sprite.
 
-If both are given, the child wins, and development says so.
+If both are given, the child wins, and development says so. The child is looked for when the icon renders, which is
+when it connects and when `src` changes, so a child `<svg>` added later takes over at the next `src` change.
 
 ## Naming
 
@@ -31,7 +32,9 @@ If both are given, the child wins, and development says so.
 
 ## Which `src` is shown
 
-Only a relative URL, or `http(s):` on the page's own origin. Every other scheme is refused, including `javascript:`,
+Only a relative URL, or `http(s):` on the page's own origin. A relative URL resolves against the page's base URL, but
+the origin it must match is the page's own: under a `<base href>` on another origin it is refused as cross-origin, since
+the platform would show nothing for it. Every other scheme is refused, including `javascript:`,
 `data:` and `blob:`, and development says why. Two of those limits are the platform's own: a `<use>` on another origin
 renders nothing, in every engine, and `data:` is blocked everywhere. Refusing `blob:` is our rule: it is stricter than
 the platform, and it may relax if someone needs it.
