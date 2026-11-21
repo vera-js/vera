@@ -11,18 +11,20 @@
  * file, close before the update's 250 ms timer, wait past it): it rebuilds, which shows the order of events reaches the
  * bug here. The second runs a REAL build through `defaultRollupConfig.js` the same way in its own process, which must
  * end by itself, with a control that its file change did schedule an update. About 5 s in all (the control ~2.3 s, the
- * build ~1.7 s, measured on Windows 2026-11-20), as the one-shot suite it replaced cost; nothing written but an
- * identical rewrite of one source file. On @rollup/plugin-typescript 12.3.0 the build row is red: the child never
- * exits and is killed at 20 s.
+ * build ~1.7 s, measured on Windows 2026-11-20), as the one-shot suite it replaced cost; nothing in the tree is
+ * written: the build is of a throwaway package in the temp directory. On @rollup/plugin-typescript 12.3.0 the build
+ * row is red: the child never exits and is killed at 20 s.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { PLUGIN_FLOOR, pluginFloorError } from '../defaultRollupConfig.js';
+import { comparable } from '../scripts/fs-path.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -65,25 +67,43 @@ test('CONTROL: a plain TypeScript watch program rebuilds when it changed just be
  * `ts.createWatchProgram` is a getter-only export.)
  */
 test('a build through defaultRollupConfig exits by itself, though its file changed mid-build', () => {
-  const child = spawnSync(process.execPath, [fileURLToPath(new URL('./fixtures/build-exits/child.mjs', import.meta.url)), ROOT], {
-    cwd: join(ROOT, 'packages', 'inserts'),
-    encoding: 'utf8',
-    timeout: 20_000,
-  });
-  assert.equal(child.error?.code, undefined, `the build did not exit within 20 s (the hang): ${child.error?.code}`);
-  assert.equal(child.status, 0, `the build failed: ${child.stderr.slice(-2000)}`);
-  const report = JSON.parse(child.stdout.trim().split('\n').at(-1));
-  assert.ok(report.scheduled >= 1, 'CONTROL: the mid-build change scheduled a program update, so the close met one pending');
-  /** An options diagnostic (TS5096 was every build's) makes TypeScript skip every type error, so none may appear. */
-  assert.deepEqual(report.options, [], 'no options diagnostic hides the type errors');
+  /** A throwaway package outside the tree: the rewrite and any kill mid-rewrite touch nothing tracked. */
+  const pkg = mkdtempSync(join(tmpdir(), 'build-exits-pkg-'));
+  const SOURCE = 'export const answer: number = 42;\n';
+  mkdirSync(join(pkg, 'src'));
+  writeFileSync(join(pkg, 'package.json'), '{ "name": "build-exits", "version": "0.0.0", "type": "module" }\n');
+  writeFileSync(join(pkg, 'tsconfig.json'), JSON.stringify({ extends: join(ROOT, 'tsconfig.json'), compilerOptions: { rootDir: '.' }, files: [], include: ['src/**/*'] }));
+  writeFileSync(join(pkg, 'src', 'index.ts'), SOURCE);
+  const tracked = statSync(join(ROOT, 'packages', 'inserts', 'src', 'index.ts')).mtimeMs;
+  try {
+    const child = spawnSync(process.execPath, [fileURLToPath(new URL('./fixtures/build-exits/child.mjs', import.meta.url))], { cwd: pkg, encoding: 'utf8', timeout: 20_000 });
+    assert.equal(child.error?.code, undefined, `the build did not exit within 20 s (the hang): ${child.error?.code}`);
+    assert.equal(child.status, 0, `the build failed: ${child.stderr.slice(-2000)}`);
+    const report = JSON.parse(child.stdout.trim().split('\n').at(-1));
+    assert.ok(report.scheduled >= 1, 'CONTROL: the mid-build change scheduled a program update, so the close met one pending');
+    /** An options diagnostic (TS5096 was every build's) makes TypeScript skip every type error, so none may appear. */
+    assert.deepEqual(report.options, [], 'no options diagnostic hides the type errors');
+    assert.equal(comparable(report.rewritten ?? ''), comparable(join(pkg, 'src', 'index.ts')), 'the rewrite was the throwaway entry');
+    assert.equal(readFileSync(join(pkg, 'src', 'index.ts'), 'utf8'), SOURCE, 'and left its bytes as they were');
+    assert.equal(statSync(join(ROOT, 'packages', 'inserts', 'src', 'index.ts')).mtimeMs, tracked, 'no tracked source was written');
+  } finally {
+    rmSync(pkg, { recursive: true, force: true });
+  }
 });
 
-test('package.json holds @rollup/plugin-typescript at the release that cancels the pending update', () => {
+test('package.json holds @rollup/plugin-typescript at the release that cancels the pending update, and a build refuses an older install', () => {
   const { devDependencies } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.equal(devDependencies['@rollup/plugin-typescript'], '^12.3.1', 'below 12.3.1 a fresh install can resolve the hang back');
-  const { version } = JSON.parse(readFileSync(join(ROOT, 'node_modules/@rollup/plugin-typescript/package.json'), 'utf8'));
-  const [major, minor, patch] = version.split('.').map(Number);
-  assert.ok(major > 12 || (major === 12 && (minor > 3 || (minor === 3 && patch >= 1))), `installed ${version}, which is below 12.3.1`);
+  assert.equal(`^${PLUGIN_FLOOR}`, devDependencies['@rollup/plugin-typescript'], "the build's floor is package.json's");
+  /** The config loaded (this file imports it), so the installed copy passed; planted versions show both answers. */
+  const at = join('somewhere', 'node_modules', '@rollup', 'plugin-typescript');
+  assert.equal(
+    pluginFloorError('12.3.0', at),
+    `[vera] @rollup/plugin-typescript 12.3.0 at ${at} is below the 12.3.1 package.json asks for: a build would not end (or would end early). Run npm install.`,
+    'an older install is refused, naming its version and where it is',
+  );
+  for (const old of ['12.2.9', '11.9.9', '12.3', 'x.y.z']) assert.notEqual(pluginFloorError(old, at), null, `${old} refused`);
+  for (const ok of ['12.3.1', '12.10.0', '13.0.0', '12.4.0']) assert.equal(pluginFloorError(ok, at), null, `${ok} passes (compared as numbers)`);
 });
 
 /**

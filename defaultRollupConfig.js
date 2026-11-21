@@ -9,6 +9,36 @@ import { fileURLToPath } from 'node:url';
 const PACKAGES = join(dirname(fileURLToPath(import.meta.url)), 'packages');
 
 /**
+ * **A build refuses a TypeScript plugin below 12.3.1**, the release that cancels the program update TypeScript 6.0's
+ * watch `close()` leaves pending (rollup/plugins#2025). Below it a build never ends (the Windows clean-build hang) or,
+ * in a tree last installed before `package.json` moved, fails with Rollup's bare "Unexpected early exit" (measured on
+ * Windows, 2026-11-21): neither says the cause, which is an install older than `package.json`. Read once per config
+ * load, from the copy this file imports: `import.meta.resolve` names the file the import above loads (through any
+ * workspace link), and its package's `package.json` is the nearest one above it (the package does not export
+ * `./package.json`). Compared as numbers, so 12.10.0 passes. `tests/build-exits.test.mjs` holds the floor equal to the
+ * range in `package.json`.
+ */
+export const PLUGIN_FLOOR = '12.3.1';
+export const pluginFloorError = (version, at) => {
+  const have = String(version).split('.').map(Number);
+  const need = PLUGIN_FLOOR.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (have[i] > need[i]) return null;
+    if (!(have[i] === need[i])) return `[vera] @rollup/plugin-typescript ${version} at ${at} is below the ${PLUGIN_FLOOR} package.json asks for: a build would not end (or would end early). Run npm install.`;
+  }
+  return null;
+};
+{
+  let dir = dirname(fileURLToPath(import.meta.resolve('@rollup/plugin-typescript')));
+  while (!existsSync(join(dir, 'package.json')) || JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name !== '@rollup/plugin-typescript') {
+    if (dirname(dir) === dir) throw new Error('[vera] the installed @rollup/plugin-typescript has no package.json above its entry');
+    dir = dirname(dir);
+  }
+  const error = pluginFloorError(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version, dir);
+  if (error) throw new Error(error);
+}
+
+/**
  * @param manglePropsRegex Opt-in property mangling for the production build. Terser mangles locals
  * and top-level names by default, but NOT property names — so internal class fields survive into
  * the bundle unless a package opts in. A package that does prefixes its internals with `_` and
