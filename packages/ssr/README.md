@@ -304,7 +304,10 @@ unsanitized. Everything else is checked:
   ```
 
   Anything resolving outside it is refused. `new URL` applies `../` before `renderToString` sees the
-  string, so without this the traversal has already happened by the time the call is made. It is
+  string, so without this the traversal has already happened by the time the call is made. A URL
+  given as a string is resolved first, as `import()` will resolve it, so a `../` or `%2e%2e` after the
+  base is read where it leads, and the URL checked is the URL imported; a bare specifier is refused. The
+  bound is on URLs: a symlink inside the base that points elsewhere is your layout, and is followed. It is
   opt-in because most calls name a constant, and a check that is always trivially satisfied stops
   being read.
 - **`styles` comes back escaped for a `<style>` element**, since that is where a page shell puts it.

@@ -307,6 +307,32 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
     );
   }
 
+  /**
+   * **A STRING is bounded as `import()` will read it** (2026-11-21). The bound compared the string as written, so
+   * `<base>/../x.mjs` and `<base>/%2e%2e/x.mjs` began with the base and passed, and `import()` then resolved the
+   * `..` and ran a module outside it. Each escape here is a module that marks the global when it runs, so a refusal
+   * that came after the import would still read red; a string inside the base still renders (the positive control).
+   */
+  const scratch = mkdtempSync(fsPath(new URL('./.escape-', import.meta.url)));
+  try {
+    writeFileSync(`${scratch}/escaped.mjs`, 'globalThis.__veraEscapedRan = true;\n');
+    const bound = `${pathToFileURL(scratch).href}/inside/`;
+    for (const [label, target] of [
+      ['a string with ../ after the base', `${bound}../escaped.mjs`],
+      ['a string with %2e%2e after the base', `${bound}%2e%2e/escaped.mjs`],
+      ['a string with %2E%2E after the base', `${bound}%2E%2E/escaped.mjs`],
+    ]) {
+      await assert.rejects(() => renderToString(target, { base: bound }), /resolves outside/, `${label} was not refused`);
+      assert.equal(globalThis.__veraEscapedRan, undefined, `${label}: the module outside the base RAN`);
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+  /** A bare specifier resolves through `node_modules`, which the bound cannot follow: refused, as it always was. */
+  await assert.rejects(() => renderToString('@verajs/core', { base: dir.href }), /resolves outside/, 'a bare specifier was not refused');
+  const asString = await renderToString(new URL('hello-ssr.js', dir).href, { base: dir.href });
+  assert.match(asString.html, /^<hello-ssr>/, 'a string inside the base renders');
+
   /** Opt-in: a call without it behaves exactly as before. */
   const unbounded = await renderToString(new URL('hello-ssr.js', dir));
   assert.match(unbounded.html, /^<hello-ssr>/);

@@ -444,6 +444,9 @@ const takeTurn = <T>(work: () => Promise<T>): Promise<T> => {
   return mine;
 };
 
+/** A specifier `import()` reads as a URL rather than a package name: relative, absolute, or with a scheme. */
+const URL_LIKE = /^(?:\.{0,2}\/|[a-z][a-z\d+.-]*:)/i;
+
 const renderModule = async (
   url: string | URL,
   options: SsrRenderOptions = {},
@@ -462,12 +465,18 @@ const renderModule = async (
     const { name, valid, expected } = CHECKS[i];
     if (!valid(given[name])) throw own(new TypeError(ssrMisuse('ssr-option', PROSE['ssr-option']!(name, expected))));
   }
-  const href = url instanceof URL ? url.href : url;
+  /**
+   * **With `base`, the URL checked is the URL imported**: a URL-like string (`./`, `../`, `/`, or a scheme) is
+   * resolved first, exactly as `import()` resolves one (against this module), so a `../` or `%2e%2e` segment after
+   * the base is collapsed before the bound reads it. Compared as written, `<base>/../x.mjs` began with the base,
+   * passed, and `import()` ran the module outside it. A bare specifier resolves through `node_modules`, which no URL
+   * here can follow, so it is left as written and the bound refuses it, as it always has.
+   */
+  const href = url instanceof URL ? url.href : base !== undefined && URL_LIKE.test(url) ? new URL(url, import.meta.url).href : url;
 
   /**
-   * **A module URL is bounded to `base` when one is given** — `import()` executes whatever it is handed,
-   * and `new URL` has already resolved any `../` by now. Read as a directory whether or not it was written
-   * as one: that can only tighten the bound.
+   * **A module URL is bounded to `base` when one is given** — `import()` executes whatever it is handed. Read as a
+   * directory whether or not it was written as one: that can only tighten the bound.
    */
   if (base !== undefined) {
     const directory = String(base instanceof URL ? base.href : base);
