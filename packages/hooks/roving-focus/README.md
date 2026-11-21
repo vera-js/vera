@@ -36,5 +36,6 @@ roving.release();     // both listeners gone, every tabindex back as it was foun
   and focus never move the outer one. A group inside an open shadow root works (the focused element is read through the
   event's composed path).
 - **Writes `tabindex` only**: never text, markup, or any other attribute.
-- **Development warns** (each code is in `diagnostics.json`): a group with no reachable item has no tab stop (once,
-  until one is reachable again); `focus()` on an item that is skipped or not in the group did nothing.
+- **Development warns** (each code is in `diagnostics.json`) when a group has no reachable item, so no tab stop: once,
+  until one is reachable again. It also warns when `focus()` was handed an item that is skipped or not in the group,
+  which did nothing.

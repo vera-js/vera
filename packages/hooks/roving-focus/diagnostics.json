@@ -1,0 +1,17 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "roving-focus-foreign",
+      "params": [],
+      "message": "was handed to focus(), but it is skipped or not one of the group's items, so nothing moved.",
+      "fix": "Pass an item that items() returns and skip() keeps."
+    },
+    {
+      "code": "roving-focus-none",
+      "params": [],
+      "message": "has no reachable item: every item is skipped (disabled by default), so the group has no tab stop and the keyboard cannot reach it.",
+      "fix": "Leave at least one item enabled, or pass a skip that keeps one."
+    }
+  ]
+}

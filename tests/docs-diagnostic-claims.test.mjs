@@ -261,6 +261,8 @@ const CLAIMS = new Map([
   ['packages/styles/README.md#ab7656278f', 'slotted-light'], // Development says so if a light component's sheet uses `::slotted()`.
   ['packages/styles/README.md#b5c13c2241', 'no-scope'], // Development says so, once.
   ['packages/styles/README.md#11305688d2', 'not a promise: the engine refuses, not vera'], // A constructed sheet can only be adopted by documents of its own window — the engine refuse
+  ['packages/hooks/roving-focus/README.md#91d68a13ba', 'roving-focus-none'], // a group with no reachable item — development warns, once until one is reachable again
+  ['packages/hooks/roving-focus/README.md#8eed053ed6', 'roving-focus-foreign'], // focus() on a skipped or foreign item — development warns
   ['packages/components/select/README.md#04a7f836ff', 'defined-twice'], // Two library versions on one page warn instead of silently forking — and `@vera-components/select/elemen
   ['llms.txt#c5ee82cf78', 'pinned by tests/renderer-until.test.mjs: a rejection is the platform\'s unhandled rejection, with the fallback kept (the child-process row)'], // A rejection keeps the fallback and the BROWSER reports it (unhandled: console + `unhandledrejection`); …
   ['packages/renderer/README.md#4f2635a426', 'pinned by tests/renderer-until.test.mjs: continuity, a dropped late answer, removal, a non-promise, and a rejection reported by the platform — each its own row'], // Make the promise in the setup, as above; … - **A rejection** keeps the fallback, and the browser reports it …
