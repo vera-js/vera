@@ -20,7 +20,9 @@ export const shellPrefixes = (script) =>
 const manifests = execFileSync('git', ['ls-files', '--', ':(glob)**/package.json'], { encoding: 'utf8' }).split('\n').filter(Boolean);
 
 test('no npm script in any package.json sets a variable with a shell prefix', () => {
-  assert.ok(manifests.length >= 25 && manifests.includes('package.json'), `CONTROL: ${manifests.length} package.json files read`);
+  assert.ok(manifests.length >= 25, `CONTROL: ${manifests.length} package.json files read`);
+  for (const kind of [/^package\.json$/, /^bench\/package\.json$/, /^packages\/components\/[^/]+\/package\.json$/, /^packages\/hooks\/[^/]+\/package\.json$/])
+    assert.ok(manifests.some((file) => kind.test(file)), `CONTROL: the corpus holds ${kind}`);
   const found = [];
   let scripts = 0;
   for (const file of manifests) {
@@ -36,6 +38,9 @@ test('no npm script in any package.json sets a variable with a shell prefix', ()
 test('the reader finds a prefix at the start of any command, and nowhere else (planted)', () => {
   const old = 'VERA_BROWSERS=chromium web-test-runner --config w.mjs && VERA_BROWSERS=firefox web-test-runner --config w.mjs';
   assert.deepEqual(shellPrefixes(old), ['VERA_BROWSERS=chromium web-test-runner --config w.mjs', 'VERA_BROWSERS=firefox web-test-runner --config w.mjs']);
+  /** The script exactly as it broke the gate's browser step: two of its three prefixes come after `&&`. */
+  const broken = ['chromium', 'firefox', 'webkit'].map((b) => `VERA_BROWSERS=${b} web-test-runner --config web-test-runner.config.mjs`).join(' && ');
+  assert.equal(shellPrefixes(broken).length, 3, broken);
   assert.equal(shellPrefixes('rollup -c; MODE=prod rollup -c').length, 1, 'after ;');
   assert.equal(shellPrefixes('tsc || CI=1 tsc').length, 1, 'after ||');
   for (const near of [
