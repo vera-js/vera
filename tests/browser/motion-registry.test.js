@@ -226,12 +226,16 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
   el.style.cssText =
     'animation: vm-sweep 1s linear both paused; animation-delay: calc(var(--vm-p, 0) * -1s);';
 
-  /** The ramp: what the play engine will do. Duration irrelevant to the claim — only the sweep is. */
-  const t0 = performance.now();
+  /**
+   * The ramp: what the play engine will do. Duration irrelevant to the claim — only the sweep is — so it steps by FRAME,
+   * not by wall time: 40 frames from 0 to 1, of which 11 land mid-first-segment. A ramp timed over 500 ms had a 150 ms
+   * window for the control, and a loaded Firefox put no frame inside it (seenOpacity stayed -1).
+   */
+  const STEPS = 40;
   let seenP = 0;
   let seenOpacity = -1;
-  while (true) {
-    const p = Math.min(1, (performance.now() - t0) / 500);
+  for (let step = 1; ; step++) {
+    const p = Math.min(1, step / STEPS);
     el.style.setProperty('--vm-p', String(p));
     await frame();
     if (seenOpacity === -1 && p > 0.15 && p < 0.45) {
