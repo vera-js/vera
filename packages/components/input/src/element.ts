@@ -13,11 +13,13 @@ import { diagnostic, quoted } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { clearShown, COPIED, copiedFrom, escapeClears, warnings } from './input/decide.js';
 import type { ClearState } from './input/decide.js';
+import { capsHint } from './input/caps.js';
+import { revealing } from './input/reveal.js';
 
 /** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
 export const options = {
   tag: 'vera-input',
-  attributes: ['clearable', 'clear-label', 'loading'],
+  attributes: ['clearable', 'clear-label', 'loading', 'reveal', 'reveal-label', 'caps-lock-hint', 'caps-lock-message'],
   /** The parts written beside the input are this element's own, never a render's: a re-render keeps them. */
   foreignNodes: 'preserve',
 } as const;
@@ -27,6 +29,10 @@ interface InputHost extends HTMLElement {
   clearable: string | null;
   clearLabel: string | null;
   loading: string | null;
+  reveal: string | null;
+  revealLabel: string | null;
+  capsLockHint: string | null;
+  capsLockMessage: string | null;
 }
 
 /** The input the element serves: the user's own, else the default one it rendered. */
@@ -204,6 +210,17 @@ export const setup = (host: InputHost) => {
     effect(() => {
       const input = current.value;
       return input !== null && host.loading !== null ? busy(input) : undefined;
+    });
+    /** Reveal only on a password input (read now: reveal itself switches the type); anywhere else development warns. */
+    effect(() => {
+      const input = current.value;
+      return input !== null && host.reveal !== null && input.type === 'password'
+        ? revealing(input, host.revealLabel ?? 'Show password')
+        : undefined;
+    });
+    effect(() => {
+      const input = current.value;
+      return input !== null && host.capsLockHint !== null ? capsHint(input, host.capsLockMessage ?? 'Caps Lock is on') : undefined;
     });
     if (__DEV__)
       effect(() => {

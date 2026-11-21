@@ -33,6 +33,9 @@
     "./dist/development/vera-input.js",
     "./dist/vera-input.min.js"
   ],
+  "dependencies": {
+    "@vera-hooks/announce": "^0.1.0"
+  },
   "peerDependencies": {
     "@verajs/core": "^0.4.2"
   },

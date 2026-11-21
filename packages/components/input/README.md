@@ -1,7 +1,7 @@
 # @vera-components/input
 
 `<vera-input>` wraps your own `<input>` and adds what a text field usually needs around it: your prefix and suffix, a
-clear button that keeps the input's undo history, and a loading state. Your input stays the form participant, so
+clear button that keeps the input's undo history, a password reveal, a caps-lock hint and a loading state. Your input stays the form participant, so
 autofill, password managers, validity, form reset, `<fieldset disabled>` and the back-forward cache are all the
 browser's. Private until launch.
 
@@ -39,6 +39,10 @@ moves beside the new input, and the old one is let go.
 | `clearable` | A clear button after the input, shown while there is something to clear: a value, on an input that is neither disabled (a disabled `<fieldset>` included) nor read-only, and not while a composite around it has its list open (`aria-expanded="true"` on the input). |
 | `clear-label` | The clear button's accessible name. Default `"Clear"`. |
 | `loading` | `aria-busy="true"` on the input and an `aria-hidden` loading mark after it. Nothing is announced. An `aria-busy` you wrote yourself is left as yours. |
+| `reveal` | On a `type="password"` input, a show/hide button after it, in the tab order, with `aria-pressed` for its state. |
+| `reveal-label` | The reveal button's accessible name. Default `"Show password"`. |
+| `caps-lock-hint` | A hint after the input while Caps Lock is on, shown and announced. |
+| `caps-lock-message` | What the hint shows and says. Default `"Caps Lock is on"`. |
 | `scale` | `sm`, `md` or `lg`, for the styles layer. Not `size`, which on `<input>` already means a width in characters (development warns on a host `size`). |
 
 Each option adds its part when it is set and removes it, with its listeners, when it is removed. With no option set,
@@ -58,3 +62,16 @@ Focus ends in the input.
 `aria-busy` goes on the input, never on `<vera-input>`: a busy ancestor of a focused field lets a screen reader hold
 back the field's own content. A `<vera-spinner>` you put inside speaks for itself, once; the input says nothing of its
 own, so the two never both speak.
+
+## Reveal
+
+The input is a password field again before anything could keep its text: when its form submits (before the browser
+reads it, so form history and the save-password prompt see a password), when the page is hidden (so the back-forward
+cache keeps it hidden), and when `reveal` is removed. On any other input type `reveal` does nothing, and development
+says so.
+
+## Caps Lock
+
+The hint reads Caps Lock from the input's own key events, the only reliable source, so it appears at the first key
+pressed with Caps Lock on, not at focus. It is announced once per focus, through `@vera-hooks/announce`, and is never
+only visual.

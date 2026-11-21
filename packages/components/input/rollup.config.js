@@ -1,8 +1,11 @@
 import { defaultRollupConfig } from '../../../defaultRollupConfig.js';
 import pkg from './package.json' with { type: 'json' };
 
-/** The framework stays external: its registry and stores must be the app's own (two copies would split them). */
-const external = ['@verajs/core'];
+/**
+ * The framework stays external: its registry and stores must be the app's own (two copies would split them). The
+ * announce hook too, so an app that announces itself shares one copy (and one live region) with the input.
+ */
+const external = ['@verajs/core', '@vera-hooks/announce'];
 const mangle = /^_[a-z]/;
 
 export default [

@@ -8,7 +8,7 @@ import type { ComponentSurface } from '@verajs/shared-types';
 export const inputSurface = {
   tag: 'vera-input',
   description:
-    "Wraps the user's own <input> (the form participant: autofill, validity, reset and disabled stay the platform's), with optional prefix and suffix parts of the user's. With no <input> inside it renders one, server-side too, from its name, type, value, placeholder and autocomplete, read once. Options add a clear button that keeps the input's undo history, and a loading mark with aria-busy on the input. It never labels: put it in a <label> or a <vera-field>.",
+    "Wraps the user's own <input> (the form participant: autofill, validity, reset and disabled stay the platform's), with optional prefix and suffix parts of the user's. With no <input> inside it renders one, server-side too, from its name, type, value, placeholder and autocomplete, read once. Options add a clear button that keeps the input's undo history, a password reveal, a caps-lock hint (shown and announced), and a loading mark with aria-busy on the input. It never labels: put it in a <label> or a <vera-field>.",
   attributes: [
     {
       name: 'clearable',
@@ -17,6 +17,17 @@ export const inputSurface = {
     },
     { name: 'clear-label', description: 'The clear button\'s accessible name. Default "Clear". Observed.' },
     { name: 'loading', description: 'Sets aria-busy="true" on the input and shows the aria-hidden loading mark. Observed.' },
+    {
+      name: 'reveal',
+      description:
+        'On a type="password" input: a show/hide button after it (aria-pressed), in the tab order. The input is a password again on submit, on pagehide and when reveal is removed, so form history, the save-password prompt and the back-forward cache never keep it as text. Observed.',
+    },
+    { name: 'reveal-label', description: 'The reveal button\'s accessible name. Default "Show password". Observed.' },
+    {
+      name: 'caps-lock-hint',
+      description: 'Shows the caps-lock part while Caps Lock is on in the input, and announces it once per focus. Observed.',
+    },
+    { name: 'caps-lock-message', description: 'What the hint shows and says. Default "Caps Lock is on". Observed.' },
     { name: 'scale', description: 'sm, md or lg: the size, in the styles layer (never size, which <input size> already means).' },
     { name: 'name', description: 'Copied to the default input once, at render; not observed.' },
     { name: 'type', description: 'Copied to the default input once, at render; not observed.' },
@@ -34,6 +45,8 @@ export const inputSurface = {
     { name: 'suffix', description: "The user's own content after the input." },
     { name: 'clear', description: 'The clear button, with clearable; hidden while there is nothing to clear.' },
     { name: 'loading', description: 'The loading mark, with loading; aria-hidden (aria-busy on the input carries it).' },
+    { name: 'reveal', description: 'The show/hide button, with reveal on a password input.' },
+    { name: 'caps-lock', description: 'The caps-lock hint, with caps-lock-hint; hidden while Caps Lock is off.' },
   ],
   states: [],
   customStates: [],

@@ -62,6 +62,15 @@ if (SCENARIO === 'ssr') {
     await Promise.resolve();
     flush();
     out.states['the user\'s input, prefix and suffix, clearable with a value, loading'] = [...new Set([...options.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
+    const secret = document.createElement(TAG);
+    secret.setAttribute('reveal', '');
+    secret.setAttribute('caps-lock-hint', '');
+    secret.innerHTML = '<input aria-label="Password" type="password">';
+    document.body.append(secret);
+    flush();
+    await Promise.resolve();
+    flush();
+    out.states['a password input with reveal and caps-lock-hint'] = [...new Set([...secret.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
     out.observed = [...(Class.observedAttributes ?? [])].sort();
   }
   process.stdout.write(JSON.stringify(out));

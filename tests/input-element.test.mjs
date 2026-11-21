@@ -215,3 +215,65 @@ test('a wrapper the page swaps around the input is followed too', async () => {
   assert.equal(next.querySelector('input').nextElementSibling?.getAttribute('data-vera-part'), 'clear');
   assert.equal(element.querySelectorAll('[data-vera-part="clear"]').length, 1);
 });
+
+test('reveal: a pressed-state button that shows and hides the password, and hides it again on submit and pagehide', async () => {
+  const element = await mount('<form><label>Password <vera-input reveal><input type="password" value="s3cret"></vera-input></label></form>');
+  const input = element.querySelector('input');
+  const reveal = part(element, 'reveal');
+  assert.equal(reveal.localName, 'button');
+  assert.equal(reveal.type, 'button', 'never a submit button');
+  assert.equal(reveal.tabIndex, 0, 'in the tab order');
+  assert.equal(reveal.getAttribute('aria-label'), 'Show password');
+  assert.equal(reveal.getAttribute('aria-pressed'), 'false');
+  reveal.click();
+  assert.equal(input.type, 'text');
+  assert.equal(reveal.getAttribute('aria-pressed'), 'true');
+  assert.equal(document.activeElement, input);
+  reveal.click();
+  assert.equal(input.type, 'password');
+  reveal.click();
+  const form = document.querySelector('form');
+  form.addEventListener('submit', (event) => event.preventDefault(), { once: true });
+  form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.equal(input.type, 'password', 'a password again before the form is read');
+  assert.equal(reveal.getAttribute('aria-pressed'), 'false');
+  reveal.click();
+  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+  assert.equal(input.type, 'password', 'the back-forward cache keeps a hidden one');
+});
+
+test('reveal: removing it hides the password and takes the button; a non-password input gets no button', async () => {
+  const element = await mount('<label>Password <vera-input reveal reveal-label="Afficher"><input type="password"></vera-input></label>');
+  assert.equal(part(element, 'reveal').getAttribute('aria-label'), 'Afficher');
+  part(element, 'reveal').click();
+  element.removeAttribute('reveal');
+  await settle();
+  assert.equal(part(element, 'reveal'), null);
+  assert.equal(element.querySelector('input').type, 'password');
+  const text = await mount('<label>Name <vera-input reveal><input type="text"></vera-input></label>');
+  assert.equal(part(text, 'reveal'), null);
+});
+
+test('caps-lock-hint: shown while Caps Lock is on, announced once per focus', async () => {
+  const element = await mount('<label>Password <vera-input caps-lock-hint><input type="password"></vera-input></label>');
+  const input = element.querySelector('input');
+  const hint = part(element, 'caps-lock');
+  const key = (type, on) => input.dispatchEvent(new dom.window.KeyboardEvent(type, { key: 'a', bubbles: true, modifierCapsLock: on }));
+  assert.equal(hint.hidden, true);
+  assert.equal(hint.textContent, 'Caps Lock is on');
+  input.focus();
+  key('keydown', true);
+  assert.equal(hint.hidden, false);
+  key('keyup', true);
+  key('keydown', true);
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 200));
+  const spoken = () => [...document.querySelectorAll('[data-vera-announce] > div')].map((node) => node.textContent);
+  assert.deepEqual(spoken(), ['Caps Lock is on'], 'once while focused');
+  key('keydown', false);
+  assert.equal(hint.hidden, true);
+  input.blur();
+  input.focus();
+  key('keydown', true);
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 200));
+  assert.deepEqual(spoken(), ['Caps Lock is on', 'Caps Lock is on'], 'again after the input was left');
+});
