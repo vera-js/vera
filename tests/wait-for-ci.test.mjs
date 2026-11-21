@@ -28,7 +28,7 @@ test('decide: no run is waiting, never passing; the newest run decides, in its l
 });
 
 test('decide: anything but success fails, and the message says a red rotated fuzz seed blocks the release', () => {
-  for (const conclusion of ['failure', 'cancelled', 'timed_out', 'skipped', '']) {
+  for (const conclusion of ['failure', 'timed_out', 'action_required', 'startup_failure', 'skipped', '']) {
     const { verdict, line } = decide([done(7, conclusion)], SHA);
     assert.equal(verdict, 'fail', conclusion);
     assert.match(line, /nothing is published/);
