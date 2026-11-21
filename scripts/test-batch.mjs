@@ -18,12 +18,59 @@
  * still passes, which hides it. Refused here rather than defaulted, so the command says which build it ran.
  */
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { heavyBatch } from './heavy-batch.mjs';
 import { canonicalCwd } from './fs-path.mjs';
 import { npmCommand } from './npm.mjs';
 
 /** Every child inherits the canonical cwd, whichever shell launched this (scripts/fs-path.mjs). */
 canonicalCwd();
+
+/**
+ * Whether a script file starts a heavy batch of its own: it imports `heavyBatch` from `heavy-batch.mjs` (the five that do
+ * on 2026-11-21: the gate, tier-suites, coverage-floor, this script and the SSG bench). A test that only names it does not.
+ */
+const batches = (file) => {
+  try {
+    return /^import \{[^}]*\bheavyBatch\b[^}]*\} from '[^']*heavy-batch\.mjs';/m.test(readFileSync(file, 'utf8'));
+  } catch {
+    return false;
+  }
+};
+/** npm's names for running a package.json script: `run` and its aliases, and `test` and its. */
+const NPM_RUN = new Set(['run', 'run-script', 'rum', 'urn']);
+const NPM_TEST = new Set(['test', 't', 'tst']);
+/** How deep a chain of npm scripts is followed; past it the command is refused, toward the pause. */
+const NPM_DEPTH = 4;
+/**
+ * **Why `command` runs a heavy batch of its own**, or `undefined`: `node … <script>` whose script imports `heavyBatch`,
+ * or an npm script that runs this script without `--light`, names such a script, or runs another npm script that does
+ * (`test:all:steps` is `npm test && npm run test:prod && …`), followed up to `NPM_DEPTH`. An npm form this cannot read
+ * (`npm exec`, a flag before `run`) is refused rather than guessed light. Code passed inline (`node -e`, `--import`) is
+ * not read: the rule covers scripts named on the command line, not every way to start a batch.
+ */
+const ownBatch = (command, rest, depth = 0, seen = new Set()) => {
+  if (command === 'node') {
+    const file = rest.find((arg) => /\.m?js$/.test(arg) && batches(arg));
+    return file ? `${file} runs a heavy batch of its own` : undefined;
+  }
+  if (command !== 'npm') return undefined;
+  const name = NPM_RUN.has(rest[0]) ? rest[1] : NPM_TEST.has(rest[0]) ? 'test' : undefined;
+  if (name === undefined) return `npm ${rest.join(' ')} is not a form it can read`;
+  if (seen.has(name)) return undefined;
+  seen.add(name);
+  if (depth === NPM_DEPTH) return `npm run ${name} is past ${NPM_DEPTH} chained npm scripts`;
+  const script = JSON.parse(readFileSync('package.json', 'utf8')).scripts?.[name];
+  if (typeof script !== 'string') return undefined;
+  if (/test-batch\.mjs(?!\s+--light)/.test(script)) return `npm run ${name} is a heavy batch (${script.slice(0, 60)}…)`;
+  const named = script.split(/\s+/).find((word) => /\.m?js$/.test(word) && batches(word));
+  if (named) return `npm run ${name} runs ${named}, a heavy batch of its own`;
+  for (const [, inner] of script.matchAll(/\bnpm\s+([^&|;]+)/g)) {
+    const why = ownBatch('npm', inner.trim().split(/\s+/), depth + 1, seen);
+    if (why) return `npm run ${name} runs ${why}`;
+  }
+  return undefined;
+};
 
 const ASSIGNMENT = /^([A-Z_][A-Z0-9_]*)=(.*)$/s;
 const argv = process.argv.slice(2);
@@ -38,6 +85,15 @@ const [command, ...rest] = args;
 if (!command) throw new Error('usage: node scripts/test-batch.mjs [--light] <command> [args…]');
 if (command === 'node' && rest.includes('--test') && !rest.some((arg) => arg.startsWith('--conditions')) && env.VERA_DIST === undefined)
   throw new Error('a node --test names its build: add --conditions development, or VERA_DIST=production before node (a run with neither mixes the two builds)');
+/**
+ * **`--light` is for a light command** (2026-11-21): a command that runs a heavy batch of its own (a script that calls
+ * `heavyBatch`, or an npm script that runs one or this script unmarked) inherits this batch, so it skips its own pause
+ * too, and `--light` would smuggle a whole gate or suite past the 2-minute pause. Refused, naming the form that pauses.
+ */
+if (light) {
+  const own = ownBatch(command, rest);
+  if (own) throw new Error(`test-batch: --light is for one light file, and ${own}: run it without --light (it pauses itself)`);
+}
 heavyBatch('tests', { pause: !light })();
 /**
  * The batch marker reaches the command: `env` was copied before `heavyBatch` set it, so a command that runs a heavy

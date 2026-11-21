@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,4 +64,50 @@ test('test-batch starts a project tool from node_modules/.bin', () => {
   const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'tsc', '--version'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /Version \d+\./);
+});
+
+/**
+ * **`--light` refuses a command that runs a heavy batch of its own** (2026-11-21): the command inherits this batch, so
+ * its own 2-minute pause is skipped too. Planted in a temporary directory, so a refusal that stopped working runs a
+ * script that exits 0 rather than a real gate or suite: a script that imports `heavyBatch` (from a stub), an npm script
+ * that runs `test-batch.mjs` unmarked, one that names the script, one that chains to that one through another npm script,
+ * npm's aliases for both, and an npm form the check cannot read. The light forms beside them still run (CONTROL).
+ */
+test('test-batch --light refuses a command that runs a heavy batch of its own, by name, and runs a light one', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'vera-light-row-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, 'heavy-batch.mjs'), 'export const heavyBatch = () => () => {};\n');
+  writeFileSync(join(dir, 'heavy.mjs'), "import { heavyBatch } from './heavy-batch.mjs';\nheavyBatch('x')();\n");
+  writeFileSync(join(dir, 'light.mjs'), 'process.exit(0);\n');
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({
+    scripts: {
+      batch: 'node scripts/test-batch.mjs node light.mjs',
+      named: 'node heavy.mjs',
+      test: 'node heavy.mjs',
+      chain: 'npm run plain && npm run named',
+      plain: 'node light.mjs',
+      plains: 'npm run plain && npm run-script plain',
+    },
+  }));
+  const batch = fileURLToPath(new URL('../scripts/test-batch.mjs', import.meta.url));
+  const env = { ...process.env, VERA_HEAVY_LOCK: join(dir, 'heavy.lock') };
+  delete env.VERA_HEAVY_BATCH;
+  const light = (...command) => spawnSync(process.execPath, [batch, '--light', ...command], { cwd: dir, encoding: 'utf8', env, timeout: 60000 });
+  for (const [command, why] of [
+    [['node', '--conditions', 'development', 'heavy.mjs'], 'heavy.mjs runs a heavy batch of its own'],
+    [['npm', 'run', 'batch'], 'npm run batch is a heavy batch'],
+    [['npm', 'run', 'named'], 'npm run named runs heavy.mjs, a heavy batch of its own'],
+    [['npm', 'run-script', 'named'], 'npm run named runs heavy.mjs, a heavy batch of its own'],
+    [['npm', 't'], 'npm run test runs heavy.mjs, a heavy batch of its own'],
+    [['npm', 'run', 'chain'], 'npm run chain runs npm run named runs heavy.mjs, a heavy batch of its own'],
+    [['npm', 'exec', 'x'], 'npm exec x is not a form it can read'],
+  ]) {
+    const run = light(...command);
+    assert.equal(run.status, 1, `--light ${command.join(' ')} ran (exit ${run.status})`);
+    assert.ok(run.stderr.includes(`--light is for one light file, and ${why}`), `--light ${command.join(' ')}: ${run.stderr}`);
+  }
+  for (const command of [['node', 'light.mjs'], ['npm', 'run', 'plain'], ['npm', 'run', 'plains']]) {
+    const run = light(...command);
+    assert.equal(run.status, 0, `CONTROL: the light --light ${command.join(' ')} was refused or failed: ${run.stderr}`);
+  }
 });
