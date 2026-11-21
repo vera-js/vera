@@ -332,7 +332,7 @@ const warnings = (field: Element, errors: readonly Element[]): void => {
   for (const error of errors) {
     const when = error.getAttribute('data-when');
     if (when !== null && when !== 'server' && !(VALIDITY_KEYS as readonly string[]).includes(when))
-      console.warn(diagnostic('field', `<${field.localName}>`, 'field-unknown-when', PROSE['field-unknown-when'](quoted(when), VALIDITY_KEYS.join(', '))));
+      console.warn(diagnostic('field', `<${field.localName}>`, 'field-unknown-when', __DEV__ && PROSE['field-unknown-when'](quoted(when), VALIDITY_KEYS.join(', '))));
   }
 };
 

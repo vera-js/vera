@@ -42,6 +42,8 @@ const PINS = {
   'packages/directives/dist/vera-directives-sensors.min.js': 3,
   'packages/directives/dist/vera-directives-standalone.min.js': 26,
   'packages/directives/dist/vera-directives.min.js': 83,
+  'packages/components/field/dist/vera-field-element.min.js': 11,
+  'packages/components/field/dist/vera-field.min.js': 11,
   'packages/components/select/dist/vera-select-elements.min.js': 2,
   'packages/components/select/dist/vera-select.min.js': 3,
   'packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js': 0,
