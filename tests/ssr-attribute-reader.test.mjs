@@ -78,3 +78,43 @@ test('SELECTED and VALUE in capitals are the same attributes: an option list is 
   assert.equal(select.selectedIndex, 1, served);
   assert.equal(select.value, 'b', served);
 });
+
+test("an option's open tag ends where the parser ends it: a > inside a quoted value is not its end", () => {
+  /** CONTROL first: the same options without the `>` serve one selected, the bound one. */
+  for (const served of [
+    serializeTemplate(html`<select .value=${'a'}><option value=a>A</option><option title="x" selected value=b>B</option></select>`),
+    serializeTemplate(html`<select .value=${'a'}><option value=a>A</option><option title="x>" selected value=b>B</option></select>`),
+  ]) {
+    const select = parsed(served);
+    assert.equal(select.value, 'a', served);
+    assert.equal(select.querySelectorAll('[selected]').length, 1, `one option carries selected: ${served}`);
+  }
+});
+
+test("a select's open tag ends where the parser ends it: its mark is never served", () => {
+  for (const [title, served] of [
+    ['ab', serializeTemplate(html`<select title="ab" .value=${'b'}><option>a</option><option>b</option></select>`)],
+    ['a>b', serializeTemplate(html`<select title="a>b" .value=${'b'}><option>a</option><option>b</option></select>`)],
+  ]) {
+    assert.doesNotMatch(served, /data-vm-select/, `title ${title}: the internal mark was served: ${served}`);
+    const select = parsed(served);
+    assert.equal(select.title, title, served);
+    assert.equal(select.value, 'b', `title ${title}: ${served}`);
+  }
+});
+
+test('names are folded A–Z only, as the tokenizer folds them: KELVIN SIGN is not k', () => {
+  const served = serializeTemplate(html`<input chec\u212Aed=x ${spread({ checked: 'y' })}>`);
+  assert.deepEqual(attributesOf(parsed(served)), { 'chec\u212Aed': 'x', checked: 'y' }, served);
+  /** CONTROL: the ASCII spelling in capitals is the same name, removed before it is written again. */
+  const upper = serializeTemplate(html`<input CHECKED=x ${spread({ checked: 'y' })}>`);
+  assert.deepEqual(attributesOf(parsed(upper)), { checked: 'y' }, upper);
+});
+
+test('an unquoted value holds a quote as text: the tag does not end inside it', () => {
+  const served = serializeTemplate(html`<input title=a"b ${spread({ id: 'c' })}>`);
+  assert.deepEqual(attributesOf(parsed(served)), { title: 'a"b', id: 'c' }, served);
+  const select = serializeTemplate(html`<select title=a"b .value=${'b'}><option>a</option><option>b</option></select>`);
+  assert.doesNotMatch(select, /data-vm-select/, select);
+  assert.equal(parsed(select).value, 'b', select);
+});

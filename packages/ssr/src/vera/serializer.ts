@@ -1289,9 +1289,8 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
  *
  * `selectedIndex` chooses an option too, by position rather than by value, so it rides the same mark: the list holds
  * a string for `value` and a number for `selectedIndex`. A tag carrying two marks resolves to its LAST, because on the
- * client the later assignment is the one that stands. Two things each guarantee it, so either may change alone: the
- * greedy `[^>]*` in `MARKED_SELECT` reads a tag's last mark, and a pass removes only one mark, so the tag is resolved
- * again (clearing what the previous pass marked) until its last mark is gone.
+ * client the later assignment is the one that stands: `resolveSelects` reads every mark on the tag, keeps the last,
+ * and removes them all.
  */
 const SELECT_MARK = 'data-vm-select';
 /**
@@ -1300,10 +1299,6 @@ const SELECT_MARK = 'data-vm-select';
  */
 // eslint-disable-next-line no-bitwise -- ToInt32, exactly the WebIDL `long` conversion described above
 const selection = (name: string, value: unknown): string | number => (name === 'value' ? `${value}` : (value as number) | 0);
-const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
-const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
-/** An option's open tag, for clearing its `selected` (through `withoutAttribute`). */
-const OPTION_OPEN = /<option\b[^>]*>/gi;
 const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
 /**
@@ -1321,20 +1316,20 @@ const decodeRefs = (text: string): string =>
   );
 
 /**
- * What an engine reports for `option.value`: the `value` attribute verbatim if there is one, and
- * otherwise the option's text **stripped and collapsed**. Both halves measured in Chromium, Firefox
- * and WebKit — `tests/browser/select-value.test.js` — because the fallback is easy to assume is the
- * raw text, and it is not.
+ * What an engine reports for `option.value` when the option has no `value` attribute: its text **stripped and
+ * collapsed**, measured in Chromium, Firefox and WebKit — `tests/browser/select-value.test.js` — because the fallback
+ * is easy to assume is the raw text, and it is not. The text runs to the next tag that ends an option.
  */
-const optionValue = (attributes: string, text: string): string => {
-  /** The first `value` the parser keeps, by its name: never `data-value`, nor `value=` inside another value. */
-  if (attributes.toLowerCase().includes('value')) {
-    const tag = `<option${attributes}`;
-    const spans = tagAttributes(tag, []);
-    for (let k = 0; k < spans.length; k += 6)
-      if (tag.slice(spans[k + 1], spans[k + 2]).toLowerCase() === 'value') return spans[k + 3] === -1 ? '' : decodeRefs(tag.slice(spans[k + 3], spans[k + 4]));
+const optionText = (content: string, from: number): string => {
+  let to = content.length;
+  for (let at = content.indexOf('<', from); at !== -1; at = content.indexOf('<', at + 1)) {
+    const close = at + 1 < content.length && content.charCodeAt(at + 1) === 47;
+    if (close ? isTagAt(content, at, '/option') || isTagAt(content, at, '/optgroup') || isTagAt(content, at, '/select') : isTagAt(content, at, 'option') || isTagAt(content, at, 'optgroup')) {
+      to = at;
+      break;
+    }
   }
-  return decodeRefs(text).replace(/[\t\n\f\r ]+/g, ' ').trim();
+  return decodeRefs(content.slice(from, to)).replace(/[\t\n\f\r ]+/g, ' ').trim();
 };
 
 /**
@@ -1342,7 +1337,8 @@ const optionValue = (attributes: string, text: string): string => {
  *
  * Clearing is not tidiness: a property assignment overrides markup, so `<option selected>` beside a
  * `.value` binding loses on the client and has to lose here too. **First match wins**, which is the
- * engines' rule for duplicate values.
+ * engines' rule for duplicate values. An option's `value` is the first attribute of that name the parser keeps, read
+ * by `readTag`: never `data-value`, nor `value=` inside another value.
  *
  * When nothing matches, nothing is marked — and that is a divergence markup cannot close. The client
  * leaves `selectedIndex` at `-1` with nothing showing; a parsed `<select>` with no selected option
@@ -1350,38 +1346,69 @@ const optionValue = (attributes: string, text: string): string => {
  * on the client, and marks nothing here.
  */
 const markSelected = (content: string, wanted: string | number): string => {
-  /** Most option lists carry no `selected` at all: a substring search settles that before any tag is read. */
-  const cleared = content.toLowerCase().includes('selected') ? content.replace(OPTION_OPEN, (open) => withoutAttribute(open, 'selected')) : content;
-  OPTION.lastIndex = 0;
-  let at = 0;
-  for (let match = OPTION.exec(cleared); match; match = OPTION.exec(cleared)) {
-    if (typeof wanted === 'number' ? at++ !== wanted : optionValue(match[1], match[2]) !== wanted) continue;
-    const open = match[0].slice(0, match[0].indexOf('>'));
-    return (
-      cleared.slice(0, match.index) +
-      open.replace(/\s*\/?$/, '') +
-      ' selected>' +
-      match[0].slice(match[0].indexOf('>') + 1) +
-      cleared.slice(match.index + match[0].length)
-    );
+  let out = '';
+  let last = 0;
+  let index = 0;
+  let marked = false;
+  for (let start = nextTag(content, 'option', 0); start !== -1; start = nextTag(content, 'option', last)) {
+    const spans: number[] = [];
+    const end = readTag(content, start, spans);
+    /** Where ` selected` goes: after the last attribute kept, or after the tag name. */
+    let insertAt = start + 7;
+    let value: string | undefined;
+    let open = '';
+    let from = start;
+    for (let k = 0; k < spans.length; k += 6) {
+      if (nameIs(content, spans[k + 1]!, spans[k + 2]!, 'selected')) {
+        open += content.slice(from, spans[k]);
+        from = spans[k + 5]!;
+      } else {
+        insertAt = spans[k + 5]!;
+        if (value === undefined && nameIs(content, spans[k + 1]!, spans[k + 2]!, 'value'))
+          value = spans[k + 3] === -1 ? '' : decodeRefs(content.slice(spans[k + 3], spans[k + 4]));
+      }
+    }
+    const chosen = !marked && (typeof wanted === 'number' ? index === wanted : (value ?? optionText(content, end)) === wanted);
+    index++;
+    if (chosen) {
+      marked = true;
+      open += `${content.slice(from, Math.max(from, insertAt))} selected>`;
+    } else open += content.slice(from, end);
+    out += content.slice(last, start) + open;
+    last = end;
   }
-  return cleared;
+  return out + content.slice(last);
 };
 
-/** Resolves every marked `<select>` once its options are in the string — see `SELECT_MARK`. */
+/**
+ * Resolves every marked `<select>` once its options are in the string — see `SELECT_MARK`. Each select's open tag is
+ * read by `readTag`, so its end is the parser's (a `>` inside a quoted title is not it) and its mark is an attribute
+ * of its own, never text inside another value.
+ */
 const resolveSelects = (markup: string, wanted: ReadonlyArray<string | number>): string => {
-  for (let match = MARKED_SELECT.exec(markup); match; match = MARKED_SELECT.exec(markup)) {
-    const openTag = match[0].replace(new RegExp(`\\s*${SELECT_MARK}="\\d+"`, 'i'), '');
-    const contentStart = match.index + match[0].length;
-    const closeAt = markup.toLowerCase().indexOf('</select', contentStart);
-    const end = closeAt === -1 ? markup.length : closeAt;
-    markup =
-      markup.slice(0, match.index) +
-      openTag +
-      markSelected(markup.slice(contentStart, end), wanted[+match[1]]) +
-      markup.slice(end);
+  let out = '';
+  let last = 0;
+  for (let start = nextTag(markup, 'select', 0); start !== -1; start = nextTag(markup, 'select', start + 1)) {
+    const spans: number[] = [];
+    const end = readTag(markup, start, spans);
+    let mark = -1;
+    let open = '';
+    let from = start;
+    for (let k = 0; k < spans.length; k += 6)
+      if (nameIs(markup, spans[k + 1]!, spans[k + 2]!, SELECT_MARK)) {
+        /** The LAST mark stands: the client's later assignment is the one that holds. */
+        mark = +markup.slice(spans[k + 3], spans[k + 4]);
+        open += markup.slice(from, spans[k]);
+        from = spans[k + 5]!;
+      }
+    if (mark === -1) continue;
+    const closeAt = nextTag(markup, '/select', end);
+    const contentEnd = closeAt === -1 ? markup.length : closeAt;
+    out += markup.slice(last, start) + open + markup.slice(from, end) + markSelected(markup.slice(end, contentEnd), wanted[mark]!);
+    last = contentEnd;
+    start = Math.max(start, contentEnd - 1);
   }
-  return markup;
+  return out + markup.slice(last);
 };
 
 /** The type that makes a classic script inert; written FIRST, so the parser's first-duplicate-wins rule defeats any author `type`. */
@@ -1520,60 +1547,94 @@ const insertContent = (staticText: string, text: string, strip: string): string 
 const tagSpace = (c: number): boolean => c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
 
 /**
- * **An open tag's attributes, read as the parser reads them** (2026-11-21): the one reader behind every edit this
- * serializer makes to markup it already wrote — removing a name before it is written again, an option's `value`, and
- * its `selected`. For each attribute it pushes six offsets into `spans`: where its removal starts (the one whitespace
- * before its name, when there is one), its name's start and end, its value's start and end (`-1` for none; inside the
- * quotes), and its end. `tag` is `<name …`, closed or not.
+ * **An open tag, read as the parser reads it** (2026-11-21): the one reader behind every edit this serializer makes
+ * to markup it already wrote — removing a name before it is written again, finding a `<select>`'s mark, an option's
+ * `value` and its `selected` — and behind finding where such a tag ENDS. `text[from]` is the tag's `<`. For each
+ * attribute it pushes six offsets into `spans`: where its removal starts (the one whitespace before its name, when
+ * there is one), its name's start and end, its value's start and end (`-1` for none; inside the quotes), and its end.
+ * Answers the offset just past the tag's `>`, or `text.length` when the tag does not close.
  *
  * The patterns it replaced had no end to the name and did not see quotes, so they matched text the parser reads as
  * a value: removing `id` matched ` id=b"` inside `title="a id=b"` and served the rest of a spread's value as live
- * attributes (an `onfocus` handler, measured), removing `src` cut `srcset=` to `set=`, and an option's `value` was
- * read from `data-value` or from a title holding `value=b`.
+ * attributes (an `onfocus` handler, measured), removing `src` cut `srcset=` to `set=`, an option's `value` was read
+ * from `data-value` or from a title holding `value=b`, and `[^>]*` ended an option or a select at a `>` inside a
+ * quoted value, so an author's `selected` survived beside the chosen one and the select's mark was served.
  */
-const tagAttributes = (tag: string, spans: number[]): number[] => {
-  const n = tag.length;
-  let i = 1;
+const readTag = (text: string, from: number, spans: number[]): number => {
+  const n = text.length;
+  let i = from + 1;
   let c = 0;
-  while (i < n && !tagSpace((c = tag.charCodeAt(i))) && c !== 47 && c !== 62) i++;
+  while (i < n && !tagSpace((c = text.charCodeAt(i))) && c !== 47 && c !== 62) i++;
   for (;;) {
     /** A `/` not before `>` is read as a separator, as the parser reads it. */
-    while (i < n && (tagSpace((c = tag.charCodeAt(i))) || c === 47)) i++;
-    if (i >= n || c === 62) return spans;
+    while (i < n && (tagSpace((c = text.charCodeAt(i))) || c === 47)) i++;
+    if (i >= n) return n;
+    if (c === 62) return i + 1;
     const nameFrom = i;
     /** The first character is part of the name whatever it is, `=` included: the parser's rule. */
     i++;
-    while (i < n && !tagSpace((c = tag.charCodeAt(i))) && c !== 47 && c !== 62 && c !== 61) i++;
+    while (i < n && !tagSpace((c = text.charCodeAt(i))) && c !== 47 && c !== 62 && c !== 61) i++;
     const nameTo = i;
     let valueFrom = -1;
     let valueTo = -1;
     let j = i;
-    while (j < n && tagSpace(tag.charCodeAt(j))) j++;
-    if (j < n && tag.charCodeAt(j) === 61) {
+    while (j < n && tagSpace(text.charCodeAt(j))) j++;
+    if (j < n && text.charCodeAt(j) === 61) {
       j++;
-      while (j < n && tagSpace(tag.charCodeAt(j))) j++;
-      const quote = tag.charCodeAt(j);
+      while (j < n && tagSpace(text.charCodeAt(j))) j++;
+      const quote = j < n ? text.charCodeAt(j) : 0;
       if (quote === 34 || quote === 39) {
-        const close = tag.indexOf(tag[j]!, j + 1);
+        const close = text.indexOf(text[j]!, j + 1);
         valueFrom = j + 1;
         valueTo = close === -1 ? n : close;
         i = close === -1 ? n : close + 1;
       } else {
+        /** Unquoted, a quote is part of the value (`title=a"b`), as the parser reads it. */
         valueFrom = j;
-        while (j < n && !tagSpace((c = tag.charCodeAt(j))) && c !== 62) j++;
+        while (j < n && !tagSpace((c = text.charCodeAt(j))) && c !== 62) j++;
         valueTo = i = j;
       }
     }
-    spans.push(nameFrom > 0 && tagSpace(tag.charCodeAt(nameFrom - 1)) ? nameFrom - 1 : nameFrom, nameFrom, nameTo, valueFrom, valueTo, i);
+    spans.push(nameFrom > from + 1 && tagSpace(text.charCodeAt(nameFrom - 1)) ? nameFrom - 1 : nameFrom, nameFrom, nameTo, valueFrom, valueTo, i);
   }
 };
 
-/** `tag` without any attribute named `name` (ASCII case-insensitive, as names are). Every copy goes: see `stripAttribute`. */
+/**
+ * Whether `text[from, to)` is `name`, ASCII case-insensitively — A–Z folded and nothing else, as the tokenizer
+ * lowercases a name. `toLowerCase` folds more (U+212A KELVIN SIGN to `k`), so a name the parser keeps apart matched.
+ */
+const nameIs = (text: string, from: number, to: number, name: string): boolean => {
+  if (to - from !== name.length) return false;
+  for (let k = 0; k < name.length; k++) {
+    let a = text.charCodeAt(from + k);
+    let b = name.charCodeAt(k);
+    if (a >= 65 && a <= 90) a += 32;
+    if (b >= 65 && b <= 90) b += 32;
+    if (a !== b) return false;
+  }
+  return true;
+};
+
+/** Whether `text[at]` opens `<name` (the name ASCII case-insensitive, then a space, `/`, `>` or the end). */
+const isTagAt = (text: string, at: number, name: string): boolean => {
+  const after = at + name.length + 1;
+  if (after > text.length || !nameIs(text, at + 1, after, name)) return false;
+  if (after === text.length) return true;
+  const c = text.charCodeAt(after);
+  return tagSpace(c) || c === 47 || c === 62;
+};
+
+/** The next `<name` tag at or after `from` (see `isTagAt`), or -1. */
+const nextTag = (text: string, name: string, from: number): number => {
+  for (let at = text.indexOf('<', from); at !== -1; at = text.indexOf('<', at + 1)) if (isTagAt(text, at, name)) return at;
+  return -1;
+};
+
+/** `tag` without any attribute named `name`. Every copy goes: see `stripAttribute`. */
 const withoutAttribute = (tag: string, name: string): string => {
-  const spans = tagAttributes(tag, []);
-  const wanted = name.toLowerCase();
-  for (let k = spans.length - 6; k >= 0; k -= 6)
-    if (tag.slice(spans[k + 1], spans[k + 2]).toLowerCase() === wanted) tag = tag.slice(0, spans[k]) + tag.slice(spans[k + 5]);
+  const spans: number[] = [];
+  readTag(tag, 0, spans);
+  for (let k = spans.length - 6; k >= 0; k -= 6) if (nameIs(tag, spans[k + 1]!, spans[k + 2]!, name)) tag = tag.slice(0, spans[k]) + tag.slice(spans[k + 5]);
   return tag;
 };
 
@@ -1605,7 +1666,7 @@ export const UNSAFE_ATTRIBUTE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
 /**
  * Strips an attribute out of an open tag, every copy of it, and the one place that knows how (through
- * `tagAttributes`).
+ * `readTag`).
  *
  * `foldSpread` once had its own copy of this, character for character — so a fix to one was a fix
  * to one. Every copy goes because the parser keeps the FIRST of a duplicate name and the client's
