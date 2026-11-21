@@ -25,7 +25,7 @@ jobs:
       # The trust binding names vera-js/vera + release.yml, so this file's
       # NAME is load-bearing. Renaming it breaks publishing for all packages.
       id-token: write
-    # CI takes 8–11 minutes; the wait gives up well before this.
+    # A green CI run took 16–21 minutes on 2026-11-21 (ten runs); the wait gives up at 45, well before this.
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
