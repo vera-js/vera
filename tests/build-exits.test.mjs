@@ -9,12 +9,13 @@
  *
  * The first row drives a plain TypeScript watch program through the bug's order of events (create, change a watched
  * file, close before the update's 250 ms timer, wait past it): it rebuilds, which shows the order of events reaches the
- * bug here. The second drives a REAL build through `defaultRollupConfig.js` the same way and must not rebuild, with a
- * control that its file change did schedule an update. A few seconds, nothing written but an identical rewrite of one
- * source file.
+ * bug here. The second runs a REAL build through `defaultRollupConfig.js` the same way in its own process, which must
+ * end by itself, with a control that its file change did schedule an update. A few seconds, nothing written but an
+ * identical rewrite of one source file.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,9 +25,6 @@ import { packageFiles } from '../scripts/packages.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-/** The delay TypeScript's watch program schedules a program update with (`scheduleProgramUpdate`). */
-const UPDATE_DELAY = 250;
-
 /** The programs a plain watch program creates when one of its files changes just before it is closed. */
 const programsAfterCloseRace = async () => {
   const dir = mkdtempSync(join(tmpdir(), 'build-exits-'));
@@ -58,58 +56,24 @@ test('CONTROL: a plain TypeScript watch program rebuilds when it changed just be
 });
 
 /**
- * A real build of one package through the shared config, with a plugin that rewrites the entry (identical bytes) while
- * the build is running and waits for the change event, so an update is pending when the plugin closes its program. Spies
- * on the TypeScript the plugin uses count the programs created and the updates scheduled.
+ * **The build process ends by itself**, which is the claim: a program rebuilt after the close holds watchers nothing
+ * closes, and the process stays alive (the hang). `tests/fixtures/build-exits/child.mjs` runs one real package build
+ * with its entry rewritten mid-build; it is given 20 s, against about 2 s for a build that closes cleanly, and a child
+ * still running then is killed and read as the hang. (Spying on the program count inside this process cannot work:
+ * `ts.createWatchProgram` is a getter-only export.)
  */
-test('a build through defaultRollupConfig creates no program after it closes, though its file changed mid-build', async () => {
-  const { rollup } = await import('rollup');
-  const { defaultRollupConfig } = await import('../defaultRollupConfig.js');
-  const before = process.cwd();
-  const entry = fileURLToPath(new URL('../packages/inserts/src/index.ts', import.meta.url));
-  const realWatch = ts.createWatchProgram;
-  const realSchedule = ts.sys.setTimeout;
-  let programs = 0;
-  let scheduled = 0;
-  const warnings = [];
-  ts.createWatchProgram = (host) => {
-    const after = host.afterProgramCreate;
-    host.afterProgramCreate = (program) => {
-      programs++;
-      after?.(program);
-    };
-    return realWatch(host);
-  };
-  ts.sys.setTimeout = (callback, ms, ...args) => {
-    if (ms === UPDATE_DELAY) scheduled++;
-    return realSchedule(callback, ms, ...args);
-  };
-  try {
-    /** A package build runs in its package (the config reads the version from its package.json), so this one does too. */
-    process.chdir(fileURLToPath(new URL('../packages/inserts/', import.meta.url)));
-    const config = defaultRollupConfig('build-exits', []);
-    const touch = {
-      name: 'touch-mid-build',
-      async transform(_code, id) {
-        if (id !== entry) return null;
-        writeFileSync(entry, readFileSync(entry));
-        await sleep(150); // the change event arrives and schedules the update before buildEnd closes the program
-        return null;
-      },
-    };
-    const bundle = await rollup({ ...config, plugins: [...config.plugins, touch], onwarn: (warning) => warnings.push(String(warning.message)) });
-    await bundle.close();
-    await sleep(900); // past the update's timer
-  } finally {
-    process.chdir(before);
-    ts.createWatchProgram = realWatch;
-    ts.sys.setTimeout = realSchedule;
-  }
-  assert.ok(programs >= 1, 'CONTROL: the plugin built its program through this TypeScript, so the spies see it');
-  assert.ok(scheduled >= 1, 'CONTROL: the mid-build change scheduled a program update, so the close met one pending');
-  assert.equal(programs, 1, 'no program was created after the build closed its own');
+test('a build through defaultRollupConfig exits by itself, though its file changed mid-build', () => {
+  const child = spawnSync(process.execPath, [fileURLToPath(new URL('./fixtures/build-exits/child.mjs', import.meta.url)), ROOT], {
+    cwd: join(ROOT, 'packages', 'inserts'),
+    encoding: 'utf8',
+    timeout: 20_000,
+  });
+  assert.equal(child.error?.code, undefined, `the build did not exit within 20 s (the hang): ${child.error?.code}`);
+  assert.equal(child.status, 0, `the build failed: ${child.stderr.slice(-2000)}`);
+  const report = JSON.parse(child.stdout.trim().split('\n').at(-1));
+  assert.ok(report.scheduled >= 1, 'CONTROL: the mid-build change scheduled a program update, so the close met one pending');
   /** An options diagnostic (TS5096 was every build's) makes TypeScript skip every type error, so none may appear. */
-  assert.deepEqual(warnings.filter((w) => /TS5\d{3}/.test(w)), [], 'no options diagnostic hides the type errors');
+  assert.deepEqual(report.options, [], 'no options diagnostic hides the type errors');
 });
 
 test('package.json holds @rollup/plugin-typescript at the release that cancels the pending update', () => {
