@@ -10,8 +10,10 @@
  * The first row drives a plain TypeScript watch program through the bug's order of events (create, change a watched
  * file, close before the update's 250 ms timer, wait past it): it rebuilds, which shows the order of events reaches the
  * bug here. The second runs a REAL build through `defaultRollupConfig.js` the same way in its own process, which must
- * end by itself, with a control that its file change did schedule an update. A few seconds, nothing written but an
- * identical rewrite of one source file.
+ * end by itself, with a control that its file change did schedule an update. About 5 s in all (the control ~2.3 s, the
+ * build ~1.7 s, measured on Windows 2026-11-20), as the one-shot suite it replaced cost; nothing written but an
+ * identical rewrite of one source file. On @rollup/plugin-typescript 12.3.0 the build row is red: the child never
+ * exits and is killed at 20 s.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
