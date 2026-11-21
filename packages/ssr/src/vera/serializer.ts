@@ -76,6 +76,19 @@ const SIGILS = new Set(['.', '?', '@', '&', '!']);
  * name, which the binding takes with it so a dropped binding leaves no residue (`compile` then trims one more space).
  */
 const nameCut = (text: string, nameAt: number): number => (nameAt > 0 && isSpace(text[nameAt - 1]) ? nameAt - 1 : nameAt);
+/**
+ * Where the rest of a sigil or event binding's value ends in the static after its hole: past the closing quote, or,
+ * unquoted, at the whitespace or `>` that ends the value. The client ignores static text beside such a hole
+ * (`@click=${fn}x` renders `<a>`), so the server drops it with the binding; left in, it was glued to the tag
+ * (`<a onClick=${fn}x>` served `<ax>`, `<textarea onA=${v}…>` an element that is no textarea).
+ */
+const valueTail = (text: string, quote: string): number => {
+  if (quote) return text.indexOf(quote) + 1;
+  /** A loop, not a regex search: the value usually ends at once (`@click=${fn}>`), and compile meets this per binding. */
+  let i = 0;
+  for (let c = text.charCodeAt(0); i < text.length && c !== 32 && c !== 62 && (c < 9 || c > 13 || c === 11); c = text.charCodeAt(++i));
+  return i;
+};
 
 /**
  * **An expression inside an attribute NAME is refused** — the twin of the client's rule (`nameHole` in the renderer),
@@ -414,8 +427,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   let dynamicTag = false;
   let owner = '';
 
-  /** The quote character a binding opened with, to be stripped off the front of the next static. */
-  let openQuote = '';
+  /**
+   * The quote a sigil or event binding's value opened with (`''` unquoted), so the rest of its value comes off the front
+   * of the next static; `undefined` when the last binding was neither.
+   */
+  let openQuote: string | undefined;
   let wasInTag = false;
   /** Carried across statics — see `scanTag`. */
   let tagState: ScanStart | ScanResult = freshScan(depth);
@@ -431,7 +447,10 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
-    if (openQuote && part.startsWith(openQuote)) part = part.slice(1);
+    if (openQuote !== undefined) {
+      part = part.slice(valueTail(part, openQuote));
+      openQuote = undefined;
+    }
     /**
      * Scanned from the **author's** static, not the trimmed one.
      *
@@ -580,7 +599,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       continue;
     }
 
-    openQuote = '';
+    openQuote = undefined;
 
     /** `onClick=${fn}` — the React-shaped event binding, named as the client names it: a client concern, dropped like `@`. */
     if (whole && /^on[A-Z]/.test(tagState.attrRaw)) {
@@ -704,7 +723,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   }
 
   let last = strings[strings.length - 1];
-  if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
+  if (openQuote !== undefined) last = last.slice(valueTail(last, openQuote));
   parts.push(last);
 
   /** Each attribute's tail — its static suffix and closing quote — comes off the static after its last hole. */

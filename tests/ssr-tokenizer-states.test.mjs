@@ -213,6 +213,25 @@ test('a sigil or event name INSIDE an attribute value is part of that value', ()
   assert.equal(serializeTemplate(template(['<b title="a onClick=', '">t</b>'], 'v')), '<b title="a onClick=v">t</b>');
 });
 
+/**
+ * The client ignores static text beside a sigil or event hole (`<a @click=${fn}x>` renders `<a>`), so the server drops
+ * the rest of that value with the binding. Left in, it was glued to the tag — `<ax>`, and `<textareascript<style>` for
+ * a textarea, whose content then parsed as live markup.
+ */
+test('the rest of a dropped binding’s value goes with it, quoted or not, and nothing after it', () => {
+  const fn = () => {};
+  assert.equal(serializeTemplate(template(['<a onClick=', 'x>1</a>'], fn)), '<a>1</a>');
+  assert.equal(serializeTemplate(template(['<a onClick="', 'x">1</a>'], fn)), '<a>1</a>');
+  assert.equal(serializeTemplate(template(['<a @click=', 'x title=b>1</a>'], fn)), '<a title=b>1</a>');
+  assert.equal(serializeTemplate(template(['<a ?hidden=', 'x>1</a>'], true)), '<a hidden="">1</a>');
+  assert.equal(serializeTemplate(template(['<textarea onA=', 'script<style>t</textarea>'], 'v')), '<textarea>t</textarea>');
+  assert.equal(serializeTemplate(template(['<a @click=', '>abc ', ' def</a>'], fn, 'T')), '<a>abc T def</a>');
+});
+
+test('control: a plain attribute keeps its static suffix', () => {
+  assert.equal(serializeTemplate(template(['<a title=', 'x>1</a>'], 'v')), '<a title="vx">1</a>');
+});
+
 /** The tag a binding belongs to is the name the tokenizer reads — the element's `localName` — whatever its case. */
 test('a form property on an upper-case tag is mirrored as on a lower-case one', () => {
   assert.equal(serializeTemplate(template(['<INPUT .value=', '>'], 'v')), serializeTemplate(template(['<input .value=', '>'], 'v')).replace('<input', '<INPUT'));

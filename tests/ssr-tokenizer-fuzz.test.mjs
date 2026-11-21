@@ -65,7 +65,8 @@ const locate = (root, sentinel) => {
         if (child.tagName.includes(sentinel)) return `${where}tag-name`;
         for (const a of child.attrs) {
           if (a.name.includes(sentinel)) return `${where}attr-name`;
-          if (a.value.includes(sentinel)) return `${where}value:${child.tagName}:${a.name}`;
+          /** A space between the names, which neither can hold: a tag name may hold a colon (`<a=script:x<`). */
+          if (a.value.includes(sentinel)) return `${where}value:${child.tagName} ${a.name}`;
         }
       }
       const inner = walk(child, inert) ?? (child.content !== undefined ? walk(child.content, true) : undefined);
@@ -79,7 +80,7 @@ const locate = (root, sentinel) => {
 /** Where the server may leave a value out although the browser shows it: its deliberate drops — sigils, and `on*` (an event binding or a refused inline handler). */
 const mayDrop = (browser) =>
   browser === 'absent' || browser.startsWith('inert:') || browser === 'comment' || browser === 'attr-name' || browser === 'tag-name' ||
-  /^value:[^:]*:([.?@&!]|on)/.test(browser);
+  /^value:\S* ([.?@&!]|on)/.test(browser);
 
 test('random statics: no hole lets a value make markup, and every placed value sits where the browser puts it', () => {
   let placed = 0;
