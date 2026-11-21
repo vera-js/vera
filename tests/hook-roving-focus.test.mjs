@@ -266,6 +266,17 @@ test('an item added after wiring: focusin or refresh() gives it -1, so the group
   assert.equal(stops(items()).filter((s) => s === '0').length, 1);
 });
 
+test('an item added after wiring: focus arriving on the ACTIVE item (Tab from outside) repairs it too', () => {
+  const doc = page(`<button id="before">x</button>${TOOLBAR}`);
+  const container = doc.querySelector('#g');
+  const items = () => [...container.children];
+  rovingFocus(container, { items, orientation: 'horizontal' });
+  const late = container.appendChild(doc.createElement('button'));
+  doc.querySelector('#before').focus();
+  items()[0].focus();
+  assert.equal(late.getAttribute('tabindex'), '-1', 'Tab lands on the active item, and the next Tab must leave the group');
+});
+
 test('an item that leaves the group gets its own tabindex back at the next sync, and release does not touch it again', () => {
   const doc = page('<div id="g"><button>a</button><button tabindex="5">b</button><button>c</button></div><button id="out">o</button>');
   const container = doc.querySelector('#g');

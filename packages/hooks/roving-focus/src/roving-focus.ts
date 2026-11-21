@@ -106,9 +106,18 @@ export const rovingFocus = (container: Element, options: RovingOptions): RovingF
     onMove?.(item);
   };
 
+  /**
+   * Re-syncs when focus lands on an item that is not the active one (a pointer, a script), AND whenever focus arrives
+   * from outside the group, even on the active item: that is Tab entering, and an item added since the last sync has no
+   * tabindex yet, so without this the next Tab would stop on it instead of leaving (found on all three engines). Focus
+   * moving between items from inside, as every arrow does, needs neither: the key already synced.
+   */
   const onFocusin = (event: Event) => {
     const focused = focusedOf(event);
-    if (focused !== null && focused !== active && items().includes(focused) && !skip(focused)) sync(focused);
+    if (focused === null) return;
+    const from = (event as FocusEvent).relatedTarget as Node | null;
+    const entering = from === null || !container.contains(from);
+    if ((entering || focused !== active) && items().includes(focused) && !skip(focused)) sync(focused);
   };
 
   container.addEventListener('keydown', onKeydown);
