@@ -33,6 +33,10 @@
     "./dist/development/vera-field.js",
     "./dist/vera-field.min.js"
   ],
+  "dependencies": {
+    "@vera-hooks/announce": "^0.1.0",
+    "@vera-hooks/labeled": "^0.1.0"
+  },
   "peerDependencies": {
     "@verajs/core": "^0.4.2"
   },

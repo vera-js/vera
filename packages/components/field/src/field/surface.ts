@@ -1,0 +1,46 @@
+import type { ComponentSurface } from '@verajs/shared-types';
+
+/**
+ * **<vera-field>'s declared surface: every name a consumer can depend on, as data.** `custom-elements.json` is
+ * generated from it (`scripts/generate-cem.mjs`; the gate's `--check` refuses a manifest that disagrees), so a name
+ * added to the element is added here in the same change, and renaming one is a breaking change. The field renders
+ * nothing: every part is the consumer's own markup, named by `data-vera-part`, and every attribute is read when it is
+ * used, never observed.
+ */
+export const fieldSurface = {
+  tag: 'vera-field',
+  description:
+    'Wires a form control the consumer writes to its label, hint, count and errors, and renders nothing itself. The control is the [data-vera-part="control"] element, else the first labelable one; the <label> is pointed at it, the hint and count describe it, and the error that shows is chosen from the control\'s ValidityState once the user has tried (an edit and a blur, or a submit). A user\'s failed submit focuses the first invalid control in tree order, as native does, and the field cancels native bubbles unless native-messages is set. An error the server rendered (data-when="server") stands until the first edit. The count speaks once per crossing, in the consumer\'s words and the language\'s plural form.',
+  attributes: [
+    { name: 'native-messages', description: 'Leave the browser\'s own validation bubble in place: the field does not cancel `invalid`. Read when it fires.' },
+    {
+      name: 'count-message',
+      description:
+        'What the count says near the limit; {left} interpolates the characters left. Read when it speaks, after count-message-<category>. Default "{left} characters left" ("1 character left" at one).',
+    },
+    { name: 'count-message-zero', description: 'count-message for the plural category "zero" of {left} in the field\'s language (Intl.PluralRules, the closest lang).' },
+    { name: 'count-message-one', description: 'count-message for the plural category "one".' },
+    { name: 'count-message-two', description: 'count-message for the plural category "two".' },
+    { name: 'count-message-few', description: 'count-message for the plural category "few".' },
+    { name: 'count-message-many', description: 'count-message for the plural category "many".' },
+    { name: 'count-message-other', description: 'count-message for the plural category "other".' },
+    { name: 'limit-message', description: 'What the count says at the limit. Read when it speaks. Default "Limit reached".' },
+  ],
+  properties: [],
+  events: [],
+  methods: [],
+  slots: [],
+  parts: [
+    { name: 'control', description: 'The control the field wires, when it is not the first labelable element in the field.' },
+    { name: 'hint', description: 'Help text; the control is described by it.' },
+    {
+      name: 'error',
+      description:
+        'An error message. data-when names the ValidityState key it is for (valueMissing, typeMismatch, …), "server" for one the server rendered (it stands until the first edit), or nothing for the catch-all; a part left empty shows the browser\'s validationMessage. Only the chosen one is shown; the others get hidden.',
+    },
+    { name: 'count', description: 'Shows "length / maxlength" for a control with a maxlength, and describes the control.' },
+  ],
+  states: [{ on: 'control', attribute: 'aria-invalid', values: ['true'] }],
+  customStates: [],
+  tokens: [],
+} as const satisfies ComponentSurface;
