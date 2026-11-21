@@ -42,9 +42,10 @@ it('answers a state rather than the attribute text', () => {
       .to.equal(rule.valid[1]);
   }
   /**
-   * The fewest any engine implements: Playwright's WebKit on Windows has only `inputMode` and `popover` (no
-   * `enterKeyHint`, `autocapitalize`, `writingSuggestions` or `virtualKeyboardPolicy`), measured 2026-11-20. Fewer
-   * than that means the check stopped reading the members, not an engine that lacks them.
+   * A FLOOR against an empty walk, not a count of what engines implement: the per-member rows above do the checking, and
+   * this only proves they ran. Set at the leanest engine measured, Playwright's WebKit 26.5 on Windows, 2 of the 6
+   * (`inputMode`, `popover`); raising it re-breaks that engine, and 2 says nothing about Chromium's or Firefox's count
+   * (the census is in docs/BROWSER-LEDGER.md, "Test environments").
    */
   expect(checked, 'this engine implements too few of them, so it proves nothing').to.be.at.least(2);
 });
