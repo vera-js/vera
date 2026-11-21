@@ -9,6 +9,11 @@
  *
  * Exempt, as the principle says: released CHANGELOG entries (they record what was published) and the
  * CSS color keyword `grey`, which is a different word from `gray` to a stylesheet.
+ *
+ * **Identifiers are read word by word**: `LabelledParts`, `labelled_parts` and `isCentred` have no word boundary after
+ * the British word, so a line is split at a lower-to-upper case change and at `_` before it is matched (two exported
+ * types of an unlanded hook passed the check that way, 2026-11-21). The platform's own names that spell a British
+ * piece (`ariaLabelledByElements`) are exempt by exact token, never by line or prefix.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -48,6 +53,16 @@ const BRITISH = new RegExp(
  * Also skipped: the fixtures omni contributes and regenerates (`docs/motion-spec/fixtures/*.json`) —
  * their text is omni's to spell, and a hand edit here is undone by the next regeneration.
  */
+/**
+ * The platform's names that spell a British piece, by exact token: the ARIA reflections of `aria-labelledby`. Exact,
+ * so a name we coin (`ariaColourFor`) is still read.
+ */
+const PLATFORM = /\bariaLabelledBy(?:Elements)?\b/g;
+/** A line as words: identifiers split at a case change and at `_`, platform names kept whole. */
+const asWords = (line) => line.replace(PLATFORM, ' ').replace(/([a-z0-9])(?=[A-Z])/g, '$1 ').replaceAll('_', ' ');
+/** The British spellings in one line of text. */
+const britishIn = (line) => [...asWords(line).matchAll(BRITISH)].map((match) => match[0]);
+
 const SKIP = /CHANGELOG\.md$|package-lock\.json$|\.(png|jpg|ico|woff2|gz|svg)$|^tests\/us-spelling\.test\.mjs$|^docs\/motion-spec\/fixtures\/.*\.json$/;
 
 test('the pattern catches every family and leaves US English alone', () => {
@@ -60,10 +75,32 @@ test('the pattern catches every family and leaves US English alone', () => {
   for (const word of american) assert.doesNotMatch(word, new RegExp(BRITISH.source, 'i'), `the pattern flags "${word}"`);
 });
 
+test('identifiers are read word by word, and the platform\'s ARIA names are its own', () => {
+  for (const identifier of ['LabelledParts', 'labelled_parts', 'isCentred', 'normalisedValue', 'CANCELLED_STATE', 'outsideColour', 'ariaColourFor'])
+    assert.notDeepEqual(britishIn(identifier), [], `an identifier hides "${identifier}"`);
+  for (const identifier of ['LabeledParts', 'aria-labelledby', 'ariaLabelledByElements', 'el.ariaLabelledByElements = []', 'isCentered', 'canceledState'])
+    assert.deepEqual(britishIn(identifier), [], `"${identifier}" is flagged`);
+  /** The platform name is exempt as a TOKEN, never as a line: a British word beside it is still found. */
+  assert.deepEqual(britishIn('el.ariaLabelledByElements = colour;'), ['colour'], 'a word beside an allowed platform name is still read');
+});
+
+/**
+ * **Known, counted, and due to go**: spellings the identifier split found in package source on the day it was added,
+ * each an internal name (motion's `normalisePosition`, exported from `dom.ts` to its own modules only, in no public
+ * entry or doc). Counted exactly per file, so a new one fails above and a renamed one fails below until its entry
+ * leaves this table.
+ */
+const KNOWN = {
+  'packages/motion/src/dom.ts: "normalise"': 1,
+  'packages/motion/src/generate.ts: "normalise"': 2,
+  'packages/motion/src/runtime.ts: "normalise"': 3,
+};
+
 test('no tracked file spells the British way', () => {
   const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));
   assert.ok(files.length > 500, `CONTROL: only ${files.length} files were read — the listing did not work`);
   const found = [];
+  const known = {};
   for (const file of files) {
     let text;
     try {
@@ -72,8 +109,13 @@ test('no tracked file spells the British way', () => {
       continue;
     }
     text.split('\n').forEach((line, index) => {
-      for (const match of line.matchAll(BRITISH)) found.push(`${file}:${index + 1}: "${match[0]}"`);
+      for (const word of britishIn(line)) {
+        const key = `${file}: "${word.toLowerCase()}"`;
+        if (KNOWN[key] !== undefined) known[key] = (known[key] ?? 0) + 1;
+        else found.push(`${file}:${index + 1}: "${word}"`);
+      }
     });
   }
   assert.deepEqual(found, [], `British spellings — docs/CODE-PRINCIPLES.md §1 asks for American English:\n  ${found.slice(0, 40).join('\n  ')}`);
+  assert.deepEqual(known, KNOWN, 'the known spellings changed: one that was renamed leaves KNOWN in the same commit');
 });
