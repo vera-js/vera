@@ -1,12 +1,11 @@
 /**
  * **`@vera-hooks/announce`: one live region per document, and the settle window a spinner speaks through.** Each row
- * is one line of the sign-off sheet (the surface, and principles 1, 2, 5, 6, 8, 10, 11, 12) or one of its review's
- * amendments.
+ * is one line of the sign-off sheet (the surface, and principles 1, 2, 5, 6, 8, 10, 11, 12) or one point of its reviews.
  *
  * jsdom is the regression net, never the oracle: whether a screen reader SPEAKS a write, and modals (jsdom has no
- * `:modal`), live in the browser suite. These rows hold what the hook decides and writes. Its timers run on a queue the
- * row drives (`clock`), so every "said" and "said nothing" is read after exactly the timers that would have said it,
- * never after a sleep.
+ * `:modal`), live in the browser suite. These rows hold what the hook decides and writes. Its timers run on a clock the
+ * row advances (`advance(ms)` runs every timer due by then, in due order), so every "said" and "said nothing" is read
+ * after exactly the timers that would have said it, never after a sleep.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,83 +14,124 @@ import { load } from './dist.mjs';
 
 const GLOBALS = ['window', 'document', 'HTMLElement', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Event'];
 
-/** A fresh document, the globals pointed at it, and its window's timers on a queue this row drives. */
+/** A clock on `win`'s timers: `advance(ms)` runs every timer due within `ms`, in due order, including ones they queue. */
+const clockOn = (win) => {
+  const queue = new Map();
+  let now = 0;
+  let next = 0;
+  win.setTimeout = (fn, ms = 0) => (queue.set(++next, { fn, at: now + ms, ms }), next);
+  win.clearTimeout = (id) => void queue.delete(id);
+  const advance = (ms) => {
+    const until = now + ms;
+    for (;;) {
+      let first = null;
+      for (const [id, timer] of queue) if (timer.at <= until && (first === null || timer.at < first[1].at)) first = [id, timer];
+      if (first === null) break;
+      queue.delete(first[0]);
+      now = first[1].at;
+      first[1].fn();
+    }
+    now = until;
+  };
+  return { queue, advance };
+};
+
+/** A fresh document, the globals pointed at it, and its window's timers on a clock this row drives. */
 const page = (markup = '') => {
   const dom = new JSDOM(`<!doctype html><body>${markup}</body>`, { url: 'http://localhost/' });
   for (const key of GLOBALS) globalThis[key] = dom.window[key];
   const win = dom.window;
-  const queue = new Map();
-  let next = 0;
-  win.setTimeout = (fn, ms) => (queue.set(++next, { fn, ms }), next);
-  win.clearTimeout = (id) => void queue.delete(id);
-  /** Runs every queued timer, and any it queues, in the order queued. */
-  const run = () => {
-    while (queue.size > 0) {
-      const [id, { fn }] = queue.entries().next().value;
-      queue.delete(id);
-      fn();
-    }
-  };
-  return { doc: win.document, win, queue, run };
+  const { queue, advance } = clockOn(win);
+  /** Past every write and the settle window, short of a message's removal. */
+  const run = () => advance(1000);
+  return { doc: win.document, win, queue, advance, run };
 };
 
 const regions = (doc) => [...doc.querySelectorAll('[data-vera-announce]')];
-const said = (doc, politeness = 'polite') => doc.querySelector(`[data-vera-announce="${politeness}"]`)?.textContent ?? null;
+/** The messages a region holds, in order; null when there is no region. */
+const said = (doc, politeness = 'polite') => {
+  const region = doc.querySelector(`[data-vera-announce="${politeness}"]`);
+  return region === null ? null : [...region.children].map((message) => message.textContent);
+};
 
 const { announce, want } = await load('vera-hooks/announce');
 /** A second copy of the hook: its own module instance, as a page with two bundles has. */
 const copy = await load('vera-hooks/announce', '?second-copy');
 
-test('a polite announcement: one hidden region on body, cleared now and written a task later', () => {
-  const { doc, queue, run } = page('<button>b</button>');
+test('a polite announcement: one hidden region on body, the message added a moment later', () => {
+  const { doc, run } = page('<button>b</button>');
   announce(doc.querySelector('button'), 'Saved');
-  const [region] = regions(doc);
   assert.equal(regions(doc).length, 1);
-  assert.equal(region.parentNode, doc.body);
-  assert.equal(region.textContent, '', 'nothing written yet');
-  assert.equal(queue.size, 1);
+  assert.equal(regions(doc)[0].parentNode, doc.body);
+  assert.deepEqual(said(doc), [], 'nothing added yet');
   run();
-  assert.equal(said(doc), 'Saved');
+  assert.deepEqual(said(doc), ['Saved']);
 });
 
-test("the region's attributes are aria-live and aria-atomic, and it is hidden without leaving the accessibility tree", () => {
+test("the region's attributes: aria-live, aria-relevant additions, and hidden without leaving the accessibility tree", () => {
   const { doc, run } = page('<p>x</p>');
   announce(doc.querySelector('p'), 'Hi');
   run();
   const [region] = regions(doc);
-  assert.deepEqual(
-    region.getAttributeNames().sort(),
-    ['aria-atomic', 'aria-live', 'data-vera-announce', 'style'],
-    'no role, nothing else',
-  );
+  assert.deepEqual(region.getAttributeNames().sort(), ['aria-live', 'aria-relevant', 'data-vera-announce', 'style'], 'no role, nothing else');
   assert.equal(region.getAttribute('aria-live'), 'polite');
-  assert.equal(region.getAttribute('aria-atomic'), 'true');
+  assert.equal(region.getAttribute('aria-relevant'), 'additions');
   assert.notEqual(region.style.display, 'none', 'display: none would silence it');
   assert.notEqual(region.style.visibility, 'hidden', 'so would visibility: hidden');
   assert.equal(region.style.clipPath, 'inset(50%)');
 });
 
-test('the same text twice is cleared between, so it is heard twice', () => {
+test('the same text twice is two messages, so it is heard twice', () => {
   const { doc, run } = page('<p>x</p>');
   const p = doc.querySelector('p');
   announce(p, 'Copied');
   run();
   announce(p, 'Copied');
-  assert.equal(said(doc), '', 'cleared before the repeat');
   run();
-  assert.equal(said(doc), 'Copied');
+  assert.deepEqual(said(doc), ['Copied', 'Copied']);
 });
 
-test('the first write into a new region waits longer than the next ones (a region written as it is inserted is not spoken)', () => {
+test('two different messages in one moment, with no key, are both said, in order (review D1)', () => {
+  const { doc, advance } = page('<p>a</p><p>b</p>');
+  const [a, b] = doc.querySelectorAll('p');
+  announce(a, 'Saved');
+  advance(10);
+  announce(b, '3 results');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Saved', '3 results']);
+});
+
+test('the first message into a new region waits longer than the next ones (a region written as it is inserted is not spoken)', () => {
   const { doc, queue, run } = page('<p>x</p>');
   const p = doc.querySelector('p');
   announce(p, 'one');
   const first = [...queue.values()][0].ms;
   run();
   announce(p, 'two');
-  const later = [...queue.values()][0].ms;
+  const later = [...queue.values()].find((timer) => timer.ms < 1000).ms;
   run();
   assert.ok(first > later, `first ${first} ms, later ${later} ms`);
+});
+
+test('a region made at write time (body emptied after the call) waits its first-write delay again (review D2)', () => {
+  const { doc, advance } = page('<p>x</p>');
+  announce(doc.querySelector('p'), 'late');
+  doc.body.innerHTML = '<p>y</p>';
+  advance(100);
+  assert.equal(regions(doc).length, 1, 'the write made a new region');
+  assert.deepEqual(said(doc), [], 'and did not write into it at once');
+  advance(100);
+  assert.deepEqual(said(doc), ['late']);
+});
+
+test('a spoken message is removed after a while; the region stays', () => {
+  const { doc, advance } = page('<p>x</p>');
+  announce(doc.querySelector('p'), 'Saved');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Saved']);
+  advance(7000);
+  assert.deepEqual(said(doc), []);
+  assert.equal(regions(doc).length, 1);
 });
 
 test('assertive gets its own region, made only when asked', () => {
@@ -102,12 +142,12 @@ test('assertive gets its own region, made only when asked', () => {
   assert.equal(said(doc, 'assertive'), null, 'no assertive region until asked');
   announce(p, 'Card declined', { politeness: 'assertive' });
   run();
-  assert.equal(said(doc, 'assertive'), 'Card declined');
-  assert.equal(said(doc), 'polite one', 'the polite region kept its own');
+  assert.deepEqual(said(doc, 'assertive'), ['Card declined']);
+  assert.deepEqual(said(doc), ['polite one'], 'the polite region kept its own');
   assert.equal(regions(doc).length, 2);
 });
 
-test('a key collapses announcements within one write window to the last', () => {
+test('a key collapses announcements within one moment to the last', () => {
   const { doc, queue, run } = page('<p>x</p>');
   const p = doc.querySelector('p');
   announce(p, '3 characters left', { key: 'count' });
@@ -115,7 +155,7 @@ test('a key collapses announcements within one write window to the last', () => 
   announce(p, '1 character left', { key: 'count' });
   assert.equal(queue.size, 1, 'one write pending');
   run();
-  assert.equal(said(doc), '1 character left');
+  assert.deepEqual(said(doc), ['1 character left']);
 });
 
 test('two copies of the hook on one page share one region (two regions would speak everything twice)', () => {
@@ -127,7 +167,7 @@ test('two copies of the hook on one page share one region (two regions would spe
   copy.announce(p, 'from the second');
   run();
   assert.equal(regions(doc).length, 1);
-  assert.equal(said(doc), 'from the second');
+  assert.deepEqual(said(doc), ['from the first', 'from the second']);
 });
 
 test('a page that empties body gets its region back, still exactly one', () => {
@@ -139,7 +179,7 @@ test('a page that empties body gets its region back, still exactly one', () => {
   announce(doc.querySelector('p'), 'after');
   run();
   assert.equal(regions(doc).length, 1);
-  assert.equal(said(doc), 'after');
+  assert.deepEqual(said(doc), ['after']);
 });
 
 test('an element in a user shadow root speaks through its document region', () => {
@@ -149,19 +189,17 @@ test('an element in a user shadow root speaks through its document region', () =
   announce(root.querySelector('button'), 'From the shadow');
   run();
   assert.equal(root.querySelectorAll('[data-vera-announce]').length, 0, 'no region inside the shadow root');
-  assert.equal(said(doc), 'From the shadow');
+  assert.deepEqual(said(doc), ['From the shadow']);
 });
 
 test('an iframe has its own region, in its own document', () => {
-  const { doc, run } = page('<p>x</p><iframe></iframe>');
+  const { doc } = page('<p>x</p><iframe></iframe>');
   const inner = doc.querySelector('iframe').contentDocument;
   inner.body.innerHTML = '<p>in</p>';
-  const innerQueue = [];
-  inner.defaultView.setTimeout = (fn) => (innerQueue.push(fn), innerQueue.length);
+  const { advance } = clockOn(inner.defaultView);
   announce(inner.querySelector('p'), 'Inside');
-  innerQueue.splice(0).forEach((fn) => fn());
-  run();
-  assert.equal(said(inner), 'Inside');
+  advance(1000);
+  assert.deepEqual(said(inner), ['Inside']);
   assert.equal(regions(doc).length, 0, 'the outer document has none');
 });
 
@@ -173,8 +211,7 @@ test('a document with no window says nothing and throws nothing', () => {
   announce(p, 'nobody');
   assert.equal(regions(detached).length, 0);
   assert.equal(queue.size, 0, 'nothing queued anywhere');
-  const wanted = want(p, 'Loading');
-  wanted.release();
+  want(p, 'Loading').release();
 });
 
 test('a hidden tab queues nothing: an announcement nobody is there to hear is stale by their return', () => {
@@ -190,9 +227,27 @@ test('a hostile string is text: no element is made from it', () => {
   const hostile = '<img src=x onerror="globalThis.ran=1"><script>globalThis.ran=1</script>';
   announce(doc.querySelector('p'), hostile);
   run();
-  const [region] = regions(doc);
-  assert.equal(region.textContent, hostile);
-  assert.equal(region.children.length, 0);
+  const [message] = regions(doc)[0].children;
+  assert.equal(message.textContent, hostile);
+  assert.equal(message.children.length, 0);
+});
+
+test('a failure other than an unknown :modal is not read as "no modal" (review A3)', () => {
+  const { doc } = page('<p>x</p>');
+  const real = doc.querySelectorAll.bind(doc);
+  doc.querySelectorAll = (selector) => {
+    if (selector === ':modal') throw new TypeError('a real failure');
+    return real(selector);
+  };
+  assert.throws(() => announce(doc.querySelector('p'), 'x'), /a real failure/);
+});
+
+test('jsdom has no :modal (a SyntaxError), so the body region serves and nothing throws', () => {
+  const { doc, run } = page('<dialog open><button>in dialog</button></dialog>');
+  assert.throws(() => doc.querySelectorAll(':modal'), (error) => error.name === 'SyntaxError', 'CONTROL: jsdom refuses :modal');
+  announce(doc.querySelector('button'), 'From a dialog');
+  run();
+  assert.equal(regions(doc)[0].parentNode, doc.body);
 });
 
 test('want(): a label still wanted when the window closes is said once', () => {
@@ -201,8 +256,7 @@ test('want(): a label still wanted when the window closes is said once', () => {
   assert.equal(queue.size, 1, 'the window');
   assert.equal(regions(doc).length, 0, 'nothing before the window closes');
   run();
-  assert.equal(said(doc), 'Loading');
-  assert.equal(queue.size, 0, 'no timer left at rest');
+  assert.deepEqual(said(doc), ['Loading']);
 });
 
 test('want(): released inside the window, it says nothing (a fast load is silent)', () => {
@@ -212,7 +266,7 @@ test('want(): released inside the window, it says nothing (a fast load is silent
   /** CONTROL in the same window: another label is said, so the window did close and speak. */
   want(p, 'Saving');
   run();
-  assert.equal(said(doc), 'Saving');
+  assert.deepEqual(said(doc), ['Saving']);
 });
 
 test('want(): an element that left the document inside the window says nothing', () => {
@@ -222,7 +276,7 @@ test('want(): an element that left the document inside the window says nothing',
   want(stays, 'Saving');
   gone.remove();
   run();
-  assert.equal(said(doc), 'Saving');
+  assert.deepEqual(said(doc), ['Saving']);
 });
 
 test('want(): two elements and two copies wanting one label in one window say it once', () => {
@@ -231,14 +285,8 @@ test('want(): two elements and two copies wanting one label in one window say it
   want(a, 'Loading');
   copy.want(b, 'Loading');
   assert.equal(queue.size, 1, 'one window between the copies');
-  const writes = [];
-  const region = () => doc.querySelector('[data-vera-announce]');
-  const seen = new doc.defaultView.MutationObserver((records) => records.forEach(() => writes.push(region()?.textContent)));
   run();
-  seen.observe(region(), { childList: true, characterData: true, subtree: true });
-  run();
-  seen.disconnect();
-  assert.equal(said(doc), 'Loading');
+  assert.deepEqual(said(doc), ['Loading']);
   assert.equal(regions(doc).length, 1);
 });
 
@@ -248,12 +296,5 @@ test('release() twice is harmless, and a release after the window changes nothin
   run();
   wanted.release();
   wanted.release();
-  assert.equal(said(doc), 'Loading');
-});
-
-test('jsdom has no :modal, so the body region serves and nothing throws', () => {
-  const { doc, run } = page('<dialog open><button>in dialog</button></dialog>');
-  announce(doc.querySelector('button'), 'From a dialog');
-  run();
-  assert.equal(regions(doc)[0].parentNode, doc.body);
+  assert.deepEqual(said(doc), ['Loading']);
 });

@@ -9,13 +9,15 @@ const RECORD = Symbol.for('vera.announce');
 
 /** The settle window `want()` waits before it speaks: a load that finishes inside it says nothing. */
 const SETTLE_MS = 150;
-/** The write after a clear: a later task, so the same text said twice is heard twice (an unchanged node is not read). */
+/** A message is added a task after the call, so a key can still replace it within that moment. */
 const WRITE_MS = 50;
 /**
- * The first write into a region just created waits longer: a live region written within about a frame of its
+ * The first message into a region just created waits longer: a live region written within about a frame of its
  * insertion is not reliably spoken (the screen reader has not registered it yet).
  */
 const FIRST_WRITE_MS = 100;
+/** How long a spoken message stays in its region before it is removed (long enough for any reader to have read it). */
+const KEEP_MS = 7000;
 
 type Holder = Document & { [RECORD]?: AnnounceRecord };
 
@@ -34,9 +36,10 @@ const topModal = (doc: Document): Element | null => {
   let modals: NodeListOf<Element>;
   try {
     modals = doc.querySelectorAll(':modal');
-  } catch {
-    /** An engine (or jsdom) without `:modal`: no modal can be found, so the body's region serves. */
-    return null;
+  } catch (error) {
+    /** Only an engine (or jsdom) that does not know `:modal` means "no modal": the body's region serves. */
+    if ((error as { name?: unknown } | null)?.name === 'SyntaxError') return null;
+    throw error;
   }
   if (modals.length === 0) return null;
   const focused = doc.activeElement;
@@ -44,11 +47,15 @@ const topModal = (doc: Document): Element | null => {
   return modals[modals.length - 1];
 };
 
-/** A visually hidden live region: kept in the accessibility tree (never `display: none`, which silences it). */
+/**
+ * A visually hidden live region: kept in the accessibility tree (never `display: none`, which silences it). Each message
+ * is its own node and `aria-relevant="additions"` speaks only what was added, so two different messages in one moment
+ * are both heard, and the same text twice is a new node, heard twice.
+ */
 const makeRegion = (doc: Document, politeness: Politeness): HTMLElement => {
   const region = doc.createElement('div');
   region.setAttribute('aria-live', politeness);
-  region.setAttribute('aria-atomic', 'true');
+  region.setAttribute('aria-relevant', 'additions');
   region.setAttribute('data-vera-announce', politeness);
   region.style.cssText =
     'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap';
@@ -77,9 +84,26 @@ const regionFor = (doc: Document, record: AnnounceRecord, politeness: Politeness
 };
 
 /**
- * **Say `text` once, in `element`'s own document.** The region is cleared now and written a task later from the
- * element's window, so a repeat of the same text is heard. Nothing is said for an element whose document has no window
- * (detached), and nothing is queued in a hidden tab: an announcement nobody is there to hear is stale by their return.
+ * Adds `text` as a node to the region it is spoken from NOW (a modal may have closed since the call, or the page emptied
+ * `body`). A region made at this moment is not written at once: the write waits its first-write delay again.
+ */
+const write = (doc: Document, win: Window, record: AnnounceRecord, politeness: Politeness, text: string): void => {
+  if (doc.visibilityState === 'hidden') return;
+  const [region, fresh] = regionFor(doc, record, politeness);
+  if (fresh) {
+    win.setTimeout(() => write(doc, win, record, politeness, text), FIRST_WRITE_MS);
+    return;
+  }
+  const message = doc.createElement('div');
+  message.textContent = text;
+  region.append(message);
+  win.setTimeout(() => message.remove(), KEEP_MS);
+};
+
+/**
+ * **Say `text` once, in `element`'s own document.** It is added to the region a task later from the element's window.
+ * Nothing is said for an element whose document has no window (detached), and nothing is queued in a hidden tab: an
+ * announcement nobody is there to hear is stale by their return.
  */
 export const announce = (element: Element, text: string, options: AnnounceOptions = {}): void => {
   const doc = element.ownerDocument;
@@ -87,8 +111,8 @@ export const announce = (element: Element, text: string, options: AnnounceOption
   if (win === null || doc.body === null || doc.visibilityState === 'hidden') return;
   const politeness: Politeness = options.politeness === 'assertive' ? 'assertive' : 'polite';
   const record = recordOf(doc);
-  const [region, fresh] = regionFor(doc, record, politeness);
-  region.textContent = '';
+  const [, fresh] = regionFor(doc, record, politeness);
+  const said = String(text);
   const key = options.key;
   if (key !== undefined) {
     const earlier = record.pending.get(key);
@@ -97,9 +121,7 @@ export const announce = (element: Element, text: string, options: AnnounceOption
   const timer = win.setTimeout(
     () => {
       if (key !== undefined) record.pending.delete(key);
-      /** Written where it is spoken now: the modal may have closed meanwhile, or the region been removed. */
-      if (doc.visibilityState === 'hidden') return;
-      regionFor(doc, record, politeness)[0].textContent = String(text);
+      write(doc, win, record, politeness, said);
     },
     fresh ? FIRST_WRITE_MS : WRITE_MS,
   );
