@@ -9,10 +9,12 @@
  * this library, so a page of a thousand fields has one set of listeners per root, not per field.
  */
 import { effect } from '@verajs/core';
+import { diagnostic, quoted } from '@verajs/shared-utils';
 import { announce } from '@vera-hooks/announce';
 import { labeled } from '@vera-hooks/labeled';
 import type { LabeledWiring } from '@vera-hooks/labeled';
-import { choose } from './field/choose.js';
+import { PROSE } from './diagnostics.js';
+import { choose, VALIDITY_KEYS } from './field/choose.js';
 import type { ErrorPart, Validity } from './field/choose.js';
 import { step } from './field/count.js';
 import type { Spoken } from './field/count.js';
@@ -108,8 +110,23 @@ const render = (wired: Wired): void => {
   wired.wiring.show(choice === null ? null : wired.errors[choice.index]);
 };
 
+/**
+ * The plural category of `n` in the field's language: the closest `lang`, else the browser's default. A `lang` that
+ * is no valid language tag (`Intl` throws a RangeError) is read as the default, as an unknown language is.
+ */
+const plural = (field: Element, n: number): string => {
+  const lang = field.closest('[lang]')?.getAttribute('lang') || undefined;
+  let rules: Intl.PluralRules;
+  try {
+    rules = new Intl.PluralRules(lang);
+  } catch {
+    rules = new Intl.PluralRules();
+  }
+  return rules.select(n);
+};
+
 /** The count's text, and its announcement at a crossing: only for the user's committed input. */
-const counted = (field: Element, wired: Wired, committed: boolean): void => {
+const counted =(field: Element, wired: Wired, committed: boolean): void => {
   const max = Number((wired.control as Element & { maxLength?: number }).maxLength ?? -1);
   if (wired.count === null || !(max > 0)) return;
   const length = String((wired.control as Element & { value?: unknown }).value ?? '').length;
@@ -118,11 +135,17 @@ const counted = (field: Element, wired: Wired, committed: boolean): void => {
   const next = step(wired.spoken, length, max);
   wired.spoken = next.spoken;
   if (next.say === null) return;
-  /** The words are the consumer's (`count-message`, `limit-message`, `{left}` interpolated), English by default. */
+  /**
+   * The words are the consumer's, `{left}` interpolated: `limit-message` at the limit; otherwise
+   * `count-message-<category>` for the plural category of `left` in the field's language (the closest `lang`, through
+   * `Intl.PluralRules`: one, two, few, many, other, zero, so every language's forms fit), then `count-message`, then
+   * English ("1 character left", "8 characters left").
+   */
+  const left = next.say.left;
   const text =
-    next.say.left === 0
+    left === 0
       ? (field.getAttribute('limit-message') ?? 'Limit reached')
-      : (field.getAttribute('count-message') ?? '{left} characters left').replaceAll('{left}', String(next.say.left));
+      : (field.getAttribute(`count-message-${plural(field, left)}`) ?? field.getAttribute('count-message') ?? (left === 1 ? '{left} character left' : '{left} characters left')).replaceAll('{left}', String(left));
   /** Keyed by the count part's own id (labeled gives it one to reference), so two fields never collapse into one. */
   announce(field, text, { key: wired.count.id });
 };
@@ -170,15 +193,22 @@ const onFocusOut = (event: Event): void => {
  * is not seen, and the browser focuses nothing for a field's canceled control then (the app focuses for itself).
  */
 const ATTEMPT = Symbol('vera-field-attempt');
-/** The attempt: the event that made it (a canceled one submits nothing, so moves no focus), and whether it is queued. */
-type Form = HTMLFormElement & { [ATTEMPT]?: { event: Event; queued: boolean } };
+/**
+ * The attempt: the event that made it (a canceled one submits nothing, so moves no focus), whether its focus is queued,
+ * and who reports it: the field whose control is its first invalid, or the browser (a bare control, or a field with
+ * `native-messages`, came first).
+ */
+type Form = HTMLFormElement & { [ATTEMPT]?: { event: Event; queued: boolean; reports?: 'field' | 'native' } };
 
 /**
  * **Focus after a failed submit, decided per FORM, in tree order.** A field cancels its own control's `invalid` (no
  * native bubble), and once it does the browser focuses nothing for that control, so the first queued call focuses the
  * form's first invalid control in TREE order, over every control, a bare native input included: native behavior is
  * "the first invalid in tree order", which canceling would otherwise break (the browser alone would focus the next
- * uncanceled one). Cost, stated: a bare input's own bubble can show while focus sits on a field's control before it.
+ * uncanceled one). Native reports ONE invalid per submit, the first: so once a field reports the attempt, every later
+ * `invalid` in that form is canceled too, a bare control's included, and no bubble shows past the field's error. Cost,
+ * stated: an app reading a later bare control's `invalid.defaultPrevented` sees true. When a bare control is first,
+ * the browser reports it as native does, and fields cancel only their own.
  */
 const focusFirstInvalid = (form: Form): void => {
   const attempt = form[ATTEMPT];
@@ -218,23 +248,33 @@ const onClick = (event: Event): void => {
   const type = (submit as (Element & { type?: string }) | null)?.type;
   if (type === 'submit' || type === 'image') attempted((submit as Element & { form?: HTMLFormElement | null }).form, event);
 };
+/** The input types from which Enter submits a form (HTML's implicit submission). */
+const IMPLICIT = /^(?:text|search|url|tel|email|password|number|date|month|week|time|datetime-local)$/;
 const onKeydown = (event: Event): void => {
   const key = event as KeyboardEvent;
   /** An Enter while composing (an IME) confirms a candidate; it submits nothing. 229 is the composing keyCode. */
   if (key.key !== 'Enter' || key.isComposing || key.keyCode === 229) return;
   const target = event.target as (Element & { form?: HTMLFormElement | null; type?: string }) | null;
-  /** Enter submits implicitly from a single-line text control; never from a textarea, where it is a newline. */
-  if (target !== null && target.localName === 'input' && target.type !== 'button' && target.type !== 'checkbox') attempted(target.form, event);
+  /**
+   * Enter submits implicitly only from the text-like input types (never a textarea, where it is a newline); on a
+   * submit or image button it arrives as a click.
+   */
+  if (target !== null && target.localName === 'input' && IMPLICIT.test(target.type ?? '')) attempted(target.form, event);
 };
 
 const onInvalid = (event: Event): void => {
   const found = fieldOf(event);
+  const control = (found === null ? event.target : found[1].control) as (Element & { form?: HTMLFormElement | null }) | null;
+  const form = (control?.form ?? null) as Form | null;
+  const attempt = form?.[ATTEMPT];
+  const live = attempt !== undefined && !attempt.event.defaultPrevented ? attempt : null;
+  const native = found === null || found[0].hasAttribute('native-messages');
+  if (live !== null && live.reports === undefined) live.reports = native ? 'native' : 'field';
+  if (!native || live?.reports === 'field') event.preventDefault();
   if (found === null) return;
-  if (!found[0].hasAttribute('native-messages')) event.preventDefault();
   found[1].tried = true;
   render(found[1]);
-  const form = (found[1].control as Element & { form?: HTMLFormElement | null }).form;
-  if (form) focusFirstInvalid(form as Form);
+  if (form) focusFirstInvalid(form);
 };
 /**
  * A reset forgets that the user tried, by the form's own controls (so a control joined from outside with `form=`
@@ -284,6 +324,18 @@ const unlisten = (root: Root): void => {
   root[COUNT] = n;
 };
 
+/**
+ * Development only: an error part whose `data-when` no ValidityState key (nor "server") matches, which is never
+ * shown. A control nothing names is labeled's own warning (`labeled-unnamed`), so the field adds none.
+ */
+const warnings = (field: Element, errors: readonly Element[]): void => {
+  for (const error of errors) {
+    const when = error.getAttribute('data-when');
+    if (when !== null && when !== 'server' && !(VALIDITY_KEYS as readonly string[]).includes(when))
+      console.warn(diagnostic('field', `<${field.localName}>`, 'field-unknown-when', PROSE['field-unknown-when'](quoted(when), VALIDITY_KEYS.join(', '))));
+  }
+};
+
 /** Wires the field's current control and parts; the user's error text is kept to restore and to show. */
 const wire = (field: Marked, control: Element): Wired => {
   const errors = [...field.querySelectorAll('[data-vera-part="error"]')];
@@ -291,6 +343,7 @@ const wire = (field: Marked, control: Element): Wired => {
   const label = field.querySelector('label');
   const hint = part(field, 'hint');
   const count = part(field, 'count');
+  if (__DEV__ && typeof console !== 'undefined') warnings(field, errors);
   const wiring = labeled(control, { host: field, label, hint, count, errors });
   /**
    * A standing error is said on the PART, because only the part knows its text came from a server:

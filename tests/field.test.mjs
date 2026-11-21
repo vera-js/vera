@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/', pretendToBeVisual: true });
 const GLOBALS = ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent', 'MutationObserver', 'InputEvent', 'FocusEvent'];
@@ -179,6 +179,60 @@ test('after a submit attempt the form\'s first invalid control in tree order get
   second.remove();
 });
 
+test('one report per attempt, as native: a field first cancels a later bare invalid; a bare control first keeps the browser\'s report', async () => {
+  const canceled = (form, id) => {
+    const seen = {};
+    form.querySelector(`#${id}`).addEventListener('invalid', (event) => (seen.prevented = event.defaultPrevented));
+    return seen;
+  };
+  const submit = (form) => {
+    form.append(Object.assign(document.createElement('button'), { type: 'submit' }));
+    form.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  };
+  const first = document.createElement('form');
+  first.innerHTML = '<vera-field><label>A</label><input required id="f1"><small data-vera-part="error"></small></vera-field><input required id="b1">';
+  document.body.append(first);
+  await flush();
+  const silent = canceled(first, 'b1');
+  first.checkValidity();
+  assert.equal(silent.prevented, false, 'CONTROL: with no attempt, a bare invalid is left alone');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const later = canceled(first, 'b1');
+  submit(first);
+  assert.equal(later.prevented, true, 'the field reported the attempt, so the later bare control shows no bubble');
+  first.remove();
+  const second = document.createElement('form');
+  second.innerHTML = '<input required id="b2"><vera-field><label>A</label><input required id="f2"><small data-vera-part="error"></small></vera-field>';
+  document.body.append(second);
+  await flush();
+  const bare = canceled(second, 'b2');
+  const field = canceled(second, 'f2');
+  submit(second);
+  assert.equal(bare.prevented, false, 'a bare control first: the browser reports it');
+  assert.equal(field.prevented, true, 'the field still cancels its own');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  second.remove();
+});
+
+test('Enter marks an attempt only from the input types that submit implicitly', async () => {
+  const f = document.createElement('form');
+  f.innerHTML = '<input id="here"><input type="radio" id="radio"><vera-field><label>A</label><input required><small data-vera-part="error"></small></vera-field>';
+  document.body.append(f);
+  await flush();
+  const enter = (control) => {
+    control.focus();
+    control.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, composed: true }));
+    f.checkValidity();
+  };
+  enter(f.querySelector('#radio'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(document.activeElement?.id, 'radio', 'Enter on a radio submits nothing: no focus moves');
+  enter(f.querySelector('#here'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.notEqual(document.activeElement?.id, 'here', 'CONTROL: Enter on a text input is an attempt, and focus moves');
+  f.remove();
+});
+
 test('a field registered under the user\'s own tag (defineAs) still hears its control', async () => {
   const { defineAs } = await load('vera-components/field/element');
   defineAs('my-field');
@@ -283,4 +337,123 @@ test('an Enter that confirms an IME candidate, or one the app canceled, is no su
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.notEqual(document.activeElement?.id, 'here', 'CONTROL: a plain Enter is an attempt, and focus moves');
   f.remove();
+});
+
+/**
+ * What the count says, in order: every message the announcer writes (a new node in a live region), read by an
+ * observer, so a message a later one replaced is still counted once.
+ */
+const heard = () => {
+  const said = [];
+  const observer = new dom.window.MutationObserver((records) => {
+    for (const record of records)
+      for (const node of record.addedNodes)
+        if (node.nodeType === 1 && node.parentElement?.hasAttribute('data-vera-announce')) said.push(node.textContent);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  return { said, stop: () => observer.disconnect() };
+};
+/** A committed edit to `length` characters, then past the announcer's write window, so each step is heard alone. */
+const typed = async (control, length, init = {}) => {
+  control.value = 'x'.repeat(length);
+  control.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, composed: true, ...init }));
+  await new Promise((resolve) => setTimeout(resolve, 250));
+};
+
+test('the count speaks once per crossing: the warning from 80%, the limit, and again only after falling back to the re-arm line', async () => {
+  /** maxlength 40: warned from 32, re-armed at or below 28; between the lines (29 to 31) nothing changes. */
+  const { host, control } = await field('<label>Bio</label><textarea maxlength="40"></textarea><span data-vera-part="count"></span>');
+  const ear = heard();
+  for (const length of [31, 32, 30, 32, 39, 40, 39, 40]) await typed(control, length);
+  assert.deepEqual(ear.said, ['8 characters left', 'Limit reached'], 'deleting below the warning line but above the re-arm line, and back, says nothing new');
+  await typed(control, 28);
+  await typed(control, 32);
+  assert.deepEqual(ear.said.slice(2), ['8 characters left'], 'back at the re-arm line, the warning is due again');
+  ear.stop();
+  host.remove();
+});
+
+test('a short limit has no separate warning: maxlength 3 speaks only at the limit, maxlength 5 warns at 4', async () => {
+  const short = await field('<label>Code</label><input maxlength="3"><span data-vera-part="count"></span>');
+  const ear = heard();
+  for (const length of [1, 2, 3]) await typed(short.control, length);
+  assert.deepEqual(ear.said, ['Limit reached'], 'the warning line (ceil 80% = 3) is the limit itself');
+  short.host.remove();
+  const five = await field('<label>Code</label><input maxlength="5"><span data-vera-part="count"></span>');
+  for (const length of [3, 4, 5]) await typed(five.control, length);
+  assert.deepEqual(ear.said.slice(1), ['1 character left', 'Limit reached'], 'maxlength 5: warned from 4');
+  ear.stop();
+  five.host.remove();
+});
+
+test('a paste and an undo are committed input; a value the page sets is not judged', async () => {
+  const { host, control, field: f } = await field('<label>Bio</label><textarea maxlength="10"></textarea><span data-vera-part="count"></span>');
+  const ear = heard();
+  control.value = 'x'.repeat(9);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.deepEqual(ear.said, [], 'a value the page sets says nothing');
+  assert.equal(f.querySelector('[data-vera-part="count"]').textContent, '0 / 10', 'and is not counted until committed input');
+  await typed(control, 10, { inputType: 'insertFromPaste' });
+  assert.deepEqual(ear.said, ['Limit reached'], 'CONTROL: a paste is judged from its own length');
+  await typed(control, 3, { inputType: 'historyUndo' });
+  await typed(control, 9, { inputType: 'historyRedo' });
+  assert.deepEqual(ear.said.slice(1), ['1 character left'], 'an undo re-armed it; the redo warns again');
+  ear.stop();
+  host.remove();
+});
+
+test('text still being composed is counted but not judged; compositionend judges it once', async () => {
+  const { host, control, field: f } = await field('<label>Bio</label><textarea maxlength="10"></textarea><span data-vera-part="count"></span>');
+  const ear = heard();
+  await typed(control, 9, { isComposing: true });
+  assert.equal(f.querySelector('[data-vera-part="count"]').textContent, '9 / 10', 'the count follows the composition');
+  assert.deepEqual(ear.said, [], 'nothing is said mid-composition');
+  control.dispatchEvent(new dom.window.Event('compositionend', { bubbles: true, composed: true }));
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.deepEqual(ear.said, ['1 character left'], 'the committed text is judged once');
+  ear.stop();
+  host.remove();
+});
+
+test('development warns for a data-when no key matches, and labeled for a control nothing names; production says nothing', async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(String(args[0]));
+  try {
+    const named = await field('<input aria-label="Search"><small data-vera-part="error" data-when="server">Taken</small><small data-vera-part="error" data-when="valueMissing">Enter it.</small>');
+    assert.deepEqual(said, [], 'CONTROL: aria-label names it, and "server" and a ValidityState key are known');
+    named.host.remove();
+    const bad = await field('<input required><small data-vera-part="error" data-when="tooShrot">Too short.</small>');
+    if (isProduction) assert.deepEqual(said, [], 'production prints no development prose');
+    else {
+      assert.equal(said.length, 2, said.join('\n'));
+      assert.ok(said.some((line) => /^\[vera\] field: .*"tooShrot".*\(field-unknown-when\)$/s.test(line)), said.join('\n'));
+      assert.ok(said.some((line) => /^\[vera\] labeled: .*\(labeled-unnamed\)$/s.test(line)), 'one name warning, labeled\'s');
+    }
+    bad.host.remove();
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test('the spoken count takes the language\'s plural form: count-message-<category> by Intl.PluralRules, then count-message', async () => {
+  /** Polish: 2 to 4 are "few", 5 and up "many". maxlength 20 warns from 16 (4 left), 40 from 32 (8 left). */
+  const { host, control, field: f } = await field('<label>Opis</label><textarea maxlength="20"></textarea><span data-vera-part="count"></span>');
+  host.setAttribute('lang', 'pl');
+  f.setAttribute('count-message-few', 'zostały {left} znaki');
+  f.setAttribute('count-message-many', 'zostało {left} znaków');
+  f.setAttribute('count-message', 'pozostało: {left}');
+  const ear = heard();
+  await typed(control, 16);
+  assert.deepEqual(ear.said, ['zostały 4 znaki'], '4 is "few" in Polish');
+  await typed(control, 0);
+  control.maxLength = 40;
+  await typed(control, 32);
+  assert.deepEqual(ear.said.slice(1), ['zostało 8 znaków'], '8 is "many" in Polish');
+  f.removeAttribute('count-message-many');
+  await typed(control, 0);
+  await typed(control, 32);
+  assert.deepEqual(ear.said.slice(2), ['pozostało: 8'], 'no attribute for the category: count-message');
+  ear.stop();
+  host.remove();
 });

@@ -68,6 +68,8 @@ describe('vera-field', () => {
   it('after a user\'s failed submit, the first invalid control in tree order is focused and its error shows', async () => {
     const f = form('<input id="ok" value="x"><vera-field><label>Email</label><input required id="email"><small data-vera-part="error" data-when="valueMissing">Enter your email.</small></vera-field><input required id="later"><button>Send</button>');
     f.addEventListener('submit', (event) => event.preventDefault());
+    const later = {};
+    f.querySelector('#later').addEventListener('invalid', (event) => (later.prevented = event.defaultPrevented));
     await flush();
     f.querySelector('button').focus();
     await sendKeys({ press: 'Enter' });
@@ -75,6 +77,20 @@ describe('vera-field', () => {
     const error = f.querySelector('[data-vera-part="error"]');
     expect(error.hidden).to.equal(false);
     expect(f.querySelector('#email').getAttribute('aria-invalid')).to.equal('true');
+    expect(later.prevented).to.equal(true, 'the field reported the attempt: the later bare control shows no bubble');
+    f.remove();
+  });
+
+  it('after a user\'s failed submit whose first invalid is a bare control, the browser reports it as native does', async () => {
+    const f = form('<input required id="bare"><vera-field><label>Email</label><input required id="email"><small data-vera-part="error" data-when="valueMissing">Enter your email.</small></vera-field><button>Send</button>');
+    f.addEventListener('submit', (event) => event.preventDefault());
+    const bare = {};
+    f.querySelector('#bare').addEventListener('invalid', (event) => (bare.prevented = event.defaultPrevented));
+    await flush();
+    f.querySelector('button').focus();
+    await sendKeys({ press: 'Enter' });
+    await until(() => document.activeElement?.id === 'bare', 'focus reached the bare control', 2000);
+    expect(bare.prevented).to.equal(false, 'the bare control keeps its native report');
     f.remove();
   });
 });

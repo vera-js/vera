@@ -184,6 +184,21 @@ from another machine, or after that is undone, has a variable changed.
   a DOM class, even the node's own window's (an adopted node's window is not its prototype's);
   `tests/no-realm-instanceof.test.mjs` holds the packages to it and `tests/browser/adopted-realm.test.js` pins the
   platform fact. (2026-11-21)
+- **`reset` fires before the form restores its values, and after a user's reset the engines differ on the microtask.**
+  When a reset is triggered by real input (Enter on a reset button), a microtask queued in the `reset` listener sees the
+  OLD value on Chromium and WebKit and the restored value on Firefox. A task (`setTimeout` 0) sees the restored value
+  on all three. After `form.reset()` from script, the microtask and the task both see the restored value on all three.
+  Consequence: anything re-read after a reset (the field's count) waits a task, never a microtask. (Playwright 1.65.1's
+  Chromium, Firefox 159 and WebKit 27, Windows 11, headless; a correctness check, 2026-11-21;
+  `tests/browser/field.test.js`, "PLATFORM: after a user's reset")
+- **Under a user's failed submit, a microtask runs after each `invalid` listener, and the browser then focuses the first
+  control whose `invalid` nobody canceled.** On Chromium and WebKit, with a field's canceled control first and a bare
+  required input after it, a focus moved in a microtask from the field's `invalid` listener was taken back to the bare
+  input (the row timed out waiting for focus on the field's control); moved in a task, it stayed. Consequence: the field
+  focuses a task after the attempt, and once a field reports an attempt's first invalid it cancels the form's later
+  `invalid`s too, since native reports only the first, so no bubble shows past the field's error. (Playwright 1.65.1's
+  Chromium, Firefox 159 and WebKit 27, Windows 11, headless, 2026-11-21; `tests/browser/field.test.js`, "after a user's
+  failed submit")
 
 ## CSS and the cascade
 

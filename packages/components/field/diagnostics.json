@@ -1,4 +1,14 @@
 {
   "url": "https://verajs.dev/e/",
-  "entries": []
+  "entries": [
+    {
+      "code": "field-unknown-when",
+      "params": [
+        "when",
+        "keys"
+      ],
+      "message": "an error part says data-when={when}, which no ValidityState key matches, so it is never chosen.",
+      "fix": "Use one of {keys}, \"server\" for an error the server rendered, or no data-when for the catch-all."
+    }
+  ]
 }
