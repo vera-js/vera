@@ -165,6 +165,137 @@ const closerAt = (text: string, from: number, name: string): number => {
 };
 
 /**
+ * What `structural` answers besides a foreign depth: the tag opened an HTML `<template>`, whose content is inert one
+ * level deeper, or it is a `<script>` or `<textarea>` straight inside a `<select>` opened in HTML, read as at depth 0.
+ */
+const INTO_TEMPLATE = -1;
+const INTO_SCRIPT = -2;
+const INTO_TEXTAREA = -3;
+/**
+ * **A tag that changes how what follows it parses**, read where `scanTag` cannot skip it: the namespace it is read in,
+ * a breakout, and for a start tag the element it opens. Out of the per-character loop (2026-11-21): this is the code a
+ * typical template's tags never reach, and in the loop its bytecode was carried by every character scanned. Answers
+ * the foreign depth after the tag (an end tag's, after any breakout: what it closes stays in `scanTag`), or one of the
+ * `INTO_` answers above, which `scanTag` turns into its own state. The raw-text and text-only elements at depth 0 are
+ * settled in `scanTag` before this is called: there the namespace is HTML, no breakout applies, and no branch here can
+ * take those names (none is in `BREAKOUT`, and a `<select>` raises the depth), so nothing else could have claimed them.
+ */
+const structural = (opens: Open[], tagName: string, closing: boolean, selfClosing: boolean, encoding: string, foreign: number, inert: number): number => {
+  /** The innermost element this scan opened that changes parsing, and the namespace this tag is read in. */
+  let top = opens.length === 0 ? undefined : opens[opens.length - 1];
+  let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '';
+  /**
+   * **A breakout** — see `BREAKOUT`. The ONE rule here that moves the scan from foreign content toward HTML, the
+   * dangerous direction, so it acts only where its target is certain: inside SVG or MathML content (never at an
+   * integration point, where these tags are HTML already), popping to the nearest element whose content is HTML. It
+   * stops — and changes nothing — at `<noscript>` or anywhere the namespace is unknown, and at the template's own
+   * root unless that root is HTML: a template that inherited its depth cannot know what is outside it.
+   */
+  if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName))) {
+    const depth = breakOut(opens);
+    if (depth !== -1) {
+      foreign = depth;
+      top = opens.length === 0 ? undefined : opens[opens.length - 1];
+      space = 'html';
+    }
+  }
+  /** `mglyph`/`malignmark` straight inside a MathML text integration point: read as MathML, not HTML. */
+  const reentry = space === 'html' && top !== undefined && MATH_TEXT_POINTS.has(top.name) && (tagName === 'mglyph' || tagName === 'malignmark');
+  /**
+   * A `/` before the `>` closes only a FOREIGN element: on an HTML one the parser ignores it, so `<template/>`,
+   * `<noscript/>` and `<style/>` open exactly as `<template>`, `<noscript>` and `<style>` do. Counting them as closed
+   * had the server writing raw text into what the browser parses as `<noscript>` content. `<svg/>` and `<math/>` are
+   * foreign elements even in HTML, so their `/>` closes them; inside foreign content every `/>` does.
+   */
+  const selfClosed = selfClosing && (space !== 'html' || reentry || tagName === 'svg' || tagName === 'math');
+  if (closing || selfClosed) return foreign;
+  /**
+   * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
+   * `<textarea>` and the rest are SVG/MathML elements whose content is MARKUP — read as raw text there, a hole
+   * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
+   * recognized only at depth 0, which an HTML integration point restores for its content (see `SVG_POINTS`).
+   * A breakout tag (`<svg><p>`) leaves it (see `BREAKOUT`). Deliberately incomplete on the SAFE side: an end tag
+   * the parser ignores keeps the depth, and so does `<font color>` — both only ever read raw text as markup, which
+   * over-escapes, never injects. `<noscript>` counts as foreign: markup to a parser with scripting off and raw text
+   * to one with it on, so it is scanned as the first and escaped as neither can misread (see `TEXT_ONLY`), and
+   * nothing inside it is an integration point. The depth a hole sits at is recorded for the template rendered
+   * there, which starts from it (see `serializeTemplate`).
+   */
+  if (tagName === 'svg' || tagName === 'math') {
+    /**
+     * An `<svg>`/`<math>` start tag the parser handles by HTML rules — in HTML, or an `<svg>` straight inside
+     * `annotation-xml` — opens its own namespace; inside foreign content it is an element of the SURROUNDING one
+     * (`<math><svg>` is a MathML element named `svg`, so a `foreignObject` in it is MathML too).
+     */
+    const own = space === 'html' || (tagName === 'svg' && top !== undefined && top.name === 'annotation-xml');
+    opens.push({ name: tagName, foreign, inert, space: own ? tagName : space });
+    return foreign + 1;
+  }
+  if ((tagName === 'noscript' || tagName === 'select') && space !== 'svg' && space !== 'math') {
+    /**
+     * Only where HTML rules read the tag (2026-11-19, a rotated-seed find): inside `<svg>`/`<math>` proper a
+     * `<noscript>` is a foreign element like any (raw text exists only for HTML elements), so it is not tracked and a
+     * breakout after it (`<svg><noscript><p>`) pops it with the foreign content, as the parser does. At an
+     * integration point `space` is HTML, so it is tracked there — an HTML `<noscript>`, as `<template>` below.
+     *
+     * **`<select>` counts the same way** (2026-11-21): its content parses two ways. The select parser before
+     * customizable select (jsdom's, and older browsers') ignores a `<style>`, `<svg>`, `<math>` or `<noscript>` start
+     * tag inside it, so what follows is markup; current engines read that `<style>` as raw text. Read as raw text
+     * here, a value's `</select><img onerror>` was written raw and ran on the older parser. Scanned as markup,
+     * with no integration point inside and raw text only where both parsers read it (`<script>`, below), every
+     * other value is escaped: safe under both.
+     */
+    opens.push({ name: tagName, foreign, inert, space: '' });
+    return foreign + 1;
+  }
+  if (tagName === 'template' && space !== 'svg' && space !== 'math') {
+    /** Inert content only for an HTML `<template>`: inside `<svg>`/`<math>` it is a foreign element, its content live markup. */
+    opens.push({ name: tagName, foreign, inert, space });
+    return INTO_TEMPLATE;
+  }
+  if (
+    (space === 'svg' && SVG_POINTS.has(tagName)) ||
+    (space === 'math' && (MATH_TEXT_POINTS.has(tagName) || (tagName === 'annotation-xml' && HTML_ENCODINGS.has(encoding.toLowerCase()))))
+  ) {
+    opens.push({ name: tagName, foreign, inert, space: 'html' });
+    return 0;
+  }
+  if (space === 'math' && tagName === 'annotation-xml') {
+    /** Not an integration point, but an `<svg>` straight inside it is SVG — so it is tracked. */
+    opens.push({ name: tagName, foreign, inert, space });
+    return foreign;
+  }
+  if (reentry) {
+    opens.push({ name: tagName, foreign, inert, space: 'math' });
+    return 1;
+  }
+  if ((tagName === 'script' || tagName === 'textarea') && top !== undefined && top.name === 'select' && top.foreign === 0) {
+    /**
+     * Straight inside a `<select>` opened in HTML, the two parsers agree on these two (2026-11-21; parse5 and
+     * Chromium 159, Firefox 159, WebKit 27.2): a `<script>` is raw text (the older select parser reads it by the
+     * head's rules), and a `<textarea>` is text (the older parser closes the select first). So they are read as at
+     * depth 0. Read as markup, the `<b` of `<script>if (a<b)` opened a tag in the source: a later hole in the
+     * select's text was refused, and a hole the scan placed inside that tag was served into the code.
+     */
+    return tagName === 'script' ? INTO_SCRIPT : INTO_TEXTAREA;
+  }
+  if (space !== 'html' && tagName === 'script') {
+    /**
+     * A `<script>` in SVG (or a MathML element of that name) is tracked so a hole inside it is refused (see
+     * `compile`): its content is markup to the parser, so it is no raw text here, and an SVG script runs on a served
+     * page — and from a template, in Chromium and WebKit (BROWSER-LEDGER, 2026-11-18). An HTML `<script>` is raw text
+     * (`rawTag`, in `scanTag`) and never reaches `opens`, so every `script` here is a foreign one.
+     *
+     * So is one whose namespace is unknown (`space` is `''`: a template that inherited its depth, or inside
+     * `<noscript>`/`<select>`), 2026-11-21: `html\`<svg>${html\`<script>${v}</script>\`}</svg>\`` read the child's
+     * script as neither, wrote the hole as escaped text, which does nothing to code, and it ran in all three engines.
+     */
+    opens.push({ name: tagName, foreign, inert, space });
+  }
+  return foreign;
+};
+
+/**
  * `edits`, when given, collects the positions `fortify` rewrites — a start tag's name end where it is `script`, and
  * a `<template>` start tag's `shadowroot`/`shadowrootmode` attribute names. They are reported from THIS scan, so the
  * `.innerHTML` scan and the template scan cannot disagree about what is a tag: they are one scan. `tags`, when given,
@@ -407,137 +538,44 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       encoding = '';
       continue;
     }
-    /** The innermost element this scan opened that changes parsing, and the namespace this tag is read in. */
-    let top = opens.length === 0 ? undefined : opens[opens.length - 1];
-    let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '';
     /**
-     * **A breakout** — see `BREAKOUT`. The ONE rule here that moves the scan from foreign content toward HTML, the
-     * dangerous direction, so it acts only where its target is certain: inside SVG or MathML content (never at an
-     * integration point, where these tags are HTML already), popping to the nearest element whose content is HTML. It
-     * stops — and changes nothing — at `<noscript>` or anywhere the namespace is unknown, and at the template's own
-     * root unless that root is HTML: a template that inherited its depth cannot know what is outside it.
+     * The raw-text and text-only elements, read as such only in HTML (depth 0; see `structural` for why foreign content
+     * has none, and why nothing else can take these names there): settled here, before the structural work.
      */
-    if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName))) {
-      const depth = breakOut(opens);
-      if (depth !== -1) {
-        foreign = depth;
-        top = opens.length === 0 ? undefined : opens[opens.length - 1];
-        space = 'html';
-      }
-    }
-    /** `mglyph`/`malignmark` straight inside a MathML text integration point: read as MathML, not HTML. */
-    const reentry = space === 'html' && top !== undefined && MATH_TEXT_POINTS.has(top.name) && (tagName === 'mglyph' || tagName === 'malignmark');
-    /**
-     * A `/` before the `>` closes only a FOREIGN element: on an HTML one the parser ignores it, so `<template/>`,
-     * `<noscript/>` and `<style/>` open exactly as `<template>`, `<noscript>` and `<style>` do. Counting them as closed
-     * had the server writing raw text into what the browser parses as `<noscript>` content. `<svg/>` and `<math/>` are
-     * foreign elements even in HTML, so their `/>` closes them; inside foreign content every `/>` does.
-     */
-    const selfClosed = selfClosing && (space !== 'html' || reentry || tagName === 'svg' || tagName === 'math');
-    if (closing) {
-      /** An end tag closes the innermost element of its name this scan opened, and everything opened inside it. */
-      /**
-       * Inside `<template>` content an end tag closes nothing outside the template (see `closeTo`). Each entry holds the
-       * foreign depth and the template depth from before it opened, and a close restores both — never a count kept
-       * by hand, which a close that also closes a template inside it would leave wrong.
-       */
-      const at = closeTo(opens, tagName);
-      if (at !== -1) {
-        foreign = opens[at].foreign;
-        /** How deep inside nested `<template>` content this is: what it was before the closed element opened. */
-        inert = opens[at].inert;
-        /**
-         * Popped, not cut with a length store (2026-11-19): shrinking the array by `opens.length = at` cost the `.innerHTML`
-         * scan 2.2% per render, counted (instructions, a 50 KB value holding an SVG and a MathML `<script>` per chunk —
-         * each a tracked element its end tag closes), and the pops cost nothing there. Exact: `closeTo` answers `-1` or an
-         * index below `opens.length`, and this runs only when it is not `-1`, so the loop removes exactly the entries the
-         * store dropped and leaves the same array.
-         */
-        while (opens.length > at) opens.pop();
-      }
-    } else if (!selfClosed) {
-      /**
-       * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
-       * `<textarea>` and the rest are SVG/MathML elements whose content is MARKUP — read as raw text there, a hole
-       * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
-       * recognized only at depth 0, which an HTML integration point restores for its content (see `SVG_POINTS`).
-       * A breakout tag (`<svg><p>`) leaves it (see `BREAKOUT`). Deliberately incomplete on the SAFE side: an end tag
-       * the parser ignores keeps the depth, and so does `<font color>` — both only ever read raw text as markup, which
-       * over-escapes, never injects. `<noscript>` counts as foreign: markup to a parser with scripting off and raw text
-       * to one with it on, so it is scanned as the first and escaped as neither can misread (see `TEXT_ONLY`), and
-       * nothing inside it is an integration point. The depth a hole sits at is recorded for the template rendered
-       * there, which starts from it (see `serializeTemplate`).
-       */
-      if (tagName === 'svg' || tagName === 'math') {
-        /**
-         * An `<svg>`/`<math>` start tag the parser handles by HTML rules — in HTML, or an `<svg>` straight inside
-         * `annotation-xml` — opens its own namespace; inside foreign content it is an element of the SURROUNDING one
-         * (`<math><svg>` is a MathML element named `svg`, so a `foreignObject` in it is MathML too).
-         */
-        const own = space === 'html' || (tagName === 'svg' && top !== undefined && top.name === 'annotation-xml');
-        opens.push({ name: tagName, foreign, inert, space: own ? tagName : space });
-        foreign++;
-      } else if ((tagName === 'noscript' || tagName === 'select') && space !== 'svg' && space !== 'math') {
-        /**
-         * Only where HTML rules read the tag (2026-11-19, a rotated-seed find): inside `<svg>`/`<math>` proper a
-         * `<noscript>` is a foreign element like any (raw text exists only for HTML elements), so it is not tracked and a
-         * breakout after it (`<svg><noscript><p>`) pops it with the foreign content, as the parser does. At an
-         * integration point `space` is HTML, so it is tracked there — an HTML `<noscript>`, as `<template>` below.
-         *
-         * **`<select>` counts the same way** (2026-11-21): its content parses two ways. The select parser before
-         * customizable select (jsdom's, and older browsers') ignores a `<style>`, `<svg>`, `<math>` or `<noscript>` start
-         * tag inside it, so what follows is markup; current engines read that `<style>` as raw text. Read as raw text
-         * here, a value's `</select><img onerror>` was written raw and ran on the older parser. Scanned as markup,
-         * with no integration point inside and raw text only where both parsers read it (`<script>`, below), every
-         * other value is escaped: safe under both.
-         */
-        opens.push({ name: tagName, foreign, inert, space: '' });
-        foreign++;
-      } else if (tagName === 'template' && space !== 'svg' && space !== 'math') {
-        /** Inert content only for an HTML `<template>`: inside `<svg>`/`<math>` it is a foreign element, its content live markup. */
-        opens.push({ name: tagName, foreign, inert, space });
-        inert++;
-      } else if (
-        (space === 'svg' && SVG_POINTS.has(tagName)) ||
-        (space === 'math' && (MATH_TEXT_POINTS.has(tagName) || (tagName === 'annotation-xml' && HTML_ENCODINGS.has(encoding.toLowerCase()))))
-      ) {
-        opens.push({ name: tagName, foreign, inert, space: 'html' });
-        foreign = 0;
-      } else if (space === 'math' && tagName === 'annotation-xml') {
-        /** Not an integration point, but an `<svg>` straight inside it is SVG — so it is tracked. */
-        opens.push({ name: tagName, foreign, inert, space });
-      } else if (reentry) {
-        opens.push({ name: tagName, foreign, inert, space: 'math' });
-        foreign = 1;
-      } else if ((tagName === 'script' || tagName === 'textarea') && top !== undefined && top.name === 'select' && top.foreign === 0) {
-        /**
-         * Straight inside a `<select>` opened in HTML, the two parsers agree on these two (2026-11-21; parse5 and
-         * Chromium 159, Firefox 159, WebKit 27.2): a `<script>` is raw text (the older select parser reads it by the
-         * head's rules), and a `<textarea>` is text (the older parser closes the select first). So they are read as at
-         * depth 0. Read as markup, the `<b` of `<script>if (a<b)` opened a tag in the source: a later hole in the
-         * select's text was refused, and a hole the scan placed inside that tag was served into the code.
-         */
-        if (tagName === 'script') {
-          rawTag = tagName;
-          rawFrom = i + 1;
-        } else textTag = tagName;
-      } else if (space !== 'html' && tagName === 'script') {
-        /**
-         * A `<script>` in SVG (or a MathML element of that name) is tracked so a hole inside it is refused (see
-         * `compile`): its content is markup to the parser, so it is no raw text here, and an SVG script runs on a served
-         * page — and from a template, in Chromium and WebKit (BROWSER-LEDGER, 2026-11-18). An HTML `<script>` is raw text
-         * (`rawTag`, below) and never reaches `opens`, so every `script` there is a foreign one.
-         *
-         * So is one whose namespace is unknown (`space` is `''`: a template that inherited its depth, or inside
-         * `<noscript>`/`<select>`), 2026-11-21: `html\`<svg>${html\`<script>${v}</script>\`}</svg>\`` read the child's
-         * script as neither, wrote the hole as escaped text, which does nothing to code, and it ran in all three engines.
-         */
-        opens.push({ name: tagName, foreign, inert, space });
-      } else if (foreign === 0 && RAWTEXT.has(tagName)) {
+    if (foreign === 0 && !closing && RAWTEXT.has(tagName)) {
+      rawTag = tagName;
+      rawFrom = i + 1;
+    } else if (foreign === 0 && !closing && TEXT_ONLY.has(tagName)) textTag = tagName;
+    else {
+      const next = structural(opens, tagName, closing, selfClosing, encoding, foreign, inert);
+      if (next === INTO_TEMPLATE) inert++;
+      else if (next === INTO_SCRIPT) {
         rawTag = tagName;
         rawFrom = i + 1;
+      } else if (next === INTO_TEXTAREA) textTag = tagName;
+      else foreign = next;
+      if (closing) {
+        /** An end tag closes the innermost element of its name this scan opened, and everything opened inside it. */
+        /**
+         * Inside `<template>` content an end tag closes nothing outside the template (see `closeTo`). Each entry holds
+         * the foreign depth and the template depth from before it opened, and a close restores both — never a count
+         * kept by hand, which a close that also closes a template inside it would leave wrong.
+         */
+        const at = closeTo(opens, tagName);
+        if (at !== -1) {
+          foreign = opens[at].foreign;
+          /** How deep inside nested `<template>` content this is: what it was before the closed element opened. */
+          inert = opens[at].inert;
+          /**
+           * Popped, not cut with a length store (2026-11-19): shrinking the array by `opens.length = at` cost the
+           * `.innerHTML` scan 2.2% per render, counted (instructions, a 50 KB value holding an SVG and a MathML `<script>`
+           * per chunk — each a tracked element its end tag closes), and the pops cost nothing there. Exact: `closeTo`
+           * answers `-1` or an index below `opens.length`, and this runs only when it is not `-1`, so the loop removes
+           * exactly the entries the store dropped and leaves the same array.
+           */
+          while (opens.length > at) opens.pop();
+        }
       }
-      else if (foreign === 0 && TEXT_ONLY.has(tagName)) textTag = tagName;
     }
     tagName = '';
     closing = false;
