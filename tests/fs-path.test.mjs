@@ -12,6 +12,7 @@ import { globSync, readFileSync } from 'node:fs';
 import { basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fsPath, posix } from '../scripts/fs-path.mjs';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const ROOT = fsPath(new URL('..', import.meta.url));
 const BACKSLASH = String.fromCharCode(92);
@@ -169,7 +170,7 @@ test('no script or suite converts slashes inline; posix() is the one conversion'
 const BACKSLASH_FORMS = [...INLINE.slice(1, 5), /\.split\(\s*(?:path\.)?win32\.sep\s*\)/];
 
 test('no package source or root configuration splits a path on a backslash', () => {
-  const files = globSync(['packages/**/src/**/*.{ts,mts,js,mjs}', '*.{ts,mts,js,mjs,cjs}'], { cwd: ROOT, exclude: (f) => f.includes('node_modules') }).map(posix);
+  const files = [...packageFiles('src/**/*.{ts,mts,js,mjs}'), ...globSync('*.{ts,mts,js,mjs,cjs}', { cwd: ROOT }).map(posix)];
   assert.ok(files.length >= 200, `CONTROL: ${files.length} package sources read`);
   assert.ok(files.includes('defaultRollupConfig.js') && files.includes('web-test-runner.config.mjs'), 'CONTROL: the root configs are read');
   const found = [];
