@@ -207,7 +207,7 @@ type Plan = {
   readonly decodedLeads: string[];
   /** Sparse: set for each COMPONENT_PROP slot only. */
   readonly urls: Array<boolean | undefined>;
-  /** Sparse: a `?`, `.` or `!` binding's value statics when it has any or several holes (see `finishJoin`); read only by those kinds. */
+  /** Per slot (dense, `undefined` but at a `?`, `.` or `!` value with statics or several holes — see `finishJoin`). */
   readonly joins: Array<readonly string[] | undefined>;
   /** Per slot (dense, 0 for every slot that is no style hole): when a style value may skip `styleHole` — see `compile`. */
   readonly styleTails: number[];
@@ -908,21 +908,24 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     styleTails.push(raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6 ? 0 : parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1);
   }
   /**
-   * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
+   * Dense, so the render loop reads a value at every binding: all three are filled sparsely above, and a hole read falls
    * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
    * Built in a loop, not `Array.from` with a callback, which cost compile about a fifth of its time (2026-11-20).
    */
   const denseDepths: number[] = [];
   const denseTexts: boolean[] = [];
+  const denseJoins: Array<readonly string[] | undefined> = [];
   for (let i = 0; i < kinds.length; i++) {
     denseDepths.push(depths[i] ?? 0);
     denseTexts.push(texts[i] === true);
+    denseJoins.push(joins[i]);
   }
   const plan: Plan = {
     parts, kinds, names, strip, owners, raws,
     depths: denseDepths,
     texts: denseTexts,
-    elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails,
+    joins: denseJoins,
+    elementPositions, elements, groups, leads, decodedLeads, urls, styleTails,
   };
   if (depth === 0) plans.set(strings, plan);
   else {
