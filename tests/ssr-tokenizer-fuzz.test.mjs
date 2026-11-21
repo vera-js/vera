@@ -126,3 +126,60 @@ test('random statics: no hole lets a value make markup, and every placed value s
   /** The volume control: a fuzz whose every case is refused, or whose every value vanishes, proves nothing. */
   assert.ok(placed > SEEDS.length * CASES_PER_SEED * 0.3, `only ${placed} placed (${refused} refused)`);
 });
+
+/**
+ * **Several holes in a sigil or event binding's value** — the shape the token soup above almost never builds (a sigil
+ * name needs a space before it inside an open tag). The server once dropped only the first hole of such a value: the
+ * next fell through to the attribute path with the binding's quote gone, and a value in it wrote attributes of its own.
+ */
+const BINDING_NAMES = ['@click', '@x', '?hidden', '.value', '.x', '!live', '&', '&ref', 'onClick', 'onA'];
+const BINDING_TAGS = ['a', 'p', 'input', 'x-el', 'textarea', 'svg'];
+const VALUE_TOKENS = ['', '', 'x', 'a b', ' ', '"', "'", '>', '/', '=', '\n', '`', '&amp;', ' title=', '<b>'];
+
+test('several holes in a sigil or event binding’s value: none lets a value make markup, and each inside the value is dropped', () => {
+  let cases = 0;
+  let inside = 0;
+  const failures = [];
+  for (const seed of SEEDS) {
+    const random = lcg(seed ^ 0x5eed);
+    const pick = (list) => list[Math.floor(random() * list.length)];
+    for (let n = 0; n < 400; n++) {
+      const tag = pick(BINDING_TAGS);
+      const quote = pick(['', '"', "'"]);
+      const holes = 2 + Math.floor(random() * 2);
+      const name = pick(BINDING_NAMES);
+      const statics = [`<${tag} ${name}=${quote}`];
+      for (let s = 1; s < holes; s++) statics.push(pick(VALUE_TOKENS) + pick(VALUE_TOKENS));
+      statics.push(`${pick(VALUE_TOKENS)}${quote}>t</${tag}>`);
+      const values = [() => {}, ...statics.slice(2).map((_, i) => `zq${i + 1}zq`)];
+      let served;
+      try {
+        served = serializeTemplate(template(statics, values));
+      } catch {
+        continue;
+      }
+      cases++;
+      const label = JSON.stringify(statics);
+      const attack = serializeTemplate(template(statics, values.map((v, i) => (i === 0 ? v : PAYLOAD))));
+      if (injected(parse(`<!doctype html><body>${attack}`, { scriptingEnabled: true }))) failures.push(`INJECTED ${label} -> ${JSON.stringify(attack)}`);
+      const joined = statics.reduce((all, s, i) => all + (i === 1 ? 'zq0zq' : `zq${i - 1}zq`) + s);
+      const browserTree = parse(`<!doctype html><body>${joined}`, { scriptingEnabled: true });
+      const serverTree = parse(`<!doctype html><body>${served}`, { scriptingEnabled: true });
+      /**
+       * A hole the browser reads as part of the binding's own value is gone from the served page. Where else a value
+       * lands (after the value closes) is the token soup's question above; here it is only asked not to make markup.
+       */
+      const own = `value:${tag} ${name.toLowerCase()}`;
+      for (let i = 1; i < values.length; i++) {
+        const sentinel = `zq${i}zq`;
+        const server = locate(serverTree, sentinel);
+        if (locate(browserTree, sentinel) === own && server !== 'absent') failures.push(`KEPT ${sentinel}: server ${server} — ${label} -> ${JSON.stringify(served)}`);
+        if (locate(browserTree, sentinel) === own) inside++;
+      }
+    }
+  }
+  assert.deepEqual(failures.slice(0, 12), [], `${failures.length} failures`);
+  /** The volume control: most cases must render, or the check above saw nothing. */
+  assert.ok(cases > SEEDS.length * 400 * 0.5, `only ${cases} cases rendered`);
+  assert.ok(inside > SEEDS.length * 100, `only ${inside} holes inside a binding's value`);
+});

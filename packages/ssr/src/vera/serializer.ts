@@ -77,17 +77,31 @@ const SIGILS = new Set(['.', '?', '@', '&', '!']);
  */
 const nameCut = (text: string, nameAt: number): number => (nameAt > 0 && isSpace(text[nameAt - 1]) ? nameAt - 1 : nameAt);
 /**
- * Where the rest of a sigil or event binding's value ends in the static after its hole: past the closing quote, or,
- * unquoted, at the whitespace or `>` that ends the value. The client ignores static text beside such a hole
- * (`@click=${fn}x` renders `<a>`), so the server drops it with the binding; left in, it was glued to the tag
- * (`<a onClick=${fn}x>` served `<ax>`, `<textarea onA=${v}…>` an element that is no textarea).
+ * Where a sigil or event binding's value ends in a static after its hole: past the closing quote, or, unquoted, at the
+ * whitespace or `>` that ends it — or `-1` when it does not end there, and runs on into the next hole. The client
+ * drops such an attribute whole, every static and every further hole in its value (`@click="${fn}x"` renders `<a>`), so
+ * the server does too; left in, the text was glued to the tag (`<a onClick=${fn}x>` served `<ax>`), and a further hole
+ * fell through to the attribute path with the binding's quote already gone, so a value in it could write attributes.
  */
-const valueTail = (text: string, quote: string): number => {
-  if (quote) return text.indexOf(quote) + 1;
+const valueEnd = (text: string, quote: string): number => {
+  if (quote) {
+    const at = text.indexOf(quote);
+    return at === -1 ? -1 : at + 1;
+  }
   /** A loop, not a regex search: the value usually ends at once (`@click=${fn}>`), and compile meets this per binding. */
   let i = 0;
   for (let c = text.charCodeAt(0); i < text.length && c !== 32 && c !== 62 && (c < 9 || c > 13 || c === 11); c = text.charCodeAt(++i));
-  return i;
+  return i === text.length ? -1 : i;
+};
+/**
+ * The static after a dropped binding's value, from where that value ends. After a closing quote the tokenizer starts the
+ * next attribute with no space (`<svg onClick="${fn}"<b>` gives `<svg>` an attribute named `<b`); the binding took the
+ * space before it, so one goes back, or that text is glued to the tag name.
+ */
+const afterValue = (text: string, end: number, quote: string): string => {
+  const rest = text.slice(end);
+  const c = rest.charCodeAt(0);
+  return quote && rest && c !== 32 && c !== 62 && c !== 47 && (c < 9 || c > 13 || c === 11) ? ` ${rest}` : rest;
 };
 
 /**
@@ -428,8 +442,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   let owner = '';
 
   /**
-   * The quote a sigil or event binding's value opened with (`''` unquoted), so the rest of its value comes off the front
-   * of the next static; `undefined` when the last binding was neither.
+   * The quote a sigil or event binding's value opened with (`''` unquoted), while that value is still open: the rest of
+   * it comes off the front of the next static, and a hole before it ends is dropped with it. `undefined` otherwise.
    */
   let openQuote: string | undefined;
   let wasInTag = false;
@@ -447,9 +461,17 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
+    /** Whether this hole is inside a sigil or event binding's value, after its first hole — dropped below. */
+    let continued = false;
     if (openQuote !== undefined) {
-      part = part.slice(valueTail(part, openQuote));
-      openQuote = undefined;
+      const end = valueEnd(part, openQuote);
+      if (end === -1) {
+        part = '';
+        continued = true;
+      } else {
+        part = afterValue(part, end, openQuote);
+        openQuote = undefined;
+      }
     }
     /**
      * Scanned from the **author's** static, not the trimmed one.
@@ -531,6 +553,23 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     const record = (staticText: string): void => {
       if (inTag) for (const [, found] of staticText.matchAll(STATIC_ATTRIBUTE)) written.add(found.toLowerCase());
     };
+
+    /**
+     * **A further hole in a sigil or event binding's value** (`@click="${fn} ${x}"`, `?hidden=${a}${b}`): the client
+     * drops it with the attribute, so this writes nothing for it, whatever it holds. Fail closed: before this, such a
+     * hole reached the attribute path with the binding's quote stripped, and a value in it wrote attributes of its own.
+     */
+    if (continued) {
+      parts.push('');
+      kinds.push(DROPPED);
+      names.push('');
+      strip.push(false);
+      owners.push(owner);
+      raws.push(tagState.rawTag);
+      elementPositions.push(false);
+      elements.push(elementOrdinal);
+      continue;
+    }
 
     /**
      * **A sigil binding** — `.prop`, `?bool`, `@event`, `&ref`, `!live` — is an attribute whose name starts with the
@@ -723,7 +762,10 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   }
 
   let last = strings[strings.length - 1];
-  if (openQuote !== undefined) last = last.slice(valueTail(last, openQuote));
+  if (openQuote !== undefined) {
+    const end = valueEnd(last, openQuote);
+    last = end === -1 ? '' : afterValue(last, end, openQuote);
+  }
   parts.push(last);
 
   /** Each attribute's tail — its static suffix and closing quote — comes off the static after its last hole. */

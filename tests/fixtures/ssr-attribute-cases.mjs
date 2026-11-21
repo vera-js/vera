@@ -94,6 +94,13 @@ export const EXPLICIT = [
   ),
   { label: 'a sigil character inside a name is part of it: data-x.y', strings: ['<p data-x.y=', '>t</p>'], values: ['v'] },
   { label: 'a sigil character inside a name, quoted: data-x.y', strings: ['<p data-x.y="', '">t</p>'], values: ['v'] },
+  /** A further hole in a sigil or event binding's value goes with the attribute on both sides, whatever it holds. */
+  { label: 'a second hole in an event value, unquoted: @click=${fn}${v}', strings: ['<p @click=', '', '>t</p>'], values: [() => {}, ' onx=1 y='] },
+  { label: 'a second hole in an event value, quoted, after text', strings: ['<p @click="', 'x', '">t</p>'], values: [() => {}, '" onx=1 y="'] },
+  { label: 'a second hole in an onClick value', strings: ['<p onClick="', ' ', '">t</p>'], values: [() => {}, '" onx=1 y="'] },
+  { label: 'a second hole in a boolean value: ?hidden="${t} ${v}"', strings: ['<p ?hidden="', ' ', '">t</p>'], values: [true, '" onx=1 y="'] },
+  { label: 'a second hole in a property value: .x="${a} ${v}"', strings: ['<p .x="', ' ', '">t</p>'], values: ['a', '" onx=1 y="'] },
+  { label: 'after the binding closes, a hole is an attribute again', strings: ['<p @click="', '" title=', '>t</p>'], values: [() => {}, 'v'] },
   /** A template ending inside a value is refused on both sides now — `ssr-template-boundaries.test.mjs`. */
 ];
 

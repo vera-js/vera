@@ -228,6 +228,43 @@ test('the rest of a dropped binding’s value goes with it, quoted or not, and n
   assert.equal(serializeTemplate(template(['<a @click=', '>abc ', ' def</a>'], fn, 'T')), '<a>abc T def</a>');
 });
 
+/**
+ * A sigil or event binding owns every hole until its value ends: the client drops them all with the attribute. Before,
+ * a second hole fell through to the attribute path with the binding's quote gone, and a value in it wrote attributes.
+ */
+test('a further hole in a sigil or event binding’s value is dropped with it, whatever it holds', () => {
+  const fn = () => {};
+  const hostile = '" onx=1 y="';
+  assert.equal(serializeTemplate(template(['<a @click=', '', '>1</a>'], fn, ' onx=1 y=')), '<a>1</a>');
+  assert.equal(serializeTemplate(template(['<a @click="', 'x', '">1</a>'], fn, hostile)), '<a>1</a>');
+  assert.equal(serializeTemplate(template(['<a onClick="', ' ', '">1</a>'], fn, hostile)), '<a>1</a>');
+  assert.equal(serializeTemplate(template(['<a ?hidden="', ' ', '">1</a>'], true, hostile)), '<a hidden="">1</a>');
+  assert.equal(serializeTemplate(template(['<input .value="', ' ', '">'], 'v', hostile)), '<input value="v">');
+  assert.equal(serializeTemplate(template(['<a @click="', 'x', '">1</a>'], fn, 'v')), '<a>1</a>');
+  assert.equal(serializeTemplate(template(['<a @click="', '', '', '">1</a>'], fn, hostile, hostile)), '<a>1</a>');
+});
+
+/**
+ * Two shapes 0.3.4 also served as attributes: a second value that breaks out of the binding's quotes, and an unquoted
+ * value a vertical tab continues (U+000B is not whitespace to the tokenizer, so the value runs on into the next hole).
+ */
+test('a quote-breaking second value, and an unquoted value a vertical tab continues, are dropped with the binding', () => {
+  const fn = () => {};
+  const rows = [
+    [['<a @click="', '', '">1</a>'], '" onx=1 y="'],
+    [["<a @click='", '', "'>1</a>"], "' onx=1 y='"],
+    [['<a @click=', '\v', '>1</a>'], ' onx=1 y='],
+  ];
+  const wrong = rows.map(([statics, value]) => serializeTemplate(template(statics, fn, value))).filter((served) => served !== '<a>1</a>');
+  assert.deepEqual(wrong, []);
+});
+
+test('control: once the binding’s value closes, the next hole is an attribute again', () => {
+  const fn = () => {};
+  assert.equal(serializeTemplate(template(['<a @click="', '" title=', '>1</a>'], fn, 'v')), '<a title="v">1</a>');
+  assert.equal(serializeTemplate(template(['<a @click=', ' title=', '>1</a>'], fn, 'v')), '<a title="v">1</a>');
+});
+
 test('control: a plain attribute keeps its static suffix', () => {
   assert.equal(serializeTemplate(template(['<a title=', 'x>1</a>'], 'v')), '<a title="vx">1</a>');
 });
