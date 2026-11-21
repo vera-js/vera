@@ -287,7 +287,7 @@ test('a sigil binding with statics in its value is still the binding, and its va
     [['<input .value="&amp;', '">'], ['v'], '<input value="&#38;v">'],
     [['<input .value="', '-', '">'], ['a', null], '<input value="a-">'],
     [['<input type=checkbox .checked="', '', '">'], [0, ''], '<input type=checkbox checked="">'],
-    [['<p .innerHTML="&lt;i&gt;', '"></p>'], ['b'], '<p><i>b</p>'],
+    [['<p .innerHTML="&lt;i&gt;', '"></p>'], ['b'], '<p><i>b</i></p>'],
     [['<p title=x title=', '>1</p>'], [null], '<p>1</p>'],
   ];
   const wrong = rows
@@ -476,4 +476,51 @@ test('a binding inside an SVG <template> is live; inside an HTML one it is dropp
     const server = where(serializeTemplate(template(statics, 'zqv')));
     assert.ok(server === browser || (browser === 'inert' && server === 'absent'), `${statics.join('${…}')}: browser ${browser}, server ${server}`);
   }
+});
+
+/**
+ * **`<font>` with `color`, `face` or `size` breaks out of foreign content** (the standard's conditional breakout): the
+ * browser reads the `<style>` after it as an HTML style, its content raw text. The server's scan never applied the rule,
+ * so it read an SVG style there, and a static `<!--` after it as a comment that swallowed the next value (found by a
+ * rotated fuzz seed, 2026-11-21). parse5 is the oracle: the style's namespace, and the value as its whole text.
+ */
+const styleOf = (served) => {
+  const find = (node) => {
+    for (const child of node.childNodes ?? []) {
+      if (child.tagName === 'style') return child;
+      const inner = find(child);
+      if (inner) return inner;
+    }
+    return undefined;
+  };
+  const style = find(parse(`<!doctype html><body>${served}`));
+  return style && { ns: style.namespaceURI.endsWith('xhtml') ? 'html' : 'foreign', text: style.childNodes.map((n) => n.value ?? '').join('') };
+};
+test('a <font> with a static color, face or size breaks out of SVG or MathML, as the parser reads it', () => {
+  const value = 'a<b>z';
+  const rows = ['<svg><font color=x><style>', '<svg><font FACE="a"><style>', '<math><font size><style>', '<svg><font id=a color><style>', "<svg><font color='x' id=b><style>"];
+  const wrong = rows
+    .map((prefix) => [prefix, styleOf(serializeTemplate(template([prefix, '</style></font></svg>'], value)))])
+    .filter(([, style]) => !(style?.ns === 'html' && style.text === value));
+  assert.deepEqual(wrong, []);
+});
+
+test('control: a <font> without them stays foreign, and a BOUND color keeps the no-breakout reading, which escapes every value', () => {
+  assert.equal(styleOf(serializeTemplate(template(['<svg><font id=a><style>', '</style></font></svg>'], 'a<b>z')))?.ns, 'foreign');
+  /** Bound: a nullish value would remove the attribute, so nothing is certain — and no value can make markup either way. */
+  const payload = '</style><img src=x onerror=alert(1)>';
+  for (const color of ['x', null, '']) {
+    const served = serializeTemplate(template(['<svg><font color=', '><style>', '</style></font></svg>'], color, payload));
+    assert.doesNotMatch(served, /<img/i, `color=${color}: ${served}`);
+  }
+});
+
+test('the rotated seed shape: a value after <font color=x><style> and a static <!-- lands where the browser puts it', () => {
+  const statics = ['<math><svg><font color=x><style></mi>', '- onA=<!--', 'textarea</p>\v<desc><mglyph>1svg</svg></math>'];
+  const served = serializeTemplate(template(statics, 'zq1zq', 'zq2zq'));
+  const tree = parse(`<!doctype html><body>${served}`);
+  const texts = [];
+  const walk = (node) => { for (const c of node.childNodes ?? []) { if (c.nodeName === '#text') texts.push(c.value); walk(c); } };
+  walk(tree);
+  assert.ok(texts.some((t) => t.includes('zq2zq')), `the second value is served: ${served}`);
 });

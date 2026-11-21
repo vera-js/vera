@@ -668,10 +668,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         kinds.push(DROPPED);
       }
       /** `@` and `&` ignore their statics on the client, and every DROPPED binding writes nothing: no value to join. */
-      if (kinds[kinds.length - 1] !== DROPPED) {
-        joinAt = kinds.length - 1;
-        pieces = [valueText(strings[i].slice(tagState.valueStart))];
-      }
+      joinAt = kinds.length - 1;
+      pieces = kinds[joinAt] === DROPPED ? undefined : [valueText(strings[i].slice(tagState.valueStart))];
       names.push(sigilName);
       strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);

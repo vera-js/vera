@@ -64,11 +64,20 @@ const HTML_ENCODINGS = new Set(['text/html', 'application/xhtml+xml']);
 /**
  * **The breakout tags: start tags that END foreign content** — the parser pops out of `<svg>`/`<math>` to the nearest
  * HTML element or integration point and reads the tag as HTML (`<svg><p><style>` is an HTML style, its content raw
- * text). Exactly the standard's list; `font` breaks out only with a `color`, `face` or `size` attribute, which this
- * scan does not track, so `font` never breaks out here — the safe side. `</p>` and `</br>` are the two end tags that do.
+ * text). Exactly the standard's list, plus `font` with a `color`, `face` or `size` attribute (`FONT_BREAKOUT`, tracked
+ * per tag in `font`). `</p>` and `</br>` are the two end tags that do.
  */
 /** The elements that change how what follows them parses, when read in HTML — see the fast path in `scanTag`. */
 const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'select', 'template', ...RAWTEXT, ...TEXT_ONLY]);
+/**
+ * **`<font>` breaks out when it carries `color`, `face` or `size`** (any case, any value): the standard's conditional
+ * breakout, which this scan once never applied — so `<svg><font color=x><style>` was read as SVG while the browser
+ * reads an HTML style, its content raw text, and values after it were placed where the browser does not put them. Only
+ * a STATIC such attribute counts: one with a hole in its value can be removed by a nullish value, and the client's own
+ * template parse never sees it (its bound attributes are renamed to markers before parsing), so the server keeps the
+ * no-breakout reading there, which escapes every value — safe under both readings.
+ */
+const FONT_BREAKOUT = new Set(['color', 'face', 'size']);
 const BREAKOUT = new Set([
   'b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4',
   'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small',
@@ -180,7 +189,7 @@ const INTO_TEXTAREA = -3;
  * settled in `scanTag` before this is called: there the namespace is HTML, no breakout applies, and no branch here can
  * take those names (none is in `BREAKOUT`, and a `<select>` raises the depth), so nothing else could have claimed them.
  */
-const structural = (opens: Open[], tagName: string, closing: boolean, selfClosing: boolean, encoding: string, foreign: number, inert: number): number => {
+const structural = (opens: Open[], tagName: string, closing: boolean, selfClosing: boolean, encoding: string, font: number, foreign: number, inert: number): number => {
   /** The innermost element this scan opened that changes parsing, and the namespace this tag is read in. */
   let top = opens.length === 0 ? undefined : opens[opens.length - 1];
   let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '';
@@ -191,7 +200,7 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
    * stops — and changes nothing — at `<noscript>` or anywhere the namespace is unknown, and at the template's own
    * root unless that root is HTML: a template that inherited its depth cannot know what is outside it.
    */
-  if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName))) {
+  if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName) || (font === 2 && tagName === 'font'))) {
     const depth = breakOut(opens);
     if (depth !== -1) {
       foreign = depth;
@@ -215,8 +224,8 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
    * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
    * recognized only at depth 0, which an HTML integration point restores for its content (see `SVG_POINTS`).
    * A breakout tag (`<svg><p>`) leaves it (see `BREAKOUT`). Deliberately incomplete on the SAFE side: an end tag
-   * the parser ignores keeps the depth, and so does `<font color>` — both only ever read raw text as markup, which
-   * over-escapes, never injects. `<noscript>` counts as foreign: markup to a parser with scripting off and raw text
+   * the parser ignores keeps the depth, and so does a `<font>` whose `color`, `face` or `size` holds a hole (see
+   * `FONT_BREAKOUT`) — both only ever read raw text as markup, which over-escapes, never injects. `<noscript>` counts as foreign: markup to a parser with scripting off and raw text
    * to one with it on, so it is scanned as the first and escaped as neither can misread (see `TEXT_ONLY`), and
    * nothing inside it is an integration point. The depth a hole sits at is recorded for the template rendered
    * there, which starts from it (see `serializeTemplate`).
@@ -302,7 +311,7 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
  * collects the component scan's candidates the same way (see `ScannedTag` and `scan.ts`).
  */
 export const scanTag = (text: string, state: ScanState, edits?: number[], tags?: ScannedTag[]): ScanResult => {
-  let { phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, attrRaw, encoding } = state;
+  let { phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, attrRaw, encoding, font } = state;
   /** The parser-state elements THIS template has open, innermost last — what its end must close (see `compile`). Mutated. */
   const { opens } = state;
   /** Where, in THIS text, the last attribute to open here starts (its leading space) and its value starts — see `compile`. */
@@ -376,6 +385,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         const at = text.indexOf(quote, i);
         if (at === -1) break;
         if (attrName === 'encoding' && valueFrom !== -1 && encoding === '') encoding = text.slice(valueFrom, at);
+        if (font === 1) font = 2;
         i = at;
         inValue = false;
         quote = '';
@@ -387,8 +397,10 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       if (character === '>') {
         inValue = false;
         emit = true;
+        if (font === 1) font = 2;
       } else if (isSpace(character)) {
         inValue = false;
+        if (font === 1) font = 2;
         phase = BEFORE_ATTRIBUTE_NAME;
         continue;
       } else if (character === '/' && i === 0 && text[1] === '>') {
@@ -407,6 +419,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       i = at;
       tagAt = at;
       phase = TAG_OPEN;
+      font = 0;
       continue;
     } else if (phase === TAG_OPEN) {
       if (character === '!') {
@@ -470,6 +483,8 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
         phase = SELF_CLOSING;
         continue;
       }
+      /** A valueless `color` (`<font color>`) is whole once anything but its `=` follows it. */
+      if (font === 1 && !(character === '=' && phase === AFTER_ATTRIBUTE_NAME)) font = 2;
       if (character === '>') emit = true;
       /** `=` after a name opens its value; anywhere else — `<b =x>` — it is the first character of a NAME. */
       else if (character === '=' && phase === AFTER_ATTRIBUTE_NAME) value = true;
@@ -482,13 +497,16 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       /** A name runs to whitespace, `/`, `>` or `=` — a quote or `<` inside it is part of the name (`<b x">`). */
       if (!(isSpace(character) || character === '/' || character === '>' || character === '=')) continue;
       attrRaw = nameFrom === -1 ? attrRaw + text.slice(0, i) : text.slice(nameFrom, i);
+      if (font === 0 && tagName === 'font' && !closing && nameFrom !== -1 && FONT_BREAKOUT.has(attrRaw.toLowerCase())) font = 1;
       if (edits !== undefined && !closing && tagName === 'template' && nameFrom !== -1) {
         const lower = attrRaw.toLowerCase();
         if (lower === 'shadowrootmode' || lower === 'shadowroot') edits.push(nameFrom, EDIT_SHADOW_ROOT);
       }
       if (character === '=') value = true;
-      else if (character === '>') emit = true;
-      else {
+      else if (character === '>') {
+        emit = true;
+        if (font === 1) font = 2;
+      } else {
         phase = character === '/' ? SELF_CLOSING : AFTER_ATTRIBUTE_NAME;
         continue;
       }
@@ -547,7 +565,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       rawFrom = i + 1;
     } else if (foreign === 0 && !closing && TEXT_ONLY.has(tagName)) textTag = tagName;
     else {
-      const next = structural(opens, tagName, closing, selfClosing, encoding, foreign, inert);
+      const next = structural(opens, tagName, closing, selfClosing, encoding, font, foreign, inert);
       if (next === INTO_TEMPLATE) inert++;
       else if (next === INTO_SCRIPT) {
         rawTag = tagName;
@@ -584,7 +602,9 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
   }
   /** A name still being read at the end carries on into the next text (a hole there is refused — see `nameHole`). */
   if (phase === ATTRIBUTE_NAME) attrRaw = nameFrom === -1 ? attrRaw + text : text.slice(nameFrom);
-  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, opened, attrStart, valueStart, nameAt, tagAt, rawFrom };
+  /** A `color` still being read when this static ends has a hole in it: no longer certain, so the no-breakout reading. */
+  if (font === 1) font = 0;
+  return { inTag: phase !== OUTSIDE, phase, inValue, quote, rawTag, tagName, attrName, serial, closing, inert, comment, textTag, foreign, opens, attrRaw, encoding, font, opened, attrStart, valueStart, nameAt, tagAt, rawFrom };
 };
 
 
@@ -607,7 +627,7 @@ const NO_OPENS: Open[] = [{ name: '', foreign: 0, inert: 0, space: '' }];
 NO_OPENS.pop();
 
 /** A scan state at foreign depth `depth` and nothing else open — its own `opens` (a copy of `NO_OPENS`), since `scanTag` mutates it. */
-export const freshScan = (depth: number): ScanStart => ({ inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens: NO_OPENS.slice(), attrRaw: '', encoding: '' });
+export const freshScan = (depth: number): ScanStart => ({ inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens: NO_OPENS.slice(), attrRaw: '', encoding: '', font: 0 });
 
 /**
  * What the template compiler reads of this module besides the scan itself — exported as SEPARATE bindings. The scan
