@@ -9,9 +9,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, globSync } from 'node:fs';
-import { basename } from 'node:path';
-import { ROOT, packageDirs, packageFiles } from '../scripts/packages.mjs';
+import { globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import { ROOT, orphanOutputs, packageDirs, packageFiles } from '../scripts/packages.mjs';
 import { posix } from '../scripts/fs-path.mjs';
 import { withoutComments } from './source-comments.mjs';
 
@@ -110,4 +111,23 @@ test('the walk detector fires on each shape it refuses (planted)', () => {
   for (const text of twoStep) assert.equal(twoStepWalks(text).length, 1, `the two-step detector misses: ${text}`);
   assert.deepEqual(twoStepWalks("const ROOT = fileURLToPath(new URL('../packages/', import.meta.url));\nconst text = readFileSync(`${ROOT}${name}/src/x.ts`);"), [], 'a named read is not a walk');
   assert.deepEqual(twoStepWalks("const dir = join(root, 'packages', pkg);\nreaddirSync(dir);"), [], 'one named package, listed, is not a walk of the packages');
+});
+
+/**
+ * **Output left where no package is, is found** (a branch switch removes a package's tracked files and leaves its
+ * ignored `dist/`): in a planted tree, a package's own output is not an orphan, a directory the workspaces match with
+ * only a `dist/` and a `.wireit/` left is, and so is one nested at the hooks depth.
+ */
+test('orphanOutputs finds build output in a directory that is no longer a package, and nothing in one that is', () => {
+  const root = mkdtempSync(join(tmpdir(), 'orphans-')) + '/';
+  try {
+    writeFileSync(root + 'package.json', JSON.stringify({ workspaces: ['packages/*', 'packages/hooks/*'] }));
+    for (const dir of ['packages/core', 'packages/hooks/kept', 'packages/gone', 'packages/hooks/renamed']) mkdirSync(root + dir + '/dist', { recursive: true });
+    for (const dir of ['packages/core', 'packages/hooks/kept']) writeFileSync(root + dir + '/package.json', '{}');
+    mkdirSync(root + 'packages/gone/.wireit');
+    assert.deepEqual(packageDirs(root), ['packages/core', 'packages/hooks/kept'], 'CONTROL: the two with a manifest are the packages');
+    assert.deepEqual(orphanOutputs(root), ['packages/gone/.wireit', 'packages/gone/dist', 'packages/hooks/renamed/dist']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

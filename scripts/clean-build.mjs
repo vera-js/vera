@@ -22,7 +22,7 @@ import { globSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildProcesses } from './build-processes.mjs';
 import { npmCommand } from './npm.mjs';
-import { packageFiles } from './packages.mjs';
+import { orphanOutputs, packageFiles } from './packages.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const builds = buildProcesses(root);
@@ -37,10 +37,15 @@ if (process.argv.includes('--check')) {
   process.exit(0);
 }
 
-/** Every package's own cache and output, at any depth (`packages.mjs`), plus a cache one level inside a package. */
-const cleared = [...globSync('.wireit', { cwd: root }), ...packageFiles('.wireit'), ...packageFiles('*/.wireit'), ...packageFiles('dist')];
+/**
+ * Every package's own cache and output, at any depth (`packages.mjs`), plus a cache one level inside a package, plus
+ * the output left where a package used to be (`orphanOutputs`: a branch switch leaves a removed package's ignored
+ * `dist/`, which a clean build that reads only packages never cleared).
+ */
+const orphans = orphanOutputs();
+const cleared = [...globSync('.wireit', { cwd: root }), ...packageFiles('.wireit'), ...packageFiles('*/.wireit'), ...packageFiles('dist'), ...orphans];
 for (const path of cleared) rmSync(root + path, { recursive: true, force: true });
-console.log(`cleared ${cleared.length} build directories`);
+console.log(`cleared ${cleared.length} build directories${orphans.length ? ` (${orphans.length} left where no package is: ${orphans.join(', ')})` : ''}`);
 
 const started = Date.now();
 const build = spawnSync(...npmCommand('npm', ['run', 'build']), { cwd: root, stdio: 'inherit' });

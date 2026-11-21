@@ -31,6 +31,22 @@ export const packageDirs = (root = ROOT) => {
 };
 
 /**
+ * **Build output left in a directory that is no longer a package**, relative to the root, sorted: a `dist/` (or
+ * `.wireit/`) where a workspace pattern matches but no `package.json` is. A branch switch removes a package's tracked
+ * files and leaves its ignored output, so the directory stops being a package while its old bundle stays readable by
+ * any test that imports a dist by path; a clean build that clears only packages' output never sees it (2026-11-21).
+ *
+ * @param {string} [root] Repository root (absolute, trailing slash); defaults to this repo's
+ * @returns {string[]}
+ */
+export const orphanOutputs = (root = ROOT) => {
+  const { workspaces } = JSON.parse(readFileSync(root + 'package.json', 'utf8'));
+  const packages = new Set(packageDirs(root));
+  const outputs = globSync(workspaces.flatMap((pattern) => [`${pattern}/dist`, `${pattern}/.wireit`]), { cwd: root }).map(posix);
+  return [...new Set(outputs)].filter((output) => !packages.has(output.slice(0, output.lastIndexOf('/')))).sort();
+};
+
+/**
  * Files matching `pattern` inside every package, relative to the root, with forward slashes, sorted
  * (`packageFiles('README.md')`, `packageFiles('src/**\/*.ts')`).
  *
