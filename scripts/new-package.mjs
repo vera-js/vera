@@ -1,15 +1,16 @@
 /**
  * **A new component or hook package, complete: its files and every place a package must appear.**
  *
- *   node scripts/new-package.mjs component <name>    → packages/components/<name>, @vera-components/<name>, <vera-<name>>
- *   node scripts/new-package.mjs hook <name>         → packages/hooks/<name>, @vera-hooks/<name>
+ *   node scripts/new-package.mjs component <name> "<description>"  → packages/components/<name>, @vera-components/<name>, <vera-<name>>
+ *   node scripts/new-package.mjs hook <name>                       → packages/hooks/<name>, @vera-hooks/<name>
  *
  * It writes the anatomy `DESIGN.md` §2.5 describes and registers the package in the root build, `tsconfig.json`'s
- * paths, `tests/dist.mjs`, the docs-imports and recipes maps and the diagnostics tables. `tests/package-structure.test.mjs`
- * holds every package to that shape, so a package this script writes passes it on the day it is made, with one
- * exception: a component is red on `no-surface` until its `src/**\/surface.ts` is written, by hand, against the shared
- * `ComponentSurface` type from `@verajs/shared-types` (one type for every component, so no copy can drift). The
- * registries are edited at fixed anchor lines, and the script refuses when an anchor is missing rather than guess. Then run
+ * paths, `tests/dist.mjs`, the docs-imports and recipes maps and the diagnostics tables. A component also gets its
+ * declared surface, `src/<name>/surface.ts` (`as const satisfies ComponentSurface` from `@verajs/shared-types`: its tag,
+ * the description given, and its one part, `root`), and the `custom-elements.json` `scripts/generate-cem.mjs` writes
+ * from it. `tests/package-structure.test.mjs` holds every package to that shape, so a package this script writes passes
+ * it on the day it is made. The registries are edited at fixed anchor lines, and the script refuses when an anchor is
+ * missing rather than guess. Then run
  * `npm install` (a new workspace needs its links; check `find node_modules -maxdepth 2 -type l` first, CLAUDE.md).
  *
  * A component registers through core's `define` (Brian, 2026-11-20): `src/element.ts` holds the options and the setup
@@ -17,7 +18,9 @@
  * `defined-twice` in development; `src/index.ts` is the `./element` entry, `defineAs(tag)`, with no side effect at
  * import.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from './packages.mjs';
 
@@ -29,13 +32,18 @@ import { ROOT } from './packages.mjs';
  * @param {'component' | 'hook'} kind What to make
  * @param {string} name Lowercase, digits and hyphens
  * @param {string} coreVersion `@verajs/core`'s version, for a component's peer range
+ * @param {string} [description] A component's: what it is, in one paragraph (its surface's, its manifest's, its
+ *   package.json's); a hook takes none
  * @return The package's directory, name, tag, suite path, `.` entry source, and every file it writes, keyed by path
  *   from the repository root
  */
-export const scaffold = (kind, name, coreVersion) => {
+export const scaffold = (kind, name, coreVersion, description) => {
   if (!['component', 'hook'].includes(kind) || !/^[a-z][a-z0-9-]*$/.test(name ?? ''))
-    throw new Error('usage: node scripts/new-package.mjs <component|hook> <name>   (name: lowercase, digits, hyphens)');
+    throw new Error('usage: node scripts/new-package.mjs <component|hook> <name> ["<description>"]   (name: lowercase, digits, hyphens)');
   const component = kind === 'component';
+  /** A component's description is its surface's, and the manifest refuses an empty one, so it is asked for at birth. */
+  if (component && !(typeof description === 'string' && description.trim() !== ''))
+    throw new Error('a component needs its description: node scripts/new-package.mjs component <name> "<what it is, in one paragraph>"');
   const dir = `packages/${component ? 'components' : 'hooks'}/${name}`;
   const short = dir.slice('packages/'.length);
   const own = `${component ? '@vera-components' : '@vera-hooks'}/${name}`;
@@ -61,7 +69,7 @@ export const scaffold = (kind, name, coreVersion) => {
     name: own,
     version: '0.1.0',
     private: true,
-    description: component ? `<${tag}>: a Vera component.` : `${name}: a headless Vera hook.`,
+    description: component ? description.trim() : `${name}: a headless Vera hook.`,
     license: 'MIT',
     engines: { node: '>=20' },
     repository: { type: 'git', url: 'git+https://github.com/vera-js/vera.git', directory: dir },
@@ -103,6 +111,8 @@ ${component
 
   const tsconfig = { extends: '../../../tsconfig.json', include: ['src/**/*', '../../core/src/**/*', '../../renderer/src/**/*', '../../styles/src/**/*', '../../inserts/src/**/*', '../../shared-utils/src/**/*', '../../shared-types/src/**/*', '../../hooks/*/src/**/*'] };
 
+  /** The surface's export: `datePickerSurface` for `date-picker`, as select's is `selectSurface`. */
+  const surfaceName = `${name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())}Surface`;
   const sources = component
     ? {
         'src/element.ts': `/**
@@ -156,6 +166,27 @@ import type { Prose } from '@verajs/shared-utils';
  */
 export const PROSE: Record<string, Prose> = {};
 `,
+        [`src/${name}/surface.ts`]: `import type { ComponentSurface } from '@verajs/shared-types';
+
+/**
+ * **<${tag}>'s declared surface: every name a consumer can depend on, as data.** \`custom-elements.json\` is generated
+ * from it (\`scripts/generate-cem.mjs\`; the gate's \`--check\` refuses a manifest that disagrees), so a name added to
+ * the element is added here in the same change, and renaming one is a breaking change.
+ */
+export const ${surfaceName} = {
+  tag: ${JSON.stringify(tag)},
+  description: ${JSON.stringify(description?.trim() ?? '')},
+  attributes: [],
+  properties: [],
+  events: [],
+  methods: [],
+  slots: [],
+  parts: [{ name: 'root', description: 'The element\\'s one rendered part.' }],
+  states: [],
+  customStates: [],
+  tokens: [],
+} as const satisfies ComponentSurface;
+`,
       }
     : { 'src/index.ts': `/** **${own}: a headless hook.** Re-exports only. */\nexport {};\n` };
 
@@ -173,7 +204,7 @@ document.body.innerHTML = '<${tag}></${tag}>';
 `;
   const readme = `# ${own}
 
-${component ? `\`<${tag}>\`: a Vera component.` : `\`${name}\`: a headless Vera hook.`} Private until launch.
+${component ? `\`<${tag}>\`: ${description.trim()}` : `\`${name}\`: a headless Vera hook.`} Private until launch.
 ${component ? recipe : ''}`;
 
   /**
@@ -334,9 +365,9 @@ test('importing ${own} registers nothing and says nothing', async () => {
 
 /** The command, only when this file was started: `argv[1]` is absent under `node -e`, a REPL or a script over stdin. */
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const [kind, name] = process.argv.slice(2);
+  const [kind, name, description] = process.argv.slice(2);
   const coreVersion = JSON.parse(readFileSync(`${ROOT}packages/core/package.json`, 'utf8')).version;
-  const { dir, own, testFile, written, edits } = scaffold(kind, name, coreVersion);
+  const { component, dir, own, testFile, written, edits } = scaffold(kind, name, coreVersion, description);
   if (existsSync(ROOT + dir)) throw new Error(`${dir} already exists`);
   if (existsSync(ROOT + testFile)) throw new Error(`${testFile} already exists`);
 
@@ -351,11 +382,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     writeFileSync(ROOT + file, lines.join('\n'));
   };
 
-  mkdirSync(`${ROOT}${dir}/src`, { recursive: true });
-  for (const [file, text] of Object.entries(written)) writeFileSync(ROOT + file, text);
+  for (const [file, text] of Object.entries(written)) {
+    mkdirSync(dirname(ROOT + file), { recursive: true });
+    writeFileSync(ROOT + file, text);
+  }
   writeFileSync(`${ROOT}${dir}/LICENSE`, readFileSync(`${ROOT}LICENSE`, 'utf8'));
 
   for (const { file, anchor, line, where } of edits) insert(file, anchor, line, where);
+
+  /** The manifest is generated, never written by hand: the same command the gate's `--check` runs, on this package. */
+  if (component) {
+    const cem = spawnSync(process.execPath, [`${ROOT}scripts/generate-cem.mjs`, dir], { cwd: ROOT, encoding: 'utf8' });
+    if (cem.status !== 0) throw new Error(`generate-cem refused ${dir}:\n${cem.stderr}`);
+  }
 
   console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build, node --test --conditions development ${testFile} and tests/package-structure.test.mjs`);
 }

@@ -34,7 +34,7 @@ const findings = (written) => {
 
 for (const kind of ['component', 'hook'])
   test(`a scaffolded ${kind} carries no private pointer`, () => {
-    const { written } = scaffold(kind, 'zz-output', '0.0.0');
+    const { written } = scaffold(kind, 'zz-output', '0.0.0', 'A scaffolded element.');
     const { found, read } = findings(written);
     /** The floor: a scaffold that wrote nothing, or a reader that found no comment, would pass an empty list. */
     assert.ok(Object.keys(written).length >= 5 && read >= 2, `the scaffold wrote ${Object.keys(written).length} files with ${read} comments`);
@@ -70,7 +70,7 @@ test('importing the script where nothing set argv[1] (a script over stdin) runs 
  */
 test('every registry edit the scaffold makes is anchored on a line its file still has', () => {
   for (const kind of ['component', 'hook']) {
-    const { edits } = scaffold(kind, 'zz-output', '0.0.0');
+    const { edits } = scaffold(kind, 'zz-output', '0.0.0', 'A scaffolded element.');
     assert.ok(edits.length >= 5, `CONTROL: the ${kind} scaffold makes ${edits.length} registry edits`);
     for (const { file, anchor } of edits)
       assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').includes(anchor), `${kind}: ${file} no longer has the anchor ${JSON.stringify(anchor)}`);
@@ -78,7 +78,7 @@ test('every registry edit the scaffold makes is anchored on a line its file stil
 });
 
 test('a component is registered on the diagnostics tables AND in MIGRATED; a hook in neither', () => {
-  const lines = (kind) => scaffold(kind, 'zz-output', '0.0.0').edits.map(({ file, line }) => `${file} ${line.trim()}`);
+  const lines = (kind) => scaffold(kind, 'zz-output', '0.0.0', 'A scaffolded element.').edits.map(({ file, line }) => `${file} ${line.trim()}`);
   const component = lines('component');
   assert.ok(component.includes("scripts/diagnostic-tables.mjs { name: 'components/zz-output', tables: ['src/diagnostics.ts'], sources: SOURCES },"), component.join('\n'));
   assert.ok(component.includes("tests/diagnostics-through-tables.test.mjs ['components/zz-output', 'dist/*.min.js'],"), component.join('\n'));

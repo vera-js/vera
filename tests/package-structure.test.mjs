@@ -31,6 +31,7 @@ import { ROOT, packageDirs } from '../scripts/packages.mjs';
 import { posix } from '../scripts/fs-path.mjs';
 import ts from 'typescript';
 import { withoutComments } from './source-comments.mjs';
+import { scaffold } from '../scripts/new-package.mjs';
 
 /** The `.mjs` registries a new package must appear in, read as code with comments stripped. */
 const REGISTRIES = { dist: 'tests/dist.mjs', docsImports: 'tests/docs-imports.test.mjs', docsRecipes: 'tests/docs-recipes.test.mjs', sizes: 'scripts/size-modules.mjs' };
@@ -375,6 +376,39 @@ test('the rules find each missing thing (planted, on synthetic packages)', () =>
   }
   /** A registry entry left in a comment is not an entry. */
   assert.ok(!code("// ['components/zz-plant', 'vera-zz-plant'],").includes("['components/zz-plant',"), 'a commented-out entry is stripped');
+});
+
+/**
+ * **What `scripts/new-package.mjs` writes passes every rule on the day it is made**, the claim its doc makes. The
+ * scaffold is pure (`scaffold()` returns its files and registry edits as data), so its output is held to the rules
+ * here with nothing written: the package's files as the tree would hold them, and the registries as the command's
+ * edits would leave them. A fresh component once failed `no-surface` and nothing saw it until a component was made.
+ */
+test('a package new-package.mjs writes passes every rule (and a planted gap in it is found)', () => {
+  for (const kind of ['component', 'hook']) {
+    const { dir, own, testFile, written, edits } = scaffold(kind, 'zz-scaffold', '0.4.1', 'A scaffolded element, for this row.');
+    const files = { LICENSE: true };
+    for (const [path, text] of Object.entries(written))
+      if (path.startsWith(`${dir}/`) && (path === `${dir}/README.md` || /\/src\/.+\.ts$/.test(path))) files[path.slice(dir.length + 1)] = text;
+    const added = (file) => edits.filter((edit) => edit.file === file).map((edit) => edit.line).join('\n');
+    const registered = {
+      ...regs,
+      build: [...regs.build, `./${dir}:build`],
+      paths: { ...regs.paths, ...JSON.parse(`{${added('tsconfig.json').replace(/,\s*$/, '')}}`) },
+      dist: `${regs.dist}\n${added('tests/dist.mjs')}`,
+      docsImports: `${regs.docsImports}\n${added('tests/docs-imports.test.mjs')}`,
+      docsRecipes: `${regs.docsRecipes}\n${added('tests/docs-recipes.test.mjs')}`,
+      tests: [...regs.tests, testFile.slice('tests/'.length)],
+    };
+    const manifest = JSON.parse(written[`${dir}/package.json`]);
+    assert.ok(Object.keys(files).length >= (kind === 'component' ? 7 : 3), `CONTROL: the ${kind} scaffold's files as read: ${Object.keys(files).join(', ')}`);
+    assert.deepEqual(problemsOf({ dir, manifest, files }, registered), [], `${own} as new-package.mjs writes it`);
+    if (kind === 'component') {
+      const gap = Object.fromEntries(Object.entries(files).filter(([path]) => !path.endsWith('/surface.ts')));
+      assert.deepEqual(problemsOf({ dir, manifest, files: gap }, registered).map(codeOf), ['no-surface'], 'PLANT: the surface removed');
+    }
+  }
+  assert.throws(() => scaffold('component', 'zz-scaffold', '0.4.1'), /a component needs its description/, 'a component is refused without one');
 });
 
 test('the suite reads the tree (CONTROL)', () => {
