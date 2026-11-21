@@ -131,6 +131,31 @@ describe('anchor, measured path', () => {
   });
 
   /**
+   * **A cap that comes off is re-placed without a scroll or resize.** While squeezed, the layer's width includes its
+   * scrollbar; once its content fits, the cap and the scrollbar go, and the box is narrower than it was placed. The
+   * layer is observed by the same ResizeObserver as the target, so its own resize re-places it. Read on a centered
+   * placement, where a stale width shows as an off-center layer.
+   */
+  it('a squeezed layer whose content comes to fit is re-placed by its own resize, centered again', async () => {
+    const { target, layer } = fixture(holder(`height: ${innerHeight}px`), 200, Math.round(innerHeight / 2));
+    cleanup.push(() => layer.remove());
+    layer.style.cssText = 'overflow: auto; background: #ccc;';
+    for (let i = 0; i < 200; i++) layer.append(Object.assign(document.createElement('div'), { textContent: `option ${i}` }));
+    const placed = anchor(layer, target, { placement: 'bottom', squeeze: true });
+    placed.open();
+    await frames(3);
+    expect(layer.style.getPropertyValue('max-height') !== '', 'CONTROL: squeezed, so capped').to.equal(true);
+    const squeezedWidth = layer.getBoundingClientRect().width;
+    while (layer.children.length > 3) layer.lastElementChild.remove();
+    await frames(4);
+    expect(layer.style.getPropertyValue('max-height'), 'the cap came off').to.equal('');
+    const [l, t] = [layer.getBoundingClientRect(), target.getBoundingClientRect()];
+    expect(l.width <= squeezedWidth, `CONTROL: the layer is no wider than it was (${l.width} vs ${squeezedWidth})`).to.equal(true);
+    near(l.left + l.width / 2, t.left + t.width / 2, 'centered on the target with its new width');
+    placed.close();
+  });
+
+  /**
    * **A top-layer popover in a right-to-left document sits at its target.** The UA gives `[popover]` `inset: 0`, so with
    * only `left` and `top` written its `right: 0` stays; with a fixed width the box is over-constrained, and in
    * right-to-left `left` is the one dropped, so the layer sat against the right edge. A plain div has no UA inset, which
