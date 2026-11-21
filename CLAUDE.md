@@ -10,866 +10,226 @@
 > machines' ledgers are readable and read-only, unless this machine takes that queue over. If you have lost context (a
 > compaction, a crash, a new session), open your machine's ledger before doing anything else, then the handoff it names.
 
-Operational conventions and project parameters. Records decisions that are **not** derivable from the
-code, so they are not re-litigated.
+Conventions and facts not derivable from the code, one or two lines each. Each rule's story is in this file's git
+history and in `docs/BROWSER-LEDGER.md`.
 
-- **The bar for EVERYTHING:** `docs/CODE-PRINCIPLES.md` (eleven principles, equally weighted).
-  **Every decision, every bit of code written or run, every audit and every test adheres to it**: source,
-  tooling, probes, benches, gates and the tests themselves, not only shipped code (Brian, 2026-10-27).
-  **When something does not, it is raised with Brian, never silently kept:** either `CODE-PRINCIPLES.md` is
-  updated (the rule was wrong or incomplete), or the violation is agreed as acceptable for a stated reason,
-  recorded where the code is. Its §1 **Types** subsection is binding for every type written: one `types.ts`
-  per package at the import-graph root, single-file types local and unexported, `extends` (never `&`) for
-  composition, JSDoc on every export, `import type` for all type-only flow. Re-read it at the start of every
-  session, including after a context compaction, and check each piece of work against all eleven before
-  calling it done. **The principles themselves are open to discussion, never to silent edits:** a principle
-  that looks wrong or outdated, or a lesson that deserves a new one, is raised with Brian, with the evidence
-  and a proposed wording, and `CODE-PRINCIPLES.md` changes only once he agrees.
-- **Functional by default, everywhere** (Brian, 2026-10-28; CODE-PRINCIPLES §1): plain functions over plain data, no
-  classes outside §1's two measured exceptions, no `this`-based APIs, no mutation of a caller's inputs, pure wherever
-  the work allows. Side effects live only at named boundaries (the store's traps, the scheduler, the tracking state, DOM
-  writes), and every piece of module-level mutable state is declared at the top of its module with why it must be
-  shared. Adding one is raised with Brian.
-- **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
-- **Browser and engine behaviors: `docs/BROWSER-LEDGER.md`.** Every platform behavior, caveat or engine quirk that a
-  design or a measurement choice rests on goes there THE MOMENT it is found, with the engines it was seen on, the date,
-  the evidence (a test, a commit, a measurement) and the consequence. It only grows: an entry found wrong is marked so
-  and kept. Read it before changing a choice it explains, and before calling an engine difference new.
-- **AI-facing API spec:** `llms.txt` at the root (convention puts it there, like `robots.txt`).
-  Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source
-  of truth. Update it in the same pass as any API change. It carries the complete **buildless JSX
-  recipe** (import map + `@verajs/jsx/standalone`), which is the fastest path to a working
-  single-file demo — and which `tests/llms-recipes.test.mjs` now compiles and runs, because
-  `docs-recipes` globs the READMEs and had never read this file at all.
-- **Writing templates:** prefer a stable shape with `?hidden=${…}` over swapping subtrees
-  conditionally — template identity holds, so values update in place instead of the subtree being
-  torn down and rebuilt. (This was also a correctness issue before 0.1.2; see
-  `tests/renderer-sibling-parts.test.mjs`.)
-- **Testing a component without a browser:** compile with `transformJsx`, run under jsdom, and await a
-  microtask or call core's `flush()` — the scheduler flushes every queued render and effect as ONE
-  microtask. **Seed `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
-  and bisecting them produces contradictory results.
-- **A probe drives the scheduler with `flush()` or an `await`, not frames.** Core flushes every queued render,
-  layout effect and effect as one microtask — the default scheduler, `microtask`, since 2026-10-09 — so writes in one
-  task coalesce into one flush in any jsdom, with or without `pretendToBeVisual` (measured 2026-10-08: 100 writes →
-  0 runs synchronously and 1 after a microtask, both ways — the old "1 with it, 100 without" was
-  the frame scheduler's), and after any `await` the DOM is current. Frames matter only on the held path — a hook's
-  THIRD run in one flush (a self-feeding loop) waits for the ELEMENT's window's next frame or a 100 ms timer,
-  whichever comes first — and under the opt-in `frameBudget`. Without `pretendToBeVisual` that path takes the 100 ms
-  timer, so a probe exercising a loop or `frameBudget` gives jsdom frames, or calls `flush()` and waits out the timer
-  deliberately. **Never drive `frameBudget` with real time** — `performance.now()` is coarse on Firefox and WebKit;
-  a test crossing the budget by elapsed milliseconds is flaky on CI. The
-  full list a probe needs is `window document HTMLElement customElements CSSStyleSheet Node Element
-  DocumentFragment requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent`
-  for anything dispatching, and `location`/`history` for the router.
-- **jsdom is stricter than a browser about `setAttribute`, and that difference has already produced
-  one false finding.** jsdom implements the XML Name production and throws on `a(b)`, `a|b`, `a?b`
-  and about fifty other shapes; **every real engine accepts them**, rejecting exactly `a b`, `a>b`,
-  `a=b` and `a/b`. `tests/browser/spread-names.test.js` records the engines' rule on purpose — read
-  it before changing anything about attribute-name validation, because a jsdom probe will tell you
-  the denylist is broken when it is exactly right. More generally: **jsdom is the regression net,
-  never the oracle** for anything the platform decides. And in a probe, read direct children with
-  `[...el.children]`, never `querySelector(':scope > …')`: on a page the renderer and custom elements
-  BUILT, jsdom answered a NESTED host's child (2026-10-02) — a false "nested hosts never distribute"
-  finding on every seed of a storm, on a correct page.
-- **The SSR shim is a DOM implementation, so audit it by differential test, never by reading it.**
-  Run the same operation against the shim and against jsdom and compare the answers — a twenty-line
-  script over `setAttribute`/`getAttribute`/`localName`/`className` found three real divergences in
-  one pass, all of them invisible to a code read because the shim's code is individually reasonable
-  and only *collectively* wrong. The class of bug it finds is the worst one this package has: the
-  server and the client disagree about something neither of them renders, so nothing fails until a
-  hydration mismatch shows up somewhere else entirely. Where the two legitimately differ (this DOM
-  declines markup it cannot reproduce exactly, so those queries answer emptily) that is in the README's
-  out-of-scope list — check there before calling a difference a defect. **The most productive
-  question is not "is this member present" but "does it refuse what the platform refuses"** — a
-  member that exists and is too permissive looks exactly like one that is correct, and being lenient
-  server-side only moves the failure to the client with the context stripped off.
-- **A retention probe needs two controls, and `const x = …` in the loop is not one of them.**
-  Measuring whether the framework leaks means measuring against something, or the number means
-  nothing in either direction: a **retained** control that must stay alive (or the run is collecting
-  things it should not, and everything looks clean) and a **dropped** plain object that must die (or
-  `gc()` is not running, and everything looks leaked).
-  The specific trap, measured with **no framework and no DOM at all**: 30 plain objects each bound to
-  a `const` and then `WeakRef`'d leave the **last one alive**; the same 30 created inline inside the
-  `WeakRef()` call leave **none**. So `for (…) { const el = make(); …; refs.push(new WeakRef(el)) }`
-  always reports one survivor — the loop's final binding, not a leak — and it survives arbitrary
-  further churn, which makes it look like a bounded framework hold rather than an artifact. That
-  reading cost a bisect across six component shapes before a plain-object control settled it.
-  **Moving the loop body into a function is not the cure either** — measured 2026-09-05, an async
-  per-cycle function still leaves the LAST call's objects alive (the artifact rides the await
-  chain, not just the `const`), and it survives an unrelated later render, which reads exactly like
-  a bounded framework hold. Only the no-framework control settles it: the same harness with plain
-  `innerHTML` and no vera at all reports the same lone survivor.
-  **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
-  `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`. **The exception, by design**
-  (Brian, 2026-10-10; generalized 2026-10-11): **isolated measuring child processes that use gc as the instrument, with
-  retained and dropped controls, are allowed in tests; forced gc inside a suite's own process is not.** gc is the
-  instrument there, never a crutch inside the logic under test, and it is for what nothing observable can pin:
-  `tests/core-subscription-sweep.test.mjs` holds the store's exact unsubscription (a removed component leaves nothing
-  in a store; it replaced a sweep that cost Firefox 3–13% on creation), and `tests/renderer-release-gc.test.mjs` holds
-  the renderer's release of a removed component's applier state. A row without both controls, or one that runs gc in
-  the suite's own process, belongs in `.probe/`.
-- **jsdom cannot measure retention of anything a `MutationObserver` watches.** jsdom's observer keeps every observed
-  node in a strong list until `disconnect()`; browsers hold them weakly. Slots' two shared observers never disconnect,
-  so under jsdom every light host ever observed stays reachable — a gc probe reports a leak the browser does not have,
-  and would equally report a real fix as still leaking. Measured 2026-10-07 on the slots work-set fix: jsdom 30/30
-  removed hosts alive before AND after; Chrome with CDP `HeapProfiler.collectGarbage` 30/30 → 1/30, the same as its
-  no-slots control. Measure retention in a real engine with CDP gc and both controls (a CDP gc probe with both
-  controls is the template); keep jsdom gc probes for code that observes nothing.
-- **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
-  cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
-  number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
-  the measurement had silently reused the previous experiment's bundle. Print the baseline after
-  restoring, every time. The same applies to timings: `bench/reactivity.mjs` read 163 ns/op straight
-  after the browser suite and 132 on a quiet machine, so take three runs before believing a
-  regression.
-  **A direct `rollup -c` in a package without `MODE=prod` writes only `dist/development`** (Brian approved,
-  2026-11-08): the production min keeps its old bytes and timestamp, so every production number taken from it measures
-  the previous build. Measured on 2026-11-08 with a planted marker (present in the dev bundle, absent from the min); it
-  voided an import-order experiment, a planted control's production half and four variant counts. Build every variant
-  through the one variant script (`scripts/build-variant.mjs`), which sets `MODE=prod`, builds both bundles and refuses
-  unless both changed, and print every arm's bundle hash in a measurement's header.
-- **A timing sample must be tens of milliseconds long, and the machine is not the first suspect.**
-  Firefox and WebKit deliberately coarsen `performance.now()` (toward 1 ms, a fingerprinting
-  defense), so timing ONE ~3 ms render measures mostly rounding: measured 2026-09-27, the A/A control
-  swung ±2.8% on those two engines while Chromium's stayed tight — and that was blamed on "a noisy
-  machine" for three runs. Timing 20 renders per sample (~60 ms) brought A/A to ±1.1% on all three.
-  The machine CAN be the cause, but check it rather than assume: here it was Spotlight
-  (`corespotlightd` at 150% CPU) reindexing the files our own builds had just written — it settles
-  within a minute or two of the last build. Read the TOP of `ps -Ao pcpu,comm -r | head` before a
-  race — not only the Spotlight row — and do not start while anything else holds more than ≈ 10% of a
-  core: a busy tab in Brian's own Chrome held 50–95% of a core for a day and shifted every absolute
-  ≈ 44% (2026-10-02; paired deltas held). The race harnesses wait on exactly that check. **And leave it time to cool** (Brian, 2026-09-27): a few
-  minutes after the last build, gate or race before any timing run, and between consecutive races —
-  it is a fanless laptop, and correctness suites are the only thing that can run back to back.
-- **Every heavy run is caffeinated, paused and thermal-gated — written into the TOOL, never left to a wrapper** (Brian,
-  2026-11-18). A wrapper script that forgot the gate ran a whole cycle batch ungated, and a race was refused because the
-  screen saver's line had been crossed. So, for every race, timing run, test batch, gate and counter/VM batch:
-  (1) it runs under `caffeinate -dimsu -w <its pid>` (or `caffeinate -dimsu <cmd>`) — the screen saver must NEVER come
-  on, and the harness's saver check is only a safety net; (2) a **2-minute pause before each heavy batch starts** (not
-  between the runs inside one; `BATCH_PAUSE_S`, default 120); (3) before every sample or page, macOS's thermal pressure
-  (`notifyutil -g com.apple.system.thermalpressurelevel`) must be **0** — above it, **pause a minute at a time until it
-  clears**, and report the time spent cooling. `bench/dom/race.mjs` and `scripts/gate.mjs` do all three in their own
-  code (the gate on the macOS laptop only — CI runs on Linux); any new timing tool,
-  harness or batch launcher gets the same code in the tool itself, and a tool that cannot read the pressure refuses to
-  run rather than timing ungated. Instruction counts are not changed by heat, but their VM batches are what heat the
-  machine, so they are gated and paused too.
-- **Timing deferred work, "see the DOM, then wait for the next paint" charges deferral a frame it never cost.** A
-  flush deferred to a frame writes the DOM INSIDE that frame's callbacks, and that frame paints it; a probe that
-  notices the DOM and only then requests a frame waits for the NEXT one. Measured 2026-10-08: it made the scheduler's
-  4 ms budget look a frame slower than plain microtasks on cheap floods (33 vs 18 ms) when, measured fairly, the two
-  tie. Fair: start a frame chain BEFORE the work, and from each frame's callback queue a task (which runs after that
-  frame's rendering) that asks whether the DOM was final when it painted. For a real interaction, the browser's own
-  Event Timing (`PerformanceObserver({ type: 'event' })`, the INP measure) is the ground truth.
-- **An async timing loop is ONE job, and a short window's median measures the GC schedule, not the
-  code.** Two traps, both of which produced a wrong conclusion here (2026-09-28). (1) `for (…) await
-  render()` never yields a macrotask, and the platform keeps every `WeakRef` target alive until the job
-  ends — core's hook subscriptions were `WeakRef`s until 2026-10-18 (they are strong links now; any `WeakRef` the
-  code under test creates still behaves this way) — so every render stayed reachable for the whole run
-  (109 MB, released by one `setImmediate`): yield a macrotask every ~100 iterations, outside the timed
-  region, as a server's requests do (`bench/ssr.mjs` does). (2) A fixed workload collects at FIXED
-  rounds per version, so a median over a few rounds reports where the collections happened to fall: an
-  8-round median had the rebuilt SSR stack 7% SLOWER than the old one while the total over the same
-  rounds from cold, and a 30-round median, both had it faster. Compare TOTALS from a cold process, or
-  medians over long windows, across many fresh processes — and never read a per-component split out
-  of a mixed workload, which only says which batch a collection landed in. (3) A workload that
-  ALTERNATES between two modes (a collection every other sample) puts the median on one of them:
-  print the per-sample curve and compare per mode, or totals, before believing a median. Measured
-  2026-10-02: hydrating 10k rows alternated ~23 / ~18.5 ms, every session median landed on the slow
-  mode, and it reported parity while the fast mode was 1 ms (5%) slower.
-- **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
-  `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
-  `@verajs/store`, `@verajs/store/collections`, anything built on core's public API — resolves core
-  through `exports.default`, which is `dist/*.min.js`. The probe then holds **two cores**: writes go
-  to one store registry and subscriptions live in the other, so reactivity looks completely dead and
-  every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard
-  never fires" findings on separate occasions.
-  **A probe BUNDLED with esbuild splits core the same way (Brian approved, 2026-10-21):** esbuild applies the tree's
-  `tsconfig.json` `paths` (`@verajs/*` → package SOURCE) to every file inside the tree, so a package's built `dist`
-  importing `@verajs/core` gets core's source while an entry outside the tree gets core's `dist` — two cores in one
-  bundle. Measured on the step 2 retention probe: computeds and `renderInto` lists looked inert on both engines, and two
-  leaking rows read clean. Pass the bundle an empty `tsconfig`, and have the build script fail if any `core/src` module
-  is in the bundle — a guard shown firing on a deliberately mis-bundled entry, not only trusted.
-- **Two template literals are two templates, even with identical text.** Template identity is the
-  `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
-  probe produces a rebuild, not an update, and every conclusion drawn about update behavior is
-  then wrong in the same direction. Render through **one** `draw()` function called twice. This has
-  produced confident false findings about `keyed`, `hold` and `!live` on separate occasions; when a
-  result says the DOM was rebuilt or a value was lost, suspect the probe before the renderer.
-- **A probe that measures nothing reports perfect behavior**, so assert the control produced a
-  non-zero result *before* concluding anything from a silence. This is the generalization of the
-  retention-probe rule above and it has cost four separate passes: hooks registered after `render()`
-  are ignored, so a recovery probe read `0` before and `0` after and looked like "nothing recovered"
-  when it meant **nothing ran**; plain `<div>`s never fire `disconnectedCallback`, so a teardown probe
-  reported every cleanup balanced while running none; `watch()` returns early on an element with no
-  `data-autoload` attribute, so an idempotence check counted `observe()` at 0 twice and called it
-  idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
-  no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
-  perfectly by an entry that never ran at all.
-  **jsdom parses a served declarative shadow root as a plain `<template>`** (Brian approved, 2026-11-17): a server suite
-  that renders a shadow component and then queries only the document sees none of the component's content, so it
-  asserts absence against nothing — `tests/ssr-raw-text.test.mjs`'s "no payload escapes" checks found 0 scripts and 0
-  injected images on every run, because there was nothing to search. Query template content too, and assert a positive
-  control (an element known to be inside) before any "absent" counts.
-- **A metric with two modes or a heavy tail gets a frequency bar, a median bar and a control bar — never a range bar**
-  (Brian approved, 2026-10-24). GC time, cycle-collector time, hydration's alternating modes: pre-register (1) how often
-  the HIGH mode occurs, with its threshold, (2) the median, and (3) the POSITIVE CONTROL's expected reading, the run
-  VOID when the control misses it (e.g. "the self-referencing control reads ≥ 500 ms of CC"). A bar like "not higher
-  than the base's own range" gets weaker the noisier the base is — exactly backwards. Measured 2026-10-24: a Firefox CC
-  check passed a change by its range bar (the base reached 2302 ms once) while the change made a large collection land
-  in 8 of 13 runs against 3 of 13 (median 1366 vs 119 ms) — and the same instrument first read 0 ms on its own
-  positive control, until the idle tail (10 s) and the profiler features (`js,stackwalk,memory`) were right.
-- **A browser-test failure can arrive as a TIMEOUT, and a mutation can test the wrong tree.** Two traps,
-  both measured 2026-10-01. (1) chai builds a failure message by inspecting the values, and inspecting a
-  CROSS-REALM DOM object (an iframe's `ShadowRoot`) never finishes — so a failing `expect(node).to.equal(null)`
-  reads as "Browser tests did not finish within 120000ms … 0 passed, 0 failed", which looks like a broken
-  harness rather than a red row. Assert booleans (`expect(node === null).to.equal(true)`) whenever the value
-  comes from another document. (2) A worktree whose `node_modules` is symlinked to the main tree resolves
-  `@verajs/*` to the MAIN tree's packages, so a mutation made in the worktree "passes" while the test runs the
-  untouched code. Check `readlink -f node_modules/@verajs/<pkg>` before trusting a worktree mutation — the
-  mutation must turn something red, or it measured nothing. **The same trap splits a core change's FULL suites
-  (Brian approved, 2026-10-19):** in such a worktree `tests/dist.mjs` loads the worktree's core while packages that keep
-  core external (store, computed, collections, directives) load the other tree's — two cores, and a core change's suites
-  went 18 dev / 83 prod red for that reason alone (2026-10-18). Give the worktree its own `node_modules` with `@verajs/*`
-  linked to its own `packages/*` (`readlink -f node_modules/@verajs/core` must point into it), or run the suites in the
-  real tree.
-  **And an INSTALL in such a tree damages the OTHERS (Brian approved, 2026-10-22):** the local worktrees share
-  `node_modules` through symlinks into one another, and `npm install` / `npm ci` in one follows those links — an install
-  that aborted (ENOTDIR) removed files in another worktree's `node_modules`, which two more worktrees link into, and
-  nothing reported it there (found hours later, when a tool failed). Before any install in a worktree, check
-  `find node_modules -maxdepth 2 -type l` for links into other trees; install only in the tree that OWNS the targets, or
-  give the tree its own real `node_modules` first. After an aborted install, check the OTHER trees' critical
-  dependencies (playwright, trace-mapping) by importing them inside each tree.
-- **In a hot function, an arrow that captures a parameter taxes EVERY call, a sparse array taxes every read, and so
-  does an EXPORTED module variable.**
-  Measured 2026-10-01 on the SSR serializer, which lost 4.7% in a day to both: `value.map((e) => serializeValue(e,
-  false, depth))` makes V8 heap-allocate a context on every `serializeValue` call, whichever branch runs (CPU profile:
-  its self time 9.0 → 12.3 ms), and `depths[i] ?? 0` on an array filled only where needed walks the prototype chain on
-  each hole. Use plain loops inside hot functions, and build per-binding arrays dense. The third, measured the same day:
-  moving the SSR tag scanner into its own module and marking the constants its per-character loop reads `export const`
-  (`isSpace`, the phase numbers, the raw-text sets) cost 3–8% at steady state (compile 3.2%, a 50 KB `.innerHTML` scan
-  7.5%) and 8–14% over the first 100 calls (7.8%, 13.7%), with the scan's code unchanged and a byte-identical A/A at
-  ≤1.6% — an exported binding is a live binding, which V8 reaches less directly than a module-local one. The slower
-  tier-up is part of the cost, not noise: it is what a server's first requests pay. Keep what a hot loop reads module-local and export a separate alias (`export const
-  RAW_TEXT_TAGS = RAWTEXT`), as `packages/ssr/src/vera/tokenizer.ts` does. None of the three shows in a code read, so
-  every hot-path change gets a cold-process or race measurement before it lands.
-- **Before a NEW hot function is raced, it gets a read-through against the hot-path rules above and below** (Brian,
-  2026-10-31): an arrow or function capturing its own variables (even on a cold branch), sparse arrays, exported live
-  bindings, a one-caller helper the minifier will paste in as an IIFE, the inlining budget in BOTH bundles, a try/catch
-  doing work on the hot path. Automated where it can be: `tests/hot-path-closures.test.mjs` refuses captured closures in
-  the named hot functions (add a new hot function to its list), and the IIFE counter pins what the minifier substitutes.
-  Found the hard way: `computed`'s getter built two closures on its rarely-taken watch branch, and every cached read paid
-  for them (Firefox 31%, WebKit 33%), found only after a three-engine race and a bisect.
-- **A hot function near V8's inlining budget pays for ANY growth — even code that never runs.** V8 inlines a function
-  into its caller only while its bytecode is at most `--max-inlined-bytecode-size` (460). `serializeValue`, inlined into
-  `serializeTemplate`'s per-binding loop, sat at 455; the DOM-node case took it to 467 and cost 3.6% steady on renders
-  that never reached the case (2026-10-09). A bisect turning the change's parts off settled it: the import, the alias and
-  a same-size comment were free, and a never-taken `if (value === DEAD) return ''` alone cost 4.0% — V8's trace said
-  "Cannot consider serializeValue for inlining (reason: 5)", too big. Measure with `--print-bytecode
-  --print-bytecode-filter=<name>` (or `--trace-turbo-inlining`), and when a change crosses, move rarely-run code — an
-  error's construction is the usual candidate — out of line. `tests/ssr-inlining-budget.test.mjs` guards
-  `serializeValue` and prints its headroom every run. A size cliff shows in no code read and no correctness test; and
-  Firefox and Safari inline on different rules, so in the browser the three-engine race is the only oracle.
-  **The same cliff bites the instrument:** ablation switches (`if (process.env.X)` branches) inside a hot function grow
-  it past the budget, so every ablation measures a de-inlined function and none can show its effect. Measured
-  2026-10-18 on the store's subscription `read`: four ablations "did nothing" until `--trace-turbo-inlining` showed the
-  switches had made `read` uninlinable. Build a clean variant per hypothesis, and confirm with the trace that its hot
-  function inlines like the baseline's before trusting the number.
-- **Removing a function's other callers changes what the minifier does to it** (Brian approved, 2026-10-23). Terser
-  substitutes a function with ONE call site into that caller — in a hot path as an immediately-invoked arrow, a fresh
-  closure on every call. A refactor that deleted core's last exports of two small helpers did exactly that to `init`'s
-  render path, and Firefox paid ~1–2% on component creation and churn while no source diff touched the hot code
-  (BROWSER-LEDGER, "the minifier inlines a function with ONE caller"). So a refactor that leaves a hot helper with one
-  caller is raced, and the inlined-IIFE sites of the production bundle are counted before and after; a hot call that
-  must stay a call is marked `/*@__NOINLINE__*/` with a why-comment (`tests/minifier-iife-sites.test.mjs` pins each bundle's
-  site count). **Two traps writing that annotation** (Brian approved, 2026-11-14): the TypeScript step
-  drops a comment between `!` and a call, so put it on an operand (`x && /*@__NOINLINE__*/ f()`, `false === …`), never
-  after `!`; and never quote the annotation's literal text inside a why-comment, because terser keeps any comment holding
-  it, and the shipped min grows (+126 B raw, measured). Check both with a `cmp` against the raced bundle.
-- **The bytes that LAND must be byte-identical to the bytes that were RACED, or the landing is re-raced** (Brian
-  approved, 2026-10-27). A probe or test export in a raced bundle is a caller like any other, so it changes what the
-  minifier does (the rule above). Measured: a hook-record race was built with a probe export that gave the record's
-  factory a second caller; the landing removed the export, Terser substituted the factory into `register` as an arrow
-  invoked on every hook created, and creation was ~1.5% slower than raced, with no race having seen it. So build every
-  timed arm with exactly the landing's exports (probe-only exports go in a separate build used only for shape or
-  inlining checks), and `cmp` the landed production bundle against the RACED arm, never against a fresh reproduction of
-  the landing.
-- **A deopt that says "allocation site tenuring changed" follows the allocation, not the function — moving code does not
-  remove it.** V8 inlines a caller's allocations (a component's `createStore`) into whichever function hosts them; when
-  it later decides those objects belong in old space, it discards that host's optimized code. Measured 2026-10-11 on
-  Chrome: the one new deopt a 2026-10 refactor introduced sat on `untracked`; folding untracking into `initWith` moved the same deopt to
-  `initWith`, and the first-render cost it seemed to explain did not move (64.6 → 64.1 ms, before the refactor 60.6). Before treating
-  a deopt as the cause, change it and race it: a deopt that moves while the timing stays put is a symptom of the
-  allocation pattern, not the cost. The tools: V8's `--log-code --log-deopt --logfile=…` passed through Chrome's
-  `--js-flags` (renderer stdout is closed on macOS, so `--trace-opt` prints nothing), mapped through the dist source maps.
-- **Time Firefox with a FRESH BROWSER PER PAGE — never many pages in one instance.** Same-site pages in one Firefox
-  share a content process, so a page's leftover garbage is collected inside the NEXT page's timed window, and a cyclic
-  rotation pins each variant behind the same neighbor: results then follow the variant list, not the code. Measured
-  2026-10-17: one probe read +3.6%, +3.2%, then −4.5% when a fifth variant changed its neighbors, and a committed
-  "Firefox −10%" was in fact +8% (fresh browser per page, both ways). Chrome gives each page its own context, but
-  verify rather than assume. Report ELAPSED time with the frame gaps too: a change can move a collection out of the
-  timed window without removing it. (Measured headless — Playwright Firefox through `firefox.launch()`'s default;
-  the direction is expected to hold, to be re-confirmed headed.) The same trap holds INSIDE one page: frameworks run
-  one after another on a shared page left their garbage in the next one's window, and a byte-identical A/A copy split
-  5/5 (2026-10-18), so a cross-framework race runs each implementation in its own fresh browser.
-- **Time in headed browsers; headless is for profiling and jitless iteration only** (Brian, 2026-10-18). Playwright's
-  `firefox.launch()` and `webkit.launch()` are HEADLESS by default, and a headless browser's frames are not tied to a
-  real compositor, so a paint or layout row there may measure no paint at all. Found 2026-10-18: `bench/dom/run.mjs`
-  (the public table's command) ran bundled Chromium headless, and the harness behind every slots race ran all three
-  engines headless. Read a harness's launch line before reading its numbers, print the mode and version in its header,
-  and label the engines for what they are — installed Chrome, Playwright Firefox, Playwright WebKit (not Safari).
-- **A WeakMap / WeakSet keyed by DOM nodes on a PER-COMPONENT hot path can cost both engines' collectors per entry —
-  measure it, and the per-copy `Symbol` field is the candidate to race.** Measured 2026-10-17: the renderer's root-part
-  WeakMap cost ~10% of shadow-component creation and churn in Firefox (GC sweep + mark) and ~9% in Chrome; a field on
-  the root under a `Symbol` private to each module copy (two copies on a page must never see each other's entries —
-  never a string name) removed it, and core's `mine` WeakSet the same way gave −5–6%. **It is not a rule to replace
-  weak collections:** slots' seven node-keyed maps measured a TIE as fields, and dropping the per-hook `WeakRef` bought
-  −3..−6% but cost Firefox's cycle collector +280 ms and lost a failsafe (kept then, Brian; on 2026-10-18 core moved
-  to strong links with exact unlinking, `store.ts`). A field that points back at its
-  node's DOM (root → part → root) is a DOM↔JS cycle Firefox's cycle collector must break — null the back-pointer at
-  release. Race the field against the collection, both engines, fresh browser, before moving one. (Measured headless,
-  on all engines; to be re-confirmed headed.)
-- **Defining `adoptedCallback` on a custom element class costs every element's CREATION** — +7.4% on
-  create10k, 5/5 sessions (2026-10-02, measuring core keep-alive candidates). A lifecycle callback a
-  class defines is work the engine does for every instance; never add one speculatively.
-- **A timing window after a fixed warm-up measures WHEN V8 tiers up, not how fast the code is.** A race that warmed 20
-  calls and then timed 200 reported the breakout change 28% SLOWER on a 50 KB `.innerHTML` scan (2026-10-01); a
-  per-batch curve showed the truth — the new build was twice as fast over its first 20 calls, sat in a middle tier
-  for calls 20–80 where the old one had already reached its top tier, and was faster for good after that. The window
-  had landed exactly on the gap, and it sent a bisect chasing a cause that did not exist. The same harness put the
-  exported-constants cost above at 11% and 12% — near its cold figure, for the wrong reason: a window number cannot say
-  which of the two it is measuring. Report TWO numbers per fresh process —
-  the total of the first N calls from cold (what a server's first requests pay) and a steady-state time after a long
-  warm-up (what throughput pays) — and print a per-batch curve whenever they disagree.
-- **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
-  to be an insert point no package registers and no doc mentions; the pattern had matched inside
-  **`setupTarget('mount')`** and there is no such insert point. `!live` appeared to be a public
-  feature with two test files while `hold` had sixteen; `!live` is a **test-title word** and the API
-  is `!checked`/`!value`, covered in five places including a browser suite. Both were one step from
-  being written up. Anchor on the call — `inserts\.get\(` — and re-run the search before believing a
-  count.
-- **A recording is only as portable as the machine it was taken on.** Three checked-in recordings
-  failed this way in one session, all green here and red in CI. `tests/lit-output.mjs` held
-  `new Date(0)` stringified in Pacific time and CI renders UTC. `tests/dom-surface.mjs` did not list
-  `PublicKeyCredential`, which Linux WebKit exposes and macOS WebKit does not. A browser test slept
-  150 ms into a 600 ms transition and asserted the value was mid-interpolation, which a loaded machine
-  does not honor. **Before checking a measurement in, ask what about the machine is in it** —
-  timezone, locale, engine build, CPU speed, screen. `bench/size-snapshot.json` is the same shape and
-  has not bitten yet. Where the answer is "something", either exclude that value (a `Date` exercises
-  nothing an object does not) or wait for the property rather than sampling at a chosen instant.
-- **The local gate is never a clean build, so it cannot see a missing build dependency.** `wireit`
-  keeps its state in `packages/*/.wireit`, not only at the root: deleting every `dist/` and running
-  `npm run build` reports **"Ran 0 scripts and skipped 26"** and rebuilds nothing. To reproduce what
-  CI does, run `node scripts/clean-build.mjs`, which clears both at every package depth (nested
-  `packages/components/*` and `packages/hooks/*` included) and then builds; a hand-written
-  `find -maxdepth` or `packages/*/dist` misses the nested packages (Brian approved, 2026-11-20). This hid a real defect for months: `packages/ssr:build` declared no
-  dependencies and its `tsc` needs core's and styles' **built** declarations, because
-  `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
-  the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
-  built `dist`; ssr is the one that does.
-  **A mutation run is the same trap from the other side** (Brian approved, 2026-10-28): a runner that builds each mutant
-  with rollup directly leaves `dist` holding the LAST mutant after it restores the source, and wireit, whose cache never
-  saw those builds, then skips the rebuild — so every later suite or gate run tests mutated code while reporting green.
-  The runner hashes both bundles (development and production) before the first mutation, rebuilds from the restored
-  source at the end, and fails unless both hashes match.
-- **A green `npm run build` and a green `npm test` do NOT mean the TypeScript parses.** The bundler
-  strips types without fully parsing them, so a `.ts` file TypeScript cannot read still builds and
-  still passes every suite — measured 2026-09-23, when a stray `*/` inside a doc comment left
-  `packages/jsx/src/types.ts` syntactically broken and all 1776 node tests passed against it. Only
-  `typecheck` and `eslint` see it. **So read the gate's STEP LIST, never a tail of its output**: each
-  failed step prints a 12-line tail plus notable lines, so `npm run gate | tail -30` shows the last
-  failure's output and hides the ✗ of every earlier one — three red steps were reported as "running"
-  twice for exactly that reason. `node scripts/gate.mjs > file 2>&1` then grep for `✓|✗`, and note
-  that every failed step also writes its whole output to `$TMPDIR/vera-gate-<step>-<pid>.log`, which
-  is the fastest way to see which steps failed after the fact.
-- **A package rename has SIX reference forms, and a grep for the package's own name reaches only
-  three.** Each needs its own pass: (1) the scoped specifier `@verajs/<name>`; (2) the bundle
-  filename `vera-<name>`; (3) the directory path `packages/<name>`; (4) **internal keys** —
-  `scripts/size-modules.mjs`'s `pkg`/`dir`, the names passed to `load()`, `tests/dist.mjs`'s ENTRY
-  tuples, snapshot keys; (5) the **bare short name** in prose and package lists (`` `reactivity` ``,
-  never the specifier); (6) **`package-lock.json`'s workspace entries**, where a stale one makes
-  `npm ci` fail at INSTALL, before a single test, for a reason that looks nothing like a rename.
-  **Release-coupled pieces move WITH the rename, not after:** existing changeset FRONTMATTER
-  (`tests/changesets.test.mjs` rejects a package it cannot find in the manifests), unreleased
-  changeset BODY text (it becomes the new package's first CHANGELOG), and
-  `tests/docs-removed-apis.test.mjs` keyed on the SCOPED specifier — the bare word collides with the
-  on-npm sentences below. **What does NOT move until the publish:** those on-npm status sentences in
-  `llms.txt` and `README.md`, which `tests/release-invariants.test.mjs` ties to the release TAG, so
-  editing them early turns the gate red and tagging makes the edit required. Measured on
-  `@verajs/reactivity` → `@verajs/store`, 2026-09-14: grep found 1–3, the clean-worktree gate caught
-  4 and 5, and the audit caught 6 plus two more of 5.
-- **A killed build ORPHANS `wireit`, and the next one deadlocks behind the lock it left.** Killing
-  `npm run build` — a tool timeout, a canceled command, Ctrl-C at the wrong moment — does not take
-  its `wireit` and `rollup` children with it. They stay alive holding the build lock, and every
-  later build waits on an owner that is gone. **The signature is progress stopping below 100% with
-  nothing running** — `98% [43 / 44] [0 running]` — which is indistinguishable from a slow build and
-  will be waited out indefinitely. Diagnose it, never wait: `ps aux | grep -E "wireit|rollup"` and
-  look at the START column; anything older than the current build is stale. Kill those PIDs (leave
-  VS Code's `wireit` extension server alone) and the blocked build completes immediately. Measured
-  2026-09-14, after a 10-minute foreground timeout left three processes holding the lock.
-- **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
-  if a change moves a number, update the feature doc in the same pass
+## 1. How we work: fast and accurate (outranks everything below)
 
----
+Brian, 2026-11-20: "a hyper efficient, quick process where we can land many features/fixes all while getting accurate
+readings and doing accurate tests quickly.".
 
-## How we work together
+| Step | Budget | When |
+| --- | --- | --- |
+| Targeted suites, tsc + eslint on changed files | ≤ 5 min | every change |
+| Probe or narrow fresh-process A/B (base, A/A copy, candidate) | ≤ 10 min | every hot-path change |
+| One diagnosis tool (bisect, CPU profile, `--trace-opt/--trace-deopt`, ablation copies) | ≤ 10 min each | when a reading moved |
+| Instruction counters | ≤ 10 min total per decision | only when timing cannot resolve the effect |
+| Race | ≤ 1 h, deciding arms only | once per landing |
+| Gate (`node scripts/gate.mjs`) | ~20–25 min (browsers included) | once per landing |
 
-**Commits carry no AI co-author trailers** (Brian's call, 2026-08-21): author is Brian alone.
+- **State a step's projected time before it runs.** Over budget: cut it down, or ask Brian before it runs.
+- **Measure the one thing that decides**, with one A/A copy; slowness is almost always process, not measurement.
+- **Race only arms a decision reads:** the base users have, the candidate, one byte-identical A/A copy, and a plant only
+  when the instrument is new. Intermediate arms are diagnosis, done with the tools above.
+- **Background load is logged, never waited out** (the shuffle spreads it; the A/A shows it). Thermal is the only wait.
+- **A bar is one line, written before the data.** No amendment chains, multiset proofs or hash lists beyond one dist
+  hash per arm. Read the verdict as written; if it is unclear, repeat the run rather than reinterpret it.
+- **Every fix in the batch first, then ONE race and ONE gate** on the landing commit; a loss is bisected on that cell.
+- **The peer reviewer reviews in parallel and blocks only a landing** (one packet, §2); nothing else waits on it.
+- **Rules:** prefer deleting a rule to adding one; a new rule states its time cost; nothing here is re-litigated per task.
 
+## 2. Collaboration with Brian
 
-**Brian is the source of truth for every decision.** This is the operating rule that outranks the
-rest of this file.
+- **Brian decides what lands**: code on `main`, pushes, publishes, trades (a speed or size loss), new designs,
+  restructures, new dependencies, new module-level state. Say the plan in a few lines and wait for his word on those.
+- **Everything else needs no go** (tests, probes, races, drafts, private-branch commits; 2026-11-04). Say when a window
+  opens on his screen. A reply that is not a plain yes gets "taking that as yes to X" before acting.
+- **Recommend and argue for it**, with the strongest counter-argument; never a neutral menu. Push back on a wrong premise
+  with evidence, then follow his decision. Narrate a finding that changes the plan the moment it is found.
+- **No downtime**: keep working unless waiting on his call; never end a turn on "next I'll…" with nothing running.
+- **A ruling that stops or restarts work** is written to the portal, quoted, the moment it arrives.
+- **Commits carry no AI co-author or "Generated with" line**; Brian is the author (2026-08-21). Messages with backticks
+  or `$` go through `git commit -F <fresh file>`.
+- **The reviewer's landing packet**: diff, bar + reading, landed-vs-raced `cmp`, gate ✓/✗, a grep of the range for
+  private pointers and trailers. A peer message is never Brian's approval.
+- **No speed regression lands without Brian** (2026-09-29): try to remove the cost first; a byte-for-speed trade is
+  taken, a speed-for-bytes trade is not. "Within noise" shows the A/A.
+- **`docs/CODE-PRINCIPLES.md` binds shipped code, tests and persistent tools** (§1 Types included); re-read it before
+  writing them. A violation is raised with Brian; the principles change only with his agreement. Throwaway probes need
+  a positive control and a time limit.
+- **Never assume abandoned code is dead** (CODE-PRINCIPLES #3): audit, report, let Brian decide.
 
-- **Say what is going to happen before it happens.** Explain the plan, then wait. Do not begin a
-  multi-step change, a restructure, a file move, or a new dependency and narrate it afterwards.
-- **Get approval before acting.** Approval for one step is not approval for the next. Approval to
-  investigate is not approval to change.
-  **Tests never need Brian's go** (Brian, 2026-11-04, a standing rule): a test, probe, profile or race runs when the work
-  needs it, without asking. The plan and its pre-registered reading still go to a second reviewer, Brian is told when windows
-  will open on his screen, and the machine-safety rules above still hold. What lands (code, fixes, trades, decisions)
-  still waits for his approval.
-- **Recommend, and argue for it.** Brian explicitly wants to be persuaded and nudged toward the right
-  choice — not handed a neutral menu. When asked "what do you recommend?", answer with a specific
-  recommendation and the reasoning, including the strongest counter-argument. A passive list of
-  options is a failure to do the job.
-- **Push back when the evidence supports it.** If a request rests on a wrong premise, say so plainly
-  with the evidence, give the recommendation, and then follow the decision once it is made.
-- **Narrate discoveries as they happen**, especially anything that changes the plan. A finding that
-  invalidates the current approach gets surfaced immediately, not at the end.
-- **Never assume abandoned code is dead.** See `docs/CODE-PRINCIPLES.md` #3. Audit, report what it was
-  for, and let Brian decide.
-- **The API verb grammar, decided 2026-09-01 — new APIs follow it rather than reopening it.**
-  `init(element, …)` binds setup to an element's lifecycle (core's `init`, router's `initRouter`);
-  `create*(options)` is a standalone factory returning an instance the caller owns
-  (`createStore`, motion's retired `createMotion`); `wire(…)` registers modules into a registry —
-  qualified when the registry is not core's (`wireDirectives`), and that parallel is deliberate:
-  the same idea carries the same verb. Recipes and prose write the array form, `wire([renderer])`,
-  even for one module — `wire` accepts a bare descriptor too, but the docs teach one shape.
-- **The naming convention for everything else, decided 2026-10-22 (Brian) — it extends the verb grammar above.**
-  (1) **Verbs are actions** on the app or page — they do something now and return nothing you keep: `init`, `define`,
-  `wire`, `flush`, `untrack`, `renderInto`. (2) **`create*`** makes a standalone instance whose natural variable name IS
-  the noun (`createStore`, `createSelector` — `const store = store(…)` would collide). (3) **The name of what you get**
-  for everything created in a setup, **owned by where it is created** (a setup: the component; a render: that render;
-  module scope: you): `signal`, `computed`, `effect`, `resource`, `portal` — in the field's established term where one
-  exists (`computed`, as TC39's `Signal.Computed`). (4) **No `use*` prefix, anywhere**: in React it signals call-order
-  rules, and a Vera setup runs once and has none. Headless behaviors are nouns too when they return (`lightDismiss`,
-  `listbox`), each its own package under `@vera-hooks` (Brian, 2026-11-20). (5) **A hook is named for its behavior,
-  never for a widget, and never shares a component's name** (Brian, 2026-11-20): the package scope tells a hook from a
-  component, there is no `use` prefix, packages are kebab-case and functions camelCase.
-- **What a wireable module LOOKS like follows from whether it has options** (surveyed 2026-09-07;
-  the rule was already in force unwritten, and a new module should not have to re-derive it):
-  **no options → a bare descriptor** (`renderer`, `styles`, `collections`, `slots` — plain objects;
-  a factory there would be ceremony); **required options → a factory that must be called**
-  (`autoloader(import.meta.url, …)`, `directiveLoader(…)` — `rootDir` has no sensible default);
-  **optional options → a DUAL**, usable bare or called (`motion`, `sequence`, `remote` in
-  directives). **Several insert points → an ARRAY** of descriptors and connectors, since `wire`
-  takes nested arrays (decided 2026-09-24): `slots` is `[slotDiscovery, strategy]` and an app still
-  writes `wire([renderer, slots])`. `wire`'s branch is what allows it: a function whose `on` is `undefined` is a
-  CONNECTOR and is handed the registry, so a returned function carrying `on` reads as a descriptor.
-  **The discriminator differs per registry** — the directives packs test the sigiled `_$seams$`
-  mark because `wireDirectives` passes seams, while a core-level dual would have to recognize the
-  registry itself. Copy the pattern, never the check. (`@verajs/router` became that dual on
-  2026-09-11 — `router({ animate: true })`, discriminated on the registry itself exactly as this
-  rule anticipated, shipped additive so bare `wire([router])` is untouched; `router({ base })`
-  against today's imperative `setBasePath` remains the other candidate option for it.)
-- **`vera.min.js` is the one bundle not named after its package** (`vera-core.min.js` would be
-  symmetric) — deliberate: core is the framework's namesake and that filename is the product's
-  front door on a CDN page. Every other package's `filename` matches `vera-<name>`.
-- **Every `console.warn`/`console.error` the framework prints starts `[vera]`**, so a user can find
-  all of them with one filter. A thrown `Error` may name its function instead — a stack already names
-  the source — but a message the framework also prints carries the prefix.
-  `tests/diagnostics-convention.test.mjs` asserts it across every source file rather than trusting it.
-- **Removing an API means adding its name to `tests/docs-removed-apis.test.mjs`.** One line, at the
-  moment the knowledge exists. That list is what turns "we remembered to grep the docs" into
-  something the gate refuses to let through — `setRenderer` survived its own deletion in 23 places
-  across `llms.txt`, four READMEs and `docs/ARCHITECTURE.md`, with every suite green. Prose is where
-  API names live, and it is the half no recipe or import check can reach.
-- **"Worth documenting" means document it, now.** If a finding is worth a sentence in conversation,
-  it is worth the same sentence in the file where someone will hit it — the README, the doc comment,
-  `llms.txt`, `internal/docs/`. Saying it and not writing it down produces exactly the drift these
-  docs exist to prevent, and the moment it is understood is the only moment it is cheap. The same
-  goes for "worth checking" and "worth flagging": do it in the same pass or say plainly that it is
-  outstanding.
-- Collaboration is the point. Prefer a short check-in over an impressive unilateral result.
+## 3. Machine safety (the fanless macOS laptop; built into the tools)
 
-### Context limits — no session or agent past 500k tokens (Brian, 2026-11-19; raised from 300k, 2026-11-20)
+- **One heavy job at a time** (build, suites, gate, race, counters, differential). During a timed run or a gate: edits and
+  liveness reads only, not even `tsc`.
+- **Caffeinate** every heavy run (`-dimsu -w <pid>`; the tools do it) plus ONE continuous `caffeinate -dimsu -t <h>` over
+  any unattended stretch: gaps let the screen saver up, and only real input dismisses it.
+- **Thermal pressure 0** (`notifyutil -g com.apple.system.thermalpressurelevel`) before every sample and gate step; else
+  pause a minute at a time. A tool that cannot read it refuses. The 2-minute batch pause before every heavy batch,
+  narrow A/Bs included (Brian, 2026-11-20: "keep 120s"; `BATCH_PAUSE_S`), lives in `scripts/heavy-batch.mjs`.
+- **Kill only by an exact PID just read**; never `pkill -f <word>` (it once killed VS Code and every session). An alarm
+  on `node --test` leaves per-file children running: kill them by PID.
+- **Every new probe runs under a hard time limit** (`perl -e 'alarm 60; exec @ARGV' …`).
+- **Never launch Brian's `/Applications` browsers**, touch his screen-saver setting, or run the full mutation sweep here.
+  Never edit a file a running job reads; write a copy. On another machine, never stop what you did not start.
 
-- **Auto-compaction is set at user level**, in `~/.claude/settings.json`: `"autoCompactEnabled": true` and
-  `"env": { "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "500000" }` (a plain token count; a bare `300` is 300 tokens). Never set
-  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (it only lowers the threshold) or `DISABLE_AUTO_COMPACT`, and never turn
-  `autoCompactEnabled` off. Settings reach sessions started after a change; check a new one with `/context`. A custom
-  subagent in `.claude/agents/*.md` carries `autoCompactWindow: 500000` in its frontmatter.
-- **Context = the last API turn's `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`** (output does
-  not count): the status line's `context_window`, or the last `"usage"` entry in a transcript under
-  `~/.claude/projects/<project>/` (a subagent's is `<sessionId>/subagents/agent-<agentId>.jsonl`). Read only a
-  transcript's tail, never the file; a missing field is "unknown", never 0. Measure before spawning an agent, at every
-  checkpoint (a commit, a test run, a phase's end), and at least every 30 minutes while agents run.
-- **Thresholds.** Under 400k: normal. 400–450k: no new large reads, finish the step (an agent writes its handoff).
-  450–500k: at its first checkpoint past 450k the main session writes its handoff and asks Brian for `/compact` (a
-  session cannot compact itself), then REFRESHES the handoff at every checkpoint until the compaction, so
-  auto-compaction at 500k (the backstop, wherever it lands) finds it at most one step behind — 50k below it and not later,
-  because a step can add 20–50k between checkpoints; an agent is respawned there. Over 500k: the same, now, at a safe
-  point — between steps, never mid-commit, mid-test-run, mid-write or mid-push.
-- **Respawning is the only reset for an agent.** At a safe point it writes a handoff with no line cap: the essentials
-  first in a few lines (goal, what is done with shas and branch, the exact next step, the files to read, open
-  questions), then whatever detail the next agent needs; stop it with `TaskStop`; stop
-  any child it left by exact PID (never by keyword); brief a fresh agent with the handoff alone, pointing at files; log
-  one line (old agent, its context, new agent, handoff path).
-- **Keeping context low:** read line ranges and log tails, never a whole large file, log, JSONL or build output; long
-  output goes to a file first; wide searches go to a subagent and only its conclusion comes back; one task per agent,
-  at most 2 agents at once per session unless a task says otherwise; wait for a background command's notice instead of
-  polling it.
+## 4. Shipping correctness
 
----
+- **The landed bytes are the raced bytes**: arms carry exactly the landing's exports; `cmp` the landed min against the
+  raced arm, and re-race any difference.
+- **Build both bundles with `scripts/build-variant.mjs`** (a bare `rollup -c` writes only `dist/development`;
+  `MODE=prod` only the min). Check a variant differs from its base and carries its marker before reading it.
+- **The gate**: `node scripts/gate.mjs > file 2>&1`; read its ✓/✗ list (never a tail) and a red step's
+  `$TMPDIR/vera-gate-<step>-<pid>.log` for THIS pid. It clean-builds first and is exclusive in its tree.
+- **A check's own exit code gates a commit**: `test && git add … && git commit`, each test redirected, nothing after it
+  on the line; never a pipe, `;`, `echo` or `grep` between a check and the commit or launch.
+- **A green build and green suites do not mean the TypeScript parses**: run `node scripts/typecheck.mjs` (all configs)
+  and `eslint` on changed files before committing.
+- **Commit before anything that can discard the tree** (checkout, reset, restore, stash, rebase): `git status --short`
+  must be empty first. Build arms from `git show <ref>:<path>`, never from a tree a mutation runner may hold.
+- **A red gate before a push goes to Brian or the peer**, with the same rows on `main`; a red is "baseline" only if it is
+  red on `origin/main` too, for the same failure text.
+- **Version commits change built output** (jsx bakes its version, `llms.txt` pins CDN versions): re-take the size
+  snapshot, bump the pins, run the full gate on the version commit, and check every workflow a push triggers.
+- **Removing an API** adds its name to `tests/docs-removed-apis.test.mjs`. **A package rename** has six reference forms:
+  the specifier, the bundle filename, the directory, internal keys, the bare short name, `package-lock.json`.
+- **A killed build orphans `wireit`/`rollup`** on the lock (stuck below 100%, 0 running): kill the stale PIDs. A gate's
+  launch line never contains `wireit`/`rollup`.
+- **In a rebase, a generated file** is resolved from the new base (`--ours`) and regenerated.
+- **Size is `zlib.gzipSync`** (`bench/size.mjs`'s measure), `cmp` first; report totals against the target, not deltas.
 
-## What this is
+## 5. Measurement traps (each makes a reading WRONG, not merely noisy)
 
-A tiny, web-components-based modular library intended to **replace React and heavier libraries on most
-builds**.
+- **Two cores**: a probe runs with `--conditions development`; a production run with `VERA_DIST=production` and no
+  `--conditions`; an esbuild bundle with an empty `tsconfig` (and a guard against `core/src`). Check what actually loaded.
+- **`dist/development` bakes `__DEV__` as `true`**: a production measurement bundles the `.min.js`.
+- **A worktree whose `node_modules` links to another tree** runs that tree's `@verajs/*`; check
+  `readlink -f node_modules/@verajs/core`. An install there writes through the links; install only in the owning tree.
+- **jsdom is the regression net, never the oracle**: it rejects attribute names engines accept, `:scope >` can answer a
+  nested host's child, its `MutationObserver` holds nodes strongly, and a served shadow root parses as a `<template>`.
+- **The SSR shim is audited by differential test against jsdom**, never by reading.
+- **A probe that measures nothing reports perfect behavior**: assert a positive control read non-zero first; a search used
+  to prove a negative must find a known positive (`git grep -E` ignores `\b` and `\s`; `| head` hides hits; use `-i`).
+- **Two template literals are two templates**: render through one `draw()` called twice.
+- **Retention**: a retained control that must live and a dropped object that must die (a loop's last `const` stays
+  alive with no framework at all); forced gc only in isolated child processes.
+- **Timing samples are tens of ms** (Firefox and WebKit coarsen `performance.now()`); never drive `frameBudget` with real
+  time; a probe drives the scheduler with `flush()` or `await`, not frames.
+- **Two numbers per fresh process**: the first N calls from cold, and steady state after a long warm-up (a fixed window
+  measures tier-up). Async loops yield a macrotask every ~100 iterations. A two-mode metric: per mode or totals.
+- **Isolation**: each variant in its own process; Firefox a fresh browser per page; seeded shuffle.
+- **Headed for paint, layout and the landing race**; headless/jitless only to iterate. Node's V8 is not Chrome's.
+- **Deferred work**: start the frame chain before the work. **Cross-realm values**: assert booleans (chai hangs).
+- **A checked-in recording carries its machine** (timezone, locale, engine build, speed).
+- **Counters** (cachegrind in the Lima VM) under-read or over-read time; small N measures tier-up; a GC-heavy op varies
+  ~2.7% run to run, so it needs a repeat pair. Use them for DOM-free code, ≤ 10 min (FAST-LOOP).
 
-The shape of the product:
+## 6. Hot paths (checked before a hot-path change is raced)
 
-- **`@verajs/core`** covers most of what people actually need.
-- **A module system** lets people use the prebuilt modules — `autoloader`, `jsx`, `renderer`,
-  `router`, `ssr`, `styles` — or write their own. (`map-support` was retired into core and then
-  moved back out as `collections` in 0.2.0, on a **type-keyed** `'collection'` insert point rather
-  than the `'proxy-handler'` chain that made the first attempt costly — 292 B recovered for every
-  app without a `Map` in a store, 24 B added for those with one. Generalized when core was slimmed
-  (2026-09-27): one `'store'` insert, deciding per TYPE of value and re-decided in place on `wire`, replaced all
-  three of `'proxy-handler'`, `'set-handler'` and `'collection'`. `styles` went the same way in
-  0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
-  use it.)
-- At minimum you need **a renderer**. Everything else is opt-in.
-- **Speed is the headline feature** (Brian, 2026-09-28): Vera must beat every other tool on EVERY
-  metric of every benchmark — not one row lost — measured in real browsers people use (the installed
-  Chrome headed, and Firefox and Safari), judged on the TYPICAL case (median across sessions, sessions
-  won), never on a best-of-N minimum alone. **Speed outranks size**, and size is still super important:
-  a byte-for-speed trade is taken; a speed-for-bytes trade is not.
+- No closure capturing variables (even on a cold branch), no sparse arrays, no exported live binding read in a loop
+  (export an alias), no try/catch doing work: `tests/hot-path-closures.test.mjs` lists the hot functions.
+- V8 inlines up to 460 bytes of bytecode; growth past it costs even if never run (`tests/ssr-inlining-budget.test.mjs`).
+  Ablation switches de-inline the function they sit in: build a clean variant per hypothesis.
+- Terser pastes a one-caller function as an IIFE: count sites (`tests/minifier-iife-sites.test.mjs`); mark a call that
+  must stay one `/*@__NOINLINE__*/` on an operand (never after `!`), and never quote the annotation in a comment.
+- Engine-shape advice is a hypothesis until measured on all three engines; a lifecycle callback a class defines
+  (`adoptedCallback`) costs every element's creation.
 
-**History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head
-rather than from established practice, and is acknowledged as not the best. Much of the tree is
-experimentation that was never labeled as such.
+## 7. Testing
 
-**Goals.**
+- **Fast layer:** `node --test` + jsdom against built artifacts, both builds (`npm test`, `npm run test:prod`);
+  `tests/dist.mjs` resolves the artifact. No test count is written anywhere.
+- **Browser layer** (the release gate): Playwright on Chromium, Firefox, WebKit (`npm run test:browser:all`).
+- **Every test run goes through `node scripts/test-batch.mjs`** (`--light` for one file: no pause).
+- **A component without a browser**: `transformJsx`, jsdom, then a microtask or `flush()`; seed `Math.random`.
+- **Fuzzes**: seeds via `tests/fuzz-seeds.mjs`; CI adds rotated seeds (`VERA_FUZZ_ROTATE=1`). A red rotated seed is a
+  find, replayed with `VERA_FUZZ_SEEDS=…`; never re-run CI until green.
+- **Recipes**: a runnable doc example is a `<!-- recipe -->` block in a README or `llms.txt`, run by
+  `tests/docs-recipes.test.mjs` in its own process, warning-free.
+- **A check that ships must be able to fail** (CODE-PRINCIPLES #11): a floor on its corpus, a planted mutation shown red
+  by its message, and exact counts.
+- **Every committed generated file has a `--check` in the gate.**
 
-1. A deliberate overhaul of the project's structure and tooling — in progress.
-2. Then a genuine **viability audit**: is this still worth building, and does it add value in today's
-   landscape? That evaluation is meant to be honest, not confirmatory.
+## 8. Conventions
 
----
+- **Verbs** (2026-09-01): `init(element, …)` binds setup to an element; `create*(options)` makes an instance the caller
+  owns; `wire([…])` registers modules (`wireDirectives` for another registry). **Names** (2026-10-22): what you get is a
+  noun (`signal`, `computed`, `effect`); no `use*` prefix; hooks live under `@vera-hooks`, named for the behavior.
+- **Wireable module shape**: no options → bare descriptor; required → factory; optional → dual; several inserts → array.
+- **Every printed `console.warn`/`error` starts `[vera]`**; production messages are short with a code
+  (`tests/diagnostics-convention.test.mjs`).
+- **Docs travel with code** (CODE-PRINCIPLES #10): README, doc comment, `llms.txt`, `docs/features/` numbers, same commit.
+- **`docs/BROWSER-LEDGER.md`**: a platform or engine behavior a choice rests on, once established, gets an entry (engines,
+  date, evidence, consequence), in the landing commit. It only grows; a wrong entry is marked, not deleted.
+- **A why-comment states the reason and the measurement**, never a session, run code or private document.
+- **Functional by default** (CODE-PRINCIPLES §1); a new module-level state is raised with Brian. `vera.min.js` is the one
+  bundle not named `vera-<name>`.
 
-## Consumption modes — all first-class
+## 9. What this is
 
-Every one of these must keep working. A change that breaks any of them is a regression.
+A tiny modular web-components library to **replace React and heavier libraries on most builds**: core covers most
+needs, modules (or your own) plug in, a renderer is required. Tiers: **static, lite, core** (never "pro"). **Speed is the
+headline**: beat every tool on every row, typical case, real browsers; speed outranks size. Goals: the tooling overhaul,
+then an honest viability audit.
 
-**Buildless is the baseline, not a fallback.** VeraJS must work with no toolchain — paste into
-CodePen and it runs. A build is opt-in for minification, Tailwind, or TypeScript. This rules out JSX,
-decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRINCIPLES.md` #9.
+**Consumption modes — all first-class; breaking one is a regression.** Buildless is the baseline: no JSX, decorators or
+TypeScript-only runtime syntax (CODE-PRINCIPLES #9).
 
 | Mode | How it resolves | Exercised by |
 | --- | --- | --- |
-| **npm + TypeScript** | `exports.development` in dev, `exports.default` in prod, `exports.types` for `.d.ts` | `examples/npm-ts/` |
-| **npm + plain JS** | same bare specifiers, no type layer | `examples/npm-ts/` |
-| **CDN / `<script>`** | linked `dist/*.min.js`, no build step, no bundler | `examples/cdn-js/` |
-| **SSR** | Node-only, `@verajs/ssr` | `examples/ssr-node/` |
+| npm + TypeScript | `exports.development` in dev, `exports.default` in prod, `exports.types` | `examples/npm-ts/` |
+| npm + plain JS | same bare specifiers, no type layer | `examples/npm-ts/` |
+| CDN / `<script>` | linked `dist/*.min.js`, no build, no bundler | `examples/cdn-js/` |
+| SSR | Node-only `@verajs/ssr`, no dependencies | `examples/ssr-node/` |
 
-> **SSR is vera-native and has no dependencies** — no wcc, no lit, no acorn, no parse5. The earlier
-> wcc-fork and Astro strategies, which needed `@projectevergreen/escodegen-esm`,
-> `acorn-import-attributes`, a vendored `jsx-loader.js` and `linkedom`, are gone; nothing installs
-> them and nothing needs them. `tests/ssr-native.test.mjs` covers declarative shadow DOM, nesting,
-> escaping, sigil stripping, `static styles` and determinism, and the server→client handoff is
-> exercised for real: `scripts/build-hydration-fixture.mjs` and `scripts/build-kitchen-fixture.mjs`
-> render through the actual pipeline and the browser suite hydrates that output. **Both carry
-> `--check` in `npm run gate`** — the kitchen one did not until 2026-08-26, and had silently drifted,
-> so the browser suite was comparing against markup no server emitted. Any generated artifact that is
-> committed needs its `--check` in the gate on the same day it is written.
+**Modules are independent.** None requires core at runtime; each `.min.js` inlines everything (two bundles = two `inserts`
+Maps), so modules use core's registry: take `wire` from `@verajs/core`, never `@verajs/inserts`, in source and tests.
+Across bundles the mangler differs: a subclass writes only `$`-named base fields. A protocol member goes on an insert's
+`fn`, not its descriptor.
 
-## Modules are independent — by design
+**Source of truth.** TypeScript in every package, under the strict shared config; `packages/ssr` is compiled file by file
+by `tsc` (define-semantics class fields; no source maps). Never a component as both `.ts` and `.js` (port the richer one
+forward to `.ts`). `dist/` is gitignored; never commit a bundle. `exports` resolve to what the build writes:
+`dist/development/<filename>.js` and `dist/<filename>.min.js`. The repo root is for configuration only.
 
-`@verajs/router`, `@verajs/autoloader`, `@verajs/renderer` and the rest **do not require
-`@verajs/core` at runtime**. The consequence is load-bearing and non-obvious:
+## 10. Repositories and layout
 
-- Production `.min.js` bundles **inline everything**, including `@verajs/inserts`. Loading
-  `vera.min.js` *and* `vera-router.min.js` therefore yields **two separate `inserts` Maps**.
-- That is why **no module carries a registry of its own**. The router is handed core's — `wire([renderer,
-  router])` — and every other module registers through core's `wire`. This is not a bug to "fix" by
-  making bundles share state; it is why the hazard is removed by construction instead.
-- The reconciliation step that preceded this was removed in 0.2.0: it was load-bearing on a CDN page
-  and ceremonial under a bundler, so the failure it guarded appeared in production only. Worth
-  keeping the measurement it rested on: bundling `@verajs/core` + a second package yields **1**
-  registry with `--conditions development` and **2** without.
-- **Rule for anything that registers an insert: take `wire` from `@verajs/core`, never from
-  `@verajs/inserts`.** Core's own function writes to the map core reads, in every build. Registering
-  through your own copy works in development and silently does nothing in production — it does not
-  throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
-  way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
-  **The rule holds for TEST code too, and it was broken there** (2026-10-08): the shared hydration harness
-  (`tests/hydration.mjs`) took `wire` from `@verajs/inserts`, so in production the renderer was connected to two
-  registries, slots wired through core was never asked, and production rows passed or failed for the wrong reason —
-  one suite (`hydration-walk`) only passed BECAUSE of the split. Found by luck, checking a migration in production.
-  `tests/one-registry.test.mjs` now fails the gate when a suite takes the standalone registry, unless it is on its
-  allow-list with a reason (only the suites that test the inserts module itself).
-- **A class extending a class from another bundle must not trust the production mangler** (Brian approved,
-  2026-10-20). Each production bundle mangles `_`-prefixed names on its own, to one- or two-character names, so a
-  subclass in one bundle of a class from another may write only `$`-named fields of its base, and its OWN fields need
-  names the mangler never generates. A keyed row extending core's hook wrote `k` and `t`, which overwrote the hook's
-  mangled flush stamp and creation sequence; the development build, which mangles nothing, passed.
-- **A property on an insert DESCRIPTOR is not reachable through `chain()`** — the registry keeps the
-  descriptor's `fn`, so a protocol member set on the descriptor object is invisible to whoever reads
-  the insert. Put it on the function. Measured 2026-10-02: slots' server hook sat on the descriptor and
-  every light-slot component rendered undistributed on the server (ssr-slots 4/19 → 19/19 once moved).
-- `@verajs/ssr` self-wires correctly by taking `wire` from core. (Core used to
-  self-register a default renderer at module scope, which was safe only because it lived *inside*
-  core's bundle with no boundary to cross; it was removed in 0.2.0.)
+- **`vera-js/vera` (public) is the project**: code, issues, CI, releases, npm publishing with provenance.
+- **`vera-js/internal`** (private) is cloned at `/internal` (gitignored): viability, TODO, publishing runbook, audits,
+  `docs/OMNI-CHANNEL.md` (read before touching a cross-engine surface). It commits and pushes every pass, path-limited.
+  **No public file points into it** (no path, session name or run code). Probe and WIP branches push only to the
+  private archive remote, never to public origin.
+- **Audits and TODO are private because they are pre-fix.** Security issues go through GitHub private advisories
+  (`SECURITY.md`); the patch commit is itself a disclosure, so it is developed in the advisory's fork and released first.
+  (While nobody uses Vera, Brian has ruled fixes go the normal flow — 2026-09-29, reaffirmed 2026-11-20; ask him again
+  once there are users.)
+- **`vera-js/vera-archive`** (private): retired packages, archived branches. **`vera-js/vera-private`**: frozen.
 
-`dist/development/*.js` keeps workspace deps **external** (the consumer's bundler dedupes them);
-`dist/*.min.js` inlines them (standalone). Both outputs are intentional.
+Layout: `packages/` (published, independent), `examples/` (by hand), `tests/` (self-running), `bench/` (not a workspace
+member: `cd bench && npm install`), `docs/` (public), `internal/` (private, gitignored).
 
-## Source of truth rules
+`@verajs/motion` is its own package; `@verajs/directives/motion` is its pack.
 
-- **TypeScript is the source — every package, with no exemption.** `packages/*/src` is `.ts` and stays `.ts`,
-  under the shared strict config. `packages/ssr` is Node-only, so `tsc` compiles it **file by file** to `dist/` (no
-  rollup, no minification, never through `defaultRollupConfig`), with its own config overriding the base in two places
-  that matter: **define-semantics class fields** (`useDefineForClassFields: true` — the DOM shim ran as native JS, and
-  a type-only field is `declare x: T`, which emits nothing) and inline-source maps (only `dist` ships).
-  It was a JSDoc-typed JavaScript package until 2026-10-01 — an exemption an earlier session recorded here, not one
-  Brian made — and that exemption's lenient checking (`noImplicitAny: false`) let a stale caller of a changed function
-  through as a security bug (`e1af0c7`). The conversion was proven runtime-identical by hashing the comment-stripped,
-  minified output of every file against the JavaScript it replaced.
-- **A component never exists as both `.ts` and `.js`.** Twins drift silently in both directions. When
-  a richer `.js` version exists it is **ported forward into `.ts`** — never the reverse.
-  (`goodbye-component.js` was 220 lines against a 43-line `.ts` stub; assuming the `.ts` was newer
-  would have destroyed the most valuable test component in the repo.)
-- The plain-JS consumption story is served by **built** `dist/*.min.js`, never by hand-maintained
-  `.js` sources.
-- **`dist/` is gitignored. Never commit a bundle.** Committed copies went stale and silently tested
-  pre-refactor code for an unknown period.
-- Package `exports` must resolve to files the build actually writes: dev →
-  `dist/development/<filename>.js`, prod → `dist/<filename>.min.js`.
+## 11. Versioning and release
 
-## Repositories
+- **Independent versions** via changesets (read `docs/RELEASING.md` first). **While 0.x, minor is breaking**: features
+  and fixes are `patch`.
+- The loop, in order: `npx changeset version` → `npm install --package-lock-only` → `git add -- <the changed paths>` and
+  `git commit -F <file>` ("release: …") → the full gate on that commit → `node scripts/tag-release.mjs` (tags HEAD; the gate's `tag-release` step is red on the version commit
+  until this runs, by design) → push the commit, then its release tags BY NAME (`--follow-tags` also pushes any old local
+  annotated tag in the history, 2026-11-20).
+- CI publishes what `main` has that npm lacks, via **Trusted Publishing** (OIDC): `release.yml` keeps its name; a new
+  package's first publish is manual; `repository.url` stays `git+https://github.com/vera-js/vera.git`; **never an
+  `NPM_TOKEN`**. `shared-types`/`shared-utils` are private, inlined.
+- The "on npm" status sentences in `llms.txt` and `README.md` change only at the publish (`tests/release-invariants`).
 
-**`vera-js/vera` (public) is the project.** Code, issues, PRs, CI and releases all live here, and
-releases publish to npm from here — npm provenance requires a public source repo, so publishing
-from anywhere else forfeits the attestation. There is no mirror and no sync step.
+## 12. Context limits
 
-**`vera-js/internal` (private) is a portal**, cloned into this tree at `/internal` and gitignored.
-It holds what genuinely cannot be public:
-
-| `internal/docs/VIABILITY.md` | verdict, kill criteria, headwinds |
-| --- | --- |
-| `internal/docs/TODO.md` | pending work, unfixed defects, open questions |
-| `internal/docs/PUBLISHING.md` | operator runbook — npm account, 2FA, release mechanics |
-| `internal/docs/audits/` | per-package audits |
-| `internal/docs/OMNI-CHANNEL.md` | **read before touching any cross-engine surface** — the peer link to Brian's omni project (same owner, both ends): how to reach the other session, which surfaces are parity-locked, the shared laws' locations, and the working protocol |
-| `internal/archive/` | superseded work, kept for reference. Nothing imports it. |
-
-**Audits and TODO are private on purpose.** Both are pre-fix documents. A public audit during the
-window between finding a defect and shipping its fix publishes an unpatched bug. Security issues go
-through GitHub private security advisories (`SECURITY.md`), never a public issue — and the *patch
-commit* is itself a disclosure, so the fix is developed in the advisory's private fork and released
-before the advisory is published.
-
-**Setting up on any machine (Brian, 2026-11-19).** The portal is its OWN git repository that lives inside this
-tree's folder: not a submodule, not a subtree, nothing in this repo records it. This repo's `.gitignore` ignores
-`/internal/`, so nothing in it is ever committed here, and the portal commits and pushes on its own:
-
-```sh
-git clone https://github.com/vera-js/vera.git && cd vera
-git clone https://github.com/vera-js/internal.git internal     # the portal: its own repo, branch master
-git remote add archive https://github.com/vera-js/vera-archive.git   # where WIP and probe branches push
-npm ci
-npx playwright install chromium firefox webkit   # the browser suites' engines; nothing in npm ci installs them
-
-git status --short --ignored internal    # `!! internal/`: ignored here, as it must be
-git -C internal remote -v                # origin is vera-js/internal, never vera-js/vera
-```
-
-- **Two repos, two cycles.** Run `git -C internal …` (or `cd internal`) for the portal, and commit and push it every
-  pass: pushing it publishes nothing, and it is the copy that survives a lost machine. This repo's branches stay
-  local, or push to `archive`, until Brian's go puts a commit on `main`. Make a branch private from birth with
-  `git config branch.<name>.pushRemote archive` when it is created; never set `remote.pushDefault archive`, which
-  would send the release loop's `git push --follow-tags` (commit and tags) to the archive, where nothing publishes
-  and nothing reports it. Branch from `origin/main` after a fetch, never from a local `main` or from `archive/main`
-  (a stale copy).
-- `bench/` is not a workspace member: `cd bench && npm install` before any comparative benchmark.
-- **Never `git add -f internal`, and never `git submodule add`.** Either would put the private portal's content, or a
-  pointer to it, into the public history, which is permanent.
-- **Before any public push, check the range for private pointers**, commit messages and non-source files included
-  (`tests/no-private-pointers.test.mjs` reads only package source comments):
-  `git log -p origin/main..HEAD | grep -nE '\binternal/(docs|archive|tools)|\.probe/|\bvera-[0-9a-f]{2}\b'`. Hits in
-  this section and the repositories table above are expected; read every other one. A public file never points into
-  the portal: it is a dead link for everyone but Brian, and history is permanent.
-- **More than one machine on the repo:** read `internal/docs/TWO-MACHINES.md` first: who owns which packages,
-  branch naming, the per-machine status files that carry messages between machines, the shared and generated files,
-  and who releases.
-
-**`vera-js/vera-archive` (private) holds retired packages and every non-landing branch.** It holds a snapshot copy of
-each retired package at its retirement (motion first, 2026-09-06) and every WIP, probe and saved branch: the
-2026-10-22 batch under `vera-branches/<name>`, later ones under their own names (public `vera-js/vera` holds only
-`main` and `next`). Its `main` is a stale copy. Reference only: nothing builds, publishes or imports from it.
-
-**`vera-js/vera-private` is archived** — the frozen full history of the work before the public repo
-became primary. Read-only, never cloned into this tree, never pushed to again.
-
-## Layout
-
-```
-packages/          published framework modules; each independent
-  ssr/             Node-only; TypeScript compiled per file by tsc, NOT run through defaultRollupConfig
-examples/          hand-run playgrounds, one per consumption mode
-tests/             self-running; never requires a human to look at a page
-bench/             performance harness; `--compare` gives before/after numbers
-                   NOT a workspace member — it has its own package.json holding the ten
-                   competing frameworks, so a root `npm ci` installs none of them.
-                   `cd bench && npm install` before running any comparative benchmark.
-docs/              principles, architecture, feature claims  (public)
-internal/          private portal — strategy, todos, audits, archive. Gitignored here.
-```
-
-**examples vs tests:** examples are for experimenting by hand. Tests run themselves. Neither
-substitutes for the other.
-
-### Motion — its own package again: `@verajs/motion` (the cut, 2026-09-10)
-
-The write-path rewrite grew motion a compiler, an SSR renderer, a CLI and a PHP twin
-(`verajs/motion` on Packagist), and its headline consumers became embedders who never load the
-directives engine — so the engine-independent core moved OUT to **`packages/motion`**
-(`@verajs/motion`: `./core` `./ssr` `./client`, plus `./internal`, the first-party seam).
-`@verajs/directives/motion` remains as the PACK — the engine's wiring of `@verajs/motion`, which
-makes vera-directives the first embedder of its own product, through the same lean surface omni
-vendors. The shared base value grammar lives in `@verajs/shared-utils` (both packages inline it).
-The npm name reuses the retired package's; nothing about the phase-4 fold's *pack* design was
-reversed — what moved is exactly the part that was never a directive.
-
-### Motion — history: the phase-4 fold (2026-09-06 → 09-10), superseded by the cut above
-
-For four days motion lived only as the directives motion pack and `packages/motion` was removed
-(archived, as it stood then, to the private `vera-js/vera-archive`); the cut above brought
-`packages/motion` back. Its pre-migration history is the private `briangrider/animate`. Two debts from
-then are tracked in the portal TODO (motion's retired mutation-test groups; `spikes/` paths).
-
-**The repo root is for configuration only** — no source, no bundles, no experiments. `CLAUDE.md` sits
-at the root because Claude Code auto-discovers it there; that is a technical requirement, not a
-precedent for other documents.
-
-**All project docs are git-versioned on purpose**, so they travel to other installs and to any future
-collaborator — the public ones in this repo, the private ones in `vera-js/internal`.
-`.claude/settings.local.json` stays gitignored — it is machine-specific.
-
-## Testing
-
-Two layers, both installed and both in CI.
-
-**Fast layer:** `node --test` + jsdom in `tests/*.test.mjs`, against built artifacts. A few dozen
-tests skip under production, where the diagnostics they assert have been folded away.
-
-> **No count is stated here, deliberately.** Four separate places in this repo carried a test count
-> that had stopped being true, and the only numbers that never drifted are the size claims, which
-> have `sync-size-claims.mjs --check` behind them. A number nothing generates will be wrong, and a
-> number that moves with every commit would put a doc edit in the way of adding a test. `npm test`
-> prints it.
-**Every suite runs twice**, against `dist/development/*.js` and against `dist/*.min.js` —
-`npm test`, `npm run test:prod`, or `npm run test:all`. They are different programs: production
-mangles properties, folds `__DEV__` to `false` and deletes the branches, drops `console.log`, and
-inlines workspace dependencies (9 checks are development-only and skip accordingly).
-`tests/dist.mjs` resolves the artifact; a suite never hard-codes a path.
-`tests/cdn-cross-bundle.test.mjs` covers the two-registry condition, which **only exists in the
-production build** — verified to fail if `_p` is ever mangled.
-
-**Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js`, on
-**Chromium, Firefox and WebKit** (`npm run test:browser`, `npm run test:browser:all`, or
-`VERA_BROWSERS=webkit npm run test:browser`; the `--browsers` CLI flag is unusable because the
-config defines its own launchers). Shadow DOM, custom element upgrade timing, `adoptedStyleSheets`
-and `@scope` are emulated or absent under a fake DOM, so for this framework a pass under emulation
-is weak evidence — and so is a pass on one engine. The jsdom suites are the regression net; browser
-suites are the release gate.
-
-**The fuzzes walk fresh territory in CI, deterministically everywhere else.** Every seeded fuzz
-suite takes its seeds through `tests/fuzz-seeds.mjs`: locally the standing arrays run untouched;
-CI sets `VERA_FUZZ_ROTATE=1` with the run id as key, ADDING derived seeds on top (never replacing —
-the regression net always runs, and `SEEDS.length`-scaled volume controls keep working). **That held
-for `extendSeeds` and not for `rotateScalar`, which returned one rotated scalar and so ran no
-standing seed at all in CI for its two suites** (`styles-host-rewrite-fuzz`, `cms-dom-fuzz`) until
-2026-09-23; both now loop base-first like everything else. The extras
-are printed at the top of each fuzz file's output; a red run replays anywhere with
-`VERA_FUZZ_SEEDS=<those seeds> npm test`. **A failure on a rotated seed is usually a FIND that
-predates the commit under test, not a regression** — the virgin-seed sweep caught the shim's
-same-parent `prepend` duplication after three audit runs had walked past it. Investigate it as a
-find; never re-run CI until green. `release.yml` runs no tests, so a find can never block a
-release mid-cut.
-
-**Documented code is executed, not just written — and there is ONE recipe rule.**
-
-> **Every runnable example in the docs is a `<!-- recipe -->` block, and it lives in exactly one of
-> two places: a README (`README.md` or `packages/*/README.md`) or `llms.txt`.** Both are executed by
-> `tests/docs-recipes.test.mjs` — each block in its own process, under a fresh jsdom, and it must
-> finish without throwing AND without a `console.warn`/`console.error`, because that is how this
-> framework reports real misuse. A marker anywhere else fails the gate (*"no recipe marker sits
-> outside the files that execute them"*), the per-file counts in `EXPECTED_RECIPES` are pinned so
-> adding or losing one is a deliberate edit, and a specifier a recipe imports must be in that
-> suite's `PACKAGES` map. A block WITHOUT the marker is documentation only — which is what lets a
-> README show the wrong way to do something.
-
-`llms.txt` is the file most likely to be copied, so it is in that set on purpose. It was
-*permitted* there long before it was *run*: the orphan guard allowed a marker on the grounds that
-`tests/llms-recipes.test.mjs` covered the file, and that suite reads only its
-`<script type="text/vera-jsx">` blocks — so a `<!-- recipe -->` block in `llms.txt` would have been
-allowed and executed by nothing, which is precisely the failure both suites exist to prevent,
-living in the seam between them. Fixed 2026-09-07 by adding it to the runner's sources.
-
-Isolation is per-process rather than per-import because under the `development` condition
-workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe that
-never wired a renderer otherwise passes on one an earlier recipe registered.
-
-## Versioning
-
-**Independent per package** — `@verajs/autoloader` has no reason to bump because `@verajs/core` did.
-Changesets is set up (`.changeset/`). Full process in **`docs/RELEASING.md`** — read it before
-touching versions, `.changeset/`, or `release.yml`.
-
-**While we are `0.x`, MINOR is the breaking boundary, not major** — `^0.1.2` installs `0.1.3` but
-never `0.2.0`, so that is where npm already draws the line. Features and fixes are both **patch**;
-minor is reserved for breaking changes. Changesets defaults to 1.0+ semantics, so a feature has to
-be marked `patch` deliberately. Ordinary semver resumes at `1.0.0`. The loop:
-
-```sh
-npx changeset version
-npm install --package-lock-only             # the lockfile follows the new versions (node_modules untouched)
-git add -A && git commit -m "release: …"    # changeset version only edits the working tree
-node scripts/tag-release.mjs                # tags HEAD — so it must run AFTER the commit
-git push --follow-tags
-```
-
-Both ordering rules are load-bearing and both were wrong here at some point. Skipping the commit
-publishes nothing while CI reports success; tagging before it points every tag at the pre-bump
-commit. And regenerate the lockfile after versioning (Brian approved, 2026-11-18): `changeset version` bumps each
-`package.json` and not `package-lock.json`, and `tests/lockfile-workspaces.test.mjs` refuses a release commit whose
-lockfile lags. Full walkthrough in `docs/RELEASING.md`.
-
-CI publishes whatever main has that npm does not, authenticated by npm **Trusted Publishing**
-(OIDC). Three invariants that silently break publishing if violated:
-
-- **`release.yml` must keep its name** — the trust binding on every published package names
-  `vera-js/vera` + `release.yml`. Counting them here only invites drift; `npm trust list` is
-  authoritative.
-- **A brand-new package cannot use Trusted Publishing for its first publish.** npm requires the
-  package to exist before a trusted publisher can be configured, by UI or by `npm trust github`, so
-  the first version goes up manually and CI takes over from the second. Runbook:
-  `internal/docs/PUBLISHING.md`.
-- **`repository.url` must stay `git+https://github.com/vera-js/vera.git`** — the registry compares
-  it against provenance and rejects a mismatch with 422.
-- **Never add an `NPM_TOKEN`.** No secret exists in the release path; failures are fixed in the
-  trust configuration, not with a credential.
-
-There is deliberately no Version PR (reasoning: `internal/docs/RELEASE-DESIGN.md`).
-`shared-types`/`shared-utils` are private — inlined everywhere, never published.
+User settings hold `autoCompactEnabled: true` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW: "500000"` (never a PCT override).
+Past 450k: a handoff of ≤ 40 lines (goal, shas, next step, files, questions), then ask Brian for `/compact`. Agents: ≤ 2,
+one task each, respawned from a handoff.
 
 ## Known gaps
 
-- **SSR dependencies** — see the callout above.
-- **A separate wcc experiment exists** in Brian's GitHub account: a personal take on wc-compiler using
-  disconnected acorn and possibly regex-based shape identification. It carried a lot of unwanted extra
-  material, so whether it is the way forward is **an open discussion requiring experiments**, not a
-  settled decision.
-
+- A separate wcc experiment (Brian's account) is an open discussion needing experiments, not a decision.
