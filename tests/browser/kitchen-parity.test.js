@@ -121,15 +121,21 @@ let hydrated;
  */
 before(async function loadEveryMode() {
   this.timeout(30000);
-  const [a, b, c] = await Promise.all([
+  const [a, b] = await Promise.all([
     load('/tests/browser/fixtures/kitchen-ssr.html'),
     load('/tests/browser/fixtures/kitchen-csr.html'),
-    load('/tests/browser/fixtures/kitchen-hydrate.html'),
   ]);
   /** The server page has no script, so it is ready as soon as the parser has finished with it. */
   ssr = shellOf(a);
   csr = await ready(b, 'csr');
-  hydrated = await ready(c, 'hydrate');
+  /**
+   * The hydrate page loads only once the csr page has run, never beside it. The two import the same module graph,
+   * and with both loading at once Firefox failed the hydrate page's graph in about one run in three (6 of 18 full
+   * Firefox runs): its module script fired `error`, the module `@verajs/inserts` resolves to had no resource-timing
+   * entry, and the page's own code never ran, while the csr page loaded the same URL. Loaded one after the other:
+   * 0 of 9. See docs/BROWSER-LEDGER.md, "Test environments".
+   */
+  hydrated = await ready(await load('/tests/browser/fixtures/kitchen-hydrate.html'), 'hydrate');
 });
 
 describe('the same application, rendered three ways', () => {

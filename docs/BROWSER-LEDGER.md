@@ -788,6 +788,15 @@ from another machine, or after that is undone, has a variable changed.
 
 ## Test environments
 
+- **Two same-origin iframes loading the same module graph at once: Firefox failed one frame's graph in about one run
+  in three.** `tests/browser/kitchen-parity.test.js` loaded its csr and hydrate pages in parallel, both importing core's
+  development build, which imports `@verajs/inserts` (the dev server rewrites the bare specifier). In 6 of 18 full
+  Firefox runs, with no other load, the hydrate page's inline module script fired a plain `error` Event (a fetch
+  failure, not a throw), never ran, and its resource timing had every module but `vera-inserts.js` (each 200 with a
+  full body, most from the cache the csr frame filled), while the csr page loaded that URL and ran. Loading the
+  hydrate page after the csr page had run: 0 of 9. Not separated: Firefox's cache sharing an in-flight request
+  between documents, or web-dev-server. Consequence: a browser test loads documents that share a module graph one
+  after another, not in parallel. (Playwright Firefox, firefox-1538, macOS, 2026-11-20.)
 - **Node 26 gives every process a working, in-memory `sessionStorage`, with no flag** (a `Storage`; `setItem`/`getItem`
   work, and it is one store for the whole process, so every request a server handles shares it). `localStorage` is an
   own accessor that reads `undefined` and prints an ExperimentalWarning unless the process was started with
