@@ -42,7 +42,7 @@ if (SCENARIO === 'ssr') {
     document.body.append(element);
     flush();
     await Promise.resolve();
-    out.rendered = element.querySelector('[data-vera-part="root"]') !== null;
+    out.rendered = element.querySelector('[data-vera-part="input"]') !== null;
   } else if (SCENARIO === 'surface') {
     const { element: Class } = await load('vera-components/input');
     const element = document.createElement(TAG);
@@ -52,6 +52,16 @@ if (SCENARIO === 'ssr') {
     flush();
     out.states = { 'at rest': parts() };
     /** A part that renders only in some state (open, invalid, with a value) is reached here: drive the state, flush, read. */
+    element.remove();
+    const options = document.createElement(TAG);
+    options.setAttribute('clearable', '');
+    options.setAttribute('loading', '');
+    options.innerHTML = '<span data-vera-part="prefix">$</span><input aria-label="Amount" value="5"><span data-vera-part="suffix">.00</span>';
+    document.body.append(options);
+    flush();
+    await Promise.resolve();
+    flush();
+    out.states['the user\'s input, prefix and suffix, clearable with a value, loading'] = [...new Set([...options.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
     out.observed = [...(Class.observedAttributes ?? [])].sort();
   }
   process.stdout.write(JSON.stringify(out));
@@ -85,7 +95,7 @@ if (SCENARIO === 'ssr') {
     const { registered, untouched, rendered, said } = run('define-as');
     assert.equal(registered, true, 'the returned class serves the tag');
     assert.equal(untouched, true, `<${TAG}> stays free`);
-    assert.equal(rendered, true, 'the root part is in the element');
+    assert.equal(rendered, true, 'the default input part is in the element');
     assert.deepEqual(said, []);
   });
 
@@ -113,6 +123,6 @@ if (SCENARIO === 'ssr') {
   test('a server imports "." through @verajs/ssr and renders the element', () => {
     const { html } = run('ssr');
     assert.ok(html.includes(`<${TAG}`), html);
-    assert.ok(html.includes('data-vera-part="root"'), html);
+    assert.ok(html.includes('data-vera-part="input"'), html);
   });
 }
