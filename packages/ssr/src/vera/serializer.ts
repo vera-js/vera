@@ -291,6 +291,15 @@ const writtenDataBlock = (tag: string): boolean | undefined => {
   return !type.includes('&') && JSON_BLOCK.test(type);
 };
 
+/**
+ * Whether an element of this name is open at the end of a static. A plain loop: `opens.some` with an arrow made a
+ * closure at every static of every compile (2026-11-20).
+ */
+const hasOpen = (opens: readonly { name: string }[], name: string): boolean => {
+  for (let k = 0; k < opens.length; k++) if (opens[k]!.name === name) return true;
+  return false;
+};
+
 /** Where the last start tag left open across statics began (`from`, `at`), and the tag found so far (`found`). */
 type OpeningTrack = { from: number; at: number; found: string };
 
@@ -462,7 +471,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * A hole in the content of an SVG `<script>` (or a MathML element of that name) is code too: refused as an HTML
      * script's is (`ssr-script-hole`, every build), JSON or not — a foreign script is no data block (2026-11-18).
      */
-    if (!tagState.inTag && tagState.opens.some((open) => open.name === 'script'))
+    if (!tagState.inTag && hasOpen(tagState.opens, 'script'))
       throw own(new Error(ssrMisuse('ssr-script-hole', PROSE['ssr-script-hole']!())));
     /**
      * **Every question about where this hole sits is answered by that scan** — whether it is inside a tag, which tag,
@@ -670,7 +679,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * refused here as in a text-only element (`ssr-template-in-text`), one rule on both sides. Values stay escaped, and
      * an attribute value stays quoted.
      */
-    if (tagState.textTag || tagState.opens.some((open) => open.name === 'noscript')) texts[kinds.length] = true;
+    if (tagState.textTag || hasOpen(tagState.opens, 'noscript')) texts[kinds.length] = true;
     /** A binding inside a comment is dropped, as the client drops it — never written into the comment. */
     kinds.push(inert || tagState.comment ? DROPPED : TEXT);
     names.push('');
