@@ -111,14 +111,27 @@ const afterValue = (text: string, end: number, quote: string): string => {
  * first hole alone and, with a static before it, wrote the binding as a literal attribute (`@click="x() => {}"`: the
  * handler's source in the page). A static here is the attribute value's text, so it is decoded as the parser decodes
  * it — with the one decoder the shim parses markup with. `undefined` when the value is a lone hole, the shape the
- * client gives no statics to and which keeps the value itself (an object, a number), not its text.
+ * client gives no statics to and which keeps the value itself (an object, a number), not its text. So a lone hole
+ * allocates and decodes nothing: `pieces` is made at a second hole, and a plan's `joins` at its first joined value.
+ * `text` is the static the value ends in, `end` where it ends there (`valueEnd`; -1 for the whole of it).
  */
-const finishJoin = (pieces: string[], piece: string): string[] | undefined => {
-  pieces.push(piece);
-  return pieces.length > 2 || pieces[0] !== '' || pieces[1] !== '' ? pieces : undefined;
+const closeJoin = (
+  joins: Array<readonly string[] | undefined> | undefined, at: number, lead: string, pieces: string[] | undefined,
+  text: string, end: number, quote: string
+): Array<readonly string[] | undefined> | undefined => {
+  const tail = end === -1 ? text : text.slice(0, quote ? end - 1 : end);
+  if (pieces === undefined) {
+    if (lead === '' && tail === '') return joins;
+    pieces = [lead];
+  }
+  pieces.push(valueText(tail));
+  (joins ??= [])[at] = pieces;
+  return joins;
 };
 /** A static of a sigil binding's value, as the client's parser hands it over. */
 const valueText = (text: string): string => decode(normalizeNewlines(text));
+/** The static before a sigil binding's first hole, from where its value starts. */
+const leadText = (text: string, start: number): string => (start === text.length ? '' : valueText(text.slice(start)));
 /** The joined value: statics and holes, a nullish hole as `''`, every other one by `String` — the client's `toText`. */
 const joinValue = (pieces: readonly string[], values: readonly unknown[], i: number): string => {
   let text = pieces[0]!;
@@ -207,8 +220,8 @@ type Plan = {
   readonly decodedLeads: string[];
   /** Sparse: set for each COMPONENT_PROP slot only. */
   readonly urls: Array<boolean | undefined>;
-  /** Per slot (dense, `undefined` but at a `?`, `.` or `!` value with statics or several holes — see `finishJoin`). */
-  readonly joins: Array<readonly string[] | undefined>;
+  /** Per slot (dense, `undefined` but at a `?`, `.` or `!` value with statics or several holes — see `closeJoin`), or `NO_JOINS`. */
+  readonly joins: ReadonlyArray<readonly string[] | undefined>;
   /** Per slot (dense, 0 for every slot that is no style hole): when a style value may skip `styleHole` — see `compile`. */
   readonly styleTails: number[];
 };
@@ -218,6 +231,12 @@ type Forged = { readonly [K in keyof Plan]?: undefined };
 
 /** What `compile` answers for data shaped like a template: no plan, so `serializeTemplate` renders it as text. */
 const FORGED: Forged = {};
+/**
+ * The `joins` of every plan without a joined value — nearly all of them — shared and never written: an array per
+ * compile cost compile about 2% (fresh-process A/B, 2026-11-21). Its one `undefined` makes it the elements kind a
+ * plan's own `joins` has, so the render loop's read stays one shape; past its end a read answers `undefined`.
+ */
+const NO_JOINS: ReadonlyArray<readonly string[] | undefined> = [undefined];
 const FORGED_TEXT = `${{}}`;
 /** A tagged template literal's strings: an array owning `raw`, which nothing from `JSON.parse` can be (see `compile`). */
 const isLiteral = (strings: unknown): strings is TemplateStringsArray => Array.isArray(strings) && Object.hasOwn(strings, 'raw');
@@ -473,10 +492,14 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * it comes off the front of the next static, and a hole before it ends is dropped with it. `undefined` otherwise.
    */
   let openQuote: string | undefined;
-  /** The open sigil value's statics so far, and its first hole — `undefined` for a dropped binding, which has no value. */
+  /**
+   * The open sigil value's first static (decoded; `undefined` for a dropped binding, which has no value), its statics
+   * so far once a second hole arrives, and its first hole — see `closeJoin`.
+   */
+  let joinLead: string | undefined;
   let pieces: string[] | undefined;
   let joinAt = 0;
-  const joins: Array<readonly string[] | undefined> = [];
+  let joins: Array<readonly string[] | undefined> | undefined;
   let wasInTag = false;
   /** Carried across statics — see `scanTag`. */
   let tagState: ScanStart | ScanResult = freshScan(depth);
@@ -497,12 +520,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     if (openQuote !== undefined) {
       const end = valueEnd(part, openQuote);
       if (end === -1) {
-        pieces?.push(valueText(part));
+        if (joinLead !== undefined) (pieces ??= [joinLead]).push(valueText(part));
         part = '';
         continued = true;
       } else {
-        if (pieces !== undefined) joins[joinAt] = finishJoin(pieces, valueText(part.slice(0, openQuote ? end - 1 : end)));
-        pieces = undefined;
+        if (joinLead !== undefined) joins = closeJoin(joins, joinAt, joinLead, pieces, part, end, openQuote);
+        joinLead = pieces = undefined;
         part = afterValue(part, end, openQuote);
         openQuote = undefined;
       }
@@ -669,7 +692,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       }
       /** `@` and `&` ignore their statics on the client, and every DROPPED binding writes nothing: no value to join. */
       joinAt = kinds.length - 1;
-      pieces = kinds[joinAt] === DROPPED ? undefined : [valueText(strings[i].slice(tagState.valueStart))];
+      joinLead = kinds[joinAt] === DROPPED ? undefined : leadText(strings[i], tagState.valueStart);
+      pieces = undefined;
       names.push(sigilName);
       strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);
@@ -806,7 +830,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   let last = strings[strings.length - 1];
   if (openQuote !== undefined) {
     const end = valueEnd(last, openQuote);
-    if (pieces !== undefined) joins[joinAt] = finishJoin(pieces, valueText(end === -1 ? last : last.slice(0, openQuote ? end - 1 : end)));
+    if (joinLead !== undefined) joins = closeJoin(joins, joinAt, joinLead, pieces, last, end, openQuote);
     last = end === -1 ? '' : afterValue(last, end, openQuote);
   }
   parts.push(last);
@@ -914,17 +938,17 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    */
   const denseDepths: number[] = [];
   const denseTexts: boolean[] = [];
-  const denseJoins: Array<readonly string[] | undefined> = [];
+  const denseJoins: Array<readonly string[] | undefined> | undefined = joins === undefined ? undefined : [];
   for (let i = 0; i < kinds.length; i++) {
     denseDepths.push(depths[i] ?? 0);
     denseTexts.push(texts[i] === true);
-    denseJoins.push(joins[i]);
+    denseJoins?.push(joins![i]);
   }
   const plan: Plan = {
     parts, kinds, names, strip, owners, raws,
     depths: denseDepths,
     texts: denseTexts,
-    joins: denseJoins,
+    joins: denseJoins ?? NO_JOINS,
     elementPositions, elements, groups, leads, decodedLeads, urls, styleTails,
   };
   if (depth === 0) plans.set(strings, plan);
@@ -1001,7 +1025,9 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
       out += insertContent(part, pendingText, pendingStrip);
       pendingText = null;
     }
-    let value = values[i];
+    /** A `?`, `.` or `!` value with statics or several holes is its joined text — see `closeJoin`. */
+    const join = joins[i];
+    const value = join === undefined ? values[i] : joinValue(join, values, i);
     switch (kinds[i]) {
       case TEXT:
         /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
@@ -1134,18 +1160,15 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
         break;
       }
       case BOOLEAN:
-        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value) out += ` ${names[i]}=""`;
         break;
       case CONTENT:
-        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         pendingText = serverContent(value, owners[i], names[i], depths[i]);
         pendingStrip = owners[i];
         break;
       case FORM_PROP:
         if (!FORM_ELEMENTS.has(owners[i])) break;
-        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         /**
          * A `<textarea>`'s value is its **text content**. `<textarea value="x">` is ignored by
          * every parser, so writing the attribute served an empty control while the client — which
@@ -1208,7 +1231,6 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * Registration is asked per render, not per plan, because the registry fills as component
          * modules execute.
          */
-        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         if (registry.has(owners[i]) && !(urls[i] && value != null && SCRIPT_URL.test(`${value}`))) {
           adoption ??= { instances: new Map(), mark: '' };
           deliverProperty(claimInstance(adoption, elements[i], owners[i]), owners[i], names[i], value);
