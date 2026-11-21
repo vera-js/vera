@@ -180,8 +180,10 @@ raw text (`<script>`, `<style>`, `<textarea>`, `<title>`…) and `<template>` co
 inside `<svg>` or `<math>`, where a dashed tag is a foreign element no definition upgrades — except inside an
 HTML integration point (`<svg><foreignObject>`, `<math><mtext>`…), or after a tag that breaks out of foreign
 content (`<svg><p><my-comp>`), both of which the browser reads as HTML. A tag's name is the whole name the tokenizer
-reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written. After `<font color>` inside
-`<svg>` (a breakout this scan does not track) a component is not rendered on the server, and renders on the client.
+reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written. A `<font>` with a static
+`color`, `face` or `size` breaks out too (`<svg><font color=red><my-comp>` renders it). One case differs from the
+client: after a *bound* one (`<font color=${c}>`) the server renders the component, as the browser reads the served
+page, while the client's template never sees the attribute and leaves it a foreign element.
 
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
   registered class — field initializers run, `instanceof` answers — and appending it renders **that

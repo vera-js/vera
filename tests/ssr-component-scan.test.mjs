@@ -8,8 +8,10 @@
  *
  * The oracle, on the SERVED page: every `<scan-kid>` the browser creates in HTML (outside inert `<template>`
  * content) carries the shadow root the server rendered, and every rendered shadow root sits on one. The one
- * exemption is a component with an SVG/MathML ancestor — the server does not model an end tag the parser ignores, or
- * `<font color>`'s breakout, so there it can only under-render: a hydration mismatch, never markup in the wrong place.
+ * exemption is a component with an SVG/MathML ancestor — the server does not model an end tag the parser ignores, so
+ * there it can only under-render: a hydration mismatch, never markup in the wrong place. A static `<font color>`,
+ * `face` or `size` breaks out here as in the browser; a BOUND one reads as static in the served markup this scan
+ * reads, while the client's template parse never sees the attribute — that one difference is pinned below.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,6 +66,39 @@ test('control: the oracle sees a rendered shadow root, and a missing one', async
   assert.equal((await serve('<scan-kid></scan-kid>')).includes('<i>kid</i>'), true);
   assert.deepEqual(disagreements('<scan-page><template shadowrootmode="open"><div><scan-kid></scan-kid></div></template></scan-page>'), ['a live <scan-kid> not rendered']);
   assert.deepEqual(disagreements('<scan-page><template shadowrootmode="open"><div><svg><scan-kid><template shadowrootmode="open"></template></scan-kid></svg></div></template></scan-page>'), ['rendered on a <scan-kid> the browser does not upgrade']);
+});
+
+/**
+ * **A `<font>` with a static `color`, `face` or `size` breaks out of SVG or MathML** — the parser pops the foreign
+ * elements, so a component after it is an HTML element the definition upgrades: rendered on the server, as the
+ * client's template parse (which sees the same static attribute) renders it.
+ */
+test('a component after a static <font color|face|size> in SVG or MathML is rendered, as the browser upgrades it', async () => {
+  for (const shape of ['<svg><font color=x><scan-kid></scan-kid></font></svg>', '<svg><font face=x><scan-kid></scan-kid></svg>',
+    '<math><font size=1><scan-kid></scan-kid></math>', '<svg><font id=a COLOR><scan-kid></scan-kid></svg>', '<svg><g><font size="2"><scan-kid></scan-kid></svg>']) {
+    const served = await serve(shape);
+    assert.deepEqual(disagreements(served), [], shape);
+    assert.ok(served.includes('<i>kid</i>'), `rendered: ${shape} -> ${served}`);
+  }
+});
+
+test('control: a <font> without them stays foreign, and its component is not rendered', async () => {
+  for (const shape of ['<svg><font><scan-kid></scan-kid></svg>', '<svg><font id=a colorx=1><scan-kid></scan-kid></svg>', '<svg><font id="color"><scan-kid></scan-kid></svg>']) {
+    const served = await serve(shape);
+    assert.deepEqual(disagreements(served), [], shape);
+    assert.ok(!served.includes('<i>kid</i>'), `not rendered: ${shape} -> ${served}`);
+  }
+});
+
+/**
+ * **A BOUND `<font color>` is the one place the scan and the client differ** (pinned, not endorsed): the scan reads the
+ * served markup, where the bound value is static text, so it breaks out and renders the component, as the browser
+ * reads that page; the client's template parse sees the attribute renamed to its binding's address, keeps `<font>`
+ * foreign, and never upgrades it. No markup lands in the wrong place, but the trees differ: a hydration mismatch.
+ */
+test('pinned: after a BOUND <font color> in SVG the server renders the component, as the browser reads the served page', async () => {
+  const served = (await renderToString(new URL('./fixtures/ssr/scan-bound-ssr.js', import.meta.url), {})).html;
+  assert.ok(served.includes('<font color="red">') && served.includes('<i>kid</i>'), served);
 });
 
 /** A name that only STARTS like a registered one is another element — never rendered, and never rewritten. */
@@ -125,13 +160,13 @@ test('a <noscript> in SVG/MathML content is foreign (a breakout after it reaches
 
 const SEEDS = extendSeeds([3, 17, 404, 8086]);
 const CASES_PER_SEED = 250;
-/** Breakout tags are in (`<p>`, `<b>`, `</p>`…); `<font color>` is not — it breaks out in a browser and, on purpose, not here. */
+/** Breakout tags are in (`<p>`, `<b>`, `</p>`…), `<font color>` and its look-alikes too. */
 const TOKENS = [
   '<scan-kid>', '</scan-kid>', '<scan-kid/>', '<SCAN-KID>', '<scan-kid.y>', '<', '</', '<!', '<?', '<!--', '-->', '>', '/>', '"', "'", '=', ' ', '\v',
   'a', 'x', '<a>', '<svg>', '</svg>', '<math>', '</math>', '<foreignObject>', '</foreignObject>', '<foreignObject/>', '<mi>', '<mtext>',
   '<mglyph>', '<desc>', '<style>', '</style>', '<textarea>', '</textarea>', '</textareax>', '<title>', '<template>', '</template>',
   '<script>', '</script>', '</scripts>', '<noscript>', ' x="', "<a x'", ' a=<scan-kid>',
-  '<p>', '<b>', '</p>', '<div>', "<b x'",
+  '<p>', '<b>', '</p>', '<div>', "<b x'", '<font color=x>', '<font face>', '<font id=size>', '<font>',
 ];
 const lcg = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x80000000);
 
