@@ -11,6 +11,11 @@ export type AnnounceOptions = {
   key?: string;
 };
 
+export type WantOptions = {
+  /** Said once when the label ends (a settle window after its last holder is released or gone), if it was said at all. */
+  done?: string;
+};
+
 /** A registration made by `want()`: `release()` takes it back, and is safe to call more than once. */
 export type Wanted = {
   release: () => void;
@@ -22,7 +27,7 @@ export type Wanted = {
  * version, and two copies on one page keep one region and one settle window between them.
  */
 export type AnnounceRecord = {
-  /** The shape's version: 1. A newer copy adds fields and raises it; an older copy reads the fields it knows. */
+  /** The shape's version: 2. A newer copy adds fields and raises it; an older copy reads the fields it knows. */
   v: number;
   /** The document's own regions, on `body`, by politeness. Re-created when a page emptied `body`. */
   regions: Partial<Record<Politeness, HTMLElement>>;
@@ -41,6 +46,24 @@ export type AnnounceRecord = {
   queue: Partial<Record<Politeness, Queued[]>>;
   /** The timer that will write each politeness's queue while one is armed, else 0 or absent. */
   flush: Partial<Record<Politeness, number>>;
+  /** v2: the labels said and not yet ended, each one load however many elements hold it. */
+  said: Map<string, Said>;
+  /** v2: the done text for a label still waiting in `wanted`, the first one given. */
+  doneFor: Map<string, string>;
+  /** v2: what closes a settle window, the newest copy's: every copy's timer calls it. */
+  settle: (record: AnnounceRecord) => void;
+};
+
+/**
+ * A said label: the elements holding it, its done text, the element it was said from, its grace timer (else 0), and
+ * whether an element joined it while none held it, for the next window's close to decide.
+ */
+export type Said = {
+  holders: Set<Element>;
+  done: string | undefined;
+  by: Element;
+  end: number;
+  stale: boolean;
 };
 
 /** One message waiting in a queue: its text, and its key when it has one. */

@@ -364,3 +364,184 @@ test('release() twice is harmless, and a release after the window changes nothin
   wanted.release();
   assert.deepEqual(said(doc), ['Loading']);
 });
+
+/**
+ * **One load, however many elements hold it** (the spinner's replacement row, and the design review's points A–D).
+ * Every row reads `said()` before KEEP_MS (7 s) has passed, so nothing it counts has been removed yet.
+ */
+
+/** A framework re-rendering its spinner as a NEW element every `every` ms, `times` times: each instance wants `label`. */
+const churn = (doc, advance, { times, every, label = 'Loading', done }) => {
+  let wanted = null;
+  let element = null;
+  for (let i = 0; i < times; i++) {
+    const next = doc.createElement('span');
+    doc.body.append(next);
+    const handle = want(next, label, done === undefined ? {} : { done });
+    if (wanted !== null) {
+      wanted.release();
+      element.remove();
+    }
+    wanted = handle;
+    element = next;
+    advance(every);
+  }
+  return () => {
+    wanted.release();
+    element.remove();
+  };
+};
+
+test('want(): a new element with the same label every 100 ms for 1 s says it once', () => {
+  const { doc, advance } = page();
+  churn(doc, advance, { times: 10, every: 100 });
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading']);
+});
+
+test('want(): a churned load that ends says its done text once, after one settle window', () => {
+  const { doc, advance } = page();
+  const stop = churn(doc, advance, { times: 10, every: 100, done: 'Loaded' });
+  stop();
+  advance(100);
+  assert.deepEqual(said(doc), ['Loading'], 'not before the grace has passed');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading', 'Loaded']);
+});
+
+test('want(): a label released before it was said says neither it nor its done text', () => {
+  const { doc, advance } = page('<p>x</p>');
+  const p = doc.querySelector('p');
+  want(p, 'Loading', { done: 'Loaded' }).release();
+  /** CONTROL in the same window: another label is said, so the window did close and speak. */
+  want(p, 'Saving');
+  advance(2000);
+  assert.deepEqual(said(doc), ['Saving']);
+});
+
+test('want(): an owner that sets aria-busy one task after the want keeps it silent (the owner speaks)', () => {
+  const { doc, advance } = page('<div id="owner"><p>x</p></div><p id="free">y</p>');
+  want(doc.querySelector('#owner p'), 'Loading');
+  want(doc.querySelector('#free'), 'Saving');
+  advance(0);
+  doc.querySelector('#owner').setAttribute('aria-busy', 'true');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Saving'], 'CONTROL: the free element in the same window is said');
+});
+
+test('want(): a busy owner outside a shadow root keeps an element inside it silent', () => {
+  const { doc, advance } = page('<div aria-busy="true"><div id="host"></div></div><p>free</p>');
+  const root = doc.querySelector('#host').attachShadow({ mode: 'open' });
+  root.innerHTML = '<span>x</span>';
+  want(root.querySelector('span'), 'Loading');
+  want(doc.querySelector('p'), 'Saving');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Saving']);
+});
+
+test("want(): an element's own aria-busy does not silence it", () => {
+  const { doc, advance } = page('<p aria-busy="true">x</p>');
+  want(doc.querySelector('p'), 'Loading');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading']);
+});
+
+test('want(): the same label wanted again after a load ended and its grace passed is a new load, said again', () => {
+  const { doc, advance } = page('<p>a</p><p>b</p>');
+  const [a, b] = doc.querySelectorAll('p');
+  const first = want(a, 'Loading');
+  advance(1000);
+  first.release();
+  advance(1000);
+  want(b, 'Loading');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading', 'Loading']);
+});
+
+test('want(): an element removed without release() does not hold its label, so a later load is said (review A)', () => {
+  const { doc, advance } = page('<p>a</p><p>b</p>');
+  const [a, b] = doc.querySelectorAll('p');
+  want(a, 'Loading', { done: 'Loaded' });
+  advance(1000);
+  a.remove();
+  advance(3000);
+  want(b, 'Loading');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading', 'Loaded', 'Loading'], 'the stale load ends (its done text) and the new one is said');
+});
+
+test("want(): a label's grace is its own, not the close of a window another label opened (review B)", () => {
+  const { doc, advance } = page('<p>a</p><p>b</p><p>other</p>');
+  const [a, b, other] = doc.querySelectorAll('p');
+  const first = want(a, 'Loading');
+  /** Said at 150, written at 250 (a new region's first write waits longer). */
+  advance(400);
+  assert.deepEqual(said(doc), ['Loading'], 'CONTROL: the load is said');
+  /** An unrelated window opens at 400 and closes at 550. */
+  want(other, 'Saving');
+  advance(149);
+  first.release();
+  a.remove();
+  advance(2);
+  /** 551: one ms past that window's close, well inside Loading's own grace (549 + 150). */
+  want(b, 'Loading');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading', 'Saving'], 'the replacement joins the load still in its grace');
+});
+
+test('want(): a record an older copy made gains the new rules, and every window closes by them (review C)', () => {
+  const { doc, advance } = page();
+  const RECORD = Symbol.for('vera.announce');
+  doc[RECORD] = { v: 1, regions: {}, modals: new WeakMap(), wanted: new Map(), window: 0, written: new Map(), queue: {}, flush: {} };
+  churn(doc, advance, { times: 10, every: 100 });
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading']);
+  assert.equal(doc[RECORD].v, 2, 'the record is raised to this copy\'s version');
+});
+
+test('want(): two copies share one load: a second copy joining a label the first said stays silent', () => {
+  const { doc, advance } = page('<p>a</p><p>b</p>');
+  const [a, b] = doc.querySelectorAll('p');
+  want(a, 'Loading');
+  advance(1000);
+  copy.want(b, 'Loading');
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading']);
+});
+
+test('want(): one long-lived holder makes a second element with that label part of the same load (review D)', () => {
+  const { doc, advance } = page('<p>long</p><p>short</p>');
+  const [long, short] = doc.querySelectorAll('p');
+  want(long, 'Loading', { done: 'Page loaded' });
+  advance(1000);
+  /** The short one outlives its own settle window, so it would be said if it were a load of its own. */
+  const row = want(short, 'Loading', { done: 'Row loaded' });
+  advance(1000);
+  row.release();
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading'], 'the short one says nothing, and no done text, while the long one holds the label');
+});
+
+test('want(): two elements giving different done texts in one window: the first given is said (review D)', () => {
+  const { doc, advance } = page('<p>a</p><p>b</p>');
+  const [a, b] = doc.querySelectorAll('p');
+  const one = want(a, 'Loading', { done: 'First' });
+  const two = want(b, 'Loading', { done: 'Second' });
+  advance(1000);
+  one.release();
+  two.release();
+  advance(1000);
+  assert.deepEqual(said(doc), ['Loading', 'First']);
+});
+
+test('want(): an iframe removed inside the window throws nothing', () => {
+  const { doc, advance } = page('<iframe></iframe>');
+  const frame = doc.querySelector('iframe');
+  const inner = frame.contentDocument;
+  inner.body.innerHTML = '<p>x</p>';
+  const wanted = want(inner.querySelector('p'), 'Loading');
+  frame.remove();
+  advance(1000);
+  assert.doesNotThrow(() => wanted.release());
+  assert.equal(regions(doc).length, 0, 'nothing in the parent document');
+});

@@ -1,4 +1,4 @@
-import type { AnnounceOptions, AnnounceRecord, Politeness, Wanted } from './types.js';
+import type { AnnounceOptions, AnnounceRecord, Politeness, Said, WantOptions, Wanted } from './types.js';
 
 /**
  * **The one cross-copy key** (declared for life, like `vera.uid`): the record lives on the DOCUMENT, never on
@@ -21,10 +21,17 @@ const KEEP_MS = 7000;
 
 type Holder = Document & { [RECORD]?: AnnounceRecord };
 
-/** This document's record, made on first use. A newer copy's record is read as-is: its fields only ever grow. */
-const recordOf = (doc: Document): AnnounceRecord =>
-  ((doc as Holder)[RECORD] ??= {
-    v: 1,
+/** The record's shape this copy writes: 2 added `said`, `doneFor` and `settle`. */
+const V = 2;
+
+/**
+ * This document's record, made on first use. Its fields only ever grow, so a record an older copy made gains this
+ * version's fields here, and its `settle` becomes this copy's: every window, whichever copy opened it, closes by the
+ * newest rules on the page. A newer copy's record is read as-is.
+ */
+const recordOf = (doc: Document): AnnounceRecord => {
+  const record = ((doc as Holder)[RECORD] ??= {
+    v: V,
     regions: {},
     modals: new WeakMap(),
     wanted: new Map(),
@@ -32,7 +39,18 @@ const recordOf = (doc: Document): AnnounceRecord =>
     written: new Map(),
     queue: {},
     flush: {},
+    said: new Map(),
+    doneFor: new Map(),
+    settle,
   });
+  if (record.v < V) {
+    record.v = V;
+    record.said ??= new Map();
+    record.doneFor ??= new Map();
+    record.settle = settle;
+  }
+  return record;
+};
 
 /**
  * **The topmost open modal, computed at each write** (never cached, so no listener and no tracking): the open `:modal`
@@ -155,46 +173,134 @@ export const announce = (element: Element, text: string, options: AnnounceOption
 };
 
 /**
- * **The settle window's decision, pure**: the labels to say are those some connected element still wants. A label
- * every element has released, or whose elements have all left the document, is dropped.
+ * **True when an ancestor of `element` has `aria-busy="true"`**, walking the composed tree (a shadow root steps to its
+ * host): that owner speaks for what is busy inside it, so a spinner within it says nothing. The element's own
+ * `aria-busy` is not asked.
+ */
+export const underBusy = (element: Element): boolean => {
+  let node: Node | null = element.parentNode;
+  while (node !== null) {
+    if (node.nodeType === 1 && (node as Element).getAttribute('aria-busy') === 'true') return true;
+    node = node.nodeType === 11 ? ((node as ShadowRoot).host ?? null) : node.parentNode;
+  }
+  return false;
+};
+
+/**
+ * **The settle window's decision, pure**: the labels to say are those some connected element, outside every busy owner,
+ * still wants. A label every element has released, or whose elements have all left the document or sit inside an
+ * `aria-busy` owner, is dropped.
  */
 export const due = (wanted: ReadonlyMap<string, ReadonlySet<Element>>): [string, Element][] => {
   const out: [string, Element][] = [];
   for (const [label, elements] of wanted)
     for (const element of elements)
-      if (element.isConnected) {
+      if (element.isConnected && !underBusy(element)) {
         out.push([label, element]);
         break;
       }
   return out;
 };
 
+/** True while some element holding a said label is still in its document. */
+const held = (holders: ReadonlySet<Element>): boolean => {
+  for (const element of holders) if (element.isConnected) return true;
+  return false;
+};
+
+/** A said label ends: it leaves the record, and its done text, if it was given one, is said from where the label was. */
+const end = (record: AnnounceRecord, label: string, entry: Said): void => {
+  record.said.delete(label);
+  if (entry.done !== undefined) announce(entry.by, entry.done);
+};
+
+/**
+ * **A settle window closes** (the record's `settle`, so the newest copy on the page decides every window):
+ *
+ * - a said label that a new element joined while none held it (`stale`) is decided now, once the old elements'
+ *   cleanups have had their turn: a holder still listed and gone from the document never released, so that load was
+ *   abandoned and this is a new one, said again (after the old one's done text); none left means each old holder
+ *   released and the new element replaced it, the same load, said nothing;
+ * - a said label no connected element holds, and whose own grace is not running, ends (its holders left without
+ *   `release()`);
+ * - every label due is said once and becomes said, held by the elements that wanted it.
+ */
+const settle = (record: AnnounceRecord): void => {
+  record.window = 0;
+  const said = record.said;
+  for (const [label, entry] of [...said]) {
+    if (entry.stale) {
+      entry.stale = false;
+      const live = [...entry.holders].filter((element) => element.isConnected);
+      if (live.length < entry.holders.size) {
+        end(record, label, entry);
+        const by = live.find((element) => !underBusy(element));
+        if (by !== undefined) {
+          announce(by, label);
+          said.set(label, { holders: new Set(live), done: entry.done, by, end: 0, stale: false });
+        }
+        continue;
+      }
+    }
+    if (entry.end === 0 && !held(entry.holders)) end(record, label, entry);
+  }
+  for (const [label, by] of due(record.wanted)) {
+    announce(by, label);
+    said.set(label, { holders: new Set(record.wanted.get(label)), done: record.doneFor.get(label), by, end: 0, stale: false });
+  }
+  record.wanted.clear();
+  record.doneFor.clear();
+};
+
 /**
  * **Say `label` once after the settle window, if some connected element still wants it then** (a spinner's form: a load
  * that finishes inside the window says nothing). Every copy of this hook on the page shares the window: one copy opens
  * it, a copy that finds it open only adds its label, so two copies wanting "Loading" say it once.
+ *
+ * - **A said label is one load until it ends**, whichever elements hold it: a new element wanting it joins silently, so a
+ *   framework that replaces its spinner every 100 ms says "Loading" once. It ends a settle window after its last holder
+ *   is released or gone, so a replacement inside that grace is still the same load; `done`, if given, is said then. The
+ *   first `done` given for a label is the one said.
+ * - **Inside an `aria-busy="true"` owner** (any composed ancestor, read when the window closes), nothing is said: the
+ *   owner speaks.
  */
-export const want = (element: Element, label: string): Wanted => {
+export const want = (element: Element, label: string, options: WantOptions = {}): Wanted => {
   const doc = element.ownerDocument;
   const win = doc.defaultView;
   if (win === null) return { release: () => {} };
   const record = recordOf(doc);
-  let elements = record.wanted.get(label);
-  if (elements === undefined) record.wanted.set(label, (elements = new Set()));
-  elements.add(element);
-  if (record.window === 0)
-    record.window = win.setTimeout(() => {
-      record.window = 0;
-      const say = due(record.wanted);
-      record.wanted.clear();
-      for (const [text, by] of say) announce(by, text);
-    }, SETTLE_MS);
+  const entry = record.said.get(label);
+  if (entry !== undefined) {
+    /**
+     * No holder in the document and no grace running: either a replacement whose predecessor's cleanup (its
+     * `release()`) has not run yet, which is how core orders a swap, or a load abandoned without `release()`. Only the
+     * window's close can tell them apart, so join now and let it decide.
+     */
+    if (entry.end === 0 && !held(entry.holders)) {
+      entry.stale = true;
+      if (record.window === 0) record.window = win.setTimeout(() => record.settle(record), SETTLE_MS);
+    }
+    entry.holders.add(element);
+  } else {
+    let elements = record.wanted.get(label);
+    if (elements === undefined) record.wanted.set(label, (elements = new Set()));
+    elements.add(element);
+    if (options.done !== undefined && !record.doneFor.has(label)) record.doneFor.set(label, options.done);
+    if (record.window === 0) record.window = win.setTimeout(() => record.settle(record), SETTLE_MS);
+  }
   return {
     release: () => {
       const set = record.wanted.get(label);
-      if (set === undefined) return;
-      set.delete(element);
-      if (set.size === 0) record.wanted.delete(label);
+      if (set !== undefined && set.delete(element) && set.size === 0) {
+        record.wanted.delete(label);
+        record.doneFor.delete(label);
+      }
+      const now = record.said.get(label);
+      if (now === undefined || !now.holders.delete(element) || now.end !== 0 || held(now.holders)) return;
+      now.end = win.setTimeout(() => {
+        now.end = 0;
+        if (record.said.get(label) === now && !held(now.holders)) end(record, label, now);
+      }, SETTLE_MS);
     },
   };
 };

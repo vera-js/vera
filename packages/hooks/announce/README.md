@@ -10,7 +10,7 @@ announce(form, 'Saved');                                   // said once, politel
 announce(form, 'Card declined', { politeness: 'assertive' }); // interrupts: only for errors that block the user
 announce(field, `${left} characters left`, { key: 'count' });  // a key keeps the last of a burst
 
-const loading = want(spinner, 'Loading');                  // said once after a short settle window,
+const loading = want(spinner, 'Loading', { done: 'Loaded' }); // said once after a short settle window,
 loading.release();                                         //   unless released (a fast load says nothing)
 ```
 
@@ -30,9 +30,16 @@ loading.release();                                         //   unless released 
   moves focus into the dialog it opens), else the last open one in the document. **Limit:** if focus has fallen to
   `body` (the focused element was removed) and an earlier-in-the-document dialog was opened last, the hook can pick the
   lower one.
-- **`want(element, label)`** says `label` once when its window (~150 ms) closes, if some connected element still wants
-  it then. A label whose elements were all released, or have all left the document, is dropped. Many elements wanting
-  one label in one window say it once.
+- **`want(element, label, { done })`** says `label` once when its window (~150 ms) closes, if some connected element
+  still wants it then. A label whose elements were all released, or have all left the document, is dropped. Many
+  elements wanting one label in one window say it once.
+- **A said label is one load until it ends**, whichever elements hold it: an element that wants it later joins
+  silently, so a framework that replaces its spinner with a new element on every render says it once. The load ends a
+  settle window after its last holder is released or has left the document (a replacement inside that grace is the
+  same load), and `done`, if given, is said then; the first `done` given for a label wins. One holder still on the
+  page keeps the label's load running, so a second load with the same label says nothing: give two loads two labels.
+- **Inside an `aria-busy="true"` owner** (any composed ancestor, read when the window closes) nothing is said: the
+  owner speaks for what is busy inside it. `underBusy(element)` is that test, for a component that needs it too.
 - **A page that empties `body`** (a router swap) gets its region back on the next announcement, still exactly one.
 - **Says nothing, and throws nothing,** for an element whose document has no window, and **queues nothing in a hidden
   tab**: an announcement nobody is there to hear is stale by the time they return.
