@@ -8,22 +8,29 @@
  * Eight test files each carried their own copy, in three signatures; they all use this one, with their old timeouts
  * passed explicitly so the move changed nothing they assert.
  *
- * @param {() => unknown} predicate polled; a throw counts as not yet
+ * @param {() => unknown} predicate polled; a throw counts as not yet, and the last one is named if time runs out
  * @param {string} what named in the timeout's error
  * @param {number} timeout ms
  */
 export const until = async (predicate, what, timeout) => {
   if (typeof what !== 'string' || !(timeout > 0)) throw new TypeError('until(predicate, what, timeout): name what you wait for and how long');
   const started = performance.now();
+  let last;
   for (;;) {
     let value;
     try {
       value = predicate();
-    } catch {
+      last = undefined;
+    } catch (error) {
       value = false;
+      last = error;
     }
     if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
+    if (performance.now() - started > timeout) {
+      /** A predicate that THREW until the end says why, in the text too: not every reporter prints a cause. */
+      const why = last === undefined ? '' : ` (the last check threw: ${last?.message ?? String(last)})`;
+      throw new Error(`timed out waiting for ${what}${why}`, last === undefined ? undefined : { cause: last });
+    }
     await new Promise((r) => setTimeout(r, 10));
   }
 };
