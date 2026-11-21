@@ -11,8 +11,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { fsPath } from '../../scripts/fs-path.mjs';
 
-const root = new URL('../../', import.meta.url).pathname;
+const root = fsPath(new URL('../../', import.meta.url));
 const [rounds = 3, K = 4] = process.argv.slice(2).map(Number);
 const ref = join(root, '.probe/additive/ref/core/vera.min.js');
 const work = join(root, '.probe/baseline');

@@ -18,9 +18,10 @@ import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import { fsPath } from '../../scripts/fs-path.mjs';
 
 const sessions = Number(process.argv[2] ?? 3);
-const directory = new URL('.', import.meta.url).pathname;
+const directory = fsPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript' };
 
 if (!existsSync(join(directory, 'bundle.js'))) {

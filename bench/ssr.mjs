@@ -21,6 +21,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr';
+import { fsPath } from '../scripts/fs-path.mjs';
 /** Resolved once, at load, exactly as every other contender's renderer is. */
 const { html } = await import('@verajs/core');
 import { cpus, loadavg } from 'node:os';
@@ -181,7 +182,7 @@ for (const size of ['small', 'large']) {
  */
 try {
   const child = execFileSync(process.execPath, [
-    new URL('./lit-element-ssr.mjs', import.meta.url).pathname,
+    fsPath(new URL('./lit-element-ssr.mjs', import.meta.url)),
     JSON.stringify({ rounds: ROUNDS, small: SMALL_N, large: LARGE_N }),
   ], { encoding: 'utf8' });
   const litElement = JSON.parse(child);

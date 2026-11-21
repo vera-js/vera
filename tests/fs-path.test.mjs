@@ -36,11 +36,11 @@ test('on this OS the path opens, and keeps the URL\'s trailing slash', () => {
 });
 
 /**
- * Where `.pathname` is a WEB URL's path, not a file's: a page's `location`, a request's `url`, the browser suites (which
+ * Where `.pathname` is a WEB URL's path, not a file's: a page's `location`, a request's `url` (or a URL built from it), the browser suites (which
  * run in a page and open no files), and the files below, each with its reason. Anything else reading `.pathname` is a
  * file URL used as a path, which is the Windows break (found split from its URL too: `cwd: root.pathname`, d7).
  */
-const WEB_URL = /\b(?:location|url|l)\.pathname\b/;
+const WEB_URL = /\b(?:location|url|l)\.pathname\b|new URL\((?:req|request)\.url\b[^)]*\)\.pathname\b/;
 const ALLOWED = {
   'tests/fs-path.test.mjs': 'this suite, which names the shape',
   'scripts/fs-path.mjs': 'its doc comment names the shape',
@@ -48,12 +48,14 @@ const ALLOWED = {
   'tests/autoloader-audit-regressions.test.mjs': 'asserts the path of https URLs',
   'tests/cms-refusal-cases.mjs': 'reads a request URL',
 };
+/** Every file the scans read: the suites, scripts, benches and examples, which all run on Windows too. */
+const tooling = () =>
+  globSync('{tests,scripts,bench,examples}/**/*.{mjs,js,cjs}', { cwd: ROOT, exclude: (name) => ['node_modules', 'dist'].includes(basename(name)) }).map(posix);
 const comment = (line) => /^\s*(?:\*|\/\/|\/\*)/.test(line);
 const reads = (line) => /\.pathname\b/.test(line) && !WEB_URL.test(line) && !comment(line);
 
-test('no suite or script reads a file URL through .pathname', () => {
-  const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map(posix)
+test('no suite, script, bench or example reads a file URL through .pathname', () => {
+  const files = tooling()
     .filter((file) => !(file in ALLOWED) && !file.startsWith('tests/browser/'));
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];
@@ -69,6 +71,8 @@ test('the detector fires on each file-URL shape, and passes a web URL (planted)'
   for (const planted of ["new URL('..', import.meta.url)" + '.pathname', 'cwd: root' + '.pathname,', "cwd: new URL('./scripts/', root)" + '.pathname,'])
     assert.ok(reads(planted), `the detector misses: ${planted}`);
   assert.ok(!reads('assert.equal(window.location.pathname, "/x")'), 'a page location is a web URL');
+  assert.ok(!reads("const path = new URL(request.url, 'http://x')" + '.pathname;'), 'a URL built from a request is a web URL');
+  assert.ok(reads("new URL(here.url, import.meta.url)" + '.pathname'), 'only a request names the web case');
   assert.ok(!reads(' * a comment about .pathname'), 'a comment is not code');
 });
 
@@ -82,9 +86,8 @@ test('the detector fires on each file-URL shape, and passes a web URL (planted)'
 const HAND_BUILT = /(['"`])file:\/\/\1\s*\+|(['"`])file:\/\/\$\{/;
 const handBuilt = (line) => HAND_BUILT.test(line) && !comment(line);
 
-test('no suite or script builds a file URL by hand', () => {
-  const files = globSync(['tests/**/*.mjs', 'tests/**/*.js', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map(posix)
+test('no suite, script, bench or example builds a file URL by hand', () => {
+  const files = tooling()
     .filter((file) => file !== 'tests/fs-path.test.mjs' && !file.startsWith('tests/browser/'));
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];
@@ -111,9 +114,8 @@ test('the hand-built detector fires on each shape (planted)', () => {
  */
 const PATH_IMPORT = /\bimport\(\s*(?:join|resolve|fileURLToPath|fsPath)\(|\bimport\(\s*'\$\{root\}/;
 
-test('no suite or script imports a module by a file path', () => {
-  const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map(posix)
+test('no suite, script, bench or example imports a module by a file path', () => {
+  const files = tooling()
     .filter((file) => file !== 'tests/fs-path.test.mjs');
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];
@@ -148,8 +150,7 @@ const INLINE = [
 const inline = (line) => INLINE.some((re) => re.test(line));
 
 test('no script or suite converts slashes inline; posix() is the one conversion', () => {
-  const files = globSync('{tests,scripts,bench}/**/*.{mjs,js,cjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') })
-    .map(posix)
+  const files = tooling()
     .filter((file) => file !== 'scripts/fs-path.mjs' && file !== 'tests/fs-path.test.mjs');
   assert.ok(files.length >= 200, `CONTROL: ${files.length} files read`);
   const found = [];
@@ -215,8 +216,7 @@ test('posix() turns the platform separator into a forward slash on Windows', { s
 const PRELOAD = /--(?:import|loader|experimental-loader)[ =]\$\{(?![^}]*\.href\s*\})[^}]*\}/;
 
 test('every preload a script or suite passes in a template is a file URL', () => {
-  const files = globSync('{tests,scripts,bench}/**/*.{mjs,js,cjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') })
-    .map(posix)
+  const files = tooling()
     .filter((file) => file !== 'tests/fs-path.test.mjs');
   assert.ok(files.length >= 200, `CONTROL: ${files.length} files read`);
   const found = [];

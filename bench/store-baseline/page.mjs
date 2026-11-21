@@ -12,8 +12,9 @@ import { join, extname } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright';
 import { MIN_SAMPLE } from './rows.mjs';
 import { holdRaceLock } from '../race-lock.mjs';
+import { fsPath } from '../../scripts/fs-path.mjs';
 
-const root = new URL('../../', import.meta.url).pathname;
+const root = fsPath(new URL('../../', import.meta.url));
 /** Held while this page driver times: builds, typecheck and lint refuse under it (`../race-lock.mjs`). */
 holdRaceLock(root, 'bench/store-baseline/page.mjs');
 const [engine = 'firefox', roundsArg = '3'] = process.argv.slice(2).filter((a) => !a.startsWith('--'));

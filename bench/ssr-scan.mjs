@@ -21,7 +21,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { loadavg, platform } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const cache = fileURLToPath(new URL('./.cache/', import.meta.url));
@@ -34,9 +34,9 @@ const flag = (name) => {
 if (process.argv[2] === '--child') {
   const [, , , entry, workload] = process.argv;
   /** Every file read once first, so no variant pays for a colder OS cache than another. */
-  const dir = new URL('.', `file://${entry}`);
+  const dir = new URL('.', pathToFileURL(entry));
   for (const f of readdirSync(dir)) if (f.endsWith('.js')) readFileSync(new URL(f, dir));
-  const { serializeTemplate, renderToString } = await import(`file://${entry}`);
+  const { serializeTemplate, renderToString } = await import(pathToFileURL(entry).href);
   let seed = 7;
   const rnd = (n) => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) % n);
   const words = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor'.split(' ');

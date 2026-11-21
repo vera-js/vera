@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { holdRaceLock } from '../race-lock.mjs';
 import { harnessSha } from './harness-sha.mjs';
 import { parsePs, treeOf, outside, foreignBrowsers, busyApps, assess, saverUp, displayHeldFor, startVerdict } from './guards.mjs';
+import { fsPath } from '../../scripts/fs-path.mjs';
 
 const args = process.argv.slice(2);
 const sessions = Number(args[0]);
@@ -50,7 +51,7 @@ const engines = (flag('engines') ?? 'chrome,firefox,webkit').split(',');
  */
 const subset = Object.fromEntries((flag('subset') ?? '').split(';').filter(Boolean).map((e) => { const at = e.indexOf(':'); return [e.slice(0, at), e.slice(at + 1).split('|')]; }));
 for (const [v, list] of Object.entries(subset)) for (const i of list) if (!impls.includes(i)) throw new Error(`--subset ${v}: ${i} is not in --only`);
-const directory = new URL('.', import.meta.url).pathname;
+const directory = fsPath(new URL('.', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
 /**
  * **`--coi`: the page is cross-origin isolated** (COOP same-origin + COEP require-corp), which is what lets an engine give
@@ -134,7 +135,7 @@ const quiet = async () => {
  * dists it inlined, printed before anything runs, so a later reader can tell which source a record measured.
  */
 const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12);
-const root = new URL('../..', import.meta.url).pathname;
+const root = fsPath(new URL('../..', import.meta.url));
 /** Every page's bundle must carry this stamp (`harness-sha.mjs`). */
 const HARNESS = harnessSha();
 console.log(`harness ${HARNESS} (main.js + impls.js; every bundle must carry it)`);
