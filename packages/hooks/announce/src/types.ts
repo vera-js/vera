@@ -1,7 +1,7 @@
 /** `aria-live`'s two speaking values: `polite` waits for the user to pause, `assertive` interrupts. */
 export type Politeness = 'polite' | 'assertive';
 
-export interface AnnounceOptions {
+export type AnnounceOptions = {
   /** Default `polite`. `assertive` interrupts the user: for errors that block them, never for progress. */
   politeness?: Politeness;
   /**
@@ -9,19 +9,19 @@ export interface AnnounceOptions {
    * key's earlier one in the region (a count that ticks while typing keeps one node).
    */
   key?: string;
-}
+};
 
 /** A registration made by `want()`: `release()` takes it back, and is safe to call more than once. */
-export interface Wanted {
+export type Wanted = {
   release: () => void;
-}
+};
 
 /**
  * **The record every copy of this hook shares, one per document**, under `Symbol.for('vera.announce')` on the document.
  * Declared for life: a field is only ever ADDED (and `v` raised); none is removed or retyped, so every copy reads every
  * version, and two copies on one page keep one region and one settle window between them.
  */
-export interface AnnounceRecord {
+export type AnnounceRecord = {
   /** The shape's version: 1. A newer copy adds fields and raises it; an older copy reads the fields it knows. */
   v: number;
   /** The document's own regions, on `body`, by politeness. Re-created when a page emptied `body`. */
@@ -41,10 +41,10 @@ export interface AnnounceRecord {
   queue: Partial<Record<Politeness, Queued[]>>;
   /** The timer that will write each politeness's queue while one is armed, else 0 or absent. */
   flush: Partial<Record<Politeness, number>>;
-}
+};
 
 /** One message waiting in a queue: its text, and its key when it has one. */
-export interface Queued {
+export type Queued = {
   text: string;
   key: string | undefined;
-}
+};

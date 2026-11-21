@@ -23,7 +23,7 @@ import type { LabeledParts, LabeledWiring } from './types.js';
  */
 const uid: { n: number } = ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.uid')] ??= { n: 0 }) as { n: number };
 
-/**
+/*
  * The three element fields below are keyed by `Symbol.for`, SHARED ACROSS COPIES ON PURPOSE (not the per-copy `Symbol()`
  * CLAUDE.md asks of a cache): two copies of the library wiring one control must agree on who owns it, which id they gave
  * it, and whether it was already warned about, or each copy would wire, number and warn on its own.
