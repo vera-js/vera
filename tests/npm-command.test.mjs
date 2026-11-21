@@ -47,12 +47,20 @@ test('buildProcesses finds a build in this tree and ignores one in another (plan
 });
 
 test('test-batch sets leading NAME=value arguments in the command environment, in any shell', () => {
-  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'VERA_PROBE=yes', 'node', '-e', "process.exit(process.env.VERA_PROBE === 'yes' ? 0 : 3)"], { cwd: ROOT, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'VERA_PROBE=yes', 'node', '-e', "process.exit(process.env.VERA_PROBE === 'yes' ? 0 : 3)"], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
   assert.equal(run.status, 0, `the variable did not arrive (exit ${run.status}) ${run.stderr}`);
 });
 
+test("test-batch hands its batch to the command, so a command running its own heavy batch inherits it instead of waiting on its parent's lock", () => {
+  const env = { ...process.env, VERA_HEAVY_LOCK: join(tmpdir(), `vera-heavy-row-${process.pid}.lock`) };
+  delete env.VERA_HEAVY_BATCH;
+  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'node', '-e', "process.stdout.write(process.env.VERA_HEAVY_BATCH ?? 'unset')"], { cwd: ROOT, encoding: 'utf8', env, timeout: 60000 });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'tests', 'the command did not see the batch test-batch started');
+});
+
 test('test-batch starts a project tool from node_modules/.bin', () => {
-  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'tsc', '--version'], { cwd: ROOT, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', 'tsc', '--version'], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /Version \d+\./);
 });

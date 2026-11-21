@@ -40,6 +40,12 @@ if (command === 'node' && rest.includes('--test') && !rest.some((arg) => arg.sta
   throw new Error('a node --test names its build: add --conditions development, or VERA_DIST=production before node (a run with neither mixes the two builds)');
 heavyBatch('tests', { pause: !light })();
 /**
+ * The batch marker reaches the command: `env` was copied before `heavyBatch` set it, so a command that runs a heavy
+ * batch of its own (`npm run test:tiers` is this script around `tier-suites.mjs`) took the lock again and waited on its
+ * own parent forever; inside the gate it worked only because the gate had set the marker first (2026-11-21).
+ */
+env.VERA_HEAVY_BATCH = process.env.VERA_HEAVY_BATCH;
+/**
  * npm and npx through `npmCommand`; on Windows a project tool (`web-test-runner`, `tsc`) is a `.cmd` in
  * `node_modules/.bin` that spawn cannot start either, so it runs through npx there (`--no`: never install). Node
  * itself and every command on macOS and Linux run as written.

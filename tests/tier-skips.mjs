@@ -54,7 +54,9 @@ export const TIERS = {
           "release at removal: a component MIXING declared and adopted props — both reactive after a remove and re-add": "core-only: core",
           "release at removal: a CLASS component with adopted props, removed then re-added, still hears its parent": "core-only: core",
           "release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)": "core-only: core",
-          "release at removal: a MIXED component (an adopted key arrives FIRST) has its declared defaults before and after a remove/re-add": "core-only: core"
+          "release at removal: a MIXED component (an adopted key arrives FIRST) has its declared defaults before and after a remove/re-add": "core-only: core",
+          "register: false builds the class and registers nothing; the caller registers it under its own tag, and it works": "core-only: define's register and formAssociated options; lite and static do not take them yet",
+          "formAssociated: true sets the static on that class only, and stays out of the init options": "core-only: define's register and formAssociated options; lite and static do not take them yet"
         }
       },
       "core-define-proto": {
@@ -371,7 +373,9 @@ export const TIERS = {
           "release at removal: a component MIXING declared and adopted props — both reactive after a remove and re-add": "core-only: core",
           "release at removal: a CLASS component with adopted props, removed then re-added, still hears its parent": "core-only: core",
           "release at removal: after a re-add, a parent’s live `!name` compare reads the NEW record (a captured old store would read a stale copy)": "core-only: core",
-          "release at removal: a MIXED component (an adopted key arrives FIRST) has its declared defaults before and after a remove/re-add": "core-only: core"
+          "release at removal: a MIXED component (an adopted key arrives FIRST) has its declared defaults before and after a remove/re-add": "core-only: core",
+          "register: false builds the class and registers nothing; the caller registers it under its own tag, and it works": "core-only: define's register and formAssociated options; lite and static do not take them yet",
+          "formAssociated: true sets the static on that class only, and stays out of the init options": "core-only: define's register and formAssociated options; lite and static do not take them yet"
         }
       },
       "core-define-proto": {

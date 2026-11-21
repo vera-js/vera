@@ -89,15 +89,16 @@ export const realmChecks = (text, name = 'x.ts') => {
 };
 
 /**
- * The known uses, each by exact file, line and text, with why it stands. An allowance whose line is gone fails too, so
- * the list only shrinks. (Router's two view checks and motion's canvas and HTML checks were defects until they read the
- * node's type, name and namespace instead, 2026-11-21.)
+ * The known uses, each by file and the exact expression text (never a line number: an edit above it moved the line and
+ * turned a gate red, 2026-11-21), with why it stands. Each is allowed once per file; a second copy is new code. An
+ * allowance whose expression is gone fails too, so the list only shrinks. (Router's two view checks and motion's canvas
+ * and HTML checks were defects until they read the node's type, name and namespace instead, 2026-11-21.)
  */
 const ALLOWED = new Map([
-  ['packages/renderer/src/renderer.ts:1726 ((root as ShadowRoot | null)?.host ?? root) instanceof (doc.defaultView as typeof globalThis).HTMLElement', "realm identity is the question: was this host built by the renderer's own realm (content then builds there; tests/browser/realm.test.js)"],
-  ['packages/styles/src/styles.ts:162 sheet instanceof view.CSSStyleSheet', "realm identity is the question: adoptedStyleSheets takes only a sheet constructed in the root's own realm"],
-  ['packages/motion/src/registry.ts:220 new CSSStyleSheet() instanceof CSSStyleSheet', 'not a realm check: a feature probe that constructs and tests in the same realm, touching no node'],
-  ['packages/ssr/src/vera/events.ts:148 event instanceof Event', "not a realm check: Node-only, one realm, mirroring the platform's own refusal of a non-Event"],
+  ['packages/renderer/src/renderer.ts ((root as ShadowRoot | null)?.host ?? root) instanceof (doc.defaultView as typeof globalThis).HTMLElement', "realm identity is the question: was this host built by the renderer's own realm (content then builds there; tests/browser/realm.test.js)"],
+  ['packages/styles/src/styles.ts sheet instanceof view.CSSStyleSheet', "realm identity is the question: adoptedStyleSheets takes only a sheet constructed in the root's own realm"],
+  ['packages/motion/src/registry.ts new CSSStyleSheet() instanceof CSSStyleSheet', 'not a realm check: a feature probe that constructs and tests in the same realm, touching no node'],
+  ['packages/ssr/src/vera/events.ts event instanceof Event', "not a realm check: Node-only, one realm, mirroring the platform's own refusal of a non-Event"],
 ]);
 
 test('CONTROL: the reader finds a global DOM class on the right of instanceof, and nothing else', () => {
@@ -130,13 +131,17 @@ test('CONTROL: the reader finds a global DOM class on the right of instanceof, a
 test('no package source tests instanceof against a DOM class it did not declare (the global one or a view\'s), and every allowance is still needed', () => {
   const files = walkFiles(join(root, 'packages'), /\.ts$/).filter((file) => file.includes('/src/') && !file.endsWith('.d.ts'));
   assert.ok(files.length >= 200, `CONTROL: the walk read ${files.length} package sources`);
-  const found = [];
+  /** Each hit by file and text, counted; its line is reported, never part of the key. */
+  const found = new Map();
   for (const file of files) {
     /** walkFiles answers with `/` on every platform, so the key is the same on Windows and POSIX. */
     const rel = file.slice(root.length + 1);
-    for (const { line, text } of realmChecks(readFileSync(file, 'utf8'), rel)) found.push(`${rel}:${line} ${text}`);
+    for (const { line, text } of realmChecks(readFileSync(file, 'utf8'), rel)) {
+      const key = `${rel} ${text}`;
+      found.set(key, [...(found.get(key) ?? []), line]);
+    }
   }
-  const unexpected = found.filter((key) => !ALLOWED.has(key));
+  const unexpected = [...found].flatMap(([key, lines]) => (ALLOWED.has(key) ? lines.slice(1) : lines).map((line) => `${key} (line ${line})`));
   assert.deepEqual(unexpected, [], 'test structure (`nodeType === 1`, `namespaceURI`, `localName`); the class from the node\'s own view is not a fix (adoption keeps the prototype)');
-  assert.deepEqual([...ALLOWED.keys()].filter((key) => !found.includes(key)), [], 'an allowance whose line is gone: remove it');
+  assert.deepEqual([...ALLOWED.keys()].filter((key) => !found.has(key)), [], 'an allowance whose expression is gone: remove it');
 });
