@@ -6,13 +6,14 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { relative, dirname } from 'node:path';
+import { posix } from '../fs-path.mjs';
 const PATTERN = /new URL\(([^()]+?), import\.meta\.url\)\.pathname/g;
 for (const file of process.argv.slice(2)) {
   let s = readFileSync(file, 'utf8');
   const next = s.replace(PATTERN, (_, arg) => `fsPath(new URL(${arg}, import.meta.url))`);
   if (next === s) continue;
   s = next;
-  let spec = relative(dirname(file), 'scripts/fs-path.mjs').split(String.fromCharCode(92)).join('/');
+  let spec = posix(relative(dirname(file), 'scripts/fs-path.mjs'));
   if (!spec.startsWith('.')) spec = './' + spec;
   const line = `import { fsPath } from '${spec}';`;
   if (!s.includes(line)) {

@@ -17,9 +17,9 @@
  * `vera-states` extension field, because a `data-state` value is API too.
  */
 import { globSync, readFileSync, writeFileSync } from 'node:fs';
-import { sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, packageDirs } from './packages.mjs';
+import { posix } from './fs-path.mjs';
 
 /** `vera-select` → `VeraSelect`. */
 const className = (tag) =>
@@ -69,7 +69,7 @@ const manifestOf = async (dir) => {
   const pkg = JSON.parse(readFileSync(`${ROOT}${dir}/package.json`, 'utf8'));
   /** With `/` on every platform (`globSync` answers `\` on Windows), so a message names the file the same way everywhere. */
   const files = globSync('src/**/surface.ts', { cwd: `${ROOT}${dir}` })
-    .map((file) => file.split(sep).join('/'))
+    .map(posix)
     .sort();
   /**
    * By identity, across every file: one surface exported under two names (`export default xSurface` beside its named

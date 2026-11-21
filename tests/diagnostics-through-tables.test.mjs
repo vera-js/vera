@@ -11,13 +11,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { join } from 'node:path';
 
 /** A glob's matches with `/` on every platform (Windows answers `\`): the allow-lists here are written with `/`. */
-const glob = (pattern, options) => globSync(pattern, options).map((file) => file.split(sep).join('/'));
+const glob = (pattern, options) => globSync(pattern, options).map(posix);
 import { fileURLToPath } from 'node:url';
 import { DIRECTIVES, TABLES as LISTED, proseOf } from '../scripts/diagnostic-tables.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
+import { posix } from '../scripts/fs-path.mjs';
 
 /** Every package's tables, directives' included (published by sync-diagnostics with its payloads, so listed apart). */
 const TABLES = [...LISTED, DIRECTIVES];

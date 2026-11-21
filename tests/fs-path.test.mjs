@@ -9,9 +9,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fsPath } from '../scripts/fs-path.mjs';
+import { fsPath, posix } from '../scripts/fs-path.mjs';
 
 const ROOT = fsPath(new URL('..', import.meta.url));
 const BACKSLASH = String.fromCharCode(92);
@@ -52,7 +52,7 @@ const reads = (line) => /\.pathname\b/.test(line) && !WEB_URL.test(line) && !com
 
 test('no suite or script reads a file URL through .pathname', () => {
   const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map((file) => file.split(BACKSLASH).join('/'))
+    .map(posix)
     .filter((file) => !(file in ALLOWED) && !file.startsWith('tests/browser/'));
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];
@@ -83,7 +83,7 @@ const handBuilt = (line) => HAND_BUILT.test(line) && !comment(line);
 
 test('no suite or script builds a file URL by hand', () => {
   const files = globSync(['tests/**/*.mjs', 'tests/**/*.js', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map((file) => file.split(BACKSLASH).join('/'))
+    .map(posix)
     .filter((file) => file !== 'tests/fs-path.test.mjs' && !file.startsWith('tests/browser/'));
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];
@@ -112,7 +112,7 @@ const PATH_IMPORT = /\bimport\(\s*(?:join|resolve|fileURLToPath|fsPath)\(|\bimpo
 
 test('no suite or script imports a module by a file path', () => {
   const files = globSync(['tests/**/*.mjs', 'scripts/**/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map((file) => file.split(BACKSLASH).join('/'))
+    .map(posix)
     .filter((file) => file !== 'tests/fs-path.test.mjs');
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];
@@ -127,4 +127,78 @@ test('the path-import detector fires on each shape (planted)', () => {
   for (const planted of ["await import(join(root, 'x.js'))", 'await import(fileURLToPath(url))', "await import('${" + "root}packages/core/x.js')"])
     assert.ok(PATH_IMPORT.test(planted), `the detector misses: ${planted}`);
   assert.ok(!PATH_IMPORT.test('await import(pathToFileURL(join(root, "x.js")).href)'), 'the URL passes');
+});
+
+/**
+ * **One slash conversion, `posix()` in scripts/fs-path.mjs.** Splitting on a literal backslash is wrong on macOS and
+ * Linux, where a backslash is an ordinary character in a file name; eleven sites converted inline in three spellings,
+ * five of them that way. Every spelling the sweep found is refused outside fs-path.mjs, read as code (a comment saying
+ * one is not a call).
+ */
+const INLINE = [
+  /\.split\(\s*(?:path\.)?(?:posix\.|win32\.)?sep\s*\)\s*\.join\(/,
+  /\.split\(\s*(['"`])\\\\\1\s*\)\s*\.join\(/,
+  /\.split\(\s*(?:BACKSLASH|String\.fromCharCode\(\s*92\s*\))\s*\)\s*\.join\(/,
+  /** A replace counts only when it writes a forward slash: escaping a backslash for a template is not a path. */
+  /\.replaceAll\(\s*(?:(['"`])\\\\\1|BACKSLASH|String\.fromCharCode\(\s*92\s*\))\s*,\s*(['"`])\/\2\s*\)/,
+  /\.replace\(\s*\/\\\\\/g\s*,\s*(['"`])\/\1\s*\)/,
+  /\.join\(\s*(?:path\.)?posix\.sep\s*\)/,
+];
+const inline = (line) => INLINE.some((re) => re.test(line));
+
+test('no script or suite converts slashes inline; posix() is the one conversion', () => {
+  const files = globSync('{tests,scripts,bench}/**/*.{mjs,js,cjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') })
+    .map(posix)
+    .filter((file) => file !== 'scripts/fs-path.mjs' && file !== 'tests/fs-path.test.mjs');
+  assert.ok(files.length >= 200, `CONTROL: ${files.length} files read`);
+  const found = [];
+  for (const file of files)
+    readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
+      if (inline(line) && !/^\s*(?:\/\/|\*)/.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  assert.deepEqual(found, [], 'use posix() from scripts/fs-path.mjs');
+});
+
+/**
+ * **A package converts on the platform's separator, never on a backslash.** Packages are independent and cannot import
+ * scripts/, so `split(sep).join('/')` is the right spelling there; the spellings that split a backslash are wrong on
+ * macOS and Linux, where it is a character of a file name. ssr is Node-only and handles paths, so this is where one
+ * would matter first.
+ */
+const BACKSLASH_FORMS = [...INLINE.slice(1, 5), /\.split\(\s*(?:path\.)?win32\.sep\s*\)/];
+
+test('no package source splits a path on a backslash', () => {
+  const files = globSync('packages/**/src/**/*.{ts,mts,js,mjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') }).map(posix);
+  assert.ok(files.length >= 200, `CONTROL: ${files.length} package sources read`);
+  const found = [];
+  for (const file of files)
+    readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
+      if (BACKSLASH_FORMS.some((re) => re.test(line)) && !/^\s*(?:\/\/|\*)/.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  assert.deepEqual(found, [], "split on the platform's sep (node:path), not on a backslash");
+  const b = BACKSLASH;
+  assert.ok(BACKSLASH_FORMS.some((re) => re.test(`p.split('${b}${b}').join('/')`)) && BACKSLASH_FORMS.some((re) => re.test('p.split(win32.sep)')), 'CONTROL: the package rule fires (planted)');
+  assert.ok(!BACKSLASH_FORMS.some((re) => re.test("p.split(sep).join('/')")), "the platform's sep passes in a package");
+});
+
+test('the inline-conversion detector fires on each spelling, and not on posix() or an ordinary split (planted)', () => {
+  const b = BACKSLASH;
+  for (const planted of [
+    "file.split(sep).join('/')", "file.split(path.sep).join('/')", 'file.split( sep ).join("/")',
+    `file.split('${b}${b}').join('/')`, `file.split("${b}${b}").join('/')`, 'file.split(BACKSLASH).join("/")',
+    "file.split(String.fromCharCode(92)).join('/')", `file.replaceAll('${b}${b}', '/')`, 'file.replaceAll(BACKSLASH, "/")',
+    `file.replace(/${b}${b}/g, '/')`, 'parts.join(path.posix.sep)', 'parts.join(posix.sep)',
+  ])
+    assert.ok(inline(planted), `the detector misses: ${planted}`);
+  for (const near of ['posix(file)', "url.split('/').slice(0, 2).join('/')", "line.split(', ').join(' ')", 'text.replace(/x/g, "/")', `text.replace(/${b}${b}/g, '${b}${b}${b}${b}')`, `text.replaceAll('${b}${b}', '${b}${b}${b}${b}')`])
+    assert.ok(!inline(near), `the detector over-reads: ${near}`);
+});
+
+test('posix() keeps a backslash in a file name on macOS and Linux', { skip: sep !== '/' && 'POSIX only (a backslash is a separator here); CI runs it on Linux' }, () => {
+  assert.equal(posix(`a${BACKSLASH}b/c`), `a${BACKSLASH}b/c`);
+  assert.equal(fsPath('file:///tmp/a%5Cb.mjs'), `/tmp/a${BACKSLASH}b.mjs`, 'a %5C in a file URL is a backslash in the name, kept');
+});
+
+test('posix() turns the platform separator into a forward slash on Windows', { skip: sep === '/' && 'Windows only' }, () => {
+  assert.equal(posix(`c:${BACKSLASH}a${BACKSLASH}b`), 'c:/a/b');
 });

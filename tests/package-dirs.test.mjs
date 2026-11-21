@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, globSync } from 'node:fs';
 import { basename } from 'node:path';
 import { ROOT, packageDirs, packageFiles } from '../scripts/packages.mjs';
+import { posix } from '../scripts/fs-path.mjs';
 
 test('the helper finds the packages npm links, at every depth the workspaces name', () => {
   const dirs = packageDirs();
@@ -21,7 +22,7 @@ test('the helper finds the packages npm links, at every depth the workspaces nam
   for (const level of ['packages/components/*', 'packages/hooks/*'])
     assert.ok(workspaces.includes(level), `the workspaces name ${level}, so npm links a package there`);
   /** Every package npm would link is one the helper returns: the same globs, read from the same file. */
-  const npm = globSync(workspaces.map((pattern) => `${pattern}/package.json`), { cwd: ROOT }).map((file) => file.split('\\').join('/').replace(/\/package\.json$/, ''));
+  const npm = globSync(workspaces.map((pattern) => `${pattern}/package.json`), { cwd: ROOT }).map((file) => posix(file).replace(/\/package\.json$/, ''));
   assert.deepEqual([...new Set(npm)].sort(), dirs);
   assert.ok(packageFiles('package.json').length === dirs.length, 'packageFiles reaches every package');
 });
@@ -60,7 +61,7 @@ const twoStepWalks = (text) => {
 
 test('no script or test walks packages/* by hand', () => {
   const files = globSync(['scripts/**/*.mjs', 'tests/**/*.mjs', 'tests/**/*.js', 'bench/*.mjs'], { cwd: ROOT, exclude: (name) => basename(name) === 'node_modules' })
-    .map((file) => file.split('\\').join('/'))
+    .map(posix)
     .filter((file) => file !== 'scripts/packages.mjs' && file !== 'tests/package-dirs.test.mjs');
   assert.ok(files.length > 100, `CONTROL: only ${files.length} files scanned`);
   const found = [];

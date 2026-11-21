@@ -42,6 +42,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, globSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { posix } from '../scripts/fs-path.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { packageFiles } from '../scripts/packages.mjs';
@@ -77,7 +78,7 @@ for (const manifest of manifests) {
     for (const [condition, target] of Object.entries(conditions))
       if (typeof target === 'string' && target.startsWith('.')) {
         targets.push({ name, condition, target, path: join(dir, target) });
-        reached.add(join(dir, target).replace(/\\/g, '/'));
+        reached.add(posix(join(dir, target)));
       }
 
     if (conditions.development && conditions.default && conditions.development !== conditions.default)
@@ -104,7 +105,7 @@ for (const reached of reachable.values()) {
     }
     for (const [, specifier] of readFileSync(join(root, file), 'utf8').matchAll(RELATIVE_IMPORT)) {
       /** A declaration's `./x.js` is what TypeScript resolves to `./x.d.ts`. */
-      const named = join(dirname(file), specifier).replace(/\\/g, '/');
+      const named = posix(join(dirname(file), specifier));
       const target = file.endsWith('.d.ts') ? named.replace(/\.js$/, '.d.ts') : named;
       if (reached.has(target) || !existsSync(join(root, target))) continue;
       reached.add(target);
@@ -116,7 +117,7 @@ for (const reached of reachable.values()) {
 /** What a package's `files` negations keep out of its tarball (`!dist/vera/types.js`): built, but never published. */
 const excludedFromTarball = (dir, built) => {
   const json = JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8'));
-  const relative = built.replace(/\\/g, '/').slice(dir.length + 1);
+  const relative = posix(built).slice(dir.length + 1);
   return (json.files ?? []).some((entry) => entry.startsWith('!') && entry.slice(1) === relative);
 };
 
@@ -162,7 +163,7 @@ test('and every built artifact is reachable through some subpath', () => {
       ...globSync(`${dir}/dist/**/*.d.ts`, { cwd: root }),
     ]) {
       examined++;
-      if (!reached.has(built.replace(/\\/g, '/')) && !excludedFromTarball(dir, built)) stranded.push(built);
+      if (!reached.has(posix(built)) && !excludedFromTarball(dir, built)) stranded.push(built);
     }
 
   /**

@@ -10,9 +10,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync } from 'node:fs';
-import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageFiles } from '../scripts/packages.mjs';
+import { posix } from '../scripts/fs-path.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -47,7 +47,7 @@ test('no test imports a package with a node condition bare — it goes through l
   const found = [];
   let scanned = 0;
   /** With `/` on every platform: the skips and ALLOWED below are written with `/`, and globSync answers `\` on Windows. */
-  for (const file of globSync('tests/**/*.{mjs,js}', { cwd: root }).map((path) => path.split(sep).join('/'))) {
+  for (const file of globSync('tests/**/*.{mjs,js}', { cwd: root }).map(posix)) {
     if (file === 'tests/bare-import-conditions.test.mjs') continue;
     /**
      * The browser suites resolve through @web/test-runner, whose node-resolve passes the conditions

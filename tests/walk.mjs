@@ -15,7 +15,8 @@
  * a vanished entry as an entry that was not there, which is the truth by the time we look.
  */
 import { readdirSync, statSync, readFileSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { join } from 'node:path';
+import { posix } from '../scripts/fs-path.mjs';
 
 /** Directories no check in this repo ever wants: dependencies, build output, VCS, another repo. */
 export const IGNORED = ['node_modules', 'dist', '.git', 'internal', 'coverage'];
@@ -45,7 +46,7 @@ export const walkFiles = (root, pattern, options = {}) => {
     for (const entry of entries) {
       if (ignore.includes(entry)) continue;
       if (skipDotDirs && entry.startsWith('.')) continue;
-      const full = join(dir, entry).split(sep).join('/');
+      const full = posix(join(dir, entry));
       let isDirectory;
       try {
         isDirectory = statSync(full).isDirectory();

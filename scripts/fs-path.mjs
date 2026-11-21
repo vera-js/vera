@@ -8,12 +8,24 @@
  * and Linux it is byte-identical to `.pathname` for every path without percent-encoded characters (and correct for the
  * ones with them, which `.pathname` leaves encoded). `tests/fs-path.test.mjs` holds both claims.
  */
+import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * The path of a `file:` URL, with forward slashes.
+ * A platform path with forward slashes: the one conversion every script and suite uses. It splits on the PLATFORM's
+ * separator, so on macOS and Linux it changes nothing; splitting on a backslash there would cut a file name, since a
+ * backslash is an ordinary character in one (`tests/fs-path.test.mjs` holds both).
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+export const posix = (path) => path.split(sep).join('/');
+
+/**
+ * The path of a `file:` URL, with forward slashes. A `%5C` in a file URL is a backslash in the file's name on macOS and
+ * Linux, kept as one.
  *
  * @param {URL | string} url
  * @returns {string}
  */
-export const fsPath = (url) => fileURLToPath(url).replaceAll('\\', '/');
+export const fsPath = (url) => posix(fileURLToPath(url));

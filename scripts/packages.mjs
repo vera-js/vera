@@ -12,6 +12,7 @@
  */
 import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { posix } from './fs-path.mjs';
 
 /** The repository root, with a trailing slash. */
 export const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -26,7 +27,7 @@ export const ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const packageDirs = (root = ROOT) => {
   const { workspaces } = JSON.parse(readFileSync(root + 'package.json', 'utf8'));
   const manifests = globSync(workspaces.map((pattern) => `${pattern}/package.json`), { cwd: root });
-  return [...new Set(manifests.map((file) => file.split('\\').join('/').slice(0, -'/package.json'.length)))].sort();
+  return [...new Set(manifests.map((file) => posix(file).slice(0, -'/package.json'.length)))].sort();
 };
 
 /**
@@ -39,5 +40,5 @@ export const packageDirs = (root = ROOT) => {
  */
 export const packageFiles = (pattern, root = ROOT) =>
   globSync(packageDirs(root).map((dir) => `${dir}/${pattern}`), { cwd: root })
-    .map((file) => file.split('\\').join('/'))
+    .map(posix)
     .sort();

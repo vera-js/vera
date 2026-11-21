@@ -28,6 +28,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs';
 import { ROOT, packageDirs } from '../scripts/packages.mjs';
+import { posix } from '../scripts/fs-path.mjs';
 
 /** The `.mjs` registries a new package must appear in, read as code with comments stripped. */
 const REGISTRIES = { dist: 'tests/dist.mjs', docsImports: 'tests/docs-imports.test.mjs', docsRecipes: 'tests/docs-recipes.test.mjs', sizes: 'scripts/size-modules.mjs' };
@@ -238,7 +239,7 @@ const filesOf = (dir) => {
   const files = {};
   if (existsSync(`${ROOT}${dir}/LICENSE`)) files.LICENSE = true;
   if (existsSync(`${ROOT}${dir}/README.md`)) files['README.md'] = read(`${dir}/README.md`);
-  for (const file of globSync('src/**/*.ts', { cwd: `${ROOT}${dir}` })) files[file.split('\\').join('/')] = read(`${dir}/${file}`);
+  for (const file of globSync('src/**/*.ts', { cwd: `${ROOT}${dir}` })) files[posix(file)] = read(`${dir}/${file}`);
   return files;
 };
 
