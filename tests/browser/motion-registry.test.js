@@ -137,9 +137,18 @@ it('a registered property INTERPOLATES where an unregistered one flips', async (
      *  rAF callback in a turn runs before the same paint. The trap with two addresses now. */
     void getComputedStyle(el).getPropertyValue(name);
     el.style.setProperty(name, '1');
-    await new Promise((r) => setTimeout(r, 120));
-    const value = Number(getComputedStyle(el).getPropertyValue(name));
-    return value > 0 && value < 1;
+    /**
+     * Polled across the transition, not sampled once: under a full suite's load (WebKit on Windows, 2026-11-20) the
+     * transition can start after a single 120 ms sample, which then read its start value and passed for no mid value.
+     * The unregistered control never has one at any moment, so polling cannot make it pass.
+     */
+    const until = performance.now() + 900;
+    while (performance.now() < until) {
+      await new Promise((r) => setTimeout(r, 40));
+      const value = Number(getComputedStyle(el).getPropertyValue(name));
+      if (value > 0 && value < 1) return true;
+    }
+    return false;
   };
 
   /** The CONTROL: without it, "interpolated" below could be a probe that measures nothing. */
