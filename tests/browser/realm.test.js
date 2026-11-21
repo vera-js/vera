@@ -114,7 +114,7 @@ it('a component in another window waits for THAT window\'s frames when it must w
   try {
     loop.until = 6;
     element._state.n = 1;
-    await until(() => element.textContent.trim() === '6', 'the loop settled on the iframe's frames', 5000);
+    await until(() => element.textContent.trim() === '6', "the loop settled on the iframe's frames", 5000);
   } finally {
     opener.restore();
     inner.restore();

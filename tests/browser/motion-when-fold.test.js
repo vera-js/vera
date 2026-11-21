@@ -27,12 +27,12 @@ it('a folded gate behaves with NO wiring: server CSS + a class toggle = the tran
 
   el.classList.add('lit');
   /** Waits for the end state rather than a time: a loaded machine starts the 250 ms transition late. */
-  await until(() => /opacity(0.9)/.test(getComputedStyle(el).filter), 'the lit end state', 5000);
+  await until(() => /opacity\(0\.9\)/.test(getComputedStyle(el).filter), 'the lit end state', 5000);
   expect(getComputedStyle(el).filter, 'the class alone drove the transition — zero JS involved')
     .to.match(/opacity\(0\.9\)/);
 
   el.classList.remove('lit');
-  await until(() => /opacity(0.2)/.test(getComputedStyle(el).filter), 'the unlit end state', 5000);
+  await until(() => /opacity\(0\.2\)/.test(getComputedStyle(el).filter), 'the unlit end state', 5000);
   expect(getComputedStyle(el).filter, 'and reverses the same way').to.match(/opacity\(0\.2\)/);
   host.remove();
 });
@@ -52,7 +52,7 @@ it(':where() keeps a wild gate at 0-2-0 — an ordinary three-class author rule 
   const tame = host.querySelector('#tame');
   el.setAttribute('data-k', '');
   tame.setAttribute('data-k', '');
-  await until(() => /opacity(1)/.test(getComputedStyle(tame).filter), 'CONTROL: the unopposed twin gate reached its active value', 5000);
+  await until(() => /opacity\(1\)/.test(getComputedStyle(tame).filter), 'CONTROL: the unopposed twin gate reached its active value', 5000);
   /** Gate matches (#wild.a[data-k]) — if its specificity leaked through :where(), the active
    *  rule would be 1-2-1 + 0-2-0 and beat the author's 0-3-0. It must not. */
   expect(getComputedStyle(el).filter, 'the author rule wins — the gate carried ZERO specificity')
