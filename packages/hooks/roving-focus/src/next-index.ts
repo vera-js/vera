@@ -22,8 +22,9 @@ const stepOf = (key: string, { orientation, rtl }: RovingAxis): number | null =>
 };
 
 /**
- * The first reachable index after `from` going `step`, wrapping at most once when `wrap` is set: at most `count` items
- * are looked at, so a group with one reachable item, or none, ends the walk. -1 when no other item is reachable.
+ * The first reachable index after `from` going `step`, wrapping when `wrap` is set. The bound is the only thing ending
+ * the walk: at most `count` items are looked at, the last being `from` itself after a full wrap (which the caller reads as
+ * "nowhere else to go"). -1 when none of them is reachable.
  */
 const scan = (count: number, from: number, step: number, wrap: boolean, reachable: (i: number) => boolean): number => {
   for (let n = 1; n <= count; n++) {
@@ -32,7 +33,6 @@ const scan = (count: number, from: number, step: number, wrap: boolean, reachabl
       if (!wrap) return -1;
       i = ((i % count) + count) % count;
     }
-    if (i === from) return -1;
     if (reachable(i)) return i;
   }
   return -1;
