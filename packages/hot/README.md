@@ -89,6 +89,8 @@ until a reload.
 - **Construct by tag or by the class `define` returns.** After a redefine, `define` still returns the registered class,
   so `new XCard()` and `instanceof` keep working.
 - **Wiring it twice is harmless.** A second copy, or the module reloading itself, does nothing.
+- **The class it registers is marked**: `Class[Symbol.for('vera.hot')] === true`. A component's registration guard reads it
+  to tell a tag hot manages (define again; hot swaps it) from a real second copy of the package (warn and stand down).
 - **It sees every tag defined after it is wired**, not only vera components: a third-party element gets the same
   forwarders, and a class without a `connectedCallback` or `attributeChangedCallback` gains one that does what the platform
   would have done. Development only, and the behavior is the same; it is what makes any tag redefinable.

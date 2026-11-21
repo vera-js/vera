@@ -214,6 +214,14 @@ export const hot = (registry: Registry, w: Wire) => {
       disabled: statics.disabledFeatures,
     };
     tags.set(name, tag);
+    /**
+     * **The class hot registers is marked** (`Symbol.for('vera.hot')`), so a component's own registration guard can tell
+     * a hot-managed tag (define again, and hot swaps it) from a real second copy of the package (warn and stand down): the
+     * registered class IS the original here, with no stand-in to recognize. Development only, like everything hot does.
+     * Not on a frozen or sealed class (a library may freeze its statics): the write would throw in a module, so such a
+     * class is simply unmarked, and a guard reads its tag as defined before hot (it stands down instead of redefining).
+     */
+    if (__DEV__ && Object.isExtensible(Class)) (Class as unknown as Record<symbol, unknown>)[Symbol.for('vera.hot')] = true;
     proto.connectedCallback = function (this: Element$) {
       tag.live.add(this);
       /** An element first connected AFTER a swap that added observed names is watched for them too (a swap watches its own). */

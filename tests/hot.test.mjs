@@ -106,6 +106,26 @@ test('the class define returns after a redefine is the registered one: `new` and
   made.remove();
 });
 
+test('the class hot registers carries Symbol.for(\'vera.hot\'), so a registration guard can tell a swap from a second copy', { skip: isProduction && 'development only, like hot itself' }, () => {
+  const MARK = Symbol.for('vera.hot');
+  const Marked = define('x-hot-marked', () => () => html`<b>m</b>`);
+  assert.equal(customElements.get('x-hot-marked'), Marked, 'CONTROL: the class define returned is the registered one');
+  assert.equal(Marked[MARK], true, 'hot registered it, so it is marked');
+  /** CONTROL: a tag registered before hot was wired went through no hot code, so it is unmarked. */
+  assert.equal(customElements.get('x-hot-early')[MARK], undefined, 'a class hot did not register is not marked');
+  assert.equal(define('x-hot-marked', () => () => html`<b>n</b>`), Marked, 'a redefine keeps the registered (marked) class');
+  assert.equal(Marked[MARK], true);
+});
+
+test('a frozen class defines through hot in both builds without throwing, and is left unmarked', () => {
+  /** A library may freeze its statics; marking it would throw in a module (strict mode) in development only. */
+  const Frozen = Object.freeze(class extends HTMLElement {});
+  assert.equal(Object.isExtensible(Frozen), false, 'CONTROL: the class really is frozen');
+  assert.doesNotThrow(() => customElements.define('x-hot-frozen', Frozen));
+  assert.equal(customElements.get('x-hot-frozen'), Frozen, 'registered');
+  assert.equal(Frozen[Symbol.for('vera.hot')], undefined, 'unmarked: a guard reads it as defined before hot');
+});
+
 test('methods are swapped on the registered prototype', async () => {
   define({ tag: 'x-hot-methods', methods: { hello() { return 'old'; } } }, () => () => html`<b></b>`);
   const el = document.createElement('x-hot-methods');

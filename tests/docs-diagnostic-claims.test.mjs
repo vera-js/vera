@@ -119,6 +119,7 @@ const CLAIMS = new Map([
   ['llms.txt#18c739df33', 'wrong-namespace'], // A HAND-WRITTEN template without the module wired is the same story: ``Frame(html`<path/>`)
   ['llms.txt#44ed44511d', 'wrong-namespace'], // lite's svg/mathml bullet (2026-11-18): lite says it too, tests/lite-namespaces.test.mjs
   ['llms.txt#7e56270521', 'no-scope'], // **Light DOM:** hoisted to the document once per class, inside `@scope (tag-name) { … }`, w
+  ['packages/hot/README.md#cb82b8fe0b', 'pinned by tests/hot.test.mjs: the class hot registers carries the mark and an unregistered one does not'], // a registration guard reads Symbol.for('vera.hot') to tell a swap from a second copy
   ['llms.txt#bc2964b69a', 'unwired-styles'], // Omit the wiring and a component with `static styles` renders unstyled — core warns once, i
   ['llms.txt#08c76e5a7f', 'slot-attributes'], // Development builds warn, naming the attribute. - A node added AFTER the first render joins
   ['llms.txt#e425a4f952', 'not a promise: points back to the insertBefore warning, which is entered where it is promised'], // What light has fewer of is POSITIONS you can name (a distributed child is no longer a dire
