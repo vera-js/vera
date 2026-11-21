@@ -9,6 +9,7 @@
 import { expect } from '@esm-bundle/chai';
 import { wireDirectives, interactions, expressions, query, settled, stateOf }
   from '../../packages/directives/dist/development/vera-directives.js';
+import { frames, until } from './until.js';
 
 wireDirectives([expressions, ...interactions, query]);
 
@@ -41,8 +42,7 @@ it('a sort change rides a REAL view transition; typing and establishment never d
   const state = stateOf(host.firstElementChild);
   state.s = 'price';
   await settled();
-  await new Promise((r) => setTimeout(r, 30));
-  expect(transitions - baseline, 'one REAL transition for the sort').to.equal(1);
+  await until(() => transitions - baseline === 1, 'one REAL transition for the sort', 4000);
   await last.finished;
   const order = [...host.querySelectorAll('li')].filter((li) => !li.hidden).map((li) => li.textContent).join('');
   expect(order, 'the reorder landed through the async commit').to.equal('acb');
@@ -53,7 +53,14 @@ it('a sort change rides a REAL view transition; typing and establishment never d
 
   state.q = 'a';
   await settled();
-  await new Promise((r) => setTimeout(r, 30));
+  /**
+   * The barrier: the filter has landed. A transition is counted when it is STARTED, before its commit lands, so a typed
+   * filter that rode one would have counted by the time its result shows; a frame after that. A fixed 30 ms read a
+   * late start as none.
+   */
+  const visible = () => [...host.querySelectorAll('li')].filter((li) => !li.hidden).map((li) => li.textContent).join('');
+  await until(() => visible() === 'a', 'the typed filter landed', 4000);
+  await frames(1);
   expect(transitions - baseline, 'typing stayed instant').to.equal(1);
   host.remove();
   await settled();

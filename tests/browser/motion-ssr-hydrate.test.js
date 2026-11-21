@@ -13,6 +13,7 @@
  *    the driven variable appears, meaning the server-marked element is now the client's.
  */
 import { expect } from '@esm-bundle/chai';
+import { until } from './until.js';
 import { MOTION_CSS, MOTION_BODY, MOTION_MARKERS, MOTION_REPORT } from './fixtures/motion-ssr.html.js';
 
 const frame = () => new Promise((r) => requestAnimationFrame(r));
@@ -65,8 +66,16 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
   const { wireDirectives, motion, presets } = await import(
     '../../packages/directives/dist/development/vera-directives.js');
   wireDirectives([motion({ inertia: 0 }), presets]);
-  await frame();
-  await new Promise((r) => setTimeout(r, 60));
+  /**
+   * The barrier for the absences below (no per-frame write, no rejection, no warning): the client has taken over, its
+   * range constants and the scroller variable written, and a frame has passed since, the frame a per-element write
+   * would land on. A frame, 60 ms and a frame guessed at the takeover.
+   */
+  await until(
+    () => fade.style.getPropertyValue('--vm-r1') !== '' && document.documentElement.style.getPropertyValue('--vm-s') !== '',
+    "the client's takeover writes",
+    4000,
+  );
   await frame();
 
   for (const [id, marker] of Object.entries(MOTION_MARKERS)) {

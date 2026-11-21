@@ -126,7 +126,14 @@ describe('the router beyond navigation', () => {
     await router.navigate('/user/3');
     await settle(frame);
     shell.routeLog.length = 0;
+    /**
+     * The fragment move fires the iframe's popstate then hashchange, later, and the router hears popstate: wait for
+     * hashchange (armed first), so a re-route that popstate started has had its turn. Frames alone guessed at that.
+     */
+    let moved = false;
+    view.addEventListener('hashchange', () => (moved = true), { once: true });
     await router.navigate('/user/3#section');
+    await until(() => moved, "the iframe's hashchange", 20000);
     await settle(frame);
     expect(shell.router.currentRoute.hash, 'the fragment must reach the snapshot').to.equal('#section');
     expect(
@@ -191,7 +198,8 @@ describe('the router as an event system', () => {
     await settle(frame);
     const stop = (event) => event.preventDefault();
     frame.contentDocument.addEventListener('vera:before-route', stop);
-    await router.navigate('/user/13');
+    /** `navigate` resolves once the route is decided, `false` when nothing routed: the cancellation itself, not a guess after frames. */
+    expect(await router.navigate('/user/13'), 'the navigation was refused').to.equal(false);
     await settle(frame);
     frame.contentDocument.removeEventListener('vera:before-route', stop);
     expect(outlet().textContent, 'preventDefault did not cancel').to.contain('user 12');
@@ -203,7 +211,7 @@ describe('the router as an event system', () => {
 
     const refuse = () => false;
     shell.router.on('before-route', refuse);
-    await router.navigate('/user/15');
+    expect(await router.navigate('/user/15'), 'the navigation was refused').to.equal(false);
     await settle(frame);
     expect(outlet().textContent, 'returning false did not cancel').to.contain('user 14');
     shell.router.off?.('before-route', refuse);
@@ -212,7 +220,7 @@ describe('the router as an event system', () => {
       throw new Error('kitchen sink: a guard that throws');
     };
     shell.router.on('before-route', explode);
-    await router.navigate('/user/16');
+    expect(await router.navigate('/user/16'), 'the navigation failed closed').to.equal(false);
     await settle(frame);
     expect(outlet().textContent, 'a throwing guard must fail closed').to.contain('user 14');
     shell.router.off?.('before-route', explode);

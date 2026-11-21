@@ -14,6 +14,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { init, createStore, wire, html } from '../../packages/core/dist/development/vera.js';
+import { until } from './until.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 
 wire({ on: 'render', fn: renderInto, priority: 50 });
@@ -182,11 +183,18 @@ it('an element removed before its first render neither throws nor renders', asyn
     host.appendChild(element);
     /** Synchronously, before the scheduled frame. */
     element.remove();
-    await frame();
-    await frame();
+    /**
+     * The barrier: a CONTROL of the same tag connected now has its first render on the same scheduled pass, so once it
+     * has rendered, the removed element's render would have run (or thrown) too. Two fixed frames read a late pass as
+     * none.
+     */
+    const control = host.appendChild(document.createElement(tag));
+    await until(() => textOf(control) === 'none:0', 'the control rendered', 4000);
     expect(problems, 'removing before the first render threw').to.deep.equal([]);
     expect(log).to.include('connected');
     expect(log).to.include('disconnected');
+    expect(log.filter((line) => line.startsWith('render')), 'one render, the control\'s').to.deep.equal(['render 0']);
+    expect(textOf(element), 'the removed element painted nothing').to.equal('');
   } finally {
     window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onError);

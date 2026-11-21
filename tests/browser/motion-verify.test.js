@@ -9,6 +9,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wireDirectives, motion, rejections, settled } from '../../packages/directives/dist/development/vera-directives.js';
+import { until } from './until.js';
 
 wireDirectives([motion({ inertia: 0 })]);
 
@@ -25,9 +26,12 @@ it('a clean delivery verifies silently; an outranking author rule is reported by
     <div id="hit" class="squashed" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, scroll: '100%, 0%' }">b</div>`;
   document.body.appendChild(host);
   await settled();
+  /**
+   * The barrier for "the clean one stayed silent": the squashed element's report has arrived, and the clean element,
+   * first in the document, is verified in the same pass; a frame after that. Two frames and 60 ms guessed at it.
+   */
+  await until(() => rejections().some((r) => r.code === 'motion-css-overridden' && r.element?.id === 'hit'), "the squashed element's report", 4000);
   await frame();
-  await frame();
-  await new Promise((r) => setTimeout(r, 60));
 
   const overridden = rejections().filter((r) => r.code === 'motion-css-overridden');
   expect(overridden.length, 'exactly the squashed element was reported; the clean one stayed silent')

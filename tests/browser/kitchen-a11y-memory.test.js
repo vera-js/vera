@@ -13,6 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { wire, init, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { until } from './until.js';
 
 wire({ on: 'render', fn: renderer, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -140,15 +141,17 @@ describe('memory discipline', () => {
     );
     const element = document.createElement('memory-render-probe');
     document.body.appendChild(element);
-    await frame();
+    /** A CONTROL of the same tag stays connected: its render of the write is the barrier for the detached one's. */
+    const control = document.body.appendChild(document.createElement('memory-render-probe'));
+    await until(() => control.shadowRoot?.textContent === '0', 'the control rendered', 4000);
     element.remove();
     await frame();
 
     const before = renders;
     state.n = 1;
-    await frame();
-    await frame();
-    expect(renders, 'a detached component re-rendered').to.equal(before);
+    await until(() => control.shadowRoot.textContent === '1', 'the connected control rendered the write', 4000);
+    control.remove();
+    expect(renders - before, 'only the connected control re-rendered, not the detached one').to.equal(1);
   });
 });
 
