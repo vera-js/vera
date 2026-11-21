@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { oneShotTypescript } from '../defaultRollupConfig.js';
 
@@ -52,6 +53,32 @@ test('CONTROL: plain TypeScript rebuilds a watch program that changed just befor
 
 test('the one-shot TypeScript defaultRollupConfig hands the plugin never rebuilds after close', async () => {
   assert.equal(await programsAfterCloseRace(oneShotTypescript), 1);
+});
+
+/**
+ * The WIRING: the rows above prove `oneShotTypescript` is right; this one proves the config hands it to the plugin. An
+ * in-memory build of a tiny package through the real config (nothing written) must create its watch program through
+ * the one-shot TypeScript, seen by a spy defined on that object alone. Dropping the option from the plugin call makes
+ * the plugin use its own TypeScript and turns this red.
+ */
+test('defaultRollupConfig hands @rollup/plugin-typescript the one-shot TypeScript', async () => {
+  const { rollup } = await import('rollup');
+  const { defaultRollupConfig } = await import('../defaultRollupConfig.js');
+  /** A package build runs in its package (the config reads the version from its package.json), so this one does too. */
+  const before = process.cwd();
+  let calls = 0;
+  const real = oneShotTypescript.createWatchProgram;
+  Object.defineProperty(oneShotTypescript, 'createWatchProgram', { configurable: true, value: (host) => (calls++, real(host)) });
+  try {
+    process.chdir(fileURLToPath(new URL('../packages/inserts/', import.meta.url)));
+    const bundle = await rollup({ ...defaultRollupConfig('one-shot-wiring', []), onwarn: () => {} });
+    await bundle.close();
+  } finally {
+    process.chdir(before);
+    delete oneShotTypescript.createWatchProgram;
+  }
+  assert.equal(calls, 1, 'the plugin built its program through the one-shot TypeScript');
+  assert.equal(oneShotTypescript.createWatchProgram, ts.createWatchProgram, 'the spy is gone');
 });
 
 test('rollup watch mode keeps the real TypeScript, rebuilds included', () => {
