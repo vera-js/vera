@@ -190,7 +190,14 @@ most.
 
 `autoload.retry(element)` forgets that an element's tag failed and tries it again. A failed load is
 otherwise permanent for the page, which is right for a component that does not exist and wrong for
-one lost to a dropped connection. `vera:autoload-error` hands you the element:
+one lost to a dropped connection. A retry asks the server again: an engine keeps a failed module import
+by its URL (Chromium does), so the component's module is imported with `vera-retry=<n>` added to its
+URL. A module of its own that failed to load stays failed in such an engine until the page reloads,
+and a module that loaded but did not define its tag, or defined it and then threw, is not run again.
+On a page whose import map pins anything with `integrity`, every retry imports as it is: a pin is
+keyed by URL, so the same file under a new query would load unchecked. There, in an engine that keeps
+a failed import (Chromium), a module that failed stays failed until the page reloads. A retry while that tag is still loading does
+nothing: the load in flight answers it. `vera:autoload-error` hands you the element:
 
 ```js
 addEventListener('vera:autoload-error', ({ detail }) => {

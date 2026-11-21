@@ -167,6 +167,14 @@ from another machine, or after that is undone, has a variable changed.
   tag name" in WebKit). Consequence: a retry that re-imports the failed
   URL works on two engines and never on Chromium, so `retry()` still has to ask with a URL the engine has not seen. (Playwright
   1.65.1, macOS 27.2.1 on Apple silicon, headless, 2026-11-21.)
+- **An import map's `integrity` pins a URL, not a file: the same file under a new query loads unchecked.** In a fresh
+  frame whose import map pins `a.js` with its own SHA-384 and `b.js` with `a.js`'s hash, `import(a.js)` loads,
+  `import(b.js)` is refused, and `import(b.js?vera-retry=1)` loads, on Chromium 159, Firefox 159 and WebKit 27.2.
+  The hash is keyed by the URL the map resolves to: a pin on `pinned/d.js` reached as `alias/d.js` through an
+  `imports` remap is refused, and a match against the URL before the remap misses it. Consequence: on a page whose
+  import map pins anything, `retry()` imports as it is, never under `vera-retry=<n>`, so a file that failed its check
+  stays refused, remapped or not (a copy that matches the URL before the remap loads it on all three);
+  `tests/browser/autoloader.test.js`. (Playwright 1.65.1, macOS 27.2.1, headless, 2026-11-22.)
 - **A capture `scroll` listener on the window never hears a scroller inside a shadow root; only that shadow root does.**
   `scroll` is not composed, so it does not cross the shadow boundary even in the capture phase. Identical in Chromium
   151.0.7922.34, Firefox 153.0 and WebKit 26.5 (Playwright 1.62.1 builds, headless; a correctness check). Consequence:

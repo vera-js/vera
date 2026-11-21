@@ -3,6 +3,38 @@ import { diagnostic, misuse, SHARED, thrownMessage } from '@verajs/shared-utils'
 import { PROSE } from './diagnostics.js';
 
 /**
+ * `src` with `vera-retry=<n>` added to its query (a hash kept where it was): a URL the engine has not seen, for a retry
+ * of an import it rejected (see `retries`). A server ignores a query it does not read, so it is the same file. Only a
+ * URL a server answers (`http:`, `https:`, `file:`): a query would change a `data:` URL's content, and a `blob:` that
+ * failed cannot come back, so those are imported as they are.
+ */
+const retried = (src: string, tries: number, document: Document): string => {
+  const url = new URL(src);
+  const served = url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'file:';
+  if (!served || /*@__NOINLINE__*/ pins(document)) return src;
+  url.searchParams.set('vera-retry', String(tries));
+  return url.href;
+};
+
+/**
+ * **Whether an import map on the page pins anything with `integrity`**: a hash is keyed by URL, so the same file under
+ * `vera-retry=<n>` loads unchecked (measured on Chromium, Firefox and WebKit), and a file that failed its check would
+ * load on the retry. On such a page every retry imports as it is. Not a match against `src`: a hash is keyed by the URL
+ * the map RESOLVES to, after its `imports` and `scopes` remap `src`, so a match on `src` misses a remapped pin.
+ */
+const pins = (document: Document): boolean => {
+  for (const script of document.querySelectorAll('script[type="importmap"]')) {
+    try {
+      const integrity = (JSON.parse(script.textContent ?? '') as { integrity?: unknown }).integrity;
+      if (typeof integrity === 'object' && integrity !== null && Object.keys(integrity).length > 0) return true;
+    } catch {
+      /** Not JSON: the engine refused that map as well, so it pins nothing. */
+    }
+  }
+  return false;
+};
+
+/**
  * Inits an autoloader with the provided root directory, component directory and autoloader options.
  *
  * Discovery is **observed, not polled**. Each `autoloader`-marked component is watched once with a
@@ -102,6 +134,15 @@ export const autoloader = (
 
   /** The URL last tried for a tag, so `retry` knows which memo to clear. Dropped once it loads. */
   const failed = new Map<string, string>();
+  /**
+   * **How many times `retry` has asked again for a tag whose import REJECTED** (2026-11-21): an engine keeps a failed
+   * module import, keyed by its URL — Chromium 159 and Firefox and WebKit before 159 and 27 answer the same URL from that
+   * record without asking the server (`tests/browser/autoloader.test.js` measures it) — so a retry imports the URL with
+   * `vera-retry=<n>` added, which the engine has not seen. Only for a rejected import: a module that loaded and did not
+   * define its tag is retried from its own URL, since running it again could not define the tag and would run its code
+   * twice. Dropped once the tag loads.
+   */
+  const retries = new Map<string, number>();
 
   /**
    * Roots under observation, so attaching is idempotent and cheap to re-attempt.
@@ -262,8 +303,11 @@ export const autoloader = (
     requested.add(tag);
     failed.set(tag, src);
 
+    const tries = retries.get(tag);
+    let imported = false;
     try {
-      await import(/* @vite-ignore */ src);
+      await import(/* @vite-ignore */ tries === undefined ? src : /*@__NOINLINE__*/ retried(src, tries, element.ownerDocument));
+      imported = true;
       /**
        * **A module can import cleanly and still not define the tag**, and that used to be silent
        * forever: `whenDefined` never settles, so the `catch` below never runs, no event is
@@ -287,9 +331,16 @@ export const autoloader = (
       }
       await customElements.whenDefined(tag);
       failed.delete(tag);
+      retries.delete(tag);
       watch(element);
     } catch (error) {
       requested.delete(tag);
+      /**
+       * A rejected import is retried from a fresh URL; one that loaded, or that defined its tag before its code threw,
+       * keeps its own, so its code never runs twice (see `retries`).
+       */
+      if (!imported && !customElements.get(tag)) retries.set(tag, retries.get(tag) ?? 0);
+      else retries.delete(tag);
       /**
        * Reported as a DOM event as well as a console line, because a component that never arrives
        * is something an app may want to render around — a placeholder, a retry button, a report to
@@ -427,10 +478,23 @@ export const autoloader = (
    */
   const retry = (element: Element) => {
     const tag = element.localName;
-    requested.delete(tag);
+    /** Defined after all (a module that defined its tag, then threw): the element has upgraded, so watch it instead. */
+    if (customElements.get(tag)) {
+      failed.delete(tag);
+      retries.delete(tag);
+      watch(element);
+      return;
+    }
+    /**
+     * Still loading (a retry button pressed twice): the import in flight answers for both presses. Clearing its guards
+     * here would import a second fresh URL, run the module twice and throw at its second `define`.
+     */
+    if (requested.has(tag)) return;
     const src = failed.get(tag);
     if (src) attempted.delete(src);
     failed.delete(tag);
+    const tries = retries.get(tag);
+    if (tries !== undefined) retries.set(tag, tries + 1);
     load(element, tag);
   };
 

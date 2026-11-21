@@ -1313,7 +1313,8 @@ Semantics worth stating:
   hand-written static markup work, and can be called again whenever new markup lands.
 - It carries `url(tag)` — the absolute URL it would fetch, for warming with `modulepreload`, a
   prefetch, a service worker, or just to answer "why that URL?" — and `retry(element)`, which
-  forgets that element's tag failed and tries again.
+  forgets that element's tag failed and tries again, asking the server again (the module is imported
+  with `vera-retry=<n>` added: an engine keeps a failed import by its URL; a failed dependency stays failed).
 - `data-autoload-ignore` excludes that element only, not its subtree.
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.

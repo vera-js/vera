@@ -30,9 +30,12 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
  * that exact path is asked for and a module defining `<tag>` every time after, the dropped connection that comes back
  * which the autoloader's `retry` exists for. The token is the asking row's, so each row on each engine gets its own
  * first failure from this one server. The paths already failed live in the route's own closure, one per server.
+ * `?also=<tag>` defines a second tag in the same module (one module, two tags), `?then=throw` throws after defining,
+ * and every run counts itself in `globalThis.veraOnceRuns[<tag>]`, so a row can assert a module ran exactly once.
  */
 const failOnce = () => {
   const failed = new Set();
+  const tagName = /^[a-z][a-z0-9]*-[a-z0-9-]*$/;
   return async (ctx, next) => {
     const match = /^\/tests\/browser\/fixtures\/autoloader\/once\/[a-z0-9]+\/([a-z][a-z0-9]*-[a-z0-9-]*)\.js$/.exec(ctx.path);
     if (match === null) return next();
@@ -42,8 +45,13 @@ const failOnce = () => {
       ctx.status = 404;
       return;
     }
+    const tags = [match[1]];
+    if (typeof ctx.query.also === 'string' && tagName.test(ctx.query.also)) tags.push(ctx.query.also);
     ctx.type = 'text/javascript';
-    ctx.body = `customElements.define('${match[1]}', class extends HTMLElement {});\n`;
+    ctx.body =
+      `(globalThis.veraOnceRuns ??= {})['${match[1]}'] = (globalThis.veraOnceRuns['${match[1]}'] ?? 0) + 1;\n` +
+      tags.map((tag) => `customElements.define('${tag}', class extends HTMLElement {});\n`).join('') +
+      (ctx.query.then === 'throw' ? `throw new Error('${match[1]} threw after defining');\n` : '');
   };
 };
 

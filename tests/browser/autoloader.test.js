@@ -308,12 +308,12 @@ it('a failed module import, imported again: kept by Chromium (the same URL fails
 });
 
 /**
- * **The retry defect, pinned both ways.** `retry` imports the URL that failed, and an engine keeps a failed module import
- * (the row above), so today the retry fails without reaching the server and a second `vera:autoload-error` arrives. The
- * row waits for whichever comes, the tag defined or that second report, and asserts today's: so it cannot stay quietly
- * off. When `retry` asks with a URL the engine has not seen, this row goes red reading 'loaded'; flip it to assert that.
+ * **A retry reaches the server, in every engine.** An engine may keep a failed module import (the row above), so `retry`
+ * imports with `vera-retry=<n>` added, a URL the engine has not seen. The row waits for whichever comes, the tag defined
+ * or a second `vera:autoload-error`, so a retry answered from the engine's record reads 'failed again' rather than timing
+ * out.
  */
-it('retry takes the element the error handed you, and tries it again (today: an engine that keeps a failed import answers from it)', async () => {
+it('retry takes the element the error handed you, and tries it again, even where the engine keeps a failed import', async () => {
   const original = console.error;
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
@@ -341,13 +341,190 @@ it('retry takes the element the error handed you, and tries it again (today: an 
       'the retry to load or to report',
       4000,
     );
-    /** No table of its own: what the platform row measured in this run, so the two rows cannot disagree. */
+    /** The platform row measured this engine in this run: where it keeps a failed import, this row is the fix's test. */
     expect(measuredKeeps, `${ON}: the platform row measured this engine first`).to.be.a('boolean');
-    expect(result, `${ON}: retry reuses the failed URL, which ${measuredKeeps ? 'the engine answers from its record' : 'the engine asks for again'}`).to.equal(measuredKeeps ? 'failed again' : 'loaded');
+    expect(result, `${ON}: retry asks the server again (this engine ${measuredKeeps ? 'keeps' : 'does not keep'} a failed import)`).to.equal('loaded');
+    expect(reports.length, `${ON}: and reported no second failure`).to.equal(1);
   } finally {
     console.error = original;
     element.remove();
   }
+});
+
+/**
+ * A retry row's harness: an autoloader on the fail-once route, an element per tag, the reports it fires, and its
+ * printed errors kept off the console (the route's first 404 is meant to fail). `asked()` counts the load attempts:
+ * the autoloader calls `resolve` synchronously as each one starts, so a retry that starts none reads at once, with no
+ * wait for an import that might arrive late.
+ */
+const flakyHost = (tags, path) => {
+  const original = console.error;
+  console.error = () => {};
+  const once = token();
+  let attempts = 0;
+  const resolve = (tag) => (attempts++, `once/${once}/${path(tag)}`);
+  const loader = autoloader(entry, 'components', { resolve });
+  const element = host(tags.map((tag) => `<${tag}></${tag}>`).join(''));
+  const reports = [];
+  element.addEventListener('vera:autoload-error', (event) => reports.push(event.detail));
+  const done = () => {
+    console.error = original;
+    element.remove();
+  };
+  return { loader, element, reports, done, asked: () => attempts };
+};
+/** How many times the fail-once route's module for `tag` has run in this page. */
+const runs = (tag) => globalThis.veraOnceRuns?.[tag] ?? 0;
+
+it('a module that defined its tag and then threw is not run again by retry', async () => {
+  const { loader, element, reports, done, asked } = flakyHost(['threw-widget'], (tag) => `${tag}.js?then=throw`);
+  try {
+    loader(element);
+    await until(() => reports.length === 1, 'the first attempt met the 404', 4000);
+    loader.retry(reports[0].element);
+    expect(asked(), `${ON}: CONTROL: the first retry started a load (the counter counts)`).to.equal(2);
+    /** The retry ran the module: it defined the tag, then threw, which rejects the import and reports a second time. */
+    await until(() => reports.length === 2, 'the retry to report the throw', 4000);
+    expect(runs('threw-widget'), `${ON}: CONTROL: the retry ran the module once`).to.equal(1);
+    expect(customElements.get('threw-widget'), `${ON}: and it defined its tag before throwing`).to.be.a('function');
+    /** An app retries every element its reports handed it; this one's tag is defined, so no load starts. */
+    loader.retry(reports[1].element);
+    expect(asked(), `${ON}: a retry of a defined tag starts no load`).to.equal(2);
+    expect(element.querySelector('threw-widget')).to.be.instanceOf(customElements.get('threw-widget'));
+  } finally {
+    done();
+  }
+});
+
+it('one module holding two tags: retry runs it once, and both tags arrive', async () => {
+  const { loader, element, reports, done, asked } = flakyHost(['pair-a', 'pair-b'], () => 'pair-a.js?also=pair-b');
+  try {
+    loader(element);
+    await until(() => reports.length === 1, 'the first attempt met the 404', 4000);
+    expect(reports[0].element.localName, 'the shared URL is asked for once, so one tag reports').to.equal('pair-a');
+    loader.retry(reports[0].element);
+    await until(() => customElements.get('pair-a') && customElements.get('pair-b'), 'both tags defined by the retry', 4000);
+    const before = asked();
+    loader.retry(element.querySelector('pair-b'));
+    expect(asked(), `${ON}: retrying the other tag starts no load`).to.equal(before);
+    expect(runs('pair-a'), `${ON}: the shared module ran once`).to.equal(1);
+    expect(reports.length, `${ON}: and nothing failed after the retry`).to.equal(1);
+  } finally {
+    done();
+  }
+});
+
+it('retry pressed twice while the first is loading imports once', async () => {
+  const { loader, element, reports, done, asked } = flakyHost(['double-widget'], (tag) => `${tag}.js`);
+  try {
+    loader(element);
+    await until(() => reports.length === 1, 'the first attempt met the 404', 4000);
+    loader.retry(reports[0].element);
+    expect(asked(), `${ON}: CONTROL: the first press started a load`).to.equal(2);
+    loader.retry(reports[0].element);
+    expect(asked(), `${ON}: the second press, while it loads, starts none (a second fresh URL would run the module twice)`).to.equal(2);
+    await until(() => customElements.get('double-widget'), 'the retry to load', 4000);
+    expect(runs('double-widget'), `${ON}: the module ran once`).to.equal(1);
+  } finally {
+    done();
+  }
+});
+
+/* ── an import map's integrity pin ───────────────────────────────────────────────────────────── */
+/**
+ * An import map's `integrity` is keyed by URL, so a retry under `vera-retry=<n>` would load a pinned file unchecked.
+ * Both rows run in a fresh frame, since an import map must come before the page's first module.
+ */
+const sri = async (url) => {
+  const bytes = await (await fetch(url, { cache: 'no-store' })).arrayBuffer();
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-384', bytes));
+  return `sha384-${btoa(String.fromCharCode(...digest))}`;
+};
+/** Runs `body` (a module script's statements, ending in `return <result>`) in a fresh frame under the import map `map`. */
+const framed = (map, body) =>
+  new Promise((resolve, reject) => {
+    const id = token();
+    const frame = document.createElement('iframe');
+    const timer = setTimeout(() => reject(new Error('the frame never answered')), 8000);
+    const onMessage = (event) => {
+      if (event.data?.id !== id) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      frame.remove();
+      resolve(event.data.result);
+    };
+    window.addEventListener('message', onMessage);
+    const json = JSON.stringify(map).replace(/</g, '\\u003c');
+    frame.srcdoc =
+      `<script type="importmap">${json}</script>` +
+      `<script type="module">const run = async () => { ${body} };\n` +
+      `parent.postMessage({ id: '${id}', result: await run().catch((error) => ({ error: String(error) })) }, '*');</script>`;
+    document.body.append(frame);
+  });
+const pinnedFile = (name) => new URL(`./fixtures/autoloader/pinned/${name}`, import.meta.url).href;
+
+it('an import map pins a URL, not a file: the same file under a new query loads unchecked (why a pinned URL is retried as it is)', async () => {
+  const a = pinnedFile('a.js');
+  const b = pinnedFile('b.js');
+  /** b.js is pinned with a.js's hash, which it does not have. */
+  const integrity = { [a]: await sri(a), [b]: await sri(a) };
+  const outcomes = `const outcome = (url) => import(url).then(() => 'loaded', () => 'failed');`;
+  const result = await framed(
+    { integrity },
+    `${outcomes} return { a: await outcome('${a}'), b: await outcome('${b}'), fresh: await outcome('${b}?vera-retry=1') };`,
+  );
+  expect(result.a, `${ON}: CONTROL: a file with its own hash loads`).to.equal('loaded');
+  expect(result.b, `${ON}: a file with the wrong hash is refused`).to.equal('failed');
+  expect(result.fresh, `${ON}: the same file under a new query is not checked, and loads`).to.equal('loaded');
+});
+
+/**
+ * A frame body: an autoloader whose `resolve` answers `src` for `<pinned-d>`, a first load that fails its check, one
+ * retry, and what came of it. `before` runs first (a control of the map itself).
+ */
+const pinRetry = (src, before = 'const control = null;') => {
+  const auto = new URL('../../packages/autoloader/dist/development/vera-autoloader.js', import.meta.url).href;
+  return `${before}
+    const { autoloader } = await import('${auto}');
+    console.error = () => {};
+    const wait = async (ok) => { for (let i = 0; i < 80 && !ok(); i++) await new Promise((r) => setTimeout(r, 50)); };
+    const loader = autoloader('${entry}', 'components', { resolve: () => '${src}' });
+    const host = document.createElement('div');
+    host.setAttribute('data-autoload', '');
+    host.innerHTML = '<pinned-d></pinned-d>';
+    document.body.append(host);
+    const reports = [];
+    host.addEventListener('vera:autoload-error', (event) => reports.push(event.detail));
+    loader(host);
+    await wait(() => reports.length === 1);
+    const first = reports.length;
+    loader.retry(reports[0].element);
+    await wait(() => reports.length === 2 || customElements.get('pinned-d'));
+    return { control, first, reports: reports.length, defined: customElements.get('pinned-d') !== undefined };`;
+};
+const expectStillRefused = (result) => {
+  expect(result.error, `${ON}: the frame ran`).to.equal(undefined);
+  expect(result.first, `${ON}: CONTROL: the first import failed its check`).to.equal(1);
+  expect(result.defined, `${ON}: the retry did not load the file unchecked`).to.equal(false);
+  expect(result.reports, `${ON}: it failed its check again, and said so`).to.equal(2);
+};
+
+it('retry imports an integrity-pinned URL as it is, so a file that failed its check stays refused', async () => {
+  const d = pinnedFile('d.js');
+  expectStillRefused(await framed({ integrity: { [d]: await sri(pinnedFile('a.js')) } }, pinRetry(d)));
+});
+
+it('a pin reached through an import-map remap is kept too: the hash is keyed by the URL the map resolves to', async () => {
+  /** `alias/` exists only through the map, which sends it to `pinned/`; the pin names the resolved `pinned/d.js`. */
+  const alias = new URL('./fixtures/autoloader/pinned/alias/', import.meta.url).href;
+  const map = {
+    imports: { [alias]: pinnedFile('') },
+    integrity: { [pinnedFile('d.js')]: await sri(pinnedFile('a.js')), [pinnedFile('a.js')]: await sri(pinnedFile('a.js')) },
+  };
+  const control = `const control = await import('${alias}a.js').then((m) => m.default, () => 'failed');`;
+  const result = await framed(map, pinRetry(`${alias}d.js`, control));
+  expect(result.control, `${ON}: CONTROL: the map remaps alias/ (alias/a.js loads, through the map only)`).to.equal('a');
+  expectStillRefused(result);
 });
 
 /* ── a shadow root handed over directly ──────────────────────────────────────────────────────── */
