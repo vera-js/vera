@@ -14,6 +14,7 @@ import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
 import { canonical } from '../canonical.mjs';
+import { until } from './until.js';
 
 const load = (path) =>
   new Promise((resolve) => {
@@ -31,20 +32,6 @@ const load = (path) =>
     document.body.appendChild(frame);
   });
 
-const until = async (predicate, what, timeout = 20000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-};
 
 /** Two frames plus a drained microtask queue: renders, layout effects and effects have all run. */
 const settle = async (frame) => {
@@ -76,22 +63,18 @@ before(async function loadBothLiveModes() {
     ['hydrate', '/tests/browser/fixtures/kitchen-hydrate.html'],
   ]) {
     const frame = await load(path);
-    await until(() => frame.contentDocument.documentElement.dataset.sinkMode === mode, `${mode} to boot`);
-    const shell = await until(
-      () => frame.contentDocument.querySelector('sink-shell')?.shadowRoot?.querySelector('#shell') &&
-        frame.contentDocument.querySelector('sink-shell'),
-      `${mode} shell`
+    await until(() => frame.contentDocument.documentElement.dataset.sinkMode === mode, `${mode} to boot`, 20000);
+    const shell = await until(() => frame.contentDocument.querySelector('sink-shell')?.shadowRoot?.querySelector('#shell') &&
+        frame.contentDocument.querySelector('sink-shell'), `${mode} shell`, 20000
     );
-    await until(() => shell.shadowRoot.querySelector('sink-form')?.shadowRoot, `${mode} components`);
+    await until(() => shell.shadowRoot.querySelector('sink-form')?.shadowRoot, `${mode} components`, 20000);
     /**
      * Including the **lazily loaded** one, or the two modes are compared at different moments: the
      * autoloader fetches `<sink-lazy>` over the network, so one frame can have it and the other not
      * yet. That is a flake in the harness rather than a difference in Vera, and a flaky test is
      * worse than no test.
      */
-    await until(
-      () => shell.shadowRoot.querySelector('sink-lazy')?.shadowRoot?.querySelector('#lazy'),
-      `${mode}: <sink-lazy> to autoload`
+    await until(() => shell.shadowRoot.querySelector('sink-lazy')?.shadowRoot?.querySelector('#lazy'), `${mode}: <sink-lazy> to autoload`, 20000
     );
     await settle(frame);
     modes[mode] = { frame, shell };
@@ -120,7 +103,7 @@ describe('the two live modes behave identically', () => {
 
   it('a lazily loaded component arrives in both', async () => {
     for (const mode of ['csr', 'hydrate'])
-      await until(() => inside(mode, 'sink-lazy', '#lazy'), `${mode}: <sink-lazy> to autoload`);
+      await until(() => inside(mode, 'sink-lazy', '#lazy'), `${mode}: <sink-lazy> to autoload`, 20000);
     expect(inside('hydrate', 'sink-lazy', '#lazy').textContent).to.equal('loaded on demand');
   });
 

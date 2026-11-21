@@ -8,6 +8,7 @@
  * returned without throwing.
  */
 import { expect } from '@esm-bundle/chai';
+import { until } from './until.js';
 
 const load = (path) =>
   new Promise((resolve) => {
@@ -19,20 +20,6 @@ const load = (path) =>
     document.body.appendChild(frame);
   });
 
-const until = async (predicate, what, timeout = 20000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-};
 
 const settle = async (frame) => {
   for (let i = 0; i < 4; i++) await new Promise((r) => frame.contentWindow.requestAnimationFrame(() => r()));
@@ -47,12 +34,10 @@ let SUPPRESS;
 before(async function bootOneLiveMode() {
   this.timeout(30000);
   frame = await load('/tests/browser/fixtures/kitchen-csr.html');
-  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === 'csr', 'the app to boot');
-  shell = await until(
-    () =>
+  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === 'csr', 'the app to boot', 20000);
+  shell = await until(() =>
       frame.contentDocument.querySelector('sink-shell')?.shadowRoot?.querySelector('#shell') &&
-      frame.contentDocument.querySelector('sink-shell'),
-    'the shell'
+      frame.contentDocument.querySelector('sink-shell'), 'the shell', 20000
   );
   await settle(frame);
   const module = await frame.contentWindow.eval(

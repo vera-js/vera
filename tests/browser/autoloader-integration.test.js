@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { init, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
 import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
+import { until } from './until.js';
 
 /**
  * Core, the renderer and the autoloader in one page, wired the way an app wires them.
@@ -18,12 +19,6 @@ const autoload = autoloader(entry, '.');
 wire({ on: 'render', fn: renderer, priority: 50 });
 wire(autoload);
 
-const until = (condition, timeout = 4000) =>
-  new Promise((resolve) => {
-    const deadline = Date.now() + timeout;
-    const poll = () => (condition() || Date.now() > deadline ? resolve(condition()) : setTimeout(poll, 10));
-    poll();
-  });
 const settle = () => new Promise((r) => setTimeout(r, 300));
 
 it('a real component renders a lazy child, and the child loads and upgrades', async () => {
@@ -42,16 +37,16 @@ it('a real component renders a lazy child, and the child loads and upgrades', as
   const host = document.createElement('live-host');
   document.body.appendChild(host);
 
-  await until(() => customElements.get('lazy-child'));
+  await until(() => customElements.get('lazy-child'), "() => customElements.get('lazy-child')", 4000);
   expect(customElements.get('lazy-child'), 'the child was discovered inside a shadow root').to.be.a('function');
 
   /** And it is a working component, not merely a defined one. */
   const child = host.shadowRoot.querySelector('lazy-child');
-  await until(() => child.shadowRoot?.querySelector('button'));
+  await until(() => child.shadowRoot?.querySelector('button'), "() => child.shadowRoot?.querySelector('button')", 4000);
   const button = child.shadowRoot.querySelector('button');
   expect(button.textContent.trim()).to.equal('child 0');
   button.click();
-  await until(() => button.textContent.trim() === 'child 1');
+  await until(() => button.textContent.trim() === 'child 1', "() => button.textContent.trim() === 'child 1'", 4000);
   expect(button.textContent.trim(), 'the lazily loaded component is reactive').to.equal('child 1');
   host.remove();
 });
@@ -76,7 +71,7 @@ it('a lazy child appearing on a later render is found too', async () => {
   expect(customElements.get('nested-grandchild'), 'nothing to find yet').to.equal(undefined);
 
   state.show = true;
-  await until(() => customElements.get('nested-grandchild'));
+  await until(() => customElements.get('nested-grandchild'), "() => customElements.get('nested-grandchild')", 4000);
   expect(customElements.get('nested-grandchild'), 'found when the render put it there').to.be.a('function');
   host.remove();
 });
@@ -102,7 +97,7 @@ it('marking a shadow host later reaches inside its shadow root', async () => {
     .to.equal(undefined);
 
   inner.setAttribute('data-autoload', '');
-  await until(() => customElements.get('attr-late'));
+  await until(() => customElements.get('attr-late'), "() => customElements.get('attr-late')", 4000);
   expect(customElements.get('attr-late'), 'the attribute is what reaches it').to.be.a('function');
   outer.remove();
 });
@@ -117,11 +112,11 @@ it('repointing data-autoload-dir after a failure tries the new location', async 
   host.innerHTML = '<moved-widget data-autoload-dir="nowhere"></moved-widget>';
   document.body.appendChild(host);
   autoload(host);
-  await until(() => errors.length > 0);
+  await until(() => errors.length > 0, "() => errors.length > 0", 4000);
   expect(customElements.get('moved-widget'), 'the first location has nothing').to.equal(undefined);
 
   host.querySelector('moved-widget').setAttribute('data-autoload-dir', '.');
-  await until(() => customElements.get('moved-widget'));
+  await until(() => customElements.get('moved-widget'), "() => customElements.get('moved-widget')", 4000);
   console.error = original;
   expect(customElements.get('moved-widget'), 'repointing it is enough').to.be.a('function');
   host.remove();
@@ -137,7 +132,7 @@ it('lifting data-autoload-ignore lets an element load', async () => {
   expect(customElements.get('ignored-then-not'), 'opted out').to.equal(undefined);
 
   host.querySelector('ignored-then-not').removeAttribute('data-autoload-ignore');
-  await until(() => customElements.get('ignored-then-not'));
+  await until(() => customElements.get('ignored-then-not'), "() => customElements.get('ignored-then-not')", 4000);
   expect(customElements.get('ignored-then-not'), 'opting back in is enough').to.be.a('function');
   host.remove();
 });
@@ -167,7 +162,7 @@ it('finds components inside declarative shadow DOM', async () => {
   expect(shell.shadowRoot.querySelector('ssr-child'), 'with the component inside it').to.not.equal(null);
 
   autoload();
-  await until(() => customElements.get('ssr-child'));
+  await until(() => customElements.get('ssr-child'), "() => customElements.get('ssr-child')", 4000);
   expect(customElements.get('ssr-child'), 'autoload() reached through the shadow root')
     .to.be.a('function');
   container.remove();

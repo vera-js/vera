@@ -18,6 +18,7 @@
  * written, so the import map is what resolves it, which is the thing under test.
  */
 import { expect } from '@esm-bundle/chai';
+import { until } from './until.js';
 
 const load = (path) =>
   new Promise((resolve) => {
@@ -29,20 +30,6 @@ const load = (path) =>
     document.body.appendChild(frame);
   });
 
-const until = async (predicate, what, timeout = 20000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-};
 
 const settle = async (frame) => {
   for (let i = 0; i < 4; i++) await new Promise((r) => frame.contentWindow.requestAnimationFrame(() => r()));
@@ -55,12 +42,10 @@ let app;
 before(async function bootTheBuildlessPage() {
   this.timeout(30000);
   frame = await load('/tests/browser/fixtures/kitchen-buildless.html');
-  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === 'buildless', 'it to boot');
-  app = await until(
-    () =>
+  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === 'buildless', 'it to boot', 20000);
+  app = await until(() =>
       frame.contentDocument.querySelector('buildless-app')?.shadowRoot?.querySelector('#app') &&
-      frame.contentDocument.querySelector('buildless-app'),
-    'the app'
+      frame.contentDocument.querySelector('buildless-app'), 'the app', 20000
   );
   await settle(frame);
 });
@@ -111,9 +96,7 @@ describe('the minified bundles, with no build step', () => {
   });
 
   it('autoloads through the minified module too', async () => {
-    const lazy = await until(
-      () => inside('sink-lazy')?.shadowRoot?.querySelector('#lazy'),
-      '<sink-lazy> to autoload'
+    const lazy = await until(() => inside('sink-lazy')?.shadowRoot?.querySelector('#lazy'), '<sink-lazy> to autoload', 20000
     );
     expect(lazy.textContent).to.equal('loaded on demand');
   });

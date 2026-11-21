@@ -22,6 +22,7 @@ import { expect } from '@esm-bundle/chai';
 import { captureConsole, veraSaid } from './silence.mjs';
 captureConsole();
 import { canonical } from '../canonical.mjs';
+import { until } from './until.js';
 
 /** Everything the shell renders, so a gap in one mode is a diff rather than a silent absence. */
 const COMPONENTS = [
@@ -53,20 +54,6 @@ const load = (path) =>
   });
 
 /** Polls rather than sleeps: a fixed wait is the flakiest thing a browser test can do. */
-const until = async (predicate, what, timeout = 20000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 10)));
-  }
-};
 
 /**
  * The rendered DOM, minus anything marked `data-diagnostic`.
@@ -94,11 +81,11 @@ const settle = async (frame) => {
 };
 
 const ready = async (frame, label) => {
-  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === label, `${label}: its entry to run`);
-  await until(() => shellOf(frame)?.shadowRoot?.querySelector('#shell'), `${label}: the shell to render`);
+  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === label, `${label}: its entry to run`, 20000);
+  await until(() => shellOf(frame)?.shadowRoot?.querySelector('#shell'), `${label}: the shell to render`, 20000);
   const root = shellOf(frame).shadowRoot;
   for (const tag of COMPONENTS)
-    await until(() => root.querySelector(tag)?.shadowRoot ?? root.querySelector(tag)?.firstElementChild, `${label}: <${tag}>`);
+    await until(() => root.querySelector(tag)?.shadowRoot ?? root.querySelector(tag)?.firstElementChild, `${label}: <${tag}>`, 20000);
   /**
    * Settled, not merely rendered. A server render drains its frame queue until quiet, so its markup
    * is the finished state; a client takes an extra frame whenever an effect writes state the
@@ -198,9 +185,7 @@ describe('the same application, rendered three ways', () => {
   it('a lazily loaded component is empty on the server and present in both live modes', async () => {
     expect(ssr.shadowRoot.querySelector('sink-lazy').shadowRoot, 'the server cannot autoload').to.equal(null);
     for (const [label, shell] of [['client', csr], ['hydrate', hydrated]]) {
-      const lazy = await until(
-        () => shell.shadowRoot.querySelector('sink-lazy')?.shadowRoot?.querySelector('#lazy'),
-        `${label}: <sink-lazy> to autoload`
+      const lazy = await until(() => shell.shadowRoot.querySelector('sink-lazy')?.shadowRoot?.querySelector('#lazy'), `${label}: <sink-lazy> to autoload`, 20000
       );
       expect(lazy.textContent).to.equal('loaded on demand');
     }

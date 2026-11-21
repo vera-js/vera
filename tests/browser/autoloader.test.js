@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
+import { until } from './until.js';
 
 /**
  * The autoloader, in a real engine.
@@ -18,15 +19,6 @@ const entry = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
  * engines are running at once — this suite was written with a fixed 120 ms sleep and failed on
  * Firefox roughly half the time when all three browsers ran together.
  */
-const until = (condition, timeout = 4000) =>
-  new Promise((resolve) => {
-    const deadline = Date.now() + timeout;
-    const poll = () => {
-      if (condition() || Date.now() > deadline) resolve(condition());
-      else setTimeout(poll, 10);
-    };
-    poll();
-  });
 
 /** For asserting that nothing happens, where there is no positive signal to wait for. */
 const settle = () => new Promise((r) => setTimeout(r, 300));
@@ -71,7 +63,7 @@ it('an element stops matching once its definition arrives', () => {
 it('discovers an undefined element and defines it from its module', async () => {
   const element = host('<probe-widget></probe-widget>');
   autoloader(entry, 'components')(element);
-  await until(() => customElements.get('probe-widget'));
+  await until(() => customElements.get('probe-widget'), "() => customElements.get('probe-widget')", 4000);
 
   expect(customElements.get('probe-widget'), 'the definition arrived').to.be.a('function');
   expect(element.querySelector('probe-widget').textContent).to.equal('probe');
@@ -81,7 +73,7 @@ it('discovers an undefined element and defines it from its module', async () => 
 it('data-autoload-dir moves one element to another directory inside the base', async () => {
   const element = host('<alt-widget data-autoload-dir="alt"></alt-widget>');
   autoloader(entry, 'components')(element);
-  await until(() => customElements.get('alt-widget'));
+  await until(() => customElements.get('alt-widget'), "() => customElements.get('alt-widget')", 4000);
   expect(customElements.get('alt-widget')).to.be.a('function');
   element.remove();
 });
@@ -115,7 +107,7 @@ it('finds an element inserted after discovery was set up', async () => {
   await settle();
   /** Nothing renders here — this is what any third-party widget or innerHTML call looks like. */
   element.innerHTML = '<late-arrival-widget></late-arrival-widget>';
-  await until(() => customElements.get('late-arrival-widget'));
+  await until(() => customElements.get('late-arrival-widget'), "() => customElements.get('late-arrival-widget')", 4000);
   expect(customElements.get('late-arrival-widget'), 'found after insertion').to.be.a('function');
   element.remove();
 });
@@ -125,7 +117,7 @@ it('finds an element that arrives inside a whole subtree at once', async () => {
   autoloader(entry, 'components')(element);
   await settle();
   element.innerHTML = '<section><div><deep-arrival-widget></deep-arrival-widget></div></section>';
-  await until(() => customElements.get('deep-arrival-widget'));
+  await until(() => customElements.get('deep-arrival-widget'), "() => customElements.get('deep-arrival-widget')", 4000);
   expect(customElements.get('deep-arrival-widget'), 'a subtree arrives as one added node')
     .to.be.a('function');
   element.remove();
@@ -140,7 +132,7 @@ it('autoload() finds markup it was never handed, and only when asked', async () 
 
   /** No element passed: the whole page, right now. */
   autoload();
-  await until(() => customElements.get('static-widget'));
+  await until(() => customElements.get('static-widget'), "() => customElements.get('static-widget')", 4000);
   expect(customElements.get('static-widget'), 'static markup loads with no render involved')
     .to.be.a('function');
   element.remove();
@@ -158,7 +150,7 @@ it('does not fetch a second directory for a tag already being loaded', async () 
   console.error = (...args) => failures.push(args.join(' '));
   const element = host('<dual-widget></dual-widget><dual-widget data-autoload-dir="alt"></dual-widget>');
   autoloader(entry, 'components')(element);
-  await until(() => customElements.get('dual-widget'));
+  await until(() => customElements.get('dual-widget'), "() => customElements.get('dual-widget')", 4000);
   await settle();
   console.error = original;
 
@@ -177,7 +169,7 @@ it('dispatches vera:autoload-error when a component never arrives', async () => 
   autoloader(entry, 'components')(element);
   await settle();
   element.innerHTML = '<never-shipped-widget></never-shipped-widget>';
-  await until(() => seen.length > 0);
+  await until(() => seen.length > 0, "() => seen.length > 0", 4000);
   console.error = original;
 
   expect(seen, 'one report').to.have.length(1);
@@ -197,7 +189,7 @@ it('refuses an data-autoload-dir that resolves outside the entry directory', asy
     <esc-two data-autoload-dir="//example.invalid/x"></esc-two>
     <esc-three data-autoload-dir="../../.."></esc-three>`);
   autoloader(entry, 'components')(element);
-  await until(() => refused.filter((m) => m.includes('refused')).length === 3);
+  await until(() => refused.filter((m) => m.includes('refused')).length === 3, "() => refused.filter((m) => m.includes('refused')).length === 3", 4000);
   console.error = original;
 
   expect(refused.filter((m) => m.includes('refused')), 'all three escapes refused').to.have.length(3);
@@ -224,7 +216,7 @@ it('url() is the URL the loader will ask for, and warming it works', async () =>
 
   const element = host('<preloaded-widget></preloaded-widget>');
   autoload(element);
-  await until(() => customElements.get('preloaded-widget'));
+  await until(() => customElements.get('preloaded-widget'), "() => customElements.get('preloaded-widget')", 4000);
   expect(customElements.get('preloaded-widget'), 'the warmed URL is the one it fetched')
     .to.be.a('function');
   element.remove();
@@ -247,7 +239,7 @@ it('retry takes the element the error handed you, and tries it again', async () 
   let reported;
   element.addEventListener('vera:autoload-error', (event) => { reported = event.detail; });
   failing(element);
-  await until(() => errors.length > 0);
+  await until(() => errors.length > 0, "() => errors.length > 0", 4000);
   expect(customElements.get('flaky-widget'), 'the first attempt failed').to.equal(undefined);
   expect(reported.element, 'the event carries the element').to.equal(element.querySelector('flaky-widget'));
 
@@ -260,7 +252,7 @@ it('retry takes the element the error handed you, and tries it again', async () 
 
   /** Without retry the tag stays memoized as failed on the first autoloader. */
   failing.retry(reported.element);
-  await until(() => customElements.get('flaky-widget'));
+  await until(() => customElements.get('flaky-widget'), "() => customElements.get('flaky-widget')", 4000);
   expect(customElements.get('flaky-widget'), 'reachable after retry').to.be.a('function');
   element.remove();
   other.remove();
@@ -283,7 +275,7 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
   expect(customElements.get('shadowed-widget'), 'the host never opted in').to.equal(undefined);
 
   autoload(root);
-  await until(() => customElements.get('shadowed-widget'));
+  await until(() => customElements.get('shadowed-widget'), "() => customElements.get('shadowed-widget')", 4000);
   expect(customElements.get('shadowed-widget'), 'handing over the root is the opt-in').to.be.a('function');
   outsider.remove();
 });
@@ -321,7 +313,7 @@ it('sweeps for marked hosts rather than observing the whole document', async () 
      */
     Object.defineProperty(document, 'body', { get: () => null, configurable: true });
     try { autoload(); } finally { delete document.body; }
-    await until(() => customElements.get('swept-widget'));
+    await until(() => customElements.get('swept-widget'), "() => customElements.get('swept-widget')", 4000);
 
     expect(customElements.get('swept-widget'), 'the sweep still finds marked hosts').to.be.a('function');
     expect(targets.includes(document), 'document is never the observed root').to.equal(false);

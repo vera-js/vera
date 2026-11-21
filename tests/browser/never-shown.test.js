@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import * as coreMin from '../../packages/core/dist/vera.min.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/vera-renderer.min.js';
+import { until } from './until.js';
 
 coreMin.wire([renderer]);
 
@@ -30,16 +31,12 @@ const SIDES = {
  * ran". The control waits for its own handler; each refusal row waits for a live SENTINEL with the same `src=x`, whose
  * error comes from the same failed fetch, so by the time it fires a live planted handler would have fired too.
  */
-const until = async (done, ms = 5000) => {
-  for (const end = performance.now() + ms; !done() && performance.now() < end; ) await new Promise((r) => setTimeout(r, 20));
-  return done();
-};
 const sentinel = async () => {
   window.sentinel = 0;
   const img = document.body.appendChild(document.createElement('img'));
   img.setAttribute('onerror', 'window.sentinel++');
   img.src = 'x';
-  const fired = await until(() => window.sentinel === 1);
+  const fired = await until(() => window.sentinel === 1, "() => window.sentinel === 1", 5000);
   img.remove();
   return fired;
 };
@@ -48,7 +45,7 @@ it('CONTROL: a handler parsed into this document runs, so a silence below means 
   window.neverShown = 0;
   const host = document.body.appendChild(document.createElement('div'));
   host.innerHTML = '<img src=x onerror="window.neverShown++">';
-  expect(await until(() => window.neverShown === 1), 'the handler ran').to.equal(true);
+  expect(await until(() => window.neverShown === 1, "() => window.neverShown === 1", 5000), 'the handler ran').to.equal(true);
   host.remove();
 });
 

@@ -12,21 +12,8 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
+import { until } from './until.js';
 
-const until = async (predicate, what, timeout = 8000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-};
 
 const BASE = new URL('/tests/browser/fixtures/autoloader/entry.js', location.href).href;
 
@@ -51,13 +38,9 @@ describe('a server-rendered page finds its lazy components', () => {
     /** No argument: scan the page for marked hosts, which is what a server-rendered page needs. */
     autoload();
 
-    await until(
-      () => customElements.get('declarative-widget'),
-      'the component inside the declarative shadow root to load'
+    await until(() => customElements.get('declarative-widget'), 'the component inside the declarative shadow root to load', 8000
     );
-    await until(
-      () => marked.shadowRoot.querySelector('declarative-widget').shadowRoot,
-      'it to upgrade over the server markup'
+    await until(() => marked.shadowRoot.querySelector('declarative-widget').shadowRoot, 'it to upgrade over the server markup', 8000
     );
   });
 
@@ -73,7 +56,7 @@ describe('a server-rendered page finds its lazy components', () => {
     const autoload = autoloader(BASE, 'components');
     autoload();
 
-    const tag = await until(() => failures[0], 'the failure to be reported across the boundary');
+    const tag = await until(() => failures[0], 'the failure to be reported across the boundary', 8000);
     expect(tag).to.equal('declarative-absent');
   });
 
@@ -93,6 +76,6 @@ describe('a server-rendered page finds its lazy components', () => {
 
     marked.setAttribute('data-autoload', '');
     autoload();
-    await until(() => customElements.get('late-widget'), 'the newly marked host to be scanned');
+    await until(() => customElements.get('late-widget'), 'the newly marked host to be scanned', 8000);
   });
 });

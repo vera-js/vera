@@ -8,6 +8,7 @@
  * shipped a module that registered into a map nobody read.
  */
 import { expect } from '@esm-bundle/chai';
+import { until } from './until.js';
 
 const load = (path) =>
   new Promise((resolve) => {
@@ -19,20 +20,6 @@ const load = (path) =>
     document.body.appendChild(frame);
   });
 
-const until = async (predicate, what, timeout = 20000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-};
 
 const settle = async (frame) => {
   for (let i = 0; i < 4; i++) await new Promise((r) => frame.contentWindow.requestAnimationFrame(() => r()));
@@ -48,12 +35,10 @@ let core;
 before(async function bootOneLiveMode() {
   this.timeout(30000);
   frame = await load('/tests/browser/fixtures/kitchen-csr.html');
-  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === 'csr', 'the app to boot');
-  shell = await until(
-    () =>
+  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === 'csr', 'the app to boot', 20000);
+  shell = await until(() =>
       frame.contentDocument.querySelector('sink-shell')?.shadowRoot?.querySelector('#shell') &&
-      frame.contentDocument.querySelector('sink-shell'),
-    'the shell'
+      frame.contentDocument.querySelector('sink-shell'), 'the shell', 20000
   );
   view = frame.contentWindow;
   router = await view.eval("import('/packages/router/dist/development/vera-router.js')");
@@ -80,7 +65,7 @@ describe('the autoloader', () => {
 
     host.innerHTML = '<never-shipped-widget></never-shipped-widget>';
     autoload(host);
-    const detail = await until(() => failures[0], 'the failure event');
+    const detail = await until(() => failures[0], 'the failure event', 20000);
 
     expect(detail.tag).to.equal('never-shipped-widget');
     expect(detail.src, 'the event must name the URL it tried').to.contain('/lazy/never-shipped-widget.js');
@@ -111,7 +96,7 @@ describe('the autoloader', () => {
     host.innerHTML =
       '<ignored-widget data-autoload-ignore></ignored-widget><wanted-widget></wanted-widget>';
     autoload(host);
-    await until(() => failures.includes('wanted-widget'), 'the un-ignored element to be tried');
+    await until(() => failures.includes('wanted-widget'), 'the un-ignored element to be tried', 20000);
     /** Given the ignored one was in the same batch, it has had every chance to be attempted. */
     expect(failures, 'an ignored element was fetched anyway').to.not.contain('ignored-widget');
   });
@@ -132,9 +117,9 @@ describe('the router beyond navigation', () => {
     expect(outlet().textContent).to.contain('user 2');
 
     router.back();
-    await until(() => outlet().textContent.includes('user 1'), 'back to /user/1');
+    await until(() => outlet().textContent.includes('user 1'), 'back to /user/1', 20000);
     router.forward();
-    await until(() => outlet().textContent.includes('user 2'), 'forward to /user/2');
+    await until(() => outlet().textContent.includes('user 2'), 'forward to /user/2', 20000);
   });
 
   it('a hash-only change does not re-route but does reach currentRoute', async () => {

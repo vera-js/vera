@@ -13,6 +13,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { canonical } from '../canonical.mjs';
+import { until } from './until.js';
 
 const load = (path) =>
   new Promise((resolve) => {
@@ -24,20 +25,6 @@ const load = (path) =>
     document.body.appendChild(frame);
   });
 
-const until = async (predicate, what, timeout = 20000) => {
-  const started = performance.now();
-  for (;;) {
-    let value;
-    try {
-      value = predicate();
-    } catch {
-      value = false;
-    }
-    if (value) return value;
-    if (performance.now() - started > timeout) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-};
 
 const settle = async (frame) => {
   for (let i = 0; i < 4; i++) await new Promise((r) => frame.contentWindow.requestAnimationFrame(() => r()));
@@ -67,12 +54,10 @@ before(async function loadBothLiveModes() {
     ['hydrate', '/tests/browser/fixtures/kitchen-hydrate.html'],
   ]) {
     const frame = await load(path);
-    await until(() => frame.contentDocument.documentElement.dataset.sinkMode === mode, `${mode} to boot`);
-    const shell = await until(
-      () =>
+    await until(() => frame.contentDocument.documentElement.dataset.sinkMode === mode, `${mode} to boot`, 20000);
+    const shell = await until(() =>
         frame.contentDocument.querySelector('sink-shell')?.shadowRoot?.querySelector('#shell') &&
-        frame.contentDocument.querySelector('sink-shell'),
-      `${mode} shell`
+        frame.contentDocument.querySelector('sink-shell'), `${mode} shell`, 20000
     );
     /** `navigate` is a module export, so it is reached through the frame's own module graph. */
     /** `navigate` and `resolve` are module exports, not router methods — reached through the frame. */
