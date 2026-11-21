@@ -12,7 +12,7 @@
  */
 import { diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
-import type { LabelledParts, LabelledWiring } from './types.js';
+import type { LabeledParts, LabeledWiring } from './types.js';
 
 /**
  * **The library-wide id counter (Brian's go, 2026-11-20).** Module-level mutable state, shared on purpose across every
@@ -39,7 +39,7 @@ type Owner = { host: Element; release: () => void };
 type Marked = Element & { [OWNER]?: Owner; [GIVEN]?: string; [WARNED]?: true };
 
 /** The handle a farther caller gets: it owns nothing, so neither call does anything. */
-const INERT: LabelledWiring = Object.freeze({ show: () => {}, release: () => {} });
+const INERT: LabeledWiring = Object.freeze({ show: () => {}, release: () => {} });
 
 /** The tokens of a space-separated attribute value. */
 const tokensOf = (value: string | null): string[] => (value ? value.split(/[\t\n\f\r ]+/).filter((token) => token !== '') : []);
@@ -103,7 +103,7 @@ const named = (control: Element, root: Node): boolean =>
  * @param parts The calling component's host and the parts to wire; each is optional but `host`.
  * @return `show` and `release`, or a handle that owns nothing when a nearer caller already wired the control.
  */
-export const labeled = (control: Element, parts: LabelledParts): LabelledWiring => {
+export const labeled = (control: Element, parts: LabeledParts): LabeledWiring => {
   const marked = control as Marked;
   const { host } = parts;
   const owner = marked[OWNER];

@@ -4,7 +4,7 @@
  * The parts `labeled` wires to a control. Every part is optional, and each is an element the caller already holds:
  * the hook never creates, moves or writes text into one.
  */
-export type LabelledParts = {
+export type LabeledParts = {
   /**
    * The element whose own subtree is the calling component (a field's host). When two components wire the same
    * control, the one whose host is NEARER the control owns it, whatever order they ran in.
@@ -21,10 +21,10 @@ export type LabelledParts = {
 };
 
 /**
- * What `labeled` hands back. A caller that does not own the control (a farther caller, see `LabelledParts.host`) gets
+ * What `labeled` hands back. A caller that does not own the control (a farther caller, see `LabeledParts.host`) gets
  * a handle that owns nothing: both calls do nothing.
  */
-export type LabelledWiring = {
+export type LabeledWiring = {
   /** Shows one of the wired errors (described, and `aria-invalid="true"`), or none with `null`. */
   show: (error: Element | null) => void;
   /** Removes exactly what the wiring added, and puts back every attribute value it found. Idempotent. */
