@@ -12,7 +12,9 @@
  * shell script that takes the lock writes its WINDOWS pid** to `pid`: on Git Bash `$$` is an MSYS pid that no Windows
  * process has, so write `cat /proc/$$/winpid` (and `$$` on macOS and Linux). Only a holder with no `pid` at all is
  * judged by its heartbeat, live while it is under 60 s old, so such a script must beat in the background. The heartbeat
- * is otherwise for people reading the lock.
+ * is otherwise for people reading the lock. **A script that takes the lock by hand and then runs test-batch or the gate
+ * must `export VERA_HEAVY_BATCH=<name>` after its mkdir**: those tools take the lock themselves, and without the mark
+ * they wait forever on the script's own lock.
  *
  * A process that finds the lock held waits, saying who holds it, again every 5 minutes with its age, so a wait behind
  * a hung holder shows in the log. A STALE lock (its holder gone: a run killed by an alarm, a crash) is taken over
@@ -86,11 +88,15 @@ const clearStale = (dir, judged) => {
     rmSync(aside, { recursive: true, force: true });
     return true;
   }
-  /** Another process took the lock between our read and our rename: give it back if its place is still free. */
+  /**
+   * Another process took the lock between our read and our rename: give it back if its place is still free. If a third
+   * process took the place meanwhile, the aside copy is LEFT where it is: it names a holder that is still running (two
+   * jobs now run at once, which mkdir locks cannot fully rule out), so a person can find its owner and pid.
+   */
   try {
     renameSync(aside, dir);
   } catch {
-    rmSync(aside, { recursive: true, force: true });
+    process.stdout.write(`  (heavy lock: a live holder's lock was displaced to ${aside} — ${moved?.owner ?? 'unknown owner'}; two jobs may be running)\n`);
   }
   return false;
 };
