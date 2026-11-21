@@ -50,6 +50,7 @@ const LISTED = [
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'components/select', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'hooks/labeled', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'hooks/anchor', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'router', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'hot', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'lite', tables: ['src/diagnostics.ts'], sources: SOURCES },
