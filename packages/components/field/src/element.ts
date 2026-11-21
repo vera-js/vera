@@ -35,6 +35,13 @@ type Wired = {
   tried: boolean;
   edited: boolean;
   spoken: Spoken;
+  /**
+   * The error a server rejected the value with (the control served `aria-invalid="true"`, its error part not hidden
+   * and with text: "That email is taken"): it stands until the user's first edit, so loading the script never hides an
+   * error the server put there; then the ordinary rules apply. An authored error part is not one: authors write error
+   * parts without `hidden`, and only the server's mark on the control says the value was judged.
+   */
+  standing: Element | null;
 };
 
 /**
@@ -43,8 +50,12 @@ type Wired = {
  */
 const MARK = Symbol('vera-field');
 type Marked = Element & { [MARK]?: Wired };
-/** On a root: how many of this copy's fields are connected in it, so the last one to leave removes the listeners. */
-type Root = Node & { [MARK]?: number };
+/**
+ * On a root: how many of this copy's fields are connected in it, so the last one to leave removes the listeners. Its
+ * own symbol: under MARK, the walk from a target up to the document would read the count as a field.
+ */
+const COUNT = Symbol('vera-field-roots');
+type Root = Node & { [COUNT]?: number };
 /** On an error part: the text the user wrote in it, read once, so a part they left empty can show the browser's. */
 const TEXT = Symbol('vera-field-text');
 type Error_ = Element & { [TEXT]?: string };
@@ -82,6 +93,11 @@ const partsOf = (errors: readonly Element[]): ErrorPart[] =>
 
 /** Shows the error the control's validity calls for (or none), each part's `hidden` and the wiring's description. */
 const render = (wired: Wired): void => {
+  if (wired.standing !== null) {
+    for (const error of wired.errors) error.toggleAttribute('hidden', error !== wired.standing);
+    wired.wiring.show(wired.standing);
+    return;
+  }
   const choice = wired.tried ? choose(validityOf(wired.control), partsOf(wired.errors)) : null;
   wired.errors.forEach((error, index) => {
     const shown = choice !== null && choice.index === index;
@@ -101,26 +117,40 @@ const counted = (field: Element, wired: Wired, committed: boolean): void => {
   if (!committed) return;
   const next = step(wired.spoken, length, max);
   wired.spoken = next.spoken;
+  if (next.say === null) return;
+  /** The words are the consumer's (`count-message`, `limit-message`, `{left}` interpolated), English by default. */
+  const text =
+    next.say.left === 0
+      ? (field.getAttribute('limit-message') ?? 'Limit reached')
+      : (field.getAttribute('count-message') ?? '{left} characters left').replaceAll('{left}', String(next.say.left));
   /** Keyed by the count part's own id (labeled gives it one to reference), so two fields never collapse into one. */
-  if (next.say !== null) announce(field, next.say.left === 0 ? 'Limit reached' : `${next.say.left} characters left`, { key: wired.count.id });
+  announce(field, text, { key: wired.count.id });
 };
 
-/** The field (of this copy) an event belongs to: the nearest `vera-field` around its target that carries our mark. */
-const fieldOf = (event: Event): [Marked, Wired] | null => {
-  const target = event.target as Element | null;
-  const field = target !== null && typeof target.closest === 'function' ? (target.closest('vera-field') as Marked | null) : null;
-  const wired = field?.[MARK];
-  return field && wired && wired.control.contains(target as Node) ? [field, wired] : null;
+/**
+ * The field (of this copy) a node belongs to: the nearest ancestor carrying our MARK, whose control holds the node.
+ * Found by the mark, never by the tag: `./element`'s `defineAs` registers the field under the user's own tag.
+ */
+const markedAround = (node: Node | null): [Marked, Wired] | null => {
+  for (let at = node; at !== null; at = at.parentNode) {
+    const wired = (at as Marked)[MARK];
+    if (wired !== undefined) return wired.control.contains(node) ? [at as Marked, wired] : null;
+  }
+  return null;
 };
+const fieldOf = (event: Event): [Marked, Wired] | null => markedAround(event.target as Node | null);
 
 const onInput = (event: Event): void => {
   const found = fieldOf(event);
   if (found === null) return;
   const [field, wired] = found;
   wired.edited = true;
+  /** The user's first edit ends a server's standing error: render once so it is hidden even before they have tried. */
+  const stood = wired.standing !== null;
+  wired.standing = null;
   const composing = (event as InputEvent).isComposing === true;
   counted(field, wired, !composing);
-  if (wired.tried) render(wired);
+  if (wired.tried || stood) render(wired);
 };
 const onCompositionEnd = (event: Event): void => {
   const found = fieldOf(event);
@@ -132,8 +162,15 @@ const onFocusOut = (event: Event): void => {
   found[1].tried = true;
   render(found[1]);
 };
-/** On a form: a focus decision is queued for this task (one per submit, however many of its fields went invalid). */
-type Form = HTMLFormElement & { [MARK]?: true };
+/**
+ * On a form: the user attempted to submit it in this task (a submit control clicked, or Enter in a control that submits
+ * implicitly), and whether its focus decision is queued. `invalid` carries no flag telling interactive validation from
+ * `checkValidity()`, the silent check apps call on every keystroke, so the field must see the ATTEMPT itself: focus
+ * moves only for a form the user tried to submit. Cost, stated: a scripted `reportValidity()` or `requestSubmit()`
+ * is not seen, and the browser focuses nothing for a field's cancelled control then (the app focuses for itself).
+ */
+const ATTEMPT = Symbol('vera-field-attempt');
+type Form = HTMLFormElement & { [ATTEMPT]?: 1 | 2 };
 
 /**
  * **Focus after a failed submit, decided per FORM, in tree order.** A field cancels its own control's `invalid` (no
@@ -143,16 +180,42 @@ type Form = HTMLFormElement & { [MARK]?: true };
  * uncancelled one). Cost, stated: a bare input's own bubble can show while focus sits on a field's control before it.
  */
 const focusFirstInvalid = (form: Form): void => {
-  if (form[MARK]) return;
-  form[MARK] = true;
+  if (form[ATTEMPT] !== 1) return;
+  form[ATTEMPT] = 2;
+  /** A microtask: every `invalid` of this submit has fired by then (they are dispatched in one go, in tree order). */
   queueMicrotask(() => {
-    delete form[MARK];
+    /**
+     * The first in tree order. One that cannot take focus (`display: none`) makes `focus()` a no-op and nothing is
+     * focused: the same as native validation's "not focusable", so the loop stops there either way.
+     */
     for (const control of form.elements as unknown as Iterable<Element & { willValidate?: boolean; validity?: ValidityState; focus?: () => void }>)
       if (control.willValidate === true && control.validity !== undefined && !control.validity.valid) {
         control.focus?.();
         return;
       }
   });
+};
+
+/** The form a user's submit attempt is for: a submit control's form owner (`form=` included), read through `.form`. */
+const attempted = (form: HTMLFormElement | null | undefined): void => {
+  if (!form) return;
+  const marked = form as Form;
+  if (marked[ATTEMPT] !== undefined) return;
+  marked[ATTEMPT] = 1;
+  /** Cleared a task later, so a later silent `checkValidity()` on the same form moves no focus. */
+  (form.ownerDocument.defaultView ?? globalThis).setTimeout(() => delete marked[ATTEMPT], 0);
+};
+const onClick = (event: Event): void => {
+  const target = event.target as Element | null;
+  const submit = target !== null && typeof target.closest === 'function' ? target.closest('button,input') : null;
+  const type = (submit as (Element & { type?: string }) | null)?.type;
+  if (type === 'submit' || type === 'image') attempted((submit as Element & { form?: HTMLFormElement | null }).form);
+};
+const onKeydown = (event: Event): void => {
+  if ((event as KeyboardEvent).key !== 'Enter') return;
+  const target = event.target as (Element & { form?: HTMLFormElement | null; type?: string }) | null;
+  /** Enter submits implicitly from a single-line text control; never from a textarea, where it is a newline. */
+  if (target !== null && target.localName === 'input' && target.type !== 'button' && target.type !== 'checkbox') attempted(target.form);
 };
 
 const onInvalid = (event: Event): void => {
@@ -164,16 +227,29 @@ const onInvalid = (event: Event): void => {
   const form = (found[1].control as Element & { form?: HTMLFormElement | null }).form;
   if (form) focusFirstInvalid(form as Form);
 };
+/**
+ * A reset forgets that the user tried, by the form's own controls (so a control joined from outside with `form=`
+ * counts, and a field under any tag is found by its mark). The `reset` event fires BEFORE the form restores values,
+ * and the microtask after a user's reset still runs before the restore, so the count is re-read a task later; what the
+ * count has spoken is left as it is (only committed input judges it).
+ */
 const onReset = (event: Event): void => {
-  const form = event.target as Element | null;
-  if (form === null || typeof form.querySelectorAll !== 'function') return;
-  for (const field of form.querySelectorAll('vera-field') as NodeListOf<Marked>) {
-    const wired = field[MARK];
-    if (wired === undefined) continue;
-    wired.tried = false;
-    wired.edited = false;
-    render(wired);
+  const form = event.target as (Element & { elements?: Iterable<Element> }) | null;
+  if (form === null || form.elements === undefined) return;
+  const fields: [Marked, Wired][] = [];
+  for (const control of form.elements) {
+    const found = markedAround(control);
+    if (found === null || found[1].control !== control) continue;
+    found[1].tried = false;
+    found[1].edited = false;
+    found[1].standing = null;
+    render(found[1]);
+    fields.push(found);
   }
+  if (fields.length > 0)
+    (form.ownerDocument.defaultView ?? globalThis).setTimeout(() => {
+      for (const [field, wired] of fields) if (field[MARK] === wired) counted(field, wired, false);
+    }, 0);
 };
 
 /** The listeners, in the phase each event needs: `invalid` does not bubble, `input` and `reset` are read in capture. */
@@ -183,17 +259,19 @@ const LISTENERS: [string, (event: Event) => void, boolean][] = [
   ['focusout', onFocusOut, false],
   ['invalid', onInvalid, true],
   ['reset', onReset, true],
+  ['click', onClick, true],
+  ['keydown', onKeydown, true],
 ];
 
 const listen = (root: Root): void => {
-  const n = root[MARK] ?? 0;
+  const n = root[COUNT] ?? 0;
   if (n === 0) for (const [type, fn, capture] of LISTENERS) root.addEventListener(type, fn, capture);
-  root[MARK] = n + 1;
+  root[COUNT] = n + 1;
 };
 const unlisten = (root: Root): void => {
-  const n = (root[MARK] ?? 1) - 1;
+  const n = (root[COUNT] ?? 1) - 1;
   if (n === 0) for (const [type, fn, capture] of LISTENERS) root.removeEventListener(type, fn, capture);
-  root[MARK] = n;
+  root[COUNT] = n;
 };
 
 /** Wires the field's current control and parts; the user's error text is kept to restore and to show. */
@@ -204,7 +282,9 @@ const wire = (field: Marked, control: Element): Wired => {
   const hint = part(field, 'hint');
   const count = part(field, 'count');
   const wiring = labeled(control, { host: field, label, hint, count, errors });
-  const wired: Wired = { control, label, hint, count, errors, wiring, tried: false, edited: false, spoken: 0 };
+  const judged = control.getAttribute('aria-invalid') === 'true';
+  const standing = judged ? (errors.find((error) => !error.hasAttribute('hidden') && (error as Error_)[TEXT] !== '') ?? null) : null;
+  const wired: Wired = { control, label, hint, count, errors, wiring, tried: false, edited: false, spoken: 0, standing };
   render(wired);
   counted(field, wired, false);
   return wired;
@@ -212,30 +292,44 @@ const wire = (field: Marked, control: Element): Wired => {
 
 /**
  * The setup: no render (the field's children are the user's). An effect wires on connect and releases on removal; a
- * move to another window re-runs it there. A control the page swaps (a framework re-render) is caught as it happens,
- * by an observer of the control's parent only, so text changes in the field's other parts never wake it.
+ * move to another window re-runs it there. A control the page swaps (a framework re-render, of the control or of a
+ * wrapper around it) is caught as it happens by an observer of each ancestor from the control's parent up to the field,
+ * childList only, so text changes in the field's other parts never wake it. With no control (removed, or not yet
+ * there), the field holds no wiring and watches its whole subtree until one appears.
  */
 export const setup = (host: HTMLElement) => {
   const field = host as Marked;
   effect(() => {
-    const control = findControl(field);
-    if (control === null) return;
     const root = field.getRootNode();
-    let wired = (field[MARK] = wire(field, control));
     listen(root);
-    const observer = new MutationObserver(() => {
-      const now = findControl(field);
-      if (now === wired.control) return;
-      wired.wiring.release();
-      if (now === null) return;
-      wired = field[MARK] = wire(field, now);
+    let wired: Wired | null = null;
+    const observer = new MutationObserver(() => track(findControl(field)));
+    const watch = (control: Element | null): void => {
       observer.disconnect();
-      observer.observe(now.parentNode as Node, { childList: true });
-    });
-    observer.observe(control.parentNode as Node, { childList: true });
+      if (control === null) {
+        observer.observe(field, { childList: true, subtree: true });
+        return;
+      }
+      /** The parent is never null here: the control was found inside the field, so the chain ends at the field. */
+      for (let at = control.parentNode; at !== null; at = at.parentNode) {
+        observer.observe(at, { childList: true });
+        if (at === field) break;
+      }
+    };
+    const track = (control: Element | null): void => {
+      if (wired !== null && control === wired.control) return;
+      if (wired !== null) {
+        wired.wiring.release();
+        delete field[MARK];
+        wired = null;
+      }
+      if (control !== null) wired = field[MARK] = wire(field, control);
+      watch(control);
+    };
+    track(findControl(field));
     return () => {
       observer.disconnect();
-      wired.wiring.release();
+      if (wired !== null) wired.wiring.release();
       delete field[MARK];
       unlisten(root);
     };

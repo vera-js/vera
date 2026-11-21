@@ -143,12 +143,28 @@ test('listeners are per root, not per field: 50 fields add one set; the last to 
   }
 });
 
-test('after a failed submit the form\'s first invalid control in tree order gets focus, a bare input included', async () => {
-  /** checkValidity() fires invalid on each control and focuses nothing itself, so what focuses is the field's decision. */
+test('the silent check moves no focus: checkValidity() fires invalid on every control and focus stays put', async () => {
+  const f = document.createElement('form');
+  f.innerHTML = '<input id="here"><vera-field><label>A</label><input required><small data-vera-part="error"></small></vera-field>';
+  document.body.append(f);
+  await flush();
+  f.querySelector('#here').focus();
+  f.checkValidity();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(document.activeElement?.id, 'here', 'an app checking validity on every keystroke never has focus taken');
+  f.remove();
+});
+
+test('after a submit attempt the form\'s first invalid control in tree order gets focus, a bare input included', async () => {
+  /** A submit button's click marks the attempt; checkValidity() then fires invalid on each control (jsdom focuses nothing). */
   const first = document.createElement('form');
   first.innerHTML = '<vera-field><label>A</label><input required id="in-field"><small data-vera-part="error"></small></vera-field><input required id="bare">';
   document.body.append(first);
   await flush();
+  first.append(Object.assign(document.createElement('button'), { type: 'submit' }));
+  /** Cancelled, so only checkValidity() below fires invalid (no jsdom submission of its own). */
+  first.addEventListener('click', (event) => event.preventDefault());
+  first.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
   first.checkValidity();
   await Promise.resolve();
   assert.equal(document.activeElement?.id, 'in-field', "the field's control, first in tree order");
@@ -157,6 +173,10 @@ test('after a failed submit the form\'s first invalid control in tree order gets
   second.innerHTML = '<input required id="bare2"><vera-field><label>A</label><input required id="in-field2"><small data-vera-part="error"></small></vera-field>';
   document.body.append(second);
   await flush();
+  second.append(Object.assign(document.createElement('button'), { type: 'submit' }));
+  /** Cancelled, so only checkValidity() below fires invalid (no jsdom submission of its own). */
+  second.addEventListener('click', (event) => event.preventDefault());
+  second.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
   second.checkValidity();
   await Promise.resolve();
   assert.equal(document.activeElement?.id, 'bare2', 'the bare input before it keeps its native place');
@@ -189,7 +209,7 @@ test('a reset re-reads the count once the browser has restored the value', async
 });
 
 test('an error the server rendered shown stands through connect, and clears on the first edit', async () => {
-  const { host, field: f, control } = await field('<label>Email</label><input type="email" value="taken@example.com"><small data-vera-part="error">That email is taken.</small>');
+  const { host, field: f, control } = await field('<label>Email</label><input type="email" value="taken@example.com" aria-invalid="true"><small data-vera-part="error">That email is taken.</small>');
   assert.deepEqual(shown(f), ['That email is taken.'], 'loading the script did not hide it');
   assert.equal(control.getAttribute('aria-invalid'), 'true', 'and it is the control\'s error');
   type(control, 'new@example.com');

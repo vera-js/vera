@@ -39,10 +39,12 @@ if (SCENARIO === 'ssr') {
     out.registered = typeof Class === 'function' && customElements.get('my-field') === Class;
     out.untouched = customElements.get(TAG) === undefined;
     const element = document.createElement('my-field');
+    element.innerHTML = '<label>A</label><input>';
     document.body.append(element);
     flush();
     await Promise.resolve();
-    out.rendered = element.querySelector('[data-vera-part="root"]') !== null;
+    /** The field renders nothing of its own: it wires the user's children where they are. */
+    out.rendered = element.querySelector('label').htmlFor === element.querySelector('input').id && element.children.length === 2;
   }
   process.stdout.write(JSON.stringify(out));
 } else {
@@ -71,17 +73,17 @@ if (SCENARIO === 'ssr') {
     assert.deepEqual(said, []);
   });
 
-  test('defineAs registers under the caller\'s tag, and the element renders its part', () => {
+  test('defineAs registers under the caller\'s tag, and the element wires its children', () => {
     const { registered, untouched, rendered, said } = run('define-as');
     assert.equal(registered, true, 'the returned class serves the tag');
     assert.equal(untouched, true, `<${TAG}> stays free`);
-    assert.equal(rendered, true, 'the root part is in the element');
+    assert.equal(rendered, true, 'the label names the control, and nothing was added');
     assert.deepEqual(said, []);
   });
 
-  test('a server imports "." through @verajs/ssr and renders the element', () => {
+  test('a server imports "." through @verajs/ssr and renders the element, with no markup of its own', () => {
     const { html } = run('ssr');
     assert.ok(html.includes(`<${TAG}`), html);
-    assert.ok(html.includes('data-vera-part="root"'), html);
+    assert.ok(!html.includes('data-vera-part'), html);
   });
 }
