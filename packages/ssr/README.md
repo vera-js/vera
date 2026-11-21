@@ -274,8 +274,14 @@ unsanitized. Everything else is checked:
   shares its attribute with any statics and other holes around it — `title=pre${x}`, `title=${a}${b}`,
   `title = ${x}`, single or double quotes — and the server writes that whole attribute once, the way the
   client's `setAttribute` stores it, so nothing a value holds can end the attribute or start another.
-  A hole that is the whole value omits the attribute for `null` and `undefined`, as the client does; a
-  hole joined with statics contributes empty text.
+  A hole that is the whole value omits the attribute for `null` and `undefined`, as the client does — an
+  earlier static write of the same name included (`<a title=x title=${null}>` serves `<a>`); a hole joined
+  with statics contributes empty text.
+- **A sigil binding is read by its attribute's name, whatever its value holds.** `@click="x${fn}"` and
+  `&="x${r}"` are still the binding (the client ignores their statics), so nothing is written for them. A
+  `?bool`, `.prop` or `!live` value with statics or several holes is one string, joined as the client joins
+  it — statics decoded, a nullish hole as empty text: `?hidden="x${false}"` is the truthy `"xfalse"`, and
+  `.value="${first} ${last}"` serves the whole name as the control's value.
 - **A bound `javascript:` URL is never served.** A template value bound where a browser navigates
   (`href`, `src`, `action`, `formaction`, `xlink:href`, `data`, and an SVG animation's `to`, `from`,
   `by` and `values`, item by item) is dropped when it parses as a `javascript:` URL — judged on the attribute's whole value, statics and character references

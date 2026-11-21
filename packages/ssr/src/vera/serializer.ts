@@ -1,5 +1,6 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
+import { decode } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
@@ -103,6 +104,30 @@ const afterValue = (text: string, end: number, quote: string): string => {
   const c = rest.charCodeAt(0);
   return quote && rest && c !== 32 && c !== 62 && c !== 47 && (c < 9 || c > 13 || c === 11) ? ` ${rest}` : rest;
 };
+/**
+ * **A `?`, `.` or `!` value with statics or several holes is ONE string, joined as the client joins it**: the client
+ * parses the attribute, splits its value at the holes, and on each render assigns `statics[0] + text(v0) + statics[1]
+ * …` (`nullish` is `''`), so `?hidden="x${false}"` is truthy and `.value="${a} ${b}"` is `"a b"`. The server took the
+ * first hole alone and, with a static before it, wrote the binding as a literal attribute (`@click="x() => {}"`: the
+ * handler's source in the page). A static here is the attribute value's text, so it is decoded as the parser decodes
+ * it — with the one decoder the shim parses markup with. `undefined` when the value is a lone hole, the shape the
+ * client gives no statics to and which keeps the value itself (an object, a number), not its text.
+ */
+const finishJoin = (pieces: string[], piece: string): string[] | undefined => {
+  pieces.push(piece);
+  return pieces.length > 2 || pieces[0] !== '' || pieces[1] !== '' ? pieces : undefined;
+};
+/** A static of a sigil binding's value, as the client's parser hands it over. */
+const valueText = (text: string): string => decode(normalizeNewlines(text));
+/** The joined value: statics and holes, a nullish hole as `''`, every other one by `String` — the client's `toText`. */
+const joinValue = (pieces: readonly string[], values: readonly unknown[], i: number): string => {
+  let text = pieces[0]!;
+  for (let p = 1; p < pieces.length; p++) {
+    const value = values[i + p - 1];
+    text += (value == null ? '' : `${value}`) + pieces[p]!;
+  }
+  return text;
+};
 
 /**
  * **An expression inside an attribute NAME is refused** — the twin of the client's rule (`nameHole` in the renderer),
@@ -182,6 +207,8 @@ type Plan = {
   readonly decodedLeads: string[];
   /** Sparse: set for each COMPONENT_PROP slot only. */
   readonly urls: Array<boolean | undefined>;
+  /** Sparse: a `?`, `.` or `!` binding's value statics when it has any or several holes (see `finishJoin`); read only by those kinds. */
+  readonly joins: Array<readonly string[] | undefined>;
   /** Per slot (dense, 0 for every slot that is no style hole): when a style value may skip `styleHole` — see `compile`. */
   readonly styleTails: number[];
 };
@@ -446,6 +473,10 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * it comes off the front of the next static, and a hole before it ends is dropped with it. `undefined` otherwise.
    */
   let openQuote: string | undefined;
+  /** The open sigil value's statics so far, and its first hole — `undefined` for a dropped binding, which has no value. */
+  let pieces: string[] | undefined;
+  let joinAt = 0;
+  const joins: Array<readonly string[] | undefined> = [];
   let wasInTag = false;
   /** Carried across statics — see `scanTag`. */
   let tagState: ScanStart | ScanResult = freshScan(depth);
@@ -466,9 +497,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     if (openQuote !== undefined) {
       const end = valueEnd(part, openQuote);
       if (end === -1) {
+        pieces?.push(valueText(part));
         part = '';
         continued = true;
       } else {
+        if (pieces !== undefined) joins[joinAt] = finishJoin(pieces, valueText(part.slice(0, openQuote ? end - 1 : end)));
+        pieces = undefined;
         part = afterValue(part, end, openQuote);
         openQuote = undefined;
       }
@@ -541,11 +575,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     /** The tag a binding belongs to, by the name the tokenizer reads — the element's `localName` on the client. */
     owner = inTag && !tagState.closing ? tagState.tagName : '';
     /**
-     * Whether this hole is an attribute's WHOLE value as it opens — `name=${…}`, quoted or not, with space around `=`
-     * as the tokenizer allows. Only then can it be a sigil or event binding: a hole later in a value (`title="a
-     * .x=${…}"`) is part of that value.
+     * Whether this hole is the FIRST in an attribute's value — `name=${…}` or `name="x${…}`, quoted or not, with space
+     * around `=` as the tokenizer allows. Only then can it be a sigil or event binding, as the client reads one: by
+     * the attribute's name, whatever statics its value holds. A hole later in a value (`title="a .x=${…}"`) is part
+     * of that value, whose name is `title`.
      */
-    const whole = inTag && tagState.inValue && tagState.opened && tagState.valueStart === strings[i].length;
+    const first = inTag && tagState.inValue && tagState.opened;
     /** Offsets are in the author's static; `part` may have lost a leading quote to the binding before it. */
     const shift = strings[i].length - part.length;
     /**
@@ -583,7 +618,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * attribute path and emit an attribute named `!` — so every sigil is added here in the same pass it is added to
      * the renderer.
      */
-    if (whole && SIGILS.has(tagState.attrRaw[0])) {
+    if (first && SIGILS.has(tagState.attrRaw[0])) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
       const before = part.slice(0, nameCut(strings[i], tagState.nameAt) - shift).replace(/ $/, '');
       record(before);
@@ -632,6 +667,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       } else {
         kinds.push(DROPPED);
       }
+      /** `@` and `&` ignore their statics on the client, and every DROPPED binding writes nothing: no value to join. */
+      if (kinds[kinds.length - 1] !== DROPPED) {
+        joinAt = kinds.length - 1;
+        pieces = [valueText(strings[i].slice(tagState.valueStart))];
+      }
       names.push(sigilName);
       strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);
@@ -645,7 +685,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     openQuote = undefined;
 
     /** `onClick=${fn}` — the React-shaped event binding, named as the client names it: a client concern, dropped like `@`. */
-    if (whole && /^on[A-Z]/.test(tagState.attrRaw)) {
+    if (first && /^on[A-Z]/.test(tagState.attrRaw)) {
       const before = part.slice(0, tagState.nameAt - shift).replace(/ $/, '');
       record(before);
       parts.push(before);
@@ -768,6 +808,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   let last = strings[strings.length - 1];
   if (openQuote !== undefined) {
     const end = valueEnd(last, openQuote);
+    if (pieces !== undefined) joins[joinAt] = finishJoin(pieces, valueText(end === -1 ? last : last.slice(0, openQuote ? end - 1 : end)));
     last = end === -1 ? '' : afterValue(last, end, openQuote);
   }
   parts.push(last);
@@ -883,7 +924,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     parts, kinds, names, strip, owners, raws,
     depths: denseDepths,
     texts: denseTexts,
-    elementPositions, elements, groups, leads, decodedLeads, urls, styleTails,
+    elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails,
   };
   if (depth === 0) plans.set(strings, plan);
   else {
@@ -914,7 +955,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
    * `strings` is any value here, a forgery's included: the cast only names the key the maps hold, and `WeakMap#get`
    * answers `undefined` for a key it could never hold, which sends a forgery on to `compile`'s refusal.
    */
-  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls, styleTails } =
+  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails } =
     (depth === 0 ? plans.get(strings as TemplateStringsArray) : foreignPlans.get(strings as TemplateStringsArray)?.get(depth)) ??
     compile(strings, depth) ??
     FORGED;
@@ -959,7 +1000,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
       out += insertContent(part, pendingText, pendingStrip);
       pendingText = null;
     }
-    const value = values[i];
+    let value = values[i];
     switch (kinds[i]) {
       case TEXT:
         /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
@@ -1077,25 +1118,33 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * ONE decision for every shape, written whole or not at all: a sole nullish value removes the attribute,
          * and a bound srcdoc or a `javascript:` URL is refused — as the client decides each of them.
          */
-        if ((group.sole && value == null) || group.refuse === 1) break;
+        if (group.refuse === 1) break;
+        /**
+         * A nullish sole value and a refused URL REMOVE the attribute on the client (`removeAttribute`), an earlier
+         * static write of the name included (`<a title=x title=${null}>` renders `<a>`) — so the strip comes first.
+         */
+        if (group.strip) out = removeAttribute(out, group.name);
+        if (group.sole && value == null) break;
         if (group.refuse > 1 && (group.refuse === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(joined)) {
           refusedScriptUrl(group.name);
           break;
         }
-        if (group.strip) out = removeAttribute(out, group.name);
         out += attribute + '"';
         break;
       }
       case BOOLEAN:
+        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value) out += ` ${names[i]}=""`;
         break;
       case CONTENT:
+        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         pendingText = serverContent(value, owners[i], names[i], depths[i]);
         pendingStrip = owners[i];
         break;
       case FORM_PROP:
         if (!FORM_ELEMENTS.has(owners[i])) break;
+        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         /**
          * A `<textarea>`'s value is its **text content**. `<textarea value="x">` is ignored by
          * every parser, so writing the attribute served an empty control while the client — which
@@ -1158,6 +1207,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * Registration is asked per render, not per plan, because the registry fills as component
          * modules execute.
          */
+        if (joins[i] !== undefined) value = joinValue(joins[i]!, values, i);
         if (registry.has(owners[i]) && !(urls[i] && value != null && SCRIPT_URL.test(`${value}`))) {
           adoption ??= { instances: new Map(), mark: '' };
           deliverProperty(claimInstance(adoption, elements[i], owners[i]), owners[i], names[i], value);

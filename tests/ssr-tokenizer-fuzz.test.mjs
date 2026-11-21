@@ -134,11 +134,20 @@ test('random statics: no hole lets a value make markup, and every placed value s
  */
 const BINDING_NAMES = ['@click', '@x', '?hidden', '.value', '.x', '!live', '&', '&ref', 'onClick', 'onA'];
 const BINDING_TAGS = ['a', 'p', 'input', 'x-el', 'textarea', 'svg'];
-const VALUE_TOKENS = ['', '', 'x', 'a b', ' ', '"', "'", '>', '/', '=', '\n', '`', '&amp;', ' title=', '<b>'];
+/** `\f` ends an unquoted value (tokenizer whitespace); `\v` does not, so the value runs on into the next hole. */
+const VALUE_TOKENS = ['', '', 'x', 'a b', ' ', '"', "'", '>', '/', '=', '\n', '\v', '\f', '`', '&amp;', ' title=', '<b>'];
 
-test('several holes in a sigil or event binding’s value: none lets a value make markup, and each inside the value is dropped', () => {
+/**
+ * Where a hole inside the binding's value may be served: nowhere — except a `.value` on a form control, whose holes the
+ * client joins into the control's value (`.value="${a} ${b}"` is `"a b"`), which the server writes as the control's
+ * value attribute, or a textarea's text.
+ */
+const servedAt = (tag, name) => (name !== '.value' ? '' : tag === 'input' ? 'value:input value' : tag === 'textarea' ? 'text:textarea:' : '');
+
+test('several holes in a sigil or event binding’s value: none lets a value make markup, and each inside the value is dropped or joined into a form control’s value', () => {
   let cases = 0;
   let inside = 0;
+  let joined = 0;
   const failures = [];
   for (const seed of SEEDS) {
     const random = lcg(seed ^ 0x5eed);
@@ -170,11 +179,15 @@ test('several holes in a sigil or event binding’s value: none lets a value mak
        * lands (after the value closes) is the token soup's question above; here it is only asked not to make markup.
        */
       const own = `value:${tag} ${name.toLowerCase()}`;
+      const joinedAt = servedAt(tag, name);
       for (let i = 1; i < values.length; i++) {
         const sentinel = `zq${i}zq`;
         const server = locate(serverTree, sentinel);
-        if (locate(browserTree, sentinel) === own && server !== 'absent') failures.push(`KEPT ${sentinel}: server ${server} — ${label} -> ${JSON.stringify(served)}`);
-        if (locate(browserTree, sentinel) === own) inside++;
+        if (locate(browserTree, sentinel) !== own) continue;
+        inside++;
+        if (server === 'absent') continue;
+        if (joinedAt !== '' && server.startsWith(joinedAt)) joined++;
+        else failures.push(`KEPT ${sentinel}: server ${server} — ${label} -> ${JSON.stringify(served)}`);
       }
     }
   }
@@ -182,4 +195,6 @@ test('several holes in a sigil or event binding’s value: none lets a value mak
   /** The volume control: most cases must render, or the check above saw nothing. */
   assert.ok(cases > SEEDS.length * 400 * 0.5, `only ${cases} cases rendered`);
   assert.ok(inside > SEEDS.length * 100, `only ${inside} holes inside a binding's value`);
+  /** And the joined branch is exercised: a form control's value DID receive holes, so that allowance is not dead. */
+  assert.ok(joined > SEEDS.length * 5, `only ${joined} holes joined into a form control's value`);
 });

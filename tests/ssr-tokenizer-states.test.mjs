@@ -238,8 +238,18 @@ test('a further hole in a sigil or event binding’s value is dropped with it, w
   assert.equal(serializeTemplate(template(['<a @click=', '', '>1</a>'], fn, ' onx=1 y=')), '<a>1</a>');
   assert.equal(serializeTemplate(template(['<a @click="', 'x', '">1</a>'], fn, hostile)), '<a>1</a>');
   assert.equal(serializeTemplate(template(['<a onClick="', ' ', '">1</a>'], fn, hostile)), '<a>1</a>');
-  assert.equal(serializeTemplate(template(['<a ?hidden="', ' ', '">1</a>'], true, hostile)), '<a hidden="">1</a>');
-  assert.equal(serializeTemplate(template(['<input .value="', ' ', '">'], 'v', hostile)), '<input value="v">');
+  /**
+   * A `?` or `.` value's holes are JOINED, as the client joins them (`"true " + hostile` is truthy; the control's value is
+   * the whole text) — and the hostile second value is still never an attribute of its own: it stays inside the quotes.
+   */
+  const joinedBoolean = serializeTemplate(template(['<a ?hidden="', ' ', '">1</a>'], true, hostile));
+  const joinedValue = serializeTemplate(template(['<input .value="', ' ', '">'], 'v', hostile));
+  assert.equal(joinedBoolean, '<a hidden="">1</a>');
+  assert.equal(joinedValue, '<input value="v &#34; onx=1 y=&#34;">');
+  for (const served of [joinedBoolean, joinedValue]) {
+    const element = parse(`<!doctype html><body>${served}`).childNodes[1].childNodes[1].childNodes[0];
+    assert.deepEqual(element.attrs.map((a) => a.name).filter((name) => name !== 'hidden' && name !== 'value'), [], served);
+  }
   assert.equal(serializeTemplate(template(['<a @click="', 'x', '">1</a>'], fn, 'v')), '<a>1</a>');
   assert.equal(serializeTemplate(template(['<a @click="', '', '', '">1</a>'], fn, hostile, hostile)), '<a>1</a>');
 });
@@ -256,6 +266,33 @@ test('a quote-breaking second value, and an unquoted value a vertical tab contin
     [['<a @click=', '\v', '>1</a>'], ' onx=1 y='],
   ];
   const wrong = rows.map(([statics, value]) => serializeTemplate(template(statics, fn, value))).filter((served) => served !== '<a>1</a>');
+  assert.deepEqual(wrong, []);
+});
+
+/**
+ * **A sigil binding is its attribute's name, whatever statics its value holds**, and a `?`, `.` or `!` value with
+ * statics or several holes is one string, joined as the client joins it (its statics decoded first). Before, a static
+ * before the hole wrote a literal attribute (`@click="x() => {}"`: the handler's source in the page), and several
+ * holes were read as the first alone.
+ */
+test('a sigil binding with statics in its value is still the binding, and its value is joined as the client joins it', () => {
+  const fn = () => {};
+  const rows = [
+    [['<a @click="x', '">1</a>'], [fn], '<a>1</a>'],
+    [['<a @click=x', '>1</a>'], [fn], '<a>1</a>'],
+    [['<a ?hidden="x', '">1</a>'], [false], '<a hidden="">1</a>'],
+    [['<a ?hidden="', 'x">1</a>'], [false], '<a hidden="">1</a>'],
+    [['<a ?hidden="', ' ', '">1</a>'], [false, ''], '<a hidden="">1</a>'],
+    [['<a ?hidden="', '', '">1</a>'], ['', null], '<a>1</a>'],
+    [['<input .value="&amp;', '">'], ['v'], '<input value="&#38;v">'],
+    [['<input .value="', '-', '">'], ['a', null], '<input value="a-">'],
+    [['<input type=checkbox .checked="', '', '">'], [0, ''], '<input type=checkbox checked="">'],
+    [['<p .innerHTML="&lt;i&gt;', '"></p>'], ['b'], '<p><i>b</p>'],
+    [['<p title=x title=', '>1</p>'], [null], '<p>1</p>'],
+  ];
+  const wrong = rows
+    .map(([statics, values, expected]) => [serializeTemplate(template(statics, ...values)), expected, JSON.stringify(statics)])
+    .filter(([served, expected]) => served !== expected);
   assert.deepEqual(wrong, []);
 });
 

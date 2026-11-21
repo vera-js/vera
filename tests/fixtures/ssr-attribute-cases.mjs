@@ -101,6 +101,27 @@ export const EXPLICIT = [
   { label: 'a second hole in a boolean value: ?hidden="${t} ${v}"', strings: ['<p ?hidden="', ' ', '">t</p>'], values: [true, '" onx=1 y="'] },
   { label: 'a second hole in a property value: .x="${a} ${v}"', strings: ['<p .x="', ' ', '">t</p>'], values: ['a', '" onx=1 y="'] },
   { label: 'after the binding closes, a hole is an attribute again', strings: ['<p @click="', '" title=', '>t</p>'], values: [() => {}, 'v'] },
+  /**
+   * **A sigil binding is its attribute's name, whatever statics its value holds** — the client reads the binding by the
+   * name and joins a `?`, `.` or `!` value's statics and holes into ONE string (an `@` or `&` ignores them). The server
+   * once recognized a binding only when one hole was its whole value: with a static before the hole it wrote a literal
+   * attribute (`@click="x() => {}"`, the handler's source), and with several holes it read the first alone.
+   */
+  { label: 'an event value with a static before its hole: @click="x${fn}"', strings: ['<p @click="x', '">t</p>'], values: [() => {}] },
+  { label: 'an unquoted event value with a static before its hole: @click=x${fn}', strings: ['<p @click=x', '>t</p>'], values: [() => {}] },
+  { label: 'a ref with a static before its hole: &="x${r}"', strings: ['<p &="x', '">t</p>'], values: [null] },
+  { label: 'a property on a plain element with a static before its hole: .x="x${v}"', strings: ['<p .x="x', '">t</p>'], values: ['v'] },
+  { label: 'a boolean whose joined value is text: ?hidden="x${false}"', strings: ['<p ?hidden="x', '">t</p>'], values: [false] },
+  { label: 'a boolean with a static suffix: ?hidden="${false}x"', strings: ['<p ?hidden="', 'x">t</p>'], values: [false] },
+  { label: 'a boolean joining two falsy holes into text: ?hidden="${false} ${\'\'}"', strings: ['<p ?hidden="', ' ', '">t</p>'], values: [false, ''] },
+  { label: 'a boolean joining two holes, unquoted: ?hidden=${false}${null}', strings: ['<p ?hidden=', '', '>t</p>'], values: [false, null] },
+  { label: 'a boolean joining two empty holes stays false: ?hidden="${\'\'}${null}"', strings: ['<p ?hidden="', '', '">t</p>'], values: ['', null] },
+  { label: 'a boolean joined with a hostile second hole: ?hidden="${true} ${v}"', strings: ['<p ?hidden="', ' ', '">t</p>'], values: [true, '" onx=1 y="'] },
+  { label: 'content with a decoded static before its hole: .innerHTML="&lt;i&gt;${v}"', strings: ['<p .innerHTML="&lt;i&gt;', '"></p>'], values: ['<b>b</b>'] },
+  /** A nullish sole value REMOVES its attribute on the client, an earlier static write of the name included. */
+  { label: 'a static attribute, then the same name bound to null', strings: ['<p title=x title=', '>t</p>'], values: [null] },
+  { label: 'a quoted static attribute, then the same name bound to undefined', strings: ['<p title="x" title="', '">t</p>'], values: [undefined] },
+  { label: 'a static href, then the same name bound to a refused URL', strings: ['<a href=/x href=', '>t</a>'], values: ['javascript:alert(1)'] },
   /** A template ending inside a value is refused on both sides now — `ssr-template-boundaries.test.mjs`. */
 ];
 
@@ -113,6 +134,27 @@ export const CASES = [
     }))
   ),
   ...EXPLICIT,
+];
+
+/**
+ * **Form controls**, compared by their live state — `value`, `checked`, `selected` — since the client SETS those
+ * properties and the server mirrors them to attributes (a parsed control reads its attributes back as that state).
+ * Each a `?`, `.` or `!` value with statics or several holes, joined as the client joins it: `.checked="${0}${''}"` is
+ * the text `"0"`, so the box is ticked; a static's references are decoded first (`&amp;` is `&`).
+ */
+export const FORM_CASES = [
+  { label: '.value with a static before its hole', strings: ['<input .value="x', '">'], values: ['v'] },
+  { label: '.value with a static before a nullish hole', strings: ['<input .value="x', '">'], values: [null] },
+  { label: '.value unquoted, with a static before its hole', strings: ['<input .value=x', '>'], values: [0] },
+  { label: '!value with a decoded static before its hole', strings: ['<input !value="&amp;', '">'], values: [undefined] },
+  { label: '.value joining two holes', strings: ['<input .value="', ' ', '">'], values: ['a', 'b'] },
+  { label: '.value joining a hostile second hole', strings: ['<input .value="', ' ', '">'], values: ['v', '" onx=1 y="'] },
+  { label: '.value joining three holes', strings: ['<input .value="[', '|', '|', ']">'], values: [false, null, 'c'] },
+  { label: '.checked whose joined value is text', strings: ['<input type=checkbox .checked="x', '">'], values: [false] },
+  { label: '.checked joining a zero and an empty hole', strings: ['<input type=checkbox .checked="', '', '">'], values: [0, ''] },
+  { label: '.checked joining two empty holes stays false', strings: ['<input type=checkbox .checked="', '', '">'], values: ['', null] },
+  { label: 'a textarea .value with a decoded static before its hole', strings: ['<textarea .value="a&lt;', '"></textarea>'], values: ['v'] },
+  { label: 'a select .value joined from a static and a hole', strings: ['<select .value="o', '"><option>ov</option><option>o</option></select>'], values: ['v'] },
 ];
 
 export const template = ({ strings, values }) => ({

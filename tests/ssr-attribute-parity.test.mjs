@@ -24,15 +24,15 @@ import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
-import { CASES, SHAPES, VALUES, template } from './fixtures/ssr-attribute-cases.mjs';
+import { CASES, FORM_CASES, SHAPES, VALUES, template } from './fixtures/ssr-attribute-cases.mjs';
 
 /* ── server, in its own process ─────────────────────────────────────────────────────────────── */
 const serverScript = `
 import { serializeTemplate } from '@verajs/ssr';
-import { CASES, template } from './tests/fixtures/ssr-attribute-cases.mjs';
-process.stdout.write(JSON.stringify(CASES.map((c) => serializeTemplate(template(c)))));
+import { CASES, FORM_CASES, template } from './tests/fixtures/ssr-attribute-cases.mjs';
+process.stdout.write(JSON.stringify([CASES, FORM_CASES].map((table) => table.map((c) => serializeTemplate(template(c))))));
 `;
-const served = JSON.parse(
+const [served, servedForms] = JSON.parse(
   execFileSync(process.execPath, ['--input-type=module', '-e', serverScript], { cwd: new URL('..', import.meta.url), encoding: 'utf8' })
 );
 
@@ -82,3 +82,32 @@ test('the control: a payload written as markup DOES become a handler, so the com
   parsed.innerHTML = '<p title=pre onmouseover=alert(1) x=>t</p>';
   assert.equal(parsed.querySelector('p').getAttribute('onmouseover'), 'alert(1)');
 });
+
+/** A form control's state as its user sees it: the live properties, which the client sets and the served attributes give. */
+const FORM_TAGS = new Set(['input', 'textarea', 'select', 'option']);
+const formStateOf = (root) =>
+  [...root.querySelectorAll('*')]
+    .filter((el) => FORM_TAGS.has(el.localName))
+    .map((el) => `${el.localName}{value=${JSON.stringify(el.value)} checked=${el.checked} selected=${el.selected}}`)
+    .join(' ');
+
+test('every form control bound with statics or several holes holds the same state from the served markup and the client DOM', () => {
+  assert.equal(servedForms.length, FORM_CASES.length, 'the server rendered every form case');
+  assert.ok(FORM_CASES.length >= 12, `only ${FORM_CASES.length} form cases`);
+  const wrong = [];
+  FORM_CASES.forEach((c, i) => {
+    const host = document.createElement('div');
+    renderInto(template(c), host);
+    const parsed = document.createElement('div');
+    parsed.innerHTML = servedForms[i];
+    /** The comparison must see a control on both sides, or it compares two empty strings. */
+    assert.ok(parsed.querySelector('input, textarea, select'), `no control served for ${c.label}`);
+    const client = formStateOf(host);
+    const server = formStateOf(parsed);
+    if (client !== server) wrong.push(`${c.label}\n      client ${client}\n      server ${server}\n      served ${servedForms[i]}`);
+    /** No value a hole holds becomes an attribute of its own. */
+    if (parsed.querySelector('[onx]')) wrong.push(`${c.label}: a value wrote an attribute — ${servedForms[i]}`);
+  });
+  assert.deepEqual(wrong, [], `\n  ${wrong.join('\n  ')}`);
+});
+
