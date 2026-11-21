@@ -904,6 +904,13 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   SVG script runs from a template in Chromium and WebKit (refused even with a JSON type). A data block's text is
   written with `<` as `\u003c`, a style's with `</style` as `<\/style` — on the composed text, by the server and
   the client alike, byte for byte (hydration adopts it): neither can end its element if the page is saved and parsed again.
+- Where a parser could read it either way, `@verajs/ssr` writes no value as raw text and no value into code: inside
+  `<svg>`, `<math>`, `<noscript>` or an open `<select>` (the select parser before customizable select, jsdom's and older
+  browsers', reads a `<style>` there as markup), a `<style>`'s value is served ESCAPED and hydration replaces it; a
+  `<script>` hole inside `<noscript>`, or in a template rendered into a foreign position, is REFUSED (`ssr-script-hole`),
+  JSON or not. A `<script>` or `<textarea>` straight inside a select is read as anywhere in HTML. `.innerHTML` on or
+  inside a `<select>`, as inside `<svg>`/`<math>`, is served as escaped text until hydration assigns it: render options
+  as children (`<select>${options}</select>`).
 - A value in a text-only element (`<style>`, a JSON block, HTML `<title>`/`<textarea>`) is TEXT on every tier and the
   server: a list is its items' text joined (`<style>${rules.map(…)}</style>`). A template in a style or JSON block is
   REFUSED (`template-in-text` / `ssr-template-in-text`); in an HTML `<title>`/`<textarea>` the renderer places it with a

@@ -57,9 +57,15 @@ export type SsrRenderResult = {
  * An element that changes how what follows it parses, as the scan opened it: its name (what closes it, and what a
  * template's end writes to close it), the foreign and `<template>` depths BEFORE it (restored when it closes), and the namespace its
  * content is read in — `html`, `svg`, `math`, or `''` when unknown (a template that starts at a foreign depth its
- * parent gave it cannot know which namespace that is, so it recognizes no integration point: the safe side).
+ * parent gave it cannot know which namespace that is, so it recognizes no integration point: the safe side), and
+ * inside `<noscript>` and `<select>`, whose content two parsers read two ways.
  */
 export type Open = { readonly name: string; readonly foreign: number; readonly inert: number; readonly space: string };
+/**
+ * Which of the HTML tokenizer's states the scan is in, from a `<` to its tag's `>` (`tokenizer.ts`, under the standard's
+ * names): outside a tag, tag open, end tag open, tag name, before/in/after an attribute name, after an attribute value,
+ * self-closing start tag.
+ */
 export type Phase = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 /** Where the scan stands at the end of a static — carried into the next one, and what a template's end must close. */
 export type ScanState = {

@@ -516,23 +516,23 @@ markup itself is served byte for byte as it was written.
   `computed` made inside a render and kept beyond it (stored on a module) stops updating when that render ends. Client
   code in the same process created while an async render is awaiting is treated as part of that render.
 - **No streaming.** `renderToString` returns a string where `@lit-labs/ssr` yields a stream. That buys
-  time-to-first-byte in proportion to how long a render takes, and a 100-row table here is PERF_TABLE µs
+  time-to-first-byte in proportion to how long a render takes, and a 100-row table here is about 45 µs
   — the response is built before a stream would flush its first chunk. Worth revisiting for a page big
   enough that it stops being true.
 
 ## Performance
 
 `node bench/ssr.mjs` (fastest of 7 rotated rounds; run `cd bench && npm install` first), µs per render
-— a small component, and a 100-row table:
+— a small component, and a 100-row table (Node 24.18, Apple M1, 2026-11-21):
 
 | | small | table |
 | --- | --- | --- |
-| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **PERF** | **PERF** |
-| | lit PERF | lit PERF |
-| **whole component** — `renderToString` vs a real `LitElement` | **PERF** | **PERF** |
-| | lit PERF | lit PERF |
+| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **0.3** | **30.9** |
+| | lit 2.5 | lit 302.6 |
+| **whole component** — `renderToString` vs a real `LitElement` | **2.8** | **44.7** |
+| | lit 5.5 | lit 411.4 |
 
-Vue's compiled SSR is PERF / PERF µs and React PERF / PERF µs, neither of which renders a component.
+Vue's compiled SSR is 7.9 / 59.3 µs and React 6.3 / 445.6 µs, neither of which renders a component.
 The lit element row runs in a separate process: `@lit-labs/ssr` and this package both install DOM
 globals and cannot share one.
 

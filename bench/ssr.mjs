@@ -14,7 +14,8 @@
  *   lit-html template with hydration markers. `vera templates` is the row that compares like for
  *   like against them; reading `vera-native` against `lit ssr` is reading a component pipeline
  *   against a template render, and 94% of the former is core's lifecycle rather than serialization.
- *   A LitElement row would make that comparison honest and is the obvious next addition here.
+ *   The `lit element` row (a real LitElement, measured in its own process by `bench/lit-element-ssr.mjs`) is the
+ *   honest comparison for `vera-native`.
  * - Vue compiles templates once (its global compile cache) — its numbers are its compiled path.
  *
  *   node bench/ssr.mjs
