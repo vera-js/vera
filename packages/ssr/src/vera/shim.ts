@@ -733,8 +733,9 @@ export const installShims = () => {
    * describes the page being rendered, so a route resolves against a real path; set
    * `globalThis.location.pathname` before `renderToString` to render a route other than `/`.
    * `history` is inert: a server has no session history to push onto. A **per-request** URL belongs
-   * in `renderToString`'s `location` option, which applies it after every await and restores it
-   * afterwards; assigning to this global directly is safe only until two requests overlap.
+   * in `renderToString`'s `location` option, which applies it once when that render's turn starts and
+   * restores it in one `finally`; renders take turns (`takeTurn`), so no render sees another's. Assigning
+   * to this global directly reaches host code that runs between renders, outside any turn.
    */
   globalThis.window = globalThis as typeof window;
   /**
