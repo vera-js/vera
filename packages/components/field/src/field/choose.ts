@@ -3,6 +3,7 @@
  * (no DOM read, no state). The first part, in tree order, whose `data-when` names a `ValidityState` key that is true;
  * else the first part with no `data-when` (the catch-all); else none. The text is the part's own when it has some, else
  * the browser's `validationMessage` (its own words, localized), so an empty catch-all part shows the browser's message.
+ * A part `data-when="server"` is never chosen here: it is a server's standing error, which the element shows itself.
  */
 
 /** The `ValidityState` keys a `data-when` may name (every one but `valid`, which is never an error). */

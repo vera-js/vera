@@ -67,7 +67,7 @@ test('a catch-all part left empty shows the browser\'s validationMessage; one wi
   kept.host.remove();
 });
 
-test('the invalid event is cancelled (no native bubble) unless the field asks for native-messages', async () => {
+test('the invalid event is canceled (no native bubble) unless the field asks for native-messages', async () => {
   const { host, control } = await field('<label>A</label><input required><small data-vera-part="error"></small>');
   const event = new dom.window.Event('invalid', { cancelable: true });
   control.dispatchEvent(event);
@@ -156,17 +156,15 @@ test('the silent check moves no focus: checkValidity() fires invalid on every co
 });
 
 test('after a submit attempt the form\'s first invalid control in tree order gets focus, a bare input included', async () => {
-  /** A submit button's click marks the attempt; checkValidity() then fires invalid on each control (jsdom focuses nothing). */
+  /** A submit button's click is the attempt, and its submission fires invalid on each control (jsdom focuses nothing). */
   const first = document.createElement('form');
   first.innerHTML = '<vera-field><label>A</label><input required id="in-field"><small data-vera-part="error"></small></vera-field><input required id="bare">';
   document.body.append(first);
   await flush();
   first.append(Object.assign(document.createElement('button'), { type: 'submit' }));
-  /** Cancelled, so only checkValidity() below fires invalid (no jsdom submission of its own). */
-  first.addEventListener('click', (event) => event.preventDefault());
+  /** The click submits: jsdom validates the form, firing invalid on each control, and an invalid form never submits. */
   first.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
-  first.checkValidity();
-  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(document.activeElement?.id, 'in-field', "the field's control, first in tree order");
   first.remove();
   const second = document.createElement('form');
@@ -174,11 +172,9 @@ test('after a submit attempt the form\'s first invalid control in tree order get
   document.body.append(second);
   await flush();
   second.append(Object.assign(document.createElement('button'), { type: 'submit' }));
-  /** Cancelled, so only checkValidity() below fires invalid (no jsdom submission of its own). */
-  second.addEventListener('click', (event) => event.preventDefault());
+  /** The click submits: jsdom validates the form, firing invalid on each control, and an invalid form never submits. */
   second.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
-  second.checkValidity();
-  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(document.activeElement?.id, 'bare2', 'the bare input before it keeps its native place');
   second.remove();
 });
@@ -249,4 +245,42 @@ test('a control removed and added back is wired again, and nothing is wired whil
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(f.querySelector('label').htmlFor, back.id, 'wired again when it returns');
   host.remove();
+});
+
+test('a part data-when="server" stands through connect with no aria-invalid, hides on the first edit, and reset clears it', async () => {
+  const { host, field: f, control } = await field('<label>Email</label><input type="email" required value="a@b.c"><small data-vera-part="error" data-when="server">That email is taken.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small>');
+  assert.deepEqual(shown(f), ['That email is taken.'], 'the server said it; loading the script keeps it');
+  type(control, '');
+  blur(control);
+  assert.deepEqual(shown(f), ['Enter your email.'], 'after an edit the chooser decides, and never picks the server part');
+  host.remove();
+  const again = await field('<label>Email</label><input><small data-vera-part="error" data-when="server">Taken.</small>');
+  again.host.dispatchEvent(new dom.window.Event('reset', { bubbles: true }));
+  assert.deepEqual(shown(again.field), [], 'a reset clears it');
+  again.host.remove();
+});
+
+test('an Enter that confirms an IME candidate, or one the app canceled, is no submit attempt: no focus moves', async () => {
+  const f = document.createElement('form');
+  f.innerHTML = '<input id="here"><vera-field><label>A</label><input required><small data-vera-part="error"></small></vera-field>';
+  document.body.append(f);
+  await flush();
+  const here = f.querySelector('#here');
+  here.focus();
+  here.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, composed: true }));
+  f.checkValidity();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(document.activeElement?.id, 'here', 'composing: no attempt');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  here.addEventListener('keydown', (event) => event.preventDefault(), { once: true });
+  here.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, composed: true }));
+  f.checkValidity();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(document.activeElement?.id, 'here', 'canceled by the app: no attempt');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  here.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, composed: true }));
+  f.checkValidity();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.notEqual(document.activeElement?.id, 'here', 'CONTROL: a plain Enter is an attempt, and focus moves');
+  f.remove();
 });

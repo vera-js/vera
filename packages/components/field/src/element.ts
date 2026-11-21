@@ -36,10 +36,10 @@ type Wired = {
   edited: boolean;
   spoken: Spoken;
   /**
-   * The error a server rejected the value with (the control served `aria-invalid="true"`, its error part not hidden
-   * and with text: "That email is taken"): it stands until the user's first edit, so loading the script never hides an
-   * error the server put there; then the ordinary rules apply. An authored error part is not one: authors write error
-   * parts without `hidden`, and only the server's mark on the control says the value was judged.
+   * The error a server rejected the value with ("That email is taken": a part `data-when="server"`, or a shown part
+   * on a control the server marked `aria-invalid="true"`): it stands until the user's first edit, so loading the
+   * script never hides it; then the ordinary rules apply. A plain authored error part is not one: authors write error
+   * parts without `hidden`, so only an explicit server signal says the value was judged.
    */
   standing: Element | null;
 };
@@ -167,23 +167,30 @@ const onFocusOut = (event: Event): void => {
  * implicitly), and whether its focus decision is queued. `invalid` carries no flag telling interactive validation from
  * `checkValidity()`, the silent check apps call on every keystroke, so the field must see the ATTEMPT itself: focus
  * moves only for a form the user tried to submit. Cost, stated: a scripted `reportValidity()` or `requestSubmit()`
- * is not seen, and the browser focuses nothing for a field's cancelled control then (the app focuses for itself).
+ * is not seen, and the browser focuses nothing for a field's canceled control then (the app focuses for itself).
  */
 const ATTEMPT = Symbol('vera-field-attempt');
-type Form = HTMLFormElement & { [ATTEMPT]?: 1 | 2 };
+/** The attempt: the event that made it (a canceled one submits nothing, so moves no focus), and whether it is queued. */
+type Form = HTMLFormElement & { [ATTEMPT]?: { event: Event; queued: boolean } };
 
 /**
  * **Focus after a failed submit, decided per FORM, in tree order.** A field cancels its own control's `invalid` (no
  * native bubble), and once it does the browser focuses nothing for that control, so the first queued call focuses the
  * form's first invalid control in TREE order, over every control, a bare native input included: native behavior is
- * "the first invalid in tree order", which cancelling would otherwise break (the browser alone would focus the next
- * uncancelled one). Cost, stated: a bare input's own bubble can show while focus sits on a field's control before it.
+ * "the first invalid in tree order", which canceling would otherwise break (the browser alone would focus the next
+ * uncanceled one). Cost, stated: a bare input's own bubble can show while focus sits on a field's control before it.
  */
 const focusFirstInvalid = (form: Form): void => {
-  if (form[ATTEMPT] !== 1) return;
-  form[ATTEMPT] = 2;
-  /** A microtask: every `invalid` of this submit has fired by then (they are dispatched in one go, in tree order). */
-  queueMicrotask(() => {
+  const attempt = form[ATTEMPT];
+  /** Read when `invalid` fires, after every listener of the click or the Enter has run: an app may have canceled it. */
+  if (attempt === undefined || attempt.queued || attempt.event.defaultPrevented) return;
+  attempt.queued = true;
+  /**
+   * A task, not a microtask: under a user's submit the checkpoint runs after each `invalid` listener, before the rest
+   * fire, and then the browser focuses the first control whose `invalid` nobody canceled (Chromium and WebKit move
+   * focus past the field to a later plain control). A task runs after the browser's own focus, so tree order wins.
+   */
+  (form.ownerDocument.defaultView ?? globalThis).setTimeout(() => {
     /**
      * The first in tree order. One that cannot take focus (`display: none`) makes `focus()` a no-op and nothing is
      * focused: the same as native validation's "not focusable", so the loop stops there either way.
@@ -193,15 +200,15 @@ const focusFirstInvalid = (form: Form): void => {
         control.focus?.();
         return;
       }
-  });
+  }, 0);
 };
 
 /** The form a user's submit attempt is for: a submit control's form owner (`form=` included), read through `.form`. */
-const attempted = (form: HTMLFormElement | null | undefined): void => {
+const attempted = (form: HTMLFormElement | null | undefined, event: Event): void => {
   if (!form) return;
   const marked = form as Form;
   if (marked[ATTEMPT] !== undefined) return;
-  marked[ATTEMPT] = 1;
+  marked[ATTEMPT] = { event, queued: false };
   /** Cleared a task later, so a later silent `checkValidity()` on the same form moves no focus. */
   (form.ownerDocument.defaultView ?? globalThis).setTimeout(() => delete marked[ATTEMPT], 0);
 };
@@ -209,13 +216,15 @@ const onClick = (event: Event): void => {
   const target = event.target as Element | null;
   const submit = target !== null && typeof target.closest === 'function' ? target.closest('button,input') : null;
   const type = (submit as (Element & { type?: string }) | null)?.type;
-  if (type === 'submit' || type === 'image') attempted((submit as Element & { form?: HTMLFormElement | null }).form);
+  if (type === 'submit' || type === 'image') attempted((submit as Element & { form?: HTMLFormElement | null }).form, event);
 };
 const onKeydown = (event: Event): void => {
-  if ((event as KeyboardEvent).key !== 'Enter') return;
+  const key = event as KeyboardEvent;
+  /** An Enter while composing (an IME) confirms a candidate; it submits nothing. 229 is the composing keyCode. */
+  if (key.key !== 'Enter' || key.isComposing || key.keyCode === 229) return;
   const target = event.target as (Element & { form?: HTMLFormElement | null; type?: string }) | null;
   /** Enter submits implicitly from a single-line text control; never from a textarea, where it is a newline. */
-  if (target !== null && target.localName === 'input' && target.type !== 'button' && target.type !== 'checkbox') attempted(target.form);
+  if (target !== null && target.localName === 'input' && target.type !== 'button' && target.type !== 'checkbox') attempted(target.form, event);
 };
 
 const onInvalid = (event: Event): void => {
@@ -230,7 +239,8 @@ const onInvalid = (event: Event): void => {
 /**
  * A reset forgets that the user tried, by the form's own controls (so a control joined from outside with `form=`
  * counts, and a field under any tag is found by its mark). The `reset` event fires BEFORE the form restores values,
- * and the microtask after a user's reset still runs before the restore, so the count is re-read a task later; what the
+ * and after a user's reset Chromium and WebKit still run the microtask before the restore (Firefox restores first),
+ * so the count is re-read a task later, which sees the restored value on all three; what the
  * count has spoken is left as it is (only committed input judges it).
  */
 const onReset = (event: Event): void => {
@@ -282,8 +292,16 @@ const wire = (field: Marked, control: Element): Wired => {
   const hint = part(field, 'hint');
   const count = part(field, 'count');
   const wiring = labeled(control, { host: field, label, hint, count, errors });
+  /**
+   * A standing error is said on the PART, because only the part knows its text came from a server:
+   * `data-when="server"` with text. Plain server templates often never set `aria-invalid`, so that is a second
+   * signal only: on a control served `aria-invalid="true"`, a shown part with text and no `data-when` stands too.
+   */
   const judged = control.getAttribute('aria-invalid') === 'true';
-  const standing = judged ? (errors.find((error) => !error.hasAttribute('hidden') && (error as Error_)[TEXT] !== '') ?? null) : null;
+  const said = (error: Element) => !error.hasAttribute('hidden') && (error as Error_)[TEXT] !== '';
+  const standing =
+    errors.find((error) => error.getAttribute('data-when') === 'server' && said(error)) ??
+    (judged ? (errors.find((error) => !error.hasAttribute('data-when') && said(error)) ?? null) : null);
   const wired: Wired = { control, label, hint, count, errors, wiring, tried: false, edited: false, spoken: 0, standing };
   render(wired);
   counted(field, wired, false);

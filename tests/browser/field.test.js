@@ -20,7 +20,7 @@ const form = (inner) => {
 };
 
 describe('vera-field', () => {
-  it('PLATFORM: after a user\'s reset a microtask still sees the old value and a task the new; after form.reset() both see the new', async () => {
+  it('PLATFORM: after a user\'s reset a task sees the restored value (a microtask still sees the old on Chromium and WebKit, the new on Firefox); after form.reset() both see the new', async () => {
     const f = form('<input value="start"><button type="reset">Reset</button>');
     const input = f.querySelector('input');
     const read = () => {
@@ -39,12 +39,14 @@ describe('vera-field', () => {
     const user = read();
     f.querySelector('button').focus();
     await sendKeys({ press: 'Enter' });
-    await until(() => user.task !== undefined, 'the task ran');
-    expect(user).to.deep.equal({ microtask: 'typed', task: 'start' }, 'a user reset: the restore comes after the microtask checkpoint');
+    await until(() => user.task !== undefined, 'the task ran', 2000);
+    /** Firefox restores before the checkpoint; Chromium and WebKit after it. The field rests only on the task. */
+    const microtask = navigator.userAgent.includes('Firefox/') ? 'start' : 'typed';
+    expect(user).to.deep.equal({ microtask, task: 'start' }, 'a user reset: the task sees the restore; the microtask reads per engine');
     input.value = 'typed';
     const script = read();
     f.reset();
-    await until(() => script.task !== undefined, 'the task ran');
+    await until(() => script.task !== undefined, 'the task ran', 2000);
     expect(script).to.deep.equal({ microtask: 'start', task: 'start' }, 'form.reset(): the checkpoint waits for the script');
     f.remove();
   });
@@ -59,7 +61,7 @@ describe('vera-field', () => {
     expect(count.textContent).to.equal('5 / 40', 'CONTROL: the count followed real typing');
     f.querySelector('button').focus();
     await sendKeys({ press: 'Enter' });
-    await until(() => count.textContent === '0 / 40', 'the count re-read after the restore');
+    await until(() => count.textContent === '0 / 40', 'the count re-read after the restore', 2000);
     f.remove();
   });
 
@@ -69,7 +71,7 @@ describe('vera-field', () => {
     await flush();
     f.querySelector('button').focus();
     await sendKeys({ press: 'Enter' });
-    await until(() => document.activeElement?.id === 'email', 'focus reached the first invalid control');
+    await until(() => document.activeElement?.id === 'email', 'focus reached the first invalid control', 2000);
     const error = f.querySelector('[data-vera-part="error"]');
     expect(error.hidden).to.equal(false);
     expect(f.querySelector('#email').getAttribute('aria-invalid')).to.equal('true');
