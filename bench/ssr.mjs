@@ -77,10 +77,15 @@ const CONTENDERS = {
       const url = new URL('../tests/fixtures/ssr/rows-ssr.js', import.meta.url);
       return () => veraRender(url);
     })(),
+    /** The same table with its rows in a `createStore`: 300 tracked store reads a render, the shape `static: true` is for. */
+    storeRows: (() => {
+      const url = new URL('../tests/fixtures/ssr/store-rows-ssr.js', import.meta.url);
+      return () => veraRender(url);
+    })(),
   },
   /**
    * The same pipeline with `static: true` (a page that will not be interactive: a store's reads skip tracking), on the
-   * same two fixtures, so the README's static-mode ratio is read from this run beside `vera-native`.
+   * same fixtures, so the README's static-mode ratio is read from this run beside `vera-native`.
    */
   'vera-native static': {
     small: (() => {
@@ -89,6 +94,10 @@ const CONTENDERS = {
     })(),
     large: (() => {
       const url = new URL('../tests/fixtures/ssr/rows-ssr.js', import.meta.url);
+      return () => veraRender(url, { static: true });
+    })(),
+    storeRows: (() => {
+      const url = new URL('../tests/fixtures/ssr/store-rows-ssr.js', import.meta.url);
       return () => veraRender(url, { static: true });
     })(),
   },
@@ -162,18 +171,25 @@ try {
 const BLOCK = 100;
 const nextTask = () => new Promise((resolve) => setImmediate(resolve));
 
+/**
+ * The sizes, in order. `storeRows` is vera's alone (a store-backed table, for `static: true`), so only the contenders that
+ * define a size run it.
+ */
+const SIZES = ['small', 'large', 'storeRows'];
+const TITLES = { small: 'small component', large: '100-row table', storeRows: '100-row table read from a store (vera only)' };
 const results = {};
-for (const size of ['small', 'large']) {
+for (const size of SIZES) {
   const iterations = size === 'small' ? SMALL_N : LARGE_N;
+  const names = Object.keys(CONTENDERS).filter((name) => CONTENDERS[name][size]);
   const perContender = {};
-  for (const name of Object.keys(CONTENDERS)) perContender[name] = [];
+  for (const name of names) perContender[name] = [];
 
   /** Warmup, then rotated rounds. */
-  for (const name of Object.keys(CONTENDERS)) {
+  for (const name of names) {
     for (let i = 0; i < 50; i++) await CONTENDERS[name][size]();
   }
   for (let round = 0; round < ROUNDS; round++) {
-    for (const name of Object.keys(CONTENDERS)) {
+    for (const name of names) {
       const run = CONTENDERS[name][size];
       let elapsed = 0;
       for (let done = 0; done < iterations; done += BLOCK) {
@@ -230,8 +246,8 @@ const fmt = (ms) => (ms * 1000).toFixed(1).padStart(8);
  */
 const NOISE_FLOOR_US = 10;
 let worst = 1;
-for (const size of ['small', 'large']) {
-  console.log(`\n  ${size === 'small' ? 'small component' : '100-row table'} — µs/render, fastest of ${ROUNDS} rounds (median, spread)`);
+for (const size of SIZES) {
+  console.log(`\n  ${TITLES[size]} — µs/render, fastest of ${ROUNDS} rounds (median, spread)`);
   const entries = Object.entries(results[size])
     .map(([name, times]) => {
       const sorted = [...times].sort((a, b) => a - b);

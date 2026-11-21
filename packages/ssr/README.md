@@ -204,9 +204,11 @@ reads, so `<my-comp.x>` is another, unregistered element and is left exactly as 
 `static: true` renders a page that will not be interactive, faster in proportion to the store reads it tracks. A
 server render is one shot: the subscriptions a store builds while it runs are never fired afterwards, so tracking each
 read to create them is cost with no use. With `static` on, a store's property reads skip tracking. On
-`bench/ssr.mjs`'s two components, which read one signal each, that is 2.1 against 2.3 µs (small) and 44.6 against
-45.4 µs (the 100-row table; same run as [Performance](#performance)); a component reading a store property per row
-skips a tracked read per row.
+`bench/ssr.mjs`'s 100-row table with its rows in a `createStore`, whose render reads 300 store properties (`row.id`
+twice and `row.label` once per row), it is 47.1 against 118.6 µs, fastest of 7 rounds: 2.5 times faster (medians 47.9
+against 127.5). Where a render tracks little there is little to skip: the small component, reading 4 store properties,
+is 2.2 against 2.4 µs (medians equal, 3.1), and the same table with its rows in one signal 44.8 against 45.2. All from
+one run, the one in [Performance](#performance).
 
 - **The markup is identical**, and not on a chosen example: `tests/ssr-static-mode.test.mjs` renders
   *every* fixture in the suite both ways and compares markup, styles and title. A mode that cannot
@@ -529,12 +531,12 @@ markup itself is served byte for byte as it was written.
 
 | | small | table |
 | --- | --- | --- |
-| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **0.3** | **31.0** |
-| | lit 2.5 | lit 311.9 |
-| **whole component** — `renderToString` vs a real `LitElement` | **2.3** | **45.4** |
-| | lit 5.7 | lit 413.7 |
+| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **0.3** | **31.7** |
+| | lit 2.5 | lit 318.4 |
+| **whole component** — `renderToString` vs a real `LitElement` | **2.4** | **45.2** |
+| | lit 5.6 | lit 418.7 |
 
-Vue's compiled SSR is 8.3 / 60.6 µs and React 6.1 / 456.0 µs, neither of which renders a component.
+Vue's compiled SSR is 7.9 / 68.7 µs and React 6.2 / 458.0 µs, neither of which renders a component.
 The lit element row runs in a separate process: `@lit-labs/ssr` and this package both install DOM
 globals and cannot share one.
 
