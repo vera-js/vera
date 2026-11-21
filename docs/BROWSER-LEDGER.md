@@ -946,6 +946,16 @@ from another machine, or after that is undone, has a variable changed.
   count at what the leanest engine has (2), or it reads a port's build flags as a broken check
   (`tests/browser/reflected-enumerations.test.js`). (WebKit 26.5, Playwright 1.62.1, Windows 11 build 26200, headless,
   2026-11-20.)
+- **On Windows a cwd's drive letter keeps the launching shell's case, and a realpath does not**: a shell VS Code starts
+  sits in `c:\projects\…`, Git Bash's `cd /c/…` gives `C:\projects\…` (a `cd` to the directory it is already in keeps
+  the old spelling), and `fs.realpathSync` through a workspace link answers `C:\…` from either. `@web/test-runner`
+  roots itself at `process.cwd()` and compares that root with node-resolve's realpaths by case: from a lowercase cwd
+  every module reached through a link fails with "could not be converted to a browser path". Measured on one file,
+  `select.test.js`: from `c:\` 0 files ran, from `C:\` 24/24 passed, and with the root set to
+  `realpathSync.native` 30/30 passed from `c:\`; a full gate lost 65 Chromium rows to it. Consequence: the browser
+  config sets `rootDir` to the canonical path, the gate and test-batch move into the canonical cwd before spawning
+  (`canonicalCwd`), and a comparison of two paths goes through `comparable` (both in `scripts/fs-path.mjs`).
+  (@web/test-runner 1.0.0, Windows 11 build 26200, Node 26.13.1, 2026-11-20.)
 
 ## Competitors, as their own benchmark entries write them
 
