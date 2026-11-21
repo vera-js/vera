@@ -28,6 +28,26 @@ const { hot } = await load('hot');
 const { portal } = await load('renderer/portal');
 /** Defined BEFORE hot is wired: its registration is the real class, so a redefine refuses. */
 define('x-hot-early', () => () => html`<i>early</i>`);
+/**
+ * The absence row's CONTROL, a REAL emission: before hot is wired, a repeated define() warns, and the row's matcher must
+ * catch that exact message once — a synthetic string cannot show the real one still ends in its code, and if it did not,
+ * the absence row would pass forever. Development only, like the row (the check is development code).
+ */
+const realRepeat = [];
+if (!isProduction) {
+  const warn = console.warn;
+  console.warn = (...args) => realRepeat.push(args.join(' '));
+  try {
+    define('x-hot-control', () => () => html`<b></b>`);
+    try {
+      define('x-hot-control', () => () => html`<b></b>`);
+    } catch {
+      /** The platform's own refusal of the second definition, which the warning comes before. */
+    }
+  } finally {
+    console.warn = warn;
+  }
+}
 wire([renderer, hot]);
 const settle = async () => { flush(); await new Promise((resolve) => setTimeout(resolve, 0)); flush(); };
 const reloads = [];
@@ -271,6 +291,7 @@ test('development: tag-defined-again stays silent while hot is wired', { skip: i
   } finally {
     console.warn = warn;
   }
+  assert.equal(realRepeat.filter((w) => TAG_DEFINED_AGAIN.test(w)).length, 1, `the control: a real repeat, unwired, is caught (${realRepeat.join(' | ')})`);
   assert.deepEqual(warns.filter((w) => TAG_DEFINED_AGAIN.test(w)), []);
 });
 
