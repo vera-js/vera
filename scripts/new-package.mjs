@@ -262,9 +262,11 @@ if (SCENARIO === 'ssr') {
     const { element: Class } = await load('${own.slice(1)}');
     const element = document.createElement(TAG);
     document.body.append(element);
+    /** The parts each state renders. \`flush()\` drains the scheduler synchronously, so each read sees that state's render. */
+    const parts = () => [...new Set([...element.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
     flush();
-    await Promise.resolve();
-    out.parts = [...new Set([...element.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
+    out.states = { 'at rest': parts() };
+    /** A part that renders only in some state (open, invalid, with a value) is reached here: drive the state, flush, read. */
     out.observed = [...(Class.observedAttributes ?? [])].sort();
   }
   process.stdout.write(JSON.stringify(out));
@@ -303,15 +305,23 @@ if (SCENARIO === 'ssr') {
   });
 
   /**
-   * **The surface stays true** (the drift row): what the element renders and observes is exactly what \`surface.ts\`
-   * declares, so a part or attribute added to one and not the other is red here, in the change that made it.
+   * **The surface stays true** (the drift row): every part any driven state renders is declared in \`surface.ts\`,
+   * every declared part renders in some state, and every attribute the element observes is declared, so a name added
+   * to the element and not to its surface is red here, in the change that made it. An attribute read only at use
+   * (\`getAttribute\`) is declared and never observed, which is not drift.
    */
-  test('the element renders exactly the parts its surface declares, and observes exactly its attributes', async () => {
+  test('every part the element renders is declared and every declared part renders; no attribute it observes is undeclared', async () => {
     const { ${surfaceName} } = await import('../${dir}/src/${name}/surface.ts');
-    const { parts, observed, said } = run('surface');
-    assert.ok(parts.length > 0, 'CONTROL: the element rendered a part');
-    assert.deepEqual(parts, ${surfaceName}.parts.map((part) => part.name).sort(), 'a part rendered and not declared, or declared and not rendered: change surface.ts with the element');
-    assert.deepEqual(observed, ${surfaceName}.attributes.map((attribute) => attribute.name).sort(), 'an attribute observed and not declared, or declared and not observed: change surface.ts with the element');
+    const { states, observed, said } = run('surface');
+    const parts = ${surfaceName}.parts.map((part) => part.name);
+    const rendered = [...new Set(Object.values(states).flat())].sort();
+    assert.ok(rendered.length > 0, 'CONTROL: the element rendered a part');
+    for (const [state, names] of Object.entries(states))
+      assert.deepEqual(names.filter((name) => !parts.includes(name)), [], \`a part rendered \${state} and not declared: add it to surface.ts with the element\`);
+    assert.deepEqual(parts.filter((name) => !rendered.includes(name)), [], 'a part declared and rendered in no state the scenario drives: drive that state, or remove the part');
+    /** One way only: an attribute read at connect (\`getAttribute\`) is declared and never observed, which is not drift. */
+    const declared = ${surfaceName}.attributes.map((attribute) => attribute.name);
+    assert.deepEqual(observed.filter((name) => !declared.includes(name)), [], 'an attribute observed and not declared: add it to surface.ts with the element');
     assert.deepEqual(said, []);
   });
 
