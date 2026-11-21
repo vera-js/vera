@@ -8,8 +8,10 @@ import { expect } from '@esm-bundle/chai';
 import { flush, wire } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import '../../packages/components/kbd/dist/development/vera-kbd.js';
+import { defineAs } from '../../packages/components/kbd/dist/development/vera-kbd-element.js';
 
 wire([renderer]);
+defineAs('my-kbd');
 
 const frame = (win = window) => new Promise((resolve) => win.requestAnimationFrame(() => setTimeout(resolve, 0)));
 const iframeReady = async () => {
@@ -50,6 +52,18 @@ describe('vera-kbd: the words rule, unwired styles', () => {
     expect(document.adoptedStyleSheets.length - before).to.equal(1);
     a.remove();
     b.remove();
+  });
+
+  it('under a tag of the caller\'s own (defineAs): the word rule applies, found by its mark, never by the tag', async () => {
+    const kbd = document.createElement('my-kbd');
+    kbd.setAttribute('keys', 'Mod+Shift+K');
+    kbd.setAttribute('platform', 'apple');
+    document.body.append(kbd);
+    flush();
+    await frame();
+    expect(kbd.querySelector('[data-vera-word]'), 'CONTROL: rendered its symbol keys').to.not.equal(null);
+    expect(spoken(kbd)).to.include('Shift');
+    kbd.remove();
   });
 
   it("in someone's shadow root: adopted there (the document's sheet stops at the boundary)", async () => {

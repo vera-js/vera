@@ -31,9 +31,10 @@ const SHEET = '_$veraKbdWords$';
 /**
  * A symbol key's word, spoken from the alt text of empty generated content (`content: "" / …`): never shown, never
  * copied. The trailing space keeps the words apart ("Shift Command K", not "ShiftCommandK", measured). Zero specificity,
- * so a page's own rule wins.
+ * so a page's own rule wins. Keyed on our own attributes, never the tag: under `defineAs('my-kbd')` a tag selector
+ * matched nothing and every symbol was silent (a browser row).
  */
-const WORDS = ':where(vera-kbd [data-vera-word])::before{content:"" / attr(data-vera-word) " "}';
+const WORDS = ':where([data-vera-part="key"][data-vera-word])::before{content:"" / attr(data-vera-word) " "}';
 
 const PLATFORMS: readonly string[] = ['apple', 'windows', 'other'];
 
