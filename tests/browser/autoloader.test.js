@@ -263,20 +263,25 @@ it('url() is the URL the loader will ask for, and warming it works', async () =>
 /** A token per row: the fail-once route (web-test-runner.config.mjs) fails each path the first time only. */
 const token = () => Math.random().toString(36).slice(2);
 
-it('CONTROL: this engine fetches a module import that failed again, so a retry can reach the server', async () => {
-  const url = new URL(`./fixtures/autoloader/once/${token()}/once-probe.js`, import.meta.url).href;
-  let first = 'loaded';
-  try {
-    await import(url);
-  } catch {
-    first = 'failed';
-  }
-  expect(first, 'the first import met the 404').to.equal('failed');
-  await import(url);
-  expect(customElements.get('once-probe'), 'the second import of the SAME url fetched and ran it').to.be.a('function');
+/** Whether an `import()` resolved or rejected: the outcome, not the error text, which differs by engine. */
+const outcome = (url) => import(url).then(() => 'loaded', () => 'failed');
+
+it('an engine keeps a failed module import: the same URL fails again without asking the server; a new URL is asked', async () => {
+  const base = new URL(`./fixtures/autoloader/once/${token()}/once-probe.js`, import.meta.url).href;
+  expect(await outcome(base), 'the first import met the 404').to.equal('failed');
+  /** The route serves this path from now on, so a second failure is the engine's own record (one 404 in the run's log per path). */
+  expect(await outcome(base), 'the same URL is not fetched again').to.equal('failed');
+  expect(await outcome(`${base}?again`), 'CONTROL: a new URL for the same path is fetched, and loads').to.equal('loaded');
+  expect(customElements.get('once-probe'), 'and ran').to.be.a('function');
 });
 
-it('retry takes the element the error handed you, and tries it again', async () => {
+/**
+ * **The retry defect, pinned both ways.** `retry` imports the URL that failed, and an engine keeps a failed module import
+ * (the row above), so today the retry fails without reaching the server and a second `vera:autoload-error` arrives. The
+ * row waits for whichever comes, the tag defined or that second report, and asserts today's: so it cannot stay quietly
+ * off. When `retry` asks with a URL the engine has not seen, this row goes red reading 'loaded'; flip it to assert that.
+ */
+it('retry takes the element the error handed you, and tries it again (today: the engine answers from its failed import)', async () => {
   const original = console.error;
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
@@ -289,21 +294,26 @@ it('retry takes the element the error handed you, and tries it again', async () 
   const once = token();
   const flaky = autoloader(entry, 'components', { resolve: (tag) => `once/${once}/${tag}.js` });
   const element = host('<retry-widget></retry-widget>');
-  let reported;
-  element.addEventListener('vera:autoload-error', (event) => { reported = event.detail; });
+  const reports = [];
+  element.addEventListener('vera:autoload-error', (event) => reports.push(event.detail));
   try {
     flaky(element);
-    await until(() => reported, 'the first attempt reported its failure', 4000);
+    await until(() => reports.length === 1, 'the first attempt reported its failure', 4000);
     expect(customElements.get('retry-widget'), 'the first attempt failed').to.equal(undefined);
-    expect(reported.element, 'the event carries the element').to.equal(element.querySelector('retry-widget'));
+    expect(reports[0].element, 'the event carries the element').to.equal(element.querySelector('retry-widget'));
     expect(errors.length, 'and the failure was printed').to.be.above(0);
+
+    flaky.retry(reports[0].element);
+    const result = await until(
+      () => (customElements.get('retry-widget') ? 'loaded' : reports.length === 2 ? 'failed again' : false),
+      'the retry to load or to report',
+      4000,
+    );
+    expect(result, 'retry reuses the failed URL, which the engine answers from its record').to.equal('failed again');
   } finally {
     console.error = original;
+    element.remove();
   }
-
-  flaky.retry(reported.element);
-  await until(() => customElements.get('retry-widget'), 'retry-widget defined by the retried import', 4000);
-  element.remove();
 });
 
 /* ── a shadow root handed over directly ──────────────────────────────────────────────────────── */

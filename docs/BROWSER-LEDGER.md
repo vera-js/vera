@@ -131,6 +131,13 @@ from another machine, or after that is undone, has a variable changed.
 - **A part that receives the same value skips its DOM write** (attribute `value === committed`; text writes only on
   change), so a re-render that changes nothing costs dispatch, not DOM. (renderer.ts; measured 2026-10-18)
 
+- **An engine keeps a failed module import**: a second `import()` of a URL whose fetch failed rejects again without
+  a request, on all three engines; the same path under a new URL (a query added) is fetched and loads. Measured with a
+  test-server route that answers 404 the first time a path is asked for and a module after: the run's log shows one
+  request per path, and the second import rejected. Consequence: a retry that re-imports the URL that failed can never
+  reach the server; it has to ask with a URL the engine has not seen (`tests/browser/autoloader.test.js`). (Chromium
+  151, Firefox 153, WebKit 26.5, Playwright 1.62.1, Windows 11 build 26200, headless, 2026-11-20.)
+
 ## CSS and the cascade
 
 - **A layer-order statement a script prepends to `<head>` orders layers the page's sheets already declared, and adopted
