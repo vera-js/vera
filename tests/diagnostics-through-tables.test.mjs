@@ -192,19 +192,46 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
  * the last package migrated and is gone: a new package that prints joins MIGRATED, or this goes red.
  */
 
+/**
+ * **Does this source print or throw?** Every spelling the language allows: `throw Error(` without `new` is legal and
+ * common, and whitespace before the parenthesis is legal too, so a pattern written for one spelling passed the others.
+ * Comments are blanked first (withoutComments, a parse), so a sentence about `console.warn` is not a call.
+ */
+const PRINTS = /console\s*\.\s*(?:warn|error)\s*\(|throw\s+(?:new\s+)?\w*Error\s*\(/;
+const prints = (text) => PRINTS.test(withoutComments(text));
+
+test('CONTROL: the printing detector sees every spelling of a print or a throw, and nothing that is not one', () => {
+  for (const call of ['console.warn(x)', 'console.error(x)', 'console.warn (x)', 'console .warn(x)', 'throw new Error(x)', 'throw Error(x)', 'throw new TypeError(x)', 'throw RangeError (x)', 'throw  new  Error(x)'])
+    assert.equal(prints(`const a = 1;\nif (a) ${call};`), true, call);
+  for (const near of ['// console.warn(x)', '/* throw new Error(x) */', 'console.warnings(x)', 'throwError(x)', 'console.log(x)', 'throw x', 'const e = new Error(x)'])
+    assert.equal(prints(`const a = 1;\n${near};`), false, near);
+});
+
 test('every package that prints or throws is on the code system', () => {
   /**
    * A package's name is its path under `packages/` (`packages/components/select` → `components/select`), as MIGRATED
    * names it. The last segment alone (this read `select`) never matched a nested package's row (2026-11-21).
    */
   const printing = packageFiles('src')
-    .filter((src) =>
-      globSync(`${src}/**/*.ts`, { cwd: root }).some((file) =>
-        /console\.(?:warn|error)\(|throw new \w*Error\(/.test(withoutComments(readFileSync(join(root, file), 'utf8')))
-      )
-    )
+    .filter((src) => globSync(`${src}/**/*.ts`, { cwd: root }).some((file) => prints(readFileSync(join(root, file), 'utf8'))))
     .map((src) => src.slice('packages/'.length, -'/src'.length));
   assert.ok(printing.length >= 10, `CONTROL: ${printing.length} packages print`);
   const migrated = new Set(MIGRATED.map(([name]) => name));
-  assert.deepEqual(printing.filter((name) => !migrated.has(name)), [], 'a package prints or throws uncoded — migrate it onto its table');
+  const missing = printing.filter((name) => !migrated.has(name));
+  /** The fix is pure copy: both lines a package needs, in the shape and place each file keeps them. */
+  const how = missing.map((name) =>
+    `${name}: add  ['${name}', 'dist/*.min.js'],  to MIGRATED in this file, and  { name: '${name}', tables: ['src/diagnostics.ts'], sources: SOURCES },  to LISTED in scripts/diagnostic-tables.mjs (before the styles entry), with its PROSE in ${name}/src/diagnostics.ts`
+  );
+  assert.deepEqual(missing, [], `a package prints or throws uncoded — migrate it onto its table:\n  ${how.join('\n  ')}`);
+});
+
+test('every package in MIGRATED has its tables listed, so its codes are paired with their entries', () => {
+  /**
+   * MIGRATED checks a package's production bundle for words; only a TABLES entry (or directives' own) makes
+   * diagnostics-tables pair the codes its source raises with its PROSE. A package in the first and not the second
+   * passed both suites with its codes never paired.
+   */
+  const listed = new Set([...LISTED.map(({ name }) => name), DIRECTIVES.name]);
+  assert.ok(listed.size >= 10, `CONTROL: ${listed.size} packages have tables`);
+  assert.deepEqual(MIGRATED.map(([name]) => name).filter((name) => !listed.has(name)), [], 'add each to LISTED in scripts/diagnostic-tables.mjs');
 });

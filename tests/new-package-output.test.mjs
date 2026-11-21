@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { scaffold } from '../scripts/new-package.mjs';
 import { comments } from './source-comments.mjs';
@@ -57,4 +58,30 @@ test('importing the script where nothing set argv[1] (a script over stdin) runs 
   const result = spawnSync(process.execPath, ['--input-type=module'], { input: script, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, 'function');
+});
+
+/**
+ * **The registry edits are the scaffold's output too.** `scaffold()` returns them as data (file, anchor, line, side) and
+ * the command applies them, so both facts are held here without writing anything: every anchor still exists in its
+ * file (a moved anchor otherwise surfaces only when someone next makes a package), and a component is registered
+ * everywhere a printing package must be. A component prints from birth (`defined-twice`), so it needs its row in
+ * `tests/diagnostics-through-tables.test.mjs`'s MIGRATED as well as its `scripts/diagnostic-tables.mjs` entry; a hook
+ * prints nothing at birth, so it gets neither, and that suite's failure names both lines when its first warning lands.
+ */
+test('every registry edit the scaffold makes is anchored on a line its file still has', () => {
+  for (const kind of ['component', 'hook']) {
+    const { edits } = scaffold(kind, 'zz-output', '0.0.0');
+    assert.ok(edits.length >= 5, `CONTROL: the ${kind} scaffold makes ${edits.length} registry edits`);
+    for (const { file, anchor } of edits)
+      assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').includes(anchor), `${kind}: ${file} no longer has the anchor ${JSON.stringify(anchor)}`);
+  }
+});
+
+test('a component is registered on the diagnostics tables AND in MIGRATED; a hook in neither', () => {
+  const lines = (kind) => scaffold(kind, 'zz-output', '0.0.0').edits.map(({ file, line }) => `${file} ${line.trim()}`);
+  const component = lines('component');
+  assert.ok(component.includes("scripts/diagnostic-tables.mjs { name: 'components/zz-output', tables: ['src/diagnostics.ts'], sources: SOURCES },"), component.join('\n'));
+  assert.ok(component.includes("tests/diagnostics-through-tables.test.mjs ['components/zz-output', 'dist/*.min.js'],"), component.join('\n'));
+  const hook = lines('hook');
+  assert.deepEqual(hook.filter((line) => /diagnostic/.test(line)), [], hook.join('\n'));
 });

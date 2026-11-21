@@ -309,14 +309,35 @@ test('importing ${own} registers nothing and says nothing', async () => {
     ...Object.fromEntries(Object.entries(sources).map(([path, text]) => [`${dir}/${path}`, text])),
     [testFile]: component ? componentSuite : hookSuite,
   };
-  return { component, dir, short, own, filename, tag, testFile, target, written };
+  /**
+   * **The registry edits, as data:** each inserts `line` after (or before) the first line of `file` holding `anchor`. The
+   * command applies them; `tests/new-package-output.test.mjs` reads them, so a moved anchor or a missing registration is
+   * red before anyone next makes a package. A component prints from birth (`defined-twice`), so it is registered on the
+   * diagnostics tables AND in through-tables' MIGRATED; a hook prints nothing at birth and gets neither (that suite's
+   * failure names both lines when its first warning lands).
+   */
+  const edits = [
+    { file: 'package.json', anchor: '"./packages/shared-types:build",', line: `        "./${dir}:build",`, where: 'before' },
+    { file: 'tsconfig.json', anchor: '"paths": {', line: `      "${own}": [\n        "./${dir}/src/${target}"\n      ],${component ? `\n      "${own}/element": [\n        "./${dir}/src/index.ts"\n      ],` : ''}` },
+    { file: 'tests/dist.mjs', anchor: 'export const ENTRY = {', line: `  '${own.slice(1)}': ['${short}', '${filename}'],${component ? `\n  '${own.slice(1)}/element': ['${short}', '${filename}-element'],` : ''}` },
+    { file: 'tests/docs-imports.test.mjs', anchor: "'@verajs/core': 'core',", line: `  '${own}': '${own.slice(1)}',`, where: 'before' },
+    { file: 'tests/docs-recipes.test.mjs', anchor: "'@verajs/core': 'core',", line: `  '${own}': '${own.slice(1)}',`, where: 'before' },
+    ...(component
+      ? [
+          { file: 'tests/docs-recipes.test.mjs', anchor: 'const EXPECTED_RECIPES = {', line: `  '${dir}/README.md': 1,` },
+          { file: 'scripts/diagnostic-tables.mjs', anchor: "{ name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },", line: `  { name: '${short}', tables: ['src/diagnostics.ts'], sources: SOURCES },`, where: 'before' },
+          { file: 'tests/diagnostics-through-tables.test.mjs', anchor: 'const MIGRATED = [', line: `  ['${short}', 'dist/*.min.js'],` },
+        ]
+      : []),
+  ];
+  return { component, dir, short, own, filename, tag, testFile, target, written, edits };
 };
 
 /** The command, only when this file was started: `argv[1]` is absent under `node -e`, a REPL or a script over stdin. */
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [kind, name] = process.argv.slice(2);
   const coreVersion = JSON.parse(readFileSync(`${ROOT}packages/core/package.json`, 'utf8')).version;
-  const { component, dir, short, own, filename, testFile, target, written } = scaffold(kind, name, coreVersion);
+  const { dir, own, testFile, written, edits } = scaffold(kind, name, coreVersion);
   if (existsSync(ROOT + dir)) throw new Error(`${dir} already exists`);
   if (existsSync(ROOT + testFile)) throw new Error(`${testFile} already exists`);
 
@@ -335,13 +356,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   for (const [file, text] of Object.entries(written)) writeFileSync(ROOT + file, text);
   writeFileSync(`${ROOT}${dir}/LICENSE`, readFileSync(`${ROOT}LICENSE`, 'utf8'));
 
-  insert('package.json', '"./packages/shared-types:build",', `        "./${dir}:build",`, 'before');
-  insert('tsconfig.json', '"paths": {', `      "${own}": [\n        "./${dir}/src/${target}"\n      ],${component ? `\n      "${own}/element": [\n        "./${dir}/src/index.ts"\n      ],` : ''}`);
-  insert('tests/dist.mjs', 'export const ENTRY = {', `  '${own.slice(1)}': ['${short}', '${filename}'],${component ? `\n  '${own.slice(1)}/element': ['${short}', '${filename}-element'],` : ''}`);
-  insert('tests/docs-imports.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
-  insert('tests/docs-recipes.test.mjs', "'@verajs/core': 'core',", `  '${own}': '${own.slice(1)}',`, 'before');
-  if (component) insert('tests/docs-recipes.test.mjs', 'const EXPECTED_RECIPES = {', `  '${dir}/README.md': 1,`);
-  if (component) insert('scripts/diagnostic-tables.mjs', "{ name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },", `  { name: '${short}', tables: ['src/diagnostics.ts'], sources: SOURCES },`, 'before');
+  for (const { file, anchor, line, where } of edits) insert(file, anchor, line, where);
 
   console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build, node --test --conditions development ${testFile} and tests/package-structure.test.mjs`);
 }
