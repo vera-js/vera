@@ -4,7 +4,10 @@ export type Politeness = 'polite' | 'assertive';
 export interface AnnounceOptions {
   /** Default `polite`. `assertive` interrupts the user: for errors that block them, never for progress. */
   politeness?: Politeness;
-  /** Announcements sharing a key within one write window collapse to the last one (a count that ticks while typing). */
+  /**
+   * Announcements sharing a key within one write window collapse to the last one, and a keyed message replaces the
+   * key's earlier one in the region (a count that ticks while typing keeps one node).
+   */
   key?: string;
 }
 
@@ -19,7 +22,7 @@ export interface Wanted {
  * version, and two copies on one page keep one region and one settle window between them.
  */
 export interface AnnounceRecord {
-  /** The shape's version: 1. A newer copy adds fields and raises it; an older copy reads the fields it knows. */
+  /** The shape's version: 2 (2 added `written`). A newer copy adds fields and raises it; an older copy reads the fields it knows. */
   v: number;
   /** The document's own regions, on `body`, by politeness. Re-created when a page emptied `body`. */
   regions: Partial<Record<Politeness, HTMLElement>>;
@@ -31,4 +34,9 @@ export interface AnnounceRecord {
   window: number;
   /** Writes waiting for their window, by key: a later one with the same key replaces the earlier. */
   pending: Map<string, number>;
+  /**
+   * The message last written under each key, so a keyed write replaces it and the region holds one node per key (v2;
+   * absent from a record an older copy made, and added on first use).
+   */
+  written?: Map<string, Element>;
 }

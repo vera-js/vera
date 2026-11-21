@@ -23,7 +23,7 @@ type Holder = Document & { [RECORD]?: AnnounceRecord };
 
 /** This document's record, made on first use. A newer copy's record is read as-is: its fields only ever grow. */
 const recordOf = (doc: Document): AnnounceRecord =>
-  ((doc as Holder)[RECORD] ??= { v: 1, regions: {}, modals: new WeakMap(), wanted: new Map(), window: 0, pending: new Map() });
+  ((doc as Holder)[RECORD] ??= { v: 2, regions: {}, modals: new WeakMap(), wanted: new Map(), window: 0, pending: new Map(), written: new Map() });
 
 /**
  * **The topmost open modal, computed at each write** (never cached, so no listener and no tracking): the open `:modal`
@@ -85,19 +85,36 @@ const regionFor = (doc: Document, record: AnnounceRecord, politeness: Politeness
 
 /**
  * Adds `text` as a node to the region it is spoken from NOW (a modal may have closed since the call, or the page emptied
- * `body`). A region made at this moment is not written at once: the write waits its first-write delay again.
+ * `body`). A region made at this moment is not written at once: the write waits its first-write delay again. A keyed
+ * message replaces its key's earlier one (a count ticking while typing keeps one node, not one per tick); removing a
+ * node is not spoken (`aria-relevant="additions"`), and each removal takes only its own node, never a newer one.
  */
-const write = (doc: Document, win: Window, record: AnnounceRecord, politeness: Politeness, text: string): void => {
+const write = (
+  doc: Document,
+  win: Window,
+  record: AnnounceRecord,
+  politeness: Politeness,
+  text: string,
+  key: string | undefined,
+): void => {
   if (doc.visibilityState === 'hidden') return;
   const [region, fresh] = regionFor(doc, record, politeness);
   if (fresh) {
-    win.setTimeout(() => write(doc, win, record, politeness, text), FIRST_WRITE_MS);
+    win.setTimeout(() => write(doc, win, record, politeness, text, key), FIRST_WRITE_MS);
     return;
   }
   const message = doc.createElement('div');
   message.textContent = text;
   region.append(message);
-  win.setTimeout(() => message.remove(), KEEP_MS);
+  if (key !== undefined) {
+    const written = (record.written ??= new Map());
+    written.get(key)?.remove();
+    written.set(key, message);
+  }
+  win.setTimeout(() => {
+    message.remove();
+    if (key !== undefined && record.written?.get(key) === message) record.written.delete(key);
+  }, KEEP_MS);
 };
 
 /**
@@ -121,7 +138,7 @@ export const announce = (element: Element, text: string, options: AnnounceOption
   const timer = win.setTimeout(
     () => {
       if (key !== undefined) record.pending.delete(key);
-      write(doc, win, record, politeness, said);
+      write(doc, win, record, politeness, said, key);
     },
     fresh ? FIRST_WRITE_MS : WRITE_MS,
   );

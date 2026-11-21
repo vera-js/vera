@@ -134,6 +134,19 @@ test('a spoken message is removed after a while; the region stays', () => {
   assert.equal(regions(doc).length, 1);
 });
 
+test('a removal takes only its own message: a newer one stays, and the region still speaks additions only', () => {
+  const { doc, advance } = page('<p>x</p>');
+  const p = doc.querySelector('p');
+  announce(p, 'older');
+  advance(1000);
+  announce(p, 'newer');
+  advance(6500);
+  assert.deepEqual(said(doc), ['newer'], 'the older one removed at its 7 s, the newer one kept');
+  assert.equal(regions(doc)[0].getAttribute('aria-relevant'), 'additions', 'a removal is not spoken');
+  advance(1000);
+  assert.deepEqual(said(doc), []);
+});
+
 test('assertive gets its own region, made only when asked', () => {
   const { doc, run } = page('<p>x</p>');
   const p = doc.querySelector('p');
@@ -156,6 +169,23 @@ test('a key collapses announcements within one moment to the last', () => {
   assert.equal(queue.size, 1, 'one write pending');
   run();
   assert.deepEqual(said(doc), ['1 character left']);
+});
+
+test('keyed writes 200 ms apart leave one node: each replaces its key's earlier message', () => {
+  const { doc, advance } = page('<p>x</p>');
+  const p = doc.querySelector('p');
+  announce(p, 'other');
+  advance(200);
+  for (const text of ['3 left', '2 left', '1 left']) {
+    announce(p, text, { key: 'count' });
+    advance(200);
+  }
+  assert.deepEqual(said(doc), ['other', '1 left'], 'one node for the key, an unkeyed message untouched');
+  advance(7000);
+  assert.deepEqual(said(doc), []);
+  announce(p, '0 left', { key: 'count' });
+  advance(200);
+  assert.deepEqual(said(doc), ['0 left'], 'a key whose message was removed writes afresh');
 });
 
 test('two copies of the hook on one page share one region (two regions would speak everything twice)', () => {
