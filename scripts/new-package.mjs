@@ -419,13 +419,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
   writeFileSync(`${ROOT}${dir}/LICENSE`, readFileSync(`${ROOT}LICENSE`, 'utf8'));
 
-  for (const { file, anchor, line, where } of edits) insert(file, anchor, line, where);
-
-  /** The manifest is generated, never written by hand: the same command the gate's `--check` runs, on this package. */
+  /**
+   * The manifest is generated, never written by hand: the same command the gate's `--check` runs, on this package. It
+   * runs BEFORE the registry edits, so a refusal leaves the package's own files and touches no shared file.
+   */
   if (component) {
-    const cem = spawnSync(process.execPath, [`${ROOT}scripts/generate-cem.mjs`, dir], { cwd: ROOT, encoding: 'utf8' });
-    if (cem.status !== 0) throw new Error(`generate-cem refused ${dir}:\n${cem.stderr}`);
+    const cem = spawnSync(process.execPath, [`${ROOT}scripts/generate-cem.mjs`, dir], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 });
+    const why = cem.error?.code === 'ETIMEDOUT' ? 'it did not finish within 60 s' : cem.stderr;
+    if (cem.error || cem.status !== 0)
+      throw new Error(`generate-cem refused ${dir} (${why}). The package's files are written and registered nowhere: remove ${dir} and ${testFile}, fix the cause, and run this command again`);
   }
+
+  for (const { file, anchor, line, where } of edits) insert(file, anchor, line, where);
 
   console.log(`wrote ${dir} (${own}) and registered it; next: npm install, then npm run build, node --test --conditions development ${testFile} and tests/package-structure.test.mjs`);
 }
