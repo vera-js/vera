@@ -9,9 +9,9 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
 | `@verajs/core` | 21.05 KB | **8.11 KB** |
-| `@verajs/lite` | 9.58 KB | 4.17 KB |
+| `@verajs/lite` | 9.63 KB | 4.19 KB |
 | `@verajs/static` | 3.40 KB | 1.71 KB |
-| `@verajs/renderer` | 15.01 KB | 6.26 KB |
+| `@verajs/renderer` | 15.00 KB | 6.25 KB |
 | `@verajs/router` | 10.61 KB | 4.41 KB |
 | `@verajs/autoloader` | 3.85 KB | 1.58 KB |
 | `@verajs/styles` | 2.09 KB | 1.08 KB |
@@ -25,16 +25,16 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/keyed` | 6.58 KB | 2.69 KB |
 | `@verajs/renderer/native-elements` | 1.05 KB | 626 B |
 | `@verajs/renderer/multi-window` | 670 B | 425 B |
-| `@verajs/renderer/until` | 462 B | 318 B |
+| `@verajs/renderer/until` | 452 B | 311 B |
 | `@verajs/renderer/slots` | 17.34 KB | 6.22 KB |
 | `@verajs/renderer/namespaces` | 1.09 KB | 667 B |
 | `@verajs/renderer/elements` | 1.51 KB | 800 B |
-| `@verajs/renderer/portal` | 1.25 KB | 706 B |
+| `@verajs/renderer/portal` | 1.24 KB | 699 B |
 | `@verajs/renderer/hydration` | 8.25 KB | 3.50 KB |
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.64 KB |
 | `@verajs/inserts` | 496 B | 363 B |
-| `@verajs/directives` | 15.81 KB | 6.18 KB |
-| `@verajs/directives/directives-standalone` | 32.35 KB | 12.03 KB |
+| `@verajs/directives` | 15.79 KB | 6.17 KB |
+| `@verajs/directives/directives-standalone` | 32.33 KB | 12.02 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |

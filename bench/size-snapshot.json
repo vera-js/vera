@@ -3,20 +3,20 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 21556,
-      "gzip": 8300
+      "raw": 21560,
+      "gzip": 8302
     },
     "lite": {
-      "raw": 9814,
-      "gzip": 4270
+      "raw": 9856,
+      "gzip": 4294
     },
     "static": {
       "raw": 3482,
       "gzip": 1746
     },
     "renderer": {
-      "raw": 15372,
-      "gzip": 6409
+      "raw": 15362,
+      "gzip": 6401
     },
     "router": {
       "raw": 10864,
@@ -71,8 +71,8 @@
       "gzip": 425
     },
     "until": {
-      "raw": 462,
-      "gzip": 318
+      "raw": 452,
+      "gzip": 311
     },
     "slots": {
       "raw": 17759,
@@ -87,8 +87,8 @@
       "gzip": 800
     },
     "portal": {
-      "raw": 1275,
-      "gzip": 706
+      "raw": 1265,
+      "gzip": 699
     },
     "hydration": {
       "raw": 8452,
@@ -103,12 +103,12 @@
       "gzip": 363
     },
     "directives": {
-      "raw": 16190,
-      "gzip": 6325
+      "raw": 16170,
+      "gzip": 6317
     },
     "directives-standalone": {
-      "raw": 33127,
-      "gzip": 12316
+      "raw": 33107,
+      "gzip": 12308
     },
     "directives-expressions": {
       "raw": 5618,
@@ -211,8 +211,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 24702,
-      "gzip": 10024,
+      "raw": 24679,
+      "gzip": 10012,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -223,8 +223,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 32670,
-      "gzip": 13138,
+      "raw": 32637,
+      "gzip": 13119,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -299,16 +299,16 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 34068,
-      "gzip": 13722
+      "raw": 34035,
+      "gzip": 13704
     }
   ],
   "variants": [
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 32673,
-      "gzip": 13137
+      "raw": 32640,
+      "gzip": 13118
     }
   ]
 }
