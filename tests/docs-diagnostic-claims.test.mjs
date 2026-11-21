@@ -272,6 +272,7 @@ const CLAIMS = new Map([
   ['packages/components/select/README.md#04a7f836ff', 'defined-twice'], // Two library versions on one page warn instead of silently forking — and `@vera-components/select/elemen
   ['packages/components/icon/README.md#87b616288b', 'icon-two-sources'], // both a child <svg> and src: the child wins — development says so
   ['packages/components/icon/README.md#fe276a1ee1', 'pinned by tests/icon.test.mjs: the decorative default and the label mode switch, both ways'], // naming: aria-hidden by default, role=img + aria-label with label
+  ['packages/components/spinner/README.md#a8d4a1ca46', 'pinned by tests/spinner-element.test.mjs: a busy owner keeps the spinner silent, read when the window closes'], // the owner speaks; one that does not leaves the load unspoken
   ['packages/components/icon/README.md#4910d24a5b', 'icon-scheme'], // every scheme but relative and same-origin http(s) is refused — development says why
   ['llms.txt#c5ee82cf78', 'pinned by tests/renderer-until.test.mjs: a rejection is the platform\'s unhandled rejection, with the fallback kept (the child-process row)'], // A rejection keeps the fallback and the BROWSER reports it (unhandled: console + `unhandledrejection`); …
   ['packages/renderer/README.md#4f2635a426', 'pinned by tests/renderer-until.test.mjs: continuity, a dropped late answer, removal, a non-promise, and a rejection reported by the platform — each its own row'], // Make the promise in the setup, as above; … - **A rejection** keeps the fallback, and the browser reports it …

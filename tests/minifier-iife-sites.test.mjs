@@ -49,6 +49,8 @@ const PINS = {
   'packages/components/kbd/dist/vera-kbd-element.min.js': 4,
   'packages/components/kbd/dist/vera-kbd.min.js': 6,
   'packages/components/select/dist/vera-select-elements.min.js': 2,
+  'packages/components/spinner/dist/vera-spinner-element.min.js': 1,
+  'packages/components/spinner/dist/vera-spinner.min.js': 1,
   'packages/components/select/dist/vera-select.min.js': 3,
   'packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js': 0,
   'packages/hooks/anchor/dist/vera-anchor.min.js': 2,

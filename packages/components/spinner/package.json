@@ -1,0 +1,119 @@
+{
+  "name": "@vera-components/spinner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shows that something is busy: an animated arc, decorative to assistive technology, whose label is announced once through the document's one polite live region when the wait lasts past a short settle window, so a fast load says nothing.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/components/spinner"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./dist/vera-spinner.min.js",
+  "types": "./dist/development/vera-spinner.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-spinner.d.ts",
+      "development": "./dist/development/vera-spinner.js",
+      "default": "./dist/vera-spinner.min.js"
+    },
+    "./element": {
+      "types": "./dist/development/vera-spinner-element.d.ts",
+      "development": "./dist/development/vera-spinner-element.js",
+      "default": "./dist/vera-spinner-element.min.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/development/vera-spinner.js",
+    "./dist/vera-spinner.min.js"
+  ],
+  "dependencies": {
+    "@vera-hooks/announce": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@verajs/core": "^0.4.2"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-spinner"
+}

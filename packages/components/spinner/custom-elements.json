@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-spinner.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-spinner",
+          "name": "VeraSpinner",
+          "description": "Shows that something is busy: an animated arc, decorative to assistive technology, whose label is announced once through the document's one polite live region when the wait lasts past a short settle window, so a fast load says nothing.",
+          "attributes": [
+            {
+              "name": "label",
+              "description": "What is busy, said once by a screen reader when the wait outlasts the settle window (about 150 ms). Spinners with the same label are one load: said once however many there are, or however often a framework replaces them. Nothing is said inside an aria-busy=\"true\" owner, which speaks for itself."
+            },
+            {
+              "name": "done-label",
+              "description": "Said once when the load ends (a settle window after the last spinner with its label leaves), and only if its label was said."
+            },
+            {
+              "name": "show-label",
+              "description": "Present: the label is also shown, as plain text after the arc."
+            }
+          ],
+          "members": [],
+          "events": [],
+          "slots": [],
+          "cssParts": [
+            {
+              "name": "arc",
+              "description": "The turning arc (aria-hidden). Under reduced motion it pulses instead."
+            },
+            {
+              "name": "label",
+              "description": "The shown label, rendered only with show-label and a label."
+            }
+          ],
+          "cssProperties": [
+            {
+              "name": "--vera-spinner-size"
+            },
+            {
+              "name": "--vera-spinner-width"
+            },
+            {
+              "name": "--vera-spinner-color"
+            },
+            {
+              "name": "--vera-spinner-track"
+            }
+          ],
+          "vera-states": [],
+          "vera-custom-states": []
+        }
+      ]
+    }
+  ]
+}

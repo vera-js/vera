@@ -1,0 +1,11 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "spinner-silent",
+      "params": [],
+      "message": "has no label and no aria-busy owner, so a screen reader is told nothing while it spins.",
+      "fix": "Give it a label, such as label=\"Loading\", or set aria-busy=\"true\" on the element that is loading."
+    }
+  ]
+}
