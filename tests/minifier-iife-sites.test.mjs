@@ -45,6 +45,7 @@ const PINS = {
   'packages/components/select/dist/vera-select-elements.min.js': 2,
   'packages/components/select/dist/vera-select.min.js': 3,
   'packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js': 0,
+  'packages/hooks/anchor/dist/vera-anchor.min.js': 2,
   'packages/hooks/announce/dist/vera-announce.min.js': 3,
   'packages/hooks/labeled/dist/vera-labeled.min.js': 4,
   'packages/hooks/roving-focus/dist/vera-roving-focus-internal.min.js': 1,

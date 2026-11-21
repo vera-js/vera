@@ -1,0 +1,31 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "anchor-clipped",
+      "params": [
+        "ancestor"
+      ],
+      "message": "the layer's containing block is inside {ancestor}, which clips its overflow, so the layer can be cut off where it overflows it.",
+      "fix": "Move the layer out of the clipping ancestor (to the body, or into the top layer as a popover)."
+    },
+    {
+      "code": "anchor-layer-hidden",
+      "params": [],
+      "message": "open() was called while the layer is not shown (not in the document, or display: none), so it has no size to place by.",
+      "fix": "Show the layer first, then call open()."
+    },
+    {
+      "code": "anchor-rotated",
+      "params": [],
+      "message": "the layer's containing block is rotated or skewed, so the layer cannot be placed on its target: a translation and a scale are corrected for, nothing more.",
+      "fix": "Move the layer out of the rotated ancestor (to the body, or into the top layer as a popover)."
+    },
+    {
+      "code": "anchor-target-removed",
+      "params": [],
+      "message": "the target left the document while the layer was open, so the layer was closed: there is nothing left to place it on.",
+      "fix": "Close the layer before removing its target, or keep the target in the document while it is open."
+    }
+  ]
+}
