@@ -460,29 +460,34 @@ test('the spoken count takes the language\'s plural form: count-message-<categor
 
 /**
  * **The surface stays true**, as the scaffolded drift row asks, for a component that renders nothing: every part
- * name and field attribute the source reads is declared (a scan of the source, with a floor), every declared part
- * acts when written, and no attribute is observed that is not declared (none is: all are read when used). Its blind
- * spot: the scan sees only literal names read on the field. A name built at run time is invisible to it, so the one
- * the field builds, `count-message-${plural(...)}`, is matched by its exact source text and then every plural
- * category is required; a new computed read needs a line here of its own.
+ * name and field attribute the source reads is declared, and every declared one is found read (a scan of the source,
+ * both ways, with a floor), every declared part acts when written, and no attribute is observed that is not declared
+ * (none is: all are read when used). Its blind spot: the scan sees only literal names read on the field, so a read
+ * moved behind a helper turns its declared attribute "never read" (red, never silent), and a name built at run time
+ * is invisible to it: the one the field builds, `count-message-<category>`, is required to be in the source as a
+ * computed read whenever one is declared, and then every plural category is required.
  */
 test('the declared surface is the one the field reads: parts and attributes, both ways', async () => {
   const { fieldSurface } = await import('../packages/components/field/src/field/surface.ts');
   const { readFileSync } = await import('node:fs');
-  const source = readFileSync(new URL('../packages/components/field/src/element.ts', import.meta.url), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '');
+  const { withoutComments } = await import('./source-comments.mjs');
+  const path = new URL('../packages/components/field/src/element.ts', import.meta.url);
+  const source = withoutComments(readFileSync(path, 'utf8'), 'element.ts');
   const declaredParts = fieldSurface.parts.map((part) => part.name).sort();
   const readParts = [...new Set([...source.matchAll(/data-vera-part="([a-z-]+)"|part\(field, '([a-z-]+)'\)/g)].map((m) => m[1] ?? m[2]))].sort();
   assert.ok(readParts.length >= 4, `CONTROL: the scan found the parts the source reads: ${readParts.join(', ')}`);
   assert.deepEqual(readParts, declaredParts, 'a part read and not declared, or declared and never read: change surface.ts with the element');
   const declaredAttributes = fieldSurface.attributes.map((attribute) => attribute.name);
   const readAttributes = [...new Set([...source.matchAll(/(?:field|found\[0\])\.(?:get|has)Attribute\('([a-z-]+)'\)/g)].map((m) => m[1]))];
-  assert.ok(readAttributes.length >= 3, `CONTROL: the scan found the field's attribute reads: ${readAttributes.join(', ')}`);
+  assert.ok(readAttributes.length >= 2, `CONTROL: the scan found the field's attribute reads: ${readAttributes.join(', ')}`);
   for (const name of readAttributes) assert.ok(declaredAttributes.includes(name), `${name} is read and not declared`);
-  if (source.includes('`count-message-${plural('))
-    for (const category of ['zero', 'one', 'two', 'few', 'many', 'other'])
-      assert.ok(declaredAttributes.includes(`count-message-${category}`), `count-message-${category} is read and not declared`);
+  const categories = ['zero', 'one', 'two', 'few', 'many', 'other'];
+  const computed = new Set(categories.map((category) => `count-message-${category}`));
+  for (const name of declaredAttributes.filter((name) => !computed.has(name)))
+    assert.ok(readAttributes.includes(name), `${name} is declared and never read: the read moved where the scan cannot see it, or the attribute is gone`);
+  const computedRead = /`count-message-\$\{/.test(source);
+  assert.equal(computedRead, declaredAttributes.some((name) => computed.has(name)), 'count-message-<category> declared exactly when the source reads it by a computed name');
+  if (computedRead) for (const name of computed) assert.ok(declaredAttributes.includes(name), `${name} is read and not declared`);
   const observed = customElements.get('vera-field').observedAttributes ?? [];
   for (const name of observed) assert.ok(declaredAttributes.includes(name), `${name} is observed and not declared`);
   /** Each declared part acts when written: the control is wired, the hint describes it, the count counts, an error shows. */
