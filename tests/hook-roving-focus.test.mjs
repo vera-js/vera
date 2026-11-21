@@ -311,6 +311,38 @@ test('nested groups: an inner item\'s keys and focus never move the outer group;
   assert.equal(doc.activeElement, inner, 'CONTROL: the outer group moves on its own items');
 });
 
+test('a focused element inside the container that is NOT an item keeps its keys: a text field in a toolbar', () => {
+  const doc = page('<div id="g"><button>a</button><input id="field"><button>b</button></div>');
+  const container = doc.querySelector('#g');
+  const items = [...container.querySelectorAll('button')];
+  rovingFocus(container, { items: () => items, orientation: 'horizontal' });
+  const field = doc.querySelector('#field');
+  field.focus();
+  for (const key of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) {
+    assert.equal(press(doc, key), false, key);
+    assert.equal(doc.activeElement, field, key);
+  }
+  assert.deepEqual(stops(items), ['0', '-1'], 'and the tab stop did not move');
+  items[0].focus();
+  assert.equal(press(doc, 'ArrowRight'), true, 'CONTROL: an item\'s key is taken');
+});
+
+test('nested groups on crossed axes: a key the inner group does not take is not the outer group\'s either', () => {
+  const doc = page('<div id="outer"><button>o1</button><div id="inner"><button>i1</button><button>i2</button></div><button>o2</button></div>');
+  const outer = doc.querySelector('#outer');
+  const inner = doc.querySelector('#inner');
+  const outerItems = [outer.children[0], inner, outer.children[2]];
+  const innerItems = [...inner.children];
+  inner.tabIndex = -1;
+  rovingFocus(outer, { items: () => outerItems, orientation: 'horizontal' });
+  rovingFocus(inner, { items: () => innerItems, orientation: 'vertical' });
+  innerItems[0].focus();
+  assert.equal(press(doc, 'ArrowRight'), false);
+  assert.equal(doc.activeElement, innerItems[0]);
+  assert.equal(press(doc, 'ArrowDown'), true, 'CONTROL: the inner group takes its own axis');
+  assert.equal(doc.activeElement, innerItems[1]);
+});
+
 test('a group inside a user\'s open shadow root works (the focused element is read through composedPath)', () => {
   const doc = page('<div id="host"></div>');
   const root = doc.querySelector('#host').attachShadow({ mode: 'open' });
