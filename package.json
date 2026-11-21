@@ -104,7 +104,7 @@
     "@esm-bundle/chai": "^4.3.4-fix.0",
     "@happy-dom/global-registrator": "^20.0.0",
     "@rollup/plugin-terser": "^1.0.0",
-    "@rollup/plugin-typescript": "^12.3.0",
+    "@rollup/plugin-typescript": "^12.3.1",
     "@types/node": "^26.2.0",
     "@web/test-runner": "^1.0.0",
     "@web/test-runner-playwright": "^1.0.0",
