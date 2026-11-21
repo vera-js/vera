@@ -17,9 +17,8 @@ import { pointers } from './private-pointers.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
 
 /**
- * File, then the exact comment line. Two kinds, each read before it was let in: the real words the pattern also matches
- * (Unicode's C0 and C1 control sets), and two labels in motion's and static's comments, each allowed until it is
- * reworded there. **An entry whose line is gone fails the suite**, so a fixed line cannot leave a dead allowance behind
+ * File, then the exact comment line, each read before it was let in: the real words the pattern also matches (Unicode's
+ * C0 and C1 control sets). **An entry whose line is gone fails the suite**, so a fixed line cannot leave a dead allowance behind
  * to excuse the same text silently if it returns.
  */
 const ALLOWED = new Set([
