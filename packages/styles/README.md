@@ -68,6 +68,14 @@ With no shadow root, styles are **hoisted to the document once per component cla
 root, done by the platform. A `<style>` inside the element would be wiped by the first render; hoisting
 survives renders.
 
+**Hoisted into the element's root.** A light component rendered inside someone's shadow root is styled there: its
+block is adopted by that shadow root (the document's sheets stop at the boundary), once per class per root, after that
+root's own sheets (as in the document, where adopted sheets follow the page's), and kept when the root's component
+writes its own list again. A move into another document hoists it again there. The root is read at setup, so a
+component moved into ANOTHER root after its first render keeps the styles of the first one. Server-rendered: a light
+component inside a shadow root is unstyled until hydration (its block goes to the page `styles`); an SSR-only page
+shows it unstyled.
+
 **`:host` works in light DOM.** Inside that `@scope` block the scoping root is the element, so `:host`
 is translated to `:scope` and `:host(.a)` to `:scope.a`. The same sheet styles the element in both
 modes — which matters most for a component you installed rather than wrote, since it will use `:host`

@@ -63,8 +63,8 @@ const forLightDom = (css: string): string =>
     .replace(/(^|[^\\]):host\b(?!-)(?=[^{};]*\{)/g, (_, before) => `${before}:scope`);
 
 /**
- * The documents a component class has hoisted its light-DOM styles into, kept **on the class** and read
- * as an OWN property:
+ * The roots (documents and shadow roots) a component class has hoisted its light-DOM styles into, kept **on the class**
+ * and read as an OWN property:
  *
  * - on the class, not in a module-scope set, because a production bundle inlines its dependencies and
  *   two copies of this package on one page would each hoist the same rules — the class is the one
@@ -73,9 +73,21 @@ const forLightDom = (css: string): string =>
  *   base's marker never hoisted its own `@scope (child-tag)` block — unstyled, depending on which
  *   instance mounted first;
  * - per DOCUMENT, because a component moved into a popped-out window or an iframe lives in a document
- *   whose sheets are its own; hoisting into the opener styled nothing where it was.
+ *   whose sheets are its own; hoisting into the opener styled nothing where it was;
+ * - per SHADOW ROOT too (2026-11-21): a light component rendered inside someone's shadow root is styled only by sheets
+ *   that root adopts, and the document's sheet stops at its boundary (measured on all three engines: 0 sheets adopted
+ *   into the roots, every instance there unstyled). Keyed by the root, valued by the document it was hoisted under: a
+ *   move into another document keeps the root object but empties its adopted sheets, so a changed document means hoist
+ *   again (one read and one compare at setup, no scan of the root's sheets).
  */
 const HOISTED = '_$veraStyles$';
+/**
+ * **A light component's sheet in a shadow root is marked**, on the sheet itself (a string key, so two copies of this
+ * module agree), so the root's own component, writing ITS list again (a theme switch, a re-init), keeps the sheets its
+ * light children adopted there instead of replacing them; and the root is marked with it, so only such a root's list is
+ * read.
+ */
+const LIGHT = '_$veraLight$';
 
 /**
  * Adopts a component's styles — the `'init'` insert `styles` registers, so a component never calls it and core never
@@ -126,8 +138,10 @@ const restyle = (element: StyledElement) => {
  * and when every style is an adopted sheet the server's `<style>` copy is removed, since it would apply
  * the same rules twice.
  *
- * **Light DOM:** hoisted to the document once per class, inside `@scope (tag-name) { … }`, so the rules
- * apply only within that component's subtree and survive renders (which own the element's content).
+ * **Light DOM:** hoisted once per class into the element's ROOT, inside `@scope (tag-name) { … }`, so the rules
+ * apply only within that component's subtree and survive renders (which own the element's content). The root is the
+ * shadow root the element sits in, or its document. Read at setup: a component moved into another root after its
+ * first render keeps the styles of the first (a stated limit; checking the root on every connect is core's hot path).
  * Unscoped where `@scope` is unsupported (dropping the block would leave the component unstyled); a
  * `<style>` in `<head>` where constructed sheets are unavailable.
  *
@@ -162,7 +176,22 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
       if (sheet && doc.adoptedStyleSheets && view && sheet instanceof view.CSSStyleSheet) sheets.push(sheet);
       else texts.push(escapeStyleText(typeof style === 'string' ? style : style.cssText));
     }
-    if (sheets.length) shadowRoot.adoptedStyleSheets = sheets;
+    if (sheets.length) {
+      /**
+       * Its own sheets first, then the light children's, the order the document has (adopted sheets follow the page's).
+       * At equal specificity a child's `@scope` default beats an unscoped rule by proximity in either order
+       * (tests/browser/scope-proximity.test.js). Read only from a root a light child adopted into (the root carries the
+       * mark too): reading `adoptedStyleSheets` at every shadow component's setup cost Chrome +21.5% on creating styled
+       * shadow components (its getter builds a new array per read), and a fresh root has no light child yet. A root
+       * keeps its mark after a move into another document empties its list: the shell then reads an empty list (rare,
+       * cheap, and still correct), and the children's re-hoist adds theirs.
+       */
+      if ((shadowRoot as unknown as Record<string, boolean>)[LIGHT]) {
+        const current = shadowRoot.adoptedStyleSheets;
+        for (let i = 0; i < current.length; i++) if ((current[i] as unknown as Record<string, boolean>)[LIGHT]) sheets.push(current[i]);
+      }
+      shadowRoot.adoptedStyleSheets = sheets;
+    }
     const existing = shadowRoot.querySelector('style[data-vm-sheet="styles"]');
     if (texts.length) {
       /** `textContent`, never `innerHTML`: this is text, and nothing here should be parsed. */
@@ -182,10 +211,18 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
    * light-DOM rules are scoped by tag (`@scope (tag)`), so they apply to every instance of it anyway — per-element
    * styles mean nothing here, and the class is the right key, `styles` option or not.
    */
-  const owner = element.constructor as unknown as Record<string, WeakSet<Document>>;
-  if (!Object.prototype.hasOwnProperty.call(owner, HOISTED)) owner[HOISTED] = new WeakSet();
-  if (owner[HOISTED].has(doc)) return;
-  owner[HOISTED].add(doc);
+  const owner = element.constructor as unknown as Record<string, WeakMap<Document | ShadowRoot, Document>>;
+  /**
+   * The element's root: a shadow root by its node type and `host` (structural, never `instanceof`, which another
+   * window's root fails), otherwise its document. The document's own tree answers first: `contains` does not cross a
+   * shadow boundary, so it is true exactly there, and `getRootNode()` runs only for an element in a shadow root (it
+   * cost up to +4.5% on Chrome creating light components in the document, measured headed against the ablation).
+   */
+  const node: Node = doc.contains(element) ? doc : element.getRootNode();
+  const root = node === doc ? doc : node.nodeType === 11 && 'host' in node ? (node as ShadowRoot) : doc;
+  if (!Object.prototype.hasOwnProperty.call(owner, HOISTED)) owner[HOISTED] = new WeakMap();
+  if (owner[HOISTED].get(root) === doc) return;
+  owner[HOISTED].set(root, doc);
 
   const raw = list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n');
   const cssText = forLightDom(raw);
@@ -196,14 +233,19 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   if (__DEV__ && /::slotted\s*\(/.test(withoutText(raw)))
     console.warn(diagnostic('styles', `<${element.localName}>`, 'slotted-light', __DEV__ && PROSE['slotted-light']()));
   const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
-  if (doc.adoptedStyleSheets && view) {
+  /**
+   * A sheet constructed per adoption, in the element's OWN window: a root adopts only a sheet its document constructed,
+   * so one sheet per class shared across documents would throw for a root in an iframe or a popped-out window.
+   */
+  if (root.adoptedStyleSheets && view) {
     const sheet = new view.CSSStyleSheet();
     sheet.replaceSync(scoped);
-    doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
+    if (root !== doc) (sheet as unknown as Record<string, boolean>)[LIGHT] = (root as unknown as Record<string, boolean>)[LIGHT] = true;
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
   } else {
     const styleElement = doc.createElement('style');
     styleElement.textContent = escapeStyleText(scoped);
-    doc.head.appendChild(styleElement);
+    (root === doc ? doc.head : root).appendChild(styleElement);
   }
 };
 
