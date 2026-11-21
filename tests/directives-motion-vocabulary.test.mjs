@@ -153,6 +153,26 @@ test('sequence: the tick on a non-canvas is the first refusal', async () => {
   await settled();
 });
 
+test('sequence: a canvas from ANOTHER realm (an iframe, a popped-out window) is a canvas, not the non-canvas refusal', async () => {
+  /** A second JSDOM is a second realm: its canvas is an instance of ITS HTMLCanvasElement, never this page's. */
+  const other = new JSDOM('<!doctype html><body></body>').window.document;
+  const host = doc.createElement('div');
+  const canvas = other.createElement('canvas');
+  canvas.setAttribute('data-vd-motion', "{ function: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }");
+  host.append(canvas);
+  doc.body.appendChild(host);
+  assert.equal(canvas instanceof dom.window.HTMLCanvasElement, false, 'CONTROL: the canvas really is from another realm');
+  await settled();
+  await frame();
+  await frame();
+  const reasons = rejections(canvas);
+  assert.ok(!reasons.some((r) => r.code === 'motion-sequence-canvas'), `read as a canvas: ${JSON.stringify(reasons)}`);
+  /** As for this realm's canvas above: jsdom's context-less canvas is the stop, so the chain reached it. */
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-context'), JSON.stringify(reasons));
+  host.remove();
+  await settled();
+});
+
 test('sequence: a cross-origin frame-url is refused by the default policy', async () => {
   const host = await mount(
     `<canvas data-vd-motion="{ function: 'sequence', scroll: '100%, 0%', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);

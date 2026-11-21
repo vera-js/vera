@@ -22,7 +22,7 @@ import { parseUrl } from './url.js';
 
 import { elementProblem, pageProblem } from './schema.js';
 
-import { MOTION_ATTR } from './parse.js';
+import { MOTION_ATTR, XHTML } from './parse.js';
 
 import { parseValue, isObject } from '@verajs/shared-utils';
 import type { Parsed, ParsedObject } from '@verajs/shared-utils';
@@ -94,7 +94,13 @@ const drawerFor = (
     return null;
   };
 
-  if (!(node instanceof HTMLCanvasElement)) {
+  /**
+   * **A canvas by what it is, not by `instanceof`** (CODE-PRINCIPLES #2): a canvas from another window (an iframe, a
+   * popped-out window) is an instance of THAT window's `HTMLCanvasElement`, so the module global refused it. Its own
+   * document's window does not help once it is appended here: adoption moves `ownerDocument` and keeps the prototype.
+   * The HTML namespace keeps a foreign element that happens to be named `canvas` out.
+   */
+  if (node.localName !== 'canvas' || node.namespaceURI !== XHTML) {
     return fail('motion-sequence-canvas');
   }
 
@@ -111,7 +117,7 @@ const drawerFor = (
   const pad = Number(settings['frame-pad']);
   const ext = settings['frame-ext'];
   const tween = settings['frame-tween'] === true || settings['frame-tween'] === 'true';
-  const drawer = createSequence(node, {
+  const drawer = createSequence(node as HTMLCanvasElement, {
     /**
      * A frame that does not load is the failure this module is most likely
      * to produce: `frame-url` is a prefix — nothing enforces the trailing

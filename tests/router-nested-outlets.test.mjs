@@ -101,6 +101,38 @@ test('a nested level does not inherit an element outlet', async () => {
   assert.equal(outlet.textContent, 'S');
 });
 
+test('an element outlet from ANOTHER realm (an iframe, a popped-out window) is an element: painted, and never inherited', async () => {
+  /** A second JSDOM is a second realm: its nodes are instances of ITS HTMLElement, never of this page's global one. */
+  const other = new JSDOM('<!doctype html><body></body>').window.document;
+  const element = document.createElement('div');
+  element.id = `app-${++n}`;
+  const foreign = other.createElement('main');
+  foreign.setAttribute('view', 'main');
+  element.append(foreign);
+  document.body.appendChild(element);
+  assert.equal(foreign instanceof dom.window.HTMLElement, false, 'CONTROL: the outlet really is from another realm');
+  const { addRoutes } = initRouter(element, { view: foreign, handleInitial: false });
+  addRoutes(NESTED);
+  await go('/other');
+  assert.equal(foreign.textContent, 'other', 'a root route paints into the element it was given');
+  await go('/s/p');
+  assert.equal(foreign.textContent, 'SP', 'the child renders inside its parent, not over it');
+});
+
+test('an SVG element given as the outlet is an element: painted into, not searched for by its name', async () => {
+  /** A behavior change, deliberately (2026-11-21): `instanceof HTMLElement` read an SVG or MathML element as a NAME. */
+  const element = document.createElement('div');
+  element.id = `app-${++n}`;
+  element.innerHTML = '<svg><g view="main"></g></svg>';
+  document.body.appendChild(element);
+  const g = element.querySelector('g');
+  assert.equal(g.namespaceURI, 'http://www.w3.org/2000/svg', 'CONTROL: the outlet is an SVG element');
+  const { addRoutes } = initRouter(element, { view: g, handleInitial: false });
+  addRoutes([{ path: '/drawn', component: () => html`<text>drawn</text>` }]);
+  await go('/drawn');
+  assert.equal(g.textContent, 'drawn');
+});
+
 test('a router with no renderer says so, once', { skip: isProduction && 'development-only diagnostics' }, async () => {
   /**
    * A **fresh copy** of the module, so its renderer chain is genuinely empty — the one in this file

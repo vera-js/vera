@@ -952,11 +952,15 @@ const routeChange = async (
      * `[view="main"]` inside the parent's output is a different element from the one that held the
      * parent. Only an element short-circuits that search, and only for a level that did not ask for
      * it by name.
+     *
+     * **An element is told by its node type, not by `instanceof HTMLElement`** (CODE-PRINCIPLES #2): an outlet from
+     * another window (an iframe, a popped-out window) is an instance of THAT window's class, so the global one read it
+     * as a name, and every level painted over the one above. A name, a function and `undefined` have no node type.
      */
-    const rawView = link.view ?? (link.parent && elementData.view instanceof HTMLElement ? undefined : elementData.view);
+    const rawView = link.view ?? (link.parent && (elementData.view as Node | undefined)?.nodeType === 1 ? undefined : elementData.view);
 
-    /** If the view is a function, get the result */
-    const processedView = rawView instanceof Function ? rawView(params, currentRoute, previousRoute) : rawView;
+    /** If the view is a function, get the result. By `typeof`: a function from another window is not `instanceof` this one's `Function`. */
+    const processedView = typeof rawView === 'function' ? rawView(params, currentRoute, previousRoute) : rawView;
 
     /**
      * Found by scanning `[view]` and comparing the attribute, rather than by building a selector
@@ -976,7 +980,8 @@ const routeChange = async (
      * Matching it against a bare `<div view>` is the shape a parent template naturally writes.
      */
     const wanted = processedView === undefined ? '' : String(processedView);
-    let levelView = processedView instanceof HTMLElement ? processedView : (null as unknown as HTMLElement);
+    /** An element by its node type, for the reason above: from another window, it was searched for as `[view="[object HTMLElement]"]`. */
+    let levelView = (processedView as Node | undefined)?.nodeType === 1 ? (processedView as HTMLElement) : (null as unknown as HTMLElement);
     if (!levelView)
       for (const candidate of searchRoot.querySelectorAll('[view]'))
         if (candidate.getAttribute('view') === wanted) {

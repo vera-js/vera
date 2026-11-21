@@ -33,6 +33,11 @@ import type { Band, ElementMotion, ParseContext, ParsedElement, PositionUnit, Pr
 
 /** The one attribute. Exported so runtime walks (`stagger`) select by it. */
 export const MOTION_ATTR = 'data-vd-motion';
+/**
+ * The HTML namespace: an element in it is an `HTMLElement` in whichever realm made it (`HTMLUnknownElement` included),
+ * so it is how a node is told to be HTML without `instanceof` (see `parseMotion`). Shared with `sequence.ts`.
+ */
+export const XHTML = 'http://www.w3.org/1999/xhtml';
 
 
 let staggerGeneration = 0;
@@ -459,13 +464,13 @@ export const parseMotion = (
    * was adopted, measured to `start: null`, and written `translateY(NaNpx)`
    * every frame — a declaration the CSSOM drops, so nothing moved, nothing
    * was reported, and the value looked right. Refused rather than
-   * supported. The class comes from the NODE'S OWN realm (CODE-PRINCIPLES §2) — the module
-   * global refused every element of a second document: the emit-anywhere CLI hosts pages in
-   * their own JSDOM realms, and cross-realm `instanceof` is how its first run emitted nothing.
+   * supported. **Told by its namespace, not by `instanceof`** (CODE-PRINCIPLES §2): the module
+   * global's class refused every element of a second document (the emit-anywhere CLI hosts pages in
+   * their own JSDOM realms, and cross-realm `instanceof` is how its first run emitted nothing), and the
+   * class from the node's own window refused one ADOPTED from another window, whose `ownerDocument`
+   * moves while its prototype stays. Every element in the HTML namespace is an `HTMLElement`.
    */
-  const OwnHTMLElement = (node.ownerDocument?.defaultView as
-    (typeof globalThis) | null | undefined)?.HTMLElement;
-  if (typeof OwnHTMLElement === 'function' && !(node instanceof OwnHTMLElement)) {
+  if (node.namespaceURI !== XHTML) {
     rejected.push({ code: 'motion-not-html', args: [node.tagName.toLowerCase()] });
     context.dropped?.push({ node, rejected });
     return null;
