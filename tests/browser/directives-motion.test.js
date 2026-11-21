@@ -236,14 +236,21 @@ it('transition-mode play: the compositor animates, reverses from current, and li
 
   /** Reverse mid-flight: back above the line partway through a fresh run — the platform
    *  reverses from the CURRENT value, retimed (the ratified semantics). */
-  await scrollTo(0);
-  /** Back at rest first: two frames into the 500 ms reverse the element still read ~0.8, so the next entry started there
-   *  and never passed through the mid-range it is read in. */
-  await until(() => !t.hasAttribute('data-vm-on') && Math.abs(opacityOf(t) - 0.1) < 0.02, 'back at rest before the second entry', 5000);
-  window.scrollTo(0, t.offsetTop);
-  /** Reversed from a value that IS mid-flight, waited for: a fixed 150 ms could still read the start under load. */
-  await until(() => opacityOf(t) > 0.3 && opacityOf(t) < 0.7, 'the entry run mid-flight', 2000);
-  const midFlight = opacityOf(t);
+  /**
+   * Reversed from a value that IS mid-flight. The compositor runs the entry while the main thread may be stalled, so a
+   * poll can miss the whole mid-range of one run (a loaded Firefox did, on Windows, 2026-11-21): up to three entries are
+   * tried, each from rest. Back at rest first: two frames into the 500 ms reverse the element still read ~0.8, so an
+   * entry started there never passed through the mid-range it is read in.
+   */
+  let midFlight;
+  for (let attempt = 0; attempt < 3 && midFlight === undefined; attempt++) {
+    await scrollTo(0);
+    await until(() => !t.hasAttribute('data-vm-on') && Math.abs(opacityOf(t) - 0.1) < 0.02, 'back at rest before the entry', 5000);
+    window.scrollTo(0, t.offsetTop);
+    let seen;
+    if (await ever(() => ((seen = opacityOf(t)) > 0.3 && seen < 0.7), 2000)) midFlight = seen;
+  }
+  expect(midFlight, 'an entry was caught mid-flight, in three tries').to.be.a('number');
   window.scrollTo(0, 0);
   await new Promise((r) => requestAnimationFrame(r));
   await new Promise((r) => requestAnimationFrame(r));
