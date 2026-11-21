@@ -28,8 +28,8 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
 export default {
   /**
    * **The root in its canonical spelling, not the launching shell's.** On Windows the drive letter's case follows how the
-   * shell got its cwd (VS Code starts one in `c:…`, Git Bash's `/c/…` gives `C:…`), while node-resolve's realpath
-   * through a workspace link always answers `C:…`. The runner compares the two by case, so from a lowercase cwd every
+   * shell got its cwd (VS Code starts one in `c:\…`, Git Bash's `/c/…` gives `C:\…`), while node-resolve's realpath
+   * through a workspace link always answers `C:\…`. The runner compares the two by case, so from a lowercase cwd every
    * module reached through a link failed with "could not be converted to a browser path" (65 Chromium rows red).
    * `realpathSync.native` answers the file system's own spelling, whichever shell launched the run.
    */

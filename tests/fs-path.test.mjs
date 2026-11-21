@@ -12,7 +12,7 @@ import { globSync, readFileSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fsPath, posix } from '../scripts/fs-path.mjs';
+import { comparable, fsPath, posix } from '../scripts/fs-path.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
 
 const ROOT = fsPath(new URL('..', import.meta.url));
@@ -263,4 +263,17 @@ test('the browser runner roots itself at the canonical spelling, whatever the cw
   );
   assert.equal(cwd, lowered, 'CONTROL: the config loaded from the lowercase spelling');
   assert.equal(rootDir, native, 'rootDir is the canonical path, not the cwd');
+});
+
+test('comparable spells two spellings of one Windows path alike, and leaves a POSIX path alone', () => {
+  if (process.platform === 'win32') {
+    assert.equal(comparable('c:\\projects\\vera\\tests\\x.mjs'), 'C:/projects/vera/tests/x.mjs', 'a lowercase drive and backslashes');
+    assert.equal(comparable(lowered), comparable(native), 'the lowered checkout and the canonical one compare equal');
+    assert.notEqual(posix(lowered), posix(native), 'CONTROL: posix() alone leaves them different (the blind-queries false red)');
+    /** The blind-queries strip, planted with a lowercase-drive frame against the canonical root. */
+    const frame = posix(lowered) + '/tests/ssr-directives.test.mjs:68:5';
+    assert.equal(comparable(frame).replace(comparable(native), '').replace(/^\/+/, ''), 'tests/ssr-directives.test.mjs:68:5');
+  } else {
+    assert.equal(comparable('c:/x/y'), 'c:/x/y', 'on POSIX "c:" is an ordinary directory name, kept');
+  }
 });

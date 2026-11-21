@@ -23,6 +23,19 @@ import { fileURLToPath } from 'node:url';
 export const posix = (path) => path.split(sep).join('/');
 
 /**
+ * A path in the one spelling two paths are compared in: forward slashes, and on Windows an upper-case drive letter. The
+ * drive letter keeps the launching shell's case (`c:\` from VS Code, `C:\` from Git Bash and from any realpath),
+ * so two spellings of one file differ by it; a comparison of a root with a resolved path goes through this on both sides.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+export const comparable = (path) => {
+  const forward = posix(path);
+  return process.platform === 'win32' && /^[a-z]:/.test(forward) ? forward[0].toUpperCase() + forward.slice(1) : forward;
+};
+
+/**
  * The path of a `file:` URL, with forward slashes. A `%5C` in a file URL is a backslash in the file's name on macOS and
  * Linux, kept as one.
  *
@@ -33,9 +46,9 @@ export const fsPath = (url) => posix(fileURLToPath(url));
 
 /**
  * **Moves this process into its cwd's canonical spelling**, so every child it spawns inherits it. On Windows a cwd's
- * drive letter keeps the case of whatever launched the shell (VS Code starts one in `c:…`, Git Bash's `/c/…` gives
- * `C:…`), while a realpath, which every resolver takes through a workspace link, always answers the file system's
- * own `C:…`. A tool that compares the two by case breaks only for some launchers: the browser step lost 65 Chromium
+ * drive letter keeps the case of whatever launched the shell (VS Code starts one in `c:\…`, Git Bash's `/c/…` gives
+ * `C:\…`), while a realpath, which every resolver takes through a workspace link, always answers the file system's
+ * own `C:\…`. A tool that compares the two by case breaks only for some launchers: the browser step lost 65 Chromium
  * rows to it from a lowercase cwd. A no-op on macOS and Linux, and wherever the spelling is already canonical. The
  * gate and test-batch, which every check runs under, call it first.
  */

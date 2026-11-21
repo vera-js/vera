@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { posix } from './fs-path.mjs';
+import { comparable } from './fs-path.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const instrument = join(root, 'scripts/blind-query-instrument.mjs');
@@ -46,8 +46,9 @@ if (control.length !== 1 || control[0].selector !== 'img')
 
 const suites = readdirSync(join(root, 'tests')).filter((name) => /^ssr-.*\.test\.mjs$/.test(name)).map((name) => `tests/${name}`);
 const records = run(['--test', '--conditions', 'development', ...suites]);
-/** Both sides in one form: on Windows `root` has backslashes and a recorded stack frame has forward slashes. */
-const relative = (at) => posix(at).replace(posix(root), '').replace(/^\/+/, '');
+/** Both sides in one spelling: on Windows `root` has backslashes and a recorded frame forward slashes, and either drive
+ *  letter may be lower case (`comparable` in scripts/fs-path.mjs). */
+const relative = (at) => comparable(at).replace(comparable(root), '').replace(/^\/+/, '');
 const matches = ({ at, selector }, [file, allowed]) => relative(at).startsWith(file) && selector === allowed;
 const unexpected = records.filter((record) => !ALLOWED.some((entry) => matches(record, entry)));
 const unique = [...new Set(unexpected.map(({ at, query, selector }) => `${relative(at)}  ${query}('${selector}')`))];
