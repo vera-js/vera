@@ -939,6 +939,13 @@ from another machine, or after that is undone, has a variable changed.
   `dist` refused a move of that `dist` mid-run. Consequence: a tool that sets built output aside (a control, a mutation
   runner) moves the individual files and restores them, never renames a `dist` directory. (Windows 11 build 26200, Node
   26.13.1, 2026-11-20.)
+- **Playwright's WebKit on Windows lacks reflections the macOS build has**: of `inputMode`, `enterKeyHint`,
+  `autocapitalize`, `popover`, `writingSuggestions` and `virtualKeyboardPolicy`, an element has only `inputMode` and
+  `popover` (`'x' in div`); Chromium 151 has all six, Firefox 153 the first four. Its user agent still says macOS. The
+  two it has answer exactly as the other engines do. Consequence: a test that skips a member an engine lacks floors its
+  count at what the leanest engine has (2), or it reads a port's build flags as a broken check
+  (`tests/browser/reflected-enumerations.test.js`). (WebKit 26.5, Playwright 1.62.1, Windows 11 build 26200, headless,
+  2026-11-20.)
 
 ## Competitors, as their own benchmark entries write them
 

@@ -41,7 +41,12 @@ it('answers a state rather than the attribute text', () => {
     expect(withAttribute(attribute, rule.valid[0].toUpperCase())[property], `${property}: upper case`)
       .to.equal(rule.valid[1]);
   }
-  expect(checked, 'this engine implements none of them, so it proves nothing').to.be.greaterThan(2);
+  /**
+   * The fewest any engine implements: Playwright's WebKit on Windows has only `inputMode` and `popover` (no
+   * `enterKeyHint`, `autocapitalize`, `writingSuggestions` or `virtualKeyboardPolicy`), measured 2026-11-20. Fewer
+   * than that means the check stopped reading the members, not an engine that lacks them.
+   */
+  expect(checked, 'this engine implements too few of them, so it proves nothing').to.be.at.least(2);
 });
 
 /**
