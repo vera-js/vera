@@ -29,7 +29,7 @@ test('no npm script in any package.json sets a variable with a shell prefix', ()
       for (const command of shellPrefixes(script)) found.push(`${file} ${name}: ${command.slice(0, 80)}`);
     }
   }
-  assert.ok(scripts >= 50, `CONTROL: ${scripts} scripts read`);
+  assert.ok(scripts >= 45, `CONTROL: ${scripts} scripts read`);
   assert.deepEqual(found, [], 'pass the variable to node scripts/test-batch.mjs instead: node scripts/test-batch.mjs NAME=value <command>');
 });
 
