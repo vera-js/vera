@@ -102,8 +102,8 @@ test('package.json holds @rollup/plugin-typescript at the release that cancels t
     `[vera] @rollup/plugin-typescript 12.3.0 at ${at} is below the 12.3.1 package.json asks for: a build would not end (or would end early). Run npm install.`,
     'an older install is refused, naming its version and where it is',
   );
-  for (const old of ['12.2.9', '11.9.9', '12.3', 'x.y.z']) assert.notEqual(pluginFloorError(old, at), null, `${old} refused`);
-  for (const ok of ['12.3.1', '12.10.0', '13.0.0', '12.4.0']) assert.equal(pluginFloorError(ok, at), null, `${ok} passes (compared as numbers)`);
+  for (const old of ['12.2.9', '11.9.9', '12.3', 'x.y.z', '12.3.1-beta.1', '12.3.0-rc.1']) assert.notEqual(pluginFloorError(old, at), null, `${old} refused`);
+  for (const ok of ['12.3.1', '12.10.0', '13.0.0', '12.4.0', '12.4.0-beta.1', '13.0.0-rc.1']) assert.equal(pluginFloorError(ok, at), null, `${ok} passes (semver order, as numbers)`);
 });
 
 /**

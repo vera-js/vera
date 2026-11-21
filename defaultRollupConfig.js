@@ -21,14 +21,17 @@ const PACKAGES = join(dirname(fileURLToPath(import.meta.url)), 'packages');
  * range in `package.json`.
  */
 export const PLUGIN_FLOOR = '12.3.1';
+/** Semver order: the release numbers first; a prerelease of the floor itself (12.3.1-beta) sorts below it. */
 export const pluginFloorError = (version, at) => {
-  const have = String(version).split('.').map(Number);
+  const [release, prerelease] = String(version).split(/-(.*)/s);
+  const have = release.split('.').map(Number);
   const need = PLUGIN_FLOOR.split('.').map(Number);
+  const refused = `[vera] @rollup/plugin-typescript ${version} at ${at} is below the ${PLUGIN_FLOOR} package.json asks for: a build would not end (or would end early). Run npm install.`;
   for (let i = 0; i < 3; i++) {
     if (have[i] > need[i]) return null;
-    if (!(have[i] === need[i])) return `[vera] @rollup/plugin-typescript ${version} at ${at} is below the ${PLUGIN_FLOOR} package.json asks for: a build would not end (or would end early). Run npm install.`;
+    if (!(have[i] === need[i])) return refused;
   }
-  return null;
+  return prerelease === undefined ? null : refused;
 };
 {
   let dir = dirname(createRequire(import.meta.url).resolve('@rollup/plugin-typescript'));
