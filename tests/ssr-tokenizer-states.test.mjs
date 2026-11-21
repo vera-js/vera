@@ -505,6 +505,14 @@ test('a <font> with a static color, face or size breaks out of SVG or MathML, as
   assert.deepEqual(wrong, []);
 });
 
+test('the breakout runs only in foreign content, and stops at the nearest integration point', () => {
+  /** Plain HTML: `<font color>` is an ordinary element, and the style after it an HTML one either way. */
+  assert.deepEqual(styleOf(serializeTemplate(template(['<p><font color=x><style>', '</style></font></p>'], 'a<b>z'))), { ns: 'html', text: 'a<b>z' });
+  /** Inside a foreignObject's own svg: the breakout lands in the foreignObject (HTML), where parse5 puts the style. */
+  const nested = serializeTemplate(template(['<svg><foreignObject><svg><font color=x><style>', '</style></font></svg></foreignObject></svg>'], 'a<b>z'));
+  assert.deepEqual(styleOf(nested), { ns: 'html', text: 'a<b>z' }, nested);
+});
+
 test('control: a <font> without them stays foreign, and a BOUND color keeps the no-breakout reading, which escapes every value', () => {
   assert.equal(styleOf(serializeTemplate(template(['<svg><font id=a><style>', '</style></font></svg>'], 'a<b>z')))?.ns, 'foreign');
   /** Bound: a nullish value would remove the attribute, so nothing is certain — and no value can make markup either way. */
