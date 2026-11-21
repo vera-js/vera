@@ -4,13 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Vera kitchen sink</title>
-    <style>@scope (sink-scoped) {
-
-    .scoped {
-      color: rgb(0, 128, 0);
-    }
-  
-}</style>
+    <style></style>
   </head>
   <body>
 <sink-shell data-autoload=""><template shadowrootmode="open"><style data-vm-sheet="styles">
@@ -148,7 +142,13 @@
       border: 1px solid #d8dce4;
       border-radius: 6px;
     }
-  </style><div id="shell">
+  </style><style data-vm-sheet="styles">@scope (sink-scoped) {
+
+    .scoped {
+      color: rgb(0, 128, 0);
+    }
+  
+}</style><div id="shell">
         <h1 id="heading">Vera kitchen sink</h1>
         <!--
           Marked `data-diagnostic`: it reports the environment rather than the application, so the
