@@ -1852,7 +1852,7 @@ const { html, styles, title } = await renderToString(new URL('./app.js', import.
 | `location` | this request's URL. Pass it — never assign `globalThis.location` yourself; concurrent renders would race |
 | `seen` | a `Set` carried across renders so shared components' styles reach a multi-island page once |
 | `base` | a directory the module URL must resolve inside. Pass it whenever any part of `url` came from a request |
-| `static` | `true` = a page that will not be interactive: store reads skip tracking, ~3x faster, identical markup. A store *write* during such a render throws (both builds) |
+| `static` | `true` = a page that will not be interactive: store reads skip tracking (faster in proportion to the tracked reads; 2.1 vs 2.3 µs on a component reading one signal), identical markup. A store *write* during such a render throws (both builds) |
 
 A wrong option type throws a `TypeError` naming the option. Returns `{ html, styles, title }`:
 `styles` is the light-DOM `@scope` CSS for the page's `<style>`, already escaped for that element.

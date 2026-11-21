@@ -76,7 +76,7 @@ already awaits. A render that throws does not stop the queue.
 | `location` | this request's URL — a path or a full URL — applied for the render and restored after |
 | `seen` | a `Set` carried across renders, so a page of islands ships each component's styles once |
 | `base` | a directory the module URL must resolve inside. Pass it whenever **any part of the URL came from a request** |
-| `static` | `true` for a page that will not be interactive: reactivity is skipped, about 3x faster, identical markup |
+| `static` | `true` for a page that will not be interactive: a store's reads skip tracking, identical markup; faster in proportion to the tracked reads a render makes (see [Static pages](#static-pages)) |
 | `timeout` | how long `renderToStringAsync` waits on promises a component starts, in milliseconds (default 2000), before serving what it has and warning — see below. **`0` waits for nothing** (it is not "no limit", which this option cannot express): every such promise is abandoned at once |
 
 A wrong type is refused with a `TypeError` naming the option (`children: 5` used to surface as
@@ -201,10 +201,12 @@ reads, so `<my-comp.x>` is another, unregistered element and is left exactly as 
 
 ## Static pages
 
-`static: true` renders a page that will not be interactive, **about 3x faster** — 16 µs against
-42–50 µs for a component rendering twenty rows. A server render is one shot: the subscriptions a store
-builds while it runs are never fired afterwards, so tracking every read to create them is the whole of
-the cost. With `static` on, a store's property reads skip tracking.
+`static: true` renders a page that will not be interactive, faster in proportion to the store reads it tracks. A
+server render is one shot: the subscriptions a store builds while it runs are never fired afterwards, so tracking each
+read to create them is cost with no use. With `static` on, a store's property reads skip tracking. On
+`bench/ssr.mjs`'s two components, which read one signal each, that is 2.1 against 2.3 µs (small) and 44.6 against
+45.4 µs (the 100-row table; same run as [Performance](#performance)); a component reading a store property per row
+skips a tracked read per row.
 
 - **The markup is identical**, and not on a chosen example: `tests/ssr-static-mode.test.mjs` renders
   *every* fixture in the suite both ways and compares markup, styles and title. A mode that cannot
@@ -527,12 +529,12 @@ markup itself is served byte for byte as it was written.
 
 | | small | table |
 | --- | --- | --- |
-| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **0.3** | **30.9** |
-| | lit 2.5 | lit 302.6 |
-| **whole component** — `renderToString` vs a real `LitElement` | **2.8** | **44.7** |
-| | lit 5.5 | lit 411.4 |
+| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **0.3** | **31.0** |
+| | lit 2.5 | lit 311.9 |
+| **whole component** — `renderToString` vs a real `LitElement` | **2.3** | **45.4** |
+| | lit 5.7 | lit 413.7 |
 
-Vue's compiled SSR is 7.9 / 59.3 µs and React 6.3 / 445.6 µs, neither of which renders a component.
+Vue's compiled SSR is 8.3 / 60.6 µs and React 6.1 / 456.0 µs, neither of which renders a component.
 The lit element row runs in a separate process: `@lit-labs/ssr` and this package both install DOM
 globals and cannot share one.
 

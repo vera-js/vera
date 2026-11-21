@@ -78,6 +78,20 @@ const CONTENDERS = {
       return () => veraRender(url);
     })(),
   },
+  /**
+   * The same pipeline with `static: true` (a page that will not be interactive: a store's reads skip tracking), on the
+   * same two fixtures, so the README's static-mode ratio is read from this run beside `vera-native`.
+   */
+  'vera-native static': {
+    small: (() => {
+      const url = new URL('../tests/fixtures/ssr/hello-ssr.js', import.meta.url);
+      return () => veraRender(url, { static: true });
+    })(),
+    large: (() => {
+      const url = new URL('../tests/fixtures/ssr/rows-ssr.js', import.meta.url);
+      return () => veraRender(url, { static: true });
+    })(),
+  },
   'react 19': {
     small: () =>
       reactRender(
