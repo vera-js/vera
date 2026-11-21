@@ -63,16 +63,18 @@ test('withoutComments parses a file by its name: JSX in a .jsx file, a cast in a
 });
 
 test('a tsconfig is read as JSONC by TypeScript: a comment opener inside a string survives', () => {
-  const text = '{\n  // a line\n  "include": ["src/**/*.ts"], /* a block */\n  "exclude": ["src/**/*.test.ts"]\n}\n';
+  const text = '{\n  // a line\n  "include": ["src/*.ts"], /* a block */\n  "exclude": ["src/**/*.test.ts"]\n}\n';
   assert.deepEqual(ts.parseConfigFileTextToJson('tsconfig.json', text).config, {
-    include: ['src/**/*.ts'],
+    include: ['src/*.ts'],
     exclude: ['src/**/*.test.ts'],
   });
   // The control: the strippers package-structure used were anchored at a line's start, so a block comment after code
-  // stayed in, and JSON.parse refuses it; unanchored, the glob's `/*` opens a comment that eats the next line.
+  // stayed in, and JSON.parse refuses it; unanchored, the glob's `/*` opens a comment that runs to the block's close and
+  // takes the glob's end with it. (A `/**/` inside a glob opens and closes at once, so it loses four characters.)
   const anchored = text.replace(new RegExp('^\\s*' + SPELLINGS[1], 'gm'), '').replace(new RegExp('^\\s*' + SPELLINGS[0], 'gm'), '');
   assert.throws(() => JSON.parse(anchored), SyntaxError);
-  assert.ok(!text.replace(new RegExp(SPELLINGS[0], 'g'), '').includes('exclude'));
+  const unanchored = text.replace(new RegExp(SPELLINGS[0], 'g'), '');
+  assert.ok(!unanchored.includes('"src/*.ts"') && unanchored.includes('"src*.test.ts"'), unanchored);
   const root = ts.parseConfigFileTextToJson('tsconfig.json', readFileSync('tsconfig.json', 'utf8'));
   assert.equal(root.error, undefined);
   assert.equal(typeof root.config.compilerOptions, 'object');
