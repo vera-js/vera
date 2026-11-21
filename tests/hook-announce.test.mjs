@@ -167,8 +167,18 @@ test('a key collapses announcements within one moment to the last', () => {
   announce(p, '2 characters left', { key: 'count' });
   announce(p, '1 character left', { key: 'count' });
   assert.equal(queue.size, 1, 'one write pending');
+  /** Every ADDITION is spoken, so the count is of nodes added, not of what the region holds at the end. */
+  const observer = new doc.defaultView.MutationObserver(() => {});
+  observer.observe(doc.body, { childList: true, subtree: true });
   run();
+  const added = observer
+    .takeRecords()
+    .flatMap((record) => [...record.addedNodes])
+    .map((node) => node.textContent)
+    .filter((text) => text.includes('character'));
+  observer.disconnect();
   assert.deepEqual(said(doc), ['1 character left']);
+  assert.deepEqual(added, ['1 character left'], 'only the last was ever added');
 });
 
 test("keyed writes 200 ms apart leave one node: each replaces its key's earlier message", () => {
