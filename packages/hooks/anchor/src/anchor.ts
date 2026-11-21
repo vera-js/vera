@@ -16,8 +16,35 @@
  * - **Everything comes from the target's own window** (Phase 0 item 5's lesson): its frames, its `ResizeObserver`, its
  *   `visualViewport`.
  */
+import { diagnostic } from '@verajs/shared-utils';
+import { PROSE } from './diagnostics.js';
 import { place } from './place.js';
 import type { Anchored, AnchorOptions, Rect } from './types.js';
+
+/**
+ * Whether `element` is a containing block for a fixed-position descendant: a transform, a filter, a perspective, paint
+ * or layout containment, or a `will-change` naming one of those. Development only, for the clipping warning.
+ */
+const isContainingBlock = (style: CSSStyleDeclaration): boolean =>
+  style.transform !== 'none' ||
+  style.filter !== 'none' ||
+  style.perspective !== 'none' ||
+  /paint|layout|strict|content/.test(style.contain) ||
+  /transform|filter|perspective/.test(style.willChange);
+
+/**
+ * The first ancestor that clips the layer: one at or above the layer's containing block whose overflow is not visible
+ * (an element between the layer and its containing block clips nothing of it). Development only.
+ */
+const clipper = (layer: Element, view: Window): Element | null => {
+  let found = false;
+  for (let node = layer.parentElement; node !== null; node = node.parentElement) {
+    const style = view.getComputedStyle(node);
+    found ||= isContainingBlock(style);
+    if (found && (style.overflowX !== 'visible' || style.overflowY !== 'visible')) return node;
+  }
+  return null;
+};
 
 /**
  * The inline properties this hook writes; `release()` restores each to what it found. `right` and `bottom` are written
@@ -51,7 +78,10 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
   const update = () => {
     frame = 0;
     if (!active || !view) return;
-    if (!target.isConnected) return close();
+    if (!target.isConnected) {
+      if (__DEV__) console.warn(diagnostic('anchor', `<${layer.localName}>`, 'anchor-target-removed', __DEV__ && PROSE['anchor-target-removed']()));
+      return close();
+    }
     /**
      * The layer's natural size, measured with our caps LEFT ON: taking them off let a squeezed layer's content stop
      * overflowing, and the browser clamped its scroll to the top. A capped axis reads its natural length as the
@@ -122,6 +152,8 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
     if (active) return;
     view = target.ownerDocument.defaultView as (Window & typeof globalThis) | null;
     if (!view) return;
+    if (__DEV__ && (!layer.isConnected || layer.getClientRects().length === 0))
+      console.warn(diagnostic('anchor', `<${layer.localName}>`, 'anchor-layer-hidden', __DEV__ && PROSE['anchor-layer-hidden']()));
     active = true;
     saved = {};
     for (const property of WRITTEN) saved[property] = [layer.style.getPropertyValue(property), layer.style.getPropertyPriority(property)];
@@ -137,6 +169,17 @@ export const anchor = (layer: HTMLElement, target: Element, options: AnchorOptio
     originY = origin.top;
     scaleX = layer.offsetWidth ? origin.width / layer.offsetWidth : 1;
     scaleY = layer.offsetHeight ? origin.height / layer.offsetHeight : 1;
+    if (__DEV__) {
+      /** A move along x that also moves the layer along y: the containing block is rotated or skewed. */
+      write('left', '10px');
+      const moved = layer.getBoundingClientRect();
+      write('left', '0px');
+      if (Math.abs(moved.top - origin.top) > 0.5)
+        console.warn(diagnostic('anchor', `<${layer.localName}>`, 'anchor-rotated', __DEV__ && PROSE['anchor-rotated']()));
+      const clipping = clipper(layer, view);
+      if (clipping !== null)
+        console.warn(diagnostic('anchor', `<${layer.localName}>`, 'anchor-clipped', __DEV__ && PROSE['anchor-clipped'](`<${clipping.localName}>`)));
+    }
     /** Every root up the target's chain hears its own scrollers; the window hears the document's. */
     roots = [];
     for (let root = target.getRootNode(); root instanceof view.ShadowRoot; root = root.host.getRootNode()) roots.push(root);
