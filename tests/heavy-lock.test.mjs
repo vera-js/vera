@@ -40,7 +40,7 @@ test('a second batch waits while a live one holds the lock, then takes it', asyn
   const took = Date.now() - start;
   assert.equal(waiter.status, 0, waiter.stderr);
   assert.equal(JSON.parse(waiter.stdout.trim().split('\n').at(-1)).waited, true, 'it waited');
-  assert.match(waiter.stdout, /heavy lock: waiting for row \(pid \d+/, 'and said who it waited for');
+  assert.match(waiter.stdout, /heavy lock: waiting for row \(pid \d+.*held \d+ min/, 'and said who it waited for, and for how long');
   assert.ok(took >= 800, `CONTROL: it did not proceed while the holder ran (${took} ms)`);
   await new Promise((resolve) => holder.once('exit', resolve));
 });
@@ -56,7 +56,32 @@ test('a lock whose holder is gone is taken over, not waited on', () => {
   const child = runChild(lock, "console.log(JSON.stringify({ waited }));");
   assert.equal(child.status, 0, child.stderr);
   assert.equal(JSON.parse(child.stdout.trim().split('\n').at(-1)).waited, false);
-  assert.match(child.stdout, /clearing a stale lock — a killed gate, pid \d+ gone/);
+  assert.match(child.stdout, /cleared a stale lock — a killed gate, pid \d+ gone/);
+});
+
+/**
+ * **Two takers of one stale lock leave exactly one holder** (the race a plain rm-then-mkdir loses: both judge it stale,
+ * one takes the fresh lock, the other deletes it on its old judgement). Each child holds for 600 ms and reports when it
+ * held; the two holds must not overlap.
+ */
+test('two processes that find the same stale lock never hold it at once', async () => {
+  const lock = join(scratch(), 'vera-heavy.lock');
+  const gone = spawnSync(process.execPath, ['-e', 'console.log(process.pid)'], { encoding: 'utf8' });
+  mkdirSync(lock);
+  writeFileSync(join(lock, 'pid'), `${gone.stdout.trim()}\n`);
+  const taker = () =>
+    new Promise((resolve) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', childSource(`const from = Date.now(); ${hold(600)} console.log(JSON.stringify({ from, to: Date.now() }));`)], { env: env(lock), stdio: ['ignore', 'pipe', 'inherit'] });
+      let out = '';
+      child.stdout.on('data', (chunk) => (out += chunk));
+      child.once('exit', (code) => resolve({ code, held: JSON.parse(out.trim().split('\n').at(-1)) }));
+    });
+  const [a, b] = await Promise.all([taker(), taker()]);
+  assert.equal(a.code, 0);
+  assert.equal(b.code, 0);
+  const [first, second] = [a.held, b.held].sort((x, y) => x.from - y.from);
+  assert.ok(second.from >= first.to, `the holds overlapped: ${JSON.stringify([first, second])}`);
+  assert.equal(existsSync(lock), false, 'and the last holder removed it');
 });
 
 test("a shell script's lock (no pid) is live while its heartbeat is fresh, stale once it is old", () => {
