@@ -258,6 +258,14 @@ if (SCENARIO === 'ssr') {
     flush();
     await Promise.resolve();
     out.rendered = element.querySelector('[data-vera-part="root"]') !== null;
+  } else if (SCENARIO === 'surface') {
+    const { element: Class } = await load('${own.slice(1)}');
+    const element = document.createElement(TAG);
+    document.body.append(element);
+    flush();
+    await Promise.resolve();
+    out.parts = [...new Set([...element.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
+    out.observed = [...(Class.observedAttributes ?? [])].sort();
   }
   process.stdout.write(JSON.stringify(out));
 } else {
@@ -291,6 +299,19 @@ if (SCENARIO === 'ssr') {
     assert.equal(registered, true, 'the returned class serves the tag');
     assert.equal(untouched, true, \`<\${TAG}> stays free\`);
     assert.equal(rendered, true, 'the root part is in the element');
+    assert.deepEqual(said, []);
+  });
+
+  /**
+   * **The surface stays true** (the drift row): what the element renders and observes is exactly what \`surface.ts\`
+   * declares, so a part or attribute added to one and not the other is red here, in the change that made it.
+   */
+  test('the element renders exactly the parts its surface declares, and observes exactly its attributes', async () => {
+    const { ${surfaceName} } = await import('../${dir}/src/${name}/surface.ts');
+    const { parts, observed, said } = run('surface');
+    assert.ok(parts.length > 0, 'CONTROL: the element rendered a part');
+    assert.deepEqual(parts, ${surfaceName}.parts.map((part) => part.name).sort(), 'a part rendered and not declared, or declared and not rendered: change surface.ts with the element');
+    assert.deepEqual(observed, ${surfaceName}.attributes.map((attribute) => attribute.name).sort(), 'an attribute observed and not declared, or declared and not observed: change surface.ts with the element');
     assert.deepEqual(said, []);
   });
 
