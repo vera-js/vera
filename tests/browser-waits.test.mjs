@@ -25,20 +25,27 @@ const timerDelay = (e) => {
   if (!call || call.expression.getText() !== 'setTimeout' || call.arguments.length !== 2) return null;
   return call.arguments[1];
 };
-/** A local sleep helper: `const settle = (ms) => new Promise((r) => setTimeout(r, ms))`, its delay its one parameter. */
+/**
+ * A local sleep helper, as `[name, delay]`: `const settle = (ms) => new Promise((r) => setTimeout(r, ms))` (delay null:
+ * the caller's one argument) or `const settle = () => new Promise((r) => setTimeout(r, 80))` (the literal it fixes).
+ */
 const helperOf = (node) => {
   if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer || !ts.isArrowFunction(node.initializer)) return null;
-  const [param, ...rest] = node.initializer.parameters;
+  const params = node.initializer.parameters;
   const delay = timerDelay(node.initializer.body);
-  return param && rest.length === 0 && delay && ts.isIdentifier(param.name) && delay.getText() === param.name.text ? node.name.text : null;
+  if (!delay) return null;
+  if (params.length === 0) return ts.isNumericLiteral(delay) ? [node.name.text, delay] : null;
+  return params.length === 1 && ts.isIdentifier(params[0].name) && delay.getText() === params[0].name.text ? [node.name.text, null] : null;
 };
-/** The delay of a statement that is exactly a fixed sleep, or null: `await new Promise((r) => setTimeout(r, N))`, or
- *  `await settle(N)` through a helper in `helpers`. */
+/** The delay of a statement that is exactly a fixed sleep, or null: `await new Promise((r) => setTimeout(r, N))`, or a
+ *  call to a helper in `helpers` (`await settle(N)`, or `await settle()` for one that fixes its delay). */
 const sleepOf = (statement, helpers) => {
   const e = ts.isExpressionStatement(statement) && ts.isAwaitExpression(statement.expression) ? statement.expression.expression : null;
-  const delay = e && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && helpers.has(e.expression.text) && e.arguments.length === 1
-    ? e.arguments[0]
-    : timerDelay(e);
+  const name = e && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && helpers.has(e.expression.text) ? e.expression.text : null;
+  const fixed = name ? helpers.get(name) : null;
+  const delay = name === null ? timerDelay(e)
+    : fixed ? (e.arguments.length === 0 ? fixed : null)
+    : e.arguments.length === 1 ? e.arguments[0] : null;
   return delay && ts.isNumericLiteral(delay) ? Number(delay.text) : null;
 };
 const isExpect = (statement) => {
@@ -70,10 +77,10 @@ export const timedWaits = (text, name = 'x.js') => {
   const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const found = [];
   const line = (node) => file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
-  const helpers = new Set();
+  const helpers = new Map();
   const collect = (node) => {
-    const name = helperOf(node);
-    if (name) helpers.add(name);
+    const helper = helperOf(node);
+    if (helper) helpers.set(...helper);
     ts.forEachChild(node, collect);
   };
   collect(file);
@@ -126,6 +133,10 @@ test('the reader refuses each shape and passes a poll, a yield, an event and an 
   assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(120)}\nconst v = read();\nexpect(v, 'b').to.be.true;\n});`), ['2: a 120 ms sleep, then an expect']);
   assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(50)}\nfor (const x of xs) {\n  expect(x).to.equal(0);\n}\n});`), ['2: a 50 ms sleep, then an expect']);
   assert.deepEqual(timedWaits(`${helper}it('a', async () => {\nawait settle(700);\nexpect(a).to.equal(0);\n});`), ['3: a 700 ms sleep, then an expect']);
+  /** A helper that fixes its own delay, the shape seven files used. */
+  const fixed = 'const settle = () => new Promise((r) => setTimeout(r, 80));\n';
+  assert.deepEqual(timedWaits(`${fixed}it('a', async () => {\nawait settle();\nexpect(a).to.equal(0);\n});`), ['3: a 80 ms sleep, then an expect']);
+  assert.deepEqual(timedWaits(`const tick = () => new Promise((r) => setTimeout(r, 0));\nit('a', async () => {\nawait tick();\nexpect(a).to.equal(0);\n});`), [], 'a fixed zero-delay helper yields');
   /** A frame is not an event wait: a sleep before it still reaches the expect after it. */
   assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(300)}\nawait frames(2);\ncheck(() => expect(a).to.equal(0));\n});`), ['2: a 300 ms sleep, then an expect']);
   assert.deepEqual(timedWaits('const until = async () => {};'), ['1: a local until']);
