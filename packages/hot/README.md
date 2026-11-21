@@ -35,7 +35,10 @@ imports nothing, `vite` included.
   helper in another module) is not seen, and that module reloads as Vite would.
 - **Only when its exports are components:** nothing, what `define` returns (`export const XCard = define(…)`), or a class.
   Re-running a module leaves its importers holding the OLD exports, so a component module that also exported a store would
-  leave two stores diverging; such a module is not swapped, and Vite updates it the usual way.
+  leave two stores diverging; such a module is not swapped, and Vite updates it the usual way. The exports are read
+  from the source as written, comments and strings included, so a comment holding some other `export` (a commented-out
+  helper) reloads the module too, as does a module that builds source text holding one (codegen strings): slower,
+  never a wrong swap.
 - **Stores declared in the same file are made again** when it re-runs. Keep a store you want to outlive a save in its own
   module.
 

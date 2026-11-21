@@ -37,10 +37,21 @@ test('a comment opener inside a string or a template hides no export: the // of 
   assert.equal(swappable(`const t = \`//\${1}\`; export const helper = 1;\n${card}`), false, 'a // in a template');
   assert.equal(swappable(`const g = 'src/*.ts';\nexport const helper = 1;\n/* a note */\n${card}`), false, 'a glob in a string');
   assert.equal(swappable(`const q = 'it\\'s // here'; export const helper = 1;\n${card}`), false, 'an escaped quote before the opener');
-  /** The controls: a real comment is still removed, the string around an opener is kept, and a plain card swaps. */
-  assert.equal(swappable(`/* export const nope = 1; */\n${card}`), true, 'an export inside a block comment');
+  /** The controls: the string around an opener is kept, and a plain card swaps. */
   assert.equal(swappable(`const u = 'http://x';\n${card}`), true, 'a URL with nothing hidden behind it');
   assert.equal(swappable(card), true);
+});
+
+test('exports are read from the raw source, so every limit of the comment stripper fails closed: the module reloads', () => {
+  const card = `export const XCard = define('x-card', () => () => 1);`;
+  /** The stripper's own limits, each in the direction that matters: a hidden export is never a swap. */
+  assert.equal(swappable(`const r = /a\\/\\/b/; export const helper = 1;\n${card}`), false, 'a // inside a regex literal hides nothing');
+  assert.equal(swappable(`const t = \`\${'\`'}\`; export const helper = 1;\n${card}`), false, 'a backtick nested in a template hides nothing');
+  /** The cost, asserted so it is a decision: a comment or string holding a non-component export reloads instead of swapping. */
+  assert.equal(swappable(`/* export const nope = 1; */\n${card}`), false, 'a commented-out export reloads');
+  assert.equal(swappable(`/** Use it as: export default define('x-card', …) */\n${card}`), true, 'CONTROL: a comment showing a component export still swaps');
+  /** CONTROL: a define only in a comment is still no define, read from the stripped source. */
+  assert.equal(swappable(`/* define('x', …) */\nconst a = 1;`), false, 'a commented define');
 });
 
 test('the plugin: development only, appends the accept to a swappable module and to nothing else', () => {

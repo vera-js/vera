@@ -11,6 +11,7 @@
  *   keep the old module's exports, so a component module that also exported a store would leave two stores diverging
  *   silently. It is accepted only when it exports nothing, or only what `define` returns (`export const XCard =
  *   define(…)`, `export default define(…)`) or a class; any other export lets Vite propagate the update as it would.
+ *   Read from the raw source (see `swappable`), so a comment holding another export reloads too.
  * - **Stores declared in the SAME file** are made again when it re-runs. A store shared beyond one save belongs in its own
  *   module, which re-runs only when it changes.
  */
@@ -25,20 +26,28 @@ const SCRIPT = /\.(?:[cm]?[jt]sx?)$/;
  * still read as a comment: telling a regex from a division needs a parse, and that only hides code on the same line.
  */
 const COMMENTS = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g;
-const uncomment = (code: string): string => code.replace(COMMENTS, (match, quote: string | undefined) => (quote ? match : ''));
 /** A call to `define(` or `customElements.define(` — not a member call (`x.define`), not part of a longer name. */
 const DEFINE = /(?:^|[^\w$.])(?:customElements\s*\.\s*)?define\s*\(/;
 const EXPORT = /(?:^|[^\w$.])export\b/g;
 /** The exports a swap can take: what `define` returns, or a class. */
 const COMPONENT_EXPORT = /^export\s+(?:(?:const|let|var)\s+[\w$]+\s*=\s*(?:customElements\s*\.\s*)?define\s*\(|default\s+(?:customElements\s*\.\s*)?define\s*\(|(?:default\s+)?class\b)/;
 
-/** Whether a module's source is one a save may swap in place. */
+/**
+ * Whether a module's source is one a save may swap in place.
+ *
+ * **The exports are read from the RAW source, comments and strings included: it fails closed.** Stripping can only hide
+ * code, so an export read after stripping is an export that a mis-read comment (a `//` in a regex literal, a template
+ * holding a backtick) could have hidden, and a hidden non-component export is the wrong swap. In the raw source nothing is
+ * hidden; a comment or string that holds the word `export` before something other than a component export makes the
+ * module reload, which is slower and never wrong. The `define(` test reads the stripped source, where a miss is the safe
+ * direction too (a define hidden by a mis-read comment is a module that reloads).
+ */
 export const swappable = (code: string): boolean => {
-  const bare = uncomment(code);
-  if (!DEFINE.test(bare)) return false;
-  for (const m of bare.matchAll(EXPORT)) {
+  /** Written at its one call, not as a helper: terser pastes a one-caller function as an IIFE (tests/minifier-iife-sites). */
+  if (!DEFINE.test(code.replace(COMMENTS, (match, quote: string | undefined) => (quote ? match : '')))) return false;
+  for (const m of code.matchAll(EXPORT)) {
     const at = m.index + m[0].indexOf('export');
-    if (!COMPONENT_EXPORT.test(bare.slice(at))) return false;
+    if (!COMPONENT_EXPORT.test(code.slice(at))) return false;
   }
   return true;
 };
