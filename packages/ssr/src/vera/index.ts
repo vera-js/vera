@@ -422,6 +422,8 @@ const attributeMarkup = (attributes: string | Record<string, unknown>): string =
         })
         .join('');
 
+/** The id counter's cross-copy key (`@vera-hooks/labeled` and every hook that numbers ids read it; see the reset below). */
+const UID = Symbol.for('vera.uid');
 /** The `timeout` an asynchronous render gets when none is given (see `beginBudget` in `frames.ts`). */
 const DEFAULT_TIMEOUT = 2000;
 
@@ -509,6 +511,15 @@ const renderModule = async (
   beginHoisting();
   resetPendingDefinitions();
   pendingInstances.clear();
+  /**
+   * **Generated ids restart at each render** (2026-11-21): the hooks that give elements ids count through one record
+   * shared by every copy of the library (`Symbol.for('vera.uid')`), which in a server lives as long as the process, so
+   * the same page served `vu1…` to one request and `vu4…` to the next: different markup per request, no stable cache
+   * or ETag, and a count leaking across requests. Renders take turns (`takeTurn`), so none sees another's count. The
+   * record is MUTATED, never replaced: a hook holds the object it found when it loaded. The trade: ids are unique
+   * within a render, so a page assembled from two renders can repeat one (render a page in one call).
+   */
+  (((globalThis as Record<symbol, unknown>)[UID] ??= { n: 0 }) as { n: number }).n = 0;
   staticRender = isStatic;
   if (isAsync) beginBudget(timeout ?? DEFAULT_TIMEOUT);
   /**

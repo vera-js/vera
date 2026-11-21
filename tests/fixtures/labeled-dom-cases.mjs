@@ -86,13 +86,6 @@ const CASES = {
   },
 };
 
-/** `twice`: the first case rendered as two consecutive server renders of one page, for the determinism row. */
-if (process.argv[3] === 'twice') {
-  const [run] = Object.values(CASES);
-  process.stdout.write(JSON.stringify([snap(run(make())), snap(run(make()))]));
-  process.exit(0);
-}
-
 const out = {};
 for (const [name, run] of Object.entries(CASES)) {
   said.length = 0;

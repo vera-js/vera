@@ -1872,6 +1872,9 @@ Rules an assistant must not guess around:
   effects reach the markup through BOTH entry points.
 - Renders take a turn each across both entry points, so concurrent calls cannot see each other's
   state. Pass `location` per call; never assign `globalThis.location`.
+- **Generated ids restart at each render** (the counter `@vera-hooks/labeled` and other id-giving hooks share), so
+  one page serves the same markup on every request. Ids are unique within a render: render a page in one call, or
+  its ids can repeat.
 - **A component that throws rejects the render** — it is never silently empty markup. Catch and
   fall back to a client-rendered shell.
 - Property bindings on a nested component tag (`<x-row .item=${row}>`, `props({ item })`) are

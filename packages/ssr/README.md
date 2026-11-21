@@ -160,6 +160,12 @@ exactly as a browser coalesces them.
   server — but after the template was serialized, so state it settles is not in the markup: settle it
   before `render()`, or use `renderToStringAsync`.
 
+**Generated ids restart at each render.** Hooks that give elements ids (`@vera-hooks/labeled` first) count through
+one counter every copy of the library shares, which in a server lives as long as the process: the same page served
+`vu1…` to one request and `vu4…` to the next. Each render now starts it from 0, so a page's markup is the same on
+every request (cacheable, a stable ETag). Ids are unique within a render, so render a page in one call: two renders
+assembled into one page can repeat an id.
+
 **A failure rejects the render — it is never markup.** In a browser, core isolates a hook's error so
 one bad effect cannot take out its neighbors, because the next render can recover. There is no next
 render here, so every failure — a throwing hook or `connectedCallback`, a `settle` handler that

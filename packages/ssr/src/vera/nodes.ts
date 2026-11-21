@@ -458,6 +458,25 @@ const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
   },
 });
 
+/** The labelable elements (HTML's list; a form-associated custom element's labels are on its internals instead). */
+const LABELABLE = new Set(['button', 'input', 'meter', 'output', 'progress', 'select', 'textarea']);
+/** Labelable as HTML says: one of those names in the HTML namespace, and never an `<input type=hidden>`. */
+const labelable = (element: ElementShim): boolean =>
+  element._ns === HTML_NS && LABELABLE.has(element.localName) && !(element.localName === 'input' && element.getAttribute('type')?.toLowerCase() === 'hidden');
+/**
+ * **A `<label>`'s labeled control**, by HTML's rule: with `for`, the first element in the label's tree whose id is
+ * that value, if it is labelable (else none, never a fallback to a descendant); without `for`, its first labelable
+ * descendant. `tree` is the label's root and everything under it, in tree order.
+ */
+const controlOf = (label: ElementShim, tree: ElementShim[]): ElementShim | null => {
+  const named = label.getAttribute('for');
+  if (named !== null) {
+    const target = tree.find((element) => element.getAttribute('id') === named);
+    return target !== undefined && labelable(target) ? target : null;
+  }
+  return (label.querySelectorAll('*') as unknown as ElementShim[]).find(labelable) ?? null;
+};
+
 /** `getRootNode`'s walk (see it there): up through parents, then the served root a detached instance records, then — composed — out through each root's host. */
 const rootOf = (node: ContainerShim, composed: boolean): ContainerShim => {
   let root = node;
@@ -1999,6 +2018,19 @@ export class ElementShim extends ContainerShim {
   }
   get style(): ReturnType<typeof styleView> {
     return styleView(this);
+  }
+  /**
+   * **`labels`: the `<label>`s whose labeled control is this element**, in tree order (see `controlOf`): `null` on an
+   * `<input type=hidden>`, and absent (`undefined`) on an element that is not labelable, as in every engine. It
+   * read `undefined` everywhere, so server code treated a control named by `label[for]` as unnamed. Computed at each
+   * read from the element's root, so a list held across a change does not follow it, as a browser's live list does.
+   */
+  get labels(): CollectionShim<ElementShim> | null | undefined {
+    if (this._ns !== HTML_NS || !LABELABLE.has(this.localName)) return undefined;
+    if (!labelable(this)) return null;
+    const root = this.getRootNode() as unknown as ContainerShim;
+    const tree = [...((root as DuckNode).openTag ? [root as unknown as ElementShim] : []), ...(root.querySelectorAll('*') as unknown as ElementShim[])];
+    return asCollection(tree.filter((element) => element.localName === 'label' && element._ns === HTML_NS && controlOf(element, tree) === this));
   }
   /**
    * The platform's `style` is `[SameObject, PutForwards=cssText]` — `el.style = 'color: red'`

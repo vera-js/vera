@@ -121,6 +121,13 @@ const OPS = [
    * Only the tags that can host a root; on the others both sides refuse `attachShadow`, which other ops pin.
    */
   ['document.contains stops at a shadow root', "if (!['div', 'span', 'my-widget'].includes(el.localName)) return 'no root'; const d = el.ownerDocument; d.body?.append(el); const r = el.attachShadow({ mode: 'open' }); const c = d.createElement('i'); r.append(c); const answer = String(d.contains(c)) + ':' + String(d.contains(el)); el.remove(); return answer;"],
+  /**
+   * `labels` (2026-11-21): absent on the server, so a control named by `label[for]` read as unnamed. HTML's rule in
+   * every branch: `for` to an id, a nested control, `for` naming a different control (none here), a hidden input
+   * (`null`), `for` naming an element that is not labelable (no fallback to the label's own descendant), and a
+   * non-labelable element (absent).
+   */
+  ['labels', "el.innerHTML = '<label for=a>1</label><input id=a><label>2<input id=n></label><label for=b>3<input id=c></label><select id=b></select><label for=h>4</label><input id=h type=hidden><textarea id=t></textarea><label for=t>5</label><meter></meter><label for=d>6<input id=e></label><div id=d></div>'; const q = (s) => el.querySelector(s); const names = (x) => x === null ? 'null' : x === undefined ? 'absent' : [...x].map((l) => l.textContent).join('|') || 'none'; return ['#a', '#n', '#c', '#b', '#h', '#t', 'meter', '#e', 'div'].map((s) => names(q(s).labels)).join(',');"],
   ['remove/once/dedupe listeners', "let hits=0; const f=()=>hits++; const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.addEventListener('x',f); el.addEventListener('x',f); el.dispatchEvent(new E('x')); el.removeEventListener('x',f); el.addEventListener('y',()=>hits+=10,{once:true}); el.dispatchEvent(new E('y')); el.dispatchEvent(new E('y')); return String(hits);"]
 ];;
 
