@@ -11,6 +11,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wireDirectives, motion, presets, paint, settled } from '../../packages/directives/dist/development/vera-directives.js';
+import { ever, until } from './until.js';
 
 wireDirectives([motion, presets, paint]);
 
@@ -238,7 +239,8 @@ it('transition-mode play: the compositor animates, reverses from current, and li
   await scrollTo(0);
   await settle();
   window.scrollTo(0, t.offsetTop);
-  await new Promise((r) => setTimeout(r, 150));
+  /** Reversed from a value that IS mid-flight, waited for: a fixed 150 ms could still read the start under load. */
+  await until(() => opacityOf(t) > 0.3 && opacityOf(t) < 0.7, 'the entry run mid-flight', 2000);
   const midFlight = opacityOf(t);
   window.scrollTo(0, 0);
   await new Promise((r) => requestAnimationFrame(r));
@@ -291,16 +293,15 @@ it('a RAMP-KEPT play reverses on gate close — a reversed play, never a snap (t
   document.body.appendChild(el);
   await settled();
   el.classList.add('go');
-  await new Promise((r) => setTimeout(r, 450));
-  expect(Number(el.style.getPropertyValue('--q')), 'played to the end first').to.be.greaterThan(0.99);
+  const q = () => Number(el.style.getPropertyValue('--q'));
+  await until(() => q() > 0.99, 'the play to reach its end', 3000);
 
   el.classList.remove('go');
-  await new Promise((r) => setTimeout(r, 100));
-  const midway = Number(el.style.getPropertyValue('--q'));
-  expect(midway, 'mid-reverse the value is BETWEEN the ends — sweeping, not teleporting')
-    .to.be.greaterThan(0.05).and.lessThan(0.95);
-  await new Promise((r) => setTimeout(r, 400));
-  expect(Number(el.style.getPropertyValue('--q')), 'and it arrived home').to.equal(0);
+  /** Read at every poll on the way back, not at a chosen instant: a sweep shows a value between the ends; a snap never. */
+  expect(await ever(() => q() > 0.05 && q() < 0.95, 1500), 'mid-reverse the value is BETWEEN the ends — sweeping, not teleporting')
+    .to.equal(true);
+  await until(() => q() === 0, 'the reverse to arrive home', 3000);
+  expect(q(), 'and it arrived home').to.equal(0);
   el.remove();
   await settled();
 });

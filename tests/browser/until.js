@@ -5,8 +5,8 @@
  * at 120 ms), and one that asserts something did NOT happen after a fixed sleep proves nothing about a late event. Wait
  * for the event, or for a sentinel that is shown to have fired, never for a time.
  *
- * Eight test files each carried their own copy, in three signatures; they all use this one, with their old timeouts
- * passed explicitly so the move changed nothing they assert.
+ * Thirteen test files each carried their own copy, in five signatures; they all use this one, with their old effective
+ * timeouts passed explicitly so the move changed nothing they assert.
  *
  * @param {() => unknown} predicate polled; a throw counts as not yet, and the last one is named if time runs out
  * @param {string} what named in the timeout's error
@@ -31,6 +31,27 @@ export const until = async (predicate, what, timeout) => {
       const why = last === undefined ? '' : ` (the last check threw: ${last?.message ?? String(last)})`;
       throw new Error(`timed out waiting for ${what}${why}`, last === undefined ? undefined : { cause: last });
     }
+    await new Promise((r) => setTimeout(r, 10));
+  }
+};
+
+/**
+ * Whether `predicate` held at ANY poll within `timeout` ms: true the moment it does, false only when the window has
+ * passed. For a value that exists only in passing (a transition's mid value), read at every poll instead of sampled at
+ * a chosen instant; a control that must NEVER show it gets every poll's chance to, and answers false.
+ *
+ * @param {() => unknown} predicate polled; a throw counts as not holding
+ * @param {number} timeout ms
+ */
+export const ever = async (predicate, timeout) => {
+  if (!(timeout > 0)) throw new TypeError('ever(predicate, timeout): say how long');
+  for (const end = performance.now() + timeout; ; ) {
+    try {
+      if (predicate()) return true;
+    } catch {
+      /* not yet */
+    }
+    if (performance.now() > end) return false;
     await new Promise((r) => setTimeout(r, 10));
   }
 };

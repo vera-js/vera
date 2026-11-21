@@ -32,6 +32,7 @@
  * is the control every case here needs.
  */
 import { expect } from '@esm-bundle/chai';
+import { ever } from './until.js';
 
 const MID = 'omni-probe-keyframes';
 const RULE = `@keyframes ${MID} { from { opacity: 0.2 } to { opacity: 1 } }`;
@@ -133,9 +134,11 @@ const readsInterpolated = async (el) => {
    */
   void getComputedStyle(el).getPropertyValue(NUM);
   el.style.setProperty(NUM, '1');
-  await new Promise((r) => setTimeout(r, 120));
-  const value = Number(getComputedStyle(el).getPropertyValue(NUM));
-  return value > 0 && value < 1;
+  /** Read at every poll across the transition, never sampled once (motion-registry's twin; see tests/browser/until.js). */
+  return ever(() => {
+    const value = Number(getComputedStyle(el).getPropertyValue(NUM));
+    return value > 0 && value < 1;
+  }, 900);
 };
 
 it('CONTROL: an UNREGISTERED custom property does not interpolate', async () => {

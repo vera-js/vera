@@ -10,6 +10,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { keyframeRegistry } from '../../packages/directives/dist/development/vera-directives-motion.js';
+import { ever } from './until.js';
 
 const { contentHash, acquire, release } = keyframeRegistry;
 
@@ -144,13 +145,10 @@ it('a registered property INTERPOLATES where an unregistered one flips', async (
      * The poll makes the unregistered CONTROL stronger, not weaker: it gets ~20 chances to show a false mid value
      * instead of one, and a property that flips discretely shows none at any of them.
      */
-    const until = performance.now() + 900;
-    while (performance.now() < until) {
-      await new Promise((r) => setTimeout(r, 40));
+    return ever(() => {
       const value = Number(getComputedStyle(el).getPropertyValue(name));
-      if (value > 0 && value < 1) return true;
-    }
-    return false;
+      return value > 0 && value < 1;
+    }, 900);
   };
 
   /** The CONTROL: without it, "interpolated" below could be a probe that measures nothing. */

@@ -72,7 +72,8 @@ it('the documented ?hidden fade runs in every engine', async () => {
  */
 it('display + allow-discrete still does not transition in Firefox', async () => {
   await withStyle(
-    `.discrete { opacity: 1; transition: opacity 600ms linear, display 600ms allow-discrete; }
+    /** 5 s, read a frame in: a 600 ms window read at 150 ms closed under load before the read. */
+    `.discrete { opacity: 1; transition: opacity 5000ms linear, display 5000ms allow-discrete; }
      .discrete[hidden] { opacity: 0; display: none; }`,
     async () => {
       const element = document.createElement('div');
@@ -82,7 +83,7 @@ it('display + allow-discrete still does not transition in Firefox', async () => 
       await frame();
 
       element.hidden = true;
-      await settle(150);
+      await frame();
       const displayed = getComputedStyle(element).display !== 'none';
       if (engine() === 'firefox') {
         expect(displayed, 'Firefox began honoring allow-discrete — the README advice is now stale').to.equal(false);
