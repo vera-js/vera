@@ -932,6 +932,13 @@ from another machine, or after that is undone, has a variable changed.
   the same sitting it again outlives the driver's 180 s wait. The page answers a state read because the batched loop
   awaits each run. The number is from one page of 25 runs; whether it reflects React's own swap cost in WebKit or an
   interaction with the benchmark's await-each-run loop is not established.
+- **On Windows a directory cannot be renamed while any process holds a file inside it open** ("Permission denied");
+  the open file itself can still be moved out, because Node opens files with delete sharing. Measured with a control:
+  the same directory renames with no handle open, is refused while a Node process holds one file in it open, and
+  renames again once that file is closed. An editor's file watcher or a TypeScript server holding a file in a package's
+  `dist` refused a move of that `dist` mid-run. Consequence: a tool that sets built output aside (a control, a mutation
+  runner) moves the individual files and restores them, never renames a `dist` directory. (Windows 11 build 26200, Node
+  26.13.1, 2026-11-20.)
 
 ## Competitors, as their own benchmark entries write them
 
