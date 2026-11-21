@@ -44,6 +44,21 @@ if (SCENARIO === 'ssr') {
     flush();
     await Promise.resolve();
     out.rendered = element.querySelector('svg[data-vera-part="svg"] > use') !== null;
+  } else if (SCENARIO === 'surface') {
+    const { element: Class } = await load('vera-components/icon');
+    const element = document.createElement(TAG);
+    document.body.append(element);
+    /** The parts each state renders. `flush()` drains the scheduler synchronously, so each read sees that state's render. */
+    const parts = () => [...new Set([...element.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
+    flush();
+    out.states = { 'at rest': parts() };
+    element.setAttribute('src', '/sprite.svg#check');
+    flush();
+    out.states['with a same-origin src'] = parts();
+    element.setAttribute('label', 'Done');
+    flush();
+    out.states['labeled, with a src'] = parts();
+    out.observed = [...(Class.observedAttributes ?? [])].sort();
   }
   process.stdout.write(JSON.stringify(out));
 } else {
@@ -76,7 +91,28 @@ if (SCENARIO === 'ssr') {
     const { registered, untouched, rendered, said } = run('define-as');
     assert.equal(registered, true, 'the returned class serves the tag');
     assert.equal(untouched, true, `<${TAG}> stays free`);
-    assert.equal(rendered, true, 'the root part is in the element');
+    assert.equal(rendered, true, 'the svg part, with its use, is in the element');
+    assert.deepEqual(said, []);
+  });
+
+  /**
+   * **The surface stays true** (the drift row): every part any driven state renders is declared in `surface.ts`,
+   * every declared part renders in some state, and every attribute the element observes is declared, so a name added
+   * to the element and not to its surface is red here, in the change that made it.
+   */
+  test('every part the element renders is declared and every declared part renders; no attribute it observes is undeclared', async () => {
+    const { iconSurface } = await import('../packages/components/icon/src/icon/surface.ts');
+    const { states, observed, said } = run('surface');
+    const parts = iconSurface.parts.map((part) => part.name);
+    const rendered = [...new Set(Object.values(states).flat())].sort();
+    assert.ok(rendered.length > 0, 'CONTROL: the element rendered a part');
+    assert.deepEqual(states['at rest'], [], 'with no src the icon renders no part of its own');
+    for (const [state, names] of Object.entries(states))
+      assert.deepEqual(names.filter((name) => !parts.includes(name)), [], `a part rendered ${state} and not declared: add it to surface.ts with the element`);
+    assert.deepEqual(parts.filter((name) => !rendered.includes(name)), [], 'a part declared and rendered in no state the scenario drives: drive that state, or remove the part');
+    const declared = iconSurface.attributes.map((attribute) => attribute.name);
+    assert.deepEqual(observed, ['label', 'src'], 'CONTROL: both attributes are observed');
+    assert.deepEqual(observed.filter((name) => !declared.includes(name)), [], 'an attribute observed and not declared: add it to surface.ts with the element');
     assert.deepEqual(said, []);
   });
 

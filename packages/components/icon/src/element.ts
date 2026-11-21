@@ -69,15 +69,15 @@ export const setup = (host: IconHost) => {
     }
     const verdict = vet(src, host.ownerDocument);
     if (verdict !== 'ok') {
-      // One call per code, each named literally, so the diagnostics table test can pair every raised code with its entry.
-      // The last arm is `never`: a verdict `vet` gains later is refused by the type checker until it has its own call.
+      // One console.warn(diagnostic(…)) per code, each named literally: the table test pairs every raised code with its
+      // entry, and the prefix check reads a call only when diagnostic( is its first argument. The last arm is `never`:
+      // a verdict `vet` gains later is refused by the type checker until it has its own call.
       if (__DEV__) {
         const subject = `<vera-icon src="${src}">`;
-        console.warn(verdict === 'scheme'
-          ? diagnostic('icon', subject, 'icon-scheme', __DEV__ && PROSE['icon-scheme']())
-          : verdict === 'cross-origin'
-            ? diagnostic('icon', subject, 'icon-cross-origin', __DEV__ && PROSE['icon-cross-origin']())
-            : (verdict satisfies never));
+        if (verdict === 'scheme') console.warn(diagnostic('icon', subject, 'icon-scheme', __DEV__ && PROSE['icon-scheme']()));
+        else if (verdict === 'cross-origin')
+          console.warn(diagnostic('icon', subject, 'icon-cross-origin', __DEV__ && PROSE['icon-cross-origin']()));
+        else verdict satisfies never;
       }
       return null;
     }

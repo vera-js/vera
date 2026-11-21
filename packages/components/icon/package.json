@@ -34,7 +34,7 @@
     "./dist/vera-icon.min.js"
   ],
   "peerDependencies": {
-    "@verajs/core": "^0.4.1"
+    "@verajs/core": "^0.4.2"
   },
   "files": [
     "dist",

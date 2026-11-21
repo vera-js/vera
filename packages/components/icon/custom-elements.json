@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-icon.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-icon",
+          "name": "VeraIcon",
+          "description": "An icon: the consumer's own child <svg>, kept byte-identical, or a src rendered as <svg><use href>. Decorative by default (the host gets aria-hidden=\"true\"); with a label the host gets role=\"img\" and aria-label instead. Only a relative src, or http(s) on the page's own origin, is rendered. Size, color and the RTL flip come from the styles layer, by CSS alone.",
+          "attributes": [
+            {
+              "name": "label",
+              "description": "The icon's accessible name. Set: the host is role=\"img\" with this aria-label. Absent: the icon is decorative (aria-hidden=\"true\")."
+            },
+            {
+              "name": "src",
+              "description": "A sprite reference (url#id), rendered as <svg><use href>. Ignored when the icon has a child <svg>. Refused, with a development warning, unless it is relative or http(s) on the page's own origin."
+            }
+          ],
+          "members": [],
+          "events": [],
+          "slots": [],
+          "cssParts": [
+            {
+              "name": "svg",
+              "description": "The <svg> the icon renders for src (aria-hidden, not focusable). A child <svg> the consumer wrote is theirs, not this part."
+            }
+          ],
+          "cssProperties": [],
+          "vera-states": [],
+          "vera-custom-states": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 /** **@vera-components/icon's diagnostics: DEVELOPMENT ONLY prose.** */
 import type { Prose } from '@verajs/shared-utils';
 
+/**
+ * This package's own codes. `defined-twice` is shared-utils' (one text for every component, one code in one
+ * namespace), so it is never repeated here: two packages that each listed it would be refused by `sync-diagnostics`.
+ * The subject (the tag) is printed by `diagnostic` before each message, so a message never repeats it.
+ */
 export const PROSE: Record<string, Prose> = {
-  /** The subject (the tag) is printed by `diagnostic` before the message, so the message never repeats it. */
-  'defined-twice': () => [
-    'is already defined by another copy or version of @vera-components/icon, so the first is kept.',
-    'Align the versions, or import @vera-components/icon/element and define it under your own tag.',
-  ],
   'icon-two-sources': () => [
     'has both a child <svg> and a src, so the child is shown and src is ignored.',
     'Keep one: the child <svg>, or src.',
