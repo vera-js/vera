@@ -30,7 +30,7 @@
     }
   },
   "peerDependencies": {
-    "@verajs/core": "^0.4.1",
+    "@verajs/core": "^0.4.2",
     "@verajs/renderer": "^0.3.1"
   },
   "dependencies": {
