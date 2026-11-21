@@ -24,7 +24,8 @@ Use `<progress>` instead when you know how far along the work is: it says how mu
   "Loading" once, and so does a framework that replaces its spinner with a new element on every render. The load ends
   a settle window after the last spinner with that label leaves; one still on the page anywhere keeps the label's load
   running, so a second "Loading" elsewhere stays silent ("still loading" is true). Give two loads different labels to
-  hear both.
+  hear both. Under a renderer scheduler that runs effects late (`frameBudget`, a long task), a replacement
+  arriving more than a settle window after the spinner it replaces is a new load: the done label, then the label again.
 - **`done-label`, once, when the load ends**, and only if its label was said. When spinners of one label give
   different done labels, the first one given is said.
 - **Nothing inside an `aria-busy="true"` owner** (any ancestor, across shadow roots), read when the window closes: the

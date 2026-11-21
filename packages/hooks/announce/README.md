@@ -38,6 +38,11 @@ loading.release();                                         //   unless released 
   settle window after its last holder is released or has left the document (a replacement inside that grace is the
   same load), and `done`, if given, is said then; the first `done` given for a label wins. One holder still on the
   page keeps the label's load running, so a second load with the same label says nothing: give two loads two labels.
+- **`release()` when the element leaves for good.** A holder gone from the document and not released at a window's
+  close is read as an abandoned load: it ends (its done text) and a new element wanting the label is a new load, said
+  again. Core components release from an effect's cleanup, which runs as the element is removed. **Limit:** under a
+  scheduler that runs effects late (`frameBudget`, a long task), a replacement arriving more than a settle window
+  after its predecessor left is a new load: the done text, then the label again.
 - **Inside an `aria-busy="true"` owner** (any composed ancestor, read when the window closes) nothing is said: the
   owner speaks for what is busy inside it. `underBusy(element)` is that test, for a component that needs it too.
 - **A page that empties `body`** (a router swap) gets its region back on the next announcement, still exactly one.
