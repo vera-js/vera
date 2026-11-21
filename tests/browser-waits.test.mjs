@@ -6,8 +6,8 @@
  * tests/browser:
  *
  * - no file defines its own `until` (tests/browser/until.js is the one: `until(predicate, what, timeout)`);
- * - no statement that sleeps a fixed time (`await new Promise((r) => setTimeout(r, N))`, N > 0) is followed directly by
- *   an `expect(…)`. Wait for the event with `until`, or, for an absence, for a sentinel shown to have fired. A
+ * - no statement that sleeps a fixed time (`await new Promise((r) => setTimeout(r, N))`, N > 0, or `await settle(N)`
+ *   through a local helper of that shape) is followed directly by an `expect(…)`. Wait for the event with `until`, or, for an absence, for a sentinel shown to have fired. A
  *   zero-delay yield orders tasks and measures no time, so it passes; so does `frames()`, a paint.
  */
 import { test } from 'node:test';
@@ -16,16 +16,30 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 
-/** The delay of a statement that is exactly a fixed sleep, or null: `await new Promise((r) => setTimeout(r, N))`. */
-const sleepOf = (statement) => {
-  const e = ts.isExpressionStatement(statement) && ts.isAwaitExpression(statement.expression) ? statement.expression.expression : null;
+/** The delay argument of `new Promise((r) => setTimeout(r, delay))`, or null. */
+const timerDelay = (e) => {
   if (!e || !ts.isNewExpression(e) || e.expression.getText() !== 'Promise') return null;
   const [executor] = e.arguments ?? [];
   if (!executor || !(ts.isArrowFunction(executor) || ts.isFunctionExpression(executor))) return null;
   const call = ts.isCallExpression(executor.body) ? executor.body : null;
   if (!call || call.expression.getText() !== 'setTimeout' || call.arguments.length !== 2) return null;
-  const delay = call.arguments[1];
-  return ts.isNumericLiteral(delay) ? Number(delay.text) : null;
+  return call.arguments[1];
+};
+/** A local sleep helper: `const settle = (ms) => new Promise((r) => setTimeout(r, ms))`, its delay its one parameter. */
+const helperOf = (node) => {
+  if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer || !ts.isArrowFunction(node.initializer)) return null;
+  const [param, ...rest] = node.initializer.parameters;
+  const delay = timerDelay(node.initializer.body);
+  return param && rest.length === 0 && delay && ts.isIdentifier(param.name) && delay.getText() === param.name.text ? node.name.text : null;
+};
+/** The delay of a statement that is exactly a fixed sleep, or null: `await new Promise((r) => setTimeout(r, N))`, or
+ *  `await settle(N)` through a helper in `helpers`. */
+const sleepOf = (statement, helpers) => {
+  const e = ts.isExpressionStatement(statement) && ts.isAwaitExpression(statement.expression) ? statement.expression.expression : null;
+  const delay = e && ts.isCallExpression(e) && ts.isIdentifier(e.expression) && helpers.has(e.expression.text) && e.arguments.length === 1
+    ? e.arguments[0]
+    : timerDelay(e);
+  return delay && ts.isNumericLiteral(delay) ? Number(delay.text) : null;
 };
 const isExpect = (statement) => {
   if (!ts.isExpressionStatement(statement)) return false;
@@ -39,13 +53,20 @@ export const timedWaits = (text, name = 'x.js') => {
   const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const found = [];
   const line = (node) => file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
+  const helpers = new Set();
+  const collect = (node) => {
+    const name = helperOf(node);
+    if (name) helpers.add(name);
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
   const visit = (node) => {
     const named = (ts.isVariableDeclaration(node) || ts.isFunctionDeclaration(node)) && node.name && ts.isIdentifier(node.name) ? node.name.text : null;
     if (named === 'until') found.push(`${line(node)}: a local until`);
     const statements = ts.isBlock(node) || ts.isSourceFile(node) ? node.statements : null;
     if (statements)
       statements.forEach((s, i) => {
-        const delay = sleepOf(s);
+        const delay = sleepOf(s, helpers);
         if (delay > 0 && statements[i + 1] && isExpect(statements[i + 1])) found.push(`${line(s)}: a ${delay} ms sleep, then an expect`);
       });
     ts.forEachChild(node, visit);
@@ -66,6 +87,10 @@ test('the reader refuses each shape and passes a poll, a yield and a frame (plan
   const sleep = (n) => `await new Promise((r) => setTimeout(r, ${n}));`;
   assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(200)}\nexpect(window.n).to.equal(0);\n});`), ['2: a 200 ms sleep, then an expect']);
   assert.deepEqual(timedWaits(`it('a', async () => {\n${sleep(120)}\nexpect(a, 'b').to.be.true;\n});`), ['2: a 120 ms sleep, then an expect']);
+  const helper = 'const settle = (ms) => new Promise((r) => setTimeout(r, ms));\n';
+  assert.deepEqual(timedWaits(`${helper}it('a', async () => {\nawait settle(700);\nexpect(a).to.equal(0);\n});`), ['3: a 700 ms sleep, then an expect']);
+  assert.deepEqual(timedWaits(`${helper}it('a', async () => {\nawait settle(0);\nexpect(a).to.equal(0);\n});`), [], 'a zero-delay helper call yields');
+  assert.deepEqual(timedWaits(`const read = (x) => compute(x);\nit('a', async () => {\nawait read(700);\nexpect(a).to.equal(0);\n});`), [], 'a call to a non-sleeping helper');
   assert.deepEqual(timedWaits('const until = async () => {};'), ['1: a local until']);
   assert.deepEqual(timedWaits('async function until() {}'), ['1: a local until']);
   for (const near of [
