@@ -126,7 +126,7 @@ const plural = (field: Element, n: number): string => {
 };
 
 /** The count's text, and its announcement at a crossing: only for the user's committed input. */
-const counted =(field: Element, wired: Wired, committed: boolean): void => {
+const counted = (field: Element, wired: Wired, committed: boolean): void => {
   const max = Number((wired.control as Element & { maxLength?: number }).maxLength ?? -1);
   if (wired.count === null || !(max > 0)) return;
   const length = String((wired.control as Element & { value?: unknown }).value ?? '').length;
