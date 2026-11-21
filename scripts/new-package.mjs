@@ -7,9 +7,9 @@
  * It writes the anatomy `DESIGN.md` §2.5 describes and registers the package in the root build, `tsconfig.json`'s
  * paths, `tests/dist.mjs`, the docs-imports and recipes maps and the diagnostics tables. `tests/package-structure.test.mjs`
  * holds every package to that shape, so a package this script writes passes it on the day it is made, with one
- * exception: a component is red on `no-surface` until its `src/**\/surface.ts` is written, and that waits for the
- * shared `ComponentSurface` type (a copy of the type per component would drift). The registries are edited at fixed
- * anchor lines, and the script refuses when an anchor is missing rather than guess. Then run
+ * exception: a component is red on `no-surface` until its `src/**\/surface.ts` is written, by hand, against the shared
+ * `ComponentSurface` type from `@verajs/shared-types` (one type for every component, so no copy can drift). The
+ * registries are edited at fixed anchor lines, and the script refuses when an anchor is missing rather than guess. Then run
  * `npm install` (a new workspace needs its links; check `find node_modules -maxdepth 2 -type l` first, CLAUDE.md).
  *
  * A component registers through core's `define` (Brian, 2026-11-20): `src/element.ts` holds the options and the setup

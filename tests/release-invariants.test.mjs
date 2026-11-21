@@ -100,6 +100,34 @@ test('the two inlined packages are still private', () => {
 });
 
 /**
+ * **…and no package's type declarations name them, published or not yet.** A `.d.ts` that kept
+ * `import type { … } from '@verajs/shared-types'` would hand every TypeScript consumer an import nobody can install, so
+ * `rollup-plugin-dts` inlines both into each package's declarations. Read from the built `dist` of every package but
+ * those two, private ones included (a component not yet published ships the same declarations the day it is); every
+ * package whose manifest names a `types` entry must have its declarations there, or the row read nothing for it.
+ */
+test('no package\'s .d.ts imports a private, inlined package', () => {
+  const PRIVATE = /(["'])@verajs\/shared-(?:types|utils)(?:\/[^"']*)?\1/;
+  const offenders = [];
+  let count = 0;
+  const inlined = new Set(['@verajs/shared-types', '@verajs/shared-utils']);
+  const declaring = manifests.filter(({ json }) => !inlined.has(json.name));
+  for (const { file, json } of declaring) {
+    const dir = file.slice(0, -'package.json'.length);
+    const declarations = globSync(`${dir}dist/**/*.d.ts`, { cwd: root });
+    if (JSON.stringify(json.exports ?? {}).includes('"types"') || json.types)
+      assert.ok(declarations.length > 0, `CONTROL: ${json.name} names a types entry and has no built .d.ts (build first)`);
+    for (const path of declarations) {
+      count++;
+      if (PRIVATE.test(readFileSync(join(root, path), 'utf8'))) offenders.push(path);
+    }
+  }
+  assert.ok(declaring.some(({ json }) => json.name === '@vera-components/select'), 'CONTROL: select is read');
+  assert.ok(count >= declaring.length, `CONTROL: read ${count} declaration files for ${declaring.length} packages`);
+  assert.deepEqual(offenders, [], 'these name a private package a consumer cannot install');
+});
+
+/**
  * A scoped package defaults to a *restricted* publish. Getting this wrong does not fail the build;
  * it publishes something nobody can install without auth, or fails the publish outright.
  */

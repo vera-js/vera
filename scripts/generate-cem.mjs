@@ -8,7 +8,7 @@
  *   … --check                                           → refuse, naming the package, when a committed file is stale
  *
  * A package's surfaces are the objects with a string `tag` exported by its `src/**\/surface.ts` files (`as const
- * satisfies ComponentSurface`, see select's `types.ts`). A package that declares `customElements` and has no surface,
+ * satisfies ComponentSurface`, from `@verajs/shared-types`). A package that declares `customElements` and has no surface,
  * or a surface with an empty description, is refused rather than skipped: skipping is a manifest declared and never
  * generated. With `--check` it refuses when the committed file disagrees with the declarations, so any surface change
  * is a visible diff in review and a silent one fails the gate.
