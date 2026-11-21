@@ -142,3 +142,23 @@ test('listeners are per root, not per field: 50 fields add one set; the last to 
     document.removeEventListener = removeEventListener;
   }
 });
+
+test('after a failed submit the form\'s first invalid control in tree order gets focus, a bare input included', async () => {
+  /** checkValidity() fires invalid on each control and focuses nothing itself, so what focuses is the field's decision. */
+  const first = document.createElement('form');
+  first.innerHTML = '<vera-field><label>A</label><input required id="in-field"><small data-vera-part="error"></small></vera-field><input required id="bare">';
+  document.body.append(first);
+  await flush();
+  first.checkValidity();
+  await Promise.resolve();
+  assert.equal(document.activeElement?.id, 'in-field', "the field's control, first in tree order");
+  first.remove();
+  const second = document.createElement('form');
+  second.innerHTML = '<input required id="bare2"><vera-field><label>A</label><input required id="in-field2"><small data-vera-part="error"></small></vera-field>';
+  document.body.append(second);
+  await flush();
+  second.checkValidity();
+  await Promise.resolve();
+  assert.equal(document.activeElement?.id, 'bare2', 'the bare input before it keeps its native place');
+  second.remove();
+});

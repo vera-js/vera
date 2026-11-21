@@ -132,12 +132,37 @@ const onFocusOut = (event: Event): void => {
   found[1].tried = true;
   render(found[1]);
 };
+/** On a form: a focus decision is queued for this task (one per submit, however many of its fields went invalid). */
+type Form = HTMLFormElement & { [MARK]?: true };
+
+/**
+ * **Focus after a failed submit, decided per FORM, in tree order.** A field cancels its own control's `invalid` (no
+ * native bubble), and once it does the browser focuses nothing for that control, so the first queued call focuses the
+ * form's first invalid control in TREE order, over every control, a bare native input included: native behavior is
+ * "the first invalid in tree order", which cancelling would otherwise break (the browser alone would focus the next
+ * uncancelled one). Cost, stated: a bare input's own bubble can show while focus sits on a field's control before it.
+ */
+const focusFirstInvalid = (form: Form): void => {
+  if (form[MARK]) return;
+  form[MARK] = true;
+  queueMicrotask(() => {
+    delete form[MARK];
+    for (const control of form.elements as unknown as Iterable<Element & { willValidate?: boolean; validity?: ValidityState; focus?: () => void }>)
+      if (control.willValidate === true && control.validity !== undefined && !control.validity.valid) {
+        control.focus?.();
+        return;
+      }
+  });
+};
+
 const onInvalid = (event: Event): void => {
   const found = fieldOf(event);
   if (found === null) return;
   if (!found[0].hasAttribute('native-messages')) event.preventDefault();
   found[1].tried = true;
   render(found[1]);
+  const form = (found[1].control as Element & { form?: HTMLFormElement | null }).form;
+  if (form) focusFirstInvalid(form as Form);
 };
 const onReset = (event: Event): void => {
   const form = event.target as Element | null;
