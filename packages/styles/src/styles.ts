@@ -33,9 +33,11 @@ export const css = (strings: TemplateStringsArray, ...values: (string | number)[
  */
 /**
  * The CSS with its comments and quoted strings removed — they are text, not selectors, so a sheet that merely MENTIONS
- * `::slotted()` (a documented one does) is not warned about. Not a parser: stripping too much only silences a warning.
+ * `::slotted()` (a documented one does) is not warned about. Both in ONE left-to-right pass, so whichever starts first
+ * wins: removed one after the other, a `/*` inside a string (`content: "/*"`) was read as a comment and took the rules up
+ * to the next comment's close with it, a real `::slotted()` among them, and the warning never came.
  */
-const withoutText = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, '');
+const withoutText = (css: string): string => css.replace(/\/\*[\s\S]*?\*\/|(['"])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, '');
 
 
 /** Development: `element` is a component element (realm-safe — a popped-out window's fails `instanceof`). */

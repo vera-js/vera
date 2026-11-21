@@ -238,6 +238,36 @@ test('a stylesheet that only mentions ::slotted() in prose is not warned about',
     `a comment and a string are not selectors, but were read as one: ${JSON.stringify(said)}`);
 });
 
+/**
+ * **And a comment opener inside a string hides no real `::slotted()`.** Comments were removed before strings, so the
+ * `/*` of `content: "/*"` opened a comment that ran to the next one's close, taking the real selector between them, and
+ * the sheet that most needed the warning got none.
+ */
+test('a /* inside a string does not hide a real ::slotted() from the warning', { skip: isProduction }, async () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (message) => said.push(String(message));
+  try {
+    const name = `x-sty-${nextTag++}`;
+    customElements.define(
+      name,
+      class extends dom.window.HTMLElement {
+        static styles = css`p::before { content: "/*" } ::slotted(b) { color: blue } /* the end */ p { color: green }`;
+        connectedCallback() {
+          core.init(this, () => {
+            return () => core.html`<p>own</p>`;
+          });
+        }
+      }
+    );
+    D.body.append(D.createElement(name));
+    await frame();
+  } finally {
+    console.warn = original;
+  }
+  assert.ok(said.find((message) => message.includes('no shadow root')), `the real ::slotted() went unwarned: ${JSON.stringify(said)}`);
+});
+
 test('the light-DOM rewrite translates selectors and leaves values alone', async () => {
   const original = console.warn;
   console.warn = () => {};
