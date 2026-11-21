@@ -461,7 +461,10 @@ test('the spoken count takes the language\'s plural form: count-message-<categor
 /**
  * **The surface stays true**, as the scaffolded drift row asks, for a component that renders nothing: every part
  * name and field attribute the source reads is declared (a scan of the source, with a floor), every declared part
- * acts when written, and no attribute is observed that is not declared (none is: all are read when used).
+ * acts when written, and no attribute is observed that is not declared (none is: all are read when used). Its blind
+ * spot: the scan sees only literal names read on the field. A name built at run time is invisible to it, so the one
+ * the field builds, `count-message-${plural(...)}`, is matched by its exact source text and then every plural
+ * category is required; a new computed read needs a line here of its own.
  */
 test('the declared surface is the one the field reads: parts and attributes, both ways', async () => {
   const { fieldSurface } = await import('../packages/components/field/src/field/surface.ts');
