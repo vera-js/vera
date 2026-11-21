@@ -12,12 +12,13 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { oneShotTypescript } from '../defaultRollupConfig.js';
+import { packageFiles } from '../scripts/packages.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,7 +98,7 @@ test('rollup watch mode keeps the real TypeScript, rebuilds included', () => {
  * import the shared config and none may import the plugin itself.
  */
 test('every package builds through defaultRollupConfig, and none creates the TypeScript plugin itself', () => {
-  const configs = globSync('packages/**/rollup.config.{js,mjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') });
+  const configs = packageFiles('rollup.config.{js,mjs}');
   assert.ok(configs.length >= 18, `CONTROL: ${configs.length} package configs read (ssr compiles with tsc and has none)`);
   const shared = /from\s+['"](?:\.\.\/)+defaultRollupConfig\.js['"]/;
   const own = /['"]@rollup\/plugin-typescript['"]/;
