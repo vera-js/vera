@@ -23,16 +23,33 @@ const DOM = /^(?:Node|Element|Document|DocumentFragment|ShadowRoot|Text|Comment|
 /** A global object: `window.Element` is the module's realm as much as a bare `Element` is. */
 const GLOBAL = new Set(['window', 'globalThis', 'self']);
 
-/** Every name the file binds itself: imports, classes, functions, variables and parameters. */
+/**
+ * Every name the file binds itself: imports, classes, functions, variables, parameters, and names destructured out of an
+ * object (`const { Element } = node.ownerDocument.defaultView`, the per-node form this rule recommends).
+ *
+ * File-wide, not per scope: a name bound ANYWHERE exempts every use of it in the file, so a parameter called `Event` in
+ * one function hides a global `instanceof Event` in another. Accepted, because resolving scopes needs the type checker;
+ * the cost is a possible miss in a file that reuses a DOM name for something of its own, never a false refusal.
+ */
 const boundNames = (file) => {
   const names = new Set();
   const visit = (node) => {
-    if ((ts.isImportSpecifier(node) || ts.isImportClause(node) || ts.isNamespaceImport(node) || ts.isClassDeclaration(node) || ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node) || ts.isParameter(node)) && node.name && ts.isIdentifier(node.name)) names.add(node.name.text);
+    if ((ts.isImportSpecifier(node) || ts.isImportClause(node) || ts.isNamespaceImport(node) || ts.isClassDeclaration(node) || ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) && node.name && ts.isIdentifier(node.name)) names.add(node.name.text);
     ts.forEachChild(node, visit);
   };
   visit(file);
   return names;
 };
+
+/** The expression under any parentheses, `as`, `!` or `<T>` cast: `(window as any).Element` is `window.Element`. */
+const bare = (node) => {
+  while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
+  return node;
+};
+
+/** The member a property or element access names: `Element` in `window.Element` and in `window['Element']`. */
+const memberName = (node) =>
+  ts.isPropertyAccessExpression(node) ? node.name.text : ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) ? node.argumentExpression.text : null;
 
 /** Each `instanceof` in `text` whose right side is a global DOM class: `{ line, text }`. */
 export const realmChecks = (text, name = 'x.ts') => {
@@ -41,10 +58,12 @@ export const realmChecks = (text, name = 'x.ts') => {
   const hits = [];
   const visit = (node) => {
     if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword) {
-      const right = node.right;
+      const right = bare(node.right);
+      const member = memberName(right);
+      const object = member === null ? null : bare(right.expression);
       const global =
         (ts.isIdentifier(right) && DOM.test(right.text) && !own.has(right.text)) ||
-        (ts.isPropertyAccessExpression(right) && ts.isIdentifier(right.expression) && GLOBAL.has(right.expression.text) && DOM.test(right.name.text));
+        (member !== null && ts.isIdentifier(object) && GLOBAL.has(object.text) && DOM.test(member));
       if (global) hits.push({ line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1, text: node.getText(file) });
     }
     ts.forEachChild(node, visit);
@@ -67,7 +86,7 @@ const ALLOWED = new Map([
 ]);
 
 test('CONTROL: the reader finds a global DOM class on the right of instanceof, and nothing else', () => {
-  for (const hit of ['x instanceof Element', 'x instanceof HTMLElement', 'x instanceof HTMLInputElement', 'x instanceof SVGElement', 'e instanceof KeyboardEvent', 'x instanceof Node', 'x instanceof window.Element', 'x instanceof globalThis.HTMLElement', 'x instanceof self.Document', 'x instanceof ShadowRoot'])
+  for (const hit of ['x instanceof Element', 'x instanceof HTMLElement', 'x instanceof HTMLInputElement', 'x instanceof SVGElement', 'e instanceof KeyboardEvent', 'x instanceof Node', 'x instanceof window.Element', 'x instanceof globalThis.HTMLElement', 'x instanceof self.Document', 'x instanceof ShadowRoot', 'x instanceof (window as any).Element', 'x instanceof (globalThis as any).HTMLElement', 'x instanceof window!.Element', "x instanceof window['Element']", 'x instanceof (Element)'])
     assert.equal(realmChecks(`const a = (x: any, e: any) => ${hit};`).length, 1, hit);
   for (const near of [
     '// x instanceof Element',
@@ -80,6 +99,8 @@ test('CONTROL: the reader finds a global DOM class on the right of instanceof, a
     'class Element {}\nconst a = (x: any) => x instanceof Element;',
     "import { Element } from './dom.js';\nconst a = (x: any) => x instanceof Element;",
     'const a = (x: any) => x.nodeType === 1;',
+    'const a = (x: any, node: any) => { const { Element } = node.ownerDocument.defaultView; return x instanceof Element; };',
+    'const a = (x: any, doc: any) => x instanceof (doc.defaultView as typeof globalThis).HTMLElement;',
   ])
     assert.deepEqual(realmChecks(near), [], near);
 });
