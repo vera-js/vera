@@ -34,8 +34,14 @@ npm install --package-lock-only  # the lockfile's workspace entries follow the n
 git diff                         # review — this is the release gate
 git add -A && git commit -m "release: 0.x.y"
 node scripts/tag-release.mjs     # annotated tag per publishable package — AFTER the commit
-git push --follow-tags
+git push --atomic origin HEAD:main $(git tag --points-at HEAD)   # the commit and ITS tags, in one push
 ```
+
+**Push the commit and its tags together, in one atomic push, by name.** CI checks that every bumped package is tagged
+(`tag-release.mjs --check`), and the release waits for CI to pass on the commit (below), so a version commit pushed
+before its tags runs CI red and publishes nothing. `--atomic` updates `main` and the tags together or not at all;
+`git tag --points-at HEAD` names exactly this commit's tags, where `--follow-tags` also pushes any older annotated tag
+left in the local history.
 
 **Regenerate the lockfile after versioning.** `changeset version` bumps each `package.json` and not
 `package-lock.json`, so without this step the lockfile's workspace entries fall a release behind every time
@@ -61,7 +67,8 @@ credential anywhere.
 ## What CI does
 
 [`release.yml`](../.github/workflows/release.yml) runs on every push to `main`, **waits for CI to pass on that
-same commit** (it publishes nothing if CI fails or has not finished within 45 minutes), and then executes
+same commit** (`scripts/wait-for-ci.mjs`: CI's newest run on it, in its latest attempt; it publishes nothing if that run
+fails, a red rotated fuzz seed included, or has not finished within 45 minutes), and then executes
 `changeset publish`, which publishes any package whose version is not yet on npm and **skips
 everything already published**. A push with no version change is a green no-op.
 
@@ -118,7 +125,7 @@ npm trust github @verajs/<name> --file release.yml --repo vera-js/vera --allow-p
 npm trust list @verajs/<name>               # confirm before pushing
 
 node scripts/tag-release.mjs
-git push --follow-tags                      # CI publishes everything else
+git push --atomic origin HEAD:main $(git tag --points-at HEAD)   # CI publishes everything else
 ```
 
 Order matters only in that the manual publish must happen before the push. `changeset publish`
