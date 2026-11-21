@@ -45,6 +45,7 @@ const LISTED = [
     sources: SOURCES,
   },
   { name: 'hooks/roving-focus', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'components/field', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },

@@ -41,6 +41,8 @@ const NODE_BUILDS = new Set(['jsx', 'cms/content']);
 
 /** Bundle name -> the `filename` its package.json declares. */
 export const ENTRY = {
+  'vera-components/field': ['components/field', 'vera-field'],
+  'vera-components/field/element': ['components/field', 'vera-field-element'],
   'vera-hooks/labeled': ['hooks/labeled', 'vera-labeled'],
   'vera-hooks/roving-focus': ['hooks/roving-focus', 'vera-roving-focus'],
   'vera-hooks/roving-focus/internal': ['hooks/roving-focus', 'vera-roving-focus-internal'],

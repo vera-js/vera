@@ -40,6 +40,7 @@ const PACKAGES = {
   '@vera-hooks/roving-focus': 'vera-hooks/roving-focus',
   '@vera-hooks/announce': 'vera-hooks/announce',
   '@vera-hooks/anchor': 'vera-hooks/anchor',
+  '@vera-components/field': 'vera-components/field',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -259,6 +260,7 @@ const recipes = recipeSources.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/components/field/README.md': 1,
   'packages/components/select/README.md': 1, // the move into packages/components (2026-11-21) gave select its first recipe
   /** Newly runnable: the runner had no `MutationObserver` and executed recipes as `data:` URLs, so
    * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's

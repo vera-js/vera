@@ -1,0 +1,116 @@
+{
+  "name": "@vera-components/field",
+  "version": "0.1.0",
+  "private": true,
+  "description": "<vera-field>: a Vera component.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/components/field"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./dist/vera-field.min.js",
+  "types": "./dist/development/vera-field.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-field.d.ts",
+      "development": "./dist/development/vera-field.js",
+      "default": "./dist/vera-field.min.js"
+    },
+    "./element": {
+      "types": "./dist/development/vera-field-element.d.ts",
+      "development": "./dist/development/vera-field-element.js",
+      "default": "./dist/vera-field-element.min.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/development/vera-field.js",
+    "./dist/vera-field.min.js"
+  ],
+  "peerDependencies": {
+    "@verajs/core": "^0.4.2"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-field"
+}
