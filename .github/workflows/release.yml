@@ -19,11 +19,33 @@ jobs:
       # Read-only on the repo. Tags are created locally when the release is cut
       # (scripts/tag-release.mjs), so this workflow never needs write access.
       contents: read
+      # To read CI's run for this commit (the wait below).
+      actions: read
       # Trusted Publishing: npm verifies this workflow's OIDC identity.
       # The trust binding names vera-js/vera + release.yml, so this file's
       # NAME is load-bearing. Renaming it breaks publishing for all packages.
       id-token: write
+    # CI takes 8–11 minutes; the wait gives up well before this.
+    timeout-minutes: 60
     steps:
+      # **Publish only after CI SUCCEEDED on this commit** (2026-11-21): this job used to publish beside CI, so
+      # @verajs/ssr 0.3.3 reached npm while CI was red. It stays a `push` job — the identity npm's trusted publisher
+      # binding was made for — and waits for CI's run on the very commit it publishes, failing unless that run
+      # succeeded (every matrix version). Polled every 30 s for up to 45 minutes.
+      - name: Wait for CI to pass on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 90); do
+            result=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --event push --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')
+            case "$result" in
+              "completed success") echo "CI passed on $GITHUB_SHA"; exit 0 ;;
+              completed*) echo "::error::CI did not pass on $GITHUB_SHA ($result): nothing is published"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "::error::CI on $GITHUB_SHA did not finish within 45 minutes: nothing is published"
+          exit 1
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

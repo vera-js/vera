@@ -60,7 +60,8 @@ credential anywhere.
 
 ## What CI does
 
-[`release.yml`](../.github/workflows/release.yml) runs on every push to `main` and executes
+[`release.yml`](../.github/workflows/release.yml) runs on every push to `main`, **waits for CI to pass on that
+same commit** (it publishes nothing if CI fails or has not finished within 45 minutes), and then executes
 `changeset publish`, which publishes any package whose version is not yet on npm and **skips
 everything already published**. A push with no version change is a green no-op.
 
