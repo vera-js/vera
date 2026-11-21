@@ -126,13 +126,12 @@ export const setup = () => () => html\`<span data-vera-part="root"></span>\`;
  * is left to it, with a development warning, so two copies on one page never throw the app down.
  */
 import { define } from '@verajs/core';
-import { diagnostic } from '@verajs/shared-utils';
+import { diagnostic, SHARED } from '@verajs/shared-utils';
 import { options, setup } from './element.js';
-import { PROSE } from './diagnostics.js';
 
 if (!customElements.get(options.tag)) define(options, setup);
 else if (__DEV__ && typeof console !== 'undefined')
-  console.warn(diagnostic('${name}', \`<\${options.tag}>\`, 'defined-twice', __DEV__ && PROSE['defined-twice']()));
+  console.warn(diagnostic('${name}', \`<\${options.tag}>\`, 'defined-twice', __DEV__ && SHARED.definedTwice('${own}', 'element')));
 
 /** The class that serves the tag: the registered one, so \`instanceof\` tells the truth under a stand-down and under hot. */
 export const element = customElements.get(options.tag);
@@ -151,13 +150,11 @@ export const defineAs = (tag: string) => define({ ...options, tag }, setup);
         'src/diagnostics.ts': `/** **${own}'s diagnostics: DEVELOPMENT ONLY prose.** */
 import type { Prose } from '@verajs/shared-utils';
 
-export const PROSE: Record<string, Prose> = {
-  /** The subject (the tag) is printed by \`diagnostic\` before the message, so the message never repeats it. */
-  'defined-twice': () => [
-    'is already defined by another copy or version of ${own}, so the first is kept.',
-    'Align the versions, or import ${own}/element and define it under your own tag.',
-  ],
-};
+/**
+ * This package's own codes, none yet. \`defined-twice\` is shared-utils' (one text for every component, one code in one
+ * namespace), so it is never repeated here: two packages that each listed it would be refused by \`sync-diagnostics\`.
+ */
+export const PROSE: Record<string, Prose> = {};
 `,
       }
     : { 'src/index.ts': `/** **${own}: a headless hook.** Re-exports only. */\nexport {};\n` };
