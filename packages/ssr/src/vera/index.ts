@@ -74,16 +74,27 @@ type Checked = keyof SsrRenderOptions | 'url';
 
 installShims();
 const { wire, inserts, flush } = await import('@verajs/core');
-// A process with working storage (no `process` in a worker, where this also renders) — Node 26 gives every process
-// an in-memory `sessionStorage`, shared by every request, and `--localstorage-file` adds a `localStorage` — hands it
-// to every component this renders, because they run against the process's own globals — so the `typeof localStorage`
-// guard components are taught passes here. Said once, at import, in every build (2026-11-20). `localStorage` is read
-// off the process's arguments, never by touching it: on Node 26 a read of it without the flag prints Node's own
-// ExperimentalWarning (`sessionStorage` does not).
+/**
+ * **A process with working web storage** hands it to every component this renders, because they run against the
+ * process's own globals — so the `typeof localStorage` guard components are taught passes here, and one visitor's state
+ * is served to the next. Node 26 gives every process an in-memory `sessionStorage`, shared by every request, and
+ * `--localstorage-file` adds a `localStorage`. Asked of the STORAGE, not of the flags that might make it: the flag's text
+ * alone warned on Node 24, where it does nothing without `--experimental-webstorage`. `localStorage` is touched only
+ * when the flag was given — on Node 26 a read of it without the flag prints Node's own ExperimentalWarning — and a
+ * getter that throws is no storage. Said once, at import, in every build (2026-11-20). No `process` in a worker.
+ */
+const working = (name: 'sessionStorage' | 'localStorage'): boolean => {
+  try {
+    return typeof (globalThis as { [key: string]: { getItem?: unknown } | undefined })[name]?.getItem === 'function';
+  } catch {
+    return false;
+  }
+};
 if (
-  typeof (globalThis as { sessionStorage?: unknown }).sessionStorage !== 'undefined' ||
+  working('sessionStorage') ||
   (typeof process !== 'undefined' &&
-    [...process.execArgv, ...(process.env.NODE_OPTIONS ?? '').split(/\s+/)].some((arg) => arg.startsWith('--localstorage-file')))
+    [...process.execArgv, ...(process.env.NODE_OPTIONS ?? '').split(/\s+/)].some((arg) => arg.startsWith('--localstorage-file')) &&
+    working('localStorage'))
 )
   console.warn(ssrWarning('the server', 'ssr-process-storage', PROSE['ssr-process-storage']!()));
 setCoreFlush(flush);
