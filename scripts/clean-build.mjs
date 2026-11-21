@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { buildProcesses } from './build-processes.mjs';
 import { npmCommand } from './npm.mjs';
 import { orphanOutputs, packageFiles } from './packages.mjs';
+import { scratchLeftovers } from './scratch-dirs.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const builds = buildProcesses(root);
@@ -40,12 +41,17 @@ if (process.argv.includes('--check')) {
 /**
  * Every package's own cache and output, at any depth (`packages.mjs`), plus a cache one level inside a package, plus
  * the output left where a package used to be (`orphanOutputs`: a branch switch leaves a removed package's ignored
- * `dist/`, which a clean build that reads only packages never cleared).
+ * `dist/`, which a clean build that reads only packages never cleared), plus the scratch a killed suite left in the tree
+ * (`scratchLeftovers`: a SIGKILL skips a suite's finally, and the next gate linted what it left). Nothing else runs in
+ * this tree meanwhile (it is exclusive), so no live suite holds one.
  */
 const orphans = orphanOutputs();
-const cleared = [...globSync('.wireit', { cwd: root }), ...packageFiles('.wireit'), ...packageFiles('*/.wireit'), ...packageFiles('dist'), ...orphans];
+const scratch = scratchLeftovers();
+const cleared = [...globSync('.wireit', { cwd: root }), ...packageFiles('.wireit'), ...packageFiles('*/.wireit'), ...packageFiles('dist'), ...orphans, ...scratch];
 for (const path of cleared) rmSync(root + path, { recursive: true, force: true });
-console.log(`cleared ${cleared.length} build directories${orphans.length ? ` (${orphans.length} left where no package is: ${orphans.join(', ')})` : ''}`);
+console.log(
+  `cleared ${cleared.length} build directories${orphans.length ? ` (${orphans.length} left where no package is: ${orphans.join(', ')})` : ''}${scratch.length ? ` (${scratch.length} scratch left by a killed suite: ${scratch.join(', ')})` : ''}`
+);
 
 const started = Date.now();
 const build = spawnSync(...npmCommand('npm', ['run', 'build']), { cwd: root, stdio: 'inherit' });

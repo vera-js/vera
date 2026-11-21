@@ -16,10 +16,12 @@ const ignored = (path) => eslint.isPathIgnored(path);
 test("a suite's leftover scratch under tests/ is not linted", async () => {
   assert.equal(await ignored('tests/.hydrate-conformance-VHocuW/s2.js'), true);
   assert.equal(await ignored('tests/.parity-abc123/nested/page.mjs'), true);
+  assert.equal(await ignored('examples/kitchen-sink/.jsx-Ab12Cd/app.js'), true);
 });
 
 test('CONTROL: real tests, in tests/ and below it, are still linted', async () => {
   assert.equal(await ignored('tests/eslint-scope.test.mjs'), false);
   assert.equal(await ignored('tests/browser/adopted-realm.test.js'), false);
   assert.equal(await ignored('tests/fixtures/ssr/styles-light-in-shadow.js'), false);
+  assert.equal(await ignored('examples/kitchen-sink/entry-client.js'), false);
 });
