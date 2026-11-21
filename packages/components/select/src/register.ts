@@ -4,8 +4,7 @@
  * (CODE-PRINCIPLES #1); the entry keeps its meaning through one side-effect import.
  */
 import { VeraSelect } from './select/element.js';
-import { diagnostic } from '@verajs/shared-utils';
-import { PROSE } from './diagnostics.js';
+import { diagnostic, SHARED } from '@verajs/shared-utils';
 
 
 /**
@@ -17,7 +16,7 @@ const define = (tag: string, constructor: CustomElementConstructor) => {
   const existing = customElements.get(tag);
   if (existing) {
     if (existing !== constructor && typeof console !== 'undefined')
-      console.warn(diagnostic('select', `<${tag}>`, 'defined-twice', __DEV__ && PROSE['defined-twice'](tag)));
+      console.warn(diagnostic('select', `<${tag}>`, 'defined-twice', __DEV__ && SHARED.definedTwice('@vera-components/select', 'elements')));
     return;
   }
   customElements.define(tag, constructor);

@@ -2,14 +2,6 @@
   "url": "https://verajs.dev/e/",
   "entries": [
     {
-      "code": "defined-twice",
-      "params": [
-        "tag"
-      ],
-      "message": "<{tag}> is already defined by another copy or version of @vera-components/select — keeping the first.",
-      "fix": "Align the versions, or import @vera-components/select/elements and register under your own names."
-    },
-    {
       "code": "select-duplicate",
       "params": [
         "value"

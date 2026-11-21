@@ -204,6 +204,16 @@ export const defineTwice: Prose = (tag) => [
     `<${tag}> is already defined; the platform refuses a second definition of a tag and throws next.`,
     'Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define.',
 ];
+/**
+ * **A second copy of a component package stands down** — said in development by every `@vera-components/*` package's
+ * `register` when its tag is already defined (by another copy or version of the same package): the first definition is
+ * kept. One text for every component (2026-11-20; codes are one namespace). The tag is the diagnostic's subject, printed
+ * before the message; `pkg` is the package's name and `entry` its element entry (`element` or `elements`).
+ */
+export const definedTwice: Prose = (pkg, entry) => [
+  `is already defined by another copy or version of ${pkg}, so the first is kept.`,
+  `Align the versions, or import ${pkg}/${entry} and define it under your own tag.`,
+];
 export const setupReturnedValue: Prose = (kind) => [
     `its setup returned ${kind}, not a render function, so it rendered once and will never update.`,
     'Return a render function — `return () => html`…`;` — the setup runs once, the render on every change.',

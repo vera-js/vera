@@ -143,6 +143,15 @@
       "fix": "Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define."
     },
     {
+      "code": "defined-twice",
+      "params": [
+        "pkg",
+        "entry"
+      ],
+      "message": "is already defined by another copy or version of {pkg}, so the first is kept.",
+      "fix": "Align the versions, or import {pkg}/{entry} and define it under your own tag."
+    },
+    {
       "code": "event-name-typo",
       "params": [
         "name",

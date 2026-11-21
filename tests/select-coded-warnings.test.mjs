@@ -46,7 +46,7 @@ if (SCENARIO) {
     const lines = run('twice').filter((line) => line.includes('defined-twice'));
     assert.equal(lines.length, 1, lines.join(' | '));
     if (isProduction) assert.equal(lines[0], '[vera] select: <vera-select> — https://verajs.dev/e/defined-twice');
-    else assert.match(lines[0], /^\[vera\] select: <vera-select> — <vera-select> is already defined by another copy or version of @vera-components\/select[\s\S]*\(defined-twice\)$/);
+    else assert.match(lines[0], /^\[vera\] select: <vera-select> — is already defined by another copy or version of @vera-components\/select, so the first is kept\.[\s\S]*import @vera-components\/select\/elements[\s\S]*\(defined-twice\)$/);
   });
 
   test('select-duplicate: two options with one value are named in development', () => {
