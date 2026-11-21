@@ -11,6 +11,7 @@ export const revealing = (input: HTMLInputElement, label: string): (() => void) 
   const button = doc.createElement('button');
   button.type = 'button';
   button.setAttribute('data-vera-part', 'reveal');
+  button.setAttribute('data-vera-input', '');
   button.setAttribute('aria-label', label);
   button.setAttribute('aria-pressed', 'false');
   const set = (shown: boolean): void => {

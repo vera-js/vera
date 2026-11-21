@@ -9,12 +9,13 @@
  * the user's children.
  */
 import { effect, html, isServer, signal, untrack } from '@verajs/core';
-import { diagnostic, quoted } from '@verajs/shared-utils';
+import { adoptOwnSheet, diagnostic, quoted } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { clearShown, COPIED, copiedFrom, escapeClears, warnings } from './input/decide.js';
 import type { ClearState } from './input/decide.js';
 import { capsHint } from './input/caps.js';
 import { revealing } from './input/reveal.js';
+import { LOOK, SHEET } from './input/sheet.js';
 
 /** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
 export const options = {
@@ -73,6 +74,7 @@ const makeClear = (doc: Document): HTMLButtonElement => {
   button.type = 'button';
   button.tabIndex = -1;
   button.setAttribute('data-vera-part', 'clear');
+  button.setAttribute('data-vera-input', '');
   return button;
 };
 
@@ -150,6 +152,7 @@ const clearing = (host: InputHost, input: HTMLInputElement): (() => void) => {
 const busy = (input: HTMLInputElement): (() => void) => {
   const mark = input.ownerDocument.createElement('span');
   mark.setAttribute('data-vera-part', 'loading');
+  mark.setAttribute('data-vera-input', '');
   mark.setAttribute('aria-hidden', 'true');
   const theirs = input.hasAttribute('aria-busy');
   if (!theirs) input.setAttribute('aria-busy', 'true');
@@ -201,6 +204,11 @@ export const setup = (host: InputHost) => {
   const supplied = host.querySelector('input');
   const own = supplied === null || supplied.getAttribute('data-vera-part') === 'input';
   if (!isServer()) {
+    /**
+     * The look, adopted into the root the element renders in as a layout effect: a move into another document or a
+     * shadow root re-runs it there before the parts paint (kbd's and spinner's rule).
+     */
+    effect(() => adoptOwnSheet(host, SHEET, LOOK), { timing: 'layout' });
     const current = signal<HTMLInputElement | null>(null);
     effect(() => tracking(host, current));
     effect(() => {

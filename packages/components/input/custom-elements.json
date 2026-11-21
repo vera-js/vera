@@ -99,7 +99,14 @@
               "description": "The caps-lock hint, with caps-lock-hint; hidden while Caps Lock is off."
             }
           ],
-          "cssProperties": [],
+          "cssProperties": [
+            {
+              "name": "--vera-radius"
+            },
+            {
+              "name": "--vera-focus"
+            }
+          ],
           "vera-states": [],
           "vera-custom-states": []
         }

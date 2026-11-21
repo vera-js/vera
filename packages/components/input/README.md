@@ -75,3 +75,21 @@ says so.
 The hint reads Caps Lock from the input's own key events, the only reliable source, so it appears at the first key
 pressed with Caps Lock on, not at focus. It is announced once per focus, through `@vera-hooks/announce`, and is never
 only visual.
+
+## Look
+
+- The clear and reveal buttons draw their glyphs (× and ● / ○) as generated content with empty alt text: each button
+  is named by its label, and a copy of the field never picks a glyph up. The loading mark is a small turning ring in
+  `currentColor`; under `prefers-reduced-motion: reduce` it pulses slowly instead, so "busy" stays visible, and in
+  forced colors it keeps two system colors.
+- The rules are adopted by the element itself, so the buttons are seen whether or not the app wired `@verajs/styles`.
+- Tokens: `--vera-radius` (the buttons' corners) and `--vera-focus` (their focus ring).
+- Every rule is at zero specificity (`:where`) and keyed on the parts, never the tag, so `defineAs('my-input')` looks
+  the same and any rule of yours wins, a utility class on a part included. A hidden part stays hidden.
+- `data-vera-look="none"` on the host or on a part drops our look; the parts stay.
+
+## Before the script runs
+
+Your input is already a working input with your prefix and suffix text around it: it can be focused, typed in and
+submitted before `<vera-input>` is defined, and with no script at all. A default input (when you wrote none) exists
+before the script only when a server rendered it.

@@ -10,6 +10,7 @@ import { announce } from '@vera-hooks/announce';
 export const capsHint = (input: HTMLInputElement, message: string): (() => void) => {
   const hint = input.ownerDocument.createElement('span');
   hint.setAttribute('data-vera-part', 'caps-lock');
+  hint.setAttribute('data-vera-input', '');
   hint.textContent = message;
   hint.hidden = true;
   let spoken = false;
