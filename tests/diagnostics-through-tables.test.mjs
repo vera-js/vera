@@ -30,6 +30,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
  * exports every shared text and never ships, so it is checked through the renderer's, which inlines it.
  */
 const MIGRATED = [
+  ['hooks/roving-focus', 'dist/*.min.js'],
   ['core', 'dist/vera.min.js'],
   ['styles', 'dist/vera-styles.min.js'],
   /** Every renderer entry ships its own bundle — tag, keyed, slots… — so every one is checked. */

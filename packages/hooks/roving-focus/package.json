@@ -22,6 +22,11 @@
       "types": "./dist/development/vera-roving-focus.d.ts",
       "development": "./dist/development/vera-roving-focus.js",
       "default": "./dist/vera-roving-focus.min.js"
+    },
+    "./internal": {
+      "types": "./dist/development/vera-roving-focus-internal.d.ts",
+      "development": "./dist/development/vera-roving-focus-internal.js",
+      "default": "./dist/vera-roving-focus-internal.min.js"
     }
   },
   "sideEffects": false,

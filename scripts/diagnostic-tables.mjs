@@ -44,6 +44,7 @@ const LISTED = [
     tables: ['src/hydration-diagnostics.ts', 'src/renderer-diagnostics.ts', 'src/spread-diagnostics.ts', 'src/tag-diagnostics.ts', 'src/keyed-diagnostics.ts', 'src/elements-diagnostics.ts', 'src/slots-diagnostics.ts', 'src/hydrate-slots-diagnostics.ts', 'src/native-elements-diagnostics.ts', 'src/portal-diagnostics.ts', 'src/until-diagnostics.ts'],
     sources: SOURCES,
   },
+  { name: 'hooks/roving-focus', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },
