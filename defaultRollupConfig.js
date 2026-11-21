@@ -1,12 +1,30 @@
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import { dts } from 'rollup-plugin-dts';
+import ts from 'typescript';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Every workspace package lives at some depth under here (`packages/core`, `packages/components/select`). */
 const PACKAGES = join(dirname(fileURLToPath(import.meta.url)), 'packages');
+
+/**
+ * **The TypeScript a ONE-SHOT build hands the plugin: one that cannot schedule a rebuild.** @rollup/plugin-typescript
+ * runs a watch program even outside watch mode and closes it in `buildEnd`; TypeScript 6.0.3's watch `close()`
+ * (typescript.js, `function close()` ~134800) closes every watcher but leaves a pending `timerToUpdateProgram`, and
+ * `scheduleProgramUpdate` (~135063) has no closed guard. So a file event during the build (another package's build
+ * writing a directory the program watches, which a parallel clean build does all the time) scheduled an update, the
+ * build closed, the timer fired, and the update made a whole new program and watchers that nothing closes: the bundle
+ * was written and the process never exited (the Windows clean-build hang, 2026-11-20; reproduced every time by
+ * touching a watched file during one package's build). Without `sys.setTimeout` the watch host binds TypeScript's
+ * `noop` instead (`createWatchHost`, ~134429), so the update is never scheduled. A one-shot build never wants one;
+ * rollup's watch mode (`rollup -w` sets ROLLUP_WATCH) keeps the real TypeScript, rebuilds included. The polling file
+ * watchers take their timer from the system they were made with, not from this `sys`, so they are unaffected.
+ * Exported so `tests/one-shot-typescript.test.mjs` drives a real watch program through it.
+ */
+export const oneShotTypescript =
+  process.env.ROLLUP_WATCH === 'true' ? ts : Object.create(ts, { sys: { value: { ...ts.sys, setTimeout: undefined, clearTimeout: undefined } } });
 
 /**
  * @param manglePropsRegex Opt-in property mangling for the production build. Terser mangles locals
@@ -165,6 +183,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
     plugins: [
       defineDev(),
       typescript({
+        typescript: oneShotTypescript,
         outDir: isProduction ? 'dist/' : isNode ? 'dist/node/' : 'dist/development/',
         compilerOptions: {
           composite: false,
