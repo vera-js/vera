@@ -99,6 +99,62 @@ describe('anchor, measured path', () => {
     placed.close();
   });
 
+  /**
+   * **A squeezed layer's own scroll stays where the user put it.** Its `scroll` reaches the capture listener like any
+   * other, and a re-placement that took the caps off to measure let the content stop overflowing, so the browser
+   * clamped `scrollTop` to 0 on every frame the user scrolled it.
+   */
+  it("a squeezed layer's own scrolling, and a re-placement after it, keep its scroll position", async () => {
+    const { target, layer } = fixture(holder(`height: ${innerHeight}px`), 40, Math.round(innerHeight / 2));
+    cleanup.push(() => layer.remove());
+    layer.style.cssText = 'width: 120px; overflow: auto; background: #ccc;';
+    for (let i = 0; i < 200; i++) layer.append(Object.assign(document.createElement('div'), { textContent: `option ${i}` }));
+    const placed = anchor(layer, target, { squeeze: true });
+    placed.open();
+    await frames(3);
+    expect(layer.scrollHeight > layer.clientHeight + 100, 'CONTROL: the layer is squeezed, and scrolls').to.equal(true);
+    const middle = Math.round((layer.scrollHeight - layer.clientHeight) / 2);
+    for (let i = 0; i < 30; i++) {
+      layer.scrollTop = middle + i;
+      await frames(1);
+    }
+    await frames(2);
+    near(layer.scrollTop, middle + 29, 'its own scrolling is kept');
+    window.dispatchEvent(new Event('resize'));
+    await frames(3);
+    near(layer.scrollTop, middle + 29, 'and a re-placement keeps it too');
+    const side = layer.getAttribute('data-placement');
+    const [l, t] = [layer.getBoundingClientRect(), target.getBoundingClientRect()];
+    if (side === 'top') near(l.bottom, t.top - 4, 'still placed at the target, above it');
+    else near(l.top, t.bottom + 4, 'still placed at the target, below it');
+    placed.close();
+  });
+
+  /**
+   * **A top-layer popover in a right-to-left document sits at its target.** The UA gives `[popover]` `inset: 0`, so with
+   * only `left` and `top` written its `right: 0` stays; with a fixed width the box is over-constrained, and in
+   * right-to-left `left` is the one dropped, so the layer sat against the right edge. A plain div has no UA inset, which
+   * is why the rows above never saw it.
+   */
+  it('a shown popover in a right-to-left document is placed at its target', () => {
+    document.documentElement.setAttribute('dir', 'rtl');
+    cleanup.push(() => document.documentElement.removeAttribute('dir'));
+    const { target, layer } = fixture(holder('height: 200px'), 40, 20);
+    layer.setAttribute('popover', 'manual');
+    layer.showPopover();
+    cleanup.push(() => {
+      if (layer.matches(':popover-open')) layer.hidePopover();
+      layer.remove();
+    });
+    const placed = anchor(layer, target);
+    placed.open();
+    const t = target.getBoundingClientRect();
+    const l = layer.getBoundingClientRect();
+    near(l.top, t.bottom + 4, 'top');
+    near(l.right, t.right, 'right edges aligned: start is the right edge in right-to-left');
+    placed.close();
+  });
+
   it('close() puts back exactly the inline style it found, and stops placing', async () => {
     const { target, layer } = fixture(holder('height: 200px'), 40, 20);
     cleanup.push(() => layer.remove());
