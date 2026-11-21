@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { DIRECTIVES, TABLES as LISTED, proseOf } from '../scripts/diagnostic-tables.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
 import { posix } from '../scripts/fs-path.mjs';
+import { withoutComments } from './source-comments.mjs';
 
 /** Every package's tables, directives' included (published by sync-diagnostics with its payloads, so listed apart). */
 const TABLES = [...LISTED, DIRECTIVES];
@@ -106,7 +107,7 @@ for (const [name, bundle] of MIGRATED) {
     assert.ok(files.length > 0, 'CONTROL: the package has sources');
     const inline = [];
     for (const file of files) {
-      const text = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const text = withoutComments(readFileSync(join(root, file), 'utf8'));
       /**
        * A production line that IS a bare code from this package's table (`[vera] router-redirect-loop: …`, or a thrown
        * `name: <code>`) is the code system at its cheapest — Brian's byte rule keeps it where the link costs bytes —
@@ -170,7 +171,7 @@ test('every bare production code line has the one shape: `[vera] <code>` + (`: s
   const malformed = [];
   for (const [name] of MIGRATED)
     for (const file of glob(`packages/${name}/src/**/*.ts`, { cwd: root }).filter((path) => !path.endsWith('diagnostics.ts'))) {
-      const text = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const text = withoutComments(readFileSync(join(root, file), 'utf8'));
       for (const match of text.matchAll(/[`'"](?:\[vera\] |[a-zA-Z]+: )([a-z][a-z0-9-]*)([^`'"]?)/g)) {
         if (!known.has(match[1])) continue;
         const bracketed = match[0].slice(1).startsWith('[vera] ');
@@ -199,7 +200,7 @@ test('every package that prints or throws is on the code system', () => {
   const printing = packageFiles('src')
     .filter((src) =>
       globSync(`${src}/**/*.ts`, { cwd: root }).some((file) =>
-        /console\.(?:warn|error)\(|throw new \w*Error\(/.test(readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''))
+        /console\.(?:warn|error)\(|throw new \w*Error\(/.test(withoutComments(readFileSync(join(root, file), 'utf8')))
       )
     )
     .map((src) => src.slice('packages/'.length, -'/src'.length));

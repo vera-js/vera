@@ -12,13 +12,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { withoutComments } from './source-comments.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const PACKAGES = ['core', 'renderer', 'lite', 'static'];
 /** The calls that parse markup outside a template: as a call or a property access, not inside a word. */
 const PARSERS = /(?<![\w$])(?:createContextualFragment|insertAdjacentHTML|DOMParser|parseHTMLUnsafe|setHTMLUnsafe)(?![\w$])/;
 /** Comment text is prose (it may name the APIs, as this file's header does): only code is scanned. */
-const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+const code = (text) => withoutComments(text);
 
 test('CONTROL: the scan finds a planted call, and ignores one in a comment', () => {
   assert.equal(PARSERS.test(code('range.createContextualFragment(markup)')), true);

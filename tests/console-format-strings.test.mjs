@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 import { packageFiles } from '../scripts/packages.mjs';
+import { withoutComments } from './source-comments.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -71,7 +72,7 @@ test('every multi-argument console call passes %s first, or starts with a plain 
   const exempted = new Map();
   let multi = 0;
   for (const file of packageFiles('src/**/*.ts')) {
-    const text = readFileSync(root + file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/^\s*\/\/.*$/gm, '');
+    const text = withoutComments(readFileSync(root + file, 'utf8'));
     for (const match of text.matchAll(/console\.(?:log|info|warn|error|debug)\(/g)) {
       const end = closing(text, match.index + match[0].length);
       const args = topLevel(text.slice(match.index + match[0].length, end));

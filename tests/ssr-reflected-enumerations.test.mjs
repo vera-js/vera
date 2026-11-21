@@ -16,6 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
+import { withoutComments } from './source-comments.mjs';
 import '@verajs/ssr';
 
 /**
@@ -210,7 +211,7 @@ test('an enumerated content attribute whose IDL is a plain DOMString echoes what
  */
 test('no reflection entry answers with a measurement sentinel', () => {
   const table = readFileSync(new URL('../packages/ssr/src/vera/reflections.ts', import.meta.url), 'utf8');
-  const data = table.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const data = withoutComments(table);
   assert.ok(data.includes('ELEMENT_REFLECTIONS'), 'the table body was stripped away with the comments');
   assert.doesNotMatch(
     data,

@@ -13,6 +13,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { basename } from 'node:path';
 import { ROOT, packageDirs, packageFiles } from '../scripts/packages.mjs';
 import { posix } from '../scripts/fs-path.mjs';
+import { withoutComments } from './source-comments.mjs';
 
 test('the helper finds the packages npm links, at every depth the workspaces name', () => {
   const dirs = packageDirs();
@@ -42,7 +43,7 @@ const WALKS = [
  * it anywhere ate the code up to the next star-slash — the first version of this suite passed on every hand walk that
  * way (16 of 29, shown on main's copies 2026-11-20).
  */
-const code = (text) => text.replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/^\s*\/\/.*$/gm, '');
+const code = (text) => withoutComments(text);
 
 /**
  * **The two-step walk: a variable bound to the packages directory itself, then listed** (found 2026-11-21, moving select:

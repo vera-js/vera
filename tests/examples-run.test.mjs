@@ -14,6 +14,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { fsPath } from '../scripts/fs-path.mjs';
+import { withoutComments } from './source-comments.mjs';
 
 const root = new URL('../', import.meta.url);
 const at = (path) => fsPath(new URL(path, root));
@@ -56,13 +57,11 @@ for (const file of files(at('examples'), ['.js', '.mjs'])) {
  * header shows `import … from './inserts/batch.js'` would otherwise be read as importing a path
  * relative to itself. Scanning code as if it were code is the whole point.
  */
-const withoutComments = (source) =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
 /* ── every relative import points at a file that exists ─────────────────────────────────────── */
 for (const file of files(at('examples'), ['.js', '.mjs', '.ts', '.tsx'])) {
   scanned++;
-  const source = withoutComments(readFileSync(file, 'utf8'));
+  const source = withoutComments(readFileSync(file, 'utf8'), file);
   const directory = file.slice(0, file.lastIndexOf('/'));
   for (const [, specifier] of source.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
     /** TypeScript sources import `./x.js` for `./x.ts`, which is the NodeNext convention. */
@@ -75,7 +74,7 @@ for (const file of files(at('examples'), ['.js', '.mjs', '.ts', '.tsx'])) {
 /* ── every bundle path an example points at is one the build writes ─────────────────────────── */
 for (const file of files(at('examples'), ['.html', '.js', '.mjs'])) {
   scanned++;
-  const source = file.endsWith('.html') ? readFileSync(file, 'utf8') : withoutComments(readFileSync(file, 'utf8'));
+  const source = file.endsWith('.html') ? readFileSync(file, 'utf8') : withoutComments(readFileSync(file, 'utf8'), file);
   for (const [, path] of source.matchAll(/["'](\/packages\/[^"']+\.js)["']/g)) {
     check(
       `${file.slice(at('examples').length + 1)} points at ${path}`,

@@ -17,6 +17,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { transformSync } from 'esbuild';
 import { ROOT, packageDirs } from '../scripts/packages.mjs';
+import { withoutComments } from './source-comments.mjs';
 
 /** Every package, nested ones included, by its path under `packages/` (`core`, `hooks/light-dismiss`). */
 const PACKAGES = packageDirs().map((dir) => dir.slice('packages/'.length));
@@ -27,7 +28,7 @@ const writes = new Map();
 const reads = new Map();
 /** A source file as the JavaScript it emits: types gone, then comments. */
 const emitted = (file) =>
-  transformSync(readFileSync(file, 'utf8'), { loader: 'ts' }).code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  withoutComments(transformSync(readFileSync(file, 'utf8'), { loader: 'ts' }).code, 'x.js');
 const add = (map, name, pkg) => (map.get(name) ?? map.set(name, new Set()).get(name)).add(pkg);
 const SIGIL = '_\\$[A-Za-z]+\\$';
 const WRITE = new RegExp(`\\.(${SIGIL})\\s*(?:=(?!=)|\\?\\?=)|[{,]\\s*(${SIGIL})\\s*:|\\[['"](${SIGIL})['"]\\]\\s*(?:=(?!=)|:)`, 'g');
@@ -51,7 +52,7 @@ const retired = [];
 for (const pkg of PACKAGES) {
   if (!existsSync(join(root, pkg, 'src'))) continue;
   for (const file of walk(join(root, pkg, 'src'))) {
-    const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const code = withoutComments(readFileSync(file, 'utf8'), file);
     for (const m of code.matchAll(new RegExp(`\\.(${RETIRED.join('|')})\\b|['"](${RETIRED.join('|')})['"]`, 'g')))
       retired.push(`${file.slice(root.length)}: ${m[1] ?? m[2]}`);
   }

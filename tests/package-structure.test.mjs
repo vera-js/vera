@@ -29,12 +29,14 @@ import assert from 'node:assert/strict';
 import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs';
 import { ROOT, packageDirs } from '../scripts/packages.mjs';
 import { posix } from '../scripts/fs-path.mjs';
+import ts from 'typescript';
+import { withoutComments } from './source-comments.mjs';
 
 /** The `.mjs` registries a new package must appear in, read as code with comments stripped. */
 const REGISTRIES = { dist: 'tests/dist.mjs', docsImports: 'tests/docs-imports.test.mjs', docsRecipes: 'tests/docs-recipes.test.mjs', sizes: 'scripts/size-modules.mjs' };
 
 /** Comments that begin a line, block or line (a glob's slash-star inside a string is not one). */
-const code = (text) => text.replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/^\s*\/\/.*$/gm, '');
+const code = (text) => withoutComments(text);
 
 const FRAMEWORK_PEER = /^@verajs\/(?:core|renderer|styles)$/;
 const COMPONENT_PEER = /^@vera-components\/[a-z0-9-]+$|^@codemirror\/[a-z0-9-]+$/;
@@ -224,7 +226,7 @@ export const problemsOf = ({ dir, manifest, files }, regs) => {
 
 const read = (file) => readFileSync(ROOT + file, 'utf8');
 /** tsconfig.json carries comments; strip whole-line ones before parsing (its strings hold no comment markers). */
-const tsconfig = JSON.parse(read('tsconfig.json').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\/\*[\s\S]*?\*\//gm, ''));
+const tsconfig = ts.parseConfigFileTextToJson('tsconfig.json', read('tsconfig.json')).config;
 const rootManifest = JSON.parse(read('package.json'));
 const regs = {
   build: rootManifest.wireit?.build?.dependencies ?? [],
