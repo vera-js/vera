@@ -205,3 +205,29 @@ test('posix() keeps a backslash in a file name on macOS and Linux', { skip: sep 
 test('posix() turns the platform separator into a forward slash on Windows', { skip: sep === '/' && 'Windows only' }, () => {
   assert.equal(posix(`c:${BACKSLASH}a${BACKSLASH}b`), 'c:/a/b');
 });
+
+/**
+ * **A module a child process preloads is named by a file URL** (`--import`, `--loader`, `--require` for ESM): Node reads
+ * the flag's value as a module specifier, so an absolute Windows path (`C:...`) is a URL whose scheme is `c:`, refused
+ * with ERR_UNSUPPORTED_ESM_URL_SCHEME. The gate's blind-queries step never ran on Windows for this. A value built in a
+ * template must end in `.href` (`pathToFileURL(path).href`, or a `new URL(...)`'s).
+ */
+const PRELOAD = /--(?:import|loader|experimental-loader)[ =]\$\{(?![^}]*\.href\s*\})[^}]*\}/;
+
+test('every preload a script or suite passes in a template is a file URL', () => {
+  const files = globSync('{tests,scripts,bench}/**/*.{mjs,js,cjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') })
+    .map(posix)
+    .filter((file) => file !== 'tests/fs-path.test.mjs');
+  assert.ok(files.length >= 200, `CONTROL: ${files.length} files read`);
+  const found = [];
+  for (const file of files)
+    readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
+      if (PRELOAD.test(line)) found.push(`${file}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  assert.deepEqual(found, [], 'name the module by pathToFileURL(path).href');
+  const D = '$';
+  assert.ok(PRELOAD.test(`NODE_OPTIONS: \`--import ${D}{instrument}\``), 'CONTROL: the old blind-queries spelling is refused (planted)');
+  assert.ok(PRELOAD.test(`\`--loader=${D}{join(root, 'l.mjs')}\``), 'CONTROL: a joined path is refused');
+  assert.ok(!PRELOAD.test(`\`--import ${D}{pathToFileURL(instrument).href}\``), 'a file URL passes');
+  assert.ok(!PRELOAD.test(`\`--import ${D}{setup.href}\``), "a URL's href passes");
+});

@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const instrument = join(root, 'scripts/blind-query-instrument.mjs');
@@ -28,7 +28,7 @@ const run = (args) => {
   const result = spawnSync(process.execPath, args, {
     cwd: root,
     encoding: 'utf8',
-    env: { ...process.env, BLIND_QUERIES_OUT: out, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${instrument}`.trim() },
+    env: { ...process.env, BLIND_QUERIES_OUT: out, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(instrument).href}`.trim() },
     maxBuffer: 1 << 28,
   });
   if (result.status !== 0) {
