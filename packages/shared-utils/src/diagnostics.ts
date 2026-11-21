@@ -200,7 +200,7 @@ export const defineTag: Prose = (received) => [
     `expected a custom element name — a string with a hyphen, not at the start — and received ${received}.`,
     "Name it the way the platform requires: `define('x-card', setup)` or `define({ tag: 'x-card' }, setup)`.",
 ];
-export const defineTwice: Prose = (tag) => [
+export const tagDefinedAgain: Prose = (tag) => [
     `<${tag}> is already defined; the platform refuses a second definition of a tag and throws next.`,
     'Define each tag once, at module level. A live swap of a component while developing needs the development swap module, wired before the first define.',
 ];

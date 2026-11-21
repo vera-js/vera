@@ -84,7 +84,7 @@ const checkDefine = (area: string, tag: unknown, setup: unknown, swapping: boole
     throw new TypeError(misuse('define', 'define-tag', __DEV__ && SHARED.defineTag(typeof tag === 'string' ? `'${tag}'` : String(tag))));
   if (typeof setup !== 'function') throw new TypeError(misuse('define', 'define-setup', __DEV__ && SHARED.defineSetup(String(setup))));
   /** Silent while `@verajs/hot` is wired (`swapping`: it sets `$hot` on core's registry): a redefine is then a swap. */
-  if (customElements.get(tag) !== undefined && !swapping) console.warn(diagnostic(area, `define('${tag}')`, 'define-twice', __DEV__ && SHARED.defineTwice(tag)));
+  if (customElements.get(tag) !== undefined && !swapping) console.warn(diagnostic(area, `define('${tag}')`, 'tag-defined-again', __DEV__ && SHARED.tagDefinedAgain(tag)));
 };
 
 /** Development: every check of one `define` call, in order — the tag and setup first, as the platform would throw next. */

@@ -141,6 +141,8 @@ const REMOVED = {
   'ui-select-duplicate': 'select-duplicate',
   /** 2026-11-21: `isServer` became a function read when called (core 0.5.0). */
   'if (!isServer)': 'if (!isServer())',
+  /** W50 (Brian, 2026-11-21): one letter from the component packages' `defined-twice`, so core's code was renamed. */
+  'define-twice': 'tag-defined-again',
 };
 
 /**

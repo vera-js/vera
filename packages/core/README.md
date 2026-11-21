@@ -642,7 +642,7 @@ every one.
 
 | | |
 | --- | --- |
-| `init(element, setup?)` | in `connectedCallback`. `setup(host)` runs once and returns the render — a function returning a template — or nothing. See below |
+| `init(element, setup?)` | in `connectedCallback`. `setup(host)` runs once and returns the render — a function returning a template — or nothing. The first render is synchronous, at connection: a component's DOM can be read right after it is appended. See below |
 | `init({ host, shadow, foreignNodes, persist }, setup?)` | the same with options: `shadow` is `'open'`, `'closed'`, `false` (light DOM) or a `ShadowRootInit`; omitted, the app default `renderer({ shadow })`, else light DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary). `foreignNodes` is `'drop'` (the default: the template owns its shadow root, and nodes something else put there go when the template changes) or `'preserve'`; omitted, the app default `renderer({ foreignNodes })`. `persist`: seconds a removed component stays paused before it is torn down (see the setup section) |
 | `html` | the template tag. `@verajs/renderer` takes what it produces with no configuration |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |

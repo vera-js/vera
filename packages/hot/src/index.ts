@@ -183,7 +183,7 @@ const coreBelow = () => {
 
 /**
  * Wire it: `wire([renderer, hot])`, first. A CONNECTOR: `wire` hands it the registry, which carries core's teardown
- * (`$td`); `$hot` tells core's development `define-twice` check that a redefine is a swap. Wired twice into the same
+ * (`$td`); `$hot` tells core's development `tag-defined-again` check that a redefine is a swap. Wired twice into the same
  * registry (two copies, or the module reloaded), the second does nothing.
  */
 export const hot = (registry: Registry, w: Wire) => {

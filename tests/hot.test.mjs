@@ -9,6 +9,16 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
 
+/**
+ * The code as a whole token, in the form a diagnostic prints it: `(code)` at the end in development, `/e/code` in
+ * production. A substring match would also count a code that CONTAINS this one (`motion-function-redefined` held
+ * `redefine`, the name first proposed), and an absence row would then pass or fail on another package's warning.
+ */
+const TAG_DEFINED_AGAIN = /(?:\(tag-defined-again\)|\/e\/tag-defined-again)$/;
+/** The matcher's own control: the code is found in both forms, and a near-miss containing it is not. */
+assert.ok(TAG_DEFINED_AGAIN.test('[vera] core: x — y (tag-defined-again)') && TAG_DEFINED_AGAIN.test('[vera] core: x — https://verajs.dev/e/tag-defined-again'));
+assert.ok(!TAG_DEFINED_AGAIN.test('[vera] core: x — y (tag-defined-again-x)') && !TAG_DEFINED_AGAIN.test('[vera] core: x — y (tag-defined-again) z'));
+
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'MutationObserver', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
@@ -251,7 +261,7 @@ test('a component INSIDE another closed root is reached by a swap', async () => 
   outer.remove();
 });
 
-test('development: define-twice stays silent while hot is wired', { skip: isProduction && 'the warning is development-only' }, async () => {
+test('development: tag-defined-again stays silent while hot is wired', { skip: isProduction && 'the warning is development-only' }, async () => {
   const warns = [];
   const warn = console.warn;
   console.warn = (...args) => warns.push(args.join(' '));
@@ -261,7 +271,7 @@ test('development: define-twice stays silent while hot is wired', { skip: isProd
   } finally {
     console.warn = warn;
   }
-  assert.deepEqual(warns.filter((w) => w.includes('define-twice')), []);
+  assert.deepEqual(warns.filter((w) => TAG_DEFINED_AGAIN.test(w)), []);
 });
 
 test('a redefine while a RENDER IS PENDING: the new version renders once, nothing throws, the old render never lands', async () => {

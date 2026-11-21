@@ -10,6 +10,16 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
 
+/**
+ * The code as a whole token, in the form a diagnostic prints it: `(code)` at the end in development, `/e/code` in
+ * production. A substring match would also count a code that CONTAINS this one (`motion-function-redefined` held
+ * `redefine`, the name first proposed), and an absence row would then pass or fail on another package's warning.
+ */
+const TAG_DEFINED_AGAIN = /(?:\(tag-defined-again\)|\/e\/tag-defined-again)$/;
+/** The matcher's own control: the code is found in both forms, and a near-miss containing it is not. */
+assert.ok(TAG_DEFINED_AGAIN.test('[vera] core: x — y (tag-defined-again)') && TAG_DEFINED_AGAIN.test('[vera] core: x — https://verajs.dev/e/tag-defined-again'));
+assert.ok(!TAG_DEFINED_AGAIN.test('[vera] core: x — y (tag-defined-again-x)') && !TAG_DEFINED_AGAIN.test('[vera] core: x — y (tag-defined-again) z'));
+
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element', 'DocumentFragment', 'ShadowRoot', 'Text', 'Comment', 'Event', 'CustomEvent', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame'])
   globalThis[key] = dom.window[key];
@@ -175,7 +185,7 @@ test('misuse is coded in development: a bad tag, a non-function setup, a second 
   } finally {
     console.warn = warn;
   }
-  assert.equal(said.filter((m) => m.includes('define-twice')).length, 1, `said first, by its code (${said.join(' | ')})`);
+  assert.equal(said.filter((m) => TAG_DEFINED_AGAIN.test(m)).length, 1, `said first, by its code (${said.join(' | ')})`);
 });
 
 test('two cores on one page: a define tag from each, each set up once and torn down EXACTLY once (both wrappers chained)', async () => {
