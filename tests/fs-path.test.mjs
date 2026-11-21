@@ -163,13 +163,15 @@ test('no script or suite converts slashes inline; posix() is the one conversion'
  * **A package converts on the platform's separator, never on a backslash.** Packages are independent and cannot import
  * scripts/, so `split(sep).join('/')` is the right spelling there; the spellings that split a backslash are wrong on
  * macOS and Linux, where it is a character of a file name. ssr is Node-only and handles paths, so this is where one
- * would matter first.
+ * would matter first. The root's configuration files (defaultRollupConfig.js, which every package builds through, the
+ * eslint, vite and test-runner configs) stand outside scripts/ the same way, and follow the same rule.
  */
 const BACKSLASH_FORMS = [...INLINE.slice(1, 5), /\.split\(\s*(?:path\.)?win32\.sep\s*\)/];
 
-test('no package source splits a path on a backslash', () => {
-  const files = globSync('packages/**/src/**/*.{ts,mts,js,mjs}', { cwd: ROOT, exclude: (f) => f.includes('node_modules') }).map(posix);
+test('no package source or root configuration splits a path on a backslash', () => {
+  const files = globSync(['packages/**/src/**/*.{ts,mts,js,mjs}', '*.{ts,mts,js,mjs,cjs}'], { cwd: ROOT, exclude: (f) => f.includes('node_modules') }).map(posix);
   assert.ok(files.length >= 200, `CONTROL: ${files.length} package sources read`);
+  assert.ok(files.includes('defaultRollupConfig.js') && files.includes('web-test-runner.config.mjs'), 'CONTROL: the root configs are read');
   const found = [];
   for (const file of files)
     readFileSync(ROOT + file, 'utf8').split('\n').forEach((line, i) => {
