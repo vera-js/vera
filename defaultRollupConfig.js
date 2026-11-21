@@ -2,6 +2,7 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import { dts } from 'rollup-plugin-dts';
 import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,8 +14,9 @@ const PACKAGES = join(dirname(fileURLToPath(import.meta.url)), 'packages');
  * watch `close()` leaves pending (rollup/plugins#2025). Below it a build never ends (the Windows clean-build hang) or,
  * in a tree last installed before `package.json` moved, fails with Rollup's bare "Unexpected early exit" (measured on
  * Windows, 2026-11-21): neither says the cause, which is an install older than `package.json`. Read once per config
- * load, from the copy this file imports: `import.meta.resolve` names the file the import above loads (through any
- * workspace link), and its package's `package.json` is the nearest one above it (the package does not export
+ * load, from the copy this file imports: resolved from this file (through any workspace link; `createRequire`, since
+ * a synchronous `import.meta.resolve` needs Node 20.6 and `engines` says 20), its package's `package.json` is the
+ * nearest one above the entry named for it (the package does not export
  * `./package.json`). Compared as numbers, so 12.10.0 passes. `tests/build-exits.test.mjs` holds the floor equal to the
  * range in `package.json`.
  */
@@ -29,7 +31,7 @@ export const pluginFloorError = (version, at) => {
   return null;
 };
 {
-  let dir = dirname(fileURLToPath(import.meta.resolve('@rollup/plugin-typescript')));
+  let dir = dirname(createRequire(import.meta.url).resolve('@rollup/plugin-typescript'));
   while (!existsSync(join(dir, 'package.json')) || JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name !== '@rollup/plugin-typescript') {
     if (dirname(dir) === dir) throw new Error('[vera] the installed @rollup/plugin-typescript has no package.json above its entry');
     dir = dirname(dir);
