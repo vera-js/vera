@@ -181,3 +181,37 @@ test('development warns once per cause: no name, reveal on a non-password, size 
   await task();
   assert.deepEqual(codes(), [], 'reveal on a password input is its use');
 });
+
+test('an input the page swaps takes every part with it: one clear, on the new input, and the old one released', async () => {
+  const element = await mount('<label>q <vera-input clearable loading><input id="old" value="a"></vera-input></label>');
+  const old = element.querySelector('input');
+  const fresh = document.createElement('input');
+  fresh.id = 'new';
+  fresh.value = 'b';
+  old.replaceWith(fresh);
+  await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+  await settle();
+  assert.equal(element.querySelectorAll('[data-vera-part="clear"]').length, 1, 'one button, never two');
+  const clear = part(element, 'clear');
+  assert.ok(clear.parentNode === fresh.parentNode && (fresh.compareDocumentPosition(clear) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING) !== 0, 'beside the new input, after it');
+  assert.equal(fresh.getAttribute('aria-busy'), 'true', 'loading follows the input');
+  assert.equal(old.getAttribute('aria-busy'), null, 'and leaves the old one');
+  part(element, 'clear').click();
+  assert.equal(fresh.value, '', 'clear acts on the new input');
+  assert.equal(old.value, 'a');
+  old.value = 'typed';
+  old.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
+  assert.equal(part(element, 'clear').hidden, true, "the old input's listener is gone");
+});
+
+test('a wrapper the page swaps around the input is followed too', async () => {
+  const element = await mount('<label>q <vera-input clearable><span class="wrap"><input value="a"></span></vera-input></label>');
+  const wrap = element.querySelector('.wrap');
+  const next = document.createElement('span');
+  next.innerHTML = '<input value="z">';
+  wrap.replaceWith(next);
+  await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+  await settle();
+  assert.equal(next.querySelector('input').nextElementSibling?.getAttribute('data-vera-part'), 'clear');
+  assert.equal(element.querySelectorAll('[data-vera-part="clear"]').length, 1);
+});

@@ -8,7 +8,7 @@
  * parts it adds (clear, the loading mark) are its own, written beside the input after render, so a render never owns
  * the user's children.
  */
-import { effect, html, isServer } from '@verajs/core';
+import { effect, html, isServer, signal, untrack } from '@verajs/core';
 import { diagnostic, quoted } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { clearShown, COPIED, copiedFrom, escapeClears, warnings } from './input/decide.js';
@@ -155,27 +155,59 @@ const busy = (input: HTMLInputElement): (() => void) => {
 };
 
 /**
+ * **The current input, kept true while connected**: an observer of each ancestor from the input's parent up to the host,
+ * childList only, so typing and the element's own parts beside the input never change the answer; with no input yet,
+ * the host's whole subtree until one appears. Writes the input into `current` only when it changes. Returns the release.
+ */
+const tracking = (host: Element, current: { value: HTMLInputElement | null }): (() => void) | undefined => {
+  const win = host.ownerDocument.defaultView;
+  if (win === null) return undefined;
+  const observer = new win.MutationObserver(() => track());
+  const track = (): void => {
+    const input = inputOf(host);
+    /** Read untracked: the effect that runs this first call must not subscribe to its own write. */
+    if (input !== untrack(() => current.value)) current.value = input;
+    observer.disconnect();
+    if (input === null) {
+      observer.observe(host, { childList: true, subtree: true });
+      return;
+    }
+    /** The chain ends at the host: the input was found inside it. */
+    for (let at = input.parentNode; at !== null; at = at.parentNode) {
+      observer.observe(at, { childList: true });
+      if (at === host) break;
+    }
+  };
+  track();
+  return () => observer.disconnect();
+};
+
+/**
  * The setup: with the user's own input, no render (their children are theirs); with none, one default input, rendered
  * from the host's listed attributes read once here. A server-rendered default input carries `data-vera-part="input"`,
  * so the client renders the same template over it and hydrates rather than reading it as the user's.
  *
- * Each option is its own effect reading its own prop, so turning one on or off adds or removes only its part.
+ * Each option is its own effect reading its own prop and the CURRENT input, so turning one on or off adds or removes
+ * only its part, and an input the page swaps (a framework re-render, of the input or of a wrapper around it) moves every
+ * part beside the new one: each effect's release takes its part and listeners off the old input first.
  */
 export const setup = (host: InputHost) => {
   const supplied = host.querySelector('input');
   const own = supplied === null || supplied.getAttribute('data-vera-part') === 'input';
   if (!isServer()) {
+    const current = signal<HTMLInputElement | null>(null);
+    effect(() => tracking(host, current));
     effect(() => {
-      const input = inputOf(host);
+      const input = current.value;
       return input !== null && host.clearable !== null ? clearing(host, input) : undefined;
     });
     effect(() => {
-      const input = inputOf(host);
+      const input = current.value;
       return input !== null && host.loading !== null ? busy(input) : undefined;
     });
     if (__DEV__)
       effect(() => {
-        const input = inputOf(host);
+        const input = current.value;
         const win = host.ownerDocument.defaultView;
         if (input === null || win === null) return undefined;
         const timer = win.setTimeout(() => warn(host, input), 0);
