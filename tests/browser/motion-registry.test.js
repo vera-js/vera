@@ -130,17 +130,19 @@ it('eviction removes the RIGHT rule when several are live', async () => {
 it('a registered property INTERPOLATES where an unregistered one flips', async () => {
   const flip = host();
   const ease = host();
-  const run = async (el, name) => {
+  const late = host();
+  const run = async (el, name, delay = 0) => {
     el.style.setProperty(name, '0');
-    el.style.transition = `${name} 1s linear`;
+    el.style.transition = `${name} 1s linear ${delay}ms`;
     /** A forced style resolution, not a frame — a transition needs two RESOLVED values, and every
      *  rAF callback in a turn runs before the same paint. The trap with two addresses now. */
     void getComputedStyle(el).getPropertyValue(name);
     el.style.setProperty(name, '1');
     /**
      * Polled across the transition, not sampled once: under a full suite's load (WebKit on Windows, 2026-11-20) the
-     * transition can start after a single 120 ms sample, which then read its start value and passed for no mid value.
-     * The unregistered control never has one at any moment, so polling cannot make it pass.
+     * transition could start after a single 120 ms sample, which read the start value and failed the registered row.
+     * The poll makes the unregistered CONTROL stronger, not weaker: it gets ~20 chances to show a false mid value
+     * instead of one, and a property that flips discretely shows none at any of them.
      */
     const until = performance.now() + 900;
     while (performance.now() < until) {
@@ -156,6 +158,8 @@ it('a registered property INTERPOLATES where an unregistered one flips', async (
 
   keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
   expect(await run(ease, '--vm-p'), 'registered: a real mid transition value').to.equal(true);
+  /** The lateness a loaded machine adds, on purpose: a transition that begins 300 ms in is still read mid-flight. */
+  expect(await run(late, '--vm-p', 300), 'registered, starting late: still a mid value').to.equal(true);
 });
 
 it('a duplicate ensureProperty is a no-op, and a foreign SAME-NAME registration is tolerated', () => {
