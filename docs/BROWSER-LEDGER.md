@@ -462,7 +462,8 @@ from another machine, or after that is undone, has a variable changed.
   `<input>`, not which element is the form participant; components that wrap the user's own input keep it, and a test of
   autofill uses `Autofill.trigger`, never keys. It shows the filler reaches the field, not that the popup is OFFERED on
   a real click: a manual sign-off row (a real click in Chrome, Safari, Firefox) stays required. (2026-11-20, a local
-  probe)
+  probe, not kept: the reproduction is the method above, `Autofill.trigger` through CDP on the four arms and the two
+  negatives, a fresh profile per run)
 - **`:user-invalid` never matches a form-associated custom element on Chromium and WebKit, and matches one too early on
   Firefox.** Chromium 151.0.7922.34, Firefox 153.0 and WebKit 26.5 (Playwright 1.62.1 builds), headless (a correctness
   check): a form-associated element that `setValidity()` marks invalid, before and after a submit, against a native
