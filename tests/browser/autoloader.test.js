@@ -260,33 +260,50 @@ it('url() is the URL the loader will ask for, and warming it works', async () =>
  * wrong for one lost to a dropped connection. `vera:autoload-error` hands you the tag; this is what
  * you do with it.
  */
+/** A token per row: the fail-once route (web-test-runner.config.mjs) fails each path the first time only. */
+const token = () => Math.random().toString(36).slice(2);
+
+it('CONTROL: this engine fetches a module import that failed again, so a retry can reach the server', async () => {
+  const url = new URL(`./fixtures/autoloader/once/${token()}/once-probe.js`, import.meta.url).href;
+  let first = 'loaded';
+  try {
+    await import(url);
+  } catch {
+    first = 'failed';
+  }
+  expect(first, 'the first import met the 404').to.equal('failed');
+  await import(url);
+  expect(customElements.get('once-probe'), 'the second import of the SAME url fetched and ran it').to.be.a('function');
+});
+
 it('retry takes the element the error handed you, and tries it again', async () => {
   const original = console.error;
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
 
-  const failing = autoloader(entry, 'missing-dir');
-  const element = host('<flaky-widget></flaky-widget>');
+  /**
+   * The dropped connection that comes back: the same URL fails once, then loads, and nothing but this autoloader ever
+   * asks for `retry-widget`, so the tag is defined only if `retry` imports again. A second autoloader used to stand in
+   * for the network coming back and defined the tag itself, so the row passed with `retry` doing nothing.
+   */
+  const once = token();
+  const flaky = autoloader(entry, 'components', { resolve: (tag) => `once/${once}/${tag}.js` });
+  const element = host('<retry-widget></retry-widget>');
   let reported;
   element.addEventListener('vera:autoload-error', (event) => { reported = event.detail; });
-  failing(element);
-  await until(() => errors.length > 0, "() => errors.length > 0", 4000);
-  expect(customElements.get('flaky-widget'), 'the first attempt failed').to.equal(undefined);
-  expect(reported.element, 'the event carries the element').to.equal(element.querySelector('flaky-widget'));
+  try {
+    flaky(element);
+    await until(() => reported, 'the first attempt reported its failure', 4000);
+    expect(customElements.get('retry-widget'), 'the first attempt failed').to.equal(undefined);
+    expect(reported.element, 'the event carries the element').to.equal(element.querySelector('retry-widget'));
+    expect(errors.length, 'and the failure was printed').to.be.above(0);
+  } finally {
+    console.error = original;
+  }
 
-  /** The component is reachable now — a second autoloader stands in for the network coming back. */
-  const working = autoloader(entry, 'components');
-  const other = host('<flaky-widget></flaky-widget>');
-  working(other);
-  await task();
-  console.error = original;
-
-  /** Without retry the tag stays memoized as failed on the first autoloader. */
-  failing.retry(reported.element);
-  await until(() => customElements.get('flaky-widget'), "() => customElements.get('flaky-widget')", 4000);
-  expect(customElements.get('flaky-widget'), 'reachable after retry').to.be.a('function');
+  flaky.retry(reported.element);
+  await until(() => customElements.get('retry-widget'), 'retry-widget defined by the retried import', 4000);
   element.remove();
-  other.remove();
 });
 
 /* ── a shadow root handed over directly ──────────────────────────────────────────────────────── */

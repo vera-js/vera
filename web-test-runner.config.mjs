@@ -25,6 +25,9 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
  * `nodeResolve` is required: the development bundles import `@verajs/inserts` as a bare specifier
  * (that is the point — the consumer's bundler dedupes it), and a browser cannot resolve that alone.
  */
+/** The paths the fail-once route has already failed (see `middleware`). */
+const failedOnce = new Set();
+
 export default {
   /**
    * **The root in its canonical spelling, not the launching shell's.** On Windows the drive letter's case follows how the
@@ -53,6 +56,24 @@ export default {
       res.write('data: {"streamed": 21}\n\n');
       setTimeout(() => res.write('event: story\ndata: <em id="sse-pushed">pushed</em>\n\n'), 60);
       ctx.req.on('close', () => res.end());
+    },
+    /**
+     * **A module that fails once, then loads**: `…/fixtures/autoloader/once/<token>/<tag>.js` answers 404 the first time
+     * that exact path is asked for and a module defining `<tag>` every time after, the dropped connection that comes back
+     * which the autoloader's `retry` exists for. The token is the asking row's, so each row on each engine gets its own
+     * first failure from this one server.
+     */
+    async (ctx, next) => {
+      const match = /^\/tests\/browser\/fixtures\/autoloader\/once\/[a-z0-9]+\/([a-z][a-z0-9]*-[a-z0-9-]*)\.js$/.exec(ctx.path);
+      if (match === null) return next();
+      ctx.set('cache-control', 'no-store');
+      if (!failedOnce.has(ctx.path)) {
+        failedOnce.add(ctx.path);
+        ctx.status = 404;
+        return;
+      }
+      ctx.type = 'text/javascript';
+      ctx.body = `customElements.define('${match[1]}', class extends HTMLElement {});\n`;
     },
   ],
   /**
