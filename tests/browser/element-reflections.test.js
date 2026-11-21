@@ -53,6 +53,12 @@ const EXCLUDED = new Set([
    * `shadowRootMode` is **not** here — all three agree on it exactly, and it is in the table.
    */
   'template.shadowRootCustomElementRegistry', 'template.htmlFor', 'template.shadowRootSlotAssignment',
+  /**
+   * `<canvas>`'s `content`, Chromium 159 only: this suite reads it as reflecting a `content` attribute there, and
+   * Firefox 159 and WebKit 27.2 have no such property (both pass this suite with it absent from the table). It
+   * waits, like the `<template>` members above, until all three agree.
+   */
+  'canvas.content',
 ]);
 
 /** The six the table takes a majority on, because the engines disagree and an enumerated state

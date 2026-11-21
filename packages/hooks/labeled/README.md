@@ -27,8 +27,9 @@ wiring.release();      // every attribute back as it was found
   hydration) was not added by this call, so it stays.
 - **Wire a form-associated element after its upgrade** (`await customElements.whenDefined(tag)`): before it, the
   element is not labelable yet, so it is named through `aria-labelledby`, and stays so.
-- **Never decide "is this labeled" from `control.labels`.** Firefox keeps a `labels` list it has handed out stale when
-  a `for` is set afterwards, and a server DOM may not have `labels` at all. The hook compares each label's `for`.
+- **Never decide "is this labeled" from `control.labels`.** Firefox 153 kept a `labels` list it had handed out stale
+  when a `for` was set afterwards (Firefox 159 updates it; the versions between are unmeasured), and a server DOM may not
+  have `labels` at all. The hook compares each label's `for`.
 - **Development warns** (each code is in `diagnostics.json`): a part in a different root from the control is not wired
   (an id reference cannot cross a shadow boundary); an id with whitespace cannot be a token; a control left with no
   accessible name, once per control.

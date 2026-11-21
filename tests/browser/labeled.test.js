@@ -8,14 +8,15 @@
  *
  * axe ships UMD and is loaded as a script tag, as `select-axe.test.js` loads it.
  *
- * No row reads the engine's accessibility TREE: `a11ySnapshot` needs Playwright's `page.accessibility`, which the pinned
- * Playwright (1.62) no longer has, and its replacement (`ariaSnapshot`) is Playwright's own computation, the same code on
+ * No row reads the engine's accessibility TREE: `a11ySnapshot` needs Playwright's `page.accessibility`, which Playwright no
+ * longer has (gone by 1.62), and its replacement (`ariaSnapshot`) is Playwright's own computation, the same code on
  * every engine, so it would be no oracle. What the ENGINE computes is asserted instead: `control.labels` (the platform's
  * label association) and a label click focusing the control; the names and descriptions are audited by axe's rules
  * (`label`, `aria-input-field-name`), each with a control that axe reports the unwired case.
  */
 import { expect } from '@esm-bundle/chai';
 import { labeled } from '../../packages/hooks/labeled/dist/development/vera-labeled.js';
+import { ENGINE, ON } from './engine.js';
 
 await new Promise((resolve, reject) => {
   const script = document.createElement('script');
@@ -53,26 +54,29 @@ describe('labeled in a real engine', () => {
   it('the engine associates the label with the control (control.labels)', () => {
     const q = mount('<label>Email</label><input class="wired"><input class="bare">');
     labeled(q('.wired'), { host: fixture, label: q('label') });
-    /** Read only AFTER wiring: Firefox never updates a `labels` list read before the `for` was set (the row below). */
+    /** Read only AFTER wiring: Firefox 153 never updated a `labels` list read before the `for` was set (the row below). */
     expect([...q('.wired').labels].includes(q('label'))).to.equal(true);
     expect(q('.bare').labels.length, 'CONTROL: the unwired input has no label').to.equal(0);
   });
 
   /**
-   * **The engines' rule, recorded (BROWSER-LEDGER, 2026-11-20):** a control's `labels`, once read, is not updated in
-   * Firefox when a label's `for` is set to the control's id afterwards; Chromium and WebKit update it, as the live
-   * NodeList the spec describes. The label still works in Firefox (a click focuses the control; the row above). So code
-   * must never decide "is this control labeled" from a `labels` it may have read earlier; `labeled` compares each
-   * label's `for` instead. If this row fails on Firefox, the engine changed: update the ledger, not the assertion.
+   * **The engines' rule, recorded (BROWSER-LEDGER, 2026-11-20 and 2026-11-21), keyed by engine and version** because it
+   * moved: a control's `labels`, once read, was not updated in Firefox 153 (Playwright 1.62.1) when a label's `for` was
+   * set to the control's id afterwards; Firefox 159 (Playwright 1.65.1), Chromium and WebKit update it, as the live NodeList
+   * the spec describes. Firefox 154–158 are unmeasured: `< 159` is the first version MEASURED live, not a known boundary,
+   * and this row only ever runs on the pinned builds. `labeled` compares each label's `for` either way (an older Firefox,
+   * and the server DOM, which has no `labels`). When a browser bump changes the answer, this row goes red: measure, then
+   * update the table and the ledger entry together.
    */
-  it('ENGINE RULE: a labels list read before the for is set is stale in Firefox only', () => {
+  it('ENGINE RULE: a labels list read before the for is set is live, except in Firefox 153', () => {
+    expect(ENGINE, `user agent: ${navigator.userAgent}`).to.not.equal(null);
+    const live = !(ENGINE.name === 'Firefox' && ENGINE.version < 159);
     const q = mount('<label>Email</label><input id="ff-labels">');
     const before = q('input').labels.length;
     q('label').setAttribute('for', 'ff-labels');
     const after = q('input').labels.length;
-    const firefox = /Firefox\//.test(navigator.userAgent);
     expect(before).to.equal(0);
-    expect(after, firefox ? 'Firefox keeps the stale list' : 'a live list').to.equal(firefox ? 0 : 1);
+    expect(after, `${ON}: ${live ? 'a live list' : 'the stale list'} (the table's answer)`).to.equal(live ? 1 : 0);
   });
 
   it('a non-labelable focus target is named through aria-labelledby, and axe agrees', async () => {

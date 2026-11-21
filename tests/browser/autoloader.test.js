@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 import { until } from './until.js';
+import { engineOf, ENGINE, ON } from './engine.js';
 
 /**
  * The autoloader, in a real engine.
@@ -266,13 +267,44 @@ const token = () => Math.random().toString(36).slice(2);
 /** Whether an `import()` resolved or rejected: the outcome, not the error text, which differs by engine. */
 const outcome = (url) => import(url).then(() => 'loaded', () => 'failed');
 
-it('an engine keeps a failed module import: the same URL fails again without asking the server; a new URL is asked', async () => {
+/**
+ * **The one table: whether this engine keeps a failed module import**, keyed by what the page can see (engine and version;
+ * the Playwright build that measured each is named, the page cannot read it). Chromium 159 (Playwright 1.65.1, build
+ * 1255) keeps it: the same URL fails again without asking the server. Firefox 159 (build 1572) and WebKit 27 (build 2388)
+ * ask again, and load; Firefox 153 (build 1538) and WebKit 26.5 (Playwright 1.62.1) kept it (2026-11-21). The platform row
+ * checks this engine against it and is meant to go red when a browser bump changes the answer; the retry row takes what
+ * that row MEASURED.
+ */
+const KEEPS_FAILED_IMPORT =
+  ENGINE !== null && !((ENGINE.name === 'Firefox' && ENGINE.version >= 159) || (ENGINE.name === 'WebKit' && ENGINE.version >= 27));
+/** What the platform row measured in this run — `undefined` until it has, which the retry row refuses. */
+let measuredKeeps;
+
+it('the engine is known from its user agent (the table below is never applied to an engine it does not name)', () => {
+  /** The reader's own near-misses: each agent string read as the engine it is, and a bare one as none. */
+  const read = (ua) => engineOf(ua)?.name ?? null;
+  expect(read('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36')).to.equal('Chromium');
+  expect(read('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36')).to.equal('Chromium');
+  expect(read('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15')).to.equal('WebKit');
+  expect(read('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:159.0) Gecko/20100101 Firefox/159.0')).to.equal('Firefox');
+  expect(read('Mozilla/5.0')).to.equal(null);
+  expect(read('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)')).to.equal(null);
+  expect(ENGINE, `user agent: ${navigator.userAgent}`).to.not.equal(null);
+});
+
+it('a failed module import, imported again: kept by Chromium (the same URL fails without asking the server), asked again by Firefox 159 and WebKit 27', async () => {
   const base = new URL(`./fixtures/autoloader/once/${token()}/once-probe.js`, import.meta.url).href;
   expect(await outcome(base), 'the first import met the 404').to.equal('failed');
   /** The route serves this path from now on, so a second failure is the engine's own record (one 404 in the run's log per path). */
-  expect(await outcome(base), 'the same URL is not fetched again').to.equal('failed');
-  expect(await outcome(`${base}?again`), 'CONTROL: a new URL for the same path is fetched, and loads').to.equal('loaded');
-  expect(customElements.get('once-probe'), 'and ran').to.be.a('function');
+  const again = await outcome(base);
+  measuredKeeps = again === 'failed';
+  expect(again, `${ON}: the same URL ${KEEPS_FAILED_IMPORT ? 'is not fetched again' : 'is fetched again, and loads'} (the table's answer; if this engine's build changed it, update KEEPS_FAILED_IMPORT and the BROWSER-LEDGER entry)`).to.equal(KEEPS_FAILED_IMPORT ? 'failed' : 'loaded');
+  /**
+   * CONTROL: the server does answer — through a new URL where the engine kept the failure, and through the same URL where it
+   * asked again (the module then ran: importing it under a new URL would run it twice and define its tag twice, which throws).
+   */
+  if (measuredKeeps) expect(await outcome(`${base}?again`), `${ON}: CONTROL: a new URL for the same path is fetched, and loads`).to.equal('loaded');
+  expect(customElements.get('once-probe'), `${ON}: and ran`).to.be.a('function');
 });
 
 /**
@@ -281,7 +313,7 @@ it('an engine keeps a failed module import: the same URL fails again without ask
  * row waits for whichever comes, the tag defined or that second report, and asserts today's: so it cannot stay quietly
  * off. When `retry` asks with a URL the engine has not seen, this row goes red reading 'loaded'; flip it to assert that.
  */
-it('retry takes the element the error handed you, and tries it again (today: the engine answers from its failed import)', async () => {
+it('retry takes the element the error handed you, and tries it again (today: an engine that keeps a failed import answers from it)', async () => {
   const original = console.error;
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
@@ -309,7 +341,9 @@ it('retry takes the element the error handed you, and tries it again (today: the
       'the retry to load or to report',
       4000,
     );
-    expect(result, 'retry reuses the failed URL, which the engine answers from its record').to.equal('failed again');
+    /** No table of its own: what the platform row measured in this run, so the two rows cannot disagree. */
+    expect(measuredKeeps, `${ON}: the platform row measured this engine first`).to.be.a('boolean');
+    expect(result, `${ON}: retry reuses the failed URL, which ${measuredKeeps ? 'the engine answers from its record' : 'the engine asks for again'}`).to.equal(measuredKeeps ? 'failed again' : 'loaded');
   } finally {
     console.error = original;
     element.remove();

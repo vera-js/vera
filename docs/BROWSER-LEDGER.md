@@ -24,7 +24,15 @@ from another machine, or after that is undone, has a variable changed.
   update the list as the spec's live NodeList (1). Consequence: no code decides "is this control labeled" from
   `labels`, which a caller may have read earlier; `@vera-hooks/labeled` compares each `label[for]` with the control's
   id (which also works on the server DOM, which has no `labels`), and `tests/browser/labeled.test.js` pins each
-  engine's rule. (2026-11-20)
+  engine's rule. (2026-11-20) **SUPERSEDED for Firefox 159 (marked 2026-11-21; the entry below).**
+- **Firefox 159 (Playwright 1.65.1, build 1572) updates a `labels` list read before a label's `for` was set**, as
+  Chromium and WebKit do: the same rows (read `input.labels`, 0; set the `for`; read again) answer 1, where Firefox 153
+  (Playwright 1.62.1) answered 0 (the entry above). Firefox 154–158 are unmeasured, so 159 is the first version measured
+  live, not a known boundary; each browser build ships with its Playwright version, so this does not separate an engine
+  change from one in how Playwright drives it. Measured by `tests/browser/labeled.test.js`, red on Firefox 159 until its
+  rule was keyed by engine and version (read from the user agent by `tests/browser/engine.js`). Consequence: none for
+  code: `@vera-hooks/labeled` still compares each `label[for]` with the id, for an older Firefox and the server DOM.
+  (macOS 27.2.1 on Apple silicon, headless, 2026-11-21.)
 - **The HTML parser foster-parents `<slot>` and custom elements out of table markup.** All engines. A `<slot>` or a
   `<my-row>` written inside `<table><tbody>` is moved out of the table when a template is parsed, so the slot and
   everything distributed into it land outside the table. Consequence: documented as a light-DOM slots limitation that
@@ -144,7 +152,21 @@ from another machine, or after that is undone, has a variable changed.
   test-server route that answers 404 the first time a path is asked for and a module after: the run's log shows one
   request per path, and the second import rejected. Consequence: a retry that re-imports the URL that failed can never
   reach the server; it has to ask with a URL the engine has not seen (`tests/browser/autoloader.test.js`). (Chromium
-  151, Firefox 153, WebKit 26.5, Playwright 1.62.1, Windows 11 build 26200, headless, 2026-11-20.)
+  151, Firefox 153, WebKit 26.5, Playwright 1.62.1, Windows 11 build 26200, headless, 2026-11-20.) **SUPERSEDED for
+  Firefox ≥ 159 and WebKit ≥ 27 (marked 2026-11-21; the entry below): "on all three engines" held for Playwright 1.62.1's
+  builds (Firefox 153 = build 1538, WebKit 26.5).**
+- **Under Playwright 1.65.1's builds, Firefox 159 (build 1572) and WebKit 27.2 (build 2388) fetch a failed module URL
+  again; Chromium (build 1255, Chrome 159) still keeps it.** A second `import()` of the URL whose fetch failed asks the
+  server and loads on the first two, and rejects without a request on Chromium; under 1.62.1 all three kept it (the entry
+  above, and this machine's WebKit 26.5 run of the same rows on 2026-11-21). Measured with the same fail-once route and
+  rows (`tests/browser/autoloader.test.js`), each engine read from its user agent; a copy with the table inverted is red
+  on each engine. Each browser build ships with its Playwright version, so this does not separate an engine change from
+  one in how Playwright drives it. A module that ran on the re-fetch must not be imported again under a new URL in the
+  same page: it runs again and defines its tag again, which throws (measured on both: the tag defined before that import,
+  then `NotSupportedError`, "has already been defined" in Firefox, "Cannot define multiple custom elements with the same
+  tag name" in WebKit). Consequence: a retry that re-imports the failed
+  URL works on two engines and never on Chromium, so `retry()` still has to ask with a URL the engine has not seen. (Playwright
+  1.65.1, macOS 27.2.1 on Apple silicon, headless, 2026-11-21.)
 
 ## CSS and the cascade
 
@@ -831,6 +853,17 @@ from another machine, or after that is undone, has a variable changed.
   the oracle for right to left. (jsdom 25.0.1, Node; 2026-11-20)
 - **Linux WebKit exposes `PublicKeyCredential`, macOS WebKit does not**; a recorded DOM surface must not depend on it.
   (`tests/dom-surface.mjs`)
+- **Chromium 159 (Playwright 1.65.1, build 1255) adds members Firefox 159 and WebKit 27.2 do not have**: on elements,
+  the HTML insertion family `afterHTML`, `appendHTML`, `beforeHTML`, `prependHTML`, `replaceWithHTML`, each with an
+  `…Unsafe` twin, and the streaming family `streamHTML`, `streamAfterHTML`, `streamAppendHTML`, `streamBeforeHTML`,
+  `streamPrependHTML`, `streamReplaceWithHTML`, again each with an `…Unsafe` twin (22); on a shadow root
+  `appendHTML`, `prependHTML`, `streamHTML`, `streamAppendHTML`, `streamPrependHTML` with their twins, plus
+  `referenceTarget` (11); `window.requestResize`; and `<canvas>`'s `content`, which reflects a `content` attribute.
+  Measured by `tests/browser/dom-surface.test.js` and `tests/browser/element-reflections.test.js`, red on Chromium and
+  green on the other two with the tables unchanged. Consequence: all are recorded in the union surface and scoped out
+  of the server DOM with the reason the `setHTML`/`setHTMLUnsafe` and `setResizable` entries already give; `canvas.content`
+  waits outside the reflection table until all three engines agree. (macOS 27.2.1 on Apple silicon, headless,
+  2026-11-21.)
 - **Playwright WebKit stops being able to open a test page after a cumulative number of test files in ONE browser
   instance** ("The browser was unable to create and start a test page after 120000ms", then "page.goto: Target page,
   context or browser has been closed" for the files after it). Chromium and Firefox complete the same run. It is not
@@ -976,6 +1009,14 @@ from another machine, or after that is undone, has a variable changed.
   config sets `rootDir` to the canonical path, the gate and test-batch move into the canonical cwd before spawning
   (`canonicalCwd`), and a comparison of two paths goes through `comparable` (both in `scripts/fs-path.mjs`).
   (@web/test-runner 1.0.0, Windows 11 build 26200, Node 26.13.1, 2026-11-20.)
+- **Playwright's Firefox build 1538 (Playwright 1.62.1) cannot launch on macOS 27.2.1**: every launch times out, the
+  browser's log saying `sandbox_extension_issue_file_to_process failed for …/plugin-container.app: 1 (Operation not
+  permitted)` and `RenderCompositorSWGL failed mapping default framebuffer`; a force-reinstall of the same build changes
+  nothing. In the same process and minute, Chromium launched in 0.6 s and WebKit in 1.0 s on 1.62.1; Firefox 159
+  (build 1572, Playwright 1.65.1) launched headless in 2.8 s and served a page. A full gate lost all 109 Firefox files
+  to it, before any test ran. Consequence: the lock pins Playwright ≥ 1.65.1 (within `@web/test-runner-playwright`'s
+  `^1.53.0`); a Firefox that never launches is an environment failure to check first, not a red row. (Playwright
+  1.62.1 and 1.65.1, macOS 27.2.1 on Apple silicon, Node 24.18.0, headless, 2026-11-21.)
 
 ## Competitors, as their own benchmark entries write them
 
