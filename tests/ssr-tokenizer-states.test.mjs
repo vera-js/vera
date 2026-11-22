@@ -414,6 +414,12 @@ test('an end tag that may close a foreign ancestor of an integration point leave
     if (injected(served)) live.push(served);
   }
   assert.deepEqual(live, []);
+  /**
+   * OVER-ESCAPED, the predicted cost: with an HTML `<div>` current at the point, the parser ignores `</g>` and the
+   * browser's `<style>` is HTML raw text, but the scan, which does not track the div, leaves the point and escapes.
+   */
+  const over = serializeTemplate(template(['<svg><g><foreignObject><div></g><style>', '</style></svg>'], PAYLOAD));
+  assert.ok(!injected(over) && styleParent(over) === 'html' && !over.includes(PAYLOAD), over);
   /** CONTROL: a breakout end tag closes no foreign element, so the point stays HTML and its style raw text. */
   for (const lead of ['<svg><foreignObject><p>x</p>', '<svg><title><span>x</span>', '<svg><foreignObject><br>', '<svg><g><foreignObject></div>']) {
     const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
