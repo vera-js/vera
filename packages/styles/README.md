@@ -1,6 +1,6 @@
 # @verajs/styles
 
-Styles for VeraJS components (<!--size:styles.gzip-->1.21 KB<!--/size:styles.gzip--> gzip): the `css` tag, and
+Styles for VeraJS components (<!--size:styles.gzip-->1.22 KB<!--/size:styles.gzip--> gzip): the `css` tag, and
 `static styles` adopted into every component as it comes to life — constructed stylesheets in a shadow
 root, `@scope`-wrapped hoisting for light DOM, in whatever window the component lives in.
 

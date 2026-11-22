@@ -65,8 +65,9 @@ test(':host() keeps its whole argument, nested parentheses included', async () =
     /** The first `)` is not the argument's end: a compound that goes on after a nested call must survive whole. */
     const out = await hoisted(
       ':host(:not(.a):hover) { color: red }\n:host(:is(.a, :not(.b)).c) b { color: blue }\n:host(.flag) { color: green }\n' +
-        ':host(:not(a):not(b)) { color: gray }'
+        ':host(:not(a):not(b)) { color: gray }\n:host(:not(:is(.a, .b)):hover) { color: navy }'
     );
+    assert.match(out, /:scope:not\(:is\(\.a, \.b\)\):hover \{ color: navy \}/, `two levels of nesting\n${out}`);
     assert.match(out, /:scope:not\(\.a\):hover \{ color: red \}/, out);
     assert.match(out, /:scope:not\(a\):not\(b\) \{ color: gray \}/, out);
     assert.match(out, /:scope:is\(\.a, :not\(\.b\)\)\.c b \{ color: blue \}/, out);

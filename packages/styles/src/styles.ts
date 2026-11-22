@@ -56,10 +56,14 @@ const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1
  * (Tailwind's `.md\:host`), as a captured group because Safari only shipped lookbehind in 16.4.
  * `:host-context()` is not translated: Firefox and WebKit never shipped it. TEXT rather than the
  * CSSOM, so `@verajs/ssr`'s DOM — which has no stylesheet parser — produces the same output.
+ *
+ * `:host(…)`'s argument runs to its own closing parenthesis, not the first one, through two levels of nesting
+ * (`:host(:not(:is(.a, .b)):hover)`): stopping at the first `)` turned `:host(:not(.a):hover)` into
+ * `:scope:not(.a:hover)`, a different selector. `:host()` takes one compound selector, so a third level is not written.
  */
 const forLightDom = (css: string): string =>
   css
-    .replace(/(^|[^\\]):host\(([^)]*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
+    .replace(/(^|[^\\]):host\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
     .replace(/(^|[^\\]):host\b(?!-)(?=[^{};]*\{)/g, (_, before) => `${before}:scope`);
 
 /**

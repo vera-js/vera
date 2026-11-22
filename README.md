@@ -14,7 +14,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer` | 15.00 KB | 6.25 KB |
 | `@verajs/router` | 10.61 KB | 4.41 KB |
 | `@verajs/autoloader` | 4.29 KB | 1.87 KB |
-| `@verajs/styles` | 2.44 KB | 1.21 KB |
+| `@verajs/styles` | 2.47 KB | 1.22 KB |
 | `@verajs/renderer/spread` | 3.22 KB | 1.60 KB |
 | `@verajs/renderer/tag` | 4.82 KB | 2.36 KB |
 | `@verajs/store` | 1.80 KB | 925 B |
@@ -40,7 +40,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
 | `@verajs/directives/directives-sensors` | 7.77 KB | 3.09 KB |
 | `@verajs/directives/directives-remote` | 9.30 KB | 3.77 KB |
-| `@verajs/directives/directives-motion` | 79.03 KB | 25.96 KB |
+| `@verajs/directives/directives-motion` | 79.05 KB | 25.97 KB |
 | `@verajs/motion` | 37.17 KB | 12.33 KB |
 | `@verajs/motion/motion-ssr` | 37.62 KB | 12.21 KB |
 | `@verajs/motion/motion-client` | 8.36 KB | 3.08 KB |

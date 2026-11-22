@@ -27,8 +27,8 @@
       "gzip": 1911
     },
     "styles": {
-      "raw": 2494,
-      "gzip": 1241
+      "raw": 2525,
+      "gzip": 1253
     },
     "spread": {
       "raw": 3301,
@@ -131,8 +131,8 @@
       "gzip": 3865
     },
     "directives-motion": {
-      "raw": 80927,
-      "gzip": 26584
+      "raw": 80952,
+      "gzip": 26591
     },
     "motion": {
       "raw": 38061,

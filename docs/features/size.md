@@ -110,7 +110,7 @@ directions.
 
 The renderer still earns its place on speed rather than bytes; see
 [performance.md](performance.md). An app that uses `static styles` adds `@verajs/styles`
-(<!--size:styles.gzip-->1.21 KB<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
+(<!--size:styles.gzip-->1.22 KB<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
 
 *(Size grew as the renderer was rebuilt for template identity and keying, and again when reactive
 Map/Set moved into core and `@verajs/map-support` was retired. Both were deliberate trades. Whether
@@ -128,7 +128,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer` | 6 401 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 516 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 911 B | lazy component discovery |
-| `@verajs/styles` | 1 241 B | `static styles` adoption, shadow and light DOM |
+| `@verajs/styles` | 1 253 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 642 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 2 414 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/store` | 925 B | the standalone store — subscriptions without components |
@@ -154,7 +154,7 @@ describing the bytes honestly.)*
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 3 165 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 865 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 26 584 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | 26 591 B | the motion pack — presets, easings, paint, path, sequence, split |
 | `@verajs/motion/core` | 12 626 B | the motion engine — compiler + writer, no directives engine, no packs |
 | `@verajs/motion/ssr` | 12 505 B | renderMotion — mark a server document, emit its sheet |
 | `@verajs/motion/client` | 3 149 B | the reader — delivery, drive and functions, no compiler |
