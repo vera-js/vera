@@ -25,6 +25,7 @@ readings and doing accurate tests quickly.".
 | One diagnosis tool (bisect, CPU profile, `--trace-opt/--trace-deopt`, ablation copies) | ≤ 10 min each | when a reading moved |
 | Instruction counters | ≤ 10 min total per decision | only when timing cannot resolve the effect |
 | Race | ≤ 1 h, deciding arms only | once per landing |
+| Full node suites (`npm test`, then `npm run test:prod`) | ~10 min | once before each landing gate: a suite reading across packages (a registration list, a token scan) catches a new file in 10 min, not a 25-min re-gate (2026-11-21) |
 | Gate (`node scripts/gate.mjs`) | ~20–25 min (browsers included) | once per landing |
 
 - **State a step's projected time before it runs.** Over budget: cut it down, or ask Brian before it runs.
