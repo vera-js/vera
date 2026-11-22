@@ -264,16 +264,12 @@ test('on the server, a lite component and a core component with the same source 
   for (const [i, [name, strings, values]] of SHAPES.entries()) {
     const { core: ours, lite: theirs } = pairs[i];
     /**
-     * A static that only LOOKS like an end tag (`</stylex>`, `</style\v>`) is markup the server's DOM declines to parse
-     * (it parses what it can reproduce exactly — the ssr README's known limits), so lite, which parses there, finds no
-     * hole and refuses it, coded (`tier-hole-position`); the serializer serves it. Pinned, so the limit is seen rather
-     * than taken for a pass.
+     * A static that only LOOKS like an end tag (`</stylex>`, `</style\v>`) is served by lite too, and checked like every
+     * other shape: the server's DOM ends raw text where the engines do, at its name followed by whitespace, `/` or `>`
+     * (it took any `</style` as the end, parsed wrong and declined), so lite, which parses there, finds its hole (it was
+     * refused, `tier-hole-position`).
      */
-    if (/no closer/.test(name)) {
-      assert.ok(ours.html, `${name}: core served (${ours.refused ?? ''})`);
-      assert.match(String(theirs.refused), /\(tier-hole-position\)$|\/e\/tier-hole-position$/, `${name}: lite on the server, refused (coded)`);
-      continue;
-    }
+    if (/no closer/.test(name)) assert.ok(!theirs.refused, `${name}: lite on the server serves it (${theirs.refused ?? ''})`);
     assert.ok(ours.html && theirs.html, `${name}: served (${ours.refused ?? ''} ${theirs.refused ?? ''})`);
     const client = rawOf(coreRender(strings, values)).textContent;
     const [a, b] = [reparsed(ours.html), reparsed(theirs.html)].map((root) => rawOf(root));

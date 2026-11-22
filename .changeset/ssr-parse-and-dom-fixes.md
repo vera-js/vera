@@ -21,4 +21,6 @@ The server's markup scan and its DOM now agree with the engines in more places.
   treated as unknown; a `<title>`, `<textarea>` or other text element opened in `<select>` or `<noscript>` markup, or
   where the namespace is unknown, ends only at its own end tag. Where the server cannot know how the browser parses, a
   value is escaped.
+- **A `@verajs/lite` component whose style holds text that only looks like an end tag** (`</stylex>`) is served on the
+  server, the same bytes core writes, where it was refused (`tier-hole-position`).
 - **An unknown `renderToString` option is refused** (`ssr-option-unknown`), naming it and the options there are.

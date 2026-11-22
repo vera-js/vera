@@ -523,10 +523,6 @@ markup itself is served byte for byte as it was written.
   tag-name hole (as core's renderer refuses it in development), while `@verajs/lite`, `@verajs/static` and core in
   production render it (the closer the value completes cannot end the element). Every shorter split (`</sty${x}`)
   renders everywhere. Safe both ways; such CSS is rare.
-- **A `@verajs/lite` component whose raw text holds something that only LOOKS like an end tag** (`<style>p{}</stylex>`,
-  `</style\v`) is refused on the server (`tier-hole-position`): lite parses its template with this DOM, which declines
-  markup it cannot reproduce exactly. Core's components serve it, written as every side writes a style's text
-  (`<\/stylex`). Safe; such text is rare.
 - **A template in an HTML `<title>` or `<textarea>` is refused here** (`ssr-template-in-text`), while core's renderer
   places it and warns in development that it is never shown there. Such a template is a mistake either way, and this
   server cannot write elements a browser would keep there: it reads that content back as text. Render a string.
