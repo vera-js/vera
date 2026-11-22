@@ -437,6 +437,63 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
 }
 
 /**
+ * **And what this DOM has that no engine does** (the extras direction): a member present here alone answers server
+ * code that every browser refuses, so a component that feature-tests for it takes a branch on the server it never
+ * takes on the client — `'labels' in div` was true here alone until `labels` moved onto the labelable interfaces.
+ * Each extra is named with its reason, and the list is exact both ways: an unlisted extra fails, and so does a listed
+ * one that is gone. Public names only (an `_` name is the shim's own), and `on*` handlers, which the surface omits.
+ */
+const KNOWN_GAP = 'inherited from a shared base class the engines split; engines have it only on its own interface (a known gap, being moved)';
+const SHIM_ONLY = {
+  element: {
+    upgrade: 'the registry runs a defined class on an element created before its definition through it (index.ts)',
+    markup: "the serializer's protocol: an element's markup",
+    openTag: "the serializer's protocol: the authored start tag, kept so a parsed tree reproduces its bytes",
+    align: KNOWN_GAP,
+    assignedNodes: KNOWN_GAP,
+    assignedElements: KNOWN_GAP,
+    elementFromPoint: KNOWN_GAP,
+    elementsFromPoint: KNOWN_GAP,
+    getSelection: KNOWN_GAP,
+    getElementById: KNOWN_GAP,
+  },
+  shadowRoot: {
+    templateAttributes: "the serializer's protocol: the declarative shadow root's <template> attributes",
+    styleTags: "the serializer's protocol: the root's adopted sheets as <style> tags",
+    nextElementSibling: KNOWN_GAP,
+    previousElementSibling: KNOWN_GAP,
+    assignedSlot: KNOWN_GAP,
+    offsetParent: KNOWN_GAP,
+    namespaceURI: KNOWN_GAP,
+    prefix: KNOWN_GAP,
+    before: KNOWN_GAP,
+    after: KNOWN_GAP,
+    replaceWith: KNOWN_GAP,
+  },
+  document: {},
+};
+{
+  const subjects = { element: make(), shadowRoot: make().attachShadow({ mode: 'open' }), document: globalThis.document };
+  let seen = 0;
+  for (const [kind, subject] of Object.entries(subjects)) {
+    const have = new Set();
+    for (let object = subject; object && object !== Object.prototype; object = Object.getPrototypeOf(object))
+      for (const name of Object.getOwnPropertyNames(object)) have.add(name);
+    seen += have.size;
+    const listed = new Set(SURFACES[kind]);
+    const extras = [...have].filter((name) => !listed.has(name) && !name.startsWith('_') && name !== 'constructor' && !/^on/.test(name));
+    const unexplained = extras.filter((name) => !(name in SHIM_ONLY[kind]));
+    const gone = Object.keys(SHIM_ONLY[kind]).filter((name) => !extras.includes(name));
+    if (unexplained.length) failures.push(`${kind}: ${unexplained.length} member(s) no engine has, with no reason listed: ${unexplained.join(', ')}`);
+    else pass++;
+    if (gone.length) failures.push(`${kind}: listed as shim-only but no longer an extra (remove it from SHIM_ONLY): ${gone.join(', ')}`);
+    else pass++;
+  }
+  /** The walk read something: three subjects with hundreds of members between them. */
+  if (seen < 300) failures.push(`the extras walk saw only ${seen} members — the walk is broken, not the list`);
+}
+
+/**
  * **The constructors, by rule rather than by list.**
  *
  * A browser exposes about seven hundred interfaces as globals and a server has instances of almost
@@ -522,6 +579,8 @@ const total =
   SHEET_SURFACE.length +
   /** Two completeness checks per shim, plus every interface and every global. Derived, so adding one cannot leave it stale. */
   Object.keys(SURFACES).length * 2 +
+  /** Two extras checks per subject (unexplained, gone). */
+  Object.keys(SHIM_ONLY).length * 2 +
   INSTANCES.length +
   Object.keys(GLOBALS).length;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
