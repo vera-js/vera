@@ -73,8 +73,10 @@ const stateOf = (input: HTMLInputElement): ClearState => ({
  * **Clears through the platform's own editing**, so the input's undo history keeps the text: `select()` then
  * `execCommand('delete')` fires a trusted `input` (`deleteContentBackward`) that frameworks see as typing, and Ctrl/Cmd+Z
  * restores it (measured on Chromium 151, Firefox 153 and WebKit 26.5; the value setter dropped the undo stack on all
- * three). Only where `execCommand` refuses does the setter run, with an `input` and a `change` built from the input's
- * own window, so a framework's `instanceof` checks see their realm's classes.
+ * three). It undoes as the user's own deletion does, no better: Playwright's WebKit 27.2 on macOS usually folds a
+ * delete that follows typing into the typing's undo step, Backspace's too, and no selection change made here opens a
+ * new step (measured 2026-11-22). Only where `execCommand` refuses does the setter run, with an `input` and a
+ * `change` built from the input's own window, so a framework's `instanceof` checks see their realm's classes.
  *
  * The two paths differ on `change`, on purpose: the platform's editing fires it at blur, as for typing, while the
  * setter fires it at once, since a value set by script leaves the input clean and no `change` would ever come.

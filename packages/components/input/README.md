@@ -57,7 +57,7 @@ the element adds nothing and listens to nothing.
 
 The clear button is out of the tab order: from the keyboard, select all and press Delete, or press Escape in a
 `type="search"` input (except while a composite's list is open: Escape closes the list then). Clearing goes through the
-browser's own editing, so Ctrl+Z or Cmd+Z brings the text back, and the `input` event it fires
+browser's own editing, so Ctrl+Z or Cmd+Z undoes it as it undoes your own deletion, and the `input` event it fires
 (`inputType: "deleteContentBackward"`) is a trusted one that frameworks read as typing. Where the browser refuses that
 editing command, the value is set directly and `input` and `change` events are dispatched from the input's own window.
 Focus ends in the input.

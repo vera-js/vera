@@ -206,7 +206,23 @@ from another machine, or after that is undone, has a variable changed.
   `execCommand` at all. Consequence: `<vera-input clearable>` clears through `execCommand`, and the setter (with
   events built from the input's own window) only where `execCommand` is missing or returns `false`; a browser row
   pins both halves, the setter as its control. (Chromium 151, Firefox 153, WebKit 26.5, headless, and Playwright's
-  engines on Windows 11, 2026-11-21.)
+  engines on Windows 11, 2026-11-21.) **WRONG for Playwright's WebKit on macOS when the text was just typed (marked
+  2026-11-22; the entry below): "identical on Chromium, Firefox and WebKit" was measured on Windows only.**
+- **On macOS, Playwright's WebKit usually folds a delete that follows typing into the typing's undo step, so undo
+  empties the field; not every time.** "hello" typed, deleted, then Cmd+Z: Playwright 1.65.1's WebKit 27.2 on macOS
+  27.2.1 mostly leaves the field empty (a second undo and a redo leave it empty too), whether the delete is `select()`
+  then `execCommand('delete')`, Cmd+A then Backspace sent as keys, `forwardDelete` or `insertText ''`, and
+  `execCommand('undo')` brings nothing back; but it was seen both ways: the user's Cmd+A and Backspace came back
+  "hello" in 1 run of 10 alone and once in a full suite run, and a 300 ms or 1 s pause after typing does not close the
+  step (0 of 10 each). Chromium 159 and Firefox 159 on the same machine bring "hello" back in every case. The keystroke
+  reaches the engine (Cmd+Z undoes plain typing), and a value that was not typed (set before focus, as a server serves
+  it) comes back on all three engines. No selection change made by script before the delete opens a new step (caret
+  to 0 first, a backward range, blur and focus, a mouse click on the input); an ArrowLeft sent as a key did in one
+  probe and did not in the next. Consequence: clear promises parity with the user's own deletion, no more:
+  `tests/browser/input.test.js` asserts a served value comes back on every engine (the WebKit check), and typed text
+  comes back "hello" on Chromium and Firefox (pinned: their own deletion does) and either answer on macOS WebKit, with
+  the setter as its control. Safari itself was not measured (Playwright's build and synthetic keys only): whether a
+  native keystroke closes the undo step there is open. (Headless, 2026-11-22.)
 
 ## CSS and the cascade
 

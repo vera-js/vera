@@ -1,6 +1,7 @@
 /**
  * **<vera-input> in the three engines: what jsdom cannot answer.** Clear keeps the input's undo history (the value
- * setter, the control, loses it), and the `input` it fires is trusted; Escape on a real search input; a revealed
+ * setter, the control, loses it): a served value comes back on every engine, and typed text comes back as it does after
+ * the user's own deletion in that engine; the `input` it fires is trusted; Escape on a real search input; a revealed
  * password is a password again by the time the form builds its data (`formdata`, what history and the save-password
  * prompt read). Correctness only, headless: never time with it.
  */
@@ -26,28 +27,78 @@ const mount = async (inner) => {
 /** Undo, as the platform spells it: Meta on Apple engines, Control elsewhere. */
 const undo = () => sendKeys({ press: 'ControlOrMeta+z' });
 
+/**
+ * Playwright's WebKit on a Mac platform: the one place the user's own deletion was measured to undo to empty, and
+ * not every time (1 run in 10 alone, and one in a full suite, brought "hello" back). Its UA also says macOS on
+ * Windows, so the checks below are loose there too (never falsely red); Chromium and Firefox stay strict.
+ */
+const ua = navigator.userAgent;
+const macWebKit = /AppleWebKit/.test(ua) && !/Chrome/.test(ua) && navigator.platform.startsWith('Mac');
+
+/**
+ * What undo brings back after clearing text just typed: "hello", as after the user's own deletion, except on macOS
+ * WebKit, where a delete that follows typing joins the typing's undo step at some runs and not at others, for the
+ * user's own Backspace as for clear, so either answer is the platform's there.
+ */
+const expectUndoneAsOwnDeletion = (value) => {
+  expect(['hello', '']).to.include(value);
+  if (!macWebKit) expect(value).to.equal('hello');
+};
+
+/**
+ * The user's OWN deletion of text they just typed (select all, then Backspace, sent as keys), undone: the behavior
+ * clear promises to match. The pin makes Chromium and Firefox bring "hello" back, so the clear rows' strictness there
+ * rests on a measured platform answer, not on an assumption.
+ */
+const ownDeletionUndo = async () => {
+  const wrap = await mount('<label>n <input></label>');
+  const input = wrap.querySelector('input');
+  input.focus();
+  await sendKeys({ type: 'hello' });
+  await sendKeys({ press: 'ControlOrMeta+a' });
+  await sendKeys({ press: 'Backspace' });
+  expect(input.value).to.equal('');
+  await undo();
+  const restored = input.value;
+  wrap.remove();
+  expect(['hello', '']).to.include(restored);
+  const pin = 'PIN: off macOS WebKit, the user\'s own deletion undoes back to "hello"';
+  if (!macWebKit) expect(restored, pin).to.equal('hello');
+};
+
 describe('vera-input', () => {
-  it('CONTROL: text cleared through the value setter does not come back with undo (the instrument can tell)', async () => {
-    const wrap = await mount('<label>q <input></label>');
+  it('CONTROL: a served value cleared through the value setter does not come back with undo (the instrument can tell)', async () => {
+    const wrap = await mount('<label>q <input value="hello"></label>');
     const input = wrap.querySelector('input');
     input.focus();
-    await sendKeys({ type: 'hello' });
     input.value = '';
     await undo();
     expect(input.value).to.equal('');
     wrap.remove();
   });
 
-  it('clear keeps the undo history: Ctrl/Cmd+Z brings the text back', async () => {
+  it('clear keeps the undo history: Ctrl/Cmd+Z brings a served value back', async () => {
+    const wrap = await mount('<label>q <vera-input clearable><input value="hello"></vera-input></label>');
+    const input = wrap.querySelector('input');
+    input.focus();
+    wrap.querySelector('[data-vera-part="clear"]').click();
+    expect(input.value).to.equal('');
+    expect(document.activeElement).to.equal(input);
+    await undo();
+    expect(input.value).to.equal('hello');
+    wrap.remove();
+  });
+
+  it("clear of typed text undoes as the user's own deletion does (on macOS WebKit: membership only)", async () => {
+    await ownDeletionUndo();
     const wrap = await mount('<label>q <vera-input clearable><input></vera-input></label>');
     const input = wrap.querySelector('input');
     input.focus();
     await sendKeys({ type: 'hello' });
     wrap.querySelector('[data-vera-part="clear"]').click();
     expect(input.value).to.equal('');
-    expect(document.activeElement).to.equal(input);
     await undo();
-    expect(input.value).to.equal('hello');
+    expectUndoneAsOwnDeletion(input.value);
     wrap.remove();
   });
 
@@ -62,10 +113,9 @@ describe('vera-input', () => {
   });
 
   it('Escape clears a search input once, keeps its undo, and is not left to the engine', async () => {
-    const wrap = await mount('<label>q <vera-input clearable><input type="search"></vera-input></label>');
+    const wrap = await mount('<label>q <vera-input clearable><input type="search" value="hello"></vera-input></label>');
     const input = wrap.querySelector('input');
     input.focus();
-    await sendKeys({ type: 'hello' });
     const seen = [];
     input.addEventListener('input', (event) => seen.push(event.inputType));
     await sendKeys({ press: 'Escape' });
@@ -73,6 +123,19 @@ describe('vera-input', () => {
     expect(seen).to.deep.equal(['deleteContentBackward']);
     await undo();
     expect(input.value).to.equal('hello');
+    wrap.remove();
+  });
+
+  it("Escape on typed search text undoes as the user's own deletion does (on macOS WebKit: membership only)", async () => {
+    await ownDeletionUndo();
+    const wrap = await mount('<label>q <vera-input clearable><input type="search"></vera-input></label>');
+    const input = wrap.querySelector('input');
+    input.focus();
+    await sendKeys({ type: 'hello' });
+    await sendKeys({ press: 'Escape' });
+    expect(input.value).to.equal('');
+    await undo();
+    expectUndoneAsOwnDeletion(input.value);
     wrap.remove();
   });
 
