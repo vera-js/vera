@@ -68,8 +68,16 @@ const HTML_ENCODINGS = new Set(['text/html', 'application/xhtml+xml']);
  * text). Exactly the standard's list, plus `font` with a `color`, `face` or `size` attribute (`FONT_BREAKOUT`, tracked
  * per tag in `font`). `</p>` and `</br>` are the two end tags that do.
  */
+/**
+ * **The scope elements that only owe a closer**: a `<table>` or `<object>` (and the obsolete `<applet>`, `<marquee>`)
+ * left open by a template or a value made the PARENT's next markup its content — `<div><table><tr><td></div><p>`
+ * parses the `<p>` into the cell, since `</div>` cannot close across a table, and an `<object>` the same way — where the
+ * client, which parses each template into a fragment, closes them at its end. Tracked so `closersOf` writes their end
+ * tags; nothing inside them parses differently, so a tag below one keeps the fast path (see `scanTag`).
+ */
+const CLOSE_ONLY = new Set(['table', 'object', 'applet', 'marquee']);
 /** The elements that change how what follows them parses, when read in HTML — see the fast path in `scanTag`. */
-const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'select', 'template', ...RAWTEXT, ...TEXT_ONLY]);
+const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'select', 'template', ...CLOSE_ONLY, ...RAWTEXT, ...TEXT_ONLY]);
 /**
  * **`<font>` breaks out when it carries `color`, `face` or `size`** (any case, any value): the standard's conditional
  * breakout, which this scan once never applied — so `<svg><font color=x><style>` was read as SVG while the browser
@@ -257,6 +265,11 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
      */
     opens.push({ name: tagName, foreign, inert, space: '' });
     return foreign + 1;
+  }
+  if (space === 'html' && CLOSE_ONLY.has(tagName)) {
+    /** Tracked for its closer only, at the same depth: its content is HTML as before (see `CLOSE_ONLY`). */
+    opens.push({ name: tagName, foreign, inert, space: 'html' });
+    return foreign;
   }
   if (tagName === 'template' && space !== 'svg' && space !== 'math') {
     /** Inert content only for an HTML `<template>`: inside `<svg>`/`<math>` it is a foreign element, its content live markup. */
@@ -567,9 +580,11 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     /**
      * **Most tags change nothing about how what follows parses.** In HTML with nothing open, only the elements in
      * `STRUCTURAL` do, so every other tag — the `<p>`, `<a>` and `<li>` that are nearly all of real markup — skips the
-     * stack, namespace and breakout work below.
+     * stack, namespace and breakout work below. So does one whose innermost tracked element only owes a closer
+     * (`CLOSE_ONLY`): `structural` reads nothing but the innermost entry, and for one of those it does nothing to such a
+     * tag, so a table's rows and cells cost what they cost outside it.
      */
-    if (foreign === 0 && opens.length === 0 && !STRUCTURAL.has(tagName)) {
+    if (foreign === 0 && (opens.length === 0 || CLOSE_ONLY.has(opens[opens.length - 1].name)) && !STRUCTURAL.has(tagName)) {
       tagName = '';
       closing = false;
       selfClosing = false;
