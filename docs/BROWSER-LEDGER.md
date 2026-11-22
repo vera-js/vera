@@ -298,6 +298,22 @@ from another machine, or after that is undone, has a variable changed.
   WebKit. Consequence: the autoloader's retry adds a query, not a fragment (a fragment would have needed no `new URL`
   and left signed URLs intact), and keeps an integrity-pinned page's URL as it is. (Chromium, Firefox, WebKit,
   headless, a scratch probe on the `failOnce` fixture route, 2026-11-22.)
+- **Firefox and WebKit fire `contextmenu` on the press, so a popover shown from it is light-dismissed at the release.**
+  A right click on an element whose `contextmenu` handler calls `showPopover()` on a `popover="auto"`: Chromium 159
+  fires `contextmenu` after `pointerup`, and the popover stays open; Firefox 159 and WebKit 27.2 fire it between
+  `mousedown` and `pointerup`, and the popover gets `toggle: open` and then `toggle: closed` at the release (the press
+  began outside it, so the platform's light dismiss closes it). Shown in a `pointerup` listener, a microtask after it,
+  or a task after it, it stays open on all three. Playwright 1.65, headless, Windows 11, 2026-11-23. Consequence:
+  `<vera-menu opener="context">` opens in a task after the release when the button is still down at `contextmenu`;
+  `tests/browser/menu.test.js`'s right-click row was red on Firefox and WebKit before it did.
+- **Shift+F10 and the ContextMenu key fire `contextmenu` on Chromium only.** With an element focused: Chromium 159
+  fires one for each, `button` -1, `detail` 0, at the element's center (a real right click there has `button` 2 and
+  also `detail` 0); Firefox 159 and WebKit 27.2 fire none for either (a right click, the control, fires on all three).
+  Playwright 1.65 keys, which go through each engine's own input path, headless, Windows 11, 2026-11-23; a real
+  Firefox or Safari on another OS was not measured. Consequence: `<vera-menu opener="context">` tells a keyboard
+  `contextmenu` by `button === -1`, and on Shift+F10 or ContextMenu opens the menu itself after the key's release only
+  when no `contextmenu` came, so it opens once on every engine; a browser row counts the opens, red on Chromium with
+  the check removed.
 
 ## CSS and the cascade
 

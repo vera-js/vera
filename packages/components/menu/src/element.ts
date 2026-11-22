@@ -53,7 +53,7 @@ const inert = (item: Element): boolean => item.getAttribute('aria-disabled') ===
 const MODIFIERS: Record<string, string> = { ctrl: 'Control', control: 'Control', alt: 'Alt', option: 'Alt', shift: 'Shift', meta: 'Meta', cmd: 'Meta', command: 'Meta', win: 'Meta' };
 /**
  * A shown shortcut in `aria-keyshortcuts`' form ("Control+Shift+K"), or null when it does not parse as words: glyphs
- * such as ⌘ are not guessed. The last part is one character (upper-cased), F1–F24, or a key name of one word.
+ * such as ⌘ are not guessed. The last part is one character (upper-cased), a function key, or a key name of one word.
  */
 const shortcut = (text: string, mac: boolean): string | null => {
   const parts = text.trim().split(/\s*\+\s*/);
@@ -208,7 +208,7 @@ export const setup = (host: MenuHost) => {
       focusOnOpen = at ? 'first' : 'menu';
     };
     /**
-     * The keys: Shift+F10 and the ContextMenu key. Chromium fires its own `contextmenu` for them (`button` -1, at the
+     * The keys: Shift with the tenth function key, and the ContextMenu key. Chromium fires its own `contextmenu` for them (`button` -1, at the
      * focused element's center); Firefox and WebKit fire none (measured on Windows, all three engines). So a key marks
      * itself, and after its release the menu opens in a task only if no `contextmenu` came: never both.
      */
@@ -242,7 +242,6 @@ export const setup = (host: MenuHost) => {
     const onToggle = (event: Event) => {
       const opened = (event as ToggleEvent).newState === 'open';
       shown = opened;
-      host.toggleAttribute('open', opened);
       if (opened) {
         if (focusOnOpen === 'menu') menu.focus();
         else focusEnd(focusOnOpen);

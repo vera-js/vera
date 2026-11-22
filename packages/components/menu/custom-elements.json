@@ -16,10 +16,6 @@
             {
               "name": "opener",
               "description": "Read at connect; Observed, but a later change is not taken. \"context\": the slot=\"target\" child's context menu opens the menu at the pointer, and no trigger is used."
-            },
-            {
-              "name": "open",
-              "description": "Reflected, never read: present while the menu is open."
             }
           ],
           "members": [

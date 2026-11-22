@@ -11,7 +11,6 @@ export const menuSurface = {
     "An action menu over the author's own markup: a trigger button and a slot=\"menu\" container of buttons, links, separators and groups, wired in place as a menu button and a popover menu placed by CSS anchor positioning. It opens from the keyboard or the pointer with focus by modality, moves by the arrows and typeahead, handles checkbox and radio items, fires a cancelable menuaction, and in context mode opens at the pointer over its target.",
   attributes: [
     { name: 'opener', description: 'Read at connect; Observed, but a later change is not taken. "context": the slot="target" child\'s context menu opens the menu at the pointer, and no trigger is used.' },
-    { name: 'open', description: 'Reflected, never read: present while the menu is open.' },
   ],
   properties: [{ name: 'opener', type: 'string | null', description: 'The opener attribute.' }],
   events: [

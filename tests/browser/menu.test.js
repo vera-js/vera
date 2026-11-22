@@ -196,7 +196,9 @@ it('context mode from the keyboard: Shift+F10 and the ContextMenu key open the m
     target.focus();
     await sendKeys({ press });
     await until(() => isOpen(el) && focused() === 'rename', `${ON}: ${press} opened it with the first item focused (focus: ${focused()})`, 2000);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    /** Past the key's release task and the platform's own contextmenu: two frames. */
+    await frame();
+    await frame();
     expect(opens, `${ON}: ${press} opened it once, never twice (the platform's contextmenu and ours)`).to.equal(1);
     if (ANCHORS) {
       const [t, m] = [target.getBoundingClientRect(), menuOf(el).getBoundingClientRect()];
