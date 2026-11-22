@@ -5,7 +5,7 @@
  * `?bool`, `.prop`, `!live`, `@event`, a nested template, an array (unkeyed, reused by index). The full tier's (`@verajs/core` + `@verajs/renderer`) template semantics,
  * with core's refusals (`markup.ts`); keyed lists, spread, refs and hydration are core's alone.
  */
-import { JSON_BLOCK, SHARED, checkForeign, closedRawText, landing, misuse } from '@verajs/shared-utils';
+import { JSON_BLOCK, SCRIPT_URL, SHARED, checkForeign, closedRawText, landing, misuse } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { IN_TAG, RAW, SCRIPT_START, TEXT_MARK, TEXT_MARKS, TEXT_ONLY, VALUE_MARK, WRITTEN_NAME, genuine, onlyCore, refusedName, sayAttributeValue, sayBooleanChild, sayListener, sayRefused, sayScriptUrl, urlCheck } from './markup.js';
 import type { TemplateResult, LiteRoot } from './types.js';
@@ -545,14 +545,14 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
   /** `.prop` and `!live` write a property; anything else an attribute, by its parser name. */
   const property = prefix === '.' || prefix === '!';
   const key = property ? real : name;
+  const check = /*@__NOINLINE__*/ urlCheck(key);
   /**
    * Refused, as core refuses them: `.__proto__` would replace the element's prototype; a bound inline handler or `srcdoc`
-   * attribute would run its value as code or markup. Kept a CALL, never pasted in (CLAUDE.md, the one-caller rule): as
-   * this function's only caller, the minifier would substitute it here as an arrow made and invoked on every call —
-   * every attribute hole created (both checks).
+   * attribute would run its value as code or markup; a `<script>`'s URL (`src`; SVG's `href`) chooses the code it runs.
+   * Kept a CALL, never pasted in (CLAUDE.md, the one-caller rule): as this function's only caller, the minifier would
+   * substitute it here as an arrow made and invoked on every call — every attribute hole created (both checks).
    */
-  if (property ? real === '__proto__' : /*@__NOINLINE__*/ refusedName(name)) return () => {};
-  const check = /*@__NOINLINE__*/ urlCheck(key);
+  if ((property ? real === '__proto__' : /*@__NOINLINE__*/ refusedName(name)) || (check === SCRIPT_URL && element.localName === 'script')) return () => {};
   /** A component's URL-named property is its own business (often an object): only a string is checked there (core's). */
   const custom = property && element.localName.includes('-');
   const whole = statics.length === 2 && !statics[0] && !statics[1];

@@ -505,6 +505,14 @@ class Template {
               diagnostic('renderer', `<${el.localName}>`, 'handler-attribute',
                 __DEV__ && SHARED.handlerAttribute(real, `\`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`)`))
             );
+        } else if (kind !== EVENT && kind !== BOOLEAN && el.localName === 'script' && URL_SINK.exec(real)?.[1] !== undefined) {
+          /**
+           * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs, so a bound one is code arriving
+           * as data — refused, as spread and the server refuse it: the server serves the tag and it runs on load, and an
+           * SVG script from a template runs in WebKit. A URL written in the template is the author's own.
+           */
+          kind = REFUSED;
+          if (__DEV__) console.warn(diagnostic('renderer', '<script>', 'script-source', __DEV__ && SHARED.scriptSource(written)));
         } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
         else if (kind === LIVE && el.localName.includes('-')) kind = LIVE_CUSTOM;
         /**

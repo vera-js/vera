@@ -83,7 +83,9 @@ export const genuine = (strings: TemplateStringsArray): TemplateStringsArray => 
  */
 export const sayRefused = (element: Element, bound: string) => {
   const where = `<${element.localName}>`;
-  if (/^[.!]__proto__$/.test(bound)) console.warn(diagnostic('lite', where, 'proto-binding', __DEV__ && SHARED.protoBinding(bound)));
+  if (element.localName === 'script' && urlCheck(bound.replace(/^[.!]/, '')) === SCRIPT_URL)
+    console.warn(diagnostic('lite', where, 'script-source', __DEV__ && SHARED.scriptSource(bound)));
+  else if (/^[.!]__proto__$/.test(bound)) console.warn(diagnostic('lite', where, 'proto-binding', __DEV__ && SHARED.protoBinding(bound)));
   else if (/^[@.!?]/.test(bound)) return;
   else if (bound === 'srcdoc') console.warn(diagnostic('lite', where, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute('.srcdoc=${…}')));
   else if (INLINE_HANDLER.test(bound))

@@ -90,7 +90,7 @@ where a fresh render holds an empty text node — the same text and the same ren
 
 **Moving up.** A component written for lite runs on `@verajs/core`: add `@verajs/core` and `@verajs/renderer`, change
 the import, and `wire([renderer])`. The refusals are the same in both: escaped text, no script URLs (in an attribute or
-a property), no bound inline handlers.
+a property), no bound inline handlers, no bound `<script>` `src`.
 
 **Server rendering** (`@verajs/ssr`) renders lite components. Lite does not hydrate: on the client, a component's first
 render replaces what the server sent (hydration is `@verajs/core`'s). The page looks the same throughout (measured on

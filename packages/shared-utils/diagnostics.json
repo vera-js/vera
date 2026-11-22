@@ -209,6 +209,14 @@
       "fix": "The binding is ignored."
     },
     {
+      "code": "script-source",
+      "params": [
+        "written"
+      ],
+      "message": "binds `{written}` on a <script>, whose URL chooses the code it runs — refused.",
+      "fix": "Write the URL into the template (it is then the author's own), or load the module with `import()`."
+    },
+    {
       "code": "script-url",
       "params": [
         "name"

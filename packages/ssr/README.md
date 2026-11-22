@@ -293,7 +293,8 @@ unsanitized. Everything else is checked:
 - **A bound `javascript:` URL is never served.** A template value bound where a browser navigates
   (`href`, `src`, `action`, `formaction`, `xlink:href`, `data`, and an SVG animation's `to`, `from`,
   `by` and `values`, item by item) is dropped when it parses as a `javascript:` URL — judged on the attribute's whole value, statics and character references
-  included, as the browser will read it — and a bound `srcdoc` attribute is never served. The client
+  included, as the browser will read it — and a bound `srcdoc` attribute, or a bound URL on a `<script>` (`src`; an
+  SVG script's `href`), from a template or a spread, is never served. The client
   renderer refuses exactly the same values, so the two agree.
 - **`base` contains the module URL.** `renderToString` executes the module it is given, and mapping
   a route to a component file is the obvious way to use a server renderer — so pass `base` whenever

@@ -430,7 +430,8 @@ document.body.append(document.createElement('lite-counter'));
   template ending inside a tag, `unfinished-tag`. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
 - **The same refusals as `@verajs/core`, said the same way in development:** a `javascript:` URL in a URL-bearing
   attribute or property (the attribute removed), a bound inline-handler attribute (`onclick=${…}`: bind `@click=${…}` or
-  `onClick=${…}`), a bound `srcdoc` attribute (trusted markup goes in through `.srcdoc=${trusted}`), and `.__proto__`.
+  `onClick=${…}`), a bound `srcdoc` attribute (trusted markup goes in through `.srcdoc=${trusted}`), `.__proto__`, and a
+  bound URL on a `<script>` (`src`, `.src`; SVG's `href`: `script-source`).
 - **Moving up:** the same component source runs on `@verajs/core`; change the import and `wire([renderer])`.
 - `@verajs/ssr` renders lite components; lite does not hydrate (a component's first client render replaces what the
   server sent: the page looks the same, but input typed, boxes ticked, options chosen, `<details>` opened or containers
@@ -448,7 +449,8 @@ document.body.append(document.createElement('lite-counter'));
   attribute values a value is text; `null`/`undefined` as a whole attribute value removes it; `?name=${…}` is honored; a
   `.prop`, `!live` or `@event` binding and a function in any attribute write nothing (`static-needs-renderer` in
   development); an iterable child renders its items; a `javascript:` URL in a URL attribute is removed (every URL name
-  checked item by item; `script-url` in development); an event-handler or `srcdoc` attribute holding a value is not written; in `<style>` or a JSON data block a value
+  checked item by item; `script-url` in development); an event-handler or `srcdoc` attribute, or a `<script>`'s `src`
+  (SVG's `href`), holding a value is not written; in `<style>` or a JSON data block a value
   is text that cannot end the element. Refused (`static-hole`): a value the parser would drop (a duplicated attribute's
   second occurrence), a value in a tag or attribute name, or inside another
   `<script>` (SVG too), `<iframe>`, `<noscript>`, `<template>` or an obsolete raw-text element. An `<iframe>` is set through its attributes (`src`, `title`), which work here; a `<noscript>` shows only with scripting off, when this tier never runs, so it belongs in the served page (or `@verajs/ssr`).
@@ -759,7 +761,7 @@ closes is the app's to remove. Not the same as `@verajs/renderer/elements` (beha
 ### Spread (`@verajs/renderer/spread`)
 
 ⚠️ Spread REFUSES the injection sinks — `.innerHTML`/`!outerHTML`, `srcdoc`, inline-handler
-attribute names (`onclick`, any casing), and a `javascript:` URL on a key a browser navigates
+attribute names (`onclick`, any casing), a `<script>`'s `src`/`.src` (SVG's `href`), and a `javascript:` URL on a key a browser navigates
 (`href`, `.href`, `src`, …) — on client and server alike, because spread keys arrive at runtime and
 lose the greppable-reviewable property the template spelling has. `on` + Capital with a function is
 the event spelling and works. Need such a sink? Write it in the template (`.srcdoc=${trusted}`,
@@ -896,7 +898,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   onto the link, and every engine runs a `javascript:` one on click. A non-string is converted ONCE (the string checked is the
   string written); a custom element's same-named property (`.data=${rows}`) gets objects untouched and
   only a string is checked. A bound `srcdoc` attribute is refused too — use
-  `.srcdoc=${trusted}`. `@verajs/ssr` refuses the same values, so server and client agree.
+  `.srcdoc=${trusted}`. A bound URL on a `<script>` (`src`, `.src`; SVG's `href`, `xlink:href`) is refused outright
+  (`script-source`): it chooses the code the script runs, so write the URL in the template or load the module with
+  `import()`. `@verajs/ssr` refuses the same values, so server and client agree.
 - A value enters a `<script>` ONLY as a JSON data block: the script's `type`, as written, ends in `json`
   (`application/json`, `application/ld+json`) with no character reference — e.g.
   `<script type="application/ld+json">${JSON.stringify(schema)}</script>`. Any other script hole is REFUSED, in

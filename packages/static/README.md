@@ -57,8 +57,9 @@ each value landed is judged from what the parser built — never guessed from th
   Development says so in core's words (`script-url`).
 - In a `<style>` or a JSON data block (`<script type="application/json">`, any type ending in `json`) a value is TEXT,
   written so that it can never end the element, even if the page's markup is later saved and parsed again.
-- An event-handler attribute (`onclick="…"`) or `srcdoc` holding a value is not written, as `@verajs/core` leaves it
-  out, and development says so in core's words (`handler-attribute`, `srcdoc-attribute`).
+- An event-handler attribute (`onclick="…"`), `srcdoc`, or a `<script>`'s `src` (an SVG script's `href`) holding a
+  value is not written, as `@verajs/core` leaves it out, and development says so in core's words (`handler-attribute`,
+  `srcdoc-attribute`, `script-source`).
 - **Refused**, coded `static-hole`, in every build: a value in a tag or attribute NAME, or inside any other `<script>` (an
   SVG one too), `<iframe>`, `<noscript>`, `<template>` or the obsolete raw-text elements — and a value the HTML parser
   would drop (the second occurrence of a duplicated attribute): every value written must land. Data shaped like a template

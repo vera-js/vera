@@ -97,6 +97,7 @@ from another machine, or after that is undone, has a variable changed.
   SERVER-rendered page is different: the browser parses it as a document, and its scripts run on load.
   (2026-11-17) **WRONG for an SVG `<script>` (marked 2026-11-18, the entry below): it was measured on HTML scripts only.**
 - **An SVG `<script>` parsed into a `<template>` DOES run when cloned or imported and inserted — in Chromium and WebKit.**
+  **STALE for Chromium (marked 2026-11-22, the entry below): Chromium 159 no longer runs it; WebKit 27.2 still does.**
   Chromium 151 and WebKit 26.5 run `<svg><script>…</script></svg>` from a template's content, `cloneNode` and
   `importNode` alike; Firefox 153 does not (it runs one from `createContextualFragment`). The same probe's HTML
   `<script>` ran from none of them (only `createContextualFragment`, everywhere), and a `createElement('script')` ran
@@ -1219,3 +1220,10 @@ For a fair race (each written the way that framework's own js-framework-benchmar
 - **Van.js 1.6:** per-row states, with DOM updates on a microtask.
 - **React:** a swap moves every row in between.
 (2026-10-18)
+- **A `<script>`'s URL chooses the code it runs, and an SVG script from a template still runs in WebKit.** A template's
+  content cloned and inserted: WebKit 27.2 runs an SVG `<script>`, inline and by `href` (a `data:` URL); Chromium
+  159 and Firefox 159 run neither; an HTML `<script>`, inline or by `src`, ran in none of the three; a
+  `createElement('script')` ran in all three (the positive control). Playwright 1.65, headless, 2026-11-22. Consequence:
+  a bound script URL (`src`, `.src`; an SVG script's `href`, `xlink:href`) is refused by every renderer and the server
+  (`script-source`): in WebKit a bound SVG script `href` runs the code it names on the client, and a page the server
+  rendered runs any script's `src` on load.

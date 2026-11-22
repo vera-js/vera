@@ -1322,8 +1322,10 @@ changes its answer cannot pass as one URL and land as another. A custom element'
 name (`<my-chart .data=${rows}>`) is its own business: an object arrives untouched, and only a string is
 checked. A bound `srcdoc`
 *attribute* is refused outright, because it renders its value as an HTML document —
-`.srcdoc=${trusted}` is the deliberate spelling, exactly as `.innerHTML` is. There is no opt-out for
-URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.
+`.srcdoc=${trusted}` is the deliberate spelling, exactly as `.innerHTML` is. A bound URL on a `<script>` (`src` or
+`.src`; an SVG script's `href` or `xlink:href`) is refused outright (`script-source`), whatever it holds: it chooses the
+code the script runs, and a page `@verajs/ssr` served runs it on load. Write the URL into the template, where it is
+yours, or load the module with `import()`. There is no opt-out for URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.
 Development builds name each refusal.
 
 **Security: a value enters a `<script>` only as a JSON data block.** A value in a script's text is code: on a page
@@ -1375,7 +1377,8 @@ yourself, or put it in a template hole, which does.
 **Security: spread refuses the injection sinks.** The `.innerHTML` posture above rests on the
 template spelling being greppable, obviously yours, and reviewable — three properties a spread key
 does not have, because spread names arrive at runtime inside a props object that is often built
-from data. So `spread()` refuses `.innerHTML`/`!outerHTML` property keys, the `srcdoc` attribute,
+from data. So `spread()` refuses `.innerHTML`/`!outerHTML` property keys, the `srcdoc` attribute, a `<script>`'s
+`src`/`.src` (an SVG script's `href`, `xlink:href`),
 any inline-handler attribute name (`onclick` and friends, any casing — `on` + Capital with a
 function remains the documented event spelling and still works), and — as a template binding is —
 a `javascript:` URL on a key a browser navigates (`href`, `.href` and the rest), on the client AND

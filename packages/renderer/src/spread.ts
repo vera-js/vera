@@ -111,7 +111,15 @@ class Binding {
    */
   _read: Untracked | null;
   constructor(element: Element, key: string, untracked: Untracked) {
-    const [resolved, name] = resolve(key);
+    let [resolved, name] = resolve(key);
+    /**
+     * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs: refused, as the renderer and the
+     * server refuse it. Decided here, where the element is known (`resolve` has none; the server half's caller has it).
+     */
+    if ((resolved === ATTR || resolved === PROPERTY || resolved === LIVE) && element.localName === 'script' && URL_SINK.exec(name as string)?.[1] !== undefined) {
+      resolved = REFUSED;
+      name = 6;
+    }
     /** A `<select>`'s selection is live, as in a template — the same rule, asked of the same function. */
     const kind = (resolved === PROPERTY || resolved === LIVE) && isSelection(element, name) ? LIVE : resolved;
     if (__DEV__ && (resolved === PROPERTY || resolved === LIVE) && isSelection(element, name)) saySelectMultiple(element, name, 'spread');
@@ -135,6 +143,7 @@ class Binding {
         else if (why === 2) console.warn(diagnostic('spread', at, 'spread-inner-html', __DEV__ && PROSE['spread-inner-html'](written)));
         else if (why === 3) console.warn(diagnostic('spread', at, 'proto-binding', __DEV__ && SHARED.protoBinding(written)));
         else if (why === 4) console.warn(diagnostic('spread', at, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute("'.srcdoc': trusted")));
+        else if (why === 6) console.warn(diagnostic('spread', at, 'script-source', __DEV__ && SHARED.scriptSource(written)));
         else
           console.warn(
             diagnostic('spread', at, 'handler-attribute',

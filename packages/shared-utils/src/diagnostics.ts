@@ -114,6 +114,11 @@ export const srcdocAttribute: Prose = (property) => [
   'binds the `srcdoc` attribute, which renders its value as an HTML document — refused.',
   `If the markup is trusted and sanitized, bind the property: \`${property}\`.`,
 ];
+/** Every emitter and the server: a bound URL on a `<script>` (`src`, SVG's `href`). `written` is the binding as written. */
+export const scriptSource: Prose = (written) => [
+  `binds \`${written}\` on a <script>, whose URL chooses the code it runs — refused.`,
+  'Write the URL into the template (it is then the author\'s own), or load the module with `import()`.',
+];
 /** The renderer and spread: a bound inline-handler attribute (`onclick`). `event` is the emitter's event spelling(s). */
 export const handlerAttribute: Prose = (name, event) => [
   `binds the \`${name}\` attribute, which runs its value as code — refused.`,
