@@ -105,3 +105,29 @@ export type ComponentSurface = {
   /** Every CSS custom property the component reads. */
   readonly tokens: readonly string[];
 };
+
+/**
+ * **The states a component is shown in, as data** — `src/<component>/demo.ts` in each component package, beside its
+ * surface, declared `as const satisfies ComponentDemo`. The preview page is generated from every package's demo, and
+ * `tests/component-demos.test.mjs` holds each one to its surface: every state renders with no warning, and every
+ * attribute and part the surface declares appears in some state. That check reads the RENDERED DOM, so a part the
+ * user writes (a prefix the demo's markup supplies) counts, and so does a part that is present but hidden.
+ *
+ * Markup only, no script, so a demo stays readable by anything and buildless. A part that is not in the DOM until the
+ * reader does something (a caps-lock hint after a key press) is listed in `interactive` with how to reach it, which the
+ * check accepts as covered and the page shows. Demos are not published: `files` ships `dist` and the manifest only.
+ */
+export type ComponentDemo = {
+  /** What the reviewer is asked to judge: the look, the wording, the behavior worth trying. One or two sentences. */
+  readonly ask: string;
+  /** Each state the component ships with, in the order to show them. */
+  readonly states: readonly {
+    readonly title: string;
+    /** What this state shows, when the title alone does not say it. */
+    readonly note?: string;
+    /** The state's HTML, as a page author would write it. */
+    readonly markup: string;
+  }[];
+  /** Parts reached only by interaction: the part's name and what to do to see it. */
+  readonly interactive?: readonly { readonly part: string; readonly how: string }[];
+};

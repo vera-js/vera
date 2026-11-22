@@ -7,8 +7,9 @@
  * It writes the anatomy `DESIGN.md` §2.5 describes and registers the package in the root build, `tsconfig.json`'s
  * paths, `tests/dist.mjs`, the docs-imports and recipes maps and the diagnostics tables. A component also gets its
  * declared surface, `src/<name>/surface.ts` (`as const satisfies ComponentSurface` from `@verajs/shared-types`: its tag,
- * the description given, and its one part, `root`), and the `custom-elements.json` `scripts/generate-cem.mjs` writes
- * from it. `tests/package-structure.test.mjs` holds every package to that shape, so a package this script writes passes
+ * the description given, and its one part, `root`), the `custom-elements.json` `scripts/generate-cem.mjs` writes
+ * from it, and its demo, `src/<name>/demo.ts` (`ComponentDemo`: one default state, which the preview page shows and
+ * `tests/component-demos.test.mjs` holds to the surface). `tests/package-structure.test.mjs` holds every package to that shape, so a package this script writes passes
  * it on the day it is made. The registries are edited at fixed anchor lines, and the script refuses when an anchor is
  * missing rather than guess. Then run
  * `npm install` (a new workspace needs its links; check `find node_modules -maxdepth 2 -type l` first, CLAUDE.md).
@@ -186,6 +187,18 @@ export const ${surfaceName} = {
   customStates: [],
   tokens: [],
 } as const satisfies ComponentSurface;
+`,
+        [`src/${name}/demo.ts`]: `import type { ComponentDemo } from '@verajs/shared-types';
+
+/**
+ * **<${tag}>'s states, as the preview page shows them** (\`ComponentDemo\`: the page is generated from this, and
+ * \`tests/component-demos.test.mjs\` holds it to the surface, so an attribute or part added to the element is shown here
+ * in the same change).
+ */
+export const ${surfaceName.replace(/Surface$/, 'Demo')} = {
+  ask: 'What the reviewer should judge: the look, the wording, the behavior worth trying.',
+  states: [{ title: 'Default', markup: '<${tag}></${tag}>' }],
+} as const satisfies ComponentDemo;
 `,
       }
     : { 'src/index.ts': `/** **${own}: a headless hook.** Re-exports only. */\nexport {};\n` };
