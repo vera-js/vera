@@ -45,7 +45,7 @@ test("the user's own input is kept where it is, with their prefix and suffix, an
   assert.deepEqual([...element.children].map((child) => child.getAttribute('data-vera-part') ?? child.localName), ['prefix', 'input', 'suffix']);
   assert.equal(input.getAttribute('data-vera-part'), null, 'the user input is not marked as ours');
   await task();
-  assert.deepEqual(codes(), [], 'a labelled input with no options says nothing');
+  assert.deepEqual(codes(), [], 'a labeled input with no options says nothing');
 });
 
 test('with no input inside, a default one is made from the listed host attributes, and a later host change is not mirrored', async () => {
@@ -300,7 +300,7 @@ test("children that arrive after connect: the user's input takes over from the d
   clear.click();
   assert.equal(mine.value, '', 'clear acts on it');
   await task();
-  assert.deepEqual(said, [], 'labelled by its label, nothing to say');
+  assert.deepEqual(said, [], 'labeled by its label, nothing to say');
 });
 
 test('a late input inside a wrapper is found too', async () => {

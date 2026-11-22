@@ -84,7 +84,7 @@ only visual.
 ## Look
 
 - The clear and reveal buttons draw their glyphs (× and ● / ○) as generated content with empty alt text: each button
-  is named by its label, and a copy of the field never picks a glyph up. The loading mark is a small turning ring in
+  is named by its label, never by its glyph. The loading mark is a small turning ring in
   `currentColor`; under `prefers-reduced-motion: reduce` it pulses slowly instead, so "busy" stays visible, and in
   forced colors it keeps two system colors.
 - The rules are adopted by the element itself, so the buttons are seen whether or not the app wired `@verajs/styles`.

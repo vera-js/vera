@@ -36,7 +36,6 @@ interface InputHost extends HTMLElement {
   capsLockMessage: string | null;
 }
 
-/** The input the element serves: the user's own, else the default one it rendered. */
 /**
  * **The input the element serves: the user's own, else the default one it rendered.** The first `<input>` in the host,
  * in tree order, that is not inside another custom element (an affix holding another component, a light-DOM select's
@@ -123,7 +122,12 @@ const warn = (host: InputHost, input: HTMLInputElement): void => {
     type: input.type,
     sizeOnHost: host.hasAttribute('size'),
   }))
-    console.warn(diagnostic('input', subject, code, __DEV__ && PROSE[code](quoted(input.type))));
+    /** Each code is named literally at its call (the diagnostics table reads the calls); a new one fails the type check here. */
+    if (code === 'input-no-name') console.warn(diagnostic('input', subject, 'input-no-name', __DEV__ && PROSE['input-no-name']()));
+    else if (code === 'input-reveal-not-password')
+      console.warn(diagnostic('input', subject, 'input-reveal-not-password', __DEV__ && PROSE['input-reveal-not-password'](quoted(input.type))));
+    else if (code === 'input-size-on-host') console.warn(diagnostic('input', subject, 'input-size-on-host', __DEV__ && PROSE['input-size-on-host']()));
+    else code satisfies never;
 };
 
 /**

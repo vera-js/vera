@@ -273,6 +273,11 @@ const CLAIMS = new Map([
   ['packages/components/icon/README.md#87b616288b', 'icon-two-sources'], // both a child <svg> and src: the child wins — development says so
   ['packages/components/icon/README.md#fe276a1ee1', 'pinned by tests/icon.test.mjs: the decorative default and the label mode switch, both ways'], // naming: aria-hidden by default, role=img + aria-label with label
   ['packages/components/spinner/README.md#a8d4a1ca46', 'pinned by tests/spinner-element.test.mjs: a busy owner keeps the spinner silent, read when the window closes'], // the owner speaks; one that does not leaves the load unspoken
+  ['packages/components/input/README.md#66aa381822', 'input-no-name'], // Development warns when the input has no accessible name.
+  ['packages/components/input/README.md#99a0978f84', 'input-host-changed'], // the five are read once; a later host change does not reach the input, and development says so
+  ['packages/components/input/README.md#0d3725c949', 'input-size-on-host'], // not size (development warns on a host size)
+  ['packages/components/input/README.md#a94af9870c', 'input-reveal-not-password'], // reveal on another type does nothing, and development says so
+  ['packages/components/input/README.md#84281e2bfe', 'pinned by tests/browser/input.test.js: the glyph is shown, hides with the part, and another component of the same part name gets none'], // glyphs as generated content with empty alt text; named by the label
   ['packages/components/icon/README.md#4910d24a5b', 'icon-scheme'], // every scheme but relative and same-origin http(s) is refused — development says why
   ['llms.txt#c5ee82cf78', 'pinned by tests/renderer-until.test.mjs: a rejection is the platform\'s unhandled rejection, with the fallback kept (the child-process row)'], // A rejection keeps the fallback and the BROWSER reports it (unhandled: console + `unhandledrejection`); …
   ['packages/renderer/README.md#4f2635a426', 'pinned by tests/renderer-until.test.mjs: continuity, a dropped late answer, removal, a non-promise, and a rejection reported by the platform — each its own row'], // Make the promise in the setup, as above; … - **A rejection** keeps the fallback, and the browser reports it …
@@ -311,7 +316,8 @@ test('every entry still has its sentence', () => {
 test('every cited code exists in a diagnostics table and some test asserts it; every pinning test exists', () => {
   for (const [k, value] of CLAIMS) {
     if (value.startsWith('not a promise:')) continue;
-    const pinned = value.match(/^pinned by (tests\/[\w.-]+): ./);
+    /** A pin may name a browser row (`tests/browser/<file>`): the look is only readable in an engine. */
+    const pinned = value.match(/^pinned by (tests\/(?:browser\/)?[\w.-]+): ./);
     if (pinned) {
       assert.ok(existsSync(root + pinned[1]), `${k} is pinned by ${pinned[1]}, which does not exist`);
       continue;
