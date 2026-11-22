@@ -30,8 +30,8 @@
     }
   },
   "peerDependencies": {
-    "@verajs/core": "^0.4.2",
-    "@verajs/renderer": "^0.3.1"
+    "@verajs/core": "^0.5.0",
+    "@verajs/renderer": "^0.3.2"
   },
   "dependencies": {
     "@vera-hooks/listbox": "^0.1.0"

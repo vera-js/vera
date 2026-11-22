@@ -1,5 +1,14 @@
 # @verajs/store
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [f6f470d]
+- Updated dependencies [deff2a3]
+- Updated dependencies [71b9d17]
+  - @verajs/core@0.5.0
+
 ## 0.2.0
 
 ### Minor Changes

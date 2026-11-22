@@ -1,5 +1,25 @@
 # @verajs/core
 
+## 0.5.0
+
+### Minor Changes
+
+- 71b9d17: `isServer` is now a function, `isServer()`, read when it is called. As a constant computed when core loaded, it answered
+  `false` for the whole process whenever core was imported before `@verajs/ssr`, so per-user state guarded by it was
+  rendered into server markup. **Code written as `if (!isServer) …` must become `if (!isServer()) …`**: a function is
+  always truthy, so the old spelling no longer throws, it silently takes the server branch everywhere, in the browser
+  too. TypeScript (strict, 6.0.3) reports `if (isServer)`, `isServer ? … : …` and `isServer && …` as TS2774, but not
+  `if (!isServer)`, the guard's usual spelling: search for `isServer` not followed by `(` (`grep -rnE 'isServer($|[^(])'`).
+  `@verajs/lite` gains the same `isServer()`, so a component guarding per-user state runs unchanged on either tier.
+
+### Patch Changes
+
+- f6f470d: `define({ tag, formAssociated: true }, setup)` makes a form-associated custom element: the class gets the platform's
+  `static formAssociated = true` before it is registered, so a form lists it and submits the value its internals set, and
+  its form callbacks (given as `methods`) are called.
+- deff2a3: `define({ tag, register: false }, setup)` builds the component class and returns it without registering it, so the
+  caller decides when and under which name it is defined; `customElements.get(tag)` stays `undefined` until then.
+
 ## 0.4.2
 
 ### Patch Changes

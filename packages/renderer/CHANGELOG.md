@@ -1,5 +1,17 @@
 # @verajs/renderer
 
+## 0.3.2
+
+### Patch Changes
+
+- 71b9d17: The server is marked by one global flag, which `isServer()` and the renderer read. `@verajs/ssr` still also sets the
+  old `globalThis.__veraSsrShimmed`, because `@verajs/renderer` 0.3.1 and earlier read only that flag. It will stop
+  setting it once no supported renderer version reads it.
+- Updated dependencies [f6f470d]
+- Updated dependencies [deff2a3]
+- Updated dependencies [71b9d17]
+  - @verajs/core@0.5.0
+
 ## 0.3.1
 
 ### Patch Changes

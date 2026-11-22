@@ -1,5 +1,72 @@
 # @verajs/ssr
 
+## 0.3.7
+
+### Patch Changes
+
+- 81ae14f: The server reads an open tag's attributes as the parser does, quotes included, everywhere it edits markup it already
+  wrote. Removing a name before writing it again (a spread key, a bound attribute after a static one), an option's
+  `value` and its `selected` were three patterns over the written markup that did not see quotes or the end of a name, so
+  they matched text the parser reads as part of a value:
+  
+  - a spread's `id` (or any key) after a value holding ` id=…` cut that value open, and the rest of the spread's value was
+    served as attributes, a live event handler included;
+  - a spread's `src` cut `srcset=` to `set=`, and a bound `href` removed the word `href` from a static title;
+  - `<select .value=…>` read an option's value from `data-value` or from a title holding `value=…`, and selected the
+    wrong option, and clearing an author's `selected` removed the word from a title;
+  - every earlier copy of a name is now removed before it is written again, not only the first: the parser keeps the
+    first of a duplicated name and the client's write replaces it, so any copy left behind would be the one served.
+  
+  On a seeded corpus of 30,000 templates, the served markup changed only where a name was written twice in the statics.
+- e17a2a4: With `base`, a module URL given as a string (`./`, `../`, `/` or a scheme) is resolved before it is checked, as
+  `import()` resolves it, and the URL checked is the URL imported: a `../` or `%2e%2e` segment after the base was compared
+  as written, passed the check, and ran a module outside the base. A bare specifier with `base` is refused, as before.
+- f9b104b: Inside `<svg>` or `<math>`, a `<font>` with a static `color`, `face` or `size` attribute ends foreign content, as the
+  HTML parser reads it. The server now reads it the same way: a hole after it is served where the browser puts it (a
+  value after `<font color=x><style>` and a static `<!--` was dropped), and a registered component after it is rendered
+  on the server instead of only on the client. A bound one (`<font color=${c}>`) keeps the foreign reading for the
+  template's own holes, as the client's template parse does; the nested-component scan reads the served page, so it
+  renders a component after one, which the client leaves a foreign element.
+- cea08ab: The server DOM has `labels` on every labelable element (`input`, `button`, `select`, `textarea`, `meter`, `output`,
+  `progress`): the `<label>`s whose labeled control it is, by HTML's rule, `null` on an `<input type=hidden>`, as in
+  every engine. It read `undefined`, so server code treated a control named by `label[for]` as unnamed.
+  
+  Generated ids (`@vera-hooks/labeled` and every hook counting through the shared id counter) restart at each render, so
+  one page serves the same markup on every request; before, the count ran on for the life of the process. Ids are unique
+  within a render: render a page in one call, or its ids can repeat.
+- dccb356: A light-DOM component inside a served declarative shadow root gets its `@scope (tag)` block inside that root, once
+  per class per root and in every render (`seen` governs the page's styles only), so it is styled at first paint. Before,
+  every light block went to the page's `styles`, which a shadow root's content never sees, so such a component was
+  unstyled until hydration. The block is served as `<style data-vm-sheet="light">`, so the client can tell it from
+  the root's own styles. A light child slotted into a shadow host sits in the page's light DOM, so its block is still
+  the page's. On the server, `document.contains` now answers as browsers do for a node inside a shadow root (`false`).
+- 71b9d17: The server is marked by one global flag, which `isServer()` and the renderer read. `@verajs/ssr` still also sets the
+  old `globalThis.__veraSsrShimmed`, because `@verajs/renderer` 0.3.1 and earlier read only that flag. It will stop
+  setting it once no supported renderer version reads it.
+- 25fb166: A value inside an open `<select>` is never written as raw text: a `<style>` hole there is served escaped, as inside
+  `<svg>`, `<math>` and `<noscript>`. The select parser before customizable select (jsdom's, and older browsers') reads
+  that `<style>` as markup, so a value holding `</select><img onerror>` ran there. A `<script>` or `<textarea>` straight
+  inside a select is read as before: both parsers read its content as text.
+  
+  A hole in a `<script>` whose namespace the server cannot know is refused (`ssr-script-hole`): one in a template
+  rendered inside `<svg>` (an `<svg><template>` too) or `<math>`, or inside `<noscript>`. It was served as escaped text,
+  which does nothing to code, and an SVG script runs. A hole inside a tag in an SVG script's content is refused too.
+  `.innerHTML` on or inside a `<select>` is served as escaped text until hydration, and a `<select>` a template or an
+  `.innerHTML` value leaves open is closed at its end.
+- 4a6402e: A sigil binding whose value holds statics or several holes is served as the client renders it. With a static before
+  its hole (`@click="x${fn}"`, `?hidden="x${v}"`, `.value="x${v}"`) the binding was served as a literal attribute: an
+  event binding wrote the handler's source into the page. A `?bool`, `.prop` or `!live` value with several holes took the
+  first hole alone; it is now the joined text, as on the client (`?hidden="${false} ${''}"` is truthy, `.value="${a}
+  ${b}"` is `"a b"`). And a nullish value bound after a static attribute of the same name (`<a title=x title=${null}>`)
+  removes that attribute, as the client's `removeAttribute` does, as does a refused `javascript:` URL.
+- Updated dependencies [f6f470d]
+- Updated dependencies [deff2a3]
+- Updated dependencies [71b9d17]
+- Updated dependencies [3161f52]
+- Updated dependencies [a1fde80]
+  - @verajs/core@0.5.0
+  - @verajs/styles@0.1.4
+
 ## 0.3.6
 
 ### Patch Changes
