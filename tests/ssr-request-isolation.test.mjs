@@ -5,7 +5,7 @@
  * This import installs the server environment and MUST come before anything that pulls in
  * `@verajs/renderer`.
  */
-import { renderToString, serializeTemplate } from '@verajs/ssr';
+import { renderToString, renderToStringAsync, serializeTemplate } from '@verajs/ssr';
 import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -539,6 +539,23 @@ for (const [what, file, message] of [
 
   const fine = await renderToString(url, { attributes: 'id="x"', children: '', props: {}, seen: new Set() });
   assert.match(fine.html, /^<hello-ssr id="x">/, 'valid options are unaffected');
+}
+
+/**
+ * **A name that is not an option is refused too** (`ssr-option-unknown`), in both entry points: `timeOut`, `prop` or
+ * `attrs` reads like the real thing and configured nothing, so the page rendered with the default and said nothing.
+ * The message lists the options, read from the checks themselves.
+ */
+{
+  const url = fixture('hello-ssr.js');
+  for (const name of ['timeOut', 'prop', 'attrs', 'child', 'Static', 'url']) {
+    await assert.rejects(() => renderToString(url, { [name]: 1 }), new RegExp(`"${name}" is not an option[\\s\\S]*\\(ssr-option-unknown\\)$`), `${name} was not refused`);
+    await assert.rejects(() => renderToStringAsync(url, { [name]: 1 }), /\(ssr-option-unknown\)$/, `${name} was not refused (async)`);
+  }
+  await assert.rejects(() => renderToString(url, { timeOut: 1 }), /tag, attributes, props, children, seen, base, location, static, timeout/);
+  /** CONTROL: every real option, together, renders. */
+  const all = await renderToString(url, { tag: 'hello-ssr', attributes: {}, props: {}, children: '', seen: new Set(), location: 'https://example.test/', static: false, timeout: 100 });
+  assert.match(all.html, /^<hello-ssr/);
 }
 
 /* ── the shim as a DOM ────────────────────────────────────────────────────────────────────────
