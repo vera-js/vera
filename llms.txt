@@ -1721,7 +1721,7 @@ is probably a mistake (a controlled `value` with nothing keeping it in step).
 <script type="importmap">
 { "imports": {
     "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.5.0/dist/vera.min.js",
-    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.3.2/dist/vera-renderer.min.js",
+    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.3.3/dist/vera-renderer.min.js",
     "@verajs/jsx":      "https://cdn.jsdelivr.net/npm/@verajs/jsx@0.4.0/dist/vera-jsx-standalone.min.js"
 } }
 </script>
