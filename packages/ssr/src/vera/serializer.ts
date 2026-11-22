@@ -1310,7 +1310,10 @@ const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quo
  * outcome as an option that genuinely does not match, and is already a documented divergence.
  */
 const decodeRefs = (text: string): string =>
-  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/g, (whole: string, dec?: string, hex?: string, name?: string) =>
+  /** Most option text holds no reference: one native search, and no regex or callback, answers it. */
+  text.indexOf('&') === -1
+    ? text
+    : text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/g, (whole: string, dec?: string, hex?: string, name?: string) =>
     /** Neither number matched, so the name did. */
     dec ? decodeCodePoint(+dec) : hex ? decodeCodePoint(parseInt(hex, 16)) : NAMED[name!] ?? whole
   );
@@ -1323,8 +1326,10 @@ const decodeRefs = (text: string): string =>
 const optionText = (content: string, from: number): string => {
   let to = content.length;
   for (let at = content.indexOf('<', from); at !== -1; at = content.indexOf('<', at + 1)) {
-    const close = at + 1 < content.length && content.charCodeAt(at + 1) === 47;
-    if (close ? isTagAt(content, at, '/option') || isTagAt(content, at, '/optgroup') || isTagAt(content, at, '/select') : isTagAt(content, at, 'option') || isTagAt(content, at, 'optgroup')) {
+    /** The character after `<` decides which names can follow, so a `<` opening any other tag costs no call. */
+    let c = content.charCodeAt(at + 1);
+    if (c >= 65 && c <= 90) c += 32;
+    if (c === 47 ? isTagAt(content, at, '/option') || isTagAt(content, at, '/optgroup') || isTagAt(content, at, '/select') : c === 111 && (isTagAt(content, at, 'option') || isTagAt(content, at, 'optgroup'))) {
       to = at;
       break;
     }
@@ -1359,7 +1364,8 @@ const markSelected = (content: string, wanted: string | number): string => {
   let marked = false;
   for (let start = nextTag(content, 'option', 0); start !== -1; start = nextTag(content, 'option', last)) {
     spans.length = 0;
-    const end = readTag(content, start, spans);
+    /** `<option>` with no attributes ends at its `>`: nothing to read. */
+    const end = content.charCodeAt(start + 7) === 62 ? start + 8 : readTag(content, start, spans);
     /** Where ` selected` goes: after the last attribute kept, or after the tag name. */
     let insertAt = start + 7;
     let value: string | undefined;
@@ -1393,6 +1399,19 @@ const markSelected = (content: string, wanted: string | number): string => {
 };
 
 /**
+ * The next `<select` at or after `from` that may carry the mark: found by searching for the mark's text and stepping
+ * back to the `<` before it (one native search per select, where walking every `<` of the markup was most of a cold
+ * select's cost). When that `<` is not a select's (the mark's text sits elsewhere, or a static quoted value of the tag
+ * holds a `<`), the exact walk answers instead. The caller still proves the mark is one of the tag's attributes.
+ */
+const nextMarkedSelect = (markup: string, from: number): number => {
+  const mark = markup.indexOf(SELECT_MARK, from);
+  if (mark === -1) return -1;
+  const at = markup.lastIndexOf('<', mark);
+  return at >= from && isTagAt(markup, at, 'select') ? at : nextTag(markup, 'select', from);
+};
+
+/**
  * Resolves every marked `<select>` once its options are in the string — see `SELECT_MARK`. Each select's open tag is
  * read by `readTag`, so its end is the parser's (a `>` inside a quoted title is not it) and its mark is an attribute
  * of its own, never text inside another value.
@@ -1400,7 +1419,7 @@ const markSelected = (content: string, wanted: string | number): string => {
 const resolveSelects = (markup: string, wanted: ReadonlyArray<string | number>): string => {
   let out = '';
   let last = 0;
-  for (let start = nextTag(markup, 'select', 0); start !== -1; start = nextTag(markup, 'select', start + 1)) {
+  for (let start = nextMarkedSelect(markup, 0); start !== -1; start = nextMarkedSelect(markup, start + 1)) {
     const spans: number[] = [];
     const end = readTag(markup, start, spans);
     let mark = -1;
@@ -1573,27 +1592,28 @@ const tagSpace = (c: number): boolean => c === 32 || c === 9 || c === 10 || c ==
  * quoted value, so an author's `selected` survived beside the chosen one and the select's mark was served.
  */
 const readTag = (text: string, from: number, spans: number[]): number => {
+  /** `tagSpace` is written out at each test (space, tab, LF, FF, CR): this runs for every option of every bound select, cold. */
   const n = text.length;
   let i = from + 1;
   let c = 0;
-  while (i < n && !tagSpace((c = text.charCodeAt(i))) && c !== 47 && c !== 62) i++;
+  while (i < n && !((c = text.charCodeAt(i)) === 32 || (c >= 9 && c <= 13 && c !== 11)) && c !== 47 && c !== 62) i++;
   for (;;) {
     /** A `/` not before `>` is read as a separator, as the parser reads it. */
-    while (i < n && (tagSpace((c = text.charCodeAt(i))) || c === 47)) i++;
+    while (i < n && (((c = text.charCodeAt(i)) === 32 || (c >= 9 && c <= 13 && c !== 11)) || c === 47)) i++;
     if (i >= n) return n;
     if (c === 62) return i + 1;
     const nameFrom = i;
     /** The first character is part of the name whatever it is, `=` included: the parser's rule. */
     i++;
-    while (i < n && !tagSpace((c = text.charCodeAt(i))) && c !== 47 && c !== 62 && c !== 61) i++;
+    while (i < n && !((c = text.charCodeAt(i)) === 32 || (c >= 9 && c <= 13 && c !== 11)) && c !== 47 && c !== 62 && c !== 61) i++;
     const nameTo = i;
     let valueFrom = -1;
     let valueTo = -1;
     let j = i;
-    while (j < n && tagSpace(text.charCodeAt(j))) j++;
+    while (j < n && ((c = text.charCodeAt(j)) === 32 || (c >= 9 && c <= 13 && c !== 11))) j++;
     if (j < n && text.charCodeAt(j) === 61) {
       j++;
-      while (j < n && tagSpace(text.charCodeAt(j))) j++;
+      while (j < n && ((c = text.charCodeAt(j)) === 32 || (c >= 9 && c <= 13 && c !== 11))) j++;
       const quote = j < n ? text.charCodeAt(j) : 0;
       if (quote === 34 || quote === 39) {
         const close = text.indexOf(text[j]!, j + 1);
@@ -1603,11 +1623,11 @@ const readTag = (text: string, from: number, spans: number[]): number => {
       } else {
         /** Unquoted, a quote is part of the value (`title=a"b`), as the parser reads it. */
         valueFrom = j;
-        while (j < n && !tagSpace((c = text.charCodeAt(j))) && c !== 62) j++;
+        while (j < n && !((c = text.charCodeAt(j)) === 32 || (c >= 9 && c <= 13 && c !== 11)) && c !== 62) j++;
         valueTo = i = j;
       }
     }
-    spans.push(nameFrom > from + 1 && tagSpace(text.charCodeAt(nameFrom - 1)) ? nameFrom - 1 : nameFrom, nameFrom, nameTo, valueFrom, valueTo, i);
+    spans.push(nameFrom > from + 1 && ((c = text.charCodeAt(nameFrom - 1)) === 32 || (c >= 9 && c <= 13 && c !== 11)) ? nameFrom - 1 : nameFrom, nameFrom, nameTo, valueFrom, valueTo, i);
   }
 };
 
@@ -1630,7 +1650,12 @@ const nameIs = (text: string, from: number, to: number, name: string): boolean =
 /** Whether `text[at]` opens `<name` (the name ASCII case-insensitive, then a space, `/`, `>` or the end). */
 const isTagAt = (text: string, at: number, name: string): boolean => {
   const after = at + name.length + 1;
-  if (after > text.length || !nameIs(text, at + 1, after, name)) return false;
+  if (after > text.length) return false;
+  for (let k = 0; k < name.length; k++) {
+    let c = text.charCodeAt(at + 1 + k);
+    if (c >= 65 && c <= 90) c += 32;
+    if (c !== name.charCodeAt(k)) return false;
+  }
   if (after === text.length) return true;
   const c = text.charCodeAt(after);
   return tagSpace(c) || c === 47 || c === 62;
