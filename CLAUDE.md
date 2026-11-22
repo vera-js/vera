@@ -41,10 +41,13 @@ readings and doing accurate tests quickly.".
 
 ## 2. Collaboration with Brian
 
-- **Brian decides what lands**: code on `main`, pushes, publishes, trades (a speed or size loss), new designs,
-  restructures, new dependencies, new module-level state. Say the plan in a few lines and wait for his word on those.
-  A new component or hook package is not a new design: it lands on a green gate and the peer's packet review
-  (2026-11-21).
+- **Brian decides the ideas**: trades (a speed or size loss), new designs, restructures, new dependencies, new
+  module-level state, a release's scope. Say the plan in a few lines and wait for his word on those. A new component or
+  hook package is not a new design: it lands on a green gate and the peer's packet review (2026-11-21).
+- **A push needs no separate go** (Brian, 2026-11-22: "you can push if it's obviously the right move and I said I
+  approve the idea"). Push, publishes included, when he has approved the idea and the push is plainly right: the
+  reviewer signed off, the gate is green, anyone else working on `main` is told first, and a scan of the range finds no
+  AI trailer or "Generated with" line and no key, token or secret.
 - **Everything else needs no go** (tests, probes, races, drafts, private-branch commits; 2026-11-04). Say when a window
   opens on his screen. A reply that is not a plain yes gets "taking that as yes to X" before acting.
 - **Recommend and argue for it**, with the strongest counter-argument; never a neutral menu. Push back on a wrong premise
