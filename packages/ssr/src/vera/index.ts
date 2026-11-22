@@ -401,6 +401,9 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expecte
     expected: 'a number of milliseconds, from 0 to 2147483647',
   },
 ];
+/** Every option's name, read off `CHECKS` (one entry per option, and `url`), so the list lives in one place. */
+const OPTION_NAMES = new Set<string>(CHECKS.map((check) => check.name).filter((name) => name !== 'url'));
+const OPTION_LIST = [...OPTION_NAMES].join(', ');
 
 /**
  * An attribute NAME that could not come out of one entry: the characters the engines' `setAttribute`
@@ -454,6 +457,12 @@ const renderModule = async (
 ): Promise<SsrRenderResult> => {
   /** From JavaScript, `options` can be anything; `null` used to surface as an unnamed destructuring error. */
   if (!isRecord(options)) throw own(new TypeError(ssrMisuse('ssr-option', PROSE['ssr-option']!('options', 'an object, or left out'))));
+  /**
+   * **An option this function does not have is refused**, as a wrong type is: `timeOut`, `prop` or `attrs` reads like
+   * the real thing at a glance and configured nothing, so the page rendered with the default and nothing said why.
+   * `for…in` with a Set lookup allocates nothing per render.
+   */
+  for (const key in options) if (!OPTION_NAMES.has(key)) throw own(new TypeError(ssrMisuse('ssr-option-unknown', PROSE['ssr-option-unknown']!(quoted(key), OPTION_LIST))));
   const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false, timeout } = options;
   const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic, timeout };
   /**

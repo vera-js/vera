@@ -71,6 +71,10 @@ export const PROSE: Record<string, Prose> = {
     'Write the handler in the component — a static attribute in its template, or an @event binding.',
   ],
   'ssr-option': (name, expected) => [`\`${name}\` must be ${expected}.`, 'Check the options passed to renderToString.'],
+  'ssr-option-unknown': (name, options) => [
+    `${name} is not an option of renderToString, so it would configure nothing.`,
+    `The options are ${options}.`,
+  ],
   'ssr-url-refused': (href, root) => [
     `refused ${href} — it resolves outside ${root}.`,
     'Nothing was imported. A module URL is bounded to `base`; point it at a module inside that directory.',
