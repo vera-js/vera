@@ -209,6 +209,14 @@
       "fix": "The binding is ignored."
     },
     {
+      "code": "script-property",
+      "params": [
+        "written"
+      ],
+      "message": "binds `{written}` on a <script>, which takes no property binding (its content is code) — refused, a JSON data block's too.",
+      "fix": "Bind its attribute instead (`?async=${…}`, `type=${…}`, `nonce=${…}`); for data, a text hole in a JSON block, `<script type=\"application/json\">${data}</script>`, escaped as JSON; for code, load a module."
+    },
+    {
       "code": "script-source",
       "params": [
         "written"

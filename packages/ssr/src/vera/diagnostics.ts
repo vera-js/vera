@@ -123,6 +123,10 @@ export const TWINS = {
     `\`${name}\` was given a javascript: URL — refused, and the attribute removed.`,
     'A bound URL is data, and data must never become code.',
   ] as const,
+  scriptProperty: (written: string) => [
+    `binds \`${written}\` on a <script>, which takes no property binding (its content is code) — refused, a JSON data block's too.`,
+    'Bind its attribute instead (`?async=${…}`, `type=${…}`, `nonce=${…}`); for data, a text hole in a JSON block, `<script type="application/json">${data}</script>`, escaped as JSON; for code, load a module.',
+  ] as const,
   nameExpression: (written: string, given: string) => [
     `an attribute name cannot be an expression — \`${written}\` is read by the parser before any value exists.`,
     `A name known only at runtime is a spread: \`\${spread({ [\`${written}\`]: ${given} })}\` (from @verajs/renderer/spread).`,

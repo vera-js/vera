@@ -42,11 +42,14 @@ const NodeBase = NodeBaseShim;
 /** `.prop` bindings whose server-side truth belongs in an attribute. */
 const FORM_ATTRIBUTES = ['value', 'checked', 'selected'];
 /**
- * Whether a property binding on `owner` is one this serializer writes. `selectedIndex` is a form property on a
- * `<select>` only — it chooses an option, exactly as `value` does (see `SELECT_MARK`) — and on anything else it is
- * the client's concern, with no markup. The written form and a spread key ask the same question, here.
+ * Whether a property binding on `owner` is one this serializer writes: a form control's (`FORM_ELEMENTS`) and nothing
+ * else's, so `.value` on a `<script>` reaches `compile`'s refusal (`scriptBinding`) and on a `<div>` is dropped, as it
+ * always rendered nothing there. `selectedIndex` is a form property on a `<select>` only — it chooses an option, exactly
+ * as `value` does (see `SELECT_MARK`) — and on anything else it is the client's concern, with no markup. The written
+ * form and a spread key ask the same question, here.
  */
-const isFormProperty = (owner: string, name: string): boolean => FORM_ATTRIBUTES.includes(name) || (owner === 'select' && name === 'selectedIndex');
+const isFormProperty = (owner: string, name: string): boolean =>
+  FORM_ELEMENTS.has(owner) && (FORM_ATTRIBUTES.includes(name) || (owner === 'select' && name === 'selectedIndex'));
 
 /**
  * `checked` and `selected` are **boolean** properties; `value` is a string one.
@@ -176,6 +179,23 @@ const NAME_CHAR_AFTER = /^(?:[^\t\n\f\r "'>=/]|[ \t\n\f\r]*=)/;
 const refusedScriptUrl = (name: string): void => {
   const tag = currentRenderingTag();
   if (once('script-url', `${tag} ${name}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'script-url', TWINS.scriptUrl(name)));
+};
+/**
+ * A binding on a `<script>` that reached `compile`'s last branch, which serves nothing for it. A `.prop`/`!live` one
+ * (`.textContent`, `!type`…) is refused — never served, as the client never writes it, a JSON data block's included — and
+ * said once per process per component and binding, in every build, as `script-url` is, from statics only: no value ever
+ * reaches the message. A URL (`.src`) is the client's `script-source`, dropped silently here as the attribute is.
+ *
+ * A helper, called only for a script, so `compile`'s own body grows by one comparison: bytecode added to a large
+ * function can delay its tier-up even where it never runs. Measured against the release before it, a cold compile of
+ * 600 templates read +0.49% and steady compile −0.38% (noise 1%). Returns the slot kind.
+ */
+const scriptBinding = (kind: string, name: string, written: string): typeof DROPPED => {
+  if ((kind === '.' || kind === '!') && URL_SINK.exec(name)?.[1] === undefined) {
+    const tag = currentRenderingTag();
+    if (once('script-property', `${tag} ${written}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'script-property', TWINS.scriptProperty(written)));
+  }
+  return DROPPED;
 };
 const nameHole = (before: string, after: string): never => {
   const prefix = (/[^\t\n\f\r "'>=/]*$/.exec(before) ?? [''])[0];
@@ -730,12 +750,13 @@ const compile = (strings: unknown, depth: number): Plan | null => {
          */
         kinds.push(COMPONENT_PROP);
         urls[kinds.length - 1] = URL_SINK.test(sigilName);
-      } else if (kind === '.' && CONTENT_PROPS.has(sigilName)) {
+      } else if (kind === '.' && CONTENT_PROPS.has(sigilName) && owner !== 'script') {
         /**
          * `.innerHTML`/`.textContent` on a plain element is the trusted-markup door (`@verajs/renderer`'s property
          * binding): the value is the element's content, written after the open tag. Its foreign depth is the host's
          * INSIDE — the tag's depth, plus one when the host is itself `<svg>`/`<math>`/`<select>` — so a `<style>` in it
-         * is read the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above.
+         * is read the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above; a
+         * `<script>` takes no property binding (`scriptBinding`).
          */
         kinds.push(CONTENT);
         depths[kinds.length - 1] =
@@ -748,7 +769,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
          */
         kinds.push(FORM_PROP);
       } else {
-        kinds.push(DROPPED);
+        kinds.push(owner === 'script' ? scriptBinding(kind, sigilName, tagState.attrRaw) : DROPPED);
       }
       /** `@` and `&` ignore their statics on the client, and every DROPPED binding writes nothing: no value to join. */
       joinAt = kinds.length - 1;
@@ -1565,8 +1586,8 @@ const styleHole = (out: string, value: string, before: string, next: string): st
 /**
  * The content a `.innerHTML`/`.textContent` binding writes after the host's open tag. `innerHTML` is
  * `[LegacyNullToEmptyString]` (so `null` is `''` but `undefined` is `"undefined"`); `textContent` is nullable (both
- * are `''`) — measured against a browser, not guessed. The host decides escaping: a RAWTEXT host (`<style>`,
- * `<script>`) neutralizes its own close tag and is otherwise raw; a text-only or foreign host, and any
+ * are `''`) — measured against a browser, not guessed. The host decides escaping: a RAWTEXT host (`<style>`; a
+ * `<script>` never gets here, see `compile`) neutralizes its own close tag and is otherwise raw; a text-only or foreign host, and any
  * `textContent`, is escaped text; only `innerHTML` on an ordinary HTML host is live markup, made inert first.
  */
 const serverContent = (value: unknown, owner: string, property: string, depth: number): string => {

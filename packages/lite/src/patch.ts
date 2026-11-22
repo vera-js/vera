@@ -548,11 +548,12 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
   const check = /*@__NOINLINE__*/ urlCheck(key);
   /**
    * Refused, as core refuses them: `.__proto__` would replace the element's prototype; a bound inline handler or `srcdoc`
-   * attribute would run its value as code or markup; a `<script>`'s URL (`src`; SVG's `href`) chooses the code it runs.
+   * attribute would run its value as code or markup; a `<script>`'s URL (`src`; SVG's `href`) chooses the code it runs, and
+   * it takes no `.`/`!` binding at all (its properties include its code; each has an attribute form), a JSON block's too.
    * Kept a CALL, never pasted in (CLAUDE.md, the one-caller rule): as this function's only caller, the minifier would
    * substitute it here as an arrow made and invoked on every call — every attribute hole created (both checks).
    */
-  if ((property ? real === '__proto__' : /*@__NOINLINE__*/ refusedName(name)) || (element.localName === 'script' && check === SCRIPT_URL)) return () => {};
+  if ((property ? real === '__proto__' : /*@__NOINLINE__*/ refusedName(name)) || (element.localName === 'script' && (check === SCRIPT_URL || property))) return () => {};
   /** A component's URL-named property is its own business (often an object): only a string is checked there (core's). */
   const custom = property && element.localName.includes('-');
   const whole = statics.length === 2 && !statics[0] && !statics[1];

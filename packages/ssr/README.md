@@ -267,11 +267,13 @@ unsanitized. Everything else is checked:
   assignment never runs one), and a `<template shadowrootmode>` cannot attach a shadow root (an assignment never
   does) — wherever the tokenizer reads a start tag, which the server finds with the same scanner it reads every
   template with. Whatever the markup leaves open is closed before the element's own end tag, and an unfinished tag
-  at its end is dropped, as an assignment drops it, so it cannot reach the markup after it. On a `<style>`/`<script>` host the value is raw text with its end tag neutralized; on a
+  at its end is dropped, as an assignment drops it, so it cannot reach the markup after it. On a `<style>` host the value is raw text with its end tag neutralized; on a
   `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, on or inside a `<select>`, and for any `.textContent`, it is
-  escaped text. A `<script .textContent=${code}>` host is the one code-execution door this opens, and it is the
-  author's: it runs on the served page as it runs on the client. `.innerText`, `.outerHTML` and `.outerText` stay
-  client-only — the server serves the element's template content.
+  escaped text. A `<script>` — a JSON data block's too, HTML or SVG — takes no property binding (`.` or `!`): none is
+  served, as the client writes none, and the server says so once, in every build (`script-property`; a `.src` is the
+  client's `script-source`). A script's content is code, so a value enters a script only as a JSON data block's text
+  hole. `.innerText`, `.outerHTML` and `.outerText` stay client-only — the server serves the element's template
+  content.
 - **Data shaped like a template is text.** A value renders as markup only when its strings came from a tagged
   template literal; a `{"strings": [...]}` from `JSON.parse` — or a real template sent through JSON, or a
   hand-built `html([markup])` — is served as `[object Object]`, as the client renders it, and never throws.

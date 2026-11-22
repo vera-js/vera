@@ -119,6 +119,15 @@ export const scriptSource: Prose = (written) => [
   `binds \`${written}\` on a <script>, whose URL chooses the code it runs — refused.`,
   'Write the URL into the template (it is then the author\'s own), or load the module with `import()`.',
 ];
+/**
+ * Every emitter and the server: a `.prop`/`!live` binding on a `<script>`, JSON data block included (Brian,
+ * 2026-11-22): its properties include its code (`.textContent`, `.text`…), and each has an attribute form. `written` is
+ * the binding as written.
+ */
+export const scriptProperty: Prose = (written) => [
+  `binds \`${written}\` on a <script>, which takes no property binding (its content is code) — refused, a JSON data block's too.`,
+  'Bind its attribute instead (`?async=${…}`, `type=${…}`, `nonce=${…}`); for data, a text hole in a JSON block, `<script type="application/json">${data}</script>`, escaped as JSON; for code, load a module.',
+];
 /** The renderer and spread: a bound inline-handler attribute (`onclick`). `event` is the emitter's event spelling(s). */
 export const handlerAttribute: Prose = (name, event) => [
   `binds the \`${name}\` attribute, which runs its value as code — refused.`,

@@ -517,6 +517,15 @@ class Template {
            */
           kind = REFUSED;
           if (__DEV__) console.warn(diagnostic('renderer', '<script>', 'script-source', __DEV__ && SHARED.scriptSource(written)));
+        } else if ((kind === PROPERTY || kind === LIVE) && local === 'script') {
+          /**
+           * A `<script>` takes no property binding, a JSON data block's included (Brian, 2026-11-22): its properties
+           * include its code (`.textContent`, `.innerHTML`, `.text`…), and every one has an attribute form. One test, not
+           * a list (a list grows blind spots; this one costs 18 B gzip against the list's 50). The server serves no
+           * property on a script either. A URL's reason (above) is the more specific one, and wins.
+           */
+          kind = REFUSED;
+          if (__DEV__) console.warn(diagnostic('renderer', '<script>', 'script-property', __DEV__ && SHARED.scriptProperty(written)));
         } else if (kind === PROPERTY && local.includes('-')) kind = ADOPT;
         else if (kind === LIVE && local.includes('-')) kind = LIVE_CUSTOM;
         /**

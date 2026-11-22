@@ -115,12 +115,18 @@ class Binding {
     /** Read once: `localName` is a DOM accessor, and both rules below ask it. */
     const local = element.localName;
     /**
-     * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs: refused, as the renderer and the
-     * server refuse it. Decided here, where the element is known (`resolve` has none; the server half's caller has it).
+     * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs (6), and it takes no property key
+     * at all (7: its properties include its code, `.textContent`, `.text`…; each has an attribute form): refused, as the
+     * renderer and the server refuse them, a JSON data block's too; the URL's reason wins. Decided here, where the element
+     * is known (`resolve` has none; the server half's caller has it). The tag is asked first: every other element pays one
+     * comparison.
      */
-    if ((resolved === ATTR || resolved === PROPERTY || resolved === LIVE) && local === 'script' && URL_SINK.exec(name as string)?.[1] !== undefined) {
-      resolved = REFUSED;
-      name = 6;
+    if (local === 'script' && (resolved === ATTR || resolved === PROPERTY || resolved === LIVE)) {
+      const why = URL_SINK.exec(name as string)?.[1] !== undefined ? 6 : resolved !== ATTR ? 7 : 0;
+      if (why !== 0) {
+        resolved = REFUSED;
+        name = why;
+      }
     }
     /** A `<select>`'s selection is live, as in a template — the same rule, asked of the same function. */
     const kind = (resolved === PROPERTY || resolved === LIVE) && isSelection(element, name) ? LIVE : resolved;
@@ -146,6 +152,7 @@ class Binding {
         else if (why === 3) console.warn(diagnostic('spread', at, 'proto-binding', __DEV__ && SHARED.protoBinding(written)));
         else if (why === 4) console.warn(diagnostic('spread', at, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute("'.srcdoc': trusted")));
         else if (why === 6) console.warn(diagnostic('spread', at, 'script-source', __DEV__ && SHARED.scriptSource(written)));
+        else if (why === 7) console.warn(diagnostic('spread', at, 'script-property', __DEV__ && SHARED.scriptProperty(written)));
         else
           console.warn(
             diagnostic('spread', at, 'handler-attribute',

@@ -1343,6 +1343,15 @@ Any other script hole is refused, in every build: by `@verajs/ssr` (`ssr-script-
 runs it, and an SVG `<script>` from a template runs in Chromium and WebKit — so an SVG script hole is refused even with
 a JSON type. The start tag judged is the one that opened the script, never one found in the script's own text.
 
+**A `<script>` takes no property binding** (`script-property`), a JSON data block's included, HTML or SVG: `.name=${…}`
+or `!name=${…}` in the template, or a `.`/`!` spread key. Its properties include its code (`.textContent`,
+`.innerHTML`, `.text`…), which would run once the page is saved and served again; the binding is ignored, `@verajs/ssr`
+never serves it (it serves no property on a script), and development names it. Bind the attribute instead — every
+script property has one: `?async=${…}`, `?defer`, `?nomodule`, `type=${…}`, `nonce=${…}`, `integrity`, `crossorigin`,
+`referrerpolicy`, `fetchpriority`, `blocking`. Data goes through the JSON block's text hole above, which escapes it
+(`<` as `\u003c`, which JSON reads back unchanged); an object kept on the element itself, or a customized built-in
+script's own property (`is=`), has no binding here.
+
 **A `<style>`'s or a data block's text stays text after the page is saved and parsed again.** A browser serializes such
 an element's text exactly as it is, so a value written into it as it stands would become markup once the page is saved
 from the DOM (`outerHTML`, an editor's publish) and served again. So the renderer and `@verajs/ssr` write the same
@@ -1369,7 +1378,7 @@ analytics pixel's URL in a `<noscript><img src=${…}>` reads back intact. A tem
 hydration rewrites that text rather than adopting it. `@verajs/lite` and `@verajs/static` refuse a value there.
 
 
-**`.textContent` into a `<style>` or `<script>` is the platform's, not a template hole.** A browser serializes such an
+**`.textContent` into a `<style>` is the platform's, not a template hole.** A browser serializes such an
 element's text exactly as it is, so a user value written there with `.textContent=${value}` (or any DOM write) becomes
 markup the moment the page is saved through `innerHTML`/`outerHTML` and parsed again. Escape `</` in such a value
 yourself, or put it in a template hole, which does.
@@ -1378,7 +1387,7 @@ yourself, or put it in a template hole, which does.
 template spelling being greppable, obviously yours, and reviewable — three properties a spread key
 does not have, because spread names arrive at runtime inside a props object that is often built
 from data. So `spread()` refuses `.innerHTML`/`!outerHTML` property keys, the `srcdoc` attribute, a `<script>`'s
-`src`/`.src` (an SVG script's `href`, `xlink:href`),
+`src`/`.src` (an SVG script's `href`, `xlink:href`) and every `.`/`!` key on a script,
 any inline-handler attribute name (`onclick` and friends, any casing — `on` + Capital with a
 function remains the documented event spelling and still works), and — as a template binding is —
 a `javascript:` URL on a key a browser navigates (`href`, `.href` and the rest), on the client AND
