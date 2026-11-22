@@ -25,6 +25,11 @@ const spoken = (kbd) => {
   const key = kbd.querySelector('[data-vera-word]');
   return key.ownerDocument.defaultView.getComputedStyle(key, '::before').content;
 };
+/** The rules of a sheet and of every grouping rule (`@layer`, `@media`) inside it, flattened. */
+const rulesOf = (list) => [...list].flatMap((rule) => [rule, ...(rule.cssRules ? rulesOf(rule.cssRules) : [])]);
+/** How many of `root`'s adopted sheets carry kbd's words rule, found by kbd's own mark in the selector. */
+const kbdSheets = (root = document) =>
+  root.adoptedStyleSheets.filter((sheet) => rulesOf(sheet.cssRules).some((rule) => rule.selectorText?.includes('data-vera-kbd'))).length;
 const make = (doc = document) => {
   const kbd = doc.createElement('vera-kbd');
   kbd.setAttribute('keys', 'Mod+Shift+K');
@@ -42,14 +47,14 @@ describe('vera-kbd: the words rule, unwired styles', () => {
   });
 
   it('in the document: the word rule applies, and it is adopted once however many kbds render', async () => {
-    const before = document.adoptedStyleSheets.length;
     const a = make();
     const b = make();
     document.body.append(a, b);
     flush();
     await frame();
-    expect(spoken(a)).to.include('Shift');
-    expect(document.adoptedStyleSheets.length - before).to.equal(1);
+    expect(spoken(a), 'positive control: the rule is in the document').to.include('Shift');
+    // A count of the sheets carrying kbd's rule, not a delta: it reads the same whatever earlier rows adopted.
+    expect(kbdSheets(), "document sheets carrying kbd's words rule").to.equal(1);
     a.remove();
     b.remove();
   });

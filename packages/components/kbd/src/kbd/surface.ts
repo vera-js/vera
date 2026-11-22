@@ -27,7 +27,7 @@ export const kbdSurface = {
   slots: [],
   parts: [
     { name: 'combo', description: 'The outer <kbd> holding the whole shortcut.' },
-    { name: 'key', description: 'One key\'s <kbd>. A symbol key carries data-vera-word, its word, spoken and never shown.' },
+    { name: 'key', description: 'One key\'s <kbd>, carrying data-vera-kbd, kbd\'s own mark, which the words rule requires so a key part of another component is never spoken. A symbol key carries data-vera-word, its word, spoken and never shown.' },
   ],
   states: [],
   customStates: [],
