@@ -476,14 +476,14 @@ markup itself is served byte for byte as it was written.
   outside `<svg>`, `<math>`, `<noscript>` and `<select>` (the select parser before customizable select, which jsdom
   and older browsers run, reads a `<style>` there as markup; current engines read raw text), inside their HTML
   integration points (`<svg><foreignObject>`,
-  `<math><mi>`…) and after a breakout tag (`<svg><p>`), but the scanner does not track the remaining ways a browser
-  re-enters HTML: `<font>` with a `color`, `face` or `size` attribute (it breaks out; here it never does), an end tag
-  the parser ignores, an `svg` template rendered outside any `<svg>`, and a template rendered INTO a foreign position
-  by its parent — it knows the depth it starts at, not whether that is
-  SVG or MathML, so it recognizes no integration point (`html`<svg>${svg`<foreignObject><style>…`}</svg>``). There
-  the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;` until hydration replaces it. That is
-  the safe direction of a misreading on purpose: the other one writes a value's markup into the page. Put the
-  stylesheet in the template that opens the foreign element, or outside it. A `<script>` in such a template, or inside
+  `<math><mi>`…), after a breakout tag (`<svg><p>`, and `<font>` with a static `color`, `face` or `size`), and in a
+  template rendered INTO a foreign position by its parent, which starts where its hole is
+  (`html`<svg>${svg`<foreignObject><style>…`}</svg>`` is raw text). The scanner does not track the remaining ways a
+  browser re-enters HTML: a `<font>` whose `color`, `face` or `size` is bound (a nullish value would remove it, so it is
+  read as not breaking out), an end tag the parser ignores, and an `svg` or `mathml` template rendered on its own,
+  outside any `<svg>` or `<math>`. There the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;`
+  until hydration replaces it. That is the safe direction of a misreading on purpose: the other one writes a value's
+  markup into the page. Put the stylesheet in the template that opens the foreign element, or outside it. A `<script>` in such a template, or inside
   `<noscript>`, takes no value at all (`ssr-script-hole`), JSON or not: where the server cannot tell an HTML or SVG
   script, both of which run, from one that does not, a value there is code. A `<script>` or `<textarea>` straight
   inside a `<select>` is read as anywhere in HTML: both parsers read its content as text.
