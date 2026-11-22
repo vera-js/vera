@@ -231,6 +231,16 @@ from another machine, or after that is undone, has a variable changed.
   comes back "hello" on Chromium and Firefox (pinned: their own deletion does) and either answer on macOS WebKit, with
   the setter as its control. Safari itself was not measured (Playwright's build and synthetic keys only): whether a
   native keystroke closes the undo step there is open. (Headless, 2026-11-22.)
+- **HTML folds case by ASCII only, everywhere a name or keyword is folded.** `createElement`, `tagName`, attribute
+  names (set or parsed), parsed tag names, `getElementsByTagName` and a selector's `i` flag fold A–Z and nothing else:
+  `createElement('x-\u212A')` (the Kelvin sign) keeps it, `setAttribute('\u212Aey')` is not `key`,
+  `createElement('x-\u00DF').tagName` is `X-\u00DF` (not `X-SS`), a Deseret capital (U+10400) and small letter
+  (U+10428) keep their case, and `[x="k" i]` matches `K` but not the Kelvin sign. A `<textarea>` after `\u0130\u0130`
+  ends at its own end tag, and `</textareax>` does not end it. Consequence: the SSR shim, parser, tokenizer and
+  serializer fold through one ASCII-only helper (`asciiLower`/`asciiUpper`) instead of `toLowerCase`/`toUpperCase`,
+  which fold the Kelvin sign into `k`, turn U+0130 into two code units (an index found in a lowered copy pointed past
+  the real one) and `ß` into `SS`; `tests/browser/ascii-case.test.js` holds the engines' answers and
+  `tests/ssr-ascii-case.test.mjs` the shim's. (Chromium, Firefox, WebKit, headless, 2026-11-22.)
 
 - **A failed module import is kept under a new fragment too, in Chromium: only a new query asks again.** After
   `import(u)` was answered 404, Chromium answered `import(u + '#vera-retry=1')` from the same failed record (rejected)
