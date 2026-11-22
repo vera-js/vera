@@ -249,10 +249,24 @@ from another machine, or after that is undone, has a variable changed.
   KNOWN in `tests/ssr-left-open.test.mjs`. (Chromium 159, Firefox 159, WebKit 27.2, headless, 2026-11-22.)
 - **`<![CDATA[` inside `<select>` or `<noscript>` is a bogus comment that ends at the first `>`, as in any HTML.**
   `<select><![CDATA[><textarea>]]>` opens a live `<textarea>` in all three engines; so does the `<noscript>` form in
-  Chromium with JavaScript off (with it on, the noscript is raw text). Consequence: the SSR scan reads a CDATA section
-  only where the innermost tracked element is SVG or MathML. A template rendered into a hole starts in the namespace
-  there, so it never guesses; only at a bare depth, where the namespace is unknown, is a section refused where the two
-  readings end in different places. (Chromium 159, Firefox 159, WebKit 27.2, headless, 2026-11-22.)
+  Chromium with JavaScript off (with it on, the noscript is raw text). Straight inside an SVG `title`, `desc` or
+  `foreignObject`, or a MathML `mtext`, it IS a section, running to `]]>`, because the current node is still a foreign
+  element, although its content parses as HTML; once an HTML element opens there, it is a bogus comment again
+  (`<svg><title><![CDATA[ x>` left a section open to the end of the page in all three). Consequence: the SSR scan reads
+  a CDATA section where the innermost tracked element is SVG or MathML, and never inside `<select>`, `<noscript>` or
+  HTML. A template rendered into a hole starts in the namespace there. Where the reading is still open — straight
+  inside an integration point, whose HTML children the scan does not track, or at a bare depth — a section is served
+  only where both readings end in the same place, and refused otherwise. (Chromium 159, Firefox 159, WebKit 27.2,
+  headless, 2026-11-22.)
+- **With an integration point as the current node, an end tag is read by the foreign-content rules.** They walk up
+  through the SVG and MathML elements and pop at one with the tag's name, so `<svg><g><foreignObject></g>` is back in
+  SVG, and a `<style>` after it is an SVG element whose content is markup. The same goes for `<svg><a><title></a>`,
+  `<math><mrow><mtext></mrow>`, and a `section`, `article`, `video` or attribute-less `font` opened inside SVG, since any
+  name but a breakout tag's is a foreign element there. With an HTML element current instead (`<foreignObject><div></g>`),
+  the HTML rules ignore the tag, and a breakout name (`</div>`) closes no foreign element. Consequence: at an
+  integration point, an end tag that closes nothing the SSR scan tracks, and is not a breakout name, leaves the point;
+  where an HTML element was current, that only over-escapes. (Chromium 159, Firefox 159, WebKit 27.2, headless,
+  2026-11-22.)
 - **With scripting off, `<noscript>` content is HTML, and a text element left open in it takes the `</noscript>`.**
   `<noscript><textarea>`, `<title>`, `<style>` or `<xmp>` left open makes the server's `</noscript>`, and the page after
   it, the element's text. The `/` of `<textarea/>` is ignored, as on any HTML element. Consequence: the SSR scan tracks
