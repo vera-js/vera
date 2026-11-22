@@ -13,29 +13,52 @@
 Conventions and facts not derivable from the code, one or two lines each. Each rule's story is in this file's git
 history and in `docs/BROWSER-LEDGER.md`.
 
-## 1. How we work: fast and accurate (outranks everything below)
+## 1. How we work: strict and fast (outranks everything below)
 
 Brian, 2026-11-20: "a hyper efficient, quick process where we can land many features/fixes all while getting accurate
-readings and doing accurate tests quickly.".
+readings and doing accurate tests quickly.". Brian, 2026-11-22: "I don't want any speed regressions after we worked so
+hard - so it's not about checking things less, if anything we want to be just as strict or more strict, just doing it in
+a more intelligent way that takes way less time."
 
 | Step | Budget | When |
 | --- | --- | --- |
 | Targeted suites, tsc + eslint on changed files | ≤ 5 min | every change |
 | Probe or narrow fresh-process A/B (base, A/A copy, candidate) | ≤ 10 min | every hot-path change |
-| One diagnosis tool (bisect, CPU profile, `--trace-opt/--trace-deopt`, ablation copies) | ≤ 10 min each | when a reading moved |
-| Instruction counters | ≤ 10 min total per decision | only when timing cannot resolve the effect |
-| Race | ≤ 1 h, deciding arms only | once per landing |
-| Full node suites (`npm test`, then `npm run test:prod`) | ~10 min | once before each landing gate: a suite reading across packages (a registration list, a token scan) catches a new file in 10 min, not a 25-min re-gate (2026-11-21) |
+| Instructions AND cycles (deterministic engine flags, two N pairs that converge) | ≤ 10 min | every DOM-free hot-path change, BEFORE its race: they screen, the race decides; a reading over the bar is fixed or taken to Brian before the race, never raced through |
+| One diagnosis tool (bisect, file-swap arms, CPU profile, `--trace-opt/--trace-deopt`, ablation copies) | ≤ 10 min each | when a reading moved |
+| Race (balanced, self-checking tools) | ≤ 1 h; the cells of the changed bundles only | once per landing |
+| Full node suites (`npm test`, then `npm run test:prod`) | ~10 min | before the race: a race never runs on code that fails its suites (the gate runs them again on the landing commit) |
+| Pre-gate: `sync-size-claims --check`, the docs tests, `node scripts/typecheck.mjs` | ~1 min | before every gate |
 | Gate (`node scripts/gate.mjs`) | ~20–25 min (browsers included) | once per landing |
 
+- **Every changed byte is raced; unchanged bytes are not.** A cmp of every module a cell loads against main's decides
+  the cells (a client cell loads its bundles; a server cell loads ssr's dist and every package it imports at runtime):
+  every cell that loads a changed module, on every engine that runs it, and none that loads only identical modules. The
+  bar lists the changed files.
+- **The race tools are balanced and check themselves**: arms rotate through every position (a constant shuffle seed
+  gave every arm the same slots, and position read as loss, 2026-11-22), N is a multiple of the arm count or
+  the run is refused, and the position and sample counts are asserted before any reading. Every cell has a byte copy
+  of the candidate AND of the base (noise = max(|cand − aa|, |base − base2|)) and a plant that must read LOSS, or the
+  cell is VOID. A VOID cell is re-run alone once; VOID again is UNRESOLVED, which goes to Brian with its A/A spreads and
+  does not block a landing (any LOSS does).
+- **A loss is diagnosed at once (≤ 10 min), fixed, and only the losing cells are raced again**, under a bar written
+  before that data. Cells that passed keep their pass when a cmp shows their bundles unchanged by the fix; any cell
+  whose bundle bytes moved is raced again.
+- **No speed loss lands without Brian** (§2). An unremovable loss goes to him as a trade, with every reading.
 - **State a step's projected time before it runs.** Over budget: cut it down, or ask Brian before it runs.
-- **Measure the one thing that decides**, with one A/A copy; slowness is almost always process, not measurement.
-- **Race only arms a decision reads:** the base users have, the candidate, one byte-identical A/A copy, and a plant only
-  when the instrument is new. Intermediate arms are diagnosis, done with the tools above.
-- **Background load is logged, never waited out** (the shuffle spreads it; the A/A shows it). Thermal is the only wait.
-- **A bar is one line, written before the data.** No amendment chains, multiset proofs or hash lists beyond one dist
-  hash per arm. Read the verdict as written; if it is unclear, repeat the run rather than reinterpret it.
-- **Every fix in the batch first, then ONE race and ONE gate** on the landing commit; a loss is bisected on that cell.
+- **Measure the one thing that decides**, with the A/A copies; slowness is almost always process, not measurement.
+- **Background load is logged, never waited out** (the rotation spreads it; the A/A shows it). Thermal is the only wait.
+- **A bar is written before the data.** Read the verdict as written; if it is unclear, repeat the run rather than
+  reinterpret it.
+- **Every fix in the batch first, then ONE race and ONE gate** on the landing commit.
+- **Main is frozen during a landing's gate**: the ledger says "main frozen until <hash> pushes" when the gate starts;
+  other machines push after it, or say so first.
+- **A rebase that leaves every raced module byte-identical** (cmp) is not raced again; the FULL gate runs on the new
+  head (main's new tests run against our code). Any raced byte that moved is raced again.
+- **The gate's browser step runs every engine** even after one fails, and a known-baseline row (red on clean main for
+  the same text, recorded with its hash) is named as such; a new red is never read as baseline without that proof.
+- **The next batch is written and unit-tested during a heavy run** (edits and light checks only), so the next race
+  starts when the last one ends.
 - **The peer reviewer reviews in parallel and blocks only a landing** (one packet, §2); nothing else waits on it.
 - **Rules:** prefer deleting a rule to adding one; a new rule states its time cost; nothing here is re-litigated per task.
 
@@ -120,6 +143,8 @@ readings and doing accurate tests quickly.".
 - **Two template literals are two templates**: render through one `draw()` called twice.
 - **Retention**: a retained control that must live and a dropped object that must die (a loop's last `const` stays
   alive with no framework at all); forced gc only in isolated child processes.
+- **Firefox's reduced timer precision is a Playwright pref** (1 ms steps when on): a run states which it used, and a
+  change of setting is validated by a base A/A before and after.
 - **Timing samples are tens of ms** (Firefox and WebKit coarsen `performance.now()`); never drive `frameBudget` with real
   time; a probe drives the scheduler with `flush()` or `await`, not frames.
 - **Two numbers per fresh process**: the first N calls from cold, and steady state after a long warm-up (a fixed window
