@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const ROOT = new URL('..', import.meta.url);
 const PLACEHOLDER = /\b(?:PERF(?:_[A-Z0-9]+)*|TBD|FIXME|XXX)\b/g;
@@ -26,7 +26,11 @@ test('the matcher: each placeholder form is found, and ordinary words are not (C
 test('no tracked Markdown file or llms.txt holds a placeholder', () => {
   const files = execFileSync('git', ['ls-files', '*.md', 'llms.txt'], { cwd: ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file && !file.endsWith('CHANGELOG.md'));
+    /**
+     * A tracked file missing from the tree is skipped: `changeset version` deletes the changesets it consumed before the
+     * release commit, and the coverage floor runs the suites in that tree.
+     */
+    .filter((file) => file && !file.endsWith('CHANGELOG.md') && existsSync(new URL(file, ROOT)));
   assert.ok(files.length >= 50, `a floor on the docs read (62 on 2026-11-21): ${files.length}`);
   assert.ok(files.includes('packages/ssr/README.md') && files.includes('llms.txt'), 'CONTROL: the file that shipped the placeholders is read');
   assert.deepEqual(files.flatMap((file) => placeholdersIn(file, readFileSync(new URL(file, ROOT), 'utf8'))), []);
