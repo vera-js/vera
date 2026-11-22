@@ -8,6 +8,8 @@
  */
 import type { Open, ScanResult, ScanStart, ScanState, ScannedTag } from './types.js';
 import { asciiLower } from './escaping.js';
+import { PROSE } from './diagnostics.js';
+import { own, ssrMisuse } from './report.js';
 
 /**
  * Where a static leaves us: inside a tag, and if so, inside an attribute **value**.
@@ -163,6 +165,25 @@ const breakOut = (opens: Open[]): number => {
 };
 
 /**
+ * **Whether a `<![CDATA[` here is a CDATA section**, which runs to `]]>`, rather than the bogus comment it is in HTML,
+ * which ends at the first `>`. Only inside SVG or MathML, read off the innermost tracked element: `<noscript>` and
+ * `<select>` raise the depth too, and read there as CDATA, `<select><![CDATA[><textarea>` hid a live `<textarea>` from
+ * the scan (measured, Chromium, Firefox and WebKit). With nothing tracked — a template or value that inherited its
+ * depth from its parent — the namespace is not known here: when the first `>` after `from` is the one ending the first
+ * `]]>`, both readings end at the same place and it is read as CDATA; otherwise they disagree on where the section ends,
+ * and it is refused (`ssr-cdata-unknown`), in every build, rather than guessed.
+ */
+const cdataHere = (opens: Open[], text: string, from: number): boolean => {
+  if (opens.length !== 0) {
+    const space = opens[opens.length - 1].space;
+    return space === 'svg' || space === 'math';
+  }
+  const end = text.indexOf(']]>', from);
+  if (end !== -1 && text.indexOf('>', from) === end + 2) return true;
+  throw own(new Error(ssrMisuse('ssr-cdata-unknown', PROSE['ssr-cdata-unknown']!())));
+};
+
+/**
  * Where the end tag that closes raw or escaped text named `name` begins in `text`, searching from `from`: the first
  * `</name` followed by whitespace, `/`, `>` or the end of the text — so `</scripts` ends nothing, and `</name` at the
  * very end counts as an end (a hole right after it is refused as a tag-name hole) — or `-1` when none does. One rule
@@ -226,6 +247,18 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
    * foreign elements even in HTML, so their `/>` closes them; inside foreign content every `/>` does.
    */
   const selfClosed = selfClosing && (space !== 'html' || reentry || tagName === 'svg' || tagName === 'math');
+  if (!closing && space === '' && (TEXT_ONLY.has(tagName) || tagName === 'style')) {
+    /**
+     * **A text-only or raw-text element where the namespace is unknown** (`<noscript>`, `<select>`, or a template
+     * that inherited its depth) is tracked for its closer, at the same depth, `/>` or not. A parser with scripting off
+     * reads `<noscript><textarea>` as HTML, where the textarea is text, so the server's `</noscript>` became its text
+     * and the page after it with it (measured, jsdom with scripting off: `<textarea>`, `<title>`, `<style>`; the `/`
+     * of `<textarea/>` is ignored in HTML). Its content is still scanned as markup, which over-escapes, never injects.
+     * Where the element was foreign, or never opened, its end tag closes it or is ignored.
+     */
+    opens.push({ name: tagName, foreign, inert, space: '' });
+    return foreign;
+  }
   if (closing || selfClosed) return foreign;
   /**
    * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
@@ -457,8 +490,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
           if (text[i + 1] === '>') i += 1;
           else if (text.startsWith('->', i + 1)) i += 2;
           else comment = '-->';
-        } else if (foreign !== 0 && text.startsWith('[CDATA[', i + 1)) {
-          /** In SVG or MathML a `<![CDATA[` runs to `]]>` (in HTML it is a bogus comment to the first `>`, as below). */
+        } else if (foreign !== 0 && text.startsWith('[CDATA[', i + 1) && cdataHere(opens, text, i + 8)) {
           i += 7;
           comment = ']]>';
         } else comment = '>';

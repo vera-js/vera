@@ -26,6 +26,12 @@
       "fix": "Give it a valid attribute name."
     },
     {
+      "code": "ssr-cdata-unknown",
+      "params": [],
+      "message": "a `<![CDATA[` in a template or value that does not open its own `<svg>` or `<math>` could end at its first `>` (as a bogus comment, in HTML) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
+      "fix": "Open the `<svg>` in the same template as the CDATA section, or keep `>` out of the section before its `]]>`."
+    },
+    {
       "code": "ssr-listener-threw",
       "params": [
         "type"
@@ -63,6 +69,21 @@
       ],
       "message": "`{name}` must be {expected}.",
       "fix": "Check the options passed to renderToString."
+    },
+    {
+      "code": "ssr-option-unknown",
+      "params": [
+        "name",
+        "options"
+      ],
+      "message": "{name} is not an option of renderToString, so it would configure nothing.",
+      "fix": "The options are {options}."
+    },
+    {
+      "code": "ssr-plaintext",
+      "params": [],
+      "message": "a `<plaintext>` never ends — no end tag closes it, so everything after it on the page would be its text.",
+      "fix": "Remove it; to show markup as text, render it as a string inside a `<pre>`."
     },
     {
       "code": "ssr-process-storage",

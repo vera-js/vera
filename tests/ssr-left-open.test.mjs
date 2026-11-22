@@ -29,7 +29,7 @@ const contained = (served) => {
   return host !== null && after !== null && !host.contains(after) && after.textContent === 'after';
 };
 
-const CLOSED = ['<svg><![CDATA[', '<svg><![CDATA[ x', '<table>', '<table><tr><td>', '<table><tr><td><table><tr><td>', '<object>', '<object><param name=a>', '<svg><foreignObject><table><tr><td>'];
+const CLOSED = ['<svg><![CDATA[', '<svg><![CDATA[ x', '<select><![CDATA[><textarea>]]>', '<select><![CDATA[><style>]]>', '<noscript><![CDATA[><textarea>]]>', '<math><![CDATA[ x', '<noscript><textarea>', '<noscript><title>', '<noscript><style>', '<noscript><textarea/>', '<noscript><xmp>', '<select><title>', '<table>', '<table><tr><td>', '<table><tr><td><table><tr><td>', '<object>', '<object><param name=a>', '<svg><foreignObject><table><tr><td>'];
 const REFUSED = ['<plaintext>', '<PLAINTEXT>', '<Plaintext>x', '<body><plaintext>', '<table><plaintext>', '<svg><desc><plaintext>', '<math><mtext><plaintext>', '<noscript><plaintext>', '<template><plaintext>', '<plaintext>x</plaintext>'];
 
 test('a CDATA section, a table or an object left open is closed where it was opened', () => {
@@ -86,4 +86,29 @@ test('KNOWN: a template that closes its own div across an open table leaves the 
   const doc = new JSDOM(`<!doctype html><body>${served}</body>`).window.document;
   /** The host's own `</div>` then closes `div#d` instead, so `#after` lands one level up: inside the host. */
   assert.equal(doc.getElementById('host').contains(doc.getElementById('after')), true);
+});
+
+/**
+ * **A CDATA section is read where the namespace is known.** Inside `<select>` or `<noscript>` a `<![CDATA[` is a bogus
+ * comment to the first `>` (the rows above), and a child template, which inherits only a depth, cannot tell `<svg>` from
+ * `<select>` around it: where the two readings end at the same place it is served, and where they disagree it is
+ * refused (`ssr-cdata-unknown`) rather than guessed.
+ */
+test('a CDATA section in a child template is served where both readings agree and refused where they do not', () => {
+  const inSvg = (inner) => html`<div id="host"><svg>${inner}</svg></div><p id="after">after</p>`;
+  const inSelect = (inner) => html`<div id="host"><select>${inner}</select></div><p id="after">after</p>`;
+  for (const draw of [inSvg, inSelect]) assert.ok(contained(serializeTemplate(draw(literal('<![CDATA[ x ]]>')))));
+  const refused = [];
+  for (const [name, draw, markup] of [
+    ['select', inSelect, '<![CDATA[><textarea>]]>'],
+    ['svg', inSvg, '<![CDATA[ .a > .b {} ]]>'],
+    ['svg, unclosed', inSvg, '<![CDATA[ x'],
+  ]) {
+    try {
+      refused.push(`${name}: served ${serializeTemplate(draw(literal(markup)))}`);
+    } catch (error) {
+      if (!/ssr-cdata-unknown/.test(error.message)) refused.push(`${name}: threw ${error.message}`);
+    }
+  }
+  assert.deepEqual(refused, []);
 });

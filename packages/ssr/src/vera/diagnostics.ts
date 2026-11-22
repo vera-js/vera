@@ -34,6 +34,10 @@ export const PROSE: Record<string, Prose> = {
     'a template cannot end inside a tag — the client drops an unfinished tag.',
     'Close the tag inside the template.',
   ],
+  'ssr-cdata-unknown': () => [
+    "a `<![CDATA[` in a template or value that does not open its own `<svg>` or `<math>` could end at its first `>` (as a bogus comment, in HTML) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
+    'Open the `<svg>` in the same template as the CDATA section, or keep `>` out of the section before its `]]>`.',
+  ],
   'ssr-plaintext': () => [
     'a `<plaintext>` never ends — no end tag closes it, so everything after it on the page would be its text.',
     'Remove it; to show markup as text, render it as a string inside a `<pre>`.',
