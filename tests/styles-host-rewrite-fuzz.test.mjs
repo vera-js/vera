@@ -41,9 +41,40 @@ wire([renderer, styles]);
 const doc = dom.window.document;
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-const SELECTORS = [':host', ':host(.a)', ':host-context(.z)', '.plain', 'p', ':is(:host, .x)', '.md\\:host', 'a:hover'];
+const SELECTORS = [':host', ':host(.a)', ':host(:not(.a):hover)', ':host-context(.z)', '.plain', 'p', ':is(:host, .x)', '.md\\:host', 'a:hover'];
 const DECLARATIONS = ['color: red', 'content: ":host"', 'background: url(/x/:host.png)', 'margin: 0'];
 const VALUE_HOST = /content: ":host"|url\(\/x\/:host\.png\)/g;
+
+let made = 0;
+/** Hoists one sheet through a fresh light component and returns the text the page received. */
+const hoisted = async (source) => {
+  const tag = `host-row-${made++}`;
+  customElements.define(tag, class extends dom.window.HTMLElement {
+    static styles = css([source]);
+    connectedCallback() { init(this, () => () => html`<p>x</p>`); }
+  });
+  doc.body.append(doc.createElement(tag));
+  await frame();
+  return [...doc.head.querySelectorAll('style')].pop()?.textContent ?? '';
+};
+
+test(':host() keeps its whole argument, nested parentheses included', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    /** The first `)` is not the argument's end: a compound that goes on after a nested call must survive whole. */
+    const out = await hoisted(
+      ':host(:not(.a):hover) { color: red }\n:host(:is(.a, :not(.b)).c) b { color: blue }\n:host(.flag) { color: green }\n' +
+        ':host(:not(a):not(b)) { color: gray }'
+    );
+    assert.match(out, /:scope:not\(\.a\):hover \{ color: red \}/, out);
+    assert.match(out, /:scope:not\(a\):not\(b\) \{ color: gray \}/, out);
+    assert.match(out, /:scope:is\(\.a, :not\(\.b\)\)\.c b \{ color: blue \}/, out);
+    assert.match(out, /:scope\.flag \{ color: green \}/, `CONTROL: the plain argument still rewrites\n${out}`);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
 
 test('the :host rewrite never touches a value, an escaped identifier, or the rule count', async () => {
   /** Every seed this run walks: the standing one, then any the rotation added. */
@@ -61,7 +92,6 @@ test('the :host rewrite never touches a value, an escaped identifier, or the rul
   let withHostValue = 0;
   let withEscaped = 0;
   const RUNS = 300;
-  let made = 0;
   try {
    for (const startSeed of seeds) {
     seed = startSeed;
