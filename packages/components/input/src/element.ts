@@ -191,9 +191,11 @@ const busy = (input: HTMLInputElement): (() => void) => {
 };
 
 /**
- * **The current input, kept true while connected**: an observer of each ancestor from the input's parent up to the host,
- * childList only, so typing and the element's own parts beside the input never change the answer; with no input yet,
- * the host's whole subtree until one appears. Writes the input into `current` only when it changes. Returns the release.
+ * **The current input, kept true while connected.** While the user's input is served: an observer of each ancestor from
+ * its parent up to the host, childList only, so typing and the element's own parts beside it never wake it. While no
+ * input or only ours is served: the host's whole subtree, since the user's may still arrive anywhere inside (a
+ * renderer appends an empty wrapper, then the input into it; the wrapper's arrival alone finds nothing). Writes the
+ * input into `current` only when it changes. Returns the release.
  */
 const tracking = (
   host: Element,
@@ -210,7 +212,7 @@ const tracking = (
     /** A user's input arrived after connect: the default input is dropped from the render, and theirs is served. */
     if (input !== null && !isOurs(input) && untrack(() => own.value)) own.value = false;
     observer.disconnect();
-    if (input === null) {
+    if (input === null || isOurs(input)) {
       observer.observe(host, { childList: true, subtree: true });
       return;
     }

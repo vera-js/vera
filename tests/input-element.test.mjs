@@ -325,3 +325,24 @@ test("an affix holding another component's input is that component's: the user's
   assert.equal(clear.previousElementSibling?.id, 'mine', 'clear sits after the user input, not the widget one');
   assert.equal(clear.hidden, false);
 });
+
+test('an EMPTY wrapper first, then the input into it (a renderer appending top-down): still one input, the user\'s', async () => {
+  document.body.innerHTML = '<form><label>Search </label></form>';
+  const host = document.createElement('vera-input');
+  host.setAttribute('clearable', '');
+  document.querySelector('label').append(host);
+  await settle();
+  const wrap = document.createElement('span');
+  host.append(wrap);
+  await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+  await settle();
+  const mine = document.createElement('input');
+  mine.name = 'q';
+  mine.value = 'x';
+  wrap.append(mine);
+  await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+  await settle();
+  assert.deepEqual([...host.querySelectorAll('input')], [mine], "exactly one input, and it is the user's");
+  assert.equal(mine.nextElementSibling?.getAttribute('data-vera-part'), 'clear', 'clear beside it');
+  assert.deepEqual([...new dom.window.FormData(document.querySelector('form')).keys()], ['q']);
+});
