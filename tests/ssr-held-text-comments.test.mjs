@@ -1,0 +1,74 @@
+/**
+ * **A comment inside a text element the scan holds is a comment in one reading only.** Where the namespace is unknown
+ * (an end tag at an integration point that the browser may ignore), or in `<noscript>`/`<select>` markup, the server
+ * holds a text-only element or `<style>` until its own end tag and scans its content as markup. A `<!`, `<!--` or `<?`
+ * there opens a comment in that reading, but in the other the browser is in the element's text, and the client
+ * renderer places the value there: `<math><mi></foreignObject><style><!${v}` puts it in an HTML `<style>` in Chromium,
+ * Firefox and WebKit. The server dropped it, so a served page lacked a value client rendering shows (a rotated fuzz seed
+ * found it). Now the value is written as text, escaped, so neither reading lets it end the comment or the element early,
+ * and a template there is refused as in a text-only element. An ordinary comment still drops its value, as the client
+ * does. Planted red by restoring the drop.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parse } from 'parse5';
+import { serializeTemplate } from '@verajs/ssr';
+
+const template = (statics, values) => ({ ['_$litType$']: 1, strings: Object.assign([...statics], { raw: [...statics] }), values });
+const PAYLOAD = '--></style></script></textarea></title></noscript>"\'><img id=pwn> pwn=1 x=';
+const SENTINEL = 'zq0zq';
+
+/** Whether the parsed page holds an element the payload made. */
+const injected = (html) => {
+  let found = false;
+  const walk = (node) => {
+    if (node.nodeName === 'img' || node.attrs?.some((attribute) => attribute.name === 'pwn')) found = true;
+    for (const child of node.childNodes ?? []) walk(child);
+    if (node.content) walk(node.content);
+  };
+  walk(parse(`<!doctype html><body>${html}`, { scriptingEnabled: true }));
+  return found;
+};
+const codeOf = (run) => {
+  try {
+    run();
+    return 'served';
+  } catch (error) {
+    return /\(([a-z-]+)\)\s*$/.exec(error.message)?.[1] ?? error.message;
+  }
+};
+
+/** Each held text element with a comment opener before the hole. */
+const HELD = [
+  ['<math><mi></foreignObject><style><!', '></style></mi></math>'],
+  ['<math><mi></foreignObject><style><!--', '--></style></mi></math>'],
+  ['<math><mi></foreignObject><style><?', '></style></mi></math>'],
+  ['<svg><title></g><style><!', '></style></title></svg>'],
+  ['<svg><desc></foreignObject><textarea><!', '></textarea></desc></svg>'],
+  ['<noscript><style><!', '></style></noscript>'],
+];
+
+test('a hole in a comment inside a held text element is written as text: never markup, never dropped', () => {
+  assert.equal(injected('<p></p><img id=pwn>'), true, 'CONTROL: the check finds a planted element');
+  for (const statics of HELD) {
+    const label = JSON.stringify(statics);
+    const attack = serializeTemplate(template(statics, [PAYLOAD]));
+    assert.equal(injected(attack), false, `${label}: the payload made markup -> ${attack}`);
+    const served = serializeTemplate(template(statics, [SENTINEL]));
+    assert.ok(served.includes(SENTINEL), `${label}: the value was dropped -> ${served}`);
+  }
+});
+
+test('a template in that hole is refused, as in a text-only element', () => {
+  const inner = template(['<b>', '</b>'], ['x']);
+  for (const statics of HELD) assert.equal(codeOf(() => serializeTemplate(template(statics, [inner]))), 'ssr-template-in-text', JSON.stringify(statics));
+});
+
+test('an ordinary comment still drops its value, as the client does', () => {
+  for (const statics of [['<div><!--', '--></div>'], ['<p><!', '></p>'], ['<svg><!--', '--></svg>']]) {
+    const served = serializeTemplate(template(statics, [SENTINEL]));
+    assert.equal(served.includes(SENTINEL), false, `${JSON.stringify(statics)} -> ${served}`);
+  }
+  /** CONTROL: the same value outside any comment is served, so its absence above is the drop, not the template. */
+  assert.ok(serializeTemplate(template(['<div>', '</div>'], [SENTINEL])).includes(SENTINEL));
+});

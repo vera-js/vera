@@ -8,8 +8,8 @@ import type { Said } from './report.js';
 import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
-import type { ScanResult, ScanStart, SsrTemplate } from './types.js';
-import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, depthOf, positionAt, positionOf, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
+import type { Open, ScanResult, ScanStart, SsrTemplate } from './types.js';
+import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, depthOf, positionAt, positionOf, holdsText, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
 
 /** Module-local, because serializeValue (the hottest function here) reads it: an imported binding is a live one, which
  *  V8 reaches less directly (CLAUDE.md, measured on the tokenizer's constants). */
@@ -416,6 +416,19 @@ const writtenDataBlock = (tag: string): boolean | undefined => {
   return !type.includes('&') && JSON_BLOCK.test(type);
 };
 
+/**
+ * **A comment the scan reads inside a text element it holds** (`holdsText`: a text-only element or `<style>` where the
+ * namespace is unknown, or in `<noscript>`/`<select>` markup) exists in the markup reading only. In the other, the
+ * element's text, the client places the value as text: `<math><mi></foreignObject><style><!${v}` puts it in an HTML
+ * `<style>` in Chromium, Firefox and WebKit, where dropping it lost a value the client shows (a rotated fuzz seed found
+ * it). So such a hole is written as text, escaped as everywhere else (`&`, `<`, `>` as references, so no reading can end
+ * the comment or the element early), and a template there is refused as in a text-only element. Kept out of `compile`'s
+ * body, which asks it only inside a comment.
+ *
+ * @param opens The elements the scan holds open, innermost last
+ * @return Whether the innermost is a text element held where the parse is not certain
+ */
+const inHeldText = (opens: readonly Open[]): boolean => opens.length > 0 && holdsText(opens[opens.length - 1]!);
 /**
  * Whether an element of this name is open at the end of a static. A plain loop: `opens.some` with an arrow made a
  * closure at every static of every compile (2026-11-20).
@@ -887,9 +900,13 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * refused here as in a text-only element (`ssr-template-in-text`), one rule on both sides. Values stay escaped, and
      * an attribute value stays quoted.
      */
-    if (tagState.textTag || hasOpen(tagState.opens, 'noscript')) texts[kinds.length] = true;
-    /** A binding inside a comment is dropped, as the client drops it — never written into the comment. */
-    kinds.push(inert || tagState.comment ? DROPPED : TEXT);
+    const heldText = tagState.comment !== '' && !inert && inHeldText(tagState.opens);
+    if (tagState.textTag || heldText || hasOpen(tagState.opens, 'noscript')) texts[kinds.length] = true;
+    /**
+     * A binding inside a comment is dropped, as the client drops it — never written into the comment; except where the
+     * comment exists in one reading only, inside a held text element (see `inHeldText`), where the client writes it as text.
+     */
+    kinds.push(inert || (tagState.comment && !heldText) ? DROPPED : TEXT);
     names.push('');
     strip.push(false);
     owners.push(owner);

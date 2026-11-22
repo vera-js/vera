@@ -159,7 +159,7 @@ const closeTo = (opens: Open[], name: string): number => {
  * Firefox and WebKit; the older select parser, parse5's, ignores the title, which is why jsdom never showed it). So no
  * other end tag closes past it; the content is still scanned as markup, which over-escapes in every reading.
  */
-const holdsText = (open: Open): boolean => (open.space === '' || open.space === '?') && (TEXT_ONLY.has(open.name) || open.name === 'style');
+export const holdsText = (open: Open): boolean => (open.space === '' || open.space === '?') && (TEXT_ONLY.has(open.name) || open.name === 'style');
 
 /**
  * Pops `opens` to the element a breakout lands in and answers the foreign depth there, or `-1` — leaving `opens` alone
