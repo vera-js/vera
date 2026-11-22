@@ -21,6 +21,9 @@ const shim = globalThis.document;
 const OPS = [
   ['createElement keeps a Kelvin sign', "return d.createElement('x-\\u212A').localName === 'x-\\u212A' ? 'kept' : 'folded';"],
   ['createElement keeps a dotted capital I', "return String(d.createElement('x-\\u0130').localName.length);"],
+  /** Astral: a Deseret capital (U+10400) lowercases to U+10428 under toLowerCase; its two surrogates must count as non-ASCII. */
+  ['createElement keeps an astral capital', "return d.createElement('x-\\u{10400}').localName === 'x-\\u{10400}' ? 'kept' : 'folded';"],
+  ['tagName keeps an astral small letter', "return d.createElement('x-\\u{10428}').tagName === 'X-\\u{10428}' ? 'kept' : 'folded';"],
   ['tagName uppercases ASCII only', "return d.createElement('x-\\u00DF').tagName;"],
   ['setAttribute keeps a Kelvin sign apart from k', "el.setAttribute('\\u212Aey', '1'); return String(el.getAttribute('key')) + '|' + el.getAttributeNames().length;"],
   ['getNamedItem keeps a Kelvin sign apart from k', "el.setAttribute('key', '1'); return String(el.attributes.getNamedItem('\\u212Aey') === null);"],

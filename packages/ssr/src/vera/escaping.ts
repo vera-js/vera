@@ -147,7 +147,8 @@ export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? 
  * `toUpperCase` turns `ß` into `SS`. A string with nothing outside ASCII folds exactly with the native call, so only a
  * string that has something outside it pays for the run-by-run replace.
  */
-const NON_ASCII = /[\u0080-￿]/;
+/** Both bounds escaped: every code unit past ASCII, an astral character's two surrogates included. */
+const NON_ASCII = /[\x80-\uffff]/;
 const lowerRun = (run: string): string => run.toLowerCase();
 const upperRun = (run: string): string => run.toUpperCase();
 export const asciiLower = (text: string): string => (NON_ASCII.test(text) ? text.replace(/[A-Z]+/g, lowerRun) : text.toLowerCase());
