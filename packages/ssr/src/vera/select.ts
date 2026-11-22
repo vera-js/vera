@@ -34,7 +34,7 @@
 
 import type { ContainerShim, ElementShim } from './nodes.js';
 import { PROSE } from './diagnostics.js';
-import { HTML_NS, parseChunks } from './nodes.js';
+import { HTML_NS, parseChunks, sayDeclined } from './nodes.js';
 import { asciiLower } from './escaping.js';
 import { own, quoted, ssrMisuse } from './report.js';
 
@@ -48,6 +48,17 @@ type Compound = { tests: Test[]; consumed: number };
 type Step = { tests: Test[]; combinator: string | null };
 
 /** `[name op "value" i]` — every attribute operator the platform defines. */
+/**
+ * **The attributes whose values an HTML selector matches case-insensitively** without an `i` flag (HTML's list, for an
+ * element in the HTML namespace; an `s` flag makes the match exact again): `[lang|=EN]` matches `lang="en-US"`, and
+ * `[type=CHECKBOX]` an `<input type=checkbox>`. The shim matched exactly, so those answered nothing where every engine
+ * answers the element.
+ */
+const CASELESS_VALUES = new Set(['accept', 'accept-charset', 'align', 'alink', 'axis', 'bgcolor', 'charset', 'checked', 'clear',
+  'codetype', 'color', 'compact', 'declare', 'defer', 'dir', 'direction', 'disabled', 'enctype', 'face', 'frame', 'hreflang',
+  'http-equiv', 'lang', 'language', 'link', 'media', 'method', 'multiple', 'nohref', 'noresize', 'noshade', 'nowrap',
+  'readonly', 'rel', 'rev', 'rules', 'scope', 'scrolling', 'selected', 'shape', 'target', 'text', 'type', 'valign',
+  'valuetype', 'vlink']);
 const ATTRIBUTE = /^\[\s*([^\s\]~^$*|=]+)\s*(?:([~^$*|]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\s\]]*))\s*)?(?:([iIsS])\s*)?\]/;
 const NAME = /^[*]|^[a-zA-Z][\w-]*/;
 const CLASS = /^\.([\w-]+)/;
@@ -93,12 +104,13 @@ const parseCompound = (source: string, selector: string): Compound => {
       const [, name, operator, quoted, single, bare, flag] = match;
       const wanted = quoted ?? single ?? bare ?? '';
       const fold = flag === 'i' || flag === 'I';
+      const caseless = flag === undefined && CASELESS_VALUES.has(asciiLower(name));
       tests.push((element) => {
         let actual = element.getAttribute(name);
         if (actual === null) return false;
         if (!operator) return true;
         let target = wanted;
-        if (fold) {
+        if (fold || (caseless && element._ns === HTML_NS)) {
           actual = asciiLower(actual);
           target = asciiLower(target);
         }
@@ -236,10 +248,12 @@ export const matches = (element: ElementShim, selector: string, scope: Container
  * Every descendant, in document order. **Each container's markup is parsed as the walk reaches it**: a child filled by
  * `innerHTML` holds a string until something asks for its nodes, and the walk read only nodes, so every query on an
  * ancestor (`querySelector`, `getElementById`, `getElementsByTagName`, …) missed what was assigned below it while the
- * child's own query found it. **A template's content is not its children** in the platform (it is a separate fragment),
+ * child's own query found it. A container whose markup was declined says so (`sayDeclined`), as `children` does.
+ * **A template's content is not its children** in the platform (it is a separate fragment),
  * so the walk stops at an HTML `<template>`: once nested markup was parsed, `#t` inside one was found.
  */
 const descendants = (node: ContainerShim, out: ElementShim[] = []): ElementShim[] => {
+  sayDeclined(node);
   for (const child of childrenOf(node)) {
     out.push(child);
     if (child.localName === 'template' && child._ns === HTML_NS) continue;

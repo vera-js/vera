@@ -501,9 +501,12 @@ const asCollection = <T>(list: T[]): CollectionShim<T> => {
 const elementsOf = (container: ContainerShim): CollectionShim<ElementShim> =>
   asCollection(nodesOf(container).filter((node) => (node as DuckNode).openTag) as ElementShim[]);
 
-const nodesOf = (container: ContainerShim): ChildShim[] => {
-  parseChunks(container);
-  const nodes = container._entries.filter((entry) => typeof entry !== 'string');
+/**
+ * **Says once that a container's markup was declined, so what reads its nodes does not see all of it** — `children`
+ * and every query (`querySelector`, `getElementById`, …, through the descendant walk) alike: a query over a declined
+ * chunk answered emptily and said nothing, where `children` warned. Called after `parseChunks`.
+ */
+export const sayDeclined = (container: ContainerShim): void => {
   /**
    * **Not `!nodes.length`.** That guard silenced this in the case that needs it most: a container
    * holding *both* parsed nodes and a declined chunk answered `children` with only the nodes, said
@@ -533,6 +536,12 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
     const tag = currentRenderingTag();
     if (once('ssr-markup-declined', tag)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'ssr-markup-declined', PROSE['ssr-markup-declined']!()));
   }
+};
+
+const nodesOf = (container: ContainerShim): ChildShim[] => {
+  parseChunks(container);
+  const nodes = container._entries.filter((entry) => typeof entry !== 'string');
+  sayDeclined(container);
   return nodes;
 };
 
