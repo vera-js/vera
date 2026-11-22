@@ -149,6 +149,30 @@ test("a form's reset leaves clear's visibility right", async () => {
   assert.equal(part(element, 'clear').hidden, true);
 });
 
+test("an input built outside a form and then moved into one hears that form's reset", async () => {
+  /** Core runs no setup again on an in-document move, so a form read at setup would stay none here. */
+  said.length = 0;
+  document.body.innerHTML = '<form id="theirs"><input name="other" value="x"></form><form id="mine"></form>';
+  const element = document.createElement('vera-input');
+  element.setAttribute('clearable', '');
+  element.innerHTML = '<input aria-label="q">';
+  document.body.append(element);
+  await settle();
+  document.getElementById('mine').append(element);
+  await settle();
+  const input = element.querySelector('input');
+  assert.equal(input.form?.id, 'mine', 'CONTROL: the move placed it in the form');
+  type(input, 'typed');
+  assert.equal(part(element, 'clear').hidden, false);
+  document.getElementById('theirs').reset();
+  await task();
+  assert.equal(input.value, 'typed', "CONTROL: another form's reset leaves this input's value");
+  document.getElementById('mine').reset();
+  await task();
+  assert.equal(input.value, '');
+  assert.equal(part(element, 'clear').hidden, true, "its own form's reset hides the clear");
+});
+
 test('loading: aria-busy on the input, an aria-hidden mark, both gone when it ends; a user aria-busy is theirs', async () => {
   const element = await mount('<label>q <vera-input loading><input></vera-input></label>');
   const input = element.querySelector('input');

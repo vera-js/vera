@@ -144,7 +144,7 @@ const warn = (host: InputHost, input: HTMLInputElement): void => {
 
 /**
  * **Clear, while `clearable`**: one `input` listener, one `keydown` (Escape, acted on only for a search input: the type
- * is read at the key, since a page may change it) and a `reset` listener on the input's form, which reset changes
+ * is read at the key, since a page may change it) and a `reset` listener on the input's root (its form matched at the event), which reset changes
  * without an `input` event; a `pageshow` restoring the page from bfcache is read the same way. Nothing at all without
  * the option. Returns the release.
  */
@@ -164,26 +164,33 @@ const clearing = (host: InputHost, input: HTMLInputElement): (() => void) => {
     clear(input);
     show();
   };
-  /** A form's reset writes the values after its `reset` event, so the read waits a task. */
-  const onReset = (): void => void win?.setTimeout(show, 0);
+  /**
+   * A form's reset writes the values after its `reset` event, so the read waits a task. The form is matched AT THE
+   * EVENT, on the root, never taken once: core treats a connected element's in-document append as a move and runs no
+   * setup again, so a form read here would stay the one the input had first (none, for an input built outside a form
+   * and then placed in one). `reset` bubbles, so the root hears every form's.
+   */
+  const onReset = (event: Event): void => {
+    if (event.target === input.form) win?.setTimeout(show, 0);
+  };
   const onPageshow = (event: PageTransitionEvent): void => {
     if (event.persisted) show();
   };
-  const form = input.form;
+  const root = input.getRootNode();
   input.after(button);
   show();
   button.addEventListener('click', onClick);
   button.addEventListener('mousedown', keepFocus);
   input.addEventListener('input', show);
   input.addEventListener('keydown', onKeydown);
-  form?.addEventListener('reset', onReset);
+  root.addEventListener('reset', onReset);
   win?.addEventListener('pageshow', onPageshow);
   return () => {
     button.removeEventListener('click', onClick);
     button.removeEventListener('mousedown', keepFocus);
     input.removeEventListener('input', show);
     input.removeEventListener('keydown', onKeydown);
-    form?.removeEventListener('reset', onReset);
+    root.removeEventListener('reset', onReset);
     win?.removeEventListener('pageshow', onPageshow);
     button.remove();
   };
