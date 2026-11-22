@@ -171,7 +171,15 @@ const tagShape = (strings: TemplateStringsArray, type: number): [string, string]
       continue;
     }
     if (!closing && RAW_TEXT_TAGS.test(tag)) {
-      const end = markup.toLowerCase().indexOf(`</${tag}`, SHAPE.lastIndex);
+      /**
+       * Searched in `markup` itself, case-insensitively, never in a lowered copy (2026-11-22): `toLowerCase` turns `İ`
+       * into two code units, so an index found in the copy pointed one past the real end per `İ` before it, and
+       * `<svg><title>` + 12 × `İ` + `</title><g>${x}</g>` was refused as a binding inside the title. A regex without
+       * `u` folds ASCII letters only, as HTML does (BROWSER-LEDGER, ASCII case folding).
+       */
+      const closer = new RegExp(`</${tag}`, 'gi');
+      closer.lastIndex = SHAPE.lastIndex;
+      const end = closer.exec(markup)?.index ?? -1;
       const stop = end === -1 ? markup.length : end;
       /**
        * A shape that silently loses a binding, refused: inside `<svg>`/`<math>` a `<title>` or `<style>` is a foreign

@@ -51,6 +51,21 @@ const ALLOWED = {
   'html title': [() => html`<title>${'x'}</title>`, '<title>x</title>'],
 };
 
+/**
+ * **A title's end is found in the template as written** (2026-11-22): the scan lowered a copy to find `</title>`, and
+ * `İ` lowers to two code units, so each one before the end tag moved it one character late, past `</title><g>`, and a
+ * binding in the `<g>` was refused in development as one inside the title. Production never ran the scan.
+ */
+test('an İ in an SVG title does not move its end: a binding after the title renders in both builds', () => {
+  const dotted = '\u0130'.repeat(12);
+  const strings = Object.assign([`<svg><title>${dotted}</title><g>`, '</g></svg>'], { raw: [`<svg><title>${dotted}</title><g>`, '</g></svg>'] });
+  const out = render(html(strings, 'x'));
+  assert.ok(!out.startsWith('THREW'), out);
+  assert.ok(out.includes(`<title>${dotted}</title><g>x</g>`), out);
+  /** CONTROL: a binding beside an element inside the title is still refused in development. */
+  if (!isProduction) assert.ok(render(REFUSED['svg title: text binding beside an element']()).startsWith('THREW'));
+});
+
 test('the foreign-raw-text shapes are refused in development, naming the fix; production renders them as it always did', () => {
   for (const [label, make] of Object.entries(REFUSED)) {
     const out = render(make());
