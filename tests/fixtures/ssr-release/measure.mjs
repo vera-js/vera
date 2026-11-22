@@ -33,7 +33,8 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
    * EVIDENCE when an instance survived (2026-11-22): the retainer path, read from a heap snapshot taken BEFORE anything
    * below dereferences a WeakRef (a `deref()` adds a root of its own), and printed with the failure, because a CI
    * runner's snapshot file goes with the runner. The survivors are found as the live targets of `__refs`'s WeakRefs, which
-   * holds in the minified build too. One file per mode, overwritten by the next failure.
+   * holds in the minified build too. At most two survivors are traced (`traced` says how many of how many). One file
+   * per mode (~7 MB), overwritten by the next failure, never accumulating.
    */
   if (out.objects > 0) {
     const { writeHeapSnapshot } = await import('node:v8');
@@ -41,6 +42,7 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
     const { retainerPaths } = await import('./retainers.mjs');
     out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}.heapsnapshot`);
     out.retainers = retainerPaths(out.snapshot, { weakRefsIn: '__refs' });
+    out.traced = `${out.retainers.length} of ${out.objects}`;
   }
   /** Its CONTROL: one instance held must count one more (an instrument that cannot count reports a clean heap). */
   const held = new Class();
