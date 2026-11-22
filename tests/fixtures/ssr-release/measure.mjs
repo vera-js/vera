@@ -29,6 +29,19 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
   const Class = (await import(url(file))).default;
   const { queryObjects } = await import('node:v8');
   out.objects = queryObjects(Class, { format: 'count' });
+  /**
+   * EVIDENCE when an instance survived (2026-11-22): the retainer path, read from a heap snapshot taken BEFORE anything
+   * below dereferences a WeakRef (a `deref()` adds a root of its own), and printed with the failure, because a CI
+   * runner's snapshot file goes with the runner. The survivors are found as the live targets of `__refs`'s WeakRefs, which
+   * holds in the minified build too. One file per mode, overwritten by the next failure.
+   */
+  if (out.objects > 0) {
+    const { writeHeapSnapshot } = await import('node:v8');
+    const { tmpdir } = await import('node:os');
+    const { retainerPaths } = await import('./retainers.mjs');
+    out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}.heapsnapshot`);
+    out.retainers = retainerPaths(out.snapshot, { weakRefsIn: '__refs' });
+  }
   /** Its CONTROL: one instance held must count one more (an instrument that cannot count reports a clean heap). */
   const held = new Class();
   out.objectsControl = queryObjects(Class, { format: 'count' }) - out.objects;
@@ -37,20 +50,31 @@ if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === '
   Object.assign(out, { rendered: refs.length, markup: markup.includes('<b>0</b>'), late: markup.includes('<i>late</i>'), alive: refs.filter((r) => r.deref() !== undefined).length });
   /**
    * EVIDENCE when it fails (2026-10-22 — an intermittent "3 alive" was seen once in three full gates and never
-   * standalone): a heap snapshot to name the retainer, and a recount after the 100 ms fallback timer and another gc.
+   * standalone): the snapshot above, and a recount after the 100 ms fallback timer and another gc.
    * Gone after the wait is a TIMING survivor (a pending server-side callback); still there is structural. Costs
    * nothing when green. ONE file per mode, overwritten by the next failure (2026-11-11): named by process id, every
    * failing run left 7 MB per mode in the temp directory for good (24 of them, 156 MB, found when the disk filled).
    */
   if (out.alive > 0) {
-    const { writeHeapSnapshot } = await import('node:v8');
-    const { tmpdir } = await import('node:os');
-    out.snapshot = writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}.heapsnapshot`);
     await new Promise((r) => setTimeout(r, 250));
     await gc();
     out.objectsAfterWait = queryObjects(Class, { format: 'count' });
     out.aliveAfterWait = refs.filter((r) => r.deref() !== undefined).length;
   }
+}
+if (mode === 'retainers-control') {
+  /**
+   * The evidence's CONTROL: of three rendered hosts, one held by a planted global must be found with that holder on its
+   * path, and the two dropped must not be found at all.
+   */
+  for (let i = 0; i < 3; i++) await renderToString(url('comp-define-props.mjs'));
+  (() => { globalThis.__plantedHolder = { pending: [globalThis.__refs[1].deref()] }; })();
+  await gc();
+  const { writeHeapSnapshot } = await import('node:v8');
+  const { tmpdir } = await import('node:os');
+  const { retainerPaths } = await import('./retainers.mjs');
+  const found = retainerPaths(writeHeapSnapshot(`${tmpdir()}/vera-ssr-release-${mode}.heapsnapshot`), { weakRefsIn: '__refs' });
+  Object.assign(out, { found: found.length, named: found.some(({ path }) => path.join(' ').includes('property:__plantedHolder')) });
 }
 if (mode === 'burst') {
   /** 50 renders at once, each writing the store in its setup: no render may re-run once its turn has ended. */

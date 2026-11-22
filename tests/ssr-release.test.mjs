@@ -27,6 +27,13 @@ const measure = (mode) =>
 
 const controls = (r) => assert.ok(r.kept && r.droppedDied, `CONTROLS: the kept object lived and the dropped one died (${JSON.stringify(r)})`);
 
+test('a survivor is reported with what holds it (CONTROL for the evidence every row below prints when it fails)', () => {
+  const r = measure('retainers-control');
+  controls(r);
+  assert.equal(r.found, 1, `the one held host is found and the two dropped are not (${JSON.stringify(r)})`);
+  assert.ok(r.named, `its path names the planted holder (${JSON.stringify(r)})`);
+});
+
 test('200 server renders against a module-scope store leave no component alive', () => {
   const r = measure('sync');
   controls(r);
