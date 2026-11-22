@@ -5,8 +5,8 @@ reactivity, nothing to wire, and no value ever becomes code.
 
 | Package | gzipped | A render | For |
 | --- | ---: | --- | --- |
-| `@verajs/static` | <!--size:static.gzip-->1.71 KB<!--/size:static.gzip--> | once, at the first connect | static sites, markup enhanced by `@verajs/directives` |
-| `@verajs/lite` | <!--size:lite.gzip-->4.19 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small dynamic sites |
+| `@verajs/static` | <!--size:static.gzip-->1.72 KB<!--/size:static.gzip--> | once, at the first connect | static sites, markup enhanced by `@verajs/directives` |
+| `@verajs/lite` | <!--size:lite.gzip-->4.20 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small dynamic sites |
 
 <!-- recipe -->
 ```js
