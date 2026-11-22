@@ -508,6 +508,11 @@ const INSTANCES = [];
   const element = make();
   const instances = [
     ['EventTarget', element],
+    /** Every node kind, not only elements: the base runs no `EventTarget` constructor, so only its prototype makes this true. */
+    ['EventTarget', globalThis.document.createTextNode('x')],
+    ['EventTarget', globalThis.document.createComment('x')],
+    ['EventTarget', globalThis.document.createDocumentFragment()],
+    ['EventTarget', make().attachShadow({ mode: 'open' })],
     ['Node', element],
     ['Element', element],
     ['HTMLElement', element],

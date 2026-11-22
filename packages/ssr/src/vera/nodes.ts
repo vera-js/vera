@@ -570,14 +570,24 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
  * the input — `&amp;` stays `&amp;` rather than becoming this package's `&#38;` — and falls back to
  * escaping its data the moment somebody writes to it.
  */
+/** `EventTarget`'s prototype behind a constructor that does nothing — see `NodeBaseShim`. */
+const EventTargetUninitialized = function EventTargetUninitialized() {} as unknown as { new (): EventTarget; prototype: EventTarget };
+EventTargetUninitialized.prototype = EventTarget.prototype;
+
 /**
  * **`Node` itself — the one base every node of this DOM shares** (2026-10-09). Text and comments were a separate
  * line from containers, and `Node` was the container class, so `text instanceof Node` answered `false` where every
  * engine answers `true`, and a Node-typed parameter could not tell a node from any object: `appendChild({})` and
  * `replaceChild({}, child)` were accepted, `contains({})` answered `false`, `removeChild(null)` threw the wrong class.
  * Measured by differential against jsdom (tests/ssr-imitations-differential).
+ *
+ * **On `EventTarget`'s prototype, without running its constructor** (2026-11-22). Node's constructor allocates a
+ * listener map on every node, and these classes never use it: their listeners and dispatch live in `events.js`, and
+ * both branches override all three methods. Every node paid it anyway — 9.4% of parsing a 50 KB article assigned as
+ * `.innerHTML` (inclusive, warm profile), and a share of every render that builds nodes. It extends a constructor that
+ * does nothing, whose prototype IS `EventTarget.prototype`, so `node instanceof EventTarget` stays true, as in every engine.
  */
-export class NodeBaseShim extends EventTarget {
+export class NodeBaseShim extends EventTargetUninitialized {
   constructor() {
     super();
     /** `new Node()` is an `Illegal constructor` in every engine — the interface is abstract. */
