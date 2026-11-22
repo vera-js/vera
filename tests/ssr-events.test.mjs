@@ -158,7 +158,7 @@ test('the listener contract is unchanged', () => {
   both('an aborted signal removes the listener', (d, event) => {
     const [host] = tree(d);
     let count = 0;
-    // jsdom takes only its own realm's signal; the server DOM takes Node's.
+    /** jsdom takes only its own realm's signal; the server DOM takes Node's. */
     const controller = new (d.defaultView?.AbortController ?? AbortController)();
     host.addEventListener('x', () => count++, { signal: controller.signal });
     host.dispatchEvent(event('x'));
