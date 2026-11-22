@@ -637,11 +637,13 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     /**
      * **Most tags change nothing about how what follows parses.** In HTML with nothing open, only the elements in
      * `STRUCTURAL` do, so every other tag — the `<p>`, `<a>` and `<li>` that are nearly all of real markup — skips the
-     * stack, namespace and breakout work below. So does one whose innermost tracked element only owes a closer
-     * (`CLOSE_ONLY`): `structural` reads nothing but the innermost entry, and for one of those it does nothing to such a
-     * tag, so a table's rows and cells cost what they cost outside it.
+     * stack, namespace and breakout work below. So does one whose innermost tracked element is an HTML one opened at
+     * depth 0 — a `CLOSE_ONLY` table or object, which only owes a closer, or a `<template>`: `structural` reads nothing
+     * but the innermost entry, and for those it does nothing to such a tag, so a table's rows and cells cost what they
+     * cost outside it. Read off the entry's own fields, not a `Set` lookup on its name: the lookup, once per tag inside
+     * a table, cost a 50 KB table article 8% per render (measured, fresh processes against the base without tracking).
      */
-    if (foreign === 0 && (opens.length === 0 || CLOSE_ONLY.has(opens[opens.length - 1].name)) && !STRUCTURAL.has(tagName)) {
+    if (foreign === 0 && (opens.length === 0 || (opens[opens.length - 1].foreign === 0 && opens[opens.length - 1].space === 'html')) && !STRUCTURAL.has(tagName)) {
       tagName = '';
       closing = false;
       selfClosing = false;

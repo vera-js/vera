@@ -428,6 +428,31 @@ test('an end tag that may close a foreign ancestor of an integration point leave
   }
 });
 
+/**
+ * **The fast path skips only tags that change nothing** (2026-11-22). A non-structural tag skips `structural` when nothing
+ * is open, or when the innermost entry is an HTML element opened at depth 0 (a table, an object, a `<template>`), read
+ * off the entry's fields rather than a lookup by name. Under every entry that changes parsing — `<select>`/`<noscript>`
+ * markup, SVG and MathML, an integration point, a tracked text element — the tag still takes the slow path, and a
+ * raw-text element is never skipped. Each row: a non-structural end tag, then a `<style>` hole; never injected, and
+ * served raw only where the browser builds an HTML `<style>` (the end tags that may close a foreign ancestor of a point
+ * over-escape, pinned above; a hole in template content is not served).
+ */
+test('under every kind of open entry, a non-structural end tag before a style hole never lets its value be served raw where the browser reads markup', () => {
+  const LEADS = [
+    '<table><tr><td></b>', '<object></b>', '<template></b>', '<select></b>', '<noscript></b>', '<svg></b>', '<math></b>',
+    '<svg><foreignObject></g>', '<svg><title></a>', '<math><mtext></mrow>', '<noscript><textarea></textarea></b>',
+  ];
+  const wrong = [];
+  for (const lead of LEADS) {
+    const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
+    if (injected(served) || (served.includes(PAYLOAD) && styleParent(served) !== 'html')) wrong.push(`${lead}: ${served}`);
+  }
+  assert.deepEqual(wrong, []);
+  /** CONTROL: the rows reach raw text where the browser has it — a table's cell and an object read a style as HTML. */
+  for (const lead of ['<table><tr><td></b>', '<object></b>'])
+    assert.ok(serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD)).includes(PAYLOAD), lead);
+});
+
 /** Two seams the fuzz found: what is left where a binding was must not change how its neighbors tokenize. */
 test('a dropped comment binding cannot fuse its neighbors, and an unquoted value runs to the tokenizer’s whitespace', () => {
   /** `<!` + `--!>` would be `<!--!>`, a comment OPENING, which swallowed everything after it. */
