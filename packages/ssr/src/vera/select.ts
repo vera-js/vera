@@ -47,7 +47,6 @@ type Compound = { tests: Test[]; consumed: number };
 /** One step of a complex selector: its compound's tests, and the combinator before it (`null` on the first). */
 type Step = { tests: Test[]; combinator: string | null };
 
-/** `[name op "value" i]` — every attribute operator the platform defines. */
 /**
  * **The attributes whose values an HTML selector matches case-insensitively** without an `i` flag (HTML's list, for an
  * element in the HTML namespace; an `s` flag makes the match exact again): `[lang|=EN]` matches `lang="en-US"`, and
@@ -59,7 +58,21 @@ const CASELESS_VALUES = new Set(['accept', 'accept-charset', 'align', 'alink', '
   'http-equiv', 'lang', 'language', 'link', 'media', 'method', 'multiple', 'nohref', 'noresize', 'noshade', 'nowrap',
   'readonly', 'rel', 'rev', 'rules', 'scope', 'scrolling', 'selected', 'shape', 'target', 'text', 'type', 'valign',
   'valuetype', 'vlink']);
-const ATTRIBUTE = /^\[\s*([^\s\]~^$*|=]+)\s*(?:([~^$*|]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\s\]]*))\s*)?(?:([iIsS])\s*)?\]/;
+/**
+ * `[name op "value" i]` — every attribute operator the platform defines. A value may hold CSS escapes (`\"`, `\\`,
+ * `\31 `), in quotes or bare: a quoted value used to end at its first quote, escaped or not, so `[x="a\"b"]` fell
+ * through to the bare form and matched a value WITH its quotes, a wrong answer; a bare value holds no quote at all.
+ */
+const ATTRIBUTE = /^\[\s*([^\s\]~^$*|="']+)\s*(?:([~^$*|]?=)\s*(?:"((?:[^"\\]|\\[\s\S])*)"|'((?:[^'\\]|\\[\s\S])*)'|((?:[^\s\]"'\\]|\\[\s\S])*))\s*)?(?:([iIsS])\s*)?\]/;
+/** A CSS escape: hex (one optional whitespace after it), a line continuation (inside a string, it is nothing), or one character as itself. */
+const ESCAPE = /\\(?:([0-9a-fA-F]{1,6})(?:\r\n|[ \t\n\r\f])?|(\r\n|[\n\r\f])|([\s\S]))/g;
+const decodeEscape = (_: string, hex: string | undefined, newline: string | undefined, character: string | undefined): string => {
+  if (hex === undefined) return newline === undefined ? character! : '';
+  const point = parseInt(hex, 16);
+  /** Zero, a surrogate or past U+10FFFF is the replacement character, as CSS says. */
+  return point === 0 || (point >= 0xd800 && point <= 0xdfff) || point > 0x10ffff ? '\ufffd' : String.fromCodePoint(point);
+};
+const unescaped = (value: string): string => (value.includes('\\') ? value.replace(ESCAPE, decodeEscape) : value);
 const NAME = /^[*]|^[a-zA-Z][\w-]*/;
 const CLASS = /^\.([\w-]+)/;
 const ID = /^#([\w-]+)/;
@@ -101,8 +114,9 @@ const parseCompound = (source: string, selector: string): Compound => {
       tests.push((element, scope) => !inner.tests.every((test) => test(element, scope)));
       match = { 0: rest.slice(0, match[0].length + inner.consumed + 1) };
     } else if ((match = ATTRIBUTE.exec(rest))) {
-      const [, name, operator, quoted, single, bare, flag] = match;
-      const wanted = quoted ?? single ?? bare ?? '';
+      const [, written, operator, quoted, single, bare, flag] = match;
+      const name = unescaped(written!);
+      const wanted = unescaped(quoted ?? single ?? bare ?? '');
       const fold = flag === 'i' || flag === 'I';
       const caseless = flag === undefined && CASELESS_VALUES.has(asciiLower(name));
       tests.push((element) => {
