@@ -38,6 +38,7 @@
  */
 
 import type { ElementShim } from './nodes.js';
+import { LABELABLE, labelsOf } from './nodes.js';
 import { asciiLower } from './escaping.js';
 
 /** `presence`: the attribute's presence is the value; the third cell answers for absent when that is not `false`. */
@@ -680,7 +681,7 @@ const define = (proto: ElementShim, property: string, accessors: Accessors): Ele
 export const interfaceFor = (tag: string, Base: typeof ElementShim): typeof ElementShim => {
   const table = (ELEMENT_REFLECTIONS as ReflectionTable)[tag];
   const state = FORM_STATE[tag];
-  if (table === undefined && state === undefined) return Base;
+  if (table === undefined && state === undefined && !LABELABLE.has(tag)) return Base;
   const cached = constructors.get(tag);
   if (cached !== undefined) return cached;
 
@@ -808,6 +809,9 @@ const absent = (entry as NumberReflection)[2];
     }
   }
   for (const [property, accessors] of Object.entries(state ?? {})) define(proto, property, accessors);
+  /** `labels` only where HTML defines it, the labelable elements, read-only as there (see `labelsOf`). */
+  if (LABELABLE.has(tag))
+    Object.defineProperty(proto, 'labels', { get(this: ElementShim) { return labelsOf(this); }, configurable: true });
   constructors.set(tag, Element);
   return Element;
 };
