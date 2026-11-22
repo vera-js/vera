@@ -6,11 +6,12 @@
  * prompt read). Correctness only, headless: never time with it.
  */
 import { expect } from '@esm-bundle/chai';
-import { emulateMedia, sendKeys } from '@web/test-runner-commands';
+import { emulateMedia, sendKeys, sendMouse } from '@web/test-runner-commands';
 import { flush, wire } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import '../../packages/components/input/dist/development/vera-input.js';
 import { defineAs } from '../../packages/components/input/dist/development/vera-input-element.js';
+import { ON } from './engine.js';
 
 wire([renderer]);
 defineAs('my-input');
@@ -336,5 +337,88 @@ describe('vera-input: upgraded by the parser before its children exist', () => {
     expect(inputs.join(',')).to.equal('q');
     expect(keys).to.equal('q');
     expect(after).to.equal('q');
+  });
+});
+
+describe('vera-input: look v2 (scale, one clear glyph)', () => {
+  const size = (wrap) => parseFloat(getComputedStyle(wrap.querySelector('input')).fontSize);
+
+  it("scale sets the input's own font size: md the page's, sm below it, lg above it, and none the browser's", async () => {
+    const plain = await mount('<label>q <vera-input><input></vera-input></label>');
+    const bare = await mount('<label>q <input></label>');
+    const sm = await mount('<label>q <vera-input scale="sm"><input></vera-input></label>');
+    const md = await mount('<label>q <vera-input scale="md"><input></vera-input></label>');
+    const lg = await mount('<label>q <vera-input scale="lg"><input></vera-input></label>');
+    const page = parseFloat(getComputedStyle(md).fontSize);
+    expect(page, 'CONTROL: a font size was read').to.be.above(0);
+    expect(size(md), 'md is the page\'s size').to.equal(page);
+    expect(size(sm)).to.be.below(size(md));
+    expect(size(lg)).to.be.above(size(md));
+    expect(size(plain), 'no scale leaves the browser\'s own size').to.equal(parseFloat(getComputedStyle(bare.querySelector('input')).fontSize));
+    for (const wrap of [plain, bare, sm, md, lg]) wrap.remove();
+  });
+
+  it('a [scale] on an ancestor (another component) does not reach our unscaled input; the mark carries the scale', async () => {
+    const wrap = await mount('<div scale="lg"><label>q <vera-input><input></vera-input></label></div>');
+    const control = await mount('<label>q <vera-input><input></vera-input></label>');
+    expect(size(wrap)).to.equal(size(control));
+    wrap.remove();
+    control.remove();
+  });
+
+  it('a scaled host that opted out of the look (data-vera-look="none") keeps the browser\'s size', async () => {
+    const off = await mount('<label>q <vera-input scale="lg" data-vera-look="none"><input></vera-input></label>');
+    const on = await mount('<label>q <vera-input scale="lg"><input></vera-input></label>');
+    const control = await mount('<label>q <vera-input><input></vera-input></label>');
+    expect(size(on), 'CONTROL: the same scale without the opt-out is styled').to.be.above(size(control));
+    expect(size(off)).to.equal(size(control));
+    for (const wrap of [off, on, control]) wrap.remove();
+  });
+
+  /**
+   * No engine resolves `getComputedStyle(input, '::-webkit-search-cancel-button')`: even a bare
+   * `input::-webkit-search-cancel-button { appearance: none }` reads the input's own `auto` on Chromium and `''` on WebKit
+   * (BROWSER-LEDGER); Firefox keeps the rule too. So the row reads what can be read, on all three engines: the engine kept the rule as written, and its subject is this
+   * input exactly while our clear button is beside it. Whether the button is then painted is not read here.
+   */
+  it("the rule hiding the engine's own search cancel button is kept, and targets the input only while ours is beside it", async () => {
+    const wrap = await mount('<label>q <vera-input clearable><input type="search" value="x"></vera-input></label>');
+    const bare = await mount('<label>q <input type="search" value="x" data-vera-input></label>');
+    const found = document.adoptedStyleSheets
+      .flatMap((sheet) => [...sheet.cssRules])
+      .find((r) => (r.selectorText ?? '').includes('::-webkit-search-cancel-button'));
+    expect(found !== undefined, `CONTROL on ${ON}: the engine kept the rule`).to.equal(true);
+    expect(found.style.getPropertyValue('appearance')).to.equal('none');
+    const subject = found.selectorText.replace('::-webkit-search-cancel-button', '');
+    const input = wrap.querySelector('input');
+    expect(input.matches(subject), 'the subject is our input while clearable').to.equal(true);
+    expect(bare.querySelector('input').matches(subject), 'CONTROL: a marked input with no clear button beside it is not').to.equal(false);
+    wrap.querySelector('vera-input').removeAttribute('clearable');
+    flush();
+    await Promise.resolve();
+    flush();
+    expect(input.matches(subject), 'and not once clearable is removed').to.equal(false);
+    wrap.remove();
+    bare.remove();
+  });
+});
+
+describe('vera-input: a pointer clear keeps focus in the input', () => {
+  it('a real click on the clear button never blurs the input: focus stays, the value clears, no blur fires', async () => {
+    const wrap = await mount('<label>q <vera-input clearable><input value="hello"></vera-input></label>');
+    const input = wrap.querySelector('input');
+    const button = wrap.querySelector('[data-vera-part="clear"]');
+    input.focus();
+    expect(document.activeElement, 'CONTROL: the input had focus').to.equal(input);
+    let blurs = 0;
+    input.addEventListener('blur', () => blurs++);
+    const box = button.getBoundingClientRect();
+    expect(box.width, 'CONTROL: the clear button is shown').to.be.above(0);
+    await sendMouse({ type: 'click', position: [Math.round(box.left + box.width / 2), Math.round(box.top + box.height / 2)] });
+    expect(input.value, 'the click reached the button').to.equal('');
+    expect(blurs, 'blur events on the input').to.equal(0);
+    expect(document.activeElement).to.equal(input);
+    await sendMouse({ type: 'move', position: [0, 0] });
+    wrap.remove();
   });
 });

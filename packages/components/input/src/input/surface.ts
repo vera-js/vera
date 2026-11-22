@@ -28,7 +28,7 @@ export const inputSurface = {
       description: 'Shows the caps-lock part while Caps Lock is on in the input, and announces it once per focus. Observed.',
     },
     { name: 'caps-lock-message', description: 'What the hint shows and says. Default "Caps Lock is on". Observed.' },
-    { name: 'scale', description: 'sm, md or lg: the size, in the styles layer (never size, which <input size> already means).' },
+    { name: 'scale', description: 'sm, md or lg: the input\'s own font size, md the page\'s and sm and lg around it; none leaves the browser\'s (never size, which <input size> already means).' },
     { name: 'name', description: 'Copied to the default input once, at render; not observed.' },
     { name: 'type', description: 'Copied to the default input once, at render; not observed.' },
     { name: 'value', description: 'Copied to the default input once, at render; not observed.' },

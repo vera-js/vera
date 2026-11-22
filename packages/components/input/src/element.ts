@@ -20,7 +20,7 @@ import { LOOK, SHEET } from './input/sheet.js';
 /** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
 export const options = {
   tag: 'vera-input',
-  attributes: ['clearable', 'clear-label', 'loading', 'reveal', 'reveal-label', 'caps-lock-hint', 'caps-lock-message'],
+  attributes: ['clearable', 'clear-label', 'loading', 'reveal', 'reveal-label', 'caps-lock-hint', 'caps-lock-message', 'scale'],
   /** The parts written beside the input are this element's own, never a render's: a re-render keeps them. */
   foreignNodes: 'preserve',
 } as const;
@@ -34,6 +34,7 @@ interface InputHost extends HTMLElement {
   revealLabel: string | null;
   capsLockHint: string | null;
   capsLockMessage: string | null;
+  scale: string | null;
 }
 
 /**
@@ -94,6 +95,15 @@ const clear = (input: HTMLInputElement): void => {
   input.dispatchEvent(new win.InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
   input.dispatchEvent(new win.Event('change', { bubbles: true }));
 };
+
+/**
+ * A press on the clear button never takes focus from the input: an engine focuses a pressed button even at
+ * `tabIndex = -1`, so the input blurred (a page's blur handler and validate-on-blur ran) before the clear put focus
+ * back (a browser row). One function for every instance: it reads nothing but its event. It also stops a drag-select
+ * starting on the glyph, and the input's own selection is not kept: the clear selects the whole value to delete it.
+ * A tap is covered by the compatibility mousedown that follows it, a HYPOTHESIS with no touch device to measure on.
+ */
+const keepFocus = (event: MouseEvent): void => event.preventDefault();
 
 /** The clear button: a real button, named, out of the tab order (select-all then Delete, or Escape, is the keyboard's). */
 const makeClear = (doc: Document): HTMLButtonElement => {
@@ -163,12 +173,14 @@ const clearing = (host: InputHost, input: HTMLInputElement): (() => void) => {
   input.after(button);
   show();
   button.addEventListener('click', onClick);
+  button.addEventListener('mousedown', keepFocus);
   input.addEventListener('input', show);
   input.addEventListener('keydown', onKeydown);
   form?.addEventListener('reset', onReset);
   win?.addEventListener('pageshow', onPageshow);
   return () => {
     button.removeEventListener('click', onClick);
+    button.removeEventListener('mousedown', keepFocus);
     input.removeEventListener('input', show);
     input.removeEventListener('keydown', onKeydown);
     form?.removeEventListener('reset', onReset);
@@ -256,6 +268,19 @@ export const setup = (host: InputHost) => {
     effect(() => adoptOwnSheet(host, SHEET, LOOK), { timing: 'layout' });
     const current = signal<HTMLInputElement | null>(null);
     effect(() => tracking(host, current, own));
+    /**
+     * The served input carries our mark while it is served, valued with the host's `scale`: the look's scale and search
+     * rules key on the mark, never on a bare `[scale]` (another component's, or an ancestor's: the input may sit in a
+     * wrapper, so no child combinator can find its host). Released to what it was before, so a mark the user wrote
+     * stays theirs.
+     */
+    effect(() => {
+      const input = current.value;
+      if (input === null) return undefined;
+      const before = input.getAttribute('data-vera-input');
+      input.setAttribute('data-vera-input', host.scale ?? '');
+      return () => (before === null ? input.removeAttribute('data-vera-input') : input.setAttribute('data-vera-input', before));
+    });
     effect(() => {
       const input = current.value;
       return input !== null && host.clearable !== null ? clearing(host, input) : undefined;

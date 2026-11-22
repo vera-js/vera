@@ -43,7 +43,7 @@
             },
             {
               "name": "scale",
-              "description": "sm, md or lg: the size, in the styles layer (never size, which <input size> already means)."
+              "description": "sm, md or lg: the input's own font size, md the page's and sm and lg around it; none leaves the browser's (never size, which <input size> already means)."
             },
             {
               "name": "name",

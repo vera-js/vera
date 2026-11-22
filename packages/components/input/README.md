@@ -48,7 +48,7 @@ children, or a page parsed after the definition ran) takes over from the default
 | `reveal-label` | The reveal button's accessible name. Default `"Show password"`. |
 | `caps-lock-hint` | A hint after the input while Caps Lock is on, shown and announced. |
 | `caps-lock-message` | What the hint shows and says. Default `"Caps Lock is on"`. |
-| `scale` | `sm`, `md` or `lg`, for the styles layer. Not `size`, which on `<input>` already means a width in characters (development warns on a host `size`). |
+| `scale` | `sm`, `md` or `lg`: the input's own font size, `md` the page's, `sm` and `lg` smaller and larger than it; with no `scale` the browser's own size stays. Not `size`, which on `<input>` already means a width in characters (development warns on a host `size`). |
 
 Each option adds its part when it is set and removes it, with its listeners, when it is removed. With no option set,
 the element adds nothing and listens to nothing.
@@ -87,6 +87,7 @@ only visual.
   is named by its label, never by its glyph. The loading mark is a small turning ring in
   `currentColor`; under `prefers-reduced-motion: reduce` it pulses slowly instead, so "busy" stays visible, and in
   forced colors it keeps two system colors.
+- On a clearable search input, the browser's own cancel button is hidden, so there is one clear glyph, not two.
 - The rules are adopted by the element itself, so the buttons are seen whether or not the app wired `@verajs/styles`.
 - Tokens: `--vera-radius` (the buttons' corners) and `--vera-focus` (their focus ring).
 - Every rule is at zero specificity (`:where`) and keyed on the parts, never the tag, so `defineAs('my-input')` looks

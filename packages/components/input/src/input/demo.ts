@@ -25,7 +25,7 @@ export const inputDemo = {
     },
     {
       title: 'Sizes',
-      note: 'scale: sm, md or lg; not yet styled',
+      note: 'scale: sm and lg around the page\'s font size (md)',
       markup: '<label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label>',
     },
     {

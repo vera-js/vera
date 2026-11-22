@@ -1202,6 +1202,13 @@ from another machine, or after that is undone, has a variable changed.
   of a glyph-only button; `<vera-input>`'s clear and reveal names are asserted directly (`aria-label` in the jsdom
   rows), and its axe row is shown able to fail by an invalid `aria-pressed` instead. (axe-core in the browser
   suite, Chromium, Windows 11, 2026-11-21.)
+- **`getComputedStyle(input, '::-webkit-search-cancel-button')` reads nothing of the pseudo-element.** With a plain
+  `input::-webkit-search-cancel-button { appearance: none }` adopted, it returned the input's own `appearance: auto` on
+  Chromium and `''` on WebKit, so a row reading it passes or fails without seeing the button. Both engines keep the rule
+  in `cssRules` with `appearance: none`, and so does Firefox 159, which keeps the `-webkit-` pseudo-element. Consequence:
+  `<vera-input>`'s row for hiding the native cancel button reads the kept rule and whether its subject matches the
+  input, never a computed style; that the button is then not painted is not measured. (Playwright's Chromium,
+  Firefox 159 and WebKit, Windows 11, 2026-11-21.)
 
 ## Competitors, as their own benchmark entries write them
 
