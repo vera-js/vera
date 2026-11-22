@@ -80,7 +80,7 @@ const comment = () => doc.createComment('');
  * `tests/dropped-element-bindings.test.mjs`).
  */
 /** `<!-->` and `<!--->` are not opened at all: they close themselves (the tokenizer's abrupt close), so they stay text. */
-const TEXT_END = /<(?:(!--(?!-?>)|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
+const TEXT_END = /<(?:(!--(?!-?>)|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\t\n\f\r ]*)|(\/?$))/g;
 /**
  * A comment ends at `-->` or `--!>` — read as a comment past either, a value after one was dropped while the browser
  * rendered it. The abrupt `<!-->`/`<!--->` never open one (`TEXT_END`'s lookahead; a lookBEHIND would not even parse
@@ -89,7 +89,7 @@ const TEXT_END = /<(?:(!--(?!-?>)|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
 const COMMENT_END = /--!?>/g;
 const COMMENT2_END = />/g;
 /** `>`, or whitespace then an attribute name (with `=` and the start of its value), or the string's end. */
-const TAG_END = />|[ \t\n\f\r](?:([^\s"'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
+const TAG_END = />|[ \t\n\f\r](?:([^\t\n\f\r "'>=/]+)([ \t\n\f\r]*=[ \t\n\f\r]*(?:[^ \t\n\f\r"'`<>=]|("|')|))|$)/g;
 const DOUBLE_QUOTE_END = /"/g;
 
 
@@ -103,12 +103,12 @@ const DOUBLE_QUOTE_END = /"/g;
  * `>`/`/>` around it) and never the TAG name (`<${tag}>`, the tag entry's).
  */
 /** A name character ends the static, after a space or quote since the tag's `<` — so never a TAG-name hole (`<my-${x}`). */
-const NAME_BEFORE = /[\s"'][^\s<>]*[^\s"'>=/<]$/;
-const NAME_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
+const NAME_BEFORE = /[\t\n\f\r "'][^\t\n\f\r <>]*[^\t\n\f\r "'>=/<]$/;
+const NAME_AFTER = /^(?:[^\t\n\f\r "'>=/]|[ \t\n\f\r]*=)/;
 const nameHole = (before: string, after: string): never => {
-  const prefix = /[^\s"'>=/]*$/.exec(before)![0];
-  const suffix = /^[^\s"'>=/]*/.exec(after)![0];
-  const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\s>]*))/.exec(after.slice(suffix.length));
+  const prefix = /[^\t\n\f\r "'>=/]*$/.exec(before)![0];
+  const suffix = /^[^\t\n\f\r "'>=/]*/.exec(after)![0];
+  const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\t\n\f\r >]*))/.exec(after.slice(suffix.length));
   /** The value as spread takes it: a closed static is that string, an open one (or none written) is a binding. */
   const given =
     value === null ? "''" : value[2] === '"' ? JSON.stringify(value[1]) : value[4] === "'" ? JSON.stringify(value[3]) : value[5] ? JSON.stringify(value[5]) : '…';
@@ -149,7 +149,7 @@ const UPGRADED = {};
  * and a template with no expressions is never scanned — and it only READS: a development-only counter once changed
  * the SCAN, so development and production parsed one template differently.
  */
-const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\s/>]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\t\n\f\r />]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 const tagShape = (strings: TemplateStringsArray, type: number): [string, string][] | undefined => {
   const markup = strings.join('');
   /** Where each binding sits in `markup`, so a refusal can ask whether one falls inside an element's content. */
@@ -164,7 +164,7 @@ const tagShape = (strings: TemplateStringsArray, type: number): [string, string]
     if (m[2] === undefined) continue;
     const tag = m[2].toLowerCase();
     const closing = m[1] === '/';
-    const selfClosed = !closing && m[3].trimEnd().endsWith('/');
+    const selfClosed = !closing && m[3].replace(/[\t\n\f\r ]+$/, '').endsWith('/');
     if (tag === 'svg' || tag === 'math') {
       if (closing) foreign--;
       else if (!selfClosed) foreign++;

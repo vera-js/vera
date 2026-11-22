@@ -231,7 +231,7 @@ export const contentClash = (side: string, tag: string, name: string): never => 
  * development and by the server in every build, with one message. The tag entry splices a tag VALUE into the
  * statics before the renderer sees it, so only a non-tag ever reaches here.
  */
-export const TAG_NAME_HOLE = /<\/?[^\s>]*$/;
+export const TAG_NAME_HOLE = /<\/?[^\t\n\f\r >]*$/;
 export const tagHole = (side: string): never => {
   throw new Error(misuse(side, 'tag-hole', __DEV__ && SHARED.tagHole()));
 };

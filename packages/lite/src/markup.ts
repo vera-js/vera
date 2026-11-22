@@ -21,7 +21,7 @@ import { PROSE } from './diagnostics.js';
 export const IN_TAG = /<[a-zA-Z](?:[^>"']|"[^"]*"|'[^']*')*("[^"]*|'[^']*)?$/;
 
 /** The name of the attribute a hole's value starts in, AS WRITTEN (case kept: the parser lowercases), from the source before it. */
-export const WRITTEN_NAME = /([^\s"'>/=]+)\s*=\s*(?:"[^"]*|'[^']*|[^\s"'>]*)$/;
+export const WRITTEN_NAME = /([^\t\n\f\r "'>/=]+)[\t\n\f\r ]*=[\t\n\f\r ]*(?:"[^"]*|'[^']*|[^\t\n\f\r "'>]*)$/;
 
 /** A text hole's marker is a comment holding `\u0001` and its index; a value hole's is its index between two `\u0002`s. */
 // eslint-disable-next-line no-control-regex -- the markers ARE control characters: ones no template's own text holds

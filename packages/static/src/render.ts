@@ -47,7 +47,7 @@ const FORGED = `${{}}`;
  * single-quoted or unquoted, each by its own rule (lite's `WRITTEN_NAME`). For FORMATTING only (see above): its group
  * says the value is unquoted. In a tag, or `x =` in text would read as an attribute (the verdict differential).
  */
-const IN_VALUE = /<[a-zA-Z](?:[^>"']|"[^"]*"|'[^']*')*?[\s/]([^\s"'>/=]+)\s*=\s*(?:"[^"]*|'[^']*|([^\s"'>]*))$/;
+const IN_VALUE = /<[a-zA-Z](?:[^>"']|"[^"]*"|'[^']*')*?[\t\n\f\r /]([^\t\n\f\r "'>/=]+)[\t\n\f\r ]*=[\t\n\f\r ]*(?:"[^"]*|'[^']*|([^\t\n\f\r "'>]*))$/;
 
 /**
  * **A value in an attribute named `name`** (2026-11-19, the tier suites: `?hidden`, `.value` and `@click` were WRITTEN
@@ -139,7 +139,7 @@ const sayChild = (out: string, strings: TemplateStringsArray, at: number, value:
  * Development: the markup so far ends where an attribute's value STARTS — its tag (group 1) and opening quote (group 2,
  * empty when unquoted). Quote-aware, as `IN_VALUE`: a match is the start of the value `IN_VALUE` found.
  */
-const VALUE_START = /<([a-zA-Z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*?[\s/][^\s"'>/=]+\s*=\s*(["']?)$/;
+const VALUE_START = /<([a-zA-Z][^\t\n\f\r />]*)(?:[^>"']|"[^"]*"|'[^']*')*?[\t\n\f\r /][^\t\n\f\r "'>/=]+[\t\n\f\r ]*=[\t\n\f\r ]*(["']?)$/;
 /**
  * Development: an attribute's WHOLE value that is not text (`attribute-value`) — a value beside other text is joined
  * into a string, about which core says nothing. Once per tag, name and kind (`attributeValueKind` keeps core's key). Not
@@ -149,7 +149,7 @@ const VALUE_START = /<([a-zA-Z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*?[\s/][^\s"'>
 const sayAttribute = (out: string, next: string, name: string, value: unknown) => {
   if (value == null || typeof value === 'function' || '.!@?'.includes(name[0]!)) return;
   const start = VALUE_START.exec(out);
-  if (start === null || !(start[2] ? next.startsWith(start[2]) : /^(?:[\s>]|\/>)/.test(next))) return;
+  if (start === null || !(start[2] ? next.startsWith(start[2]) : /^(?:[\t\n\f\r >]|\/>)/.test(next))) return;
   /** Converted a second time, in development only (production converts once, in `encode`); it throws only where `encode` would. */
   if (URL_SINK.test(name) && SCRIPT_URL_ITEM.test(`${value as string}`)) return;
   const kind = attributeValueKind(start[1]!, name, value);
