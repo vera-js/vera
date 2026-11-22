@@ -169,3 +169,72 @@ describe('vera-input', () => {
     });
   });
 });
+
+const axeReady = new Promise((resolve, reject) => {
+  const script = document.createElement('script');
+  script.src = '/node_modules/axe-core/axe.min.js';
+  script.onload = resolve;
+  script.onerror = reject;
+  document.head.appendChild(script);
+});
+const violations = async (node) => {
+  await axeReady;
+  const { violations: found } = await globalThis.axe.run(node, { resultTypes: ['violations'] });
+  return found.map((v) => v.id);
+};
+
+describe('vera-input: axe in every state', () => {
+  it('CONTROL: axe reports an input with no name', async () => {
+    const wrap = await mount('<vera-input clearable><input value="x"></vera-input>');
+    expect(await violations(wrap)).to.include('label');
+    wrap.remove();
+  });
+
+  it('no violation in any state', async () => {
+    const states = [
+      '<label>Search <vera-input clearable><input type="search" value="vera"></vera-input></label>',
+      '<label>Search <vera-input clearable><input type="search"></vera-input></label>',
+      '<label>Amount <vera-input><span data-vera-part="prefix">$</span><input value="12"><span data-vera-part="suffix">.00</span></vera-input></label>',
+      '<label>Password <vera-input reveal caps-lock-hint><input type="password" value="s3cret"></vera-input></label>',
+      '<label>Email <vera-input loading><input type="email"></vera-input></label>',
+      '<label>Default <vera-input name="d" clearable value="x"></vera-input></label>',
+      '<fieldset disabled><legend>Off</legend><label>Disabled <vera-input clearable><input value="x"></vera-input></label></fieldset>',
+    ];
+    for (const markup of states) {
+      const wrap = await mount(markup);
+      const reveal = wrap.querySelector('[data-vera-part="reveal"]');
+      expect(await violations(wrap), markup).to.deep.equal([]);
+      if (reveal !== null) {
+        reveal.click();
+        expect(await violations(wrap), `${markup} (revealed)`).to.deep.equal([]);
+      }
+      wrap.remove();
+    }
+  });
+});
+
+describe('vera-input: realm', () => {
+  it("in an iframe, where execCommand refuses, the fallback's events are the iframe's own classes", async () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    await new Promise((resolve) => (frame.contentDocument?.readyState === 'complete' ? resolve() : frame.addEventListener('load', resolve, { once: true })));
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    doc.execCommand = () => false;
+    const wrap = await mount('<label>q <vera-input clearable><input value="hello"></vera-input></label>');
+    const host = wrap.querySelector('vera-input');
+    doc.body.append(doc.adoptNode(wrap));
+    flush();
+    await Promise.resolve();
+    flush();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const input = host.querySelector('input');
+    const seen = [];
+    input.addEventListener('input', (event) => seen.push(['input', event instanceof win.InputEvent, event instanceof InputEvent]));
+    input.addEventListener('change', (event) => seen.push(['change', event instanceof win.Event, event instanceof Event]));
+    host.querySelector('[data-vera-part="clear"]').click();
+    expect(input.value).to.equal('');
+    expect(seen).to.deep.equal([['input', true, false], ['change', true, false]]);
+    frame.remove();
+  });
+});

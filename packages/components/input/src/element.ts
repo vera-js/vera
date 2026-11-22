@@ -101,9 +101,10 @@ const warn = (host: InputHost, input: HTMLInputElement): void => {
 };
 
 /**
- * **Clear, while `clearable`**: one `input` listener (and, on a search input, one `keydown` for Escape) and a `reset`
- * listener on the input's form, which reset changes without an `input` event; a `pageshow` restoring the page from
- * bfcache is read the same way. Nothing at all without the option. Returns the release.
+ * **Clear, while `clearable`**: one `input` listener, one `keydown` (Escape, acted on only for a search input: the type
+ * is read at the key, since a page may change it) and a `reset` listener on the input's form, which reset changes
+ * without an `input` event; a `pageshow` restoring the page from bfcache is read the same way. Nothing at all without
+ * the option. Returns the release.
  */
 const clearing = (host: InputHost, input: HTMLInputElement): (() => void) => {
   const doc = input.ownerDocument;

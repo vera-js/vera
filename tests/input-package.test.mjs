@@ -14,7 +14,10 @@ const SCENARIO = process.env.VERA_PACKAGE_SCENARIO;
 
 if (SCENARIO === 'ssr') {
   const { renderToString } = await import('@verajs/ssr');
-  const { html } = await renderToString(distUrl('vera-components/input'), { tag: TAG });
+  const { html } = await renderToString(distUrl('vera-components/input'), {
+    tag: TAG,
+    attributes: process.env.VERA_INPUT_SSR_ATTRIBUTES ? JSON.parse(process.env.VERA_INPUT_SSR_ATTRIBUTES) : {},
+  });
   process.stdout.write(JSON.stringify({ html }));
 } else if (SCENARIO) {
   const { JSDOM } = await import('jsdom');
@@ -24,7 +27,7 @@ if (SCENARIO === 'ssr') {
   console.warn = (...args) => said.push(String(args[0]));
   console.error = (...args) => said.push(String(args[0]));
   const { flush, wire } = await load('core');
-  wire([(await load('renderer')).renderer]);
+  wire(SCENARIO === 'hydrate' ? [(await load('renderer')).renderer, (await load('renderer/hydration')).hydration] : [(await load('renderer')).renderer]);
   const out = { said };
   if (SCENARIO === 'twice') {
     const a = await load('vera-components/input', '?copy=a');
@@ -43,6 +46,31 @@ if (SCENARIO === 'ssr') {
     flush();
     await Promise.resolve();
     out.rendered = element.querySelector('[data-vera-part="input"]') !== null;
+  } else if (SCENARIO === 'hydrate') {
+    document.body.innerHTML = `<label>Search ${process.env.VERA_INPUT_SERVER_HTML}</label>`;
+    const element = document.querySelector(TAG);
+    const served = element.querySelector('input');
+    out.served = served !== null && served.getAttribute('data-vera-part') === 'input';
+    /** Changes a reader could see: an element added or removed, or text. Hydration's own anchors are counted apart. */
+    let batches = 0;
+    let anchorsOnly = 0;
+    const visible = (node) => node.nodeType === 1 || (node.nodeType === 3 && node.data !== '');
+    new MutationObserver((records) => {
+      const changes = records.some((r) => r.type === 'characterData' || [...r.addedNodes, ...r.removedNodes].some(visible));
+      if (changes) batches++;
+      else anchorsOnly++;
+    }).observe(element, { subtree: true, childList: true, characterData: true });
+    await load('vera-components/input');
+    flush();
+    await Promise.resolve();
+    flush();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const input = element.querySelector('input');
+    out.same = input === served;
+    out.inputs = element.querySelectorAll('input').length;
+    out.attributes = Object.fromEntries([...input.attributes].map((a) => [a.name, a.value]));
+    out.batches = batches;
+    out.anchorsOnly = anchorsOnly;
   } else if (SCENARIO === 'surface') {
     const { element: Class } = await load('vera-components/input');
     const element = document.createElement(TAG);
@@ -75,10 +103,10 @@ if (SCENARIO === 'ssr') {
   }
   process.stdout.write(JSON.stringify(out));
 } else {
-  const run = (scenario) => {
+  const run = (scenario, extra = {}) => {
     const result = spawnSync(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url)], {
       encoding: 'utf8',
-      env: { ...process.env, VERA_PACKAGE_SCENARIO: scenario },
+      env: { ...process.env, ...extra, VERA_PACKAGE_SCENARIO: scenario },
     });
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);
@@ -127,6 +155,20 @@ if (SCENARIO === 'ssr') {
     const declared = inputSurface.attributes.map((attribute) => attribute.name);
     assert.deepEqual(observed.filter((name) => !declared.includes(name)), [], 'an attribute observed and not declared: add it to surface.ts with the element');
     assert.deepEqual(said, []);
+  });
+
+  /** The server's default input is the one the client keeps: hydration attaches to it, never renders a second. */
+  test('a server-rendered default input hydrates in place: the same element, its attributes, nothing visible changed', () => {
+    const attributes = { name: 'q', type: 'search', placeholder: 'Find', value: 'vera', autocomplete: 'off' };
+    const { html } = run('ssr', { VERA_INPUT_SSR_ATTRIBUTES: JSON.stringify(attributes) });
+    assert.ok(html.includes('data-vera-part="input"') && html.includes('placeholder="Find"'), html);
+    const { served, same, inputs, attributes: kept, batches, said } = run('hydrate', { VERA_INPUT_SERVER_HTML: html });
+    assert.equal(served, true, 'CONTROL: the server rendered the default input');
+    assert.equal(same, true, 'the served input is kept, not replaced');
+    assert.equal(inputs, 1, 'never a second input');
+    for (const [name, value] of Object.entries(attributes)) assert.equal(kept[name], value, name);
+    assert.equal(batches, 0, 'no visible change at hydration');
+    assert.deepEqual(said, [], 'no hydration mismatch, no warning');
   });
 
   test('a server imports "." through @verajs/ssr and renders the element', () => {
