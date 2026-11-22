@@ -129,3 +129,74 @@ test('the static-name loop finds what the pattern it replaced finds, in order, o
   assert.equal(names, 160, 'CONTROL: the seeded corpus holds exactly the names it held when written (2026-11-22)');
   assert.deepEqual(byLoop('<b x:y=1 a_b-c9 z>'), ['x:y', 'a_b-c9', 'z'], 'CONTROL: a known string');
 });
+
+/**
+ * Every character a reader might take for whitespace or not — U+000B, U+00A0, U+FEFF, U+2028, U+0085, CR, CRLF, FF —
+ * placed where the server reads markup: between a tag name and an attribute, inside an attribute name, around the `=`,
+ * inside an unquoted value, inside an end tag's name (each raw-text element's too) and in a `<script type…>`; four values
+ * at every hole. Each served page is parsed as a browser parses it (scripting on): nothing a value made may exist — no
+ * `id=pwn` or `pwn` attribute, no event handler and no running script carrying the value's code. The oracle is shown
+ * to flag a hand-written break of each kind first.
+ */
+test('every whitespace-like character at every place the server reads markup serves nothing a value made', () => {
+  const MARK = 'alert(91)';
+  const VALUE = `--></style></script></textarea></title></xmp></noscript>"'><img id=pwn> pwn=1 x=x" ${MARK}//`;
+  const JS = new Set(['', 'module', 'application/ecmascript', 'application/javascript', 'application/x-ecmascript', 'application/x-javascript', 'text/ecmascript', 'text/javascript', 'text/javascript1.0', 'text/javascript1.1', 'text/javascript1.2', 'text/javascript1.3', 'text/javascript1.4', 'text/javascript1.5', 'text/jscript', 'text/livescript', 'text/x-ecmascript', 'text/x-javascript']);
+  const htmlTrim = (text) => text.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, '');
+  const textOf = (node) => (node.nodeName === '#text' ? node.value : (node.childNodes ?? []).map(textOf).join(''));
+  const made = (node, found = []) => {
+    for (const child of node.childNodes ?? []) {
+      for (const a of child.attrs ?? []) {
+        if ((a.name === 'id' && a.value === 'pwn') || a.name === 'pwn') found.push(`attribute ${a.name}`);
+        if (/^on[a-z]+$/i.test(a.name) && a.value.includes(MARK)) found.push(`handler ${a.name}`);
+      }
+      if (child.nodeName === 'script') {
+        const type = child.attrs.find((a) => a.name === 'type');
+        if ((type === undefined || JS.has(htmlTrim(type.value).toLowerCase())) && textOf(child).includes(MARK)) found.push(`running script, type ${JSON.stringify(type?.value)}`);
+      }
+      made(child, found);
+      if (child.content) made(child.content, found);
+    }
+    return found;
+  };
+  const check = (page) => made(parse(`<!doctype html><body>${page}`, { scriptingEnabled: true }));
+  for (const page of [`<p title=x><img id=pwn></p>`, `<p onclick="${MARK}">`, `<script>${MARK}</script>`, `<script type=" text/javascript\n">${MARK}</script>`, `<template><p pwn=1></p></template>`, `<p\ronclick="${MARK}">`])
+    assert.notDeepEqual(check(page), [], `CONTROL: the oracle flags ${JSON.stringify(page)}`);
+  assert.deepEqual(check(`<script type="application/json">${MARK}</script>`), [], 'CONTROL: a JSON block is no running script');
+  assert.deepEqual(check(`<script type="text/javascript\u000b">${MARK}</script>`), [], 'CONTROL: a type ending in U+000B is no JavaScript type');
+
+  const CHARACTERS = { VT: '\u000b', NBSP: ' ', BOM: '﻿', LS: ' ', NEL: '\u0085', CR: '\r', CRLF: '\r\n', FF: '\f' };
+  const RAW = ['script', 'style', 'textarea', 'title', 'xmp', 'noscript', 'iframe', 'noembed', 'noframes'];
+  const places = (C) => [
+    ['<p', `${C}title=`, '>t</p>'], [`<p${C}title=`, '>t</p>'], [`<p${C}title="`, '">t</p>'], [`<p${C}onclick=`, '>t</p>'],
+    [`<p${C}onclick="`, '">t</p>'], [`<button${C}onclick='`, `'>t</button>`], [`<input${C}value=`, `${C}onfocus=`, ' autofocus>'],
+    [`<p ti${C}tle=`, '>t</p>'], [`<p ti${C}tle="`, '">t</p>'], [`<p on${C}click=`, '>t</p>'], [`<p onclick${C}x=`, '>t</p>'], [`<a hr${C}ef=`, '>t</a>'],
+    [`<p title${C}=`, '>t</p>'], [`<p title=${C}`, '>t</p>'], [`<p title${C}="`, '">t</p>'], [`<p title=${C}"`, '">t</p>'],
+    [`<p onclick${C}=`, '>t</p>'], [`<p onclick=${C}`, '>t</p>'], ['<textarea onClick="', `"=`, `${C}=`, 'x">t</textarea>'],
+    [`<p title=a${C}`, '>t</p>'], ['<p title=', `${C}b>t</p>`], ['<p title=', `${C}class=`, '>t</p>'], ['<p title=', `${C}onclick=`, '>t</p>'], [`<p title=a${C}b `, '>t</p>'],
+    ['<p>', `</p${C}>`, '</p>'],
+    ...RAW.flatMap((t) => [
+      [`<${t}>x</${t}${C}>`, `</${t}>`], [`<${t}>`, `</${t}${C}>`, `</${t}>`], [`<${t}>x</${t}${C}><p>`, `</p></${t}>`], [`<${t}>x</${t}${C}><p title=`, `></p></${t}>`],
+    ]),
+    [`<script type${C}="application/json">`, '</script>'], [`<script type="application/json${C}">`, '</script>'], [`<script ${C}type="application/json">`, '</script>'],
+    [`<script type=${C}"application/json">`, '</script>'], [`<script type="${C}application/json">`, '</script>'], [`<script${C}type="application/json">`, '</script>'],
+    [`<script type=application/json${C}>`, '</script>'], [`<script type="text/plain${C}">`, '</script>'], [`<script type="importmap${C}">`, '</script>'], [`<script type${C}=module>`, '</script>'],
+  ];
+  let total = 0;
+  let served = 0;
+  const finds = [];
+  for (const [label, C] of Object.entries(CHARACTERS))
+    for (const list of places(C))
+      for (const value of [VALUE, MARK, `x ${MARK}`, '"><img id=pwn>']) {
+        total++;
+        const page = serve(list, ...Array(list.length - 1).fill(value));
+        if (page === 'refused') continue;
+        served++;
+        const found = check(page);
+        if (found.length > 0) finds.push(`${label} ${JSON.stringify(list)} ${JSON.stringify(value)} -> ${JSON.stringify(page)}: ${found.join(', ')}`);
+      }
+  /** The finds first, so a regression names the template, value and served page that broke. */
+  assert.deepEqual(finds, []);
+  assert.equal(total, 2272, 'CONTROL: 8 characters × 71 places × 4 values');
+  assert.equal(served, 1832, 'CONTROL: the templates served (the rest are refused, as they may be) — exactly as many as when written (2026-11-22)');
+});
