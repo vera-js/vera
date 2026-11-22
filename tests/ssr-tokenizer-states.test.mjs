@@ -441,6 +441,8 @@ test('under every kind of open entry, a non-structural end tag before a style ho
   const LEADS = [
     '<table><tr><td></b>', '<object></b>', '<template></b>', '<select></b>', '<noscript></b>', '<svg></b>', '<math></b>',
     '<svg><foreignObject></g>', '<svg><title></a>', '<math><mtext></mrow>', '<noscript><textarea></textarea></b>',
+    /** With a real untracked foreign ancestor, so a gate that skipped the end tag here would serve the value raw. */
+    '<svg><g><foreignObject></g>', '<math><mrow><mtext></mrow>',
   ];
   const wrong = [];
   for (const lead of LEADS) {
