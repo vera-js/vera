@@ -249,19 +249,19 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
      * at one of its name: `<svg><g><foreignObject></g><style>${v}` is back in SVG, where the `<style>` is markup, while
      * the scan, which tracks no `g`, stayed in HTML and wrote the value raw, and its `<img onerror>` ran (Chromium,
      * Firefox and WebKit; so did `<svg><a><title></a>`, `<math><mrow><mtext></mrow>` and a child at a point that starts
-     * `</foreignObject>`). So
-     * the point is left: popped to the depth it opened at, or, for a child's root, an unknown namespace at depth 1.
-     * Only a breakout name (`BREAKOUT`; `p` and `br` among them) can never be such an element: opened inside SVG or
-     * MathML it leaves for HTML, while any other name, `section`, `video` and a `<font>` with no attributes included, is a
-     * foreign element there (measured, Chromium, Firefox and WebKit).
-     * Where an HTML element was current instead, the parser ignores the tag, and the scan only over-escapes.
+     * `</foreignObject>`). Only a breakout name (`BREAKOUT`; `p` and `br` among them) can never be such an element: opened
+     * inside SVG or MathML it leaves for HTML, while any other name, `section`, `video` and a `<font>` with no attributes
+     * included, is a foreign element there (measured, Chromium, Firefox and WebKit).
+     * **But the scan cannot know which way the parser went**: where no foreign element of that name is open, the parser
+     * stays at the point and ignores the tag. So the namespace becomes UNKNOWN, at the point's depth, never the foreign
+     * one below it. Popped to MathML instead, `<math><mi></font><title><a></section><math><table><style>${v}` was read
+     * as a MathML `<title>` (markup), and the `<table>` broke the scan out to HTML while the browser was still in the
+     * title's TEXT, so the value went out raw and its `</title><img onerror>` ran (Chromium, Firefox and WebKit). At
+     * an unknown namespace a text-only element is tracked and its content over-escaped, no breakout acts, a CDATA must
+     * read the same both ways, and a later end tag of an element opened below (`</math>`) returns to known ground.
      */
-    if (top.name !== '') {
-      opens.pop();
-      return top.foreign;
-    }
-    opens.push({ name: '', foreign: 0, inert, space: '?' });
-    return 1;
+    opens.push({ name: '', foreign: top.foreign, inert, space: '?' });
+    return top.foreign;
   }
   /** `mglyph`/`malignmark` straight inside a MathML text integration point: read as MathML, not HTML. */
   const reentry = space === 'html' && top !== undefined && MATH_TEXT_POINTS.has(top.name) && (tagName === 'mglyph' || tagName === 'malignmark');

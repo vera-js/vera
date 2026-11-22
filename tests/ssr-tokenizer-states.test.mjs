@@ -429,6 +429,36 @@ test('an end tag that may close a foreign ancestor of an integration point leave
 });
 
 /**
+ * **Leaving a point, the namespace is unknown, not the foreign one below it** (2026-11-22). Where no foreign element of
+ * the end tag's name is open, the parser stays at the point and ignores the tag. Popped to MathML instead, the scan read
+ * a following `<title>` as MathML markup, and a breakout start tag (`<table>`) brought it back to HTML while the browser
+ * was still in the title's text: `<math><mi></font><title><a></section><math><table><style>${v}` served the value raw,
+ * and its `</title>` closed the browser's title, so the image after it was live (Chromium, Firefox and WebKit).
+ * Each row crosses a point, an end tag no breakout name, a text-only element and a breakout tag.
+ */
+test('an end tag at an integration point leaves the namespace unknown, so a later breakout cannot hide a text element', () => {
+  const ESCAPER = `</style></textarea></title></xmp></noembed></script>${PAYLOAD}`;
+  const rows = [['<math><mi></font><title><a></section><math><table><style>', '</style>']];
+  for (const point of ['<math><mi>', '<svg><desc>', '<svg><title>', '<svg><foreignObject>'])
+    for (const end of ['</font>', '</section>', '</g>', '</foreignObject>'])
+      for (const text of ['title', 'textarea', 'xmp', 'noembed'])
+        for (const breakout of ['<table>', '<p>', '<div>', '<b>']) rows.push([`${point}${end}<${text}>${breakout}<style>`, '</style>']);
+  assert.equal(rows.length, 257);
+  const live = [];
+  for (const statics of rows) {
+    const served = serializeTemplate(template(statics, ESCAPER));
+    if (injected(served)) live.push(served);
+  }
+  /** A child rendered at a parent's point, starting with an untracked ancestor's end tag. */
+  for (const outer of [['<svg><foreignObject>', '</foreignObject></svg>'], ['<math><mi>', '</mi></math>'], ['<svg><desc>', '</desc></svg>']])
+    for (const inner of [['</font><title><table><style>', '</style>'], ['</g><textarea><p><style>', '</style>']]) {
+      const served = serializeTemplate(template(outer, template(inner, ESCAPER)));
+      if (injected(served)) live.push(served);
+    }
+  assert.deepEqual(live, []);
+});
+
+/**
  * **The fast path skips only tags that change nothing** (2026-11-22). A non-structural tag skips `structural` when nothing
  * is open, or when the innermost entry is an HTML element opened at depth 0 (a table, an object, a `<template>`), read
  * off the entry's fields rather than a lookup by name. Under every entry that changes parsing — `<select>`/`<noscript>`

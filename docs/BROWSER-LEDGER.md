@@ -263,10 +263,13 @@ from another machine, or after that is undone, has a variable changed.
   SVG, and a `<style>` after it is an SVG element whose content is markup. The same goes for `<svg><a><title></a>`,
   `<math><mrow><mtext></mrow>`, and a `section`, `article`, `video` or attribute-less `font` opened inside SVG, since any
   name but a breakout tag's is a foreign element there. With an HTML element current instead (`<foreignObject><div></g>`),
-  the HTML rules ignore the tag, and a breakout name (`</div>`) closes no foreign element. Consequence: at an
-  integration point, an end tag that closes nothing the SSR scan tracks, and is not a breakout name, leaves the point;
-  where an HTML element was current, that only over-escapes. (Chromium 159, Firefox 159, WebKit 27.2, headless,
-  2026-11-22.)
+  the HTML rules ignore the tag, and a breakout name (`</div>`) closes no foreign element. Where no foreign element of
+  the tag's name is open, the tag is ignored and the point stays current: `<math><mi></font><title>` opens an HTML
+  title, whose text a later `<table>` does not end. Consequence: at an integration point, an end tag that closes
+  nothing the SSR scan tracks, and is not a breakout name, makes the namespace unknown at the point's depth (a text
+  element is tracked and over-escaped, no breakout acts), never the foreign namespace below it; read as MathML there,
+  a value written raw after the `<table>` closed the browser's title and injected. (Chromium 159, Firefox 159, WebKit
+  27.2, headless, 2026-11-22.)
 - **With scripting off, `<noscript>` content is HTML, and a text element left open in it takes the `</noscript>`.**
   `<noscript><textarea>`, `<title>`, `<style>` or `<xmp>` left open makes the server's `</noscript>`, and the page after
   it, the element's text. The `/` of `<textarea/>` is ignored, as on any HTML element. Consequence: the SSR scan tracks
