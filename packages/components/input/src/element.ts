@@ -37,7 +37,30 @@ interface InputHost extends HTMLElement {
 }
 
 /** The input the element serves: the user's own, else the default one it rendered. */
-const inputOf = (host: Element): HTMLInputElement | null => host.querySelector('input');
+/**
+ * **The input the element serves: the user's own, else the default one it rendered.** The first `<input>` in the host,
+ * in tree order, that is not inside another custom element (an affix holding another component, a light-DOM select's
+ * search box, is that component's); the user's is preferred over ours, so an input the user adds after connect (a
+ * renderer that appends a parent before its children) takes over from the default one.
+ */
+const inputOf = (host: Element): HTMLInputElement | null => {
+  let ours: HTMLInputElement | null = null;
+  for (const input of host.querySelectorAll('input')) {
+    let nested = false;
+    for (let at = input.parentElement; at !== null && at !== host; at = at.parentElement)
+      if (at.localName.includes('-')) {
+        nested = true;
+        break;
+      }
+    if (nested) continue;
+    if (input.getAttribute('data-vera-part') !== 'input') return input;
+    ours ??= input;
+  }
+  return ours;
+};
+
+/** Ours: the default input this element rendered (or a server rendered for it), never the user's. */
+const isOurs = (input: Element | null): boolean => input !== null && input.getAttribute('data-vera-part') === 'input';
 
 /** The clear decision's view of the input, read now. `:disabled` covers a disabled `<fieldset>` around it. */
 const stateOf = (input: HTMLInputElement): ClearState => ({
@@ -53,6 +76,9 @@ const stateOf = (input: HTMLInputElement): ClearState => ({
  * restores it (measured on Chromium 151, Firefox 153 and WebKit 26.5; the value setter dropped the undo stack on all
  * three). Only where `execCommand` refuses does the setter run, with an `input` and a `change` built from the input's
  * own window, so a framework's `instanceof` checks see their realm's classes.
+ *
+ * The two paths differ on `change`, on purpose: the platform's editing fires it at blur, as for typing, while the
+ * setter fires it at once, since a value set by script leaves the input clean and no `change` would ever come.
  */
 const clear = (input: HTMLInputElement): void => {
   input.focus();
@@ -169,7 +195,11 @@ const busy = (input: HTMLInputElement): (() => void) => {
  * childList only, so typing and the element's own parts beside the input never change the answer; with no input yet,
  * the host's whole subtree until one appears. Writes the input into `current` only when it changes. Returns the release.
  */
-const tracking = (host: Element, current: { value: HTMLInputElement | null }): (() => void) | undefined => {
+const tracking = (
+  host: Element,
+  current: { value: HTMLInputElement | null },
+  own: { value: boolean },
+): (() => void) | undefined => {
   const win = host.ownerDocument.defaultView;
   if (win === null) return undefined;
   const observer = new win.MutationObserver(() => track());
@@ -177,6 +207,8 @@ const tracking = (host: Element, current: { value: HTMLInputElement | null }): (
     const input = inputOf(host);
     /** Read untracked: the effect that runs this first call must not subscribe to its own write. */
     if (input !== untrack(() => current.value)) current.value = input;
+    /** A user's input arrived after connect: the default input is dropped from the render, and theirs is served. */
+    if (input !== null && !isOurs(input) && untrack(() => own.value)) own.value = false;
     observer.disconnect();
     if (input === null) {
       observer.observe(host, { childList: true, subtree: true });
@@ -195,15 +227,19 @@ const tracking = (host: Element, current: { value: HTMLInputElement | null }): (
 /**
  * The setup: with the user's own input, no render (their children are theirs); with none, one default input, rendered
  * from the host's listed attributes read once here. A server-rendered default input carries `data-vera-part="input"`,
- * so the client renders the same template over it and hydrates rather than reading it as the user's.
+ * so the client renders the same template over it and hydrates rather than reading it as the user's. A host that
+ * connects before its children exist (a renderer appending top-down, the parser after an early definition) renders
+ * the default input first; when the user's input then arrives, the render drops ours and every part moves to theirs.
  *
  * Each option is its own effect reading its own prop and the CURRENT input, so turning one on or off adds or removes
  * only its part, and an input the page swaps (a framework re-render, of the input or of a wrapper around it) moves every
  * part beside the new one: each effect's release takes its part and listeners off the old input first.
  */
 export const setup = (host: InputHost) => {
-  const supplied = host.querySelector('input');
-  const own = supplied === null || supplied.getAttribute('data-vera-part') === 'input';
+  const supplied = inputOf(host);
+  const own = signal(supplied === null || isOurs(supplied));
+  /** Read once: a host given its own input at connect never renders, so its children are never a render's. */
+  const renders = own.value;
   if (!isServer()) {
     /**
      * The look, adopted into the root the element renders in as a layout effect: a move into another document or a
@@ -211,7 +247,7 @@ export const setup = (host: InputHost) => {
      */
     effect(() => adoptOwnSheet(host, SHEET, LOOK), { timing: 'layout' });
     const current = signal<HTMLInputElement | null>(null);
-    effect(() => tracking(host, current));
+    effect(() => tracking(host, current, own));
     effect(() => {
       const input = current.value;
       return input !== null && host.clearable !== null ? clearing(host, input) : undefined;
@@ -238,7 +274,7 @@ export const setup = (host: InputHost) => {
         if (input === null || win === null) return undefined;
         const timer = win.setTimeout(() => warn(host, input), 0);
         /** The default input keeps what it was made with; a later change on the host is the two-sources bug. */
-        const observer = own
+        const observer = own.value
           ? new win.MutationObserver((records) => {
               for (const record of records)
                 console.warn(diagnostic('input', `<${host.localName}>`, 'input-host-changed', __DEV__ && PROSE['input-host-changed'](String(record.attributeName))));
@@ -251,8 +287,10 @@ export const setup = (host: InputHost) => {
         };
       });
   }
-  if (!own) return undefined;
+  if (!renders) return undefined;
   const copied = new Map(copiedFrom((name) => host.getAttribute(name)));
   return () =>
-    html`<input data-vera-part="input" name=${copied.get('name') ?? null} type=${copied.get('type') ?? null} value=${copied.get('value') ?? null} placeholder=${copied.get('placeholder') ?? null} autocomplete=${copied.get('autocomplete') ?? null} />`;
+    !own.value
+      ? null
+      : html`<input data-vera-part="input" name=${copied.get('name') ?? null} type=${copied.get('type') ?? null} value=${copied.get('value') ?? null} placeholder=${copied.get('placeholder') ?? null} autocomplete=${copied.get('autocomplete') ?? null} />`;
 };

@@ -277,3 +277,51 @@ test('caps-lock-hint: shown while Caps Lock is on, announced once per focus', as
   await new Promise((resolve) => dom.window.setTimeout(resolve, 200));
   assert.deepEqual(spoken(), ['Caps Lock is on', 'Caps Lock is on'], 'again after the input was left');
 });
+
+test("children that arrive after connect: the user's input takes over from the default one, which is dropped", async () => {
+  said.length = 0;
+  document.body.innerHTML = '<form><label>Search </label></form>';
+  const host = document.createElement('vera-input');
+  host.setAttribute('clearable', '');
+  document.querySelector('label').append(host);
+  await settle();
+  assert.equal(host.querySelectorAll('input').length, 1, 'CONTROL: with no child yet, the default input is rendered');
+  const mine = document.createElement('input');
+  mine.name = 'q';
+  mine.value = 'x';
+  host.append(mine);
+  await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+  await settle();
+  assert.deepEqual([...host.querySelectorAll('input')], [mine], "exactly one input, and it is the user's");
+  const clear = part(host, 'clear');
+  assert.ok(clear !== null && (mine.compareDocumentPosition(clear) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING) !== 0, 'clear follows it');
+  assert.equal(host.querySelectorAll('[data-vera-part="clear"]').length, 1);
+  assert.deepEqual([...new dom.window.FormData(document.querySelector('form')).keys()], ['q'], 'the form has only the user input');
+  clear.click();
+  assert.equal(mine.value, '', 'clear acts on it');
+  await task();
+  assert.deepEqual(said, [], 'labelled by its label, nothing to say');
+});
+
+test('a late input inside a wrapper is found too', async () => {
+  document.body.innerHTML = '<label>Search </label>';
+  const host = document.createElement('vera-input');
+  host.setAttribute('loading', '');
+  document.querySelector('label').append(host);
+  await settle();
+  const wrap = document.createElement('span');
+  wrap.innerHTML = '<input name="q">';
+  host.append(wrap);
+  await new Promise((resolve) => dom.window.queueMicrotask(resolve));
+  await settle();
+  assert.equal(host.querySelectorAll('input').length, 1);
+  assert.equal(wrap.querySelector('input').getAttribute('aria-busy'), 'true', 'loading follows it');
+});
+
+test("an affix holding another component's input is that component's: the user's own input is served", async () => {
+  customElements.define('x-affix-widget', class extends dom.window.HTMLElement {});
+  const element = await mount('<label>q <vera-input clearable><span data-vera-part="prefix"><x-affix-widget><input id="theirs"></x-affix-widget></span><input id="mine" value="a"></vera-input></label>');
+  const clear = part(element, 'clear');
+  assert.equal(clear.previousElementSibling?.id, 'mine', 'clear sits after the user input, not the widget one');
+  assert.equal(clear.hidden, false);
+});

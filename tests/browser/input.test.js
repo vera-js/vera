@@ -238,3 +238,40 @@ describe('vera-input: realm', () => {
     frame.remove();
   });
 });
+
+describe('vera-input: upgraded by the parser before its children exist', () => {
+  it("the parser connects the host first (definition already run); the user's input takes over and the form has only it", async () => {
+    const frame = document.createElement('iframe');
+    frame.srcdoc = `<!doctype html><body><script type="module">
+      import { flush, wire } from '/packages/core/dist/development/vera.js';
+      import { renderer } from '/packages/renderer/dist/development/vera-renderer.js';
+      import '/packages/components/input/dist/development/vera-input.js';
+      wire([renderer]);
+      window.veraFlush = flush;
+      window.parent.postMessage('defined', '*');
+    </script></body>`;
+    const defined = new Promise((resolve) => window.addEventListener('message', (event) => event.data === 'defined' && resolve(), { once: true }));
+    document.body.append(frame);
+    await defined;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    doc.open();
+    doc.write('<form><label>Search <vera-input clearable>');
+    const host = doc.querySelector('vera-input');
+    const early = host !== null && host.matches(':defined') && host.querySelector('input:not([data-vera-part])') === null;
+    win.veraFlush();
+    doc.write('<input name="q" value="x"></vera-input></label></form>');
+    doc.close();
+    await new Promise((resolve) => win.setTimeout(resolve, 0));
+    win.veraFlush();
+    await new Promise((resolve) => win.setTimeout(resolve, 0));
+    const inputs = [...host.querySelectorAll('input')].map((input) => input.getAttribute('name') ?? '(default)');
+    const keys = [...new win.FormData(doc.querySelector('form')).keys()].join(',');
+    const after = host.querySelector('[data-vera-part="clear"]')?.previousElementSibling?.getAttribute('name') ?? null;
+    frame.remove();
+    expect(early, 'CONTROL: the host was upgraded before its input was parsed').to.equal(true);
+    expect(inputs.join(',')).to.equal('q');
+    expect(keys).to.equal('q');
+    expect(after).to.equal('q');
+  });
+});

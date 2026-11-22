@@ -32,6 +32,10 @@ your own.
 An input the page replaces (a framework's re-render, of the input or of a wrapper around it) is followed: every part
 moves beside the new input, and the old one is let go.
 
+The input served is the first `<input>` in the element that is not inside another custom element (a component in your
+prefix keeps its own). An input that arrives after the element connected (a renderer that appends a parent before its
+children, or a page parsed after the definition ran) takes over from the default one, which is dropped.
+
 ## Options
 
 | Attribute | What it does |
