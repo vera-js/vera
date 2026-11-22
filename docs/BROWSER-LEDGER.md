@@ -199,6 +199,14 @@ from another machine, or after that is undone, has a variable changed.
   `invalid`s too, since native reports only the first, so no bubble shows past the field's error. (Playwright 1.65.1's
   Chromium, Firefox 159 and WebKit 27, Windows 11, headless, 2026-11-21; `tests/browser/field.test.js`, "after a user's
   failed submit")
+- **Clearing an input through its value setter drops its undo history; `select()` then `execCommand('delete')` keeps
+  it.** "hello" typed, cleared, then Ctrl/Cmd+Z: after the setter (with a constructed `InputEvent`) undo restores
+  nothing; after `execCommand('delete')` (which returns `true`) undo restores "hello", and the `input` it fires is
+  trusted, `inputType: "deleteContentBackward"`. Identical on Chromium, Firefox and WebKit. jsdom has no
+  `execCommand` at all. Consequence: `<vera-input clearable>` clears through `execCommand`, and the setter (with
+  events built from the input's own window) only where `execCommand` is missing or returns `false`; a browser row
+  pins both halves, the setter as its control. (Chromium 151, Firefox 153, WebKit 26.5, headless, and Playwright's
+  engines on Windows 11, 2026-11-21.)
 
 ## CSS and the cascade
 
@@ -1098,6 +1106,12 @@ from another machine, or after that is undone, has a variable changed.
   to it, before any test ran. Consequence: the lock pins Playwright ≥ 1.65.1 (within `@web/test-runner-playwright`'s
   `^1.53.0`); a Firefox that never launches is an environment failure to check first, not a red row. (Playwright
   1.62.1 and 1.65.1, macOS 27.2.1 on Apple silicon, Node 24.18.0, headless, 2026-11-21.)
+- **axe-core passed a glyph-only button with no `aria-label` (why is not established: its generated content, or its `tabindex=-1`).** A
+  `<button>` whose only content is `::before{content:"×" / ""}` and with no `aria-label` passed axe's
+  `button-name` rule in Chromium. Consequence: axe cannot guard the name
+  of a glyph-only button; `<vera-input>`'s clear and reveal names are asserted directly (`aria-label` in the jsdom
+  rows), and its axe row is shown able to fail by an invalid `aria-pressed` instead. (axe-core in the browser
+  suite, Chromium, Windows 11, 2026-11-21.)
 
 ## Competitors, as their own benchmark entries write them
 
