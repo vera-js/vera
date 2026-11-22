@@ -30,6 +30,15 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-components/menu": [
+        "./packages/components/menu/src/register.ts"
+      ],
+      "@vera-components/menu/element": [
+        "./packages/components/menu/src/index.ts"
+      ],
+      "@vera-hooks/typeahead": [
+        "./packages/hooks/typeahead/src/index.ts"
+      ],
       "@vera-components/tabs": [
         "./packages/components/tabs/src/register.ts"
       ],

@@ -1,0 +1,35 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "menu-link-no-href",
+      "params": [],
+      "message": "has an <a> item without href, which is not a link: it takes no focus and no key activates it.",
+      "fix": "Give the link an href, or write the item as <button>."
+    },
+    {
+      "code": "menu-no-label",
+      "params": [],
+      "message": "opens as a context menu with no trigger to name it, and its menu has no aria-label or aria-labelledby, so a screen reader announces an unnamed menu.",
+      "fix": "Give the slot=\"menu\" container an aria-label."
+    },
+    {
+      "code": "menu-no-list",
+      "params": [],
+      "message": "has no direct child marked slot=\"menu\", so there are no items to wire and nothing opens.",
+      "fix": "Put the items in one container, such as <div slot=\"menu\">."
+    },
+    {
+      "code": "menu-no-target",
+      "params": [],
+      "message": "has opener=\"context\" but no direct child marked slot=\"target\", so no context menu opens it. The menu never takes the native context menu of an element it was not given.",
+      "fix": "Mark the element whose context menu opens the menu slot=\"target\"."
+    },
+    {
+      "code": "menu-no-trigger",
+      "params": [],
+      "message": "has no direct child marked slot=\"trigger\", so nothing opens the menu.",
+      "fix": "Add <button slot=\"trigger\">, or set opener=\"context\" and mark the element whose context menu opens it slot=\"target\"."
+    }
+  ]
+}

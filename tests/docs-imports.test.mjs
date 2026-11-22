@@ -40,6 +40,8 @@ const PACKAGES = {
   '@vera-components/spinner': 'vera-components/spinner',
   '@vera-components/input': 'vera-components/input',
   '@vera-components/tabs': 'vera-components/tabs',
+  '@vera-hooks/typeahead': 'vera-hooks/typeahead',
+  '@vera-components/menu': 'vera-components/menu',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',

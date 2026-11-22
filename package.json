@@ -64,6 +64,8 @@
         "./packages/components/spinner:build",
         "./packages/components/input:build",
         "./packages/components/tabs:build",
+        "./packages/hooks/typeahead:build",
+        "./packages/components/menu:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",
