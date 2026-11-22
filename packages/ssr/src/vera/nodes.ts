@@ -135,7 +135,7 @@ interface CollectionShim<T> extends Array<T> {
  * has to keep its capital B or the viewport is ignored, while `div.setAttribute('Data-Flag', …)`
  * has to lose its capitals or the `getAttribute('data-flag')` beside it reads `null`.
  */
-const HTML_NS = 'http://www.w3.org/1999/xhtml';
+export const HTML_NS = 'http://www.w3.org/1999/xhtml';
 
 /**
  * The characters that make a name unusable, checked so the shim refuses what the platform refuses.
@@ -394,7 +394,7 @@ const textOf = (container: ContainerShim): string => {
  * was there before, plus a warning. That check is also what makes a parser defect cheap: a wrong
  * tree that does not round-trip is thrown away rather than served.
  */
-const parseChunks = (container: ContainerShim): void => {
+export const parseChunks = (container: ContainerShim): void => {
   if (container._parsed) return;
   container._parsed = true;
   const entries: EntryShim[] = [];
@@ -1330,9 +1330,17 @@ export class ContainerShim extends NodeBaseShim {
     parseChunks(this);
     return asCollection(select.querySelectorAll(this, selector));
   }
+  /**
+   * **The id compared as a string, never parsed as a selector** (the platform's rule). It was a `[id="…"]` selector with
+   * only `"` escaped, so a backslash was read as a CSS escape: `a"b` was not found and `a\"]` threw, a crashed render
+   * for an id from a slug or user content. An empty id names nothing, as in every engine.
+   */
   getElementById(id: string): ElementShim | null {
+    const wanted = `${id}`;
+    if (wanted === '') return null;
     parseChunks(this);
-    return select.querySelector(this, `[id="${`${id}`.replace(/"/gu, '\\"')}"]`);
+    for (const element of select.descendantsOf(this)) if (element.getAttribute('id') === wanted) return element;
+    return null;
   }
   /**
    * **Only retained nodes.** Every entry this DOM holds as an element *is* an element, so `children`

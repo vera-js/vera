@@ -128,6 +128,8 @@ const OPS = [
    * non-labelable element (absent).
    */
   ['labels', "el.innerHTML = '<label for=a>1</label><input id=a><label>2<input id=n></label><label for=b>3<input id=c></label><select id=b></select><label for=h>4</label><input id=h type=hidden><textarea id=t></textarea><label for=t>5</label><meter></meter><label for=d>6<input id=e></label><div id=d></div>'; const q = (s) => el.querySelector(s); const names = (x) => x === null ? 'null' : x === undefined ? 'absent' : [...x].map((l) => l.textContent).join('|') || 'none'; return ['#a', '#n', '#c', '#b', '#h', '#t', 'meter', '#e', 'div'].map((s) => names(q(s).labels)).join(',');"],
+  /** An ancestor's query sees what a child's `innerHTML` assigned (its markup is parsed as the walk reaches it), and never a template's content. */
+  ['an ancestor query sees a child\'s innerHTML', "const c = el.ownerDocument.createElement('div'); c.innerHTML = '<i class=\"x\"></i><template><b class=\"x\"></b></template>'; el.append(c); return [el.querySelectorAll('.x').length, el.getElementsByTagName('i').length, el.getElementsByTagName('b').length, el.getElementsByClassName('x').length, String(el.querySelector('i') !== null)].join(':');"],
   ['remove/once/dedupe listeners', "let hits=0; const f=()=>hits++; const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.addEventListener('x',f); el.addEventListener('x',f); el.dispatchEvent(new E('x')); el.removeEventListener('x',f); el.addEventListener('y',()=>hits+=10,{once:true}); el.dispatchEvent(new E('y')); el.dispatchEvent(new E('y')); return String(hits);"]
 ];;
 

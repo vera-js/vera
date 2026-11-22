@@ -34,6 +34,7 @@
 
 import type { ContainerShim, ElementShim } from './nodes.js';
 import { PROSE } from './diagnostics.js';
+import { HTML_NS, parseChunks } from './nodes.js';
 import { asciiLower } from './escaping.js';
 import { own, quoted, ssrMisuse } from './report.js';
 
@@ -231,10 +232,18 @@ const matchesComplex = (element: ElementShim, steps: Step[], scope: ContainerShi
 export const matches = (element: ElementShim, selector: string, scope: ContainerShim = element): boolean =>
   compile(selector).some((steps) => matchesComplex(element, steps, scope));
 
-/** Every descendant, in document order. */
+/**
+ * Every descendant, in document order. **Each container's markup is parsed as the walk reaches it**: a child filled by
+ * `innerHTML` holds a string until something asks for its nodes, and the walk read only nodes, so every query on an
+ * ancestor (`querySelector`, `getElementById`, `getElementsByTagName`, …) missed what was assigned below it while the
+ * child's own query found it. **A template's content is not its children** in the platform (it is a separate fragment),
+ * so the walk stops at an HTML `<template>`: once nested markup was parsed, `#t` inside one was found.
+ */
 const descendants = (node: ContainerShim, out: ElementShim[] = []): ElementShim[] => {
   for (const child of childrenOf(node)) {
     out.push(child);
+    if (child.localName === 'template' && child._ns === HTML_NS) continue;
+    parseChunks(child);
     descendants(child, out);
   }
   return out;
