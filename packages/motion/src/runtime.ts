@@ -665,11 +665,18 @@ export const createRuntimeElement = (
      * longhands with no value change, so nothing fires and no frame-race exists — a gate that
      * matches at activation still snaps to base first, exactly as a server-rendered page does
      * (which arrives pre-armed, its first paint already base).
+     *
+     * The read is a CONDITION, never a statement: the production build's terser runs `pure_getters`, which deletes a
+     * statement that only reads a property, and `getComputedStyle()` alone resolves nothing. A `void …transitionProperty;`
+     * here was dropped from every min, so the base was never resolved in production. No property is ever the NUL
+     * string, so the condition always holds; the min cannot know that, so it keeps the read.
      */
-    if (generatedCss.mode === 'transition' && !node.hasAttribute('data-vm-armed')) {
-      void getComputedStyle(node as Element).transitionProperty;
+    if (
+      generatedCss.mode === 'transition' &&
+      !node.hasAttribute('data-vm-armed') &&
+      getComputedStyle(node as Element).transitionProperty !== '\0'
+    )
       node.setAttribute('data-vm-armed', '');
-    }
     /**
      * THE CESSION DISPATCH — every tier condition is a NAMED GUARD in cede.ts's table, and this
      * call is the whole decision. New folds (new CSS capabilities) add ROWS there, never `&&`
