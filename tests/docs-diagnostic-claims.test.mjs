@@ -242,6 +242,7 @@ const CLAIMS = new Map([
   ['packages/ssr/README.md#1894c72248', 'ssr-timeout'], // | `timeout` | how long `renderToStringAsync` waits on promises a component starts, in mill
   ['packages/ssr/README.md#8fe5946dd0', 'ssr-timeout'], // When the budget runs out the render serves what it has and warns, in every build, naming t
   ['packages/ssr/README.md#07eca03e44', 'ssr-timeout'], // The warning names the component waiting and the child it waits on.
+  ['llms.txt#f060ec4971', 'ssr-timeout'], // | `timeout` | … When it runs out the render serves what it has and warns (`ssr-timeout`)
   ['packages/ssr/README.md#b7dd238da1', 'not a promise: says it prints no warning'], // That serves the component's state from before the wait, which is exactly what the browser 
   ['packages/ssr/README.md#1e3a0a07fa', "not a promise: the instance marker's behavior, no message"], // **It only ever produces the component it was written for**: a copy of it on another tag is
   ['packages/ssr/README.md#777bd846a5', 'ssr-styles-vary'], // That is what stops a per-class sheet being emitted once per instance; the consequence is t

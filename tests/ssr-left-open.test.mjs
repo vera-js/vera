@@ -94,10 +94,12 @@ test('KNOWN: a template that closes its own div across an open table leaves the 
  * `<select>` around it: where the two readings end at the same place it is served, and where they disagree it is
  * refused (`ssr-cdata-unknown`) rather than guessed.
  */
-test('a CDATA section in a child template is served where both readings agree and refused where they do not', () => {
+test('a CDATA section or a plaintext in a child template is served where both readings agree and refused where they do not', () => {
   const inSvg = (inner) => html`<div id="host"><svg>${inner}</svg></div><p id="after">after</p>`;
   const inSelect = (inner) => html`<div id="host"><select>${inner}</select></div><p id="after">after</p>`;
   for (const draw of [inSvg, inSelect]) assert.ok(contained(serializeTemplate(draw(literal('<![CDATA[ x ]]>')))));
+  /** A `<plaintext>` never reads the same both ways — an SVG element ends, an HTML one never does — so it is refused. */
+  for (const draw of [inSvg, inSelect]) assert.throws(() => serializeTemplate(draw(literal('<plaintext>x</plaintext>'))), /ssr-plaintext/);
   const refused = [];
   for (const [name, draw, markup] of [
     ['select', inSelect, '<![CDATA[><textarea>]]>'],

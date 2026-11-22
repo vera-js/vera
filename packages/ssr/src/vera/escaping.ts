@@ -139,6 +139,10 @@ export const RCDATA_ELEMENTS = new Set(['textarea', 'title']);
  */
 export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? raw.replace(/\r\n?/g, '\n') : raw);
 
+/** Both bounds escaped: every code unit past ASCII, an astral character's two surrogates included. */
+const NON_ASCII = /[\x80-\uffff]/;
+const lowerRun = (run: string): string => run.toLowerCase();
+const upperRun = (run: string): string => run.toUpperCase();
 /**
  * **HTML folds case by ASCII only**: the tokenizer, `createElement`, attribute names, `tagName`, enumerated values and a
  * selector's `i` flag fold A–Z and nothing else, in every engine. `toLowerCase` folds more: the Kelvin sign (U+212A)
@@ -147,10 +151,6 @@ export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? 
  * `toUpperCase` turns `ß` into `SS`. A string with nothing outside ASCII folds exactly with the native call, so only a
  * string that has something outside it pays for the run-by-run replace.
  */
-/** Both bounds escaped: every code unit past ASCII, an astral character's two surrogates included. */
-const NON_ASCII = /[\x80-\uffff]/;
-const lowerRun = (run: string): string => run.toLowerCase();
-const upperRun = (run: string): string => run.toUpperCase();
 export const asciiLower = (text: string): string => (NON_ASCII.test(text) ? text.replace(/[A-Z]+/g, lowerRun) : text.toLowerCase());
 export const asciiUpper = (text: string): string => (NON_ASCII.test(text) ? text.replace(/[a-z]+/g, upperRun) : text.toUpperCase());
 
