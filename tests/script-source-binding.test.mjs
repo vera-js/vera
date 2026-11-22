@@ -82,18 +82,25 @@ test("CONTROL, core's renderer: a written script URL, a bound image src, an even
   assert.deepEqual(lines, []);
 });
 
-test('spread: a script URL key is ignored in every spelling, and a written src beside it stays', () => {
-  for (const [label, draw] of [
-    ['src', (h) => h`<script ${spread({ src: URL })}></script>`],
-    ['SRC', (h) => h`<script ${spread({ SRC: URL })}></script>`],
-    ['.src', (h) => h`<script ${spread({ '.src': URL })}></script>`],
-    ['an SVG script xlink:href', (h) => h`<svg><script ${spread({ 'xlink:href': URL })}></script></svg>`],
-    ['an SVG script href', (h) => h`<svg><script ${spread({ href: URL })}></script></svg>`],
-  ]) {
+/**
+ * Every sigil a spread key can carry that writes a value — none (an attribute), `.` (a property), `!` (a live property) —
+ * on each URL a script runs from: an HTML script's `src`, an SVG script's `href` and `xlink:href`. A property write adds
+ * no attribute, so the property itself is read too: that check holds in production, which says nothing.
+ */
+const SPREAD_KEYS = ['', '.', '!'].flatMap((sigil) => [
+  [`${sigil}src`, (bag) => core.html`<script ${spread(bag)}></script>`, 'src'],
+  [`${sigil}href`, (bag) => core.html`<svg><script ${spread(bag)}></script></svg>`, 'href'],
+  [`${sigil}xlink:href`, (bag) => core.html`<svg><script ${spread(bag)}></script></svg>`, 'xlink:href'],
+]);
+
+test('spread: a script URL key is ignored for every sigil and URL name, and a written src beside it stays', () => {
+  assert.equal(SPREAD_KEYS.length, 9, 'CONTROL: three sigils on three names');
+  for (const [key, draw, name] of [...SPREAD_KEYS, ['SRC', SPREAD_KEYS[0][1], 'src']]) {
     const host = document.createElement('div');
-    const lines = said(() => renderInto(draw(core.html), host));
-    clean(host);
-    saidOnly(lines, 1, label);
+    const lines = said(() => renderInto(draw({ [key]: URL }), host));
+    const script = clean(host);
+    assert.ok(!String(script[name] ?? '').includes('elsewhere'), `${key}: the property holds no URL of the value's (${script[name]})`);
+    saidOnly(lines, 1, key);
   }
   const host = document.createElement('div');
   said(() => renderInto(core.html`<script src="/mine.js" ${spread({ src: URL, type: 'module' })}></script><img ${spread({ src: URL })}>`, host));
