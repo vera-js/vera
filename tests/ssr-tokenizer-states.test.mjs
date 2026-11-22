@@ -524,12 +524,24 @@ test('under every kind of open entry, a non-structural end tag before a style ho
 
 /** Two seams the fuzz found: what is left where a binding was must not change how its neighbors tokenize. */
 test('a dropped comment binding cannot fuse its neighbors, and an unquoted value runs to the tokenizer’s whitespace', () => {
-  /** `<!` + `--!>` would be `<!--!>`, a comment OPENING, which swallowed everything after it. */
-  const bogus = serializeTemplate(template(['<!', '--!><p>', '</p>'], 'x', 'shown'));
-  assert.ok(page(bogus).some((el) => el.tagName === 'p'), bogus);
-  /** `-` + `->` would be `-->`, ending the comment early and showing its tail as text. */
-  const early = serializeTemplate(template(['<!-- a -', '-> b --><p>', '</p>'], 'x', 'y'));
-  assert.ok(!parse(`<!doctype html><body>${early}`).childNodes[1].childNodes[1].childNodes.some((n) => n.nodeName === '#text' && n.value.includes('b')), early);
+  /** Every text node the parser builds, template contents included. */
+  const texts = (node, out = []) => {
+    for (const child of node.childNodes ?? []) {
+      if (child.nodeName === '#text') out.push(child.value);
+      texts(child, out);
+      if (child.content) texts(child.content, out);
+    }
+    return out;
+  };
+  /** In HTML and inside `<template>` content, where every binding is dropped and the join was once left bare. */
+  for (const [open, close] of [['', ''], ['<template>', '</template>']]) {
+    /** `<!` + `--!>` would be `<!--!>`, a comment OPENING, which swallowed everything after it. */
+    const bogus = serializeTemplate(template([`${open}<!`, `--!>${close}<p>`, '</p>'], 'x', 'shown'));
+    assert.ok(page(bogus).some((el) => el.tagName === 'p'), bogus);
+    /** `-` + `->` would be `-->`, ending the comment early and leaving its tail as text. */
+    const early = serializeTemplate(template([`${open}<!-- a -`, `-> b -->${close}<p>`, '</p>'], 'x', 'y'));
+    assert.ok(!texts(parse(`<!doctype html><body>${early}`)).some((text) => text.includes('b')), early);
+  }
   /** `\v` is value text: cutting the unquoted value there left `\vb="c` to open a quote that never closed — the element lost. */
   const tail = serializeTemplate(template(['<x title=', '\vb="c>kept</x>'], 'v'));
   assert.equal(page(tail).find((el) => el.tagName === 'x')?.attrs[0].value, 'v\vb="c', JSON.stringify(tail));

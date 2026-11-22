@@ -888,9 +888,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     /**
      * A binding dropped inside a comment leaves ONE space where it was, so the statics on either side cannot meet as
      * a different token: `<!${…}--!>` read as a bogus comment, ended by its `>`, while the bare join `<!--!>` OPENS a
-     * comment that swallowed the page after it; `-${…}->` joined to `-->` and ended a comment early.
+     * comment that swallowed the page after it; `-${…}->` joined to `-->` and ended a comment early. Inside `<template>`
+     * content too, where every binding is dropped: the joined statics are parsed there like anywhere else, and
+     * `<template><!--!>` swallowed the page after the template.
      */
-    parts.push(tagState.comment !== '' && !inert ? part + ' ' : taker ? part + '\n' : part);
+    parts.push(tagState.comment !== '' ? part + ' ' : taker ? part + '\n' : part);
     /** Its position: the depth and the namespace there, so a template rendered into it starts where it is (see `positionOf`). */
     const position = positionAt(tagState.foreign, tagState.opens);
     if (position !== 0) depths[kinds.length] = position;
