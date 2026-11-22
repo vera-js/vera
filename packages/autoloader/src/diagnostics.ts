@@ -11,8 +11,10 @@ export const PROSE: Record<string, Prose> = {
     `rootDir must be an absolute URL, and "${rootDir}" is not.`,
     'Pass import.meta.url — a relative path has nothing to resolve against.',
   ],
-  /** Three reasons, one fact — a URL this loader will not fetch (and no request is made). */
-  /** The refused URL is the line's SUBJECT, so production — which prints no prose — still says which. */
+  /**
+   * Three reasons, one fact — a URL this loader will not fetch (and no request is made). The refused URL is the line's
+   * SUBJECT, so production — which prints no prose — still says which.
+   */
   'loader-url-refused': (why) => [`refused — ${why}.`, 'Nothing was requested. Point the directory, or `resolve`, at a path inside rootDir.'],
   /** What it threw is the SUBJECT (printed in every build); this explains it. */
   'loader-resolve-threw': () => [

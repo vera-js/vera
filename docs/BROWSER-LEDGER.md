@@ -232,6 +232,14 @@ from another machine, or after that is undone, has a variable changed.
   the setter as its control. Safari itself was not measured (Playwright's build and synthetic keys only): whether a
   native keystroke closes the undo step there is open. (Headless, 2026-11-22.)
 
+- **A failed module import is kept under a new fragment too, in Chromium: only a new query asks again.** After
+  `import(u)` was answered 404, Chromium answered `import(u + '#vera-retry=1')` from the same failed record (rejected)
+  while `import(u + '?vera-retry=1')` asked the server and loaded; Firefox and WebKit in the same run asked again for
+  `u` itself. An import map's `integrity` pin was still checked for a fragment URL in Chromium and not in Firefox or
+  WebKit. Consequence: the autoloader's retry adds a query, not a fragment (a fragment would have needed no `new URL`
+  and left signed URLs intact), and keeps an integrity-pinned page's URL as it is. (Chromium, Firefox, WebKit,
+  headless, a scratch probe on the `failOnce` fixture route, 2026-11-22.)
+
 ## CSS and the cascade
 
 - **A layer-order statement a script prepends to `<head>` orders layers the page's sheets already declared, and adopted

@@ -22,7 +22,7 @@ import { packageFiles } from '../scripts/packages.mjs';
 
 /** Each package's detached doc comments today (2026-11-12): lower a pin when its package clears some, never raise one. */
 const PINS = {
-  core: 0, autoloader: 6, cms: 3, directives: 10, listbox: 1, inserts: 4, jsx: 11, motion: 42, renderer: 33, router: 11,
+  core: 0, autoloader: 0, cms: 3, directives: 10, listbox: 1, inserts: 4, jsx: 11, motion: 42, renderer: 33, router: 11,
   'shared-utils': 6, ssr: 36, store: 3, styles: 1, select: 3,
 };
 

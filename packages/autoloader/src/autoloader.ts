@@ -1,6 +1,7 @@
 import type { AutoloaderInstance, AutoloaderOptions } from './types.js';
-import { diagnostic, misuse, SHARED, thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, thrownMessage } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
+import { entry } from './entry.js';
 
 /**
  * `src` with `vera-retry=<n>` added to its query (a hash kept where it was): a URL the engine has not seen, for a retry
@@ -67,23 +68,7 @@ export const autoloader = (
   componentsDir?: string,
   options?: AutoloaderOptions
 ): AutoloaderInstance => {
-  /** A configuration error fails at the misconfiguration, not once per element per render. */
-  if (!rootDir) throw new Error(misuse('autoloader', 'loader-root-required', __DEV__ && PROSE['loader-root-required']()));
-
-  /**
-   * An option this autoloader does not have does nothing, and did so in silence — `extensions` or
-   * `resolver` reads exactly like the real thing at a glance, and the symptom is the *default*
-   * behavior, which looks like the option was never needed rather than never seen.
-   *
-   * `__DEV__`-only, so a production bundle carries neither the list nor the text.
-   */
-  if (__DEV__ && options)
-    for (const key of Object.keys(options))
-      if (key !== 'extension' && key !== 'resolve')
-        console.warn(diagnostic('autoloader', 'options', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'extension, resolve')));
-
-  /** Normalized so callers may pass either `ts` or `.ts` */
-  const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
+  const [base, extension] = entry('autoloader', rootDir, options, ['extension', 'resolve']);
 
   /**
    * `dir/tag.ext` is one layout, and a component library is as likely to use `tag/tag.js`,
@@ -93,30 +78,6 @@ export const autoloader = (
    * shape to avoid; the path around it is the same problem one level out.
    */
   const resolve = options?.resolve;
-
-  /**
-   * Every resolved URL must stay inside the entry's own directory. Tag names cannot carry `/`
-   * (the HTML parser won't produce one), but the `data-autoload-dir` override is free text — and
-   * CODE-PRINCIPLES #8 requires bounding anything that turns markup into a module URL. An
-   * absolute, protocol-relative, or upward-traversing value resolves outside this prefix and is
-   * refused.
-   */
-  /**
-   * A **relative** `rootDir` throws either way; development says why.
-   *
-   * The platform's own message — `Failed to construct 'URL': Invalid base URL` — names neither the
-   * argument nor the fix. The value has to be absolute because every component URL resolves against
-   * it, which is why `import.meta.url` is the documented answer. Behind `__DEV__`, so the build
-   * folds it away and a production bundle carries neither the check nor the text.
-   */
-  if (__DEV__) {
-    try {
-      new URL('.', rootDir);
-    } catch {
-      throw new Error(misuse('autoloader', 'loader-root-not-absolute', __DEV__ && PROSE['loader-root-not-absolute'](rootDir)));
-    }
-  }
-  const base = new URL('.', rootDir).href;
 
   /** One attempt per URL per page load, so a 404 costs one request and one console line. */
   const attempted = new Set<string>();
@@ -138,9 +99,10 @@ export const autoloader = (
    * **How many times `retry` has asked again for a tag whose import REJECTED** (2026-11-21): an engine keeps a failed
    * module import, keyed by its URL — Chromium 159 and Firefox and WebKit before 159 and 27 answer the same URL from that
    * record without asking the server (`tests/browser/autoloader.test.js` measures it) — so a retry imports the URL with
-   * `vera-retry=<n>` added, which the engine has not seen. Only for a rejected import: a module that loaded and did not
-   * define its tag is retried from its own URL, since running it again could not define the tag and would run its code
-   * twice. Dropped once the tag loads.
+   * `vera-retry=<n>` added, which the engine has not seen. A fragment would not do: Chromium keeps the failure under
+   * `#…` too. Only for a rejected import: a module that loaded and did not define its tag is retried from its own URL,
+   * since running it again could not define the tag and would run its code twice. Dropped once the tag loads. (One map
+   * of `{ src, tries }` for both was measured at +8 B gz, for one delete fewer in three places.)
    */
   const retries = new Map<string, number>();
 
@@ -153,6 +115,26 @@ export const autoloader = (
    * bookkeeping rather than the observer contract.)
    */
   const watched = new WeakSet<Element | ShadowRoot>();
+
+  /**
+   * The URLs this loader refused, by the refusal it threw — read back in `load` to report each once. The refusal still
+   * carries `href` for a caller of `url()`; `load` reads this map instead, because whatever reaches its `catch` may be
+   * the caller's own throw, and reading a property off `null` (or a Proxy that throws) crashed the error path, where
+   * `WeakMap#get` answers `undefined` for anything.
+   */
+  const refused = new WeakMap<object, string>();
+  /**
+   * One refusal of a URL, recorded as it is made. The refused URL rides on the error, so discovery can dedupe on it
+   * exactly as it dedupes a fetch. Keying the refusal on the *tag* instead would be wrong: `data-autoload-dir` is
+   * watched precisely so it can be pointed somewhere else after a first attempt failed, and a tag marked spent never
+   * looks again.
+   */
+  const refuse = (tag: string, href: string, why: string): Error => {
+    const refusal = new Error(diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused', __DEV__ && PROSE['loader-url-refused'](why)));
+    (refusal as Error & { href: string }).href = href;
+    refused.set(refusal, href);
+    return refusal;
+  };
 
   /**
    * Creates the expected element url location to be appended to the root dir.
@@ -170,13 +152,6 @@ export const autoloader = (
    * @param element The element being discovered, when there is one — only it can carry `data-autoload-dir`
    * @return The absolute URL this autoloader would fetch
    */
-  /**
-   * The URLs this loader refused, by the refusal it threw — read back in `load` to report each once. The refusal still
-   * carries `href` for a caller of `url()`; `load` reads this map instead, because whatever reaches its `catch` may be
-   * the caller's own throw, and reading a property off `null` (or a Proxy that throws) crashed the error path, where
-   * `WeakMap#get` answers `undefined` for anything.
-   */
-  const refused = new WeakMap<object, string>();
   const url = (tag: string, element?: Element) => {
     /**
      * Trailing slashes come off, and an empty or root-only directory becomes `.` — the entry file's
@@ -210,13 +185,7 @@ export const autoloader = (
      */
     if (!resolve && /[?#]/.test(dir)) {
       const url = new URL(href);
-      const refusal = new Error(
-        diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused',
-          __DEV__ && PROSE['loader-url-refused'](`data-autoload-dir "${dir}" contains ? or #, which ends the path, so <${tag}> lands in the query or fragment and ${url.origin}${url.pathname} would be fetched instead; use \`resolve\` to add a query`))
-      );
-      (refusal as Error & { href: string }).href = href;
-      refused.set(refusal, href);
-      throw refusal;
+      throw refuse(tag, href, `data-autoload-dir "${dir}" contains ? or #, which ends the path, so <${tag}> lands in the query or fragment and ${url.origin}${url.pathname} would be fetched instead; use \`resolve\` to add a query`);
     }
     /**
      * **An encoded separator is refused the way a real one is caught.**
@@ -233,12 +202,7 @@ export const autoloader = (
      * default path only, since `resolve` owns its own URL building and a `%2F` in a query it adds
      * is legitimately its business.
      */
-    if (!resolve && /%2f|%5c/i.test(dir)) {
-      const refusal = new Error(diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused', __DEV__ && PROSE['loader-url-refused'](`an encoded path separator in "${dir}"`)));
-      (refusal as Error & { href: string }).href = href;
-      refused.set(refusal, href);
-      throw refusal;
-    }
+    if (!resolve && /%2f|%5c/i.test(dir)) throw refuse(tag, href, `an encoded path separator in "${dir}"`);
     /**
      * **Containment belongs here, not only at the fetch.**
      *
@@ -252,21 +216,10 @@ export const autoloader = (
      * would refuse handed the caller the fetch this module declines to make. One check, at the one
      * place URLs are built, also covers a custom `resolve` returning something unbounded.
      *
-     * `base` is `new URL('.', rootDir)`, which always ends in `/`, so the prefix test cannot be
-     * satisfied by a sibling directory whose name merely starts the same way.
+     * Tag names cannot carry `/` (the HTML parser won't produce one), but `data-autoload-dir` is free text: an
+     * absolute, protocol-relative or upward-traversing value resolves outside `base` (see `entry`) and is refused.
      */
-    if (!href.startsWith(base)) {
-      /**
-       * The refused URL rides on the error, so discovery can dedupe on it exactly as it dedupes a
-       * fetch. Keying the refusal on the *tag* instead would be wrong: `data-autoload-dir` is watched
-       * precisely so it can be pointed somewhere else after a first attempt failed, and a tag
-       * marked spent never looks again.
-       */
-      const refusal = new Error(diagnostic('autoloader', `<${tag}> ${href}`, 'loader-url-refused', __DEV__ && PROSE['loader-url-refused'](`it resolves outside ${base}`)));
-      (refusal as Error & { href: string }).href = href;
-      refused.set(refusal, href);
-      throw refusal;
-    }
+    if (!href.startsWith(base)) throw refuse(tag, href, `it resolves outside ${base}`);
     return href;
   };
 
@@ -302,8 +255,8 @@ export const autoloader = (
     attempted.add(src);
     requested.add(tag);
     failed.set(tag, src);
-
     const tries = retries.get(tag);
+
     let imported = false;
     try {
       await import(/* @vite-ignore */ tries === undefined ? src : /*@__NOINLINE__*/ retried(src, tries, element.ownerDocument));
@@ -379,16 +332,14 @@ export const autoloader = (
    * One observer for every watched root. A node added anywhere inside one is examined itself and
    * then scanned, because a subtree may arrive whole — `innerHTML` on a container delivers one
    * added node holding any number of undefined elements.
-   */
-  /**
-   * Created on first use, not at construction.
    *
-   * `new MutationObserver(...)` in the constructor made `autoloader` throw in Node —
-   * `MutationObserver is not defined` — so an app entry that wires the autoloader could not be
-   * imported server-side at all. `@verajs/router` attaches its window listeners lazily for exactly
-   * this reason and says so; the observed-discovery rewrite reintroduced the problem here.
+   * Created on first use, not at construction. `new MutationObserver(...)` in the constructor made
+   * `autoloader` throw in Node — `MutationObserver is not defined` — so an app entry that wires the
+   * autoloader could not be imported server-side at all. `@verajs/router` attaches its window
+   * listeners lazily for exactly this reason and says so; the observed-discovery rewrite
+   * reintroduced the problem here.
    */
-  let observer;
+  let observer: MutationObserver | undefined;
   const observing = () =>
     (observer ??= new MutationObserver((records) => {
       for (const record of records) {
@@ -424,7 +375,8 @@ export const autoloader = (
    * to be cheap when there is nothing to do: an attribute read, then a `WeakSet` check. The scan
    * happens once, when the observation starts — everything after that arrives as a mutation.
    *
-   * @param element The element to watch for undefined custom elements within
+   * @param target The element or shadow root to watch for undefined custom elements within, or the document for
+   * every marked host on the page
    */
   const watch = (target: Element | ShadowRoot | Document = document) => {
     /**
@@ -499,6 +451,12 @@ export const autoloader = (
   };
 
   /**
+   * `name` goes through `defineProperty` because a function's own `name` is non-writable, so
+   * `Object.assign` throws in strict mode — and the descriptor's `name` is what the duplicate-
+   * priority warning quotes, so leaving it as `"watch"` would name the wrong thing.
+   */
+  Object.defineProperty(watch, 'name', { value: '@verajs/autoloader', configurable: true });
+  /**
    * The instance is also its own `wire` descriptor, so configuring the autoloader and installing it
    * are one call:
    *
@@ -512,12 +470,6 @@ export const autoloader = (
    *
    * Priority 75 runs it *after* the renderer at 50, because it scans what the render just produced.
    */
-  /**
-   * `name` goes through `defineProperty` because a function's own `name` is non-writable, so
-   * `Object.assign` throws in strict mode — and the descriptor's `name` is what the duplicate-
-   * priority warning quotes, so leaving it as `"watch"` would name the wrong thing.
-   */
-  Object.defineProperty(watch, 'name', { value: '@verajs/autoloader', configurable: true });
   return Object.assign(watch, {
     url,
     retry,

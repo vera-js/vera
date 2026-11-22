@@ -34,8 +34,9 @@
  * exactly the autoloader's posture with URLs; the ASKER memoizes refusals, this memoizes loads.
  */
 import type { DirectiveLoaderInstance, DirectiveLoaderOptions } from './types.js';
-import { diagnostic, misuse, SHARED, thrownMessage } from '@verajs/shared-utils';
+import { diagnostic, misuse, thrownMessage } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
+import { entry } from './entry.js';
 
 /** The refusals this loader throws itself — already coded, so `load` forwards them as they are (routing). */
 const ours = new WeakSet<object>();
@@ -54,20 +55,7 @@ export const directiveLoader = (
   directivesDir?: string,
   options?: DirectiveLoaderOptions
 ): DirectiveLoaderInstance => {
-  if (!rootDir) throw new Error(misuse('directiveLoader', 'loader-root-required', __DEV__ && PROSE['loader-root-required']()));
-  if (__DEV__) {
-    try {
-      new URL('.', rootDir);
-    } catch {
-      throw new Error(misuse('directiveLoader', 'loader-root-not-absolute', __DEV__ && PROSE['loader-root-not-absolute'](rootDir)));
-    }
-    if (options)
-      for (const key of Object.keys(options))
-        if (key !== 'extension' && key !== 'alias' && key !== 'resolve')
-          console.warn(diagnostic('directiveLoader', 'options', 'unknown-option', __DEV__ && SHARED.unknownOption(key, 'extension, alias, resolve')));
-  }
-  const base = new URL('.', rootDir).href;
-  const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
+  const [base, extension] = entry('directiveLoader', rootDir, options, ['extension', 'alias', 'resolve']);
   const alias = options?.alias;
   const resolve = options?.resolve;
   const dir = (directivesDir ?? '.').replace(/\/+$/, '') || '.';
@@ -108,8 +96,10 @@ export const directiveLoader = (
     try {
       src = url(name);
     } catch (error) {
-      /** `url` runs the caller's `resolve`, which can throw any value at all: formatted by what never throws. */
-      /** Ours (already coded) is forwarded as it is — routing; anything else is the caller's `resolve` throwing. */
+      /**
+       * Ours (already coded) is forwarded as it is — routing; anything else is the caller's `resolve` throwing, which
+       * can throw any value at all, so it is formatted by what never throws.
+       */
       if (ours.has(error as object)) console.error((error as Error).message);
       else console.error(diagnostic('directiveLoader', `"${name}": ${thrownMessage(error)}`, 'loader-resolve-threw', __DEV__ && PROSE['loader-resolve-threw']()));
       return false;
