@@ -52,4 +52,13 @@ On the server, and before script runs, nothing is announced: the busy state is v
 
 ## Parts
 
-`arc` (`aria-hidden`) and `label` (only with `show-label` and a label), each as `data-vera-part`.
+`arc` (`aria-hidden`) and `label` (only with `show-label` and a label), each as `data-vera-part`. Each also carries
+`data-vera-spinner`, and our rules ask for it, so another component's part with the same name never gets the
+spinner's look; style a part by its `data-vera-part` as usual.
+
+## Before script runs
+
+A server-rendered spinner turns before any script: the server returns the arc's rule in its `styles`. On a page with
+no server markup, link `@vera-components/spinner/preupgrade.css` and an empty `<vera-spinner>` turns until the
+element is defined (in `@layer vera`, so your CSS wins). It is keyed on the default tag; under `defineAs('my-spinner')`,
+write the same rule for your tag. Nothing is announced until script runs.

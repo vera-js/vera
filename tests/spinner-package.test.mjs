@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { distUrl, isProduction, load } from './dist.mjs';
 
@@ -14,8 +15,8 @@ const SCENARIO = process.env.VERA_PACKAGE_SCENARIO;
 
 if (SCENARIO === 'ssr') {
   const { renderToString } = await import('@verajs/ssr');
-  const { html } = await renderToString(distUrl('vera-components/spinner'), { tag: TAG, attributes: { label: 'Loading' } });
-  process.stdout.write(JSON.stringify({ html }));
+  const { html, styles } = await renderToString(distUrl('vera-components/spinner'), { tag: TAG, attributes: { label: 'Loading' } });
+  process.stdout.write(JSON.stringify({ html, styles }));
 } else if (SCENARIO) {
   const { JSDOM } = await import('jsdom');
   const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/', pretendToBeVisual: true });
@@ -86,6 +87,20 @@ if (SCENARIO === 'ssr') {
     assert.deepEqual(said, []);
   });
 
+  test('dist/preupgrade.css is the pre-upgrade rule sheet.ts builds, written by the build, never a committed twin', async () => {
+    const { PREUPGRADE } = await import('../packages/components/spinner/src/spinner/sheet.ts');
+    const written = readFileSync(new URL('../packages/components/spinner/dist/preupgrade.css', import.meta.url), 'utf8');
+    assert.ok(PREUPGRADE.startsWith('@layer vera{') && PREUPGRADE.includes(':not(:defined):empty'), 'CONTROL: the rule is the pre-upgrade one');
+    assert.equal(written, PREUPGRADE);
+    const pkg = JSON.parse(readFileSync(new URL('../packages/components/spinner/package.json', import.meta.url), 'utf8'));
+    assert.equal(pkg.exports['./preupgrade.css'], './dist/preupgrade.css');
+  });
+
+  test('a client never declares styles (core would warn at every connect on a page that never wired them)', async () => {
+    const { said } = run('surface');
+    assert.deepEqual(said, []);
+  });
+
   test('defineAs registers under the caller\'s tag, and the element renders its part', () => {
     const { registered, untouched, rendered, said } = run('define-as');
     assert.equal(registered, true, 'the returned class serves the tag');
@@ -116,7 +131,9 @@ if (SCENARIO === 'ssr') {
   });
 
   test('a server imports "." through @verajs/ssr and renders the element', () => {
-    const { html } = run('ssr');
+    const { html, styles } = run('ssr');
+    /** The arc's rule reaches the page only through the server's styles, so served markup turns before any script. */
+    assert.ok(styles.includes('[data-vera-part="arc"]') && styles.includes('@keyframes vera-spinner-turn'), styles);
     assert.ok(html.includes(`<${TAG}`), html);
     assert.ok(html.includes('data-vera-part="arc"'), html);
   });

@@ -56,6 +56,16 @@ describe('vera-spinner: the arc, unwired styles', () => {
     holder.remove();
   });
 
+  it("styles only its own parts: another component's arc and label parts, by the same names, get nothing", async () => {
+    const holder = await mount('<vera-spinner label="Loading" show-label></vera-spinner><div><span data-vera-part="arc"></span><span data-vera-part="label">theirs</span></div>');
+    expect(ANIMATIONS, 'CONTROL: the spinner\'s own arc is drawn').to.include(style(arcOf(holder.firstElementChild)).animationName);
+    expect(style(holder.firstElementChild.querySelector('[data-vera-part="label"]')).marginInlineStart, 'CONTROL: its own label is spaced').to.not.equal('0px');
+    const foreign = holder.lastElementChild;
+    expect(style(foreign.querySelector('[data-vera-part="arc"]')).animationName).to.equal('none');
+    expect(style(foreign.querySelector('[data-vera-part="label"]')).marginInlineStart).to.equal('0px');
+    holder.remove();
+  });
+
   it('draws the same under a tag of the caller\'s own (the rule is keyed on the part, never the tag)', async () => {
     const holder = await mount('<my-spinner label="Loading"></my-spinner>');
     expect(ANIMATIONS).to.include(style(arcOf(holder.firstElementChild)).animationName);

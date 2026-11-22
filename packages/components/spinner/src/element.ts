@@ -18,8 +18,19 @@ import { adoptOwnSheet, diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { ARC, SHEET } from './spinner/sheet.js';
 
-/** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
-export const options = { tag: 'vera-spinner', attributes: ['label', 'done-label', 'show-label'] } as const;
+/**
+ * The tag and the element's declared attributes, handed to core's `define` by `register.ts`, and **on a server only**
+ * the arc's rule as its `styles`. A server wires `@verajs/styles`, so it returns the rule with the markup and
+ * server-rendered spinners turn before any script runs; `@verajs/ssr` sets the server flag when it is imported, before
+ * it imports a component, so this is read in time. A client never sees the key: there the element adopts the rule
+ * itself (`adoptOwnSheet`), and a `styles` option that no wired module claims would warn at every connect on a page
+ * that never wired styles, the page this path exists for.
+ */
+export const options = {
+  tag: 'vera-spinner',
+  attributes: ['label', 'done-label', 'show-label'],
+  ...(isServer() ? { styles: ARC } : {}),
+} as const;
 
 /** What `define` hands the setup: the element, with its three declared attributes as props. */
 interface SpinnerHost extends HTMLElement {
@@ -63,8 +74,8 @@ export const setup = (host: SpinnerHost) => {
   });
   return () => {
     const label = text(host.label);
-    return html`<span data-vera-part="arc" aria-hidden="true"></span>${
-      host.showLabel !== null && label !== '' ? html`<span data-vera-part="label">${label}</span>` : ''
+    return html`<span data-vera-part="arc" data-vera-spinner aria-hidden="true"></span>${
+      host.showLabel !== null && label !== '' ? html`<span data-vera-part="label" data-vera-spinner>${label}</span>` : ''
     }`;
   };
 };

@@ -86,7 +86,19 @@ const contents =
    * LIGHT components inside SHADOW components' declarative roots (and one in the page): the browser suite hydrates it
    * and asserts each root ends with exactly one copy of the light block, adopted there, and the served nodes kept.
    */
-  `export const STYLES_IN_ROOT_HTML = ${JSON.stringify(await fixture('styles-light-in-shadow.js'))};\n`;
+  `export const STYLES_IN_ROOT_HTML = ${JSON.stringify(await fixture('styles-light-in-shadow.js'))};\n` +
+  /**
+   * A SERVER-RENDERED SPINNER, markup and `styles` both: the browser suite loads them with no script and asserts the
+   * arc turns before upgrade. The rule reaches the page only through the server's `styles` (the element adopts its own
+   * copy only once script runs), wrapped as `@verajs/styles` wraps a light component's sheet, keyframes included, which
+   * is the part only a real engine can judge.
+   */
+  `export const SPINNER_SSR = ${JSON.stringify(
+    await renderToString(new URL('../packages/components/spinner/dist/vera-spinner.min.js', import.meta.url), {
+      tag: 'vera-spinner',
+      attributes: { label: 'Loading' },
+    }).then(({ html, styles }) => ({ html, styles }))
+  )};\n`;
 
 if (check) {
   let committed;

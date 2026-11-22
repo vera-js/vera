@@ -27,7 +27,8 @@
       "types": "./dist/development/vera-spinner-element.d.ts",
       "development": "./dist/development/vera-spinner-element.js",
       "default": "./dist/vera-spinner-element.min.js"
-    }
+    },
+    "./preupgrade.css": "./dist/preupgrade.css"
   },
   "sideEffects": [
     "./dist/development/vera-spinner.js",
@@ -92,7 +93,8 @@
       ],
       "output": [
         "dist/*.min.js",
-        "dist/*.min.js.map"
+        "dist/*.min.js.map",
+        "dist/preupgrade.css"
       ]
     },
     "build:types": {
