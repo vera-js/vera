@@ -146,9 +146,20 @@ const EDIT_SHADOW_ROOT = 1;
  */
 const closeTo = (opens: Open[], name: string): number => {
   let at = opens.length - 1;
-  while (at >= 0 && opens[at].name !== name && opens[at].name !== 'template') at--;
+  while (at >= 0 && opens[at].name !== name && opens[at].name !== 'template' && !holdsText(opens[at])) at--;
   return at >= 0 && opens[at].name === name ? at : -1;
 };
+
+/**
+ * **A text element tracked where the parse is not certain holds until its own end tag** — see `structural`, which
+ * tracks a text-only element or `<style>` in `<noscript>`/`<select>` markup or where the namespace is unknown. In at
+ * least one reading the browser is in that element's TEXT, which only its own end tag ends: current engines read
+ * `<select><title>` as an HTML title, so in `<select><title></select><style>${v}` the `</select>` is title text, the
+ * scan's pop to depth 0 wrote the value raw, and its `</title>` closed the browser's title and injected (Chromium,
+ * Firefox and WebKit; the older select parser, parse5's, ignores the title, which is why jsdom never showed it). So no
+ * other end tag closes past it; the content is still scanned as markup, which over-escapes in every reading.
+ */
+const holdsText = (open: Open): boolean => (open.space === '' || open.space === '?') && (TEXT_ONLY.has(open.name) || open.name === 'style');
 
 /**
  * Pops `opens` to the element a breakout lands in and answers the foreign depth there, or `-1` — leaving `opens` alone

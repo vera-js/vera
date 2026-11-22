@@ -459,6 +459,40 @@ test('an end tag at an integration point leaves the namespace unknown, so a late
 });
 
 /**
+ * **A text element tracked where the parse is not certain holds until its own end tag** (2026-11-22). Current engines
+ * read `<select><title>` as an HTML title, so `</select>` inside it is title text; the scan popped the select, wrote a
+ * later style's value raw, and the value's `</title>` closed the browser's title (Chromium, Firefox and WebKit). parse5
+ * (the older select parser) ignores the title, so the injection is checked here in the reading that has it: the served
+ * bytes with `</select>` and the select's other end tags removed. A `<noscript>` text element is checked with scripting
+ * off, and an unknown namespace (after an end tag at a point) by the page as served.
+ */
+test('a text element tracked in select, noscript or an unknown namespace holds until its own end tag', () => {
+  const ESCAPER = `</style></textarea></title></xmp></noembed></script>${PAYLOAD}`;
+  /** The engines' reading of select content: a text element there is text, so its `</select>` closes nothing. */
+  const asEngines = (served) => served.replace(/<\/?select>/gu, '');
+  const SELECT = ['<select><title></select><style>', '<select><object><title></select><style>', '<select><div><title></select><style>', '<select><option><title></select><style>', '<select><xmp></select><style>', '<select><noembed></select><style>'];
+  const live = [];
+  for (const lead of SELECT) {
+    const served = serializeTemplate(template([lead, '</style>'], ESCAPER));
+    if (injected(asEngines(served)) || injected(served)) live.push(served);
+  }
+  const scriptingOff = (served) => elements(parse(`<!doctype html><body>${served}`, { scriptingEnabled: false })).some((el) => el.attrs.some((a) => a.name === 'id' && a.value === 'pwn'));
+  for (const lead of ['<noscript><title></noscript><style>', '<noscript><xmp></noscript><style>', '<noscript><object><title></noscript><style>']) {
+    const served = serializeTemplate(template([lead, '</style>'], ESCAPER));
+    if (scriptingOff(served) || injected(served)) live.push(served);
+  }
+  /** Unknown namespace: no `font` is open, so the browser stays at the point and the title is HTML text. */
+  for (const statics of [['<svg><foreignObject></font><title></svg><style>', '</style>'], ['<math><mi></section><textarea></math><style>', '</style>']]) {
+    const served = serializeTemplate(template(statics, ESCAPER));
+    if (injected(served)) live.push(served);
+  }
+  assert.deepEqual(live, []);
+  /** CONTROL: a closed text element releases the select, so the style after it is raw text again, the value whole. */
+  const closed = serializeTemplate(template(['<select><title></title></select><style>', '</style>'], PAYLOAD));
+  assert.ok(!injected(closed) && closed.includes(PAYLOAD), closed);
+});
+
+/**
  * **The fast path skips only tags that change nothing** (2026-11-22). A non-structural tag skips `structural` when nothing
  * is open, or when the innermost entry is an HTML element opened at depth 0 (a table, an object, a `<template>`), read
  * off the entry's fields rather than a lookup by name. Under every entry that changes parsing — `<select>`/`<noscript>`

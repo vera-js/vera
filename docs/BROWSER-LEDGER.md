@@ -275,6 +275,12 @@ from another machine, or after that is undone, has a variable changed.
   it, the element's text. The `/` of `<textarea/>` is ignored, as on any HTML element. Consequence: the SSR scan tracks
   those elements inside `<noscript>`/`<select>` for their closers. (jsdom with scripting off; Chromium 159 with
   JavaScript disabled, 2026-11-22.)
+- **Inside `<select>`, current engines read `<title>` as an HTML title (RCDATA); the older select parser ignores it.**
+  So in `<select><title></select>` the `</select>` is the title's text in Chromium 159, Firefox 159 and WebKit 27.2,
+  while parse5 and jsdom close the select; the same holds for `<title>` under an `<object>`, `<div>` or `<option>` in
+  the select. Consequence: a text element the SSR scan tracks in `<select>`/`<noscript>` markup or an unknown namespace
+  closes only at its own end tag; no other end tag pops past it, and its content is scanned as markup, which
+  over-escapes in both readings. (Headless, 2026-11-22.)
 - **Attribute selectors: HTML's case-insensitive values, CSS escapes, and the `s` flag.** Without an `i` flag, the
   values of `lang`, `type` and `dir` (measured; the spec lists 46 such attributes) match ASCII case-insensitively, on an
   HTML element only, never on SVG, and never with `s`. An escape in a name or a value (`\31 `, `\"`, a line
