@@ -194,7 +194,7 @@ const SVG_ATTRIBUTES = new Map(
 const adjustAttribute = (name: string, namespace: string): string =>
   namespace === SVG_NS ? (SVG_ATTRIBUTES.get(name) ?? name) : namespace === MATHML_NS && name === 'definitionurl' ? 'definitionURL' : name;
 
-const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
+const TAG_NAME = /^[a-zA-Z][^\t\n\f\r />]*/;
 /**
  * **The attribute-name charset, owned here and shared.** Everything a start tag can carry as a
  * name: anything that is not whitespace, `/`, `>`, `=`, a quote, or `<`. Deliberately WIDE — every
@@ -206,8 +206,8 @@ const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
  * `data-a=""` and `b="v"` — the child then read the wrong attributes, server-side only. Same fact, two spellings, one of them wrong: CODE-PRINCIPLES #5, and the same fix
  * `RAW_TEXT_ELEMENTS` already got in this package.
  */
-export const ATTRIBUTE_NAME = "[^\\s/>=\"'<]+";
-const ATTRIBUTE = new RegExp(`^(${ATTRIBUTE_NAME})(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]*)))?`);
+export const ATTRIBUTE_NAME = "[^\\t\\n\\f\\r />=\"'<]+";
+const ATTRIBUTE = new RegExp(`^(${ATTRIBUTE_NAME})(?:[\\t\\n\\f\\r ]*=[\\t\\n\\f\\r ]*(?:"([^"]*)"|'([^']*)'|([^\\t\\n\\f\\r >]*)))?`);
 
 /** The node factories `parseFragment` builds with; the caller owns node identity, so this file never imports the DOM it builds. */
 type NodeFactories = {
@@ -306,7 +306,8 @@ export const parseFragment = (
     if (markup.startsWith('</', next)) {
       const end = markup.indexOf('>', next);
       if (end === -1) return null;
-      const name = asciiLower(markup.slice(next + 2, end).trim());
+      /** The end tag's name runs to HTML's whitespace, `/` or `>` (a tokenizer's rule; `trim` also takes `\v` and U+00A0). */
+      const name = asciiLower(/^[^\t\n\f\r />]*/.exec(markup.slice(next + 2, end))![0]);
       if (!name) return null;
       flushText();
       /**
@@ -360,7 +361,7 @@ export const parseFragment = (
     const attributes: Array<[string, string]> = [];
     for (;;) {
       const rest = markup.slice(cursor);
-      const space = /^\s+/.exec(rest);
+      const space = /^[\t\n\f\r ]+/.exec(rest);
       if (space) {
         cursor += space[0].length;
         continue;

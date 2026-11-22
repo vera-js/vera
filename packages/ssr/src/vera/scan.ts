@@ -32,7 +32,7 @@ import type { ShadowRootShim } from './nodes.js';
  * wrote and read `null` for the one they did — server-side only, silently. The same
  * single-fact-two-copies shape this file's own tag walk had with the tokenizer, and the same fix.
  */
-export const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?`, 'g');
+export const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\t\\n\\f\\r >]+)))?`, 'g');
 
 /**
  * **How deep a component tree may nest before the server calls it a cycle.**

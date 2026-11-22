@@ -167,8 +167,8 @@ const joinValue = (pieces: readonly string[], values: readonly unknown[], i: num
  * either side (`<p data-${k}="1">`, `<b ${name}="x">`, `<p ${k}-x>`, `<p a${k}b>`) — never a ref, never the TAG name.
  * Refused at plan time, from statics only: no value ever reaches the message.
  */
-const NAME_CHAR_BEFORE = /[^\s"'>=/]$/;
-const NAME_CHAR_AFTER = /^(?:[^\s"'>=/]|[ \t\n\f\r]*=)/;
+const NAME_CHAR_BEFORE = /[^\t\n\f\r "'>=/]$/;
+const NAME_CHAR_AFTER = /^(?:[^\t\n\f\r "'>=/]|[ \t\n\f\r]*=)/;
 /**
  * A bound `javascript:` URL, refused — said once per process per component and attribute. The VALUE is never printed:
  * it is attacker-shaped by definition, and a server's console is a log pipeline (2026-10-09).
@@ -178,9 +178,9 @@ const refusedScriptUrl = (name: string): void => {
   if (once('script-url', `${tag} ${name}`)) console.warn(ssrWarning((tag ? `<${tag}>` : 'the page'), 'script-url', TWINS.scriptUrl(name)));
 };
 const nameHole = (before: string, after: string): never => {
-  const prefix = (/[^\s"'>=/]*$/.exec(before) ?? [''])[0];
-  const suffix = (/^[^\s"'>=/]*/.exec(after) ?? [''])[0];
-  const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\s>]*))/.exec(after.slice(suffix.length));
+  const prefix = (/[^\t\n\f\r "'>=/]*$/.exec(before) ?? [''])[0];
+  const suffix = (/^[^\t\n\f\r "'>=/]*/.exec(after) ?? [''])[0];
+  const value = /^[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)("?)|'([^']*)('?)|([^\t\n\f\r >]*))/.exec(after.slice(suffix.length));
   const given =
     value === null ? "''" : value[2] === '"' ? JSON.stringify(value[1]) : value[4] === "'" ? JSON.stringify(value[3]) : value[5] ? JSON.stringify(value[5]) : '…';
   throw own(new Error(ssrMisuse('name-expression', TWINS.nameExpression(`${prefix}${'${…}'}${suffix}`, given))));
@@ -340,7 +340,7 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
  * how `<b hidden ?hidden=${x}>` arrives here, and its bare `hidden` is exactly the duplicate that
  * has to be seen.
  */
-const STATIC_ATTRIBUTE = /\s([a-zA-Z][\w:-]*)(?==|[\s>]|$)/g;
+const STATIC_ATTRIBUTE = /[\t\n\f\r ]([a-zA-Z][\w:-]*)(?==|[\t\n\f\r >]|$)/g;
 
 /**
  * An author's static, ready to sit inside the DOUBLE quotes the server writes around every bound value.
@@ -1346,7 +1346,8 @@ const optionText = (content: string, from: number): string => {
       break;
     }
   }
-  return decodeRefs(content.slice(from, to)).replace(/[\t\n\f\r ]+/g, ' ').trim();
+  /** HTML's strip-and-collapse: ASCII whitespace only (`trim` would also strip a U+00A0 the value keeps). */
+  return decodeRefs(content.slice(from, to)).replace(/[\t\n\f\r ]+/g, ' ').replace(/^ | $/g, '');
 };
 
 /**

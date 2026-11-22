@@ -240,7 +240,7 @@ export const JSON_BLOCK = /json\s*$/i;
  * alike, since no character outside ASCII lowercases to anything holding `t`, `y`, `p` or `e` (every code point checked).
  */
 export const dataBlock = (openTag: string) => {
-  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/g))
+  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\t\n\f\r /]*([^\t\n\f\r "'>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r >]*)))?/g))
     if (name!.toLowerCase() === 'type') {
       const type = double ?? single ?? bare ?? '';
       return !type.includes('&') && JSON_BLOCK.test(type);
