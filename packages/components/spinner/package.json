@@ -94,7 +94,7 @@
       "output": [
         "dist/*.min.js",
         "dist/*.min.js.map",
-        "dist/preupgrade.css"
+        "dist/*.css"
       ]
     },
     "build:types": {

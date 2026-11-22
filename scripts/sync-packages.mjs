@@ -15,7 +15,13 @@ for (const path of packages) {
   const name = p.name;
   const check = (cond, message) => cond || problems.push(`${name}: ${message}`);
   if (w['build:production']) {
-    check(JSON.stringify(w['build:production'].output) === '["dist/*.min.js","dist/*.min.js.map"]',
+    /**
+     * A package that ships a stylesheet its build writes (a component's `preupgrade.css`) adds exactly `dist/*.css`,
+     * which no other build's outputs can match; anything else is still refused. It must be listed: wireit restores
+     * only listed outputs from its cache, so an unlisted file would be missing from a cached build.
+     */
+    const output = JSON.stringify(w['build:production'].output);
+    check(output === '["dist/*.min.js","dist/*.min.js.map"]' || output === '["dist/*.min.js","dist/*.min.js.map","dist/*.css"]',
       'build:production output glob is not the canonical disjoint shape');
   }
   if (w['build:development']) {
