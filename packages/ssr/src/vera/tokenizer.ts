@@ -242,6 +242,27 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
       space = 'html';
     }
   }
+  if (closing && space === 'html' && top !== undefined && top.space === 'html' && top.foreign !== 0 && !BREAKOUT.has(tagName) && closeTo(opens, tagName) === -1) {
+    /**
+     * **An end tag that may close a foreign element above an integration point** (2026-11-22). With the point current,
+     * the parser reads an end tag by the foreign-content rules, which walk up through the SVG/MathML elements and pop
+     * at one of its name: `<svg><g><foreignObject></g><style>${v}` is back in SVG, where the `<style>` is markup, while
+     * the scan, which tracks no `g`, stayed in HTML and wrote the value raw, and its `<img onerror>` ran (Chromium,
+     * Firefox and WebKit; so did `<svg><a><title></a>`, `<math><mrow><mtext></mrow>` and a child at a point that starts
+     * `</foreignObject>`). So
+     * the point is left: popped to the depth it opened at, or, for a child's root, an unknown namespace at depth 1.
+     * Only a breakout name (`BREAKOUT`; `p` and `br` among them) can never be such an element: opened inside SVG or
+     * MathML it leaves for HTML, while any other name, `section`, `video` and a `<font>` with no attributes included, is a
+     * foreign element there (measured, Chromium, Firefox and WebKit).
+     * Where an HTML element was current instead, the parser ignores the tag, and the scan only over-escapes.
+     */
+    if (top.name !== '') {
+      opens.pop();
+      return top.foreign;
+    }
+    opens.push({ name: '', foreign: 0, inert, space: '?' });
+    return 1;
+  }
   /** `mglyph`/`malignmark` straight inside a MathML text integration point: read as MathML, not HTML. */
   const reentry = space === 'html' && top !== undefined && MATH_TEXT_POINTS.has(top.name) && (tagName === 'mglyph' || tagName === 'malignmark');
   /**

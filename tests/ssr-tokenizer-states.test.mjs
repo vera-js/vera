@@ -381,6 +381,47 @@ test("a template ending inside an integration point closes it; a child recognize
   assert.ok(bare.includes('&#60;img'), `escaped: a bare depth cannot know its namespace — ${bare}`);
 });
 
+/**
+ * **An end tag at an integration point may close a foreign element the scan does not track** (2026-11-22). With the point
+ * current, the parser reads an end tag by the foreign-content rules, which pop at an SVG/MathML element of its name, so
+ * `<svg><g><foreignObject></g>` is back in SVG, where a `<style>` is markup: written raw, its value's element was live.
+ * The scan now leaves the point on such a tag; a breakout name (`</p>`) closes no foreign element and leaves it alone.
+ */
+test('an end tag that may close a foreign ancestor of an integration point leaves the point', () => {
+  const LEAVES = [
+    ['<svg><g><foreignObject></g><style>', '</style></svg>'],
+    ['<svg><a><title></a><style>', '</style></svg>'],
+    ['<svg><video><foreignObject></video><style>', '</style></svg>'],
+    ['<svg><section><foreignObject></section><style>', '</style></svg>'],
+    ['<svg><article><foreignObject></article><style>', '</style></svg>'],
+    /** A `<font>` with no `color`, `face` or `size` is an SVG element, so its end tag may close one. */
+    ['<svg><font><foreignObject></font><style>', '</style></svg>'],
+    ['<math><mrow><mtext></mrow><style>', '</style></math>'],
+    ['<math><mrow><annotation-xml encoding="text/html"></mrow><style>', '</style></math>'],
+  ];
+  const live = [];
+  for (const statics of LEAVES) {
+    const served = serializeTemplate(template(statics, PAYLOAD));
+    if (injected(served) || styleParent(served) !== 'foreign') live.push(served);
+  }
+  /** A child rendered at a parent's point, starting with the point's own end tag or an untracked ancestor's. */
+  for (const [outer, inner] of [
+    [['<svg><foreignObject>', '</foreignObject></svg>'], ['</foreignObject><style>', '</style>']],
+    [['<svg><title>', '</title></svg>'], ['</title><style>', '</style>']],
+    [['<svg><g><desc>', '</desc></g></svg>'], ['</g><style>', '</style>']],
+  ]) {
+    const served = serializeTemplate(template(outer, template(inner, PAYLOAD)));
+    if (injected(served)) live.push(served);
+  }
+  assert.deepEqual(live, []);
+  /** CONTROL: a breakout end tag closes no foreign element, so the point stays HTML and its style raw text. */
+  for (const lead of ['<svg><foreignObject><p>x</p>', '<svg><title><span>x</span>', '<svg><foreignObject><br>', '<svg><g><foreignObject></div>']) {
+    const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
+    assert.equal(styleParent(served), 'html', served);
+    assert.ok(served.includes(PAYLOAD), served);
+  }
+});
+
 /** Two seams the fuzz found: what is left where a binding was must not change how its neighbors tokenize. */
 test('a dropped comment binding cannot fuse its neighbors, and an unquoted value runs to the tokenizer’s whitespace', () => {
   /** `<!` + `--!>` would be `<!--!>`, a comment OPENING, which swallowed everything after it. */
@@ -423,10 +464,18 @@ test('a breakout tag leaves foreign content exactly where the parser does', () =
   const RAW = [
     '<svg><p>', '<math><b>', '<svg><g><div>', '<svg></p>', '<svg></br>', '<svg><br/>', '<svg><TABLE>', '<math><mi><mglyph><b>',
     '<svg><foreignObject><div><svg><p>', '<math><annotation-xml><b>', '<svg><mi><b>', '<math><svg><g><span>',
-    /** Breaks out to the `<desc>` point, so the `</math>` after it is an HTML end tag the parser ignores. */
-    '<svg><desc><svg><math><p></math>',
     '<svg><font color=red>',
   ];
+  /**
+   * `<svg><desc><svg><math><p></math>` breaks out to the `<desc>` point with the `<p>` current, so the parser ignores
+   * the `</math>` after it; the scan does not track the `<p>` (an HTML element it tracked could close unseen, by an
+   * implied end tag, and leave the point current again), so at the point `</math>` may close a foreign ancestor, and it
+   * leaves the point: the browser builds an HTML `<style>` and the server escapes its value — over-escaped, the safe
+   * direction (see the end-tag rows below).
+   */
+  const OVER_ESCAPED = '<svg><desc><svg><math><p></math>';
+  const over = serializeTemplate(template([`${OVER_ESCAPED}<style>`, '</style>'], PAYLOAD));
+  assert.ok(!injected(over) && styleParent(over) === 'html' && !over.includes(PAYLOAD), over);
   const ESCAPED = ['<svg><font>', '<svg><g><x-y>', '<svg><pre-x>', '<noscript><svg><p>'];
   for (const [lead, raw] of [...RAW.map((l) => [l, true]), ...ESCAPED.map((l) => [l, false])]) {
     const served = serializeTemplate(template([`${lead}<style>`, '</style>'], PAYLOAD));
