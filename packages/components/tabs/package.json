@@ -1,0 +1,122 @@
+{
+  "name": "@vera-components/tabs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabs over the author's own buttons and panels: a container marked slot=\"tabs\" holds the buttons, the host's other children are the panels. Before the script runs they are buttons and sections; after it, the roles, ids and aria wiring are set, the arrow keys move one tab stop, one panel shows, and an indicator under the selected tab follows it by CSS anchor positioning. A user's selection fires a cancelable beforetabchange, then tabchange.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/components/tabs"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./dist/vera-tabs.min.js",
+  "types": "./dist/development/vera-tabs.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-tabs.d.ts",
+      "development": "./dist/development/vera-tabs.js",
+      "default": "./dist/vera-tabs.min.js"
+    },
+    "./element": {
+      "types": "./dist/development/vera-tabs-element.d.ts",
+      "development": "./dist/development/vera-tabs-element.js",
+      "default": "./dist/vera-tabs-element.min.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/development/vera-tabs.js",
+    "./dist/vera-tabs.min.js"
+  ],
+  "peerDependencies": {
+    "@verajs/core": "^0.5.0"
+  },
+  "dependencies": {
+    "@vera-hooks/roving-focus": "^0.1.0"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ],
+      "dependencies": [
+        "../../hooks/roving-focus:build:types"
+      ]
+    }
+  },
+  "filename": "vera-tabs"
+}

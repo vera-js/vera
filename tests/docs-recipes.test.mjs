@@ -46,6 +46,7 @@ const PACKAGES = {
   '@vera-components/kbd/element': 'vera-components/kbd/element',
   '@vera-components/spinner': 'vera-components/spinner',
   '@vera-components/input': 'vera-components/input',
+  '@vera-components/tabs': 'vera-components/tabs',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -265,6 +266,7 @@ const recipes = recipeSources.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/components/tabs/README.md': 1,
   'packages/components/spinner/README.md': 1,
   'packages/components/input/README.md': 1,
   'packages/components/kbd/README.md': 2,

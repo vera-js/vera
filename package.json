@@ -63,6 +63,7 @@
         "./packages/components/kbd:build",
         "./packages/components/spinner:build",
         "./packages/components/input:build",
+        "./packages/components/tabs:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",

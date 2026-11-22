@@ -41,6 +41,8 @@ const NODE_BUILDS = new Set(['jsx', 'cms/content']);
 
 /** Bundle name -> the `filename` its package.json declares. */
 export const ENTRY = {
+  'vera-components/tabs': ['components/tabs', 'vera-tabs'],
+  'vera-components/tabs/element': ['components/tabs', 'vera-tabs-element'],
   'vera-components/spinner': ['components/spinner', 'vera-spinner'],
   'vera-components/spinner/element': ['components/spinner', 'vera-spinner-element'],
   'vera-components/input': ['components/input', 'vera-input'],

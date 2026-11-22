@@ -344,6 +344,14 @@ from another machine, or after that is undone, has a variable changed.
   speaks a symbol's word this way, and the element adopts the rule itself, so a page that strips component styles leaves
   the symbols silent (its README says so). (Chromium 159.0.8154.6, Firefox 159.0, WebKit 27.2, Playwright 1.65.1,
   Windows 11, headless, 2026-11-21; `tests/browser/kbd.test.js`.)
+- **A container's `::after` anchors to a child named through a custom property, and only Chromium and WebKit slide it.**
+  `position-anchor: var(--a)` on an absolutely positioned `::after`, the name set inline on one child: `left:
+  anchor(left)` lands on that child's left edge, and on another's when the name moves (Chromium, Firefox, WebKit; the
+  control, no child named, takes the fallback). With `transition: left 400ms linear`, Chromium and WebKit pass through
+  values in between; Firefox goes straight to the new child, in two runs. Consequence: `<vera-tabs>`' indicator is the
+  tablist's own `::after` anchored to the selected tab, with no measurement; it slides on Chromium and WebKit and jumps
+  on Firefox, and the README says so. (Playwright 1.65.1, Windows 11, headless, 2026-11-23;
+  `tests/browser/tabs-anchor.test.js`, whose Firefox row pins the jump.)
 
 ## Rendering, frames and timing
 

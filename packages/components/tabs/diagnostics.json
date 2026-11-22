@@ -1,0 +1,32 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "tabs-count-mismatch",
+      "params": [
+        "tabs",
+        "panels"
+      ],
+      "message": "pairs its tabs with panels by order, and has {tabs} tabs but {panels} panels, so some tab controls no panel.",
+      "fix": "Give each panel data-value matching its tab's value, or write one panel per tab."
+    },
+    {
+      "code": "tabs-no-list",
+      "params": [],
+      "message": "has no direct child marked slot=\"tabs\", so there are no tabs to wire and every panel stays as written.",
+      "fix": "Put the tab buttons in one container, such as <div slot=\"tabs\">, as the first child."
+    },
+    {
+      "code": "tabs-not-button",
+      "params": [],
+      "message": "has a tab that is not a <button>, so Enter and Space do not choose it and a form may submit it.",
+      "fix": "Write each tab as <button type=\"button\">."
+    },
+    {
+      "code": "tabs-until-found-blocked",
+      "params": [],
+      "message": "hides its inactive panels with hidden=\"until-found\", and a page rule gives them display: none (a reset such as [hidden] { display: none }), so find-in-page cannot reach them.",
+      "fix": "Scope the rule to [hidden]:not([hidden=\"until-found\"]), or set findable=\"false\" to hide the panels from find-in-page on purpose."
+    }
+  ]
+}

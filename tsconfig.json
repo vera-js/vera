@@ -30,6 +30,12 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-components/tabs": [
+        "./packages/components/tabs/src/register.ts"
+      ],
+      "@vera-components/tabs/element": [
+        "./packages/components/tabs/src/index.ts"
+      ],
       "@vera-components/spinner": [
         "./packages/components/spinner/src/register.ts"
       ],

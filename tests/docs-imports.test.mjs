@@ -39,6 +39,7 @@ const PACKAGES = {
   '@vera-components/kbd/element': 'vera-components/kbd/element',
   '@vera-components/spinner': 'vera-components/spinner',
   '@vera-components/input': 'vera-components/input',
+  '@vera-components/tabs': 'vera-components/tabs',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
