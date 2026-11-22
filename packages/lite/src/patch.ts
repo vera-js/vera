@@ -552,7 +552,7 @@ const attrPart = (element: Element, name: string, statics: string[]): Part => {
    * Kept a CALL, never pasted in (CLAUDE.md, the one-caller rule): as this function's only caller, the minifier would
    * substitute it here as an arrow made and invoked on every call — every attribute hole created (both checks).
    */
-  if ((property ? real === '__proto__' : /*@__NOINLINE__*/ refusedName(name)) || (check === SCRIPT_URL && element.localName === 'script')) return () => {};
+  if ((property ? real === '__proto__' : /*@__NOINLINE__*/ refusedName(name)) || (element.localName === 'script' && check === SCRIPT_URL)) return () => {};
   /** A component's URL-named property is its own business (often an object): only a string is checked there (core's). */
   const custom = property && element.localName.includes('-');
   const whole = statics.length === 2 && !statics[0] && !statics[1];

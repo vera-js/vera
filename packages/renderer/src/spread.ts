@@ -112,11 +112,13 @@ class Binding {
   _read: Untracked | null;
   constructor(element: Element, key: string, untracked: Untracked) {
     let [resolved, name] = resolve(key);
+    /** Read once: `localName` is a DOM accessor, and both rules below ask it. */
+    const local = element.localName;
     /**
      * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs: refused, as the renderer and the
      * server refuse it. Decided here, where the element is known (`resolve` has none; the server half's caller has it).
      */
-    if ((resolved === ATTR || resolved === PROPERTY || resolved === LIVE) && element.localName === 'script' && URL_SINK.exec(name as string)?.[1] !== undefined) {
+    if ((resolved === ATTR || resolved === PROPERTY || resolved === LIVE) && local === 'script' && URL_SINK.exec(name as string)?.[1] !== undefined) {
       resolved = REFUSED;
       name = 6;
     }
@@ -126,7 +128,7 @@ class Binding {
     this._kind = kind;
     this._name = name as string;
     this._element = element;
-    const custom = element.localName.includes('-');
+    const custom = local.includes('-');
     /** Core's `untracked` for a custom element's getter reads, and for an event key's handler (`dispatch`). */
     this._read = custom || kind === EVENT ? untracked : null;
     this._url = urlRule(kind, name as string, custom);

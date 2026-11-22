@@ -78,7 +78,7 @@ const CLAIMS = new Map([
   ['packages/core/README.md#e10620ebc8', 'define-method-ignored'], // methods: connectedCallback and constructor are core's own — development says so
   ['packages/core/README.md#4074c25222', 'define-shadows'], // methods: a platform name replaces it — development says that too
   ['packages/lite/README.md#c765eb013f', 'tier-needs-core'],
-  ['packages/static/README.md#39059555b0', 'script-url'], // the item-by-item URL bullet's "Development says so in core's words (`script-url`)" — tests/tier-parity-fixes.test.mjs; the removal itself: tests/static.test.mjs' item-by-item URL row
+  ['packages/static/README.md#9aa9a3fe35', 'script-url'], // the item-by-item URL bullet's "Development says so in core's words (`script-url`)" — tests/tier-parity-fixes.test.mjs; the removal itself: tests/static.test.mjs' item-by-item URL row
   ['packages/static/README.md#efe2267f00', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, a control says nothing, production silent'], // **Development says core's warnings in core's words**
   ['packages/static/README.md#799991a53e', "pinned by tests/tier-parity-fixes.test.mjs: static's warnings are said once per site and value, never twice for one value"], // Each is said once — …
   ['llms.txt#329425cf39', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, production silent'], // static's iframe/noscript sentence, run on by the sentence splitter into "**Development says core's warnings in core's words**, once each"

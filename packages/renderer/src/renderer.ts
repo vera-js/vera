@@ -483,6 +483,8 @@ class Template {
           if (__DEV__) saySelectMultiple(el, real, 'renderer');
           kind = real === 'value' ? SELECT : SELECT_INDEX;
         }
+        /** Whether the name is a URL a browser loads or navigates (captured) or an animation value (not) — asked once. */
+        const sink = URL_SINK.exec(real);
         /**
          * `el.__proto__ = v` is not a property write: it replaces the element's prototype and destroys it.
          * No use is legitimate, so the binding is refused — the deliberate twin of spread's `refusedSink`
@@ -505,7 +507,7 @@ class Template {
               diagnostic('renderer', `<${el.localName}>`, 'handler-attribute',
                 __DEV__ && SHARED.handlerAttribute(real, `\`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`)`))
             );
-        } else if (kind !== EVENT && kind !== BOOLEAN && el.localName === 'script' && URL_SINK.exec(real)?.[1] !== undefined) {
+        } else if (sink !== null && sink[1] !== undefined && kind !== EVENT && kind !== BOOLEAN && el.localName === 'script') {
           /**
            * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs, so a bound one is code arriving
            * as data — refused, as spread and the server refuse it: the server serves the tag and it runs on load, and an
@@ -531,7 +533,6 @@ class Template {
          * so only a string is checked there (1), and nothing else is converted; everywhere else the value is converted
          * once (2) — and an animation's value (`to`, `values`…) is checked item by item (3).
          */
-        const sink = URL_SINK.exec(real);
         urls[i] =
           kind === REFUSED || kind === BOOLEAN || kind === EVENT || sink === null
             ? 0
