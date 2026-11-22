@@ -241,6 +241,31 @@ from another machine, or after that is undone, has a variable changed.
   which fold the Kelvin sign into `k`, turn U+0130 into two code units (an index found in a lowered copy pointed past
   the real one) and `ß` into `SS`; `tests/browser/ascii-case.test.js` holds the engines' answers and
   `tests/ssr-ascii-case.test.mjs` the shim's. (Chromium, Firefox, WebKit, headless, 2026-11-22.)
+- **A `<table>` or an `<object>` left open swallows what follows it, and an end tag cannot close across one.** A
+  fragment parse closes both at its end; concatenated into a page, `</div>` after an open `<table>` is ignored, so the
+  page's next markup becomes the cell's (or the object's) content. In `<div id=d><table></div>`, the `</div>` is ignored
+  even once the table is closed after it, so the next `</div>` closes `div#d` instead. Consequence: the SSR scan tracks
+  `table`, `object`, `applet` and `marquee` for their closers only (`CLOSE_ONLY`), and the `div` case is pinned as
+  KNOWN in `tests/ssr-left-open.test.mjs`. (Chromium 159, Firefox 159, WebKit 27.2, headless, 2026-11-22.)
+- **`<![CDATA[` inside `<select>` or `<noscript>` is a bogus comment that ends at the first `>`, as in any HTML.**
+  `<select><![CDATA[><textarea>]]>` opens a live `<textarea>` in all three engines; so does the `<noscript>` form in
+  Chromium with JavaScript off (with it on, the noscript is raw text). Consequence: the SSR scan reads a CDATA section
+  only where the innermost tracked element is SVG or MathML. A template rendered into a hole starts in the namespace
+  there, so it never guesses; only at a bare depth, where the namespace is unknown, is a section refused where the two
+  readings end in different places. (Chromium 159, Firefox 159, WebKit 27.2, headless, 2026-11-22.)
+- **With scripting off, `<noscript>` content is HTML, and a text element left open in it takes the `</noscript>`.**
+  `<noscript><textarea>`, `<title>`, `<style>` or `<xmp>` left open makes the server's `</noscript>`, and the page after
+  it, the element's text. The `/` of `<textarea/>` is ignored, as on any HTML element. Consequence: the SSR scan tracks
+  those elements inside `<noscript>`/`<select>` for their closers. (jsdom with scripting off; Chromium 159 with
+  JavaScript disabled, 2026-11-22.)
+- **Attribute selectors: HTML's case-insensitive values, CSS escapes, and the `s` flag.** Without an `i` flag, the
+  values of `lang`, `type` and `dir` (measured; the spec lists 46 such attributes) match ASCII case-insensitively, on an
+  HTML element only, never on SVG, and never with `s`. An escape in a name or a value (`\31 `, `\"`, a line
+  continuation) is decoded. Chromium 159 THROWS on the `s` flag, which Firefox and WebKit accept. jsdom gets several of
+  these wrong (an SVG element matched caselessly, no `s`, no line continuation, an escaped name). Consequence: the SSR
+  shim's matcher is held to a table measured on the three engines (`tests/fixtures/selector-values.mjs`, run by
+  `tests/browser/selector-values.test.js`), and jsdom is not used for selectors. (Chromium 159, Firefox 159, WebKit
+  27.2, headless, 2026-11-22.)
 
 - **A failed module import is kept under a new fragment too, in Chromium: only a new query asks again.** After
   `import(u)` was answered 404, Chromium answered `import(u + '#vera-retry=1')` from the same failed record (rejected)

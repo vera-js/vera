@@ -166,16 +166,22 @@ const breakOut = (opens: Open[]): number => {
 
 /**
  * **Whether a `<![CDATA[` here is a CDATA section**, which runs to `]]>`, rather than the bogus comment it is in HTML,
- * which ends at the first `>`. Only inside SVG or MathML, read off the innermost tracked element: `<noscript>` and
- * `<select>` raise the depth too, and read there as CDATA, `<select><![CDATA[><textarea>` hid a live `<textarea>` from
- * the scan (measured, Chromium, Firefox and WebKit). A template rendered into a parent's hole knows the namespace there
- * (its root entry; see `positionOf`). Where it is not known — a bare depth — and the first `>` after `from` is the one
- * ending the first `]]>`, both readings end at the same place and it is read as CDATA; otherwise they disagree on where
- * the section ends, and it is refused (`ssr-cdata-unknown`), in every build, rather than guessed.
+ * which ends at the first `>`. The parser opens a section when its current node is not an HTML element, so: inside SVG
+ * or MathML, read off the innermost tracked element; not inside `<noscript>` or `<select>`, which raise the depth too
+ * (read there as CDATA, `<select><![CDATA[><textarea>` hid a live `<textarea>` from the scan; measured, Chromium,
+ * Firefox and WebKit), nor in HTML or a table. A template rendered into a hole knows the namespace there (its root
+ * entry; see `positionOf`). Two places stay open to both readings: a bare depth, where the namespace is unknown, and
+ * straight inside an integration point (an entry of space `'html'` above depth 0; a table's is at 0), which is itself
+ * an SVG or MathML element (`<svg><title><![CDATA[ x>` left a section open in all three engines) until an HTML element
+ * opens in it, and the scan does not track those. There, when the first `>` after `from` is the one ending the first
+ * `]]>`, both readings end at the same place and it is read as CDATA; otherwise it is refused (`ssr-cdata-unknown`),
+ * in every build, rather than guessed.
  */
 const cdataHere = (opens: Open[], text: string, from: number): boolean => {
-  const space = opens.length === 0 ? '?' : opens[opens.length - 1].space;
-  if (space !== '?') return space === 'svg' || space === 'math';
+  const top = opens.length === 0 ? undefined : opens[opens.length - 1];
+  const space = top === undefined ? '?' : top.space;
+  if (space === 'svg' || space === 'math') return true;
+  if (space === '' || (space === 'html' && top!.foreign === 0)) return false;
   const end = text.indexOf(']]>', from);
   if (end !== -1 && text.indexOf('>', from) === end + 2) return true;
   throw own(new Error(ssrMisuse('ssr-cdata-unknown', PROSE['ssr-cdata-unknown']!())));
@@ -488,7 +494,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
           if (text[i + 1] === '>') i += 1;
           else if (text.startsWith('->', i + 1)) i += 2;
           else comment = '-->';
-        } else if (foreign !== 0 && text.startsWith('[CDATA[', i + 1) && cdataHere(opens, text, i + 8)) {
+        } else if ((foreign !== 0 || opens.length !== 0) && text.startsWith('[CDATA[', i + 1) && cdataHere(opens, text, i + 8)) {
           i += 7;
           comment = ']]>';
         } else comment = '>';
@@ -713,12 +719,23 @@ NO_OPENS.pop();
  * namespace (an index into `SPACES`; 0 is unknown, so a bare depth reads as one). An integer, so the plan's `depths` and every
  * call that carries one stay small integers to V8; a depth past 2^24 would need a template of tens of megabytes.
  */
-const SPACES = ['?', 'svg', 'math', ''];
+const SPACES = ['?', 'svg', 'math', '', 'html'];
 /** The namespace's unit: a depth is below it, so `position % SPACE_UNIT` is the depth. */
 const SPACE_UNIT = 2 ** 24;
 export const positionOf = (depth: number, space: string): number => (depth === 0 ? 0 : depth + (space === 'svg' ? 1 : space === 'math' ? 2 : space === '' ? 3 : 0) * SPACE_UNIT);
+/**
+ * **Straight inside an integration point**: depth 0, but the current node is an SVG or MathML element, where a
+ * `<![CDATA[` is a section (see `cdataHere`). Plain depth 0 is HTML with an HTML element current.
+ */
+export const POINT = 4 * SPACE_UNIT;
+/** The foreign depth a position starts at. */
+export const depthOf = (position: number): number => position % SPACE_UNIT;
 /** The position of a hole at the end of a scan: its depth, in the namespace of the innermost element it holds open. */
-export const positionAt = (foreign: number, opens: Open[]): number => positionOf(foreign, opens.length === 0 ? '?' : opens[opens.length - 1].space);
+export const positionAt = (foreign: number, opens: Open[]): number => {
+  const top = opens.length === 0 ? undefined : opens[opens.length - 1];
+  if (foreign === 0) return top !== undefined && top.space === 'html' && top.foreign !== 0 ? POINT : 0;
+  return positionOf(foreign, top === undefined ? '?' : top.space);
+};
 /**
  * A scan state at `position` and nothing else open — its own `opens` (a copy of `NO_OPENS`), since `scanTag` mutates it.
  * Past depth 0 it holds one ROOT entry, named `''`, standing for the parent's element the position is inside: it
@@ -728,7 +745,8 @@ export const positionAt = (foreign: number, opens: Open[]): number => positionOf
 export const freshScan = (position: number): ScanStart => {
   const depth = position % SPACE_UNIT;
   const opens = NO_OPENS.slice();
-  if (depth !== 0) opens.push({ name: '', foreign: depth, inert: 0, space: SPACES[(position - depth) / SPACE_UNIT] ?? '?' });
+  /** At `POINT` the root stands for the integration point: space `'html'` above depth 0, as the point's own entry is. */
+  if (position !== 0) opens.push({ name: '', foreign: depth === 0 ? 1 : depth, inert: 0, space: SPACES[(position - depth) / SPACE_UNIT] ?? '?' });
   return { inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens, attrRaw: '', encoding: '', font: 0 };
 };
 

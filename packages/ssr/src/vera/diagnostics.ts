@@ -35,8 +35,8 @@ export const PROSE: Record<string, Prose> = {
     'Close the tag inside the template.',
   ],
   'ssr-cdata-unknown': () => [
-    "a `<![CDATA[` in a template serialized at a bare foreign depth, where the namespace is not known, could end at its first `>` (as a bogus comment, in HTML) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
-    'Render the template into its parent\'s hole instead (it then starts in the parent\'s namespace), or keep `>` out of the section before its `]]>`.',
+    "a `<![CDATA[` inside an SVG or MathML element whose content is HTML (`title`, `desc`, `foreignObject`, `mtext`, …), or in a template serialized at a bare foreign depth, could end at its first `>` (as a bogus comment, once an HTML element is open) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
+    'Keep `>` out of the section before its `]]>`, or write the text without a CDATA section.',
   ],
   'ssr-plaintext': () => [
     'a `<plaintext>` never ends — no end tag closes it, so everything after it on the page would be its text.',

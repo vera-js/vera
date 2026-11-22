@@ -28,8 +28,8 @@
     {
       "code": "ssr-cdata-unknown",
       "params": [],
-      "message": "a `<![CDATA[` in a template serialized at a bare foreign depth, where the namespace is not known, could end at its first `>` (as a bogus comment, in HTML) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
-      "fix": "Render the template into its parent's hole instead (it then starts in the parent's namespace), or keep `>` out of the section before its `]]>`."
+      "message": "a `<![CDATA[` inside an SVG or MathML element whose content is HTML (`title`, `desc`, `foreignObject`, `mtext`, …), or in a template serialized at a bare foreign depth, could end at its first `>` (as a bogus comment, once an HTML element is open) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
+      "fix": "Keep `>` out of the section before its `]]>`, or write the text without a CDATA section."
     },
     {
       "code": "ssr-listener-threw",

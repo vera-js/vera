@@ -365,12 +365,20 @@ test('an HTML integration point reads its <style> as raw text; every foreign loo
   }
 });
 
-test('a template ending inside an integration point closes it; one starting at an inherited foreign depth recognizes none', () => {
+/**
+ * A child starts in its parent's namespace (see `positionOf`), so a `<foreignObject>` in a child rendered into a parent's
+ * `<svg>` is the integration point it is in the browser, and the `<style>` in it HTML raw text. At a bare depth the
+ * namespace is unknown, and none is recognized: the style is escaped.
+ */
+test("a template ending inside an integration point closes it; a child recognizes one in its parent's namespace, a bare depth none", () => {
   assert.equal(serializeTemplate(template(['<svg><foreignObject><p>', '</p>'], 'x')), '<svg><foreignObject><p>x</p></foreignobject></svg>');
   const child = template(['<foreignObject><style>', '</style></foreignObject>'], PAYLOAD);
   const served = serializeTemplate(template(['<svg>', '</svg>'], child));
   assert.ok(!injected(served), served);
-  assert.ok(served.includes('&#60;img'), `escaped: the child cannot know its namespace — ${served}`);
+  assert.equal(styleParent(served), 'html', served);
+  assert.ok(served.includes(PAYLOAD), `raw, as the browser reads it: ${served}`);
+  const bare = serializeTemplate(child, 1);
+  assert.ok(bare.includes('&#60;img'), `escaped: a bare depth cannot know its namespace — ${bare}`);
 });
 
 /** Two seams the fuzz found: what is left where a binding was must not change how its neighbors tokenize. */

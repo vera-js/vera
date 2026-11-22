@@ -9,7 +9,7 @@ import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
 import type { ScanResult, ScanStart, SsrTemplate } from './types.js';
-import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, positionAt, positionOf, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
+import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, depthOf, positionAt, positionOf, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
 
 /** Module-local, because serializeValue (the hottest function here) reads it: an imported binding is a live one, which
  *  V8 reaches less directly (CLAUDE.md, measured on the tokenizer's constants). */
@@ -722,7 +722,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
          * is read the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above.
          */
         kinds.push(CONTENT);
-        depths[kinds.length - 1] = owner === 'svg' || owner === 'math' ? positionOf(tagState.foreign + 1, owner) : owner === 'select' ? positionOf(tagState.foreign + 1, '') : positionAt(tagState.foreign, tagState.opens);
+        depths[kinds.length - 1] =
+          owner === 'svg' || owner === 'math' ? positionOf(tagState.foreign + 1, owner) : owner === 'select' ? positionOf(tagState.foreign + 1, '') : tagState.foreign === 0 ? 0 : positionAt(tagState.foreign, tagState.opens);
       } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
         /**
          * `!name` is a **live** property, and still a property: the sigil only changes when the client re-writes it,
@@ -840,7 +841,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     parts.push(tagState.comment !== '' && !inert ? part + ' ' : taker ? part + '\n' : part);
     /** Its position: the depth and the namespace there, so a template rendered into it starts where it is (see `positionOf`). */
-    if (tagState.foreign) depths[kinds.length] = positionAt(tagState.foreign, tagState.opens);
+    const position = positionAt(tagState.foreign, tagState.opens);
+    if (position !== 0) depths[kinds.length] = position;
     /**
      * Inside `<noscript>` too, at any depth (2026-11-18): the client reads a noscript's content as raw text (Firefox, and
      * the renderer's scanner everywhere) and writes its values as encoded text, so a template there cannot be placed —
@@ -996,14 +998,14 @@ const compile = (strings: unknown, depth: number): Plan | null => {
  */
 export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
   const { strings, values } = template;
-  /** Absent on core's `html`, and `undefined > 1` is false — the answer wanted; the `!` only lets the comparison be written. */
   /**
-   * A bare depth: the namespace stays unknown (see `positionOf`). The client parses an `svg`/`mathml` template inside a
+   * `_$litType$` is absent on core's `html`, and `undefined > 1` is false — the answer wanted; the `!` only lets the
+   * comparison be written. A bare depth: the namespace stays unknown (see `positionOf`). The client parses an `svg`/`mathml` template inside a
    * wrapper, but its server output may be spliced anywhere, and outside an `<svg>` it is HTML: read as SVG, its
    * `<title>` became an integration point and a `<style>` in it raw text, which standalone HTML ends at `</title>`
    * (the raw-text table's `svgTemplate × <title>` row injected).
    */
-  if (template['_$litType$']! > 1 && depth === 0) depth = 1;
+  if (template['_$litType$']! > 1 && depthOf(depth) === 0) depth = 1;
   /**
    * `strings` is any value here, a forgery's included: the cast only names the key the maps hold, and `WeakMap#get`
    * answers `undefined` for a key it could never hold, which sends a forgery on to `compile`'s refusal.

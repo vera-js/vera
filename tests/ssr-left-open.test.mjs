@@ -89,6 +89,32 @@ test('KNOWN: a template that closes its own div across an open table leaves the 
 });
 
 /**
+ * **KNOWN, pinned, the same class: an ordinary element left open inside a `<noscript>`.** With scripting off its
+ * content is HTML, and `</noscript>` cannot close across an open `<div>` (a special element ends the search for its
+ * start tag), so the server's `</noscript>` is ignored, the host's `</div>` closes the inner div, and the parent's next
+ * markup nests in the noscript (jsdom, scripting off). The scan tracks the textarea, not the div, as it tracks the
+ * table above; with scripting on the noscript is raw text and closes. Pinned so a change in either direction is seen.
+ */
+test('KNOWN: a div left open inside a noscript keeps the noscript open with scripting off', () => {
+  const served = serializeTemplate(child('<noscript><div><textarea/>'));
+  assert.equal(served, '<div id="host"><noscript><div><textarea/></textarea></noscript></div><p id="after">after</p>');
+  const doc = new JSDOM(`<!doctype html><body>${served}</body>`).window.document;
+  assert.equal(doc.querySelector('noscript').contains(doc.getElementById('after')), true);
+});
+
+/**
+ * **KNOWN, pinned, the same class: an HTML element left open inside a `<foreignObject>`.** With a `<div>` current, the
+ * parser ignores `</foreignObject>` and `</svg>` (a special element ends the search), so the page after the host is
+ * caught inside it (measured: it leaks in Chromium, Firefox and WebKit alike). The scan tracks the point, not the div.
+ * Pinned so a change in either direction is seen.
+ */
+test('KNOWN: a div left open inside a foreignObject keeps it open', () => {
+  const served = serializeTemplate(child('<svg><foreignObject><div>'));
+  assert.equal(served, '<div id="host"><svg><foreignObject><div></foreignobject></svg></div><p id="after">after</p>');
+  assert.equal(contained(served), false);
+});
+
+/**
  * **A child template starts in its parent's namespace.** Inside `<select>` or `<noscript>` a `<![CDATA[` is a bogus
  * comment to the first `>` (the rows above), inside `<svg>` a section to `]]>`, and a `<plaintext>` ends in SVG and
  * never in HTML. A child inherited only a depth, so it could not tell `<svg>` from `<select>` around it; the parent
@@ -106,7 +132,6 @@ test("a CDATA section or a plaintext in a child template is read in its parent's
     ['svg', inSvg, '<![CDATA[ x'],
     ['svg', inSvg, '<style><![CDATA[ a>b'],
     ['svg', inSvg, '<style><![CDATA[ a>b <title>'],
-    ['svg', inSvg, '<title><![CDATA[ x>'],
     ['svg', inSvg, '<plaintext>x</plaintext>'],
     ['select', inSelect, '<![CDATA[ x ]]>'],
     ['select', inSelect, '<![CDATA[><textarea>]]>'],
@@ -138,4 +163,38 @@ test("a CDATA section or a plaintext in a child template is read in its parent's
   }
   assert.deepEqual(unknown, []);
   assert.equal(serializeTemplate(literal('<![CDATA[ x ]]>'), 1), '<![CDATA[ x ]]>');
+});
+
+/**
+ * **Straight inside an integration point, a `<![CDATA[` reads both ways.** An SVG `title`, `desc` or `foreignObject`, a
+ * MathML `mtext`, is itself a foreign element, so a CDATA section opens there and runs to `]]>`; once an HTML element
+ * opens in it, the same text is a bogus comment to the first `>`. The scan does not track the HTML elements, so the
+ * section is served where both readings end at the same place and refused (`ssr-cdata-unknown`) where they do not —
+ * in the template, in a value, in a child template, and in a child rendered into the parent's point.
+ */
+test('a CDATA section straight inside an integration point is served where both readings agree and refused where they do not', () => {
+  const inSvg = (inner) => html`<div id="host"><svg>${inner}</svg></div><p id="after">after</p>`;
+  const inTitle = (inner) => html`<div id="host"><svg><title>${inner}</title></svg></div><p id="after">after</p>`;
+  const served = [];
+  for (const [name, render] of [
+    ['template', () => serializeTemplate(child('<svg><title><![CDATA[ x>'))],
+    ['value', () => serializeTemplate(value('<svg><title><![CDATA[ x>'))],
+    ['child in svg', () => serializeTemplate(inSvg(literal('<title><![CDATA[ x>')))],
+    ['child at the point', () => serializeTemplate(inTitle(literal('<![CDATA[ x>')))],
+    ['foreignObject', () => serializeTemplate(child('<svg><foreignObject><![CDATA[ x>'))],
+    ['mtext', () => serializeTemplate(child('<math><mtext><![CDATA[ x>'))],
+    ['desc', () => serializeTemplate(child('<svg><desc><![CDATA[><textarea>]]>'))],
+  ]) {
+    try {
+      served.push(`${name}: served ${render()}`);
+    } catch (error) {
+      if (!/ssr-cdata-unknown/.test(error.message)) served.push(`${name}: threw ${error.message}`);
+    }
+  }
+  assert.deepEqual(served, []);
+  for (const shape of ['<svg><title><![CDATA[ x ]]>', '<svg><foreignObject><![CDATA[ x ]]></foreignObject></svg>'])
+    for (const draw of [child, value]) assert.ok(contained(serializeTemplate(draw(shape))), `${shape}`);
+  assert.ok(contained(serializeTemplate(inTitle(literal('<![CDATA[ x ]]>')))));
+  /** An HTML element current again: a table at the point reads a bogus comment, as HTML does. */
+  assert.ok(contained(serializeTemplate(child('<svg><foreignObject><table><![CDATA[ x>'))));
 });
