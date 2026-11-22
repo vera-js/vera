@@ -599,6 +599,12 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       rawTag = tagName;
       rawFrom = i + 1;
     } else if (foreign === 0 && !closing && TEXT_ONLY.has(tagName)) textTag = tagName;
+    /**
+     * A `<plaintext>` straight inside a `<noscript>` or `<select>` (the entries scanned as markup at a raised depth,
+     * `space` ''): a parser with scripting off, or one of today's select parsers, reads it as HTML, and from there it
+     * swallows the page. Read as its text here, so the template or value ends inside it and is refused.
+     */
+    else if (tagName === 'plaintext' && !closing && opens.length !== 0 && opens[opens.length - 1].space === '') textTag = tagName;
     else {
       const next = structural(opens, tagName, closing, selfClosing, encoding, font, foreign, inert);
       font = 0;
