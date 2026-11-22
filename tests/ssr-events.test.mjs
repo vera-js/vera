@@ -144,6 +144,28 @@ test('the listener contract is unchanged', () => {
     host.dispatchEvent(event('x'));
     return count;
   });
+  both('capture is part of the key: one callback, both flags, two listeners; removing one leaves the other', (d, event) => {
+    const [host] = tree(d);
+    let count = 0;
+    const listener = () => count++;
+    host.addEventListener('x', listener, true);
+    host.addEventListener('x', listener, { capture: false });
+    host.dispatchEvent(event('x'));
+    host.removeEventListener('x', listener, { capture: true });
+    host.dispatchEvent(event('x'));
+    return count;
+  });
+  both('an aborted signal removes the listener', (d, event) => {
+    const [host] = tree(d);
+    let count = 0;
+    // jsdom takes only its own realm's signal; the server DOM takes Node's.
+    const controller = new (d.defaultView?.AbortController ?? AbortController)();
+    host.addEventListener('x', () => count++, { signal: controller.signal });
+    host.dispatchEvent(event('x'));
+    controller.abort();
+    host.dispatchEvent(event('x'));
+    return count;
+  });
   both('preventDefault reaches the dispatcher', (d, event) => {
     const [host] = tree(d);
     host.addEventListener('x', (e) => e.preventDefault());
