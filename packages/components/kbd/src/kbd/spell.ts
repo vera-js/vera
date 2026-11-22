@@ -69,8 +69,24 @@ const NAMED: Readonly<Record<string, readonly [SpelledKey, SpelledKey]>> = {
 /** The function keys, one to twenty-four, printed with a capital letter whatever case was written. */
 const FUNCTION_KEY = /^f([1-9]|1\d|2[0-4])$/i;
 
-/** A key that is none of the above: a single character shows as its capital (a keycap), anything longer as written. */
-const plain = (name: string): SpelledKey => ({ text: name.length === 1 ? name.toUpperCase() : name, word: null });
+/**
+ * Every printable ASCII punctuation key but `+` (the separator, written `Plus`), with its spoken word: a screen reader
+ * reads a lone `/` or `,` as a pause or not at all, so the key would be silent. English, like the named keys.
+ */
+const PUNCTUATION: Readonly<Record<string, string>> = {
+  '!': 'Exclamation Mark', '"': 'Double Quote', '#': 'Number Sign', $: 'Dollar Sign', '%': 'Percent', '&': 'Ampersand',
+  "'": 'Apostrophe', '(': 'Left Parenthesis', ')': 'Right Parenthesis', '*': 'Asterisk', ',': 'Comma', '-': 'Minus',
+  '.': 'Period', '/': 'Slash', ':': 'Colon', ';': 'Semicolon', '<': 'Less Than', '=': 'Equals', '>': 'Greater Than',
+  '?': 'Question Mark', '@': 'At Sign', '[': 'Left Bracket', '\\': 'Backslash', ']': 'Right Bracket', '^': 'Caret',
+  _: 'Underscore', '`': 'Backtick', '{': 'Left Brace', '|': 'Vertical Bar', '}': 'Right Brace', '~': 'Tilde',
+};
+
+/**
+ * A key that is none of the above: a punctuation key shows as itself and carries its word; any other single character
+ * shows as its capital (a keycap); anything longer as written.
+ */
+const plain = (name: string): SpelledKey =>
+  name.length === 1 ? { text: name.toUpperCase(), word: PUNCTUATION[name] ?? null } : { text: name, word: null };
 
 /**
  * Spells `keys` for `platform`. Empty names (from `++` or a trailing `+`) are skipped, a modifier written twice (or

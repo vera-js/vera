@@ -85,6 +85,25 @@ test('an unknown key shows as written; a single character as its capital', () =>
   assert.deepEqual(text('', 'other'), [], 'empty keys spell nothing');
 });
 
+test('every printable ASCII punctuation key carries a spoken word, shown as itself; letters and digits carry none', () => {
+  /** Derived from the character range, not from the table: a punctuation key the table lacks is red here by name. */
+  const punctuation = [];
+  for (let code = 0x21; code <= 0x7e; code++) {
+    const char = String.fromCharCode(code);
+    if (!/[A-Za-z0-9+]/.test(char)) punctuation.push(char);
+  }
+  assert.equal(punctuation.length, 31, 'the range holds 32 punctuation characters; + is the separator, written Plus');
+  for (const platform of ['apple', 'windows', 'other'])
+    for (const char of punctuation) {
+      const [key] = spellKeys(char, platform);
+      assert.equal(key.text, char, `${JSON.stringify(char)} shows as itself`);
+      assert.ok(typeof key.word === 'string' && key.word !== '', `${JSON.stringify(char)} has a word on ${platform}`);
+    }
+  assert.equal(new Set(punctuation.map((char) => spellKeys(char, 'other')[0].word)).size, 31, 'no two keys share a word');
+  assert.deepEqual(words('Mod+/', 'other'), ['Ctrl', 'Slash']);
+  for (const plainKey of ['K', '7']) assert.equal(spellKeys(plainKey, 'other')[0].word, null, `CONTROL: ${plainKey} needs no word`);
+});
+
 test('hostile strings stay text: spellKeys returns strings only, as written', () => {
   for (const name of ['<img src=x onerror=alert(1)>', '"><script>x</script>', '\u0000‮x'])
     assert.deepEqual(text(`Mod+${name}`, 'other'), ['Ctrl', name]);

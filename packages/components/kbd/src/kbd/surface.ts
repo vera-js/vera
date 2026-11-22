@@ -31,5 +31,5 @@ export const kbdSurface = {
   ],
   states: [],
   customStates: [],
-  tokens: [],
+  tokens: ['--vera-border', '--vera-radius'],
 } as const satisfies ComponentSurface;

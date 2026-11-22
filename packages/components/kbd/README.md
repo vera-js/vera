@@ -14,7 +14,8 @@ wire([renderer]);
 document.body.innerHTML = '<p>Search with <vera-kbd keys="Mod+K"></vera-kbd>.</p>';
 ```
 
-A key with no `Mod` in it needs no element: write `<kbd>Esc</kbd>`.
+A key with no `Mod` in it can be a plain `<kbd>Esc</kbd>`, in your own style; `<vera-kbd keys="Esc">` gives it the
+keycap look below.
 
 ## Keys
 
@@ -40,11 +41,23 @@ it once, when the element connects.
 
 ## What is spoken, and what is copied
 
-A symbol is shown as `aria-hidden` text, and its word is spoken from CSS: the element adopts one rule into the root it
+A symbol is shown as `aria-hidden` text, and its word is spoken from CSS: the element adopts its one sheet into the root it
 renders in, so this works whether or not the app wired `@verajs/styles`. Copying ⇧⌘K copies exactly "⇧⌘K".
 
 A page whose own styles remove that rule (`content: none` on `[data-vera-word]::before`, or a stylesheet that drops
-component styles) leaves Apple's symbols silent. Words on other platforms need no rule.
+component styles) leaves every symbol silent: Apple's modifiers and named keys, the arrows, and punctuation (`/` is
+"Slash", `,` "Comma") on every platform. A key already shown as a word needs no rule.
+
+## The look
+
+Each key is a keycap: a hairline border with a heavier one below, its corners `--vera-radius` and its border
+`--vera-border` (both shared tokens; without them, colors mixed from `currentColor`, so a dark page needs nothing).
+Every length is in `em` (the borders keep a 1px and 2px floor, so the depth survives pixel rounding), so a key follows
+the text around it at any size, and a key is an inline box, so in running
+text it never pushes its line apart. The combo takes the page's font, not the browser's `monospace` for `<kbd>`; one
+rule of your own brings mono keycaps back, since every rule is at zero specificity (`:where`). Forced colors keep the
+border in the system's color. `data-vera-look="none"` on the element (or a key) drops the look; the words stay.
+The look only reaches this element's own keys, never a plain `<kbd>` elsewhere on the page.
 
 ## Spelling without the element
 

@@ -25,7 +25,7 @@ interface KbdHost extends HTMLElement {
   platform: string | null;
 }
 
-/** The root's key for kbd's one rule (`adoptOwnSheet`), a `_$…$` name the minifier leaves alone. */
+/** The root's key for kbd's one sheet, its words and its look (`adoptOwnSheet`), a `_$…$` name the minifier leaves alone. */
 const SHEET = '_$veraKbdWords$';
 
 /**
@@ -37,6 +37,42 @@ const SHEET = '_$veraKbdWords$';
  * word on another component's `key` part (a browser row).
  */
 const WORDS = ':where([data-vera-part="key"][data-vera-kbd][data-vera-word])::before{content:"" / attr(data-vera-word) " "}';
+
+/** One of kbd's own parts, unless it or anything around it opted out of the look (the words rule never opts out). */
+const own = (name: string): string =>
+  `:where([data-vera-part="${name}"][data-vera-kbd]:not([data-vera-look="none"],[data-vera-look="none"] *))`;
+
+/**
+ * **The look**, in the same sheet as the words, so one root adopts one sheet. Every length is in `em`, so a key follows
+ * the text around it at any size (a browser row: a 20px parent's key is 1.25 times a 16px one's). The combo takes the
+ * page's font: an engine's own `kbd` rule is `monospace`, which also shrinks the text under the generic-monospace size
+ * quirk. A key is a keycap: a hairline border, a heavier one below, the shared `--vera-border` and `--vera-radius`
+ * tokens, and colors mixed from `currentColor` without them, so a dark page needs no extra rule; forced colors replace
+ * all of it with the system's. Zero specificity, so a page's own rule wins (one rule gives mono keycaps back).
+ *
+ * The borders alone have a floor, 1px and 2px: an engine rounds a border to whole device pixels, so at body size
+ * .0625em and .125em both drew 1px and the keycap lost its depth (a browser row). Longhands, not the `border`
+ * shorthand: a shorthand holding `var()` leaves its longhands unreadable until substitution, so the parsed rule could
+ * not be checked.
+ *
+ * A key is an INLINE box, never an inline-block: an inline box's padding and border take no part in the height of the
+ * line it sits in, so a key in running text never pushes its line apart, whatever the paragraph's line height (a browser
+ * row: a paragraph holding a key is as tall as one holding plain text). The price is `min-inline-size`, which an inline
+ * box ignores; the inline padding keeps a one-character key from looking pinched. The other price, accepted: the
+ * border and block padding still PAINT past the line box. Measured at a 16px body on Chromium, Firefox and WebKit: the
+ * keycap paints 19.3px against an 18px `line-height: normal` line, 1.7 to 2.2px into the line below; at
+ * `line-height: 1`, 2.7 to 3.2px; at a paragraph's usual 1.5, none (a 24px line). Going back to inline-block
+ * trades that paint for a taller line, which is worse in running text. The combo is `nowrap`, so a shortcut moves to the
+ * next line whole and no keycap is sliced across two (a browser row).
+ */
+const LOOK =
+  `${own('combo')}{font-family:inherit;font-size:1em;white-space:nowrap}` +
+  `${own('key')}{display:inline;padding:.05em .4em;` +
+  'font-family:inherit;font-size:.85em;color:inherit;' +
+  'border-style:solid;border-width:max(.0625em,1px);border-block-end-width:max(.125em,2px);' +
+  'border-color:var(--vera-border,color-mix(in srgb,currentColor 30%,transparent));' +
+  'border-radius:var(--vera-radius,.25em);background:color-mix(in srgb,currentColor 6%,transparent)}' +
+  `${own('combo')} ${own('key')}{margin-inline:.1em}`;
 
 const PLATFORMS: readonly string[] = ['apple', 'windows', 'other'];
 
@@ -62,10 +98,15 @@ const chosen = (host: KbdHost, hydrating: boolean): Platform => {
  * - **Over server markup** (children present at setup), the first render spells as the server did, so hydration
  *   matches with no DOM change and no mismatch warning; a layout effect then switches to the reader's spelling, one
  *   re-render. Rendering the reader's spelling first measured a hydration mismatch and a discarded server render.
+ * - **The combo is `dir="ltr"`**: a shortcut is keycaps in a fixed order, read left to right on the web whatever the
+ *   page's direction. Apple's modifier symbols are bidi neutrals, so in a right-to-left sentence they took the
+ *   sentence's direction and ⇧⌘K showed reversed (a browser row). An element with `dir` is also a bidi isolate in
+ *   every engine's own stylesheet, so the sentence around it keeps flowing right to left, and this holds with no look,
+ *   on the server, and before script.
  */
 export const setup = (host: KbdHost) => {
   const hydrating = signal(!isServer() && host.firstChild !== null);
-  effect(() => adoptOwnSheet(host, SHEET, WORDS), { timing: 'layout' });
+  effect(() => adoptOwnSheet(host, SHEET, WORDS + LOOK), { timing: 'layout' });
   if (hydrating.value) effect(() => void (hydrating.value = false), { timing: 'layout' });
   return () => {
     const keys = host.keys ?? '';
@@ -78,7 +119,7 @@ export const setup = (host: KbdHost) => {
     const platform = chosen(host, hydrating.value);
     const spelled = spellKeys(keys, platform);
     const joined = platform !== 'apple';
-    return html`<kbd data-vera-part="combo">${spelled.map((key, index) => [
+    return html`<kbd data-vera-part="combo" data-vera-kbd dir="ltr">${spelled.map((key, index) => [
       joined && index > 0 ? '+' : '',
       key.word === null
         ? html`<kbd data-vera-part="key" data-vera-kbd>${key.text}</kbd>`
