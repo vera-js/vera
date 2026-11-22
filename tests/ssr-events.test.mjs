@@ -284,3 +284,31 @@ test('dispatchEvent takes an Event, not something shaped like one', () => {
   target.dispatchEvent(new CustomEvent('x', { detail: 1 }));
   assert.equal(ran, 2);
 });
+
+/**
+ * **A node is an `EventTarget` by prototype, and its own methods hold its listeners** (2026-11-22). The node base runs
+ * no `EventTarget` constructor, so Node's listener slot does not exist on it: calling `EventTarget.prototype`'s method
+ * on a node explicitly throws, where an engine accepts it. Before, it was accepted into that unused slot and never ran
+ * — a listener that silently never fired. Pinned exactly, with what did not change: the brand and the constructor.
+ */
+test('a node: EventTarget by prototype; an explicit EventTarget.prototype call throws rather than register a listener that never runs', () => {
+  const d = globalThis.document;
+  const nodes = [
+    [d.createElement('p'), '[object Node]', 'Element'],
+    [d.createTextNode('x'), '[object Text]', 'TextShim'],
+    [d.createComment('x'), '[object Comment]', 'CommentShim'],
+    [d.createDocumentFragment(), '[object DocumentFragment]', 'FragmentShim'],
+  ];
+  for (const [node, brand, constructor] of nodes) {
+    assert.equal(Object.prototype.toString.call(node), brand);
+    assert.equal(node.constructor.name, constructor);
+    assert.equal(node instanceof EventTarget, true);
+  }
+  const element = d.createElement('p');
+  assert.throws(() => EventTarget.prototype.addEventListener.call(element, 'x', () => {}), { name: 'TypeError', code: 'ERR_INVALID_THIS' });
+  /** CONTROL: the node's own method registers, and the node's dispatch runs it. */
+  let ran = 0;
+  element.addEventListener('x', () => ran++);
+  element.dispatchEvent(new Event('x'));
+  assert.equal(ran, 1);
+});

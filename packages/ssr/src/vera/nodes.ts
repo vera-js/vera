@@ -559,6 +559,10 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
   return nodes;
 };
 
+/** `EventTarget`'s prototype behind a constructor that does nothing — see `NodeBaseShim`. */
+const EventTargetUninitialized = function EventTargetUninitialized() {} as unknown as { new (): EventTarget; prototype: EventTarget };
+EventTargetUninitialized.prototype = EventTarget.prototype;
+
 /**
  * **Text and comments are nodes.**
  *
@@ -570,10 +574,6 @@ const nodesOf = (container: ContainerShim): ChildShim[] => {
  * the input — `&amp;` stays `&amp;` rather than becoming this package's `&#38;` — and falls back to
  * escaping its data the moment somebody writes to it.
  */
-/** `EventTarget`'s prototype behind a constructor that does nothing — see `NodeBaseShim`. */
-const EventTargetUninitialized = function EventTargetUninitialized() {} as unknown as { new (): EventTarget; prototype: EventTarget };
-EventTargetUninitialized.prototype = EventTarget.prototype;
-
 /**
  * **`Node` itself — the one base every node of this DOM shares** (2026-10-09). Text and comments were a separate
  * line from containers, and `Node` was the container class, so `text instanceof Node` answered `false` where every
@@ -586,6 +586,9 @@ EventTargetUninitialized.prototype = EventTarget.prototype;
  * both branches override all three methods. Every node paid it anyway — 9.4% of parsing a 50 KB article assigned as
  * `.innerHTML` (inclusive, warm profile), and a share of every render that builds nodes. It extends a constructor that
  * does nothing, whose prototype IS `EventTarget.prototype`, so `node instanceof EventTarget` stays true, as in every engine.
+ * One call reaches Node's own state and differs: `EventTarget.prototype.addEventListener.call(node, …)` throws here
+ * (Node keeps listeners in a slot this constructor never creates), where an engine accepts it; the node's own methods,
+ * which every ordinary caller reaches, are this package's.
  */
 export class NodeBaseShim extends EventTargetUninitialized {
   constructor() {
