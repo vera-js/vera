@@ -235,11 +235,13 @@ export const JSON_BLOCK = /json\s*$/i;
 /**
  * Whether a script START TAG, as written, opens a JSON data block — the twin of `dataBlock` in `@verajs/shared-utils`
  * (held equal by `tests/script-data-blocks.test.mjs`): the first `type`, read in attribute order, holding no `&` and
- * ending in `json`. The only script a bound value may enter on the server (`ssr-script-hole`).
+ * ending in `json`. The only script a bound value may enter on the server (`ssr-script-hole`). Its name compare keeps the
+ * twin's native `toLowerCase`, not the ASCII fold the rest of this server uses: compared with `type`, the two answer
+ * alike, since no character outside ASCII lowercases to anything holding `t`, `y`, `p` or `e` (every code point checked).
  */
 export const dataBlock = (openTag: string) => {
   for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/g))
-    if (asciiLower(name!) === 'type') {
+    if (name!.toLowerCase() === 'type') {
       const type = double ?? single ?? bare ?? '';
       return !type.includes('&') && JSON_BLOCK.test(type);
     }
