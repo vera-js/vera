@@ -486,6 +486,9 @@ test('a text element tracked in select, noscript or an unknown namespace holds u
     const served = serializeTemplate(template(statics, ESCAPER));
     if (injected(served)) live.push(served);
   }
+  /** A child rendered at a parent's point, starting with an untracked end tag: its root's unknown namespace holds the title. */
+  const child = serializeTemplate(template(['<svg><title>', '</title></svg>'], template(['</g><title><table><style>', '</style>'], ESCAPER)));
+  if (injected(child) || child.includes(PAYLOAD)) live.push(child);
   assert.deepEqual(live, []);
   /** CONTROL: a closed text element releases the select, so the style after it is raw text again, the value whole. */
   const closed = serializeTemplate(template(['<select><title></title></select><style>', '</style>'], PAYLOAD));
