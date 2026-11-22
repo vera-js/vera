@@ -140,6 +140,20 @@ export const RCDATA_ELEMENTS = new Set(['textarea', 'title']);
 export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? raw.replace(/\r\n?/g, '\n') : raw);
 
 /**
+ * **HTML folds case by ASCII only**: the tokenizer, `createElement`, attribute names, `tagName`, enumerated values and a
+ * selector's `i` flag fold A–Z and nothing else, in every engine. `toLowerCase` folds more: the Kelvin sign (U+212A)
+ * becomes `k`, so a name the browser keeps apart from `key` collapsed into it, and `İ` (U+0130) becomes two code units,
+ * so an index found in a lowered copy pointed past the real one (a textarea's value ran on to the end of the page).
+ * `toUpperCase` turns `ß` into `SS`. A string with nothing outside ASCII folds exactly with the native call, so only a
+ * string that has something outside it pays for the run-by-run replace.
+ */
+const NON_ASCII = /[\u0080-￿]/;
+const lowerRun = (run: string): string => run.toLowerCase();
+const upperRun = (run: string): string => run.toUpperCase();
+export const asciiLower = (text: string): string => (NON_ASCII.test(text) ? text.replace(/[A-Z]+/g, lowerRun) : text.toLowerCase());
+export const asciiUpper = (text: string): string => (NON_ASCII.test(text) ? text.replace(/[a-z]+/g, upperRun) : text.toUpperCase());
+
+/**
  * **The line feed a parser takes.** Right after a `<pre>`, `<listing>` or `<textarea>` start tag the HTML parser drops
  * ONE line feed: a raw LF, a CR or CRLF (the input stream normalizes both to LF first), or a reference to one
  * (`&#10;`, `&#xA;`, `&NewLine;`). So content that BEGINS with a line feed loses it on the way in. The platform's own
@@ -215,7 +229,7 @@ export const JSON_BLOCK = /json\s*$/i;
  */
 export const dataBlock = (openTag: string) => {
   for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/g))
-    if (name!.toLowerCase() === 'type') {
+    if (asciiLower(name!) === 'type') {
       const type = double ?? single ?? bare ?? '';
       return !type.includes('&') && JSON_BLOCK.test(type);
     }

@@ -38,6 +38,7 @@
  */
 
 import type { ElementShim } from './nodes.js';
+import { asciiLower } from './escaping.js';
 
 /** `presence`: the attribute's presence is the value; the third cell answers for absent when that is not `false`. */
 type PresenceReflection = readonly [kind: 'presence', attribute: string, absent?: boolean];
@@ -796,7 +797,7 @@ const absent = (entry as NumberReflection)[2];
           const raw = this.getAttribute(attribute);
           if (raw === null) return missing;
           /** Enumerated attributes are ASCII case-insensitive and the getter answers canonically. */
-          const state = raw.toLowerCase();
+          const state = asciiLower(raw);
           return states.includes(state) ? state : invalid;
         },
         /** The setter writes what it is given; only the getter maps to a state. */

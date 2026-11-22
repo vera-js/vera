@@ -9,7 +9,7 @@
  * tripping over it.
  */
 import { interfaceFor } from './reflections.js';
-import { JSON_BLOCK, escapeHtml, escapeRawText, escapeStyleText, leadingNewline, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
+import { JSON_BLOCK, asciiLower, asciiUpper, escapeHtml, escapeRawText, escapeStyleText, leadingNewline, normalizeNewlines, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { contentSpace, decode, parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
@@ -241,7 +241,7 @@ const namedNodeMap = (element: ElementShim): NamedNodeMapShim => {
       ownerElement: element,
     }))
   ) as NamedNodeMapShim;
-  list.getNamedItem = (name) => list.find((entry) => entry.name === `${name}`.toLowerCase()) ?? null;
+  list.getNamedItem = (name) => list.find((entry) => entry.name === asciiLower(`${name}`)) ?? null;
   list.getNamedItemNS = (_namespace, name) => list.getNamedItem(name);
   list.item = (index) => list[index] ?? null;
   list.setNamedItem = (attribute) => {
@@ -465,7 +465,7 @@ const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
 const LABELABLE = new Set(['button', 'input', 'meter', 'output', 'progress', 'select', 'textarea']);
 /** Labelable as HTML says: one of those names in the HTML namespace, and never an `<input type=hidden>`. */
 const labelable = (element: ElementShim): boolean =>
-  element._ns === HTML_NS && LABELABLE.has(element.localName) && !(element.localName === 'input' && element.getAttribute('type')?.toLowerCase() === 'hidden');
+  element._ns === HTML_NS && LABELABLE.has(element.localName) && !(element.localName === 'input' && asciiLower(element.getAttribute('type') ?? '') === 'hidden');
 /**
  * **A `<label>`'s labeled control**, by HTML's rule: with `for`, the first element in the label's tree whose id is
  * that value, if it is labelable (else none, never a fallback to a descendant); without `for`, its first labelable
@@ -1709,7 +1709,7 @@ const defineReflections = (Shim: typeof ElementShim): void => {
         const raw = this.getAttribute(attribute);
         if (raw === null) return missing;
         /** Enumerated attributes are ASCII case-insensitive and the getter answers canonically. */
-        const state = raw.toLowerCase();
+        const state = asciiLower(raw);
         return known.includes(state) ? state : invalid;
       },
       /** The setter writes what it is given; only the getter maps to a state. */
@@ -1729,12 +1729,12 @@ const defineReflections = (Shim: typeof ElementShim): void => {
     get(this: ElementShim) {
       const raw = this.getAttribute('contenteditable');
       if (raw === null) return 'inherit';
-      const state = raw.toLowerCase();
+      const state = asciiLower(raw);
       if (state === '') return 'true';
       return CONTENT_EDITABLE_STATES.includes(state) ? state : 'inherit';
     },
     set(this: ElementShim, value: unknown) {
-      const state = `${value}`.toLowerCase();
+      const state = asciiLower(`${value}`);
       if (state === 'inherit') {
         this.removeAttribute('contenteditable');
         return;
@@ -1891,7 +1891,7 @@ export class ElementShim extends ContainerShim {
      * three in `tests/browser/dom-string-coercion.test.js`). Being the lenient one server-side
      * only moves the failure to the client with the context stripped off.
      */
-    return this._ns === HTML_NS ? `${name}`.toLowerCase() : `${name}`;
+    return this._ns === HTML_NS ? asciiLower(`${name}`) : `${name}`;
   }
   /**
    * **`mode: 'closed'` means `element.shadowRoot` is `null`** — that is the entire difference between
@@ -2083,7 +2083,7 @@ export class ElementShim extends ContainerShim {
    * They answer the way a detached, childless element would, because that is what this is.
    */
   get tagName(): string {
-    return this.localName.toUpperCase();
+    return asciiUpper(this.localName);
   }
   get nodeType(): 1 {
     return 1;
@@ -2149,12 +2149,12 @@ export class ElementShim extends ContainerShim {
    */
   getElementsByTagName(name: string): ElementShim[] {
     parseChunks(this);
-    const wanted = `${name}`.toLowerCase();
+    const wanted = asciiLower(`${name}`);
     return select.descendantsOf(this).filter((element) => wanted === '*' || element.localName === wanted);
   }
   getElementsByTagNameNS(namespace: string | null, name: string): ElementShim[] {
     parseChunks(this);
-    const wanted = `${name}`.toLowerCase();
+    const wanted = asciiLower(`${name}`);
     const ns = `${namespace}`;
     return select
       .descendantsOf(this)
@@ -2249,7 +2249,7 @@ export class ElementShim extends ContainerShim {
    * the difference between the two methods and the one to reach for with anything from a request.
    */
   insertAdjacentHTML(position: string, markup: unknown): void {
-    const where = `${position}`.toLowerCase();
+    const where = asciiLower(`${position}`);
     if (where === 'afterbegin' || where === 'beforeend') {
       if (where === 'afterbegin') this._entries.unshift(`${markup}`);
       else this._entries.push(`${markup}`);
@@ -2498,7 +2498,7 @@ const build = (name: string, namespaceURI: string = HTML_NS): ElementShim => {
 };
 
 export const createElement = (localName: unknown, namespaceURI: string = HTML_NS): ElementShim => {
-  const name = namespaceURI === HTML_NS ? `${localName}`.toLowerCase() : `${localName}`;
+  const name = namespaceURI === HTML_NS ? asciiLower(`${localName}`) : `${localName}`;
   /**
    * **A tag name that cannot be written is refused**, as it is in every engine. Accepting one meant
    * `createElement('a b')` serialized `<a b>` — an element `a` with an empty attribute `b` once a

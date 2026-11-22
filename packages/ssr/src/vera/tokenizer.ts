@@ -7,6 +7,7 @@
  * once, and every copy drifted from the tokenizer differently; one scanner cannot disagree with itself.
  */
 import type { Open, ScanResult, ScanStart, ScanState, ScannedTag } from './types.js';
+import { asciiLower } from './escaping.js';
 
 /**
  * Where a static leaves us: inside a tag, and if so, inside an attribute **value**.
@@ -168,7 +169,7 @@ const closerAt = (text: string, from: number, name: string): number => {
   const length = text.length;
   for (let at = text.indexOf('</', from); at !== -1; at = text.indexOf('</', at + 2)) {
     const after = at + 2 + name.length;
-    if (text.slice(at + 2, after).toLowerCase() === name && (after >= length || endsName(text[after]))) return at;
+    if (asciiLower(text.slice(at + 2, after)) === name && (after >= length || endsName(text[after]))) return at;
   }
   return -1;
 };
@@ -264,7 +265,7 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
   }
   if (
     (space === 'svg' && SVG_POINTS.has(tagName)) ||
-    (space === 'math' && (MATH_TEXT_POINTS.has(tagName) || (tagName === 'annotation-xml' && HTML_ENCODINGS.has(encoding.toLowerCase()))))
+    (space === 'math' && (MATH_TEXT_POINTS.has(tagName) || (tagName === 'annotation-xml' && HTML_ENCODINGS.has(asciiLower(encoding)))))
   ) {
     opens.push({ name: tagName, foreign, inert, space: 'html' });
     return 0;
@@ -312,7 +313,7 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
  * font set from this reaches `structural`, which is where `scanTag` clears it.
  */
 const attributeNamed = (name: string, tagName: string, at: number, edits: number[] | undefined): boolean => {
-  const lower = name.toLowerCase();
+  const lower = asciiLower(name);
   if (tagName === 'font') return FONT_BREAKOUT.has(lower);
   if (edits !== undefined && (lower === 'shadowrootmode' || lower === 'shadowroot')) edits.push(at, EDIT_SHADOW_ROOT);
   return false;
@@ -536,7 +537,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     }
     if (value) {
       /** Which attribute this value belongs to, and a serial per value — the URL-sink check needs both. */
-      attrName = attrRaw.toLowerCase();
+      attrName = asciiLower(attrRaw);
       serial++;
       let next = i + 1;
       while (next < length && isSpace(text[next])) next++;

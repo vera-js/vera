@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, asciiLower, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
 import { decode } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
@@ -656,7 +656,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * two collapse into one entry, so the real duplicate goes unnoticed.
      */
     const record = (staticText: string): void => {
-      if (inTag) for (const [, found] of staticText.matchAll(STATIC_ATTRIBUTE)) written.add(found.toLowerCase());
+      if (inTag) for (const [, found] of staticText.matchAll(STATIC_ATTRIBUTE)) written.add(asciiLower(found));
     };
 
     /**
@@ -738,12 +738,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       if (kinds[joinAt] === DROPPED) joinAt = -1;
       pieces = tagState.valueStart === strings[i].length ? undefined : leadPieces(strings[i], tagState.valueStart);
       names.push(sigilName);
-      strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
+      strip.push(dynamicTag || written.has(asciiLower(sigilName)));
       owners.push(owner);
       raws.push(tagState.rawTag);
       elementPositions.push(false);
       elements.push(elementOrdinal);
-      if (sigilName) written.add(sigilName.toLowerCase());
+      if (sigilName) written.add(asciiLower(sigilName));
       continue;
     }
 
@@ -1543,7 +1543,7 @@ const insertContent = (staticText: string, text: string, strip: string): string 
   const close = staticText.indexOf('>');
   if (close === -1) return staticText;
   const rest = staticText.slice(close + 1);
-  const end = rest.toLowerCase().indexOf('</' + strip);
+  const end = closerAt(rest, 0, strip);
   /** One line feed for the parser to take, always — the client sets this content through the DOM (see `takesNewline`). */
   const guard = NEWLINE_TAKERS.has(strip) ? '\n' : '';
   return staticText.slice(0, close + 1) + guard + text + (end === -1 ? rest : rest.slice(end));

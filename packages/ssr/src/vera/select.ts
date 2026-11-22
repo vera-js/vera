@@ -34,6 +34,7 @@
 
 import type { ContainerShim, ElementShim } from './nodes.js';
 import { PROSE } from './diagnostics.js';
+import { asciiLower } from './escaping.js';
 import { own, quoted, ssrMisuse } from './report.js';
 
 /** One test of a compound against a candidate element; `scope` is the node the query started from, for `:scope`. */
@@ -90,15 +91,15 @@ const parseCompound = (source: string, selector: string): Compound => {
     } else if ((match = ATTRIBUTE.exec(rest))) {
       const [, name, operator, quoted, single, bare, flag] = match;
       const wanted = quoted ?? single ?? bare ?? '';
-      const fold = flag && flag.toLowerCase() === 'i';
+      const fold = flag === 'i' || flag === 'I';
       tests.push((element) => {
         let actual = element.getAttribute(name);
         if (actual === null) return false;
         if (!operator) return true;
         let target = wanted;
         if (fold) {
-          actual = actual.toLowerCase();
-          target = target.toLowerCase();
+          actual = asciiLower(actual);
+          target = asciiLower(target);
         }
         switch (operator) {
           case '=':

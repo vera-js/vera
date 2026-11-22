@@ -21,8 +21,9 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized } from './escaping.js';
+import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
+import { rawTextCloserAt as closerAt } from './tokenizer.js';
 
 /** The entity spellings this package emits, plus the handful every document uses. */
 const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -148,7 +149,7 @@ export const contentSpace = (element: { readonly localName: string; readonly nam
 
 /** An `<annotation-xml>` whose `encoding` makes its content HTML (an HTML integration point). */
 const htmlEncoded = (encoding: string | null | undefined): boolean => {
-  const value = encoding?.toLowerCase();
+  const value = asciiLower(encoding ?? '');
   return value === 'text/html' || value === 'application/xhtml+xml';
 };
 
@@ -305,7 +306,7 @@ export const parseFragment = (
     if (markup.startsWith('</', next)) {
       const end = markup.indexOf('>', next);
       if (end === -1) return null;
-      const name = markup.slice(next + 2, end).trim().toLowerCase();
+      const name = asciiLower(markup.slice(next + 2, end).trim());
       if (!name) return null;
       flushText();
       /**
@@ -313,7 +314,7 @@ export const parseFragment = (
        * else is error recovery, declined.
        */
       if (foreign) {
-        if (name === 'br' || name === 'p' || stack.length === 1 || open().localName.toLowerCase() !== name) return null;
+        if (name === 'br' || name === 'p' || stack.length === 1 || asciiLower(open().localName) !== name) return null;
         (open() as ElementFrame).closeTag = markup.slice(next, end + 1);
         stack.pop();
         index = end + 1;
@@ -341,7 +342,7 @@ export const parseFragment = (
       index = next + 1;
       continue;
     }
-    const name = nameMatch[0].toLowerCase();
+    const name = asciiLower(nameMatch[0]);
     if (REFUSED.has(name)) return null;
     /** A start tag that leaves foreign content, or a MathML element inside a MathML text integration point: declined. */
     if (foreign ? BREAKOUT.has(name) || name === 'font' : space === 'math-text' && (name === 'mglyph' || name === 'malignmark')) return null;
@@ -368,7 +369,7 @@ export const parseFragment = (
       const attribute = ATTRIBUTE.exec(markup.slice(cursor));
       if (!attribute || cursor >= markup.length) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
-      const lower = attribute[1].toLowerCase();
+      const lower = asciiLower(attribute[1]);
       attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(normalized(value))]);
       cursor += attribute[0].length;
     }
@@ -483,7 +484,7 @@ export const parseFragment = (
 
     /** Raw text runs to its own end tag and is never parsed as markup (HTML's rule: foreign content has none). */
     if (!foreign && RAW_TEXT_ELEMENTS.has(name)) {
-      const close = markup.toLowerCase().indexOf(`</${name}`, index);
+      const close = closerAt(markup, index, name);
       if (close === -1) return null;
       const closeEnd = markup.indexOf('>', close);
       if (closeEnd === -1) return null;
