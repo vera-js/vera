@@ -59,6 +59,43 @@ test('a hole in a comment inside a held text element is written as text: never m
   }
 });
 
+/**
+ * **A value's dashes cannot end the comment in the other reading.** Where the held element's content is MARKUP, a value
+ * `--` before a static `>` (or `-` before `->`) closes the comment, and the statics after it are markup the scan still
+ * reads as comment text — so a later hole, served as text, would sit in an unquoted attribute there. Each shape is
+ * parsed both ways: as the page (the parser's reading) and with the held element re-read inside `<svg>`, where its
+ * content is markup and comments close as written.
+ */
+const hasHandler = (html) => {
+  let found = false;
+  const walk = (node) => {
+    if (node.attrs?.some((attribute) => attribute.name.startsWith('on'))) found = true;
+    for (const child of node.childNodes ?? []) walk(child);
+    if (node.content) walk(node.content);
+  };
+  walk(parse(`<!doctype html><body>${html}`, { scriptingEnabled: true }));
+  return found;
+};
+/** The served markup from the held element's own start tag on, read as foreign content (comments are real there). */
+const markupReading = (served, element) => `<svg>${served.slice(served.lastIndexOf(`<${element}>`))}`;
+const DASHES = [['--', '>'], ['-', '->']];
+const ATTACK = 'x onerror=alert(1)';
+
+test('a value cannot end the held comment in the reading where it is markup, so a later hole stays text', () => {
+  assert.equal(hasHandler(`<svg><style><!----><img title=${ATTACK}></style></svg>`), true, 'CONTROL: raw dashes end the comment in the markup reading');
+  let rows = 0;
+  for (const [lead, tail] of HELD) {
+    const element = /<(style|textarea)>/.exec(lead)[1];
+    for (const [dashes, close] of DASHES) {
+      const served = serializeTemplate(template([lead, `${close}<img title=`, `>${tail}`], [dashes, ATTACK]));
+      assert.equal(hasHandler(served), false, `${lead} + ${dashes}: the page reading made a handler -> ${served}`);
+      assert.equal(hasHandler(markupReading(served, element)), false, `${lead} + ${dashes}: the markup reading made a handler -> ${served}`);
+      rows++;
+    }
+  }
+  assert.equal(rows, HELD.length * DASHES.length);
+});
+
 test('a template in that hole is refused, as in a text-only element', () => {
   const inner = template(['<b>', '</b>'], ['x']);
   for (const statics of HELD) assert.equal(codeOf(() => serializeTemplate(template(statics, [inner]))), 'ssr-template-in-text', JSON.stringify(statics));

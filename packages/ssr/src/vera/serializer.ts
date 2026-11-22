@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, asciiLower, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
+import { HELD_COMMENT, INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, asciiLower, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
 import { decode } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
@@ -912,7 +912,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     names.push('');
     strip.push(false);
     owners.push(owner);
-    raws.push(tagState.rawTag);
+    /** A held comment's hole is written by `escapeRawText` under `HELD_COMMENT`, its dashes escaped too (see there). */
+    raws.push(heldText ? HELD_COMMENT : tagState.rawTag);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     /**

@@ -102,7 +102,19 @@ export const escapeStyleText = (value: unknown): string => `${value}`.replace(/<
  */
 const RAW_TEXT_CLOSERS: Partial<Record<string, RegExp>> = { style: /<\/(style)/gi, script: /<\/(script)/gi };
 
+/**
+ * **The raw-slot name of a hole in a comment inside a held text element** (`inHeldText`, `serializer.ts`): written as
+ * text, and every `-` as `&#45;` too. In the reading where the element's content is markup, a value's dashes would meet
+ * the statics' `>` and END the comment (`--` + `>`, `-` + `->`, `<!` + `--` opening one instead), leaving the following
+ * statics markup the scan still reads as comment text. A comment decodes no reference, so `&#45;` closes nothing in
+ * that reading. In the other, the text reading, a `<title>` or `<textarea>` (RCDATA) decodes it back to `-`, as the
+ * client shows it; a `<style>` (RAWTEXT) shows `&#45;` literally, as it already shows `&#60;`, until hydration writes
+ * the value — the over-escaped side, on purpose.
+ */
+export const HELD_COMMENT = '--';
+
 export const escapeRawText = (value: unknown, tag: string): string => {
+  if (tag === HELD_COMMENT) return escapeHtml(value).replace(/-/g, '&#45;');
   /**
    * A JSON data block's value (`dataBlock`, `serializer.ts`): `<` as `\u003c`, lossless in JSON — it ends no element
    * and opens no escaped-script state (`<!--<script>` in a script's text swallows the rest of the page: BROWSER-LEDGER).

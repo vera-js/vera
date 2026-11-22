@@ -483,10 +483,11 @@ markup itself is served byte for byte as it was written.
   read as not breaking out), an end tag the parser ignores, and an `svg` or `mathml` template rendered on its own,
   outside any `<svg>` or `<math>`. There the browser reads HTML raw text, so a `>` in the stylesheet arrives as `&#62;`
   until hydration replaces it. That is the safe direction of a misreading on purpose: the other one writes a value's
-  markup into the page. Put the stylesheet in the template that opens the foreign element, or outside it. A `<script>` in such a template, or inside
-  `<noscript>`, takes no value at all (`ssr-script-hole`), JSON or not: where the server cannot tell an HTML or SVG
-  script, both of which run, from one that does not, a value there is code. A `<script>` or `<textarea>` straight
-  inside a `<select>` is read as anywhere in HTML: both parsers read its content as text.
+  markup into the page. Put the stylesheet in the template that opens the foreign element, or outside it. A
+  `<script>` in such a template, or inside `<noscript>`, takes no value at all (`ssr-script-hole`), JSON or not: where
+  the server cannot tell an HTML or SVG script, both of which run, from one that does not, a value there is code. A
+  `<script>` or `<textarea>` straight inside a `<select>` is read as anywhere in HTML: both parsers read its content
+  as text.
 - **`.innerHTML` markup is parsed in place on the server and as a fragment on the client.** The client parses
   the value with the element as its context; the served page is parsed with every real ancestor around it, so a
   few shapes nest differently on first paint — a `<p>` inside a `<p .innerHTML>` (the page closes the outer one),
