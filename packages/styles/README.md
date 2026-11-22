@@ -69,7 +69,7 @@ root, done by the platform. A `<style>` inside the element would be wiped by the
 survives renders.
 
 **Hoisted into the element's root.** A light component rendered inside someone's shadow root is styled there: its
-block is adopted by that shadow root (the document's sheets stop at the boundary), once per class per root, after that
+block is adopted by that shadow root (the document's sheets stop at the boundary), once per class per root (every root of one document adopts the class's one constructed sheet), after that
 root's own sheets (as in the document, where adopted sheets follow the page's), and kept when the root's component
 writes its own list again. A host that is not a Vera component and replaces its root's `adoptedStyleSheets` after its
 light children render drops their styles: spread the existing list (`[...root.adoptedStyleSheets, sheet]`). A move into another document hoists it again there. The root is read at setup, so a

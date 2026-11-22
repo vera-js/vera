@@ -38,7 +38,7 @@ describe('hydrating light components served inside shadow roots', () => {
     expect(!!shell.shadowRoot.querySelector('style[data-vm-sheet="light"]'), 'CONTROL: its block was served inside the root').to.equal(true);
 
     define({ tag: 'ssr-root-light', styles: '.mark { color: rgb(200, 0, 0); }' }, () => () => html`<b class="mark">x</b>`);
-    define({ tag: 'ssr-root-only', styles: '.only { color: rgb(0, 150, 0); }' }, () => () => html`<i class="only">o</i>`);
+    define({ tag: 'ssr-root-only', styles: '.only { color: rgb(0, 150, 0); } .only::after { content: "</style>"; }' }, () => () => html`<i class="only">o</i>`);
     await frame();
     /** The served text as a constructed sheet: its hydration drops its served copy and writes the root's list. */
     define({ tag: 'ssr-root-shell', shadow: 'open', styles: css`section { margin: 0px; }` }, () => () => html`<section><ssr-root-light></ssr-root-light><ssr-root-only></ssr-root-only></section>`);
@@ -61,6 +61,11 @@ describe('hydrating light components served inside shadow roots', () => {
       only: copies(shell.shadowRoot, '@scope (ssr-root-only)'),
       shellOwn: copies(shell.shadowRoot, 'margin'),
     }).to.deep.equal({ shell: 1, shell2: 1, only: 1, shellOwn: 1 });
+    /** `only`'s block holds `</style>`, served escaped: its one copy above means the served copy was found by that exact text. */
+    expect(getComputedStyle(shell.shadowRoot.querySelector('ssr-root-only .only'), '::after').content, 'the escaped block still applies').to.equal('"</style>"');
+    /** Every root of one document adopts the class's ONE sheet (one parse per class per document). */
+    const lightSheet = (root) => [...root.adoptedStyleSheets].find((sheet) => [...sheet.cssRules].some((rule) => rule.cssText.includes('@scope (ssr-root-light)')));
+    expect(!!lightSheet(shell.shadowRoot) && lightSheet(shell.shadowRoot) === lightSheet(shell2.shadowRoot), 'the two roots share one sheet').to.equal(true);
     expect(shell.shadowRoot.querySelectorAll('style[data-vm-sheet="light"]').length + shell2.shadowRoot.querySelectorAll('style[data-vm-sheet="light"]').length, 'the served copies are the ones that went').to.equal(0);
     page.remove();
   });
