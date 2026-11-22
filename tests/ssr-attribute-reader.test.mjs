@@ -118,3 +118,20 @@ test('an unquoted value holds a quote as text: the tag does not end inside it', 
   assert.doesNotMatch(select, /data-vm-select/, select);
   assert.equal(parsed(select).value, 'b', select);
 });
+
+test('a select is found at its own offset however the text before it lowercases: İ (U+0130) never moves the choice to another select', () => {
+  /**
+   * `'İ'.toLowerCase()` is two code units, so an offset found in a lowercased copy lands one unit late per İ before
+   * it; 110 of them before a bound select carried its `selected` into the next, unbound one. Read on the markup
+   * itself, the bound select has no `b`, so nothing is marked anywhere.
+   */
+  const served = serializeTemplate(
+    html`<p>${'İ'.repeat(110)}</p><select .value=${'b'}><option value="a">A</option><option value="c">C</option></select><select name="role"><option value="user">user</option><option value="b">b</option></select>`
+  );
+  assert.doesNotMatch(served, /selected/, served);
+  assert.equal(parsed(`<div>${served}</div>`).querySelector('select[name=role]').selectedIndex, 0, served);
+  /** CONTROL: with a matching option the bound select is the one marked, and only it. */
+  const matching = serializeTemplate(html`<p>${'İ'.repeat(110)}</p><select .value=${'c'}><option value="a">A</option><option value="c">C</option></select><select name="role"><option value="b">b</option></select>`);
+  assert.equal((matching.match(/selected/g) ?? []).length, 1, matching);
+  assert.match(matching, /<option value="c" selected>C<\/option>/, matching);
+});
