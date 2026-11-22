@@ -440,17 +440,19 @@ class Template {
         continue;
       }
       const el = node as Element;
+      /** Read once per element: `localName` is a DOM accessor, and the walk below asks it of every element and every URL binding. */
+      const local = el.localName;
       /**
        * A nested `<template>`'s content is inert markup the walk never enters, so its bindings can never be
        * reached — they are ignored, as the server ignores them. Their markers are scrubbed from its markup,
        * every depth at once, or they would sit in the live page.
        */
-      if (el.localName === 'template') {
+      if (local === 'template') {
         const held = (el as HTMLTemplateElement).innerHTML;
         if (__DEV__) for (const m of held.matchAll(/(\d+)\uFFFF|\uFFFF(\d+)/g)) inert!.add(+(m[1] ?? m[2]));
         (el as HTMLTemplateElement).innerHTML = held.replace(INERT_MARKERS, '');
       }
-      if (el.localName.includes('-') || el.hasAttribute('is')) this._plain = false;
+      if (local.includes('-') || el.hasAttribute('is')) this._plain = false;
       for (const attribute of el.getAttributeNames()) {
         if (!attribute.endsWith(MARKER)) continue;
         const i = parseInt(attribute, 10);
@@ -462,7 +464,7 @@ class Template {
         /** An element position (`<p ${ref}>`) arrives with no value; `&=${ref}` is its explicit spelling. */
         if (value.length === 1 || first === '&') {
           /** Decided here, once: `localName` is a DOM accessor, too dear to read on every commit. */
-          kinds[i] = el.localName === 'select' ? SELECT_REF : REF;
+          kinds[i] = local === 'select' ? SELECT_REF : REF;
           continue;
         }
         let kind =
@@ -493,21 +495,21 @@ class Template {
         if ((kind === PROPERTY || kind === LIVE) && real === '__proto__') {
           kind = REFUSED;
           if (__DEV__)
-            console.warn(diagnostic('renderer', `<${el.localName}>`, 'proto-binding', __DEV__ && SHARED.protoBinding(written)));
+            console.warn(diagnostic('renderer', `<${local}>`, 'proto-binding', __DEV__ && SHARED.protoBinding(written)));
         } else if (kind === ATTR && real.toLowerCase() === 'srcdoc') {
           /** A bound `srcdoc` ATTRIBUTE renders its value as an HTML document: markup injection by construction. */
           kind = REFUSED;
           if (__DEV__)
-            console.warn(diagnostic('renderer', `<${el.localName}>`, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute('.srcdoc=${…}')));
+            console.warn(diagnostic('renderer', `<${local}>`, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute('.srcdoc=${…}')));
         } else if (kind === ATTR && INLINE_HANDLER.test(real)) {
           /** A bound inline handler runs its value as code: refused, as spread and the server refuse it. */
           kind = REFUSED;
           if (__DEV__)
             console.warn(
-              diagnostic('renderer', `<${el.localName}>`, 'handler-attribute',
+              diagnostic('renderer', `<${local}>`, 'handler-attribute',
                 __DEV__ && SHARED.handlerAttribute(real, `\`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`)`))
             );
-        } else if (sink !== null && sink[1] !== undefined && kind !== EVENT && kind !== BOOLEAN && el.localName === 'script') {
+        } else if (sink !== null && sink[1] !== undefined && kind !== EVENT && kind !== BOOLEAN && local === 'script') {
           /**
            * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs, so a bound one is code arriving
            * as data — refused, as spread and the server refuse it: the server serves the tag and it runs on load, and an
@@ -515,15 +517,15 @@ class Template {
            */
           kind = REFUSED;
           if (__DEV__) console.warn(diagnostic('renderer', '<script>', 'script-source', __DEV__ && SHARED.scriptSource(written)));
-        } else if (kind === PROPERTY && el.localName.includes('-')) kind = ADOPT;
-        else if (kind === LIVE && el.localName.includes('-')) kind = LIVE_CUSTOM;
+        } else if (kind === PROPERTY && local.includes('-')) kind = ADOPT;
+        else if (kind === LIVE && local.includes('-')) kind = LIVE_CUSTOM;
         /**
          * A property that REPLACES an element's content (`.textContent`, `.innerHTML`…) on an element that also has
          * content of its own — markup, or a child binding whose anchor is in it: the write strands the binding, and a
          * later commit into it throws on a missing parent. Cannot work as written, so development throws.
          */
         if (__DEV__ && kind !== ATTR && kind !== EVENT && kind !== BOOLEAN && CONTENT_PROPERTY.test(real) && ownsContent(el))
-          contentClash('renderer', el.localName, real);
+          contentClash('renderer', local, real);
         kinds[i] = kind;
         names[i] = real;
         statics[i] = value.length === 2 && value[0] === '' && value[1] === '' ? null : value;
@@ -536,7 +538,7 @@ class Template {
         urls[i] =
           kind === REFUSED || kind === BOOLEAN || kind === EVENT || sink === null
             ? 0
-            : kind !== ATTR && el.localName.includes('-')
+            : kind !== ATTR && local.includes('-')
               ? 1
               : sink[1]
                 ? 2
@@ -548,7 +550,7 @@ class Template {
        * template's `<noscript>` as markup, so a value written in an attribute there sits in a real attribute) and as
        * its text otherwise — the same source either way, written back as text.
        */
-      const source = RAW_TEXT_TAGS.test(el.localName) ? (NEVER_SHOWN.test(el.tagName) && el.firstElementChild !== null ? el.innerHTML : el.textContent!) : '';
+      const source = RAW_TEXT_TAGS.test(local) ? (NEVER_SHOWN.test(el.tagName) && el.firstElementChild !== null ? el.innerHTML : el.textContent!) : '';
       if (source.includes(MARKER)) {
         /**
          * **A script hole is refused in EVERY build unless the script is an HTML JSON data block** (Brian, 2026-11-18).
