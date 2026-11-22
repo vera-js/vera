@@ -194,7 +194,6 @@ const SVG_ATTRIBUTES = new Map(
 const adjustAttribute = (name: string, namespace: string): string =>
   namespace === SVG_NS ? (SVG_ATTRIBUTES.get(name) ?? name) : namespace === MATHML_NS && name === 'definitionurl' ? 'definitionURL' : name;
 
-const TAG_NAME = /^[a-zA-Z][^\t\n\f\r />]*/;
 /**
  * **The attribute-name charset, owned here and shared.** Everything a start tag can carry as a
  * name: anything that is not whitespace, `/`, `>`, `=`, a quote, or `<`. Deliberately WIDE — every
@@ -342,14 +341,21 @@ export const parseFragment = (
     }
 
     /* ── a start tag ─────────────────────────────────────────────────────────────────────────── */
-    const nameMatch = TAG_NAME.exec(markup.slice(next + 1));
-    if (!nameMatch) {
+    /**
+     * The tag name: a letter, then everything up to HTML's whitespace, `/` or `>`. Found by a character loop, as the end
+     * tag's is: a pattern on a fresh slice per start tag cost a cold 50 KB parse about 1% (measured on Node 24's V8,
+     * 2026-11-22).
+     */
+    const first = markup.charCodeAt(next + 1);
+    let after = next + 2;
+    for (let c = markup.charCodeAt(after); after < markup.length && c !== 32 && c !== 9 && c !== 10 && c !== 12 && c !== 13 && c !== 47 && c !== 62; c = markup.charCodeAt(++after));
+    if (!((first >= 97 && first <= 122) || (first >= 65 && first <= 90))) {
       /** A bare `<` that is not a tag is text in the spec, and text is all it can be here. */
       text += '<';
       index = next + 1;
       continue;
     }
-    const name = asciiLower(nameMatch[0]);
+    const name = asciiLower(markup.slice(next + 1, after));
     if (REFUSED.has(name)) return null;
     /** A start tag that leaves foreign content, or a MathML element inside a MathML text integration point: declined. */
     if (foreign ? BREAKOUT.has(name) || name === 'font' : space === 'math-text' && (name === 'mglyph' || name === 'malignmark')) return null;
@@ -363,13 +369,13 @@ export const parseFragment = (
       : name === 'math' ? MATHML_NS
       : undefined;
 
-    let cursor = next + 1 + nameMatch[0].length;
+    let cursor = after;
     const attributes: Array<[string, string]> = [];
     for (;;) {
-      const rest = markup.slice(cursor);
-      const space = /^[\t\n\f\r ]+/.exec(rest);
-      if (space) {
-        cursor += space[0].length;
+      /** HTML's whitespace between attributes, a character at a time: no slice, no pattern (the same measurement). */
+      const c = markup.charCodeAt(cursor);
+      if (c === 32 || c === 9 || c === 10 || c === 12 || c === 13) {
+        cursor++;
         continue;
       }
       if (markup.startsWith('/>', cursor) || markup[cursor] === '>') break;
@@ -403,8 +409,8 @@ export const parseFragment = (
     if (!foreign && (name === 'tr' || name === 'td' || name === 'th') && open().localName === 'table') return null;
 
     /**
-     * **A name the DOM rejects is a DECLINE, never a throw.** `TAG_NAME` is deliberately loose
-     * (`[a-zA-Z][^\s/>]*`) so recovery can see odd names, but that lets a malformed start tag
+     * **A name the DOM rejects is a DECLINE, never a throw.** The tag name is deliberately loose
+     * (a letter, then anything but HTML's whitespace, `/` or `>`) so recovery can see odd names, but that lets a malformed start tag
      * like `<p<div>` yield the name `p<div`, which `createElement` refuses with a DOMException —
      * and an uncaught throw here takes the whole server render down, naming createElement rather
      * than the component. This file's contract is "match a real parser or decline (return null)";
