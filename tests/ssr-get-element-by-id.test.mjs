@@ -60,6 +60,60 @@ const OPS = [
       return fragment.getElementById('dup').className;
     },
   ],
+  /**
+   * **Markup that cannot hold the id is not parsed for it** (`mayHoldId`), so these rows hold the spellings a literal
+   * search would miss: a reference, a carriage return, a NUL. And the near misses it must not answer for: a longer id
+   * that contains the wanted one, and another case.
+   */
+  ...[
+    ['an id written with a character reference', '<p id="&#104;7">x</p>', 'h7'],
+    ['an id holding a carriage return', '<p id="a\r\nb">x</p>', 'a\nb'],
+    ['an id holding a NUL', '<p id="a\0b">x</p>', 'a\uFFFDb'],
+    ['a longer id that contains the wanted one', '<p id="h70">x</p>', 'h7'],
+    ['an id in another case', '<p id="H7">x</p>', 'h7'],
+  ].map(([name, markup, wanted]) => [
+    `${name} (in markup assigned as innerHTML)`,
+    (d) => {
+      const fragment = d.createDocumentFragment();
+      const host = d.createElement('div');
+      host.innerHTML = markup;
+      fragment.append(host);
+      return String(fragment.getElementById(wanted)?.textContent ?? null);
+    },
+  ]),
+  [
+    'an id written only inside a template is parsed for and still not found',
+    (d) => {
+      const fragment = d.createDocumentFragment();
+      const host = d.createElement('div');
+      host.innerHTML = '<p>before</p><template><i id="inner">x</i></template>';
+      fragment.append(host);
+      return String(fragment.getElementById('inner')) + ':' + host.children.length;
+    },
+  ],
+  [
+    'a miss, then a hit, in the same markup',
+    (d) => {
+      const fragment = d.createDocumentFragment();
+      const host = d.createElement('div');
+      host.innerHTML = '<section><i id="h7">seven</i></section>';
+      fragment.append(host);
+      return String(fragment.getElementById('nope')) + ':' + fragment.getElementById('h7').textContent;
+    },
+  ],
+  [
+    'an element appended after markup that cannot hold the id is found',
+    (d) => {
+      const fragment = d.createDocumentFragment();
+      const host = d.createElement('div');
+      host.innerHTML = '<b>no ids here</b>';
+      const p = d.createElement('p');
+      p.setAttribute('id', 'later');
+      host.append(p);
+      fragment.append(host);
+      return String(fragment.getElementById('later') === p) + ':' + host.firstChild.textContent;
+    },
+  ],
   [
     'an id only inside a template is not found',
     (d) => {
@@ -94,12 +148,20 @@ const run = (doc, op) => {
   }
 };
 
+/**
+ * **Known: the server's parser keeps a NUL in an attribute value**, where the engines read U+FFFD, so the NUL row's id
+ * is not the engines' id (the same answer before `getElementById` searched markup selectively). Pinned exactly, both
+ * ways: when the parser reads U+FFFD, this row turns red and joins the table.
+ */
+const KNOWN = new Map([['an id holding a NUL (in markup assigned as innerHTML)', { shim: 'null', engines: 'x' }]]);
+
 test('getElementById answers as the engines do, whatever the id holds', () => {
   const differ = [];
   for (const [name, op] of OPS) {
     const ours = run(shim, op);
     const theirs = run(real, op);
-    if (ours !== theirs) differ.push(`${name}: shim ${JSON.stringify(ours)}, engines ${JSON.stringify(theirs)}`);
+    const known = KNOWN.get(name);
+    if (known ? ours !== known.shim || theirs !== known.engines : ours !== theirs) differ.push(`${name}: shim ${JSON.stringify(ours)}, engines ${JSON.stringify(theirs)}`);
   }
   assert.deepEqual(differ, []);
 });

@@ -1360,10 +1360,7 @@ export class ContainerShim extends NodeBaseShim {
    */
   getElementById(id: string): ElementShim | null {
     const wanted = `${id}`;
-    if (wanted === '') return null;
-    parseChunks(this);
-    for (const element of select.descendantsOf(this)) if (element.getAttribute('id') === wanted) return element;
-    return null;
+    return wanted === '' ? null : select.elementById(this, wanted);
   }
   /**
    * **Only retained nodes.** Every entry this DOM holds as an element *is* an element, so `children`

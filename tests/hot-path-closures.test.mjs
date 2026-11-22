@@ -37,6 +37,7 @@ const HOT = {
   'packages/lite/src/schedule.ts': ['render', 'queue', 'flush'],
   /** The server's scan (2026-11-19): every static at compile, and every `.innerHTML` value on every render. */
   'packages/ssr/src/vera/tokenizer.ts': ['scanTag', 'closerAt'],
+  'packages/ssr/src/vera/select.ts': ['elementById', 'mayHoldId'],
 };
 /** How many functions a listed name is (1 unless an accessor pair). */
 const COUNT = {};

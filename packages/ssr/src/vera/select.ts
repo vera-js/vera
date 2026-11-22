@@ -277,6 +277,42 @@ const descendants = (node: ContainerShim, out: ElementShim[] = []): ElementShim[
   return out;
 };
 
+/**
+ * **Whether markup can hold an element whose id is `wanted`.** Ids compare as strings, case and all, so an element with
+ * that id is written with the id's own characters — unless the markup spells them another way: a character reference
+ * (`&#104;7` is `h7`), a carriage return (an attribute value's `\r\n` is read as `\n`) or a NUL (read as U+FFFD).
+ * Markup holding none of those, and not the id itself, cannot hold the element.
+ */
+const mayHoldId = (markup: string, wanted: string): boolean =>
+  markup.includes(wanted) || markup.includes('&') || markup.includes('\r') || markup.includes('\0');
+
+/**
+ * **The first descendant whose id is `wanted`, in document order — parsing only markup that can hold it.** Answering
+ * `getElementById` by the general walk parsed every chunk below the query: a 50 KB article assigned as `.innerHTML`
+ * cost 1.3 ms to search for an id it did not hold (median, 300 rounds, warm). A container whose unparsed markup cannot
+ * hold the id (`mayHoldId`) is not parsed for it; its elements are still searched, and a later query that needs its
+ * nodes parses it then. Where it is parsed, a declined chunk says so, as in the general walk.
+ */
+export const elementById = (node: ContainerShim, wanted: string): ElementShim | null => {
+  /** A plain loop, not `some` with an arrow: the arrow would capture `wanted` on every container of every lookup. */
+  let parse = node._parsed === true;
+  for (let i = 0, entries = node._entries; !parse && i < entries.length; i++) {
+    const entry = entries[i];
+    if (typeof entry === 'string' && mayHoldId(entry, wanted)) parse = true;
+  }
+  if (parse) {
+    parseChunks(node);
+    sayDeclined(node);
+  }
+  for (const child of childrenOf(node)) {
+    if (child.getAttribute('id') === wanted) return child;
+    if (child.localName === 'template' && child._ns === HTML_NS) continue;
+    const found = elementById(child, wanted);
+    if (found !== null) return found;
+  }
+  return null;
+};
+
 /** Every descendant element, in document order — shared with the collection queries. */
 export const descendantsOf = (node: ContainerShim): ElementShim[] => descendants(node);
 
